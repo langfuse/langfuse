@@ -15,6 +15,7 @@ const mockSession = ({
   langfuseTopics = false,
   admin = false,
   email,
+  emailVerified,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
@@ -22,6 +23,7 @@ const mockSession = ({
   langfuseTopics?: boolean;
   admin?: boolean;
   email?: string;
+  emailVerified?: string | null;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
 }) => {
@@ -31,6 +33,7 @@ const mockSession = ({
       user: {
         admin,
         email,
+        emailVerified,
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
@@ -71,6 +74,7 @@ describe("useIsFeatureEnabled", () => {
     {
       admin: false,
       email: "member@clickhouse.com",
+      emailVerified: "2026-01-01T00:00:00.000Z",
       internalFeatures: false,
       enableExperimentalFeatures: false,
       expected: false,
@@ -95,7 +99,11 @@ describe("useIsFeatureEnabled", () => {
     ["member@notlangfuse.com", false],
     ["member@notclickhouse.com", false],
   ])("grants only internal views to %s: %s", (email, expected) => {
-    mockSession({ aiGateway: false, email });
+    mockSession({
+      aiGateway: false,
+      email,
+      emailVerified: "2026-01-01T00:00:00.000Z",
+    });
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
       searchBar: useIsFeatureEnabled("searchBar"),
@@ -109,6 +117,19 @@ describe("useIsFeatureEnabled", () => {
       langfuseTopics: false,
     });
   });
+
+  it.each([null, undefined])(
+    "does not grant internal view without email verification: %s",
+    (emailVerified) => {
+      mockSession({
+        aiGateway: false,
+        email: "member@langfuse.com",
+        emailVerified,
+      });
+      const { result } = renderHook(() => useInternalFeaturesEnabled());
+      expect(result.current).toBe(false);
+    },
+  );
 
   it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
     mockSession({

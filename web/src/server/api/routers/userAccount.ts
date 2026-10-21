@@ -88,22 +88,19 @@ export const userAccountRouter = createTRPCRouter({
   setViewMode: authenticatedProcedure
     .input(z.object({ mode: z.enum(["INTERNAL", "EXTERNAL"]) }))
     .mutation(async ({ input, ctx }) => {
-      const canEnableFeaturePreviews =
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-        ctx.session.user.v4BetaEnabled === true;
-
       if (
+        input.mode === "INTERNAL" &&
         !hasInternalAccess({
           email: ctx.session.user.email,
+          emailVerified: ctx.session.user.emailVerified,
           isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        }) ||
-        !canEnableFeaturePreviews
+        })
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Internal view mode requires ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+          message: "Internal view is only available to eligible users.",
         });
       }
       await setUserFeaturePreview({

@@ -465,6 +465,7 @@ export const eventsRouter = createTRPCRouter({
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
           email: ctx.session?.user?.email,
+          emailVerified: ctx.session?.user?.emailVerified,
           isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",

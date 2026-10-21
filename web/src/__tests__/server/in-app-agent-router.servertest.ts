@@ -102,7 +102,15 @@ describe("in-app agent router", () => {
     });
     const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
       email: "member@clickhouse.com",
+      emailVerified: "2026-01-01T00:00:00.000Z",
     });
+    const unverifiedStaffCaller = createCallerForFixture(
+      fixture,
+      fixture.ownerUserId,
+      {
+        email: "member@clickhouse.com",
+      },
+    );
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
     const originalExperimentalFeatures =
       env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
@@ -123,6 +131,11 @@ describe("in-app agent router", () => {
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: "ai-features-project" });
+      await expect(
+        unverifiedStaffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).rejects.toThrow("internal surface");
       await expect(
         staffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
@@ -202,13 +215,15 @@ function createCallerForFixture(
   {
     admin = false,
     email = `${userId}@example.com`,
-  }: { admin?: boolean; email?: string } = {},
+    emailVerified,
+  }: { admin?: boolean; email?: string; emailVerified?: string } = {},
 ) {
   const session: Session = {
     expires: "1",
     user: {
       id: userId,
       email,
+      emailVerified,
       name: "In-app Agent Router Test User",
       canCreateOrganizations: true,
       organizations: [

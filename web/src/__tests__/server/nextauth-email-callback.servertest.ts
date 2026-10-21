@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The EmailProvider is only registered when SMTP is configured, and the
 // provider list is built when `@/src/server/auth` is first imported. Set the
@@ -187,6 +187,145 @@ describe("NextAuth signIn callback for the email provider", () => {
   });
 });
 
+describe("NextAuth OAuth staff email verification", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    { name: "verified Google email", verified: true, expected: true },
+    { name: "unverified Google email", verified: false, expected: false },
+    { name: "missing ownership proof", verified: undefined, expected: false },
+    {
+      name: "different verified email",
+      verified: true,
+      mismatch: true,
+      expected: false,
+    },
+    {
+      name: "non-staff email",
+      verified: true,
+      domain: "example.com",
+      expected: false,
+    },
+    {
+      name: "credentials login",
+      verified: true,
+      credentials: true,
+      expected: false,
+    },
+  ])("accepts only matching staff ownership proof: $name", async (testCase) => {
+    const { userId, email } = await createUser({
+      password: null,
+      emailDomain: "domain" in testCase ? testCase.domain : "langfuse.com",
+    });
+    const authOptions = await getAuthOptions();
+    await authOptions.callbacks!.jwt!({
+      token: { email },
+      user: { id: userId, email },
+      account: {
+        provider: "credentials" in testCase ? "credentials" : "google",
+        type: "credentials" in testCase ? "credentials" : "oauth",
+        providerAccountId: userId,
+      },
+      profile: {
+        email:
+          "mismatch" in testCase ? "someone@example.com" : email.toUpperCase(),
+        ...{ email_verified: testCase.verified },
+      },
+    });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(user.emailVerified !== null).toBe(testCase.expected);
+    expect(user.admin).toBe(false);
+  });
+
+  it.each(["github", "langfuse.com.github"])(
+    "verifies %s ownership and skips the lookup after verification",
+    async (provider) => {
+      const { userId, email } = await createUser({
+        password: null,
+        emailDomain: "langfuse.com",
+      });
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(
+          Response.json([{ email: email.toUpperCase(), verified: true }]),
+        );
+      const authOptions = await getAuthOptions();
+      const args = {
+        token: { email },
+        user: { id: userId, email },
+        account: {
+          provider,
+          type: "oauth" as const,
+          providerAccountId: userId,
+          access_token: "test-oauth-token",
+        },
+        profile: { email },
+      };
+      await authOptions.callbacks!.jwt!(args);
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.emailVerified).toBeInstanceOf(Date);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://api.github.com/user/emails",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-oauth-token",
+          }),
+          redirect: "error",
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      fetchMock.mockClear();
+      await authOptions.callbacks!.jwt!({ ...args, user });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["unverified", "different-email", "failed-lookup"])(
+    "keeps login working without verifying GitHub ownership on %s",
+    async (scenario) => {
+      const { userId, email } = await createUser({
+        password: null,
+        emailDomain: "clickhouse.com",
+      });
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+      if (scenario === "failed-lookup")
+        fetchMock.mockRejectedValue(new Error("lookup failed"));
+      else
+        fetchMock.mockResolvedValue(
+          Response.json([
+            {
+              email:
+                scenario === "different-email" ? "someone@example.com" : email,
+              verified: scenario !== "unverified",
+            },
+          ]),
+        );
+      const authOptions = await getAuthOptions();
+      await expect(
+        authOptions.callbacks!.jwt!({
+          token: { email },
+          user: { id: userId, email },
+          account: {
+            provider: "github",
+            type: "oauth",
+            providerAccountId: userId,
+            access_token: "test-oauth-token",
+          },
+          profile: { email },
+        }),
+      ).resolves.toMatchObject({ email });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.emailVerified).toBeNull();
+    },
+  );
+});
+
 describe("POST /api/auth/signin/email captcha", () => {
   it("passes the posted token to Turnstile and does not store a code when it fails", async () => {
     const { email } = await createUser({ password: OLD_PASSWORD });
@@ -306,9 +445,15 @@ async function expectPassword(userId: string, password: string) {
   expect(await verifyPassword(password, user.password!)).toBe(true);
 }
 
-async function createUser({ password }: { password: string | null }) {
+async function createUser({
+  password,
+  emailDomain = "example.com",
+}: {
+  password: string | null;
+  emailDomain?: string;
+}) {
   const id = randomUUID();
-  const email = `user-${id}@example.com`;
+  const email = `user-${id}@${emailDomain}`;
   const user = await prisma.user.create({
     data: {
       id: `user-${id}`,

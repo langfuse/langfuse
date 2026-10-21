@@ -74,18 +74,33 @@ describe("events.transcriptByTraceId preview access", () => {
     {
       name: "staff access without the timeline preview",
       email: "member@clickhouse.com",
+      emailVerified: "2026-01-01T00:00:00.000Z",
       flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
       defaults: [],
       allowed: true,
     },
+    {
+      name: "unverified staff address without the timeline preview",
+      email: "member@clickhouse.com",
+      flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
+      defaults: [],
+      allowed: false,
+    },
   ])("respects $name", async (testCase) => {
-    const { flags, defaults, allowed, email = "user@example.com" } = testCase;
+    const {
+      flags,
+      defaults,
+      allowed,
+      email = "user@example.com",
+      emailVerified,
+    } = testCase;
     const session = {
       expires: "1",
       user: {
         id: "user-id",
         name: "Test User",
         email,
+        emailVerified,
         admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags(),

@@ -301,6 +301,7 @@ describe("Topics visibility gate", () => {
   const session = ({
     admin = false,
     email = "user@example.com",
+    emailVerified = "2026-01-01T00:00:00.000Z",
     langfuseTopics = true,
     internalFeatures = true,
     enableExperimentalFeatures = false,
@@ -308,6 +309,7 @@ describe("Topics visibility gate", () => {
   }: {
     admin?: boolean;
     email?: string;
+    emailVerified?: string | null;
     langfuseTopics?: boolean;
     internalFeatures?: boolean;
     enableExperimentalFeatures?: boolean;
@@ -320,6 +322,7 @@ describe("Topics visibility gate", () => {
         id: "user-a",
         admin,
         email,
+        emailVerified,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
@@ -336,6 +339,16 @@ describe("Topics visibility gate", () => {
       { email: "member@langfuse.com", langfuseTopics: false },
       true,
       true,
+    ],
+    [
+      "an unverified staff address without the Topics flag",
+      {
+        email: "member@langfuse.com",
+        emailVerified: null,
+        langfuseTopics: false,
+      },
+      true,
+      false,
     ],
     [
       "a staff member outside the project",

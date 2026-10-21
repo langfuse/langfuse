@@ -33,6 +33,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     async (enabled) => {
       const { caller, userId } = await createCaller({
         emailDomain: "langfuse.com",
+        emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
@@ -153,13 +154,17 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 describe("userAccountRouter.setViewMode", () => {
   const testEnv = env as {
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: typeof env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   };
   const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
     testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   });
   afterEach(() => {
     testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
   it.each([
@@ -167,10 +172,12 @@ describe("userAccountRouter.setViewMode", () => {
     { admin: false, emailDomain: "langfuse.com" },
     { admin: false, emailDomain: "clickhouse.com" },
   ])("keeps $emailDomain admin=$admin", async (options) => {
+    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const { admin, emailDomain } = options;
     const { caller, userId } = await createCaller({
       admin,
       emailDomain,
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -196,6 +203,24 @@ describe("userAccountRouter.setViewMode", () => {
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
+
+  it.each(["langfuse.com", "clickhouse.com"])(
+    "lets unverified %s addresses opt out but not enable internal view",
+    async (emailDomain) => {
+      const { caller, userId } = await createCaller({ emailDomain });
+      await expect(
+        caller.userAccount.setViewMode({ mode: "INTERNAL" }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.featureFlags).toContain(
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      );
+      expect(user.admin).toBe(false);
+    },
+  );
 });
 
 describe("userAccountRouter.signOutAllSessions", () => {
@@ -293,6 +318,7 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
+  emailVerified = null,
 }: {
   admin?: boolean;
   plan?: Plan;
@@ -302,6 +328,7 @@ async function createCaller({
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
+  emailVerified?: Date | null;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -326,6 +353,7 @@ async function createCaller({
     data: {
       id: userId,
       email: `${userId}@${emailDomain}`,
+      emailVerified,
       name: "User Account Test User",
       featureFlags,
       admin,
@@ -337,6 +365,8 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
+      emailVerified: user.emailVerified?.toISOString(),
+      v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
       organizations: [
