@@ -114,9 +114,14 @@ The default seed (`seed-postgres`) calls `seedTopicsDemo` for llm-app: 400
 original agent traces (airline, retail and telecom support, a workspace file
 assistant, a research assistant) plus the built-in facets, their summaries and
 embeddings, one completed map per facet, and its assignments with map
-coordinates. The state in `scenarios/topics-demo-fixture.ts` came from a real
-local pipeline run over those traces, so no model calls happen at seed time.
+coordinates. The state in `fixtures/topics-demo/` came from a real local
+pipeline run over those traces, so no model calls happen at seed time.
 `pnpm run seed -- topics-demo` re-seeds it.
+
+The fixtures are repo-only: the shared build does not emit them, so release
+images never contain them. Preview worker images copy them next to the
+compiled seeder (`INCLUDE_SEED_FIXTURES` in `worker/Dockerfile`); without them
+the default seed skips the Topics demo with a warning.
 
 After applying the normal Postgres and ClickHouse migrations, seed either fixture:
 

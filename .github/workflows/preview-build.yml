@@ -182,7 +182,8 @@ jobs:
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
             context: .
-            extra_build_args: ""
+            # Repo-only seed fixtures (Topics demo) for the preview seeder job.
+            extra_build_args: --build-arg INCLUDE_SEED_FIXTURES=true
     steps:
       # The PR head is the Docker build context — the exact commit the image tag
       # pins to. This job posts no comments, so it needs no base checkout and can

@@ -204,6 +204,14 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
     cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
 
+# Preview images only: repo-only seed fixtures next to the compiled seeder.
+ARG INCLUDE_SEED_FIXTURES=false
+RUN if [ "$INCLUDE_SEED_FIXTURES" = "true" ]; then \
+      seeder_dir="$(find /prod/worker/node_modules -path '*@langfuse/shared/dist/scripts/seeder' -type d | head -n 1)" && \
+      test -n "$seeder_dir" && \
+      cp -R /app/packages/shared/scripts/seeder/fixtures "$seeder_dir/"; \
+    fi
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 
 ARG TARGETPLATFORM

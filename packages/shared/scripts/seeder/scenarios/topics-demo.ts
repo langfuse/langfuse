@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { gunzipSync } from "node:zlib";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { prisma } from "../../../src/db";
 import {
   clickhouseClient,
@@ -8,6 +9,7 @@ import {
   createObservationsCh,
   createTrace,
   createTracesCh,
+  logger,
   type ObservationRecordInsertType,
 } from "../../../src/server";
 import {
@@ -19,7 +21,6 @@ import {
 import type { TopicSummaryState } from "../../../src/topics";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { utcDayStartMs } from "./rng";
-import { TOPICS_DEMO_FIXTURE } from "./topics-demo-fixture";
 import { ScenarioDefinition, SeedError } from "./types";
 import { countRows, tracesListLink } from "./verify";
 
@@ -51,8 +52,7 @@ type FixtureFacet = {
   topics: {
     name: string;
     description: string;
-    /** base64 little-endian Float32 */
-    centroid: string;
+    centroid: number[];
     radius: number;
     metadata: Record<string, unknown>;
     representativeTraces: number[];
@@ -62,9 +62,9 @@ type FixtureFacet = {
     trace: number;
     state: TopicSummaryState;
     summary: string;
-    /** base64 int8, scaled by embeddingScale */
-    embedding: string;
-    embeddingScale: number;
+    /** int8 in vectors.bin, scaled by embeddingScale; absent unless complete */
+    embeddingScale?: number;
+    embedding: number[];
   }[];
   assignments: {
     trace: number;
@@ -89,25 +89,42 @@ const OUTPUT_PRICE = 8 / 1e6;
 const hex = (value: string, length: number) =>
   createHash("sha256").update(value).digest("hex").slice(0, length);
 
-const decodeFloat32 = (value: string) => {
-  const buffer = Buffer.from(value, "base64");
-  return Array.from({ length: buffer.length / 4 }, (_, index) =>
-    buffer.readFloatLE(index * 4),
-  );
-};
+// Not part of the shared package build: present in the repo and copied into
+// preview worker images only (worker/Dockerfile INCLUDE_SEED_FIXTURES).
+const FIXTURE_DIR = path.join(__dirname, "../fixtures/topics-demo");
 
-const decodeInt8 = (value: string, scale: number) => {
-  const buffer = Buffer.from(value, "base64");
-  return Array.from(
-    new Int8Array(buffer.buffer, buffer.byteOffset, buffer.length),
-    (byte) => Math.fround(byte * scale),
-  );
-};
-
-const loadFixture = (): Fixture =>
-  JSON.parse(
-    gunzipSync(Buffer.from(TOPICS_DEMO_FIXTURE, "base64")).toString("utf8"),
-  );
+/** vectors.bin holds all Float32 centroids (facet, topic order), then one int8 embedding per complete summary. */
+function loadFixture(): Fixture | null {
+  if (!existsSync(FIXTURE_DIR)) return null;
+  const read = (file: string) =>
+    JSON.parse(readFileSync(path.join(FIXTURE_DIR, file), "utf8"));
+  const { blobs, traces } = read("traces.json");
+  const { dimensions, facets } = read("topics.json") as {
+    dimensions: number;
+    facets: FixtureFacet[];
+  };
+  const vectors = readFileSync(path.join(FIXTURE_DIR, "vectors.bin"));
+  let offset = 0;
+  for (const topic of facets.flatMap((facet) => facet.topics)) {
+    topic.centroid = Array.from({ length: dimensions }, (_, index) =>
+      vectors.readFloatLE(offset + index * 4),
+    );
+    offset += dimensions * 4;
+  }
+  for (const row of facets.flatMap((facet) => facet.summaries)) {
+    const scale = row.embeddingScale;
+    row.embedding =
+      scale === undefined
+        ? []
+        : Array.from({ length: dimensions }, (_, index) =>
+            Math.fround(vectors.readInt8(offset + index) * scale),
+          );
+    if (scale !== undefined) offset += dimensions;
+  }
+  if (offset !== vectors.length)
+    throw new SeedError("topics-demo vectors.bin does not match topics.json");
+  return { blobs, traces, facets };
+}
 
 /** Rebuilds each generation's full chat input from the delta-encoded steps. */
 function buildObservations(
@@ -203,6 +220,10 @@ export async function clickhouseTableExists(table: string) {
  */
 export async function seedTopicsDemo(projectId: string) {
   const fixture = loadFixture();
+  if (!fixture) {
+    logger.warn(`Skipping Topics demo data: no fixture at ${FIXTURE_DIR}.`);
+    return null;
+  }
   const anchorMs = utcDayStartMs();
   const firstMs = anchorMs - SPAN_DAYS * 86_400_000;
   // Traces end 2h before the anchor so every summary predates the map (anchor - 1h).
@@ -277,7 +298,7 @@ export async function seedTopicsDemo(projectId: string) {
         tags: [],
         name: topic.name,
         description: topic.description,
-        centroid: decodeFloat32(topic.centroid),
+        centroid: topic.centroid,
         radius: topic.radius,
         representativeSummaries: topic.representativeTraces.map((trace) => ({
           facetId: facet.id,
@@ -302,7 +323,7 @@ export async function seedTopicsDemo(projectId: string) {
         unitStartTime: new Date(startTimes[row.trace]!).toISOString(),
         state: row.state,
         summary: row.summary,
-        embedding: decodeInt8(row.embedding, row.embeddingScale),
+        embedding: row.embedding,
         transcriptId: hex(`${traceIds[row.trace]}:transcript`, 32),
         transcriptVersion: "v1",
         summaryModel: state.summaryModel,
@@ -404,9 +425,13 @@ export const topicsDemoScenario: ScenarioDefinition = {
         durationMs: Date.now() - startedAt,
       };
     ctx.log("seeding Topics demo traces and published maps");
-    const { traceIds, observationCount, summaryCount } = await seedTopicsDemo(
-      ctx.projectId,
-    );
+    const seeded = await seedTopicsDemo(ctx.projectId);
+    if (!seeded)
+      throw new SeedError(
+        "topics-demo fixture files are missing",
+        "run from a repository checkout (packages/shared/scripts/seeder/fixtures/topics-demo)",
+      );
+    const { traceIds, observationCount, summaryCount } = seeded;
     const queryParams = { projectId: ctx.projectId, traceIds };
     const where =
       "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}";
