@@ -43,6 +43,7 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
+import { clickhouseTableExists, seedTopicsDemo } from "./scenarios/topics-demo";
 
 const options = {
   environment: { type: "string" },
@@ -223,6 +224,11 @@ async function main() {
     userId: user.id,
     summaryPrompt,
   });
+  // Some flows seed Postgres before ClickHouse is migrated; ch:seed seeds it then.
+  if (await clickhouseTableExists("topic_assignments"))
+    await seedTopicsDemo(project1.id);
+  else
+    logger.warn("Skipping Topics demo data: ClickHouse is not migrated yet.");
 
   const seedApiKey = {
     ...DEFAULT_SEED_API_KEY,

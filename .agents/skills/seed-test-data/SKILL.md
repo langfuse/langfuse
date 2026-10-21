@@ -71,6 +71,9 @@ second run on that dataset whose chat output is long enough to need a taller
 comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
 other than 3000.
 
+The default seed already includes a published Topics state in llm-app: 400
+agent traces with summaries, embeddings and one map per built-in facet. Re-seed
+it with `pnpm run seed -- topics-demo`.
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.

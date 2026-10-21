@@ -110,6 +110,14 @@ row counts and the expected quality matches (4,000 / 4,000 / 2,000).
 
 ## Topics
 
+The default seed (`seed-postgres`) calls `seedTopicsDemo` for llm-app: 400
+original agent traces (airline, retail and telecom support, a workspace file
+assistant, a research assistant) plus the built-in facets, their summaries and
+embeddings, one completed map per facet, and its assignments with map
+coordinates. The state in `scenarios/topics-demo-fixture.ts` came from a real
+local pipeline run over those traces, so no model calls happen at seed time.
+`pnpm run seed -- topics-demo` re-seeds it.
+
 After applying the normal Postgres and ClickHouse migrations, seed either fixture:
 
 ```bash
