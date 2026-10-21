@@ -1,13 +1,15 @@
-const enabledModelsRule =
-  "Only enabled models can be requested through this credential.";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-export function describeGatewayModelAccess(allowedModels: string[] | null) {
-  const futureModelsAreEnabled = allowedModels === null;
+export function describeGatewayModelAccess(
+  allowedModels: string[] | null,
+  provider: GatewayProvider,
+) {
+  const providerLabel = providerLabels[provider];
 
-  return {
-    rule: enabledModelsRule,
-    impact: futureModelsAreEnabled
-      ? "While every model is enabled, models this provider adds later are enabled too."
-      : "While any model is disabled, models this provider adds later stay disabled until you enable them.",
-  };
+  if (allowedModels === null) {
+    return `Gateway keys can call every ${providerLabel} model, including models ${providerLabel} publishes in the future.`;
+  }
+
+  return `Gateway keys can call only the models you enabled. Models ${providerLabel} publishes in the future stay off until you enable them here.`;
 }

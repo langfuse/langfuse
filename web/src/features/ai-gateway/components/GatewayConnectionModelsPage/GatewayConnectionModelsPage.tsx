@@ -112,7 +112,10 @@ function ConnectionSummary({
     );
   }
 
-  const access = describeGatewayModelAccess(connection.allowedModels);
+  const access = describeGatewayModelAccess(
+    connection.allowedModels,
+    connection.provider,
+  );
   const deleteConnection = () => onDelete(connection);
 
   return (
@@ -159,9 +162,7 @@ function ConnectionSummary({
           </div>
         )}
       </ConfirmationDialogController>
-      <p className="text-muted-foreground text-sm">
-        {access.rule} <span className="text-foreground">{access.impact}</span>
-      </p>
+      <p className="text-muted-foreground text-sm">{access}</p>
     </>
   );
 }
