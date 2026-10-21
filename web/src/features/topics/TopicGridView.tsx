@@ -18,10 +18,9 @@ import {
   type Facet,
   type FacetRow,
   allTopicsLabel,
-  facetTopicTones,
   orderedFacetTopics,
 } from "./facet-topics";
-import { topicColor, topicToneColor } from "./topic-map-colors";
+import { topicColor } from "./topic-map-colors";
 import {
   layoutTopicGrid,
   sampleGridPoints,
@@ -37,8 +36,6 @@ const CELL_MIN = 3;
 const CELL_MAX = 28;
 const PAD_X = 16;
 const PAD_Y = 16;
-/** Matches the hover card's `w-64`. */
-const CARD_WIDTH = 256;
 const CARD_OFFSET = 8;
 
 export function TopicGridView({
@@ -53,15 +50,11 @@ export function TopicGridView({
 }: TopicGridViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
-  const tones = facetTopicTones(facet);
-  const topics = orderedFacetTopics(facet).map((topic, index) => {
-    const tone = tones.get(topic.id);
-    return {
-      ...topic,
-      count: counts.get(topic.id) ?? 0,
-      color: tone ? topicToneColor(tone) : topicColor(index),
-    };
-  });
+  const topics = orderedFacetTopics(facet).map((topic, index) => ({
+    ...topic,
+    count: counts.get(topic.id) ?? 0,
+    color: topicColor(index),
+  }));
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? null;
   const rowsById = useMemo(
@@ -183,7 +176,9 @@ function TopicGrid({
   const fit = size
     ? Math.min(innerWidth / layout.cols, innerHeight / layout.rows)
     : 0;
-  const cell = clamp(fit * ZOOM_STEP ** zoom, CELL_MIN, CELL_MAX);
+  // Zoom from the displayed size, so steps take effect even when fit exceeds the cap.
+  const baseCell = clamp(fit, CELL_MIN, CELL_MAX);
+  const cell = clamp(baseCell * ZOOM_STEP ** zoom, CELL_MIN, CELL_MAX);
   const gap = Math.max(0.5, cell * 0.16);
   const radius = cell * 0.18;
   const gridWidth = layout.cols * cell;
@@ -241,7 +236,7 @@ function TopicGrid({
       <div className="flex min-h-0 flex-1 flex-col border-t">
         <div
           ref={containerRef}
-          className="relative flex min-h-0 flex-1 overflow-auto overscroll-contain"
+          className="relative flex min-h-0 flex-[2] overflow-auto overscroll-contain"
         >
           {points.length === 0 ? (
             <GridMessage>No positioned traces in this time range.</GridMessage>
@@ -357,7 +352,7 @@ function GridLegend({
     onHoverTopic(null);
   }
   return (
-    <div className="flex max-h-48 shrink-0 flex-col overflow-hidden border-t">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t">
       <ul
         aria-label="Topics"
         className="grid min-h-0 grid-cols-2 gap-x-4 gap-y-0.5 overflow-y-auto p-2"
@@ -422,14 +417,13 @@ function GridHoverCard({
   members,
   color,
 }: GridHoverCardProps) {
-  const gridWidth = grid.cols * cellSize;
-  const fitsRight =
-    (cell.col + 1) * cellSize + CARD_OFFSET + CARD_WIDTH <= gridWidth;
-  const left = fitsRight
-    ? (cell.col + 1) * cellSize + CARD_OFFSET
-    : Math.max(0, cell.col * cellSize - CARD_OFFSET - CARD_WIDTH);
+  // Card sits above/below the dot, growing toward the grid center, so it never covers it.
+  const toLeft = cell.col >= grid.cols / 2;
   const below = cell.row < grid.rows / 2;
-  const top = below ? cell.row * cellSize : (cell.row + 1) * cellSize;
+  const left = (cell.col + (toLeft ? 1 : 0)) * cellSize;
+  const top = below
+    ? (cell.row + 1) * cellSize + CARD_OFFSET
+    : cell.row * cellSize - CARD_OFFSET;
   const shortId = cell.id.length > 8 ? `${cell.id.slice(0, 8)}…` : cell.id;
   const started = row
     ? formatCompactRelativeTime(new Date(row.unitStartTime))
@@ -438,7 +432,11 @@ function GridHoverCard({
     <div
       role="tooltip"
       className="bg-popover text-popover-foreground pointer-events-none absolute w-64 rounded-md border p-2 shadow-md"
-      style={{ left, top, translate: below ? undefined : "0 -100%" }}
+      style={{
+        left,
+        top,
+        translate: `${toLeft ? "-100%" : "0"} ${below ? "0" : "-100%"}`,
+      }}
     >
       <div className="flex items-center gap-1.5 text-xs">
         <span

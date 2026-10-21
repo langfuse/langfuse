@@ -81,7 +81,6 @@ function CurrentFacet({
       <TopicTreemapView
         projectId={projectId}
         facet={facet}
-        tracePanelRef={tracePanelRef}
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
         peekView={peekView}

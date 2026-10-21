@@ -16,9 +16,7 @@ project permissions. Processing additionally requires the project allowlist.
   saved map projection onto one square per trace (sampled above 1,000), legend
   under it and traces on the right. Both list the selected topic's traces in
   `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.
-  Sentiment and Outcome color topics by their answer label
-  (`topic-map-colors.ts`). `useTopicTraceFilters.ts` owns URL-backed facet
-  selection.
+  `useTopicTraceFilters.ts` owns URL-backed facet selection.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors

@@ -4,7 +4,6 @@ import {
 } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { rangeToString } from "@/src/utils/date-range-utils";
-import { type TopicTone, topicTone } from "./topic-map-colors";
 
 export type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 export type FacetRow = Facet["rows"][number];
@@ -30,6 +29,17 @@ export function topicTracesHref(
 ) {
   if (rows.length === 0) return null;
   const filter = encodeFiltersGeneric([
+    // v4 lists observations; root ones stand for their traces.
+    ...(isV4
+      ? [
+          {
+            column: "isRootObservation",
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: true,
+          },
+        ]
+      : []),
     {
       column: isV4 ? "traceId" : "id",
       type: "stringOptions",
@@ -46,23 +56,6 @@ export function topicTracesHref(
   return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(dateRange)}`;
 }
 
-export function facetTopicTones(facet: Facet): Map<string, TopicTone> {
-  const summaries = new Map<string, string[]>();
-  for (const row of facet.rows) {
-    if (!row.topicId) continue;
-    const list = summaries.get(row.topicId) ?? [];
-    list.push(row.summary);
-    summaries.set(row.topicId, list);
-  }
-  const tones = new Map<string, TopicTone>();
-  for (const [topicId, list] of summaries) {
-    const tone = topicTone(facet.name, list);
-    if (tone) tones.set(topicId, tone);
-  }
-  return tones;
-}
-
 export function allTopicsLabel(facetName: string) {
-  const name = facetName.toLowerCase();
-  return `All ${name.endsWith("s") ? name : `${name}s`}`;
+  return `${facetName} summaries`;
 }

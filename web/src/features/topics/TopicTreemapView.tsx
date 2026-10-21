@@ -4,12 +4,12 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import { type Facet, type FacetTopic, facetTopicTones } from "./facet-topics";
+import { type Facet, type FacetTopic } from "./facet-topics";
 import {
-  topicToneSwatchColor,
-  topicToneTileClasses,
   treemapSwatchColor,
   treemapTileClasses,
+  UNASSIGNED_SWATCH_COLOR,
+  unassignedTileClasses,
 } from "./topic-map-colors";
 import { layoutTreemap } from "./topic-treemap-layout";
 import { TopicTraceList } from "./TopicTraceList";
@@ -37,7 +37,6 @@ export function TopicTreemapView({
   projectId,
   facet,
   peekView,
-  tracePanelRef,
   onGenerateTopics,
   canGenerateTopics,
 }: TopicTreemapViewProps) {
@@ -84,7 +83,6 @@ export function TopicTreemapView({
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}
-        tracePanelRef={tracePanelRef}
         divider="top"
       />
     </div>
@@ -99,16 +97,12 @@ function TopicTreemap({
 }: TopicTreemapProps) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const total = facet.rows.length;
-  const tones = facetTopicTones(facet);
   function tileColors(topicId: string, big: boolean) {
-    if (topicId === UNASSIGNED_ID) return topicToneTileClasses("neutral");
-    const tone = tones.get(topicId);
-    return tone
-      ? topicToneTileClasses(tone)
-      : treemapTileClasses(
-          facet.topics.findIndex((topic) => topic.id === topicId),
-          big,
-        );
+    if (topicId === UNASSIGNED_ID) return unassignedTileClasses;
+    return treemapTileClasses(
+      facet.topics.findIndex((topic) => topic.id === topicId),
+      big,
+    );
   }
   const tiles = size
     ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
@@ -216,9 +210,7 @@ function TopicTileButton({
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
             {topic.count.toLocaleString()}
           </span>
-          {tier === "large" && (
-            <span className="text-xs opacity-80">{shareLabel}</span>
-          )}
+          {showName && <span className="text-xs opacity-80">{shareLabel}</span>}
         </span>
       )}
     </button>
@@ -233,20 +225,16 @@ function tileTier(width: number, height: number): TileTier {
 }
 
 function swatchFor(facet: Facet, topicId: string) {
-  if (topicId === UNASSIGNED_ID) return topicToneSwatchColor("neutral");
-  const tone = facetTopicTones(facet).get(topicId);
-  return tone
-    ? topicToneSwatchColor(tone)
-    : treemapSwatchColor(
-        facet.topics.findIndex((topic) => topic.id === topicId),
-      );
+  if (topicId === UNASSIGNED_ID) return UNASSIGNED_SWATCH_COLOR;
+  return treemapSwatchColor(
+    facet.topics.findIndex((topic) => topic.id === topicId),
+  );
 }
 
 type TopicTreemapViewProps = {
   projectId: string;
   facet: Facet;
   peekView: DataTablePeekViewProps;
-  tracePanelRef?: (element: HTMLElement | null) => void;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
 };

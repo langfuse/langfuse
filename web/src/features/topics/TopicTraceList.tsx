@@ -141,7 +141,7 @@ export function TopicTraceList({
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
-        noResultsMessage="No traces in this topic."
+        noResultsMessage="No trace summaries."
         peekView={peekView}
       />
     </section>

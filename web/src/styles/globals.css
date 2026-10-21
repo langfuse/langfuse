@@ -151,14 +151,7 @@
   /* Category fills at one OKLCH lightness and chroma per state. */
   --color-category-violet-highlight: var(--category-violet-highlight);
   --color-category-blue-highlight: var(--category-blue-highlight);
-  --color-category-emerald-tint: var(--category-emerald-tint);
-  --color-category-emerald-highlight: var(--category-emerald-highlight);
-  --color-category-amber-tint: var(--category-amber-tint);
   --color-category-amber-highlight: var(--category-amber-highlight);
-  --color-category-pink-tint: var(--category-pink-tint);
-  --color-category-pink-highlight: var(--category-pink-highlight);
-  --color-category-orange-tint: var(--category-orange-tint);
-  --color-category-orange-highlight: var(--category-orange-highlight);
   --color-category-neutral-tint: var(--category-neutral-tint);
   --color-category-neutral-highlight: var(--category-neutral-highlight);
 
@@ -350,14 +343,7 @@
   :root {
     --category-violet-highlight: oklch(0.82 0.11 293);
     --category-blue-highlight: oklch(0.82 0.11 252);
-    --category-emerald-tint: oklch(0.92 0.04 163);
-    --category-emerald-highlight: oklch(0.82 0.11 163);
-    --category-amber-tint: oklch(0.92 0.04 70);
     --category-amber-highlight: oklch(0.82 0.11 70);
-    --category-pink-tint: oklch(0.92 0.04 354);
-    --category-pink-highlight: oklch(0.82 0.11 354);
-    --category-orange-tint: oklch(0.92 0.04 42);
-    --category-orange-highlight: oklch(0.82 0.11 42);
     --category-neutral-tint: oklch(0.92 0 0);
     --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
@@ -588,14 +574,7 @@
   .dark {
     --category-violet-highlight: oklch(0.45 0.11 293);
     --category-blue-highlight: oklch(0.45 0.11 252);
-    --category-emerald-tint: oklch(0.3 0.04 163);
-    --category-emerald-highlight: oklch(0.45 0.11 163);
-    --category-amber-tint: oklch(0.3 0.04 70);
     --category-amber-highlight: oklch(0.45 0.11 70);
-    --category-pink-tint: oklch(0.3 0.04 354);
-    --category-pink-highlight: oklch(0.45 0.11 354);
-    --category-orange-tint: oklch(0.3 0.04 42);
-    --category-orange-highlight: oklch(0.45 0.11 42);
     --category-neutral-tint: oklch(0.3 0 0);
     --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added
