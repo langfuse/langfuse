@@ -350,7 +350,7 @@ export const aiGatewayRouter = createTRPCRouter({
   listApiKeys: protectedOrganizationProcedure
     .input(
       offsetPaginatedOrganizationInput.extend({
-        searchQuery: z.string().trim().max(500).optional(),
+        searchQuery: z.string().trim().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
