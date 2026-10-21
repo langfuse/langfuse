@@ -28,9 +28,13 @@ use tokio::{
     time::Instant,
 };
 
-/// Connections that wrote less than this without a write problem, such as
-/// health checks, are not logged.
+/// Connections that wrote less than this without a write error or a long
+/// write block, such as health checks, are not logged.
 const PROBE_BYTES: u64 = 8 * 1024;
+
+/// A new socket's first write is often pending until the reactor sees it
+/// writable, so shorter blocks are not worth a log line on their own.
+const NOTABLE_WRITE_BLOCK: Duration = Duration::from_millis(100);
 
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -161,7 +165,8 @@ impl Drop for ObservedStream {
         let blocked_at_close = self.write_blocked_since.map(|since| now - since);
         if self.bytes_written < PROBE_BYTES
             && self.write_error.is_none()
-            && blocked_at_close.is_none()
+            && blocked_at_close.is_none_or(|blocked| blocked < NOTABLE_WRITE_BLOCK)
+            && self.longest_write_block < NOTABLE_WRITE_BLOCK
         {
             return;
         }

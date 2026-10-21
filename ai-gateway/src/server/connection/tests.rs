@@ -110,12 +110,15 @@ async fn write_blocked_by_a_peer_that_stops_reading_is_logged_at_close() {
         .await
         .unwrap();
     let (mut stream, _) = Listener::accept(&mut listener).await;
+    stream.io.writable().await.unwrap();
     let chunk = vec![0; 64 * 1024];
     let mut cx = Context::from_waker(Waker::noop());
     while let Poll::Ready(written) = Pin::new(&mut stream).poll_write(&mut cx, &chunk) {
         assert!(written.unwrap() > 0);
     }
     let written = stream.bytes_written;
+    assert!(written > 0);
+    assert!(stream.write_blocked_since.is_some());
     drop(stream);
     drop(client);
 
@@ -123,6 +126,26 @@ async fn write_blocked_by_a_peer_that_stops_reading_is_logged_at_close() {
     assert_eq!(closed.len(), 1);
     assert_eq!(closed[0]["bytes_written"], written);
     assert!(closed[0]["write_blocked_at_close_ms"].as_f64().unwrap() >= 0.0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn small_connections_with_a_recovered_write_block_are_logged() {
+    let (_guard, output) = record_logs();
+    let mut listener = ObservedListener(TcpListener::bind("127.0.0.1:0").await.unwrap());
+    let _client = TcpStream::connect(listener.local_addr().unwrap())
+        .await
+        .unwrap();
+    let (mut stream, _) = Listener::accept(&mut listener).await;
+    let _ = stream.record_write(Poll::Pending);
+    tokio::time::advance(Duration::from_millis(250)).await;
+    let _ = stream.record_write(Poll::Ready(Ok(19)));
+    drop(stream);
+
+    let closed = events(&output, "gateway connection closed");
+    assert_eq!(closed.len(), 1);
+    assert_eq!(closed[0]["bytes_written"], 19);
+    assert_eq!(closed[0]["longest_write_block_ms"], 250.0);
+    assert!(closed[0].get("write_blocked_at_close_ms").is_none());
 }
 
 #[tokio::test]
