@@ -148,6 +148,51 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
+  /* Treemap topic fills: base when hovered or selected; mixed toward the page for resting big and small tiles. */
+  --color-topic-violet: var(--topic-violet);
+  --color-topic-violet-big: color-mix(
+    in oklch,
+    var(--topic-violet) 60%,
+    hsl(var(--background))
+  );
+  --color-topic-violet-small: color-mix(
+    in oklch,
+    var(--topic-violet) 35%,
+    hsl(var(--background))
+  );
+  --color-topic-blue: var(--topic-blue);
+  --color-topic-blue-big: color-mix(
+    in oklch,
+    var(--topic-blue) 60%,
+    hsl(var(--background))
+  );
+  --color-topic-blue-small: color-mix(
+    in oklch,
+    var(--topic-blue) 35%,
+    hsl(var(--background))
+  );
+  --color-topic-orange: var(--topic-orange);
+  --color-topic-orange-big: color-mix(
+    in oklch,
+    var(--topic-orange) 60%,
+    hsl(var(--background))
+  );
+  --color-topic-orange-small: color-mix(
+    in oklch,
+    var(--topic-orange) 35%,
+    hsl(var(--background))
+  );
+  /* Tone fills (Sentiment, Outcome) at one OKLCH lightness and chroma per state. */
+  --color-category-emerald-tint: var(--category-emerald-tint);
+  --color-category-emerald-highlight: var(--category-emerald-highlight);
+  --color-category-amber-tint: var(--category-amber-tint);
+  --color-category-amber-highlight: var(--category-amber-highlight);
+  --color-category-pink-tint: var(--category-pink-tint);
+  --color-category-pink-highlight: var(--category-pink-highlight);
+  --color-category-orange-tint: var(--category-orange-tint);
+  --color-category-orange-highlight: var(--category-orange-highlight);
+  --color-category-neutral-tint: var(--category-neutral-tint);
+  --color-category-neutral-highlight: var(--category-neutral-highlight);
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -335,6 +380,19 @@
 
 @layer base {
   :root {
+    --topic-violet: oklch(81.1% 0.111 293.571);
+    --topic-blue: oklch(80.9% 0.105 251.813);
+    --topic-orange: oklch(83.7% 0.128 66.29);
+    --category-emerald-tint: oklch(0.92 0.04 163);
+    --category-emerald-highlight: oklch(0.82 0.11 163);
+    --category-amber-tint: oklch(0.92 0.04 70);
+    --category-amber-highlight: oklch(0.82 0.11 70);
+    --category-pink-tint: oklch(0.92 0.04 354);
+    --category-pink-highlight: oklch(0.82 0.11 354);
+    --category-orange-tint: oklch(0.92 0.04 42);
+    --category-orange-highlight: oklch(0.82 0.11 42);
+    --category-neutral-tint: oklch(0.92 0 0);
+    --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
     --foreground: 240 3.7% 15.9%; /* zinc-800 */
 
@@ -561,6 +619,19 @@
   }
 
   .dark {
+    --topic-violet: oklch(45% 0.111 293.571);
+    --topic-blue: oklch(45% 0.105 251.813);
+    --topic-orange: oklch(47% 0.128 66.29);
+    --category-emerald-tint: oklch(0.3 0.04 163);
+    --category-emerald-highlight: oklch(0.45 0.11 163);
+    --category-amber-tint: oklch(0.3 0.04 70);
+    --category-amber-highlight: oklch(0.45 0.11 70);
+    --category-pink-tint: oklch(0.3 0.04 354);
+    --category-pink-highlight: oklch(0.45 0.11 354);
+    --category-orange-tint: oklch(0.3 0.04 42);
+    --category-orange-highlight: oklch(0.45 0.11 42);
+    --category-neutral-tint: oklch(0.3 0 0);
+    --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added
        layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
        follow the same structure). The GLOBAL FRAME (header/sidebar chrome)

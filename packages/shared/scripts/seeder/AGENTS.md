@@ -30,6 +30,8 @@ pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latenc
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for Topics; v4 on, no model calls
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42  # 100 diverse requests, tool failures and successful outcomes
+pnpm run seed -- topics --batch results --id-prefix topics-eval-s42  # the evaluation traces plus finished Topics results for Intent/Sentiment/Outcome/Issues (facets, summaries, topics, assignments, published 2D map); no model calls
+pnpm run seed -- topics --batch results --traces 5000 --id-prefix topics-vol --project <id>  # dense variant: 5000 traces over the last 6 days, same topics scaled, varied summaries
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 pnpm run seed -- experiment-filters  # three v4 runs over 60 items, shifted numeric/categorical/boolean scores, status, metadata and missing results

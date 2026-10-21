@@ -130,6 +130,16 @@ invalid JSON, empty results, and success. Each trace has a generation and a
 child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
 sample mode** with the default minimum-count settings.
 
+`--batch results` writes the evaluation traces and, on top, everything the
+Topics page reads as if processing and **Update topics** had run: the four
+built-in facets and a Topics rule in Postgres, a `complete` summary per trace
+and facet (Issues: 80, successes are `not_applicable`), 6-11 uneven topics per
+facet with a few outliers, and one published map run per facet with clustered
+2D coordinates. Re-runs overwrite in place; run ids are `<prefix>-run-<facet>`.
+`--traces N` (default 100) repeats the 100 requests with varied summary
+wording; above 100 the timestamps spread over the last six days. Seed a dense
+copy into another project with `--traces 5000 --id-prefix topics-vol --project <id>`.
+
 Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
 and I/O.
 

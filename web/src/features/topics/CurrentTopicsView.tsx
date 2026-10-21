@@ -14,7 +14,6 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { type RouterOutputs } from "@/src/utils/api";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -33,6 +32,8 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
+import { orderedFacetTopics } from "./facet-topics";
+import { TopicsEmptyState } from "./TopicsEmptyState";
 
 const OVERVIEW_PANEL_IDS = ["map", "groups"];
 const WORKSPACE_PANEL_IDS = ["overview", "traces"];
@@ -116,15 +117,7 @@ export function CurrentTopicsView({
     [matchingTraceKey],
   );
   const topicFilters = filters.filter((filter) => filter.column === "topicId");
-  const topics = facet.map
-    ? [
-        ...facet.map.topics,
-        ...facet.topics.filter(
-          (topic) =>
-            !facet.map!.topics.some((mapped) => mapped.id === topic.id),
-        ),
-      ]
-    : facet.topics;
+  const topics = orderedFacetTopics(facet);
   const selectedTopicIds = new Set(
     topicFilters.length === 0 ||
       topicFilters.some((filter) => filter.type !== "stringOptions")
@@ -164,20 +157,10 @@ export function CurrentTopicsView({
     </section>
   );
   const emptyTopics = (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      <h3 className="text-lg font-bold">Find patterns in your summaries</h3>
-      <p className="text-muted-foreground max-w-sm text-sm">
-        Generate topics to group similar summaries and discover recurring themes
-        for this facet. Choose a time range and the facets to include in Manual
-        processing.
-      </p>
-      <Button
-        text="Generate topics"
-        size="sm"
-        disabled={!canGenerateTopics}
-        onClick={onGenerateTopics}
-      />
-    </div>
+    <TopicsEmptyState
+      onGenerateTopics={onGenerateTopics}
+      canGenerateTopics={canGenerateTopics}
+    />
   );
   const groupsPanel = (
     <section
