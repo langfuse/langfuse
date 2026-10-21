@@ -3,7 +3,7 @@ import {
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import type { Prisma, PrismaClient, Role } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   deleteApiKeyFromDb,
@@ -39,24 +39,27 @@ export class GatewayApiKeyService {
     expiresAt?: Date | null;
     session: OrgAuthedContext["session"];
   }) {
-    const key = await this.prisma.$transaction(async (tx) => {
-      await assertCreatorCanInvokeGateway(tx, params);
-      const key = await createApiKey(tx, {
-        tenant: OrganizationId(params.organizationId),
-        scope: UserId(params.session.user.id),
-        role: SystemRoleId("AI_GATEWAY"),
-        createdBy: UserId(params.session.user.id),
-        name: params.name,
-        expiresAt: params.expiresAt,
-      });
-      await tx.gatewayApiKeyAssociation.create({
-        data: {
-          apiKeyId: key.id,
-          metadata: params.metadata,
-        },
-      });
-      return key;
-    });
+    const key = await this.prisma.$transaction(
+      async (tx) => {
+        await assertCreatorCanInvokeGateway(tx, params);
+        const key = await createApiKey(tx, {
+          tenant: OrganizationId(params.organizationId),
+          scope: UserId(params.session.user.id),
+          role: SystemRoleId("AI_GATEWAY"),
+          createdBy: UserId(params.session.user.id),
+          name: params.name,
+          expiresAt: params.expiresAt,
+        });
+        await tx.gatewayApiKeyAssociation.create({
+          data: {
+            apiKeyId: key.id,
+            metadata: params.metadata,
+          },
+        });
+        return key;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
     await auditLog(
       {
         session: params.session,

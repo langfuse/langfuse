@@ -14,7 +14,7 @@ export async function deleteUserBoundApiKeysForRole(
   return deleteUserBoundApiKeys(tx, { userId: p.userId, orgId: p.orgId });
 }
 
-/** deleteUserBoundApiKeys removes gateway keys bound to userId on the caller's transaction, evicts their caches, and returns them for post-commit eviction. */
+/** deleteUserBoundApiKeys removes gateway keys bound to userId on the caller's transaction and returns them for post-commit eviction. */
 export async function deleteUserBoundApiKeys(
   tx: Prisma.TransactionClient,
   p: { userId: string; orgId?: string },
@@ -27,11 +27,10 @@ export async function deleteUserBoundApiKeys(
   await tx.apiKey.deleteMany({
     where: { id: { in: keys.map((key) => key.id) } },
   });
-  await evictCaches(keys);
   return keys.filter((key): key is RevokedApiKey => key.orgId !== null);
 }
 
-/** evictRevokedApiKeys re-clears the caches of committed revocations and writes one audit entry per key, logging instead of throwing; call after commit. */
+/** evictRevokedApiKeys clears the caches of committed revocations and writes one audit entry per key, logging instead of throwing; call after commit. */
 export async function evictRevokedApiKeys(
   keys: RevokedApiKey[],
   actor: RevocationActor,
