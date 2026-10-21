@@ -25,6 +25,9 @@ import {
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
   LocalCache,
+  batchContainsLangfuseScope,
+  checkHeaderBasedDirectWrite,
+  isLangfuseSdkTraffic,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -53,6 +56,19 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 
+export {
+  batchContainsLangfuseScope,
+  checkHeaderBasedDirectWrite,
+  isLangfuseSdkTraffic,
+};
+
+export type OtelWritePath =
+  | "dual"
+  | "direct_header"
+  | "direct_env"
+  | "direct_scope"
+  | "direct_org_cutoff";
+
 /**
  * Legacy media processing follows legacy persistence, independently of
  * whether the same batch also qualifies for a direct events-table write.
@@ -64,138 +80,6 @@ export function shouldProcessLegacyOtelMedia(params: {
   return params.mediaUploadEnabled && params.writesToLegacyTables;
 }
 
-/**
- * Check if HTTP headers from the SDK request indicate the batch is eligible
- * for direct event writes.
- *
- * Requirements:
- * - x-langfuse-sdk-name "python" with x-langfuse-sdk-version >= 4.0.0
- * - x-langfuse-sdk-name "javascript" with x-langfuse-sdk-version >= 5.0.0
- * - x-langfuse-ingestion-version === "4" (custom OTel exporter opt-in)
- */
-export function checkHeaderBasedDirectWrite(params: {
-  sdkName?: string;
-  sdkVersion?: string;
-  ingestionVersion?: string;
-}): boolean {
-  const { sdkName, sdkVersion, ingestionVersion } = params;
-
-  // Check x-langfuse-ingestion-version.
-  // Values > 4 are rejected at the API route, so anything reaching here is valid.
-  const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
-  if (!isNaN(parsed) && parsed >= 4) {
-    return true;
-  }
-
-  // Check Langfuse SDK name + version
-  if (!sdkName || !sdkVersion) {
-    return false;
-  }
-
-  try {
-    // compareVersions returns null when current >= minimum (no update needed).
-    // Strip pre-release/build metadata so that e.g. 4.0.0-rc.1 qualifies as 4.0.0.
-    // Also normalize Python PEP440 shorthand (e.g. 4.0.0b1, 4.0.0rc1) to the core version.
-    const baseVersion = extractBaseSdkVersion(sdkVersion);
-
-    if (sdkName === "python") {
-      return compareVersions(baseVersion, "v4.0.0") === null;
-    }
-
-    if (sdkName === "javascript") {
-      return compareVersions(baseVersion, "v5.0.0") === null;
-    }
-  } catch {
-    logger.warn(
-      `Failed to parse SDK version from headers: ${sdkName}@${sdkVersion}`,
-    );
-  }
-
-  return false;
-}
-
-export type OtelWritePath =
-  | "dual"
-  | "direct_header"
-  | "direct_env"
-  | "direct_scope"
-  | "direct_org_cutoff";
-
-/**
- * Whether a batch was exported by a Langfuse SDK rather than a plain OTel
- * pipeline.
- *
- * Either signal is sufficient: the SDKs send `x-langfuse-sdk-name` (normalized
- * to UNKNOWN_INGESTION_SDK_VALUE when absent), and their spans carry a
- * "langfuse"-prefixed instrumentation scope. A third party that sets the
- * header anyway is treated as SDK traffic, which is the conservative direction
- * — it keeps the established write path.
- */
-export function isLangfuseSdkTraffic(params: {
-  sdkName?: string;
-  scopeName?: string | null;
-}): boolean {
-  const { sdkName, scopeName } = params;
-
-  if (sdkName && sdkName !== UNKNOWN_INGESTION_SDK_VALUE) {
-    return true;
-  }
-
-  return Boolean(
-    scopeName && String(scopeName).toLowerCase().includes("langfuse"),
-  );
-}
-
-/**
- * Whether any instrumentation scope in the batch identifies a Langfuse SDK.
- *
- * The scope-based version check reads only the first scope (all spans a
- * Langfuse SDK exports share it), but the org-cutoff exclusion must be
- * conservative: a collector-forwarded batch can mix SDK spans with third-party
- * scopes in any order, and one Langfuse scope anywhere is enough to keep the
- * whole batch on its established write path. Scans scope metadata only — no
- * span bodies are touched.
- */
-export function batchContainsLangfuseScope(
-  resourceSpans: ResourceSpan[],
-): boolean {
-  // Malformed OTLP shapes reach this code (non-array payloads, non-array
-  // scopeSpans and the like); every other resourceSpans consumer guards the
-  // same way. Guard per resource so a malformed one reads as scope-less rather
-  // than aborting the scan — it must not hide a Langfuse scope on a later
-  // resource, nor fail the batch.
-  if (!Array.isArray(resourceSpans)) {
-    return false;
-  }
-  return resourceSpans.some(
-    (resourceSpan) =>
-      Array.isArray(resourceSpan?.scopeSpans) &&
-      resourceSpan.scopeSpans.some((scopeSpan) =>
-        isLangfuseSdkTraffic({ scopeName: scopeSpan?.scope?.name ?? null }),
-      ),
-  );
-}
-
-/**
- * Whether an organization's signup date puts it past the direct-write cutoff.
- *
- * Organizations created on or after the cutoff are past the point where the v4
- * preview is force-enabled and cannot be switched off, so the events table is
- * the only surface they read. Without `x-langfuse-ingestion-version: 4` their
- * OTLP traffic would take the dual-write path and appear with up to ~10 minutes
- * of delay — a broken first experience for an exporter that is otherwise set up
- * correctly.
- *
- * Deliberately date-based: there is no per-organization or per-project v4
- * column, only a per-user preview flag, so signup date is the only cohort
- * signal available. It mirrors the UI-side rollout boundary but keys on the
- * single organization owning the API key rather than the oldest organization a
- * user belongs to — ingestion has no user context.
- *
- * The rule is Cloud-only, gated at the call site
- * (isProjectOrgPastOtelDirectWriteCutoff): self-hosted deployments move the
- * whole deployment at once via LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR.
- */
 export function isOrgPastOtelDirectWriteCutoff(params: {
   /** Organization signup date; nullish when it could not be resolved. */
   orgCreatedAt: Date | null | undefined;
@@ -328,23 +212,6 @@ export function resolveOtelWritePath(params: {
   }
 
   return { useDirectEventWrite: false, writePath: "dual" };
-}
-
-function extractBaseSdkVersion(sdkVersion: string): string {
-  const version = sdkVersion.trim();
-
-  // Standard semver / semver pre-release / build metadata
-  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
-    return version.split(/[-+]/)[0];
-  }
-
-  // Python PEP 440 pre-release shorthand: 4.0.0a1, 4.0.0b1, 4.0.0rc1
-  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
-  if (pep440Match?.[1]) {
-    return pep440Match[1];
-  }
-
-  return version;
 }
 
 /**

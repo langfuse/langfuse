@@ -656,6 +656,14 @@ export const env = createEnv({
     LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
       .datetime()
       .optional(),
+    // Web-only. Organizations created at or after this instant may ingest
+    // OTel traces only from current Langfuse SDKs (Python >= 4.0.0, JS >=
+    // 5.0.0) or from plain OpenTelemetry exporters. Older Langfuse SDK
+    // batches are rejected. Unset leaves POST /api/public/otel/v1/traces
+    // unchanged. The worker does not read this; set it on the web service.
+    LANGFUSE_OTEL_REQUIRE_V4_SDK_ORG_CREATED_CUTOFF: z.iso
+      .datetime()
+      .optional(),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1276,6 +1284,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
     LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF:
       process.env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
+    LANGFUSE_OTEL_REQUIRE_V4_SDK_ORG_CREATED_CUTOFF:
+      process.env.LANGFUSE_OTEL_REQUIRE_V4_SDK_ORG_CREATED_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

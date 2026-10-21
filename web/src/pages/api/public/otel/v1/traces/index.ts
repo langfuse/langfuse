@@ -4,8 +4,14 @@ import {
   logger,
   markProjectAsOtelUser,
   createIngestionAttribution,
+  classifyLangfuseOtelSdkFromHeaders,
   getLangfuseHeaderValue,
 } from "@langfuse/shared/src/server";
+import {
+  isOtelV4SdkRequiredOrg,
+  OTEL_LEGACY_LANGFUSE_SDK_ERROR,
+  recordOtelLegacySdkRejection,
+} from "@/src/features/public-api/server/otelRequireV4Sdk";
 import { z } from "zod";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -40,6 +46,33 @@ export default withMiddlewares({
         throw new ForbiddenError(
           "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
         );
+      }
+
+      const sdkName = getLangfuseHeaderValue(
+        req.headers,
+        "x-langfuse-sdk-name",
+      );
+      const sdkVersion = getLangfuseHeaderValue(
+        req.headers,
+        "x-langfuse-sdk-version",
+      );
+      // Current Langfuse SDKs are rejected or allowed from headers, before the
+      // body is read. Plain OTel has no SDK headers, so it continues and the
+      // parsed instrumentation scopes are checked below.
+      const headerDecision = isOtelV4SdkRequiredOrg(
+        auth.scope.organizationCreatedAt,
+      )
+        ? classifyLangfuseOtelSdkFromHeaders({ sdkName, sdkVersion })
+        : null;
+      if (headerDecision?.action === "reject") {
+        recordOtelLegacySdkRejection({
+          sdk: headerDecision.sdk,
+          versionBucket: headerDecision.versionBucket,
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+        });
+        res.status(400);
+        return { error: OTEL_LEGACY_LANGFUSE_SDK_ERROR };
       }
 
       // Mark project as using OTEL API
@@ -134,8 +167,19 @@ export default withMiddlewares({
           sdkVersion: attribution.ingestionSdkVersion,
           rejectionSdkName: req.headers["x-langfuse-sdk-name"],
           ingestionVersion,
+          rejectLangfuseSdkScope: headerDecision?.action === "check_scope",
         },
       });
+      if (result.kind === "legacy_langfuse_sdk") {
+        recordOtelLegacySdkRejection({
+          sdk: result.sdk,
+          versionBucket: result.versionBucket,
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+        });
+        res.status(400);
+        return { error: OTEL_LEGACY_LANGFUSE_SDK_ERROR };
+      }
       if (result.kind === "http") {
         res.status(result.status);
         return result.body;
