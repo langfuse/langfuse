@@ -26,6 +26,11 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
+/** Name line height and count+share block height (px) for tiers that show a name. */
+const NAME_LINE_PX = { large: 28, medium: 20 };
+const FOOTER_PX = { large: 54, medium: 46 };
+const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
+
 const COUNT_SIZE: Record<TileTier, string> = {
   large: "text-3xl",
   medium: "text-xl",
@@ -173,6 +178,16 @@ function TopicTileButton({
     onSelect(topic.id);
   }
   const showName = tier === "large" || tier === "medium";
+  // Clamp the name to whole lines that fit above the count, so it never runs under it.
+  const nameLines = showName
+    ? Math.min(
+        3,
+        Math.max(
+          1,
+          Math.floor((rect.height - 28 - FOOTER_PX[tier]) / NAME_LINE_PX[tier]),
+        ),
+      )
+    : 0;
   return (
     <button
       {...triggerProps}
@@ -199,7 +214,8 @@ function TopicTileButton({
       {showName && (
         <span
           className={cn(
-            "line-clamp-3 font-bold",
+            NAME_CLAMP[nameLines - 1],
+            "font-bold",
             tier === "large" ? "text-lg" : "text-sm",
           )}
         >
@@ -220,7 +236,7 @@ function TopicTileButton({
 
 function tileTier(width: number, height: number): TileTier {
   if (width >= 240 && height >= 160) return "large";
-  if (width >= 112 && height >= 80) return "medium";
+  if (width >= 112 && height >= 96) return "medium";
   if (width >= 40 && height >= 32) return "small";
   return "tiny";
 }
