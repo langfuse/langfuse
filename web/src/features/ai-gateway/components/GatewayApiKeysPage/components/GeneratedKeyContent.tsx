@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { DialogBody } from "@/src/components/ui/dialog";
 

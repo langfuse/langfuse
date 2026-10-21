@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
