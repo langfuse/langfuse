@@ -163,8 +163,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Build shared expressions from the calling query's expression builder.**
   A reusable events expression or select list is wrapped in
   `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects)` or called inside
-  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join, no
   narrower `e`. Columns inside such a helper are written `e.…`, so an alias
   of the same name in the calling query can't shadow them. A helper typed

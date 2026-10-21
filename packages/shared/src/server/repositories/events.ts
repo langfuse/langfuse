@@ -144,6 +144,7 @@ import {
   eventsTraceName,
   observationByIdSelects,
   sessionAggregationSelects,
+  TRACE_AGGREGATION_FIELDS,
   traceAggregationSelects,
   type SessionEventsField,
   type SessionEventsMetricsRow,
@@ -189,6 +190,17 @@ import type {
   SkillsAvailable,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
+
+/** Trace aggregates a session's trace identifiers read: no input/output, so `events` routes to `events_core`. */
+const SESSION_TRACE_FIELDS = [
+  "id",
+  "project_id",
+  "name",
+  "timestamp",
+  "environment",
+  "session_id",
+  "user_id",
+] as const;
 
 /** The `input`/`output` pair an I/O select reads from one relation. */
 type IoColumns = { input: string; output: string };
@@ -1205,7 +1217,7 @@ export const getTraceByIdFromEventsTable = async ({
   const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
     qb
       .selectFrom(truncated ? "events_core as e" : "events_full as e")
-      .select((eb) => traceAggregationSelects(eb))
+      .select((eb) => traceAggregationSelects(TRACE_AGGREGATION_FIELDS)(eb))
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -4069,11 +4081,11 @@ export const getTracesIdentifierForSessionFromEvents = async (
   // traces with a span in the session, kept when their aggregated session_id equals sessionId
   const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
     qb
-      .selectFrom("events_core as e")
-      .select((eb) => traceAggregationSelects(eb))
+      .selectFrom("events as e")
+      .select((eb) => traceAggregationSelects(SESSION_TRACE_FIELDS)(eb))
       .where("e.trace_id", "in", (eb) =>
         eb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("trace_id")
           .distinct()
           .where("session_id", "=", sessionId),

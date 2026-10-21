@@ -204,109 +204,153 @@ const ofRootSpan = (eb: EventsExpressionBuilder, column: `e.${EventsColumn}`) =>
 const countLevel = (eb: EventsExpressionBuilder, level: string) =>
   countIf(eb("e.level", "=", literal(level)));
 
+/** Every trace aggregate, in the column order full trace reads select them. */
+export const TRACE_AGGREGATION_FIELDS = [
+  "id",
+  "project_id",
+  "name",
+  "timestamp",
+  "environment",
+  "version",
+  "session_id",
+  "user_id",
+  "input",
+  "output",
+  "metadata",
+  "created_at",
+  "updated_at",
+  "total_cost",
+  "latency_milliseconds",
+  "observation_ids",
+  "observation_count",
+  "bookmarked",
+  "public",
+  "experiment_item_id",
+  "usage_details",
+  "cost_details",
+  "aggregated_level",
+  "warning_count",
+  "error_count",
+  "default_count",
+  "debug_count",
+  "tags",
+  "release",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "experiment_id",
+] as const;
+
+type TraceAggregationField = (typeof TRACE_AGGREGATION_FIELDS)[number];
+
 /**
- * One row per trace, aggregated from its events. Grouped by
- * `trace_id, project_id`.
+ * Trace-level aggregates over events for `fields`, in that order: one row per
+ * trace. Grouped by `trace_id, project_id`.
  */
-export const traceAggregationSelects = scopedToEvents(
-  (eb) =>
-    [
-      eb.ref("e.trace_id").as("id"),
-      "e.project_id as project_id",
-      eb.fn
-        .coalesce(
-          nullIf(
-            argMaxIf(
-              eb.ref("e.trace_name"),
-              eb.ref("e.event_ts"),
-              eb("e.trace_name", "<>", literal("")),
-            ),
-            literal(""),
+export const traceAggregationSelects = pickSelects(traceAggregationSelectMap);
+
+/** Trace-level aggregates, keyed by field. */
+function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
+  return {
+    id: eb.ref("e.trace_id").as("id"),
+    project_id: "e.project_id as project_id",
+    name: eb.fn
+      .coalesce(
+        nullIf(
+          argMaxIf(
+            eb.ref("e.trace_name"),
+            eb.ref("e.event_ts"),
+            eb("e.trace_name", "<>", literal("")),
           ),
-          nullIf(
-            argMaxIf(
-              eb.ref("e.name"),
-              eb.ref("e.event_ts"),
-              eb.and([
-                eventsIsRootObservation(eb),
-                eb("e.name", "<>", literal("")),
-              ]),
-            ),
-            literal(""),
-          ),
-        )
-        .as("name"),
-      eb.fn.min("e.start_time").as("timestamp"),
-      latestNonEmptyOf(eb, "e.environment").as("environment"),
-      latestNonEmptyOf(eb, "e.version").as("version"),
-      latestNonEmptyOf(eb, "e.session_id").as("session_id"),
-      latestNonEmptyOf(eb, "e.user_id").as("user_id"),
-      ofRootSpan(eb, "e.input").as("input"),
-      ofRootSpan(eb, "e.output").as("output"),
-      argMaxIf(
-        eventsMetadataMap(eb),
-        eb.ref("e.event_ts"),
-        eb("e.parent_span_id", "=", literal("")),
-      ).as("metadata"),
-      eb.fn.min("e.created_at").as("created_at"),
-      eb.fn.max("e.updated_at").as("updated_at"),
-      eb.fn.sum("e.total_cost").as("total_cost"),
-      ifElse(
-        eb(eb.fn.max("e.end_time"), "is", null),
-        literal(null),
-        dateDiff(
-          "millisecond",
-          eb.fn.min("e.start_time"),
-          greatest(eb.fn.max("e.start_time"), eb.fn.max("e.end_time")),
+          literal(""),
         ),
-      ).as("latency_milliseconds"),
+        nullIf(
+          argMaxIf(
+            eb.ref("e.name"),
+            eb.ref("e.event_ts"),
+            eb.and([
+              eventsIsRootObservation(eb),
+              eb("e.name", "<>", literal("")),
+            ]),
+          ),
+          literal(""),
+        ),
+      )
+      .as("name"),
+    timestamp: eb.fn.min("e.start_time").as("timestamp"),
+    environment: latestNonEmptyOf(eb, "e.environment").as("environment"),
+    version: latestNonEmptyOf(eb, "e.version").as("version"),
+    session_id: latestNonEmptyOf(eb, "e.session_id").as("session_id"),
+    user_id: latestNonEmptyOf(eb, "e.user_id").as("user_id"),
+    input: ofRootSpan(eb, "e.input").as("input"),
+    output: ofRootSpan(eb, "e.output").as("output"),
+    metadata: argMaxIf(
+      eventsMetadataMap(eb),
+      eb.ref("e.event_ts"),
+      eb("e.parent_span_id", "=", literal("")),
+    ).as("metadata"),
+    created_at: eb.fn.min("e.created_at").as("created_at"),
+    updated_at: eb.fn.max("e.updated_at").as("updated_at"),
+    total_cost: eb.fn.sum("e.total_cost").as("total_cost"),
+    latency_milliseconds: ifElse(
+      eb(eb.fn.max("e.end_time"), "is", null),
+      literal(null),
+      dateDiff(
+        "millisecond",
+        eb.fn.min("e.start_time"),
+        greatest(eb.fn.max("e.start_time"), eb.fn.max("e.end_time")),
+      ),
+    ).as("latency_milliseconds"),
+    observation_ids: groupUniqArrayIf(
+      eb.ref("e.span_id"),
+      eb("e.span_id", "<>", literal("")),
+    ).as("observation_ids"),
+    observation_count: arrayLength(
       groupUniqArrayIf(
         eb.ref("e.span_id"),
-        eb("e.span_id", "<>", literal("")),
-      ).as("observation_ids"),
-      arrayLength(
-        groupUniqArrayIf(
-          eb.ref("e.span_id"),
-          eb.and([
-            eb("e.span_id", "<>", literal("")),
-            eb("e.span_id", "<>", concat(literal("t-"), eb.ref("e.trace_id"))),
-          ]),
-        ),
-      ).as("observation_count"),
-      ofRootSpan(eb, "e.bookmarked").as("bookmarked"),
-      eb.fn.max("e.public").as("public"),
-      latestNonEmptyOf(eb, "e.experiment_item_id").as("experiment_item_id"),
-      sumMap(eb.ref("e.usage_details")).as("usage_details"),
-      sumMap(eb.ref("e.cost_details")).as("cost_details"),
-      multiIf(
-        ["ERROR", "WARNING", "DEFAULT"].map(
-          (level) =>
-            [
-              arrayExists(
-                (x) => eb(x, "=", literal(level)),
-                groupArray(eb.ref("e.level")),
-              ),
-              literal(level),
-            ] as const,
-        ),
-        literal("DEBUG"),
-      ).as("aggregated_level"),
-      countLevel(eb, "WARNING").as("warning_count"),
-      countLevel(eb, "ERROR").as("error_count"),
-      countLevel(eb, "DEFAULT").as("default_count"),
-      countLevel(eb, "DEBUG").as("debug_count"),
-      argMaxIf(
-        eb.ref("e.tags"),
-        eb.ref("e.event_ts"),
-        notEmpty(eb.ref("e.tags")),
-      ).as("tags"),
-      latestNonEmptyOf(eb, "e.release").as("release"),
-      // Evaluator execution fields are stamped on every internal evaluation span.
-      latestNonEmptyOf(eb, "e.evaluator_id").as("evaluator_id"),
-      latestNonEmptyOf(eb, "e.evaluation_rule_id").as("evaluation_rule_id"),
-      anyValue(eb.ref("e.experiment_id")).as("experiment_id"),
-    ] satisfies EventsSelection[],
-);
+        eb.and([
+          eb("e.span_id", "<>", literal("")),
+          eb("e.span_id", "<>", concat(literal("t-"), eb.ref("e.trace_id"))),
+        ]),
+      ),
+    ).as("observation_count"),
+    bookmarked: ofRootSpan(eb, "e.bookmarked").as("bookmarked"),
+    public: eb.fn.max("e.public").as("public"),
+    experiment_item_id: latestNonEmptyOf(eb, "e.experiment_item_id").as(
+      "experiment_item_id",
+    ),
+    usage_details: sumMap(eb.ref("e.usage_details")).as("usage_details"),
+    cost_details: sumMap(eb.ref("e.cost_details")).as("cost_details"),
+    aggregated_level: multiIf(
+      ["ERROR", "WARNING", "DEFAULT"].map(
+        (level) =>
+          [
+            arrayExists(
+              (x) => eb(x, "=", literal(level)),
+              groupArray(eb.ref("e.level")),
+            ),
+            literal(level),
+          ] as const,
+      ),
+      literal("DEBUG"),
+    ).as("aggregated_level"),
+    warning_count: countLevel(eb, "WARNING").as("warning_count"),
+    error_count: countLevel(eb, "ERROR").as("error_count"),
+    default_count: countLevel(eb, "DEFAULT").as("default_count"),
+    debug_count: countLevel(eb, "DEBUG").as("debug_count"),
+    tags: argMaxIf(
+      eb.ref("e.tags"),
+      eb.ref("e.event_ts"),
+      notEmpty(eb.ref("e.tags")),
+    ).as("tags"),
+    release: latestNonEmptyOf(eb, "e.release").as("release"),
+    // Evaluator execution fields are stamped on every internal evaluation span.
+    evaluator_id: latestNonEmptyOf(eb, "e.evaluator_id").as("evaluator_id"),
+    evaluation_rule_id: latestNonEmptyOf(eb, "e.evaluation_rule_id").as(
+      "evaluation_rule_id",
+    ),
+    experiment_id: anyValue(eb.ref("e.experiment_id")).as("experiment_id"),
+  } satisfies Record<TraceAggregationField, EventsSelection>;
+}
 
 /**
  * Session-level aggregates over events for `fields`, in that order. Grouped by
@@ -572,7 +616,7 @@ export const eventsMetricsSecondsSelects = scopedToEvents(
 
 /** {@link traceAggregationSelects} as SQL text, keyed by output name. */
 export const TRACE_AGGREGATION_SQL = renderEventsSelects((eb) =>
-  traceAggregationSelects(eb),
+  traceAggregationSelects(TRACE_AGGREGATION_FIELDS)(eb),
 );
 
 /** Every session aggregate as SQL text, keyed by field. */
