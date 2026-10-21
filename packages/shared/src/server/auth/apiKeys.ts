@@ -169,25 +169,18 @@ async function generateKeyMaterial({
     throw new Error("SALT is not set");
   }
 
-  const { pk, sk } = await keySet(predefinedKeys);
-  return {
-    publicKey: pk,
-    hashedSecretKey: createLegacySecretKeyPlaceholder(),
-    fastHashedSecretKey: createShaHash(sk, salt),
-    displaySecretKey: getDisplaySecretKey(sk),
-    secretKey: sk,
-  };
-}
-
-/** keySet uses the predefined keys or generates a new set */
-async function keySet(predefinedKeys?: {
-  secretKey: string;
-  publicKey: string;
-}): Promise<{ pk: string; sk: string }> {
-  if (predefinedKeys) {
-    return { pk: predefinedKeys.publicKey, sk: predefinedKeys.secretKey };
+  let keys = predefinedKeys;
+  if (!keys) {
+    const { pk, sk } = await generateKeySet();
+    keys = { publicKey: pk, secretKey: sk };
   }
-  return generateKeySet();
+  return {
+    publicKey: keys.publicKey,
+    hashedSecretKey: createLegacySecretKeyPlaceholder(),
+    fastHashedSecretKey: createShaHash(keys.secretKey, salt),
+    displaySecretKey: getDisplaySecretKey(keys.secretKey),
+    secretKey: keys.secretKey,
+  };
 }
 
 /** noteColumn provides the note column for api key creation */
