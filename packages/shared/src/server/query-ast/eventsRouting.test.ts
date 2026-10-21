@@ -2,6 +2,7 @@ import {
   AliasNode,
   FromNode,
   SelectQueryNode,
+  type Kysely,
   sql,
   type Expression,
   type ExpressionBuilder,
@@ -20,7 +21,6 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import {
-  includeDeleted,
   limitBy,
   mapValue,
   metadataMap,
@@ -46,6 +46,11 @@ function routedTables(query: string): string[] {
 }
 
 const db = getClickhouseKysely();
+
+/** The compile DB without its table types, to reach names the types forbid. */
+const untypedDb = db as unknown as Kysely<
+  Record<string, Record<string, string>>
+>;
 
 type EventsEb = ExpressionBuilder<
   ClickHouseDatabase & { e: ClickHouseDatabase["events"] },
@@ -259,17 +264,45 @@ describe("logical events routing", () => {
     ).toThrow(/FINAL cannot wrap the logical "events" relation/);
   });
 
-  it("keeps a physical events qualifier when no logical relation is in scope", () => {
-    expect(
-      routedTables(
-        compile(
-          db
-            .selectFrom("events_core as c")
-            .$call(includeDeleted())
-            .select(sql.ref<string>("events_core.input").as("x")),
-        ),
-      ),
-    ).toEqual(["events_core"]);
+  it.each([
+    ["FROM", () => untypedDb.selectFrom("events_core").select("span_id")],
+    [
+      "JOIN",
+      () =>
+        untypedDb
+          .selectFrom("scores as s")
+          .innerJoin("events_full as f", "f.span_id", "s.id")
+          .select("s.id"),
+    ],
+    [
+      "alias",
+      () => untypedDb.selectFrom("events as events_core").select("span_id"),
+    ],
+    [
+      "qualifier without a logical relation",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql.ref<string>("events_core.input").as("x")),
+    ],
+    [
+      "raw SQL text",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql<number>`(select count() from events_full)`.as("n")),
+    ],
+    [
+      "sql.table",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql<string>`${sql.table("events_core")}.input`.as("x")),
+    ],
+  ])("rejects a physical events table named as %s", (_, build) => {
+    expect(() => compile(build())).toThrow(
+      /Read the logical "events" relation instead of "events_(core|full)"/,
+    );
   });
 
   it("resolves sql.ref like a builder reference", () => {
@@ -463,17 +496,38 @@ describe("logical events routing", () => {
     ).toEqual(["events_core", "events_full"]);
   });
 
-  it("leaves physical events tables unchanged", () => {
+  it("routes events_truncated to events_core, also when it reads a truncated column", () => {
+    expect(
+      compile(
+        db
+          .selectFrom("events_truncated as e")
+          .select(["e.span_id", "e.input"])
+          .where((eb) => eb(eventsMetadata(eb, "k"), "!=", "x")),
+      ),
+    ).toMatchInlineSnapshot(
+      `"select e.span_id, e.input from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p2:String}] != {p3:String}"`,
+    );
+  });
+
+  it("keeps an unaliased events_truncated name as the alias", () => {
+    expect(
+      compile(db.selectFrom("events_truncated").select("input")),
+    ).toMatchInlineSnapshot(
+      `"select input from events_core as events_truncated where events_truncated.project_id = {p1:String} and events_truncated.is_deleted = 0"`,
+    );
+  });
+
+  it("routes events and events_truncated in one query separately", () => {
     expect(
       routedTables(
         compile(
           db
-            .selectFrom("events_core as e")
-            .$call(includeDeleted())
-            .select("e.input"),
+            .selectFrom("events as a")
+            .innerJoin("events_truncated as b", "a.span_id", "b.span_id")
+            .select(["a.input", "b.output"]),
         ),
       ),
-    ).toEqual(["events_core"]);
+    ).toEqual(["events_full", "events_core"]);
   });
 });
 

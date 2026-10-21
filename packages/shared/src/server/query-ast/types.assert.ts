@@ -20,27 +20,32 @@ import { defineView, fromView } from "./views";
 export function schemaTypeAssertions(): void {
   const db = getClickhouseKysely();
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     .select("environment")
     // @ts-expect-error DateTime column compared to Int
     .where("start_time", "=", 123);
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     .select("environment")
     .where("start_time", ">=", new Date("2026-01-01T00:00:00.000Z"));
 
-  db.selectFrom("events_core").select((eb) => eb.fn.sum("total_cost").as("s"));
+  db.selectFrom("events").select((eb) => eb.fn.sum("total_cost").as("s"));
 
   // Intentionally valid at the TS layer — Kysely does not constrain sum()
   // to numeric columns. The runtime pass in typecheck.ts rejects this.
-  db.selectFrom("events_core").select((eb) => eb.fn.sum("environment").as("s"));
+  db.selectFrom("events").select((eb) => eb.fn.sum("environment").as("s"));
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     // @ts-expect-error unknown column is not in the schema
     .select("not_a_column");
 
+  // @ts-expect-error physical events tables are reached through `events` / `events_truncated`
+  db.selectFrom("events_core");
+  // @ts-expect-error physical events tables are reached through `events` / `events_truncated`
+  db.selectFrom("events_full as e");
+
   const view = defineView("environments_view")<{ environment: string }>(() =>
-    db.selectFrom("events_core").select("environment").distinct(),
+    db.selectFrom("events").select("environment").distinct(),
   );
   fromView(view).select("environment");
   fromView(view)
@@ -50,7 +55,7 @@ export function schemaTypeAssertions(): void {
   // Named-tuple arrays read as arrays of objects keyed by tuple name; a typo
   // in the column type would make the row field `never` and reject these.
   const _skills = db
-    .selectFrom("events_core")
+    .selectFrom("events")
     .select(["skills_available", "skills_resource_loaded"]);
   type SkillsRow = InferResult<typeof _skills>[number];
   const _available: SkillsRow["skills_available"] = [
@@ -99,7 +104,7 @@ export function extensionTypeAssertions(): void {
 
   // limitBy preserves the row type: it declares no new columns.
   const _limited = db
-    .selectFrom("events_core")
+    .selectFrom("events")
     .select("span_id")
     .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] }));
   type Limited = InferResult<typeof _limited>[number];
@@ -108,7 +113,7 @@ export function extensionTypeAssertions(): void {
   type _NoExtra = Limited["cost_key"];
 
   // Helper columns are references checked against the query's tables.
-  db.selectFrom("events_core as e")
+  db.selectFrom("events as e")
     .select("e.span_id")
     // @ts-expect-error eb.ref resolves against this select's tables
     .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_idx")] }));

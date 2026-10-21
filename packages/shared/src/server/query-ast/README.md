@@ -96,12 +96,15 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
   it, and an unqualified truncated column are compile errors while `events`
-  is in scope. Name `events_core` to read the truncated copy on purpose;
-  `events_core` / `events_full` stay selectable by name, which is also the
-  override for a shape the pass rejects.
+  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  (input/output/metadata previews): it always compiles to `events_core`,
+  whatever columns it reads, and the pass does not reject `*` or raw SQL over
+  it. `events_core` / `events_full` are not part of the Kysely schema, and
+  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
+  compile error; only the routing pass writes them.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
   identifier that is not a registry table (`traces`, `events_core`, the
-  logical `events`, …) and doesn't reuse the name of a sibling or an
+  logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
   enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
   name is an unqualified registry table or a CTE in scope; schema-qualified
   names (`default.traces`) are rejected, since the registry describes tables
@@ -219,7 +222,7 @@ db.selectFrom("events")
 // soft-delete pass so a deleted latest version is dropped
 ```
 
-**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
 
 ```ts
 db.selectFrom("scores as s")
