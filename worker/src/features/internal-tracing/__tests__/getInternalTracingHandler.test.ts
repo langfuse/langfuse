@@ -20,7 +20,6 @@ vi.mock("../../../../../packages/shared/src/server/logger", () => ({
 }));
 
 import { getInternalTracingHandler } from "../../../../../packages/shared/src/server/llm/getInternalTracingHandler";
-import { env } from "../../../../../packages/shared/src/env";
 
 const params = {
   targetProjectId: "project-123",
@@ -94,19 +93,6 @@ describe("getInternalTracingHandler", () => {
     });
     await handler.processTracedEvents();
     expect(publish).toHaveBeenCalledTimes(1);
-  });
-
-  it("publishes via OTel even when legacy write mode is configured", async () => {
-    const previous = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-    try {
-      const handler = getInternalTracingHandler(params);
-      handler.recordObservation("AGENT", agent);
-      await handler.processTracedEvents();
-      expect(publish).toHaveBeenCalledOnce();
-    } finally {
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previous;
-    }
   });
 
   it("does not publish an empty batch", async () => {

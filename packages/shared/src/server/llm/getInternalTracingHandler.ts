@@ -1,4 +1,4 @@
-import { ProcessedTraceEvent, TraceSinkParams } from "./types";
+import { TraceSinkParams } from "./types";
 import {
   INTERNAL_TRACE_EVENT_SOURCE,
   type InternalTraceEventInput,
@@ -13,72 +13,6 @@ import {
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { publishAiFeatureTraceViaOtelIngestion } from "../otel/internalAiFeatureOtelWriter";
-
-export function prepareInternalTraceEvents(params: {
-  events: Array<{
-    type: string;
-    timestamp: string;
-    body: Record<string, unknown>;
-  }>;
-  environment: string;
-  prompt?: TraceSinkParams["prompt"];
-}): ProcessedTraceEvent[] {
-  const { events, environment, prompt } = params;
-
-  const blockedSpanIds = new Set();
-  const blockedSpanNameSubstrings = ["RunnableLambda", "OutputParser"];
-
-  for (const event of events) {
-    const eventName = "name" in event.body ? event.body.name : "";
-
-    if (typeof eventName !== "string" || eventName.length === 0) {
-      continue;
-    }
-
-    if (
-      blockedSpanNameSubstrings.some((blockedSubstring) =>
-        eventName.includes(blockedSubstring),
-      ) &&
-      "id" in event.body &&
-      event.type !== "trace-create"
-    ) {
-      blockedSpanIds.add(event.body.id);
-    }
-  }
-
-  return events
-    .filter((event) => {
-      if ("id" in event.body) {
-        return !blockedSpanIds.has(event.body.id);
-      }
-
-      return true;
-    })
-    .map((event) => {
-      // Inject environment into all events
-      return {
-        ...event,
-        body: {
-          ...event.body,
-          environment,
-        },
-      };
-    })
-    .map((event) => {
-      if (event.type === "generation-create" && prompt) {
-        return {
-          ...event,
-          body: {
-            ...event.body,
-            promptName: prompt.name,
-            promptVersion: prompt.version,
-          },
-        };
-      }
-
-      return event;
-    });
-}
 
 export type InternalObservation = {
   id: string;
