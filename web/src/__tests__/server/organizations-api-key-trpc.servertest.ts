@@ -20,6 +20,8 @@ import {
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+import { GatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { gatewayApiFormats } from "@/src/features/ai-gateway/server/provider/registry";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -27,6 +29,8 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 });
 
 const originalRoleConfig = {
+  LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED:
+    env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED,
   API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
   API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
   API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
@@ -263,6 +267,14 @@ describe("organization API keys trpc", () => {
 
       expect(ids).not.toContain(gatewayKey.id);
       expect(ids).toContain(ingestKey.id);
+
+      const allApiKeys = await ownerCaller.organizationApiKeys.byOrganizationId(
+        { orgId: organizationId, includeGatewayKeys: true },
+      );
+      const allIds = allApiKeys.map((key) => key.id);
+
+      expect(allIds).toContain(gatewayKey.id);
+      expect(allIds).toContain(ingestKey.id);
     });
 
     it("regular member cannot fetch organization API keys", async () => {
@@ -512,6 +524,44 @@ describe("organization API keys trpc", () => {
 
       const deletedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
       expect(deletedKey).toBeUndefined();
+    });
+
+    it("stops a deleted gateway key from resolving through the gateway cache", async () => {
+      Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
+      const gatewayKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Cached gateway key",
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: gatewayKey.id },
+        select: { fastHashedSecretKey: true },
+      });
+      const cache = new GatewayResolveCache();
+      const cacheEntry = {
+        fastHashedSecretKey: fastHashedSecretKey!,
+        apiFormat: gatewayApiFormats[0],
+      };
+      await cache.set({
+        ...cacheEntry,
+        context: {
+          organizationId,
+          apiKeyId: gatewayKey.id,
+          keyMetadata: {},
+          ingestionProjectId: null,
+          ingestionMode: null,
+          connections: [],
+        },
+      });
+      expect(await cache.get(cacheEntry)).not.toBeNull();
+
+      await ownerCaller.organizationApiKeys.delete({
+        orgId: organizationId,
+        id: gatewayKey.id,
+      });
+
+      expect(await cache.get(cacheEntry)).toBeNull();
     });
 
     it("returns NOT_FOUND for a missing API key", async () => {

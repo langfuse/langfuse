@@ -34,6 +34,11 @@ const integrationHooks = vi.hoisted(() => ({
   failCandidateStreamAfterFirstRow: false,
   activeCandidateStreams: 0,
   candidateHttpTimeouts: [] as Array<{ send: number; receive: number }>,
+  candidateQueries: [] as Array<{
+    query: string;
+    params: Record<string, unknown> | undefined;
+  }>,
+  deleteQueries: [] as Array<{ query: string }>,
   exactEnrichmentRequests: [] as Array<{
     projectIds: string[];
     preferredClickhouseService: string | undefined;
@@ -49,6 +54,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...actual,
+    commandClickhouse: async (
+      opts: Parameters<typeof actual.commandClickhouse>[0],
+    ) => {
+      if (opts.query.startsWith("DELETE FROM")) {
+        integrationHooks.deleteQueries.push({
+          query: opts.query,
+        });
+      }
+      return actual.commandClickhouse(opts);
+    },
     queryClickhouse: async <T>(
       opts: Parameters<typeof actual.queryClickhouse>[0],
     ) => {
@@ -88,6 +103,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       opts: Parameters<typeof actual.queryClickhouseStream>[0],
     ): AsyncGenerator<T> {
       if (opts.query.includes("SELECT DISTINCT project_id")) {
+        integrationHooks.candidateQueries.push({
+          query: opts.query,
+          params: opts.params,
+        });
         integrationHooks.candidateHttpTimeouts.push({
           send: Number(
             opts.clickhouseConfigs?.clickhouse_settings?.http_send_timeout,
@@ -552,6 +571,8 @@ describe("BatchDataRetentionCleaner", () => {
       integrationHooks.failCandidateStreamAfterFirstRow = false;
       integrationHooks.activeCandidateStreams = 0;
       integrationHooks.candidateHttpTimeouts = [];
+      integrationHooks.candidateQueries = [];
+      integrationHooks.deleteQueries = [];
       integrationHooks.exactEnrichmentRequests = [];
       integrationHooks.gaugeCalls = [];
       integrationHooks.incrementCalls = [];
@@ -580,6 +601,98 @@ describe("BatchDataRetentionCleaner", () => {
       expect(integrationHooks.gaugeCalls).toEqual([
         ["langfuse.batch_data_retention_cleaner.pending_projects", 0],
         ["langfuse.batch_data_retention_cleaner.seconds_past_cutoff", 0],
+      ]);
+    });
+
+    it("groups discovery by exact cutoff while preserving deletion boundaries", async () => {
+      const cutoff = new Date("2026-01-15T12:34:56.123Z");
+      const projectIds = [
+        "project-'quoted\\id",
+        "same-cutoff",
+        "next-millisecond",
+      ];
+      const projects = projectIds.map((projectId, index) => ({
+        projectId,
+        retentionDays: 7,
+        cutoffDate: new Date(cutoff.getTime() + (index === 2 ? 1 : 0)),
+      }));
+      await insertRetentionTestRows(tableName, [
+        { projectId: projectIds[0]!, startTime: cutoff.getTime() - 1 },
+        { projectId: projectIds[0]!, startTime: cutoff.getTime() },
+        { projectId: projectIds[0]!, startTime: cutoff.getTime() + 1 },
+        { projectId: projectIds[1]!, startTime: cutoff.getTime() },
+        { projectId: projectIds[2]!, startTime: cutoff.getTime() },
+        { projectId: projectIds[2]!, startTime: cutoff.getTime() + 1 },
+        { projectId: "outside-chunk", startTime: cutoff.getTime() - 1 },
+      ]);
+
+      const cleaner = new BatchDataRetentionCleaner(table) as unknown as {
+        lock: { extend: () => Promise<boolean> };
+        findExpiredProjectCandidates: (
+          timestampColumn: string,
+          inputProjects: typeof projects,
+        ) => Promise<{ candidates: typeof projects; complete: boolean }>;
+        executeBatchDelete: (
+          timestampColumn: string,
+          workloads: Array<
+            (typeof projects)[number] & {
+              rowCount: null;
+              secondsPastCutoff: null;
+            }
+          >,
+        ) => Promise<void>;
+      };
+      cleaner.lock.extend = async () => true;
+      const result = await cleaner.findExpiredProjectCandidates(
+        "start_time",
+        projects,
+      );
+
+      expect(result.complete).toBe(true);
+      expect(
+        result.candidates.map((project) => project.projectId).sort(),
+      ).toEqual([projectIds[0], projectIds[2]].sort());
+      const discovery = integrationHooks.candidateQueries[0]!;
+      expect(discovery.query.match(/project_id IN/g)).toHaveLength(2);
+      expect(discovery.query).not.toContain(projectIds[0]);
+      expect(Object.values(discovery.params!)).toEqual(
+        expect.arrayContaining([
+          [projectIds[0], projectIds[1]],
+          [projectIds[2]],
+          "2026-01-15 12:34:56.123",
+          "2026-01-15 12:34:56.124",
+        ]),
+      );
+
+      await cleaner.executeBatchDelete(
+        "start_time",
+        result.candidates.map((candidate) => ({
+          ...candidate,
+          rowCount: null,
+          secondsPastCutoff: null,
+        })),
+      );
+      const deletion = integrationHooks.deleteQueries[0]!;
+      expect(deletion.query).not.toContain("project_id IN");
+      expect(deletion.query.match(/project_id =/g)).toHaveLength(2);
+      const remainingRows = await queryClickhouse<{
+        project_id: string;
+        timestamp: string;
+      }>({
+        query: `
+          SELECT project_id, toUnixTimestamp64Milli(start_time) AS timestamp
+          FROM ${tableName}
+          ORDER BY project_id, start_time
+        `,
+      });
+      expect(
+        remainingRows.map((row) => [row.project_id, Number(row.timestamp)]),
+      ).toEqual([
+        [projectIds[2], cutoff.getTime() + 1],
+        ["outside-chunk", cutoff.getTime() - 1],
+        [projectIds[0], cutoff.getTime()],
+        [projectIds[0], cutoff.getTime() + 1],
+        [projectIds[1], cutoff.getTime()],
       ]);
     });
 

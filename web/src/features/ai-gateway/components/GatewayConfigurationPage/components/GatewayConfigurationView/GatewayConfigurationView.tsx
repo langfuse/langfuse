@@ -68,7 +68,6 @@ export function GatewayConfigurationView({
   gatewayBaseUrl,
   initialProjectId,
   initialIngestionMode,
-  availableIngestionModes,
   isSaving,
   saveError,
   onSave,
@@ -78,7 +77,6 @@ export function GatewayConfigurationView({
   gatewayBaseUrl: string;
   initialProjectId: string | null;
   initialIngestionMode: IngestionMode;
-  availableIngestionModes: readonly IngestionMode[];
   isSaving: boolean;
   saveError: boolean;
   onSave: (values: {
@@ -102,9 +100,6 @@ export function GatewayConfigurationView({
   const [ingestionMode, setIngestionMode] =
     useState<IngestionMode>(initialIngestionMode);
   const projectId = projectSelection ?? null;
-  const visibleIngestionModes = ingestionModes.filter((option) =>
-    availableIngestionModes.includes(option.value),
-  );
   const isDirty =
     projectId !== initialProjectId || ingestionMode !== initialIngestionMode;
   const isConfigured = isGatewayIngestionConfigured({
@@ -200,15 +195,8 @@ export function GatewayConfigurationView({
 
       <div>
         <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
-        <div
-          className={cn(
-            "grid gap-2",
-            visibleIngestionModes.length > 2
-              ? "md:grid-cols-3"
-              : "md:grid-cols-2",
-          )}
-        >
-          {visibleIngestionModes.map((option) => {
+        <div className="grid gap-2 md:grid-cols-3">
+          {ingestionModes.map((option) => {
             const Icon = option.icon;
             const selected = ingestionMode === option.value;
             return (
@@ -251,8 +239,9 @@ export function GatewayConfigurationView({
 
       <div className="flex items-center justify-end gap-3">
         {isConfigured ? null : (
-          <p className="text-muted-foreground text-xs">
-            Select an ingestion project to capture gateway traffic.
+          <p className="text-destructive text-sm">
+            Select an ingestion project, or choose None to route without
+            capturing.
           </p>
         )}
         <Button
