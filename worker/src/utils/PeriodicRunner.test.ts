@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PeriodicRunner } from "./PeriodicRunner";
 
 vi.mock("@langfuse/shared/src/server", () => ({
-  logger: { error: vi.fn(), warn: vi.fn() },
+  logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
   contextWithLangfuseProps: () => ({}),
   instrumentAsync: async (
     _options: unknown,
