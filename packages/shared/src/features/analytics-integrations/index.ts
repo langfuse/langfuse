@@ -7,6 +7,12 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
+import {
+  SCORE_EXPORT_CORE_FIELDS,
+  SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 
 export * from "./export-source-policy";
 export * from "./blob-export-tuning";
@@ -147,5 +153,25 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
     // Groups without legacy columns (trace_context) are a no-op for
     // legacy-only exports; the UI hides them for that source.
     includedInLegacyExport: legacyFieldsForGroup(value).length > 0,
+  }),
+);
+
+/** Score group labels; groups apply to the scores export of every source and file type. */
+const SCORE_EXPORT_FIELD_GROUP_LABELS = {
+  score_metadata: { label: "Metadata" },
+  score_provenance: { label: "Provenance" },
+} satisfies Record<ScoreExportFieldGroup, { label: string }>;
+
+/** Locked score core group for settings; display-only, as score core columns are always exported. */
+export const SCORE_EXPORT_CORE_FIELD_GROUP_OPTION = {
+  label: "Core",
+  description: SCORE_EXPORT_CORE_FIELDS.join(", "),
+};
+
+export const SCORE_EXPORT_FIELD_GROUP_OPTIONS = SCORE_EXPORT_FIELD_GROUPS.map(
+  (value) => ({
+    value,
+    ...SCORE_EXPORT_FIELD_GROUP_LABELS[value],
+    description: SCORE_EXPORT_GROUP_FIELDS[value].join(", "),
   }),
 );
