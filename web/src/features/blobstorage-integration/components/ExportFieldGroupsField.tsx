@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary */
 import { useFormState, useWatch } from "react-hook-form";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   FormDescription,
   FormField,
@@ -13,9 +12,9 @@ import {
   BlobStorageIntegrationFileType,
   EXPORT_FIELD_GROUP_OPTIONS,
   SCORE_EXPORT_FIELD_GROUP_OPTIONS,
-  type ExportFieldGroup,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import { FieldGroupCheckbox } from "@/src/features/blobstorage-integration/components/FieldGroupCheckbox";
 
 // Field-group checkboxes; descriptions and available groups depend on the
 // selected export source and file type.
@@ -69,93 +68,37 @@ export const ExportFieldGroupsField = ({
               // exports; a saved selection is kept and applies again if
               // the source is migrated to enriched observations.
               (option) => !isLegacyOnlyExport || option.includedInLegacyExport,
-            ).map((option) => {
-              const isCore = option.value === "core";
-              return (
-                <div key={option.value} className="flex items-start gap-2">
-                  <Checkbox
-                    id={`field-group-${option.value}`}
-                    checked={
-                      isCore ? true : (field.value ?? []).includes(option.value)
-                    }
-                    disabled={isCore}
-                    onCheckedChange={
-                      isCore
-                        ? undefined
-                        : (checked) => {
-                            const current = field.value ?? [];
-                            const next =
-                              checked === true
-                                ? current.includes(option.value)
-                                  ? current
-                                  : [...current, option.value]
-                                : current.filter(
-                                    (v: ExportFieldGroup) => v !== option.value,
-                                  );
-                            field.onChange(next);
-                          }
-                    }
-                  />
-                  <label
-                    htmlFor={`field-group-${option.value}`}
-                    className={
-                      isCore ? "space-y-0.5" : "cursor-pointer space-y-0.5"
-                    }
-                  >
-                    <div className="text-sm leading-none font-bold">
-                      {option.label}
-                      {isCore && (
-                        <span className="text-muted-foreground ml-1 font-normal">
-                          (required)
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      {isParquetExport
-                        ? isLegacyOnlyExport
-                          ? option.legacyParquetDescription
-                          : option.parquetDescription
-                        : isLegacyOnlyExport
-                          ? option.legacyDescription
-                          : option.description}
-                    </div>
-                  </label>
-                </div>
-              );
-            })}
+            ).map((option) => (
+              <FieldGroupCheckbox
+                key={option.value}
+                value={option.value}
+                label={option.label}
+                description={
+                  isParquetExport
+                    ? isLegacyOnlyExport
+                      ? option.legacyParquetDescription
+                      : option.parquetDescription
+                    : isLegacyOnlyExport
+                      ? option.legacyDescription
+                      : option.description
+                }
+                selected={field.value ?? []}
+                onChange={field.onChange}
+                required={option.value === "core"}
+              />
+            ))}
           </div>
           <div className="text-sm font-bold">Scores</div>
           <div className="mt-2 space-y-2">
             {SCORE_EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
-              <div key={option.value} className="flex items-start gap-2">
-                <Checkbox
-                  id={`field-group-${option.value}`}
-                  checked={(field.value ?? []).includes(option.value)}
-                  onCheckedChange={(checked) => {
-                    const current = field.value ?? [];
-                    field.onChange(
-                      checked === true
-                        ? current.includes(option.value)
-                          ? current
-                          : [...current, option.value]
-                        : current.filter(
-                            (v: ExportFieldGroup) => v !== option.value,
-                          ),
-                    );
-                  }}
-                />
-                <label
-                  htmlFor={`field-group-${option.value}`}
-                  className="cursor-pointer space-y-0.5"
-                >
-                  <div className="text-sm leading-none font-bold">
-                    {option.label}
-                  </div>
-                  <div className="text-muted-foreground text-xs">
-                    {option.description}
-                  </div>
-                </label>
-              </div>
+              <FieldGroupCheckbox
+                key={option.value}
+                value={option.value}
+                label={option.label}
+                description={option.description}
+                selected={field.value ?? []}
+                onChange={field.onChange}
+              />
             ))}
           </div>
           <FormMessage>{errors.exportFieldGroups?.message}</FormMessage>
