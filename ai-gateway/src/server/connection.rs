@@ -4,6 +4,11 @@
 //! which says nothing about whether those bytes reached the socket. These counters
 //! do: `bytes_written` is what the kernel send buffer accepted, and a peer that
 //! stops reading shows up as a write still blocked at close once that buffer fills.
+//!
+//! Temporary diagnostics for streams the load balancer holds open until its idle
+//! timeout after the gateway reported them complete. Delete this module, its
+//! `ConnectInfo` wiring in `server::serve`, and the `gateway.connection.id` span
+//! and correlation fields once that cause is known.
 use std::{
     io,
     net::SocketAddr,
