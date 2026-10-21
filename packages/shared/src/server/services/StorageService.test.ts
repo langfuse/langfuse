@@ -850,9 +850,10 @@ describe("S3StorageService request handler socket limit", () => {
     setConcurrentWrites(originalConcurrentWrites);
   });
 
+  type AgentConfig = { maxSockets: number; options: { timeout?: number } };
   type ResolvedHandlerConfig = {
-    httpAgentProvider: () => Promise<{ maxSockets: number }>;
-    httpsAgent: { maxSockets: number };
+    httpAgentProvider: () => Promise<AgentConfig>;
+    httpsAgent: AgentConfig;
   };
 
   const resolveHandlerConfig = (endpoint: string) => {
@@ -887,5 +888,17 @@ describe("S3StorageService request handler socket limit", () => {
     const httpAgent = await config.httpAgentProvider();
     expect(httpAgent.maxSockets).toBe(123);
     expect(config.httpsAgent.maxSockets).toBe(123);
+  });
+
+  it("retires idle keep-alive sockets before the endpoint closes them", async () => {
+    const config = await resolveHandlerConfig("http://127.0.0.1:9000");
+
+    const httpAgent = await config.httpAgentProvider();
+    expect(httpAgent.options.timeout).toBe(
+      env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
+    );
+    expect(config.httpsAgent.options.timeout).toBe(
+      env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
+    );
   });
 });
