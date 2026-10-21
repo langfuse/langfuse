@@ -10,6 +10,7 @@ import type { NodeHttpHandler } from "@smithy/node-http-handler";
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { logger } from "../logger";
+import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
@@ -839,6 +840,7 @@ describe("S3StorageService SlowDown logging", () => {
 
 describe("S3StorageService request handler socket limit", () => {
   const originalConcurrentWrites = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const originalIdleSocketTimeout = env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS;
 
   const setConcurrentWrites = (value: number) => {
     (
@@ -846,8 +848,15 @@ describe("S3StorageService request handler socket limit", () => {
     ).LANGFUSE_S3_CONCURRENT_WRITES = value;
   };
 
+  const setIdleSocketTimeout = (value: number) => {
+    (
+      env as { LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: number }
+    ).LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS = value;
+  };
+
   afterEach(() => {
     setConcurrentWrites(originalConcurrentWrites);
+    setIdleSocketTimeout(originalIdleSocketTimeout);
   });
 
   type AgentConfig = { maxSockets: number; options: { timeout?: number } };
@@ -856,8 +865,12 @@ describe("S3StorageService request handler socket limit", () => {
     httpsAgent: AgentConfig;
   };
 
-  const resolveHandlerConfig = (endpoint: string) => {
+  const resolveHandlerConfig = (
+    endpoint: string,
+    connectionValidation?: OutboundUrlConnectionValidationOptions,
+  ) => {
     const service = StorageServiceFactory.getInstance({
+      connectionValidation,
       accessKeyId: "test-access-key",
       secretAccessKey: "test-secret-key",
       bucketName: "test-bucket",
@@ -900,5 +913,35 @@ describe("S3StorageService request handler socket limit", () => {
     expect(config.httpsAgent.options.timeout).toBe(
       env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
     );
+  });
+
+  it("retires idle keep-alive sockets on connection-validated endpoints", async () => {
+    setIdleSocketTimeout(1234);
+
+    const config = await resolveHandlerConfig("https://s3.example.com", {
+      logContext: "idle-timeout-test",
+    });
+
+    const httpAgent = await config.httpAgentProvider();
+    expect(httpAgent.options.timeout).toBe(1234);
+    expect(config.httpsAgent.options.timeout).toBe(1234);
+  });
+
+  it("does not reuse connection-validated agents across idle timeouts", async () => {
+    const connectionValidation = { logContext: "idle-timeout-cache-test" };
+
+    setIdleSocketTimeout(1000);
+    const first = await resolveHandlerConfig(
+      "https://s3.example.com",
+      connectionValidation,
+    );
+    setIdleSocketTimeout(2000);
+    const second = await resolveHandlerConfig(
+      "https://s3.example.com",
+      connectionValidation,
+    );
+
+    expect(first.httpsAgent.options.timeout).toBe(1000);
+    expect(second.httpsAgent.options.timeout).toBe(2000);
   });
 });
