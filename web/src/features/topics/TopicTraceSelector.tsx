@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   eventsEvalFilterColumns,
   experimentEvalFilterColsWithOptions,
@@ -49,8 +50,43 @@ export function useTopicTraceSelector({
   const [limit, setLimit] = useState(String(TOPICS_BACKFILL_TRACE_LIMIT));
   const [sampling, setSampling] = useState<"random" | "latest">("random");
   const [paste, setPaste] = useState("");
-  const [request, setRequest] = useState<PreviewInput | null>(null);
+  // The preview loads as soon as the criteria are valid; no explicit click needed.
+  const [request, setRequest] = useState<PreviewInput | null>(() => ({
+    projectId,
+    filter: [],
+    ...range,
+    limit: TOPICS_BACKFILL_TRACE_LIMIT,
+    sampling: "random",
+    seed: crypto.randomUUID(),
+  }));
   const [excluded, setExcluded] = useState<string[]>([]);
+  const validLimit =
+    Number.isSafeInteger(Number(limit)) &&
+    Number(limit) >= 1 &&
+    Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
+  const validRange = isValidTopicTimeRange(range);
+  const refreshPreview = () => {
+    setExcluded([]);
+    setRequest(
+      mode === "filters" && validLimit && validRange
+        ? {
+            projectId,
+            filter,
+            ...range,
+            limit: Number(limit),
+            sampling,
+            seed: crypto.randomUUID(),
+          }
+        : null,
+    );
+  };
+  // Runs after the re-render, so it reads the latest criteria; typing doesn't query per keystroke.
+  const refreshPreviewSoon = useDebounce(refreshPreview, 500, false);
+  const invalidatePreview = () => {
+    setRequest(null);
+    setExcluded([]);
+    refreshPreviewSoon();
+  };
   const reset = (filter: FilterState = []) => {
     setMode("filters");
     setFilterMode("builder");
@@ -58,14 +94,8 @@ export function useTopicTraceSelector({
     setTimeWindow("7");
     setRange(relativeTopicTimeRange(7));
     setPaste("");
-    setRequest(null);
-    setExcluded([]);
+    invalidatePreview();
   };
-  const validLimit =
-    Number.isSafeInteger(Number(limit)) &&
-    Number(limit) >= 1 &&
-    Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
-  const validRange = isValidTopicTimeRange(range);
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
@@ -164,49 +194,37 @@ export function useTopicTraceSelector({
       ? [{ ...column, options: options.filterOptions?.experimentId ?? [] }]
       : [column];
   });
-  const previewTraces = () => {
-    setExcluded([]);
-    setRequest({
-      projectId,
-      filter,
-      ...range,
-      limit: Number(limit),
-      sampling,
-      seed: crypto.randomUUID(),
-    });
-  };
-
   const handleModeChange = (value: string) => {
     setMode(value);
-    setRequest(null);
+    invalidatePreview();
   };
   const handleFilterChange = (value: FilterState) => {
     setFilter(value);
-    setRequest(null);
+    invalidatePreview();
   };
   const handleTimeWindowChange = (value: string) => {
     setTimeWindow(value);
-    setRequest(null);
     setRange(
       value === "custom"
         ? topicCalendarRange(topicCalendarDates(range))
         : relativeTopicTimeRange(Number(value)),
     );
+    invalidatePreview();
   };
   const handleRangeChange: TopicTraceSelectorViewProps["onRangeChange"] = (
     value,
   ) => {
     setRange(value);
-    setRequest(null);
+    invalidatePreview();
   };
   const handleLimitChange = (value: string) => {
     setLimit(value);
-    setRequest(null);
+    invalidatePreview();
   };
   const handleSamplingChange: TopicTraceSelectorViewProps["onSamplingChange"] =
     (value) => {
       setSampling(value);
-      setRequest(null);
+      invalidatePreview();
     };
   let previewState: TopicTraceSelectorViewProps["preview"] = { status: "idle" };
   if (ready && request) {
@@ -238,7 +256,7 @@ export function useTopicTraceSelector({
       pastedCount={pastedIds?.length ?? null}
       pasteError={pasteError}
       preview={previewState}
-      onPreview={previewTraces}
+      onPreview={refreshPreview}
       excluded={excluded}
       onExcludedChange={setExcluded}
       builderColumns={builderColumns}
