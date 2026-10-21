@@ -4,7 +4,7 @@ import PageHeader, {
 } from "@/src/components/layouts/page-header";
 import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
 import { MobileTopBar } from "@/src/components/layouts/mobile-top-bar";
-import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
+import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
