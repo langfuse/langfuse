@@ -77,7 +77,9 @@ describe("legacy ingestion write-mode filter", () => {
   const sdkLogEvent = { id: "log", type: "sdk-log" };
 
   it("allows only score events in v4-only mode", () => {
-    expect(filterBatchForEventsOnly([scoreEvent, sdkLogEvent], true)).toEqual({
+    expect(
+      filterBatchForEventsOnly([scoreEvent, sdkLogEvent], "events_only"),
+    ).toEqual({
       batchForProcessing: [scoreEvent],
       rejectedErrors: [
         expect.objectContaining({
@@ -93,7 +95,7 @@ describe("legacy ingestion write-mode filter", () => {
   it("points events_only rejections at the SDK upgrade, the OTel endpoint, and the write-mode bridge", () => {
     const [rejection] = filterBatchForEventsOnly(
       [sdkLogEvent],
-      true,
+      "events_only",
     ).rejectedErrors;
 
     expect(rejection.error).toContain("Upgrade to the latest Langfuse SDKs");
@@ -102,7 +104,7 @@ describe("legacy ingestion write-mode filter", () => {
   });
 
   it("preserves sdk-log compatibility outside v4-only mode", () => {
-    expect(filterBatchForEventsOnly([sdkLogEvent], false)).toEqual({
+    expect(filterBatchForEventsOnly([sdkLogEvent], null)).toEqual({
       batchForProcessing: [sdkLogEvent],
       rejectedErrors: [],
     });
