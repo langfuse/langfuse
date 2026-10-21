@@ -2202,7 +2202,7 @@ export const getNumericScoreHistogram = async (
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     ORDER BY s.event_ts DESC
-    ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
+    ${shouldSkipScoresDedup(projectId) && !traceFilter ? "" : "LIMIT 1 BY s.id, s.project_id"}
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 
@@ -3112,7 +3112,13 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
           s.timestamp desc, s.event_ts desc
-      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
+      ${
+        // The traces join is not deduplicated, so LIMIT 1 BY also collapses
+        // one score row per unmerged trace version.
+        shouldSkipScoresDedup(projectId) && !needsTraceJoin
+          ? ""
+          : "LIMIT 1 BY s.id, s.project_id"
+      }
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
