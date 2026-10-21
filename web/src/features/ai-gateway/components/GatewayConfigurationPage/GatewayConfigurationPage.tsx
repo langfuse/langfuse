@@ -8,6 +8,7 @@ import {
   GatewayConfigurationView,
   type IngestionMode,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
+import { IngestionProjectSetupPlaceholder } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/IngestionProjectSetupPlaceholder/IngestionProjectSetupPlaceholder";
 import { showSuccessToast } from "@/src/features/notifications";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -46,7 +47,10 @@ export function GatewayConfigurationPage({
       defaultIngestionProjectId: params.projectId,
       ingestionMode: params.ingestionMode,
     });
-    await utils.aiGateway.getConfig.invalidate({ orgId: organizationId });
+    await Promise.all([
+      utils.aiGateway.getConfig.invalidate({ orgId: organizationId }),
+      utils.aiGateway.getSetupStatus.invalidate({ orgId: organizationId }),
+    ]);
     showSuccessToast({
       operation: "gateway_configuration.save",
       title: "Gateway configuration saved",
@@ -80,13 +84,61 @@ export function GatewayConfigurationPage({
   }
 
   const { config, gatewayBaseUrl } = configQuery.data;
+  const initialIngestionMode = config?.ingestionMode ?? "USAGE";
+
+  async function handleCreateProject(params: {
+    projectName: string;
+    ingestionMode: IngestionMode;
+  }) {
+    try {
+      const project = await createProject.mutateAsync({
+        orgId: organizationId,
+        name: params.projectName,
+      });
+      await session.update();
+      await saveGatewayConfig({
+        projectId: project.id,
+        ingestionMode: params.ingestionMode,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-configuration");
+    }
+  }
+
+  async function handleSelectProject(projectId: string) {
+    try {
+      await saveGatewayConfig({
+        projectId,
+        ingestionMode: initialIngestionMode,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-configuration");
+    }
+  }
+
+  /** Cloud always captures traffic, so it needs a project; self-hosted can use `NONE`. */
+  const showSetupPlaceholder =
+    isLangfuseCloud &&
+    !hasActiveIngestionProject(config?.defaultIngestionProject, organizationId);
+  if (showSetupPlaceholder) {
+    return (
+      <IngestionProjectSetupPlaceholder
+        ingestionMode={initialIngestionMode}
+        isSaving={createProject.isPending || updateConfig.isPending}
+        onCreate={handleCreateProject}
+        projects={projects.filter((project) => !project.deletedAt)}
+        onSelectProject={handleSelectProject}
+      />
+    );
+  }
+
   return (
     <GatewayConfigurationView
       key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
       projects={projects}
       gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
-      initialIngestionMode={config?.ingestionMode ?? "USAGE"}
+      initialIngestionMode={initialIngestionMode}
       availableIngestionModes={
         isLangfuseCloud ? CLOUD_INGESTION_MODES : SELF_HOSTED_INGESTION_MODES
       }
@@ -99,18 +151,7 @@ export function GatewayConfigurationPage({
           reportNonTrpcError(error, "ai-gateway-configuration");
         }
       }}
-      onCreateProject={async ({ projectName, ingestionMode }) => {
-        try {
-          const project = await createProject.mutateAsync({
-            orgId: organizationId,
-            name: projectName,
-          });
-          await session.update();
-          await saveGatewayConfig({ projectId: project.id, ingestionMode });
-        } catch (error) {
-          reportNonTrpcError(error, "ai-gateway-configuration");
-        }
-      }}
+      onCreateProject={handleCreateProject}
     />
   );
 }
@@ -128,4 +169,11 @@ function ConfigurationSkeleton() {
       </div>
     </div>
   );
+}
+
+function hasActiveIngestionProject(
+  project: { orgId: string; deletedAt: Date | null } | null | undefined,
+  organizationId: string,
+) {
+  return !!project && !project.deletedAt && project.orgId === organizationId;
 }

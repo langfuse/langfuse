@@ -2,6 +2,7 @@ import { useState, type ComponentProps, type Key } from "react";
 
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { cn } from "@/src/utils/tailwind";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 
 export interface ObservationPreviewProps {
   currentView?: ComponentProps<typeof IOPreview>["currentView"];
@@ -27,7 +28,7 @@ export function ObservationPreview({
         "flex min-h-0 w-full flex-1 flex-col",
         currentView === "json-beta" && isJSONBetaVirtualized
           ? "overflow-hidden"
-          : "overflow-auto pb-4",
+          : cn("overflow-auto pb-4", IO_STICKY_HEADERS_CLASS),
         // The JSON beta viewer runs edge to edge with its own toolbar.
         currentView !== "json-beta" && "px-4",
       )}

@@ -524,7 +524,7 @@ export function buildDataWindowPermalink(
     showAllEnvironments: "true",
   });
   const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack button URLs are limited to 3000 characters. Dropping predicates to
+  // Slack section text is limited to 3000 characters. Dropping predicates to
   // shorten a link would show scores outside the evaluated query.
   return href.length <= 3000 ? href : undefined;
 }

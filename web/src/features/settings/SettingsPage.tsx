@@ -143,6 +143,7 @@ export function buildSettingsPages({
       slug: page.slug,
       section: page.section,
       show: page.show,
+      disabledReason: page.disabledReason,
       href: organizationSettingsPath(organizationId, page.slug),
       internal: true,
     };

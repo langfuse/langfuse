@@ -12,6 +12,7 @@ import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
+import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -520,16 +521,15 @@ export const ValueCell = memo(
           {content}
         </span>
         {needsTruncation && !row.original.hasChildren && (
-          <div
-            className="inline cursor-pointer opacity-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCellExpansion(cellId);
-            }}
-          >
-            {isCellExpanded
-              ? "\n...collapse"
-              : `\n...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
+          <div className="flex">
+            <TextButton
+              variant="text"
+              text={isCellExpanded ? "Show less" : "Show more"}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCellExpansion(cellId);
+              }}
+            />
           </div>
         )}
 

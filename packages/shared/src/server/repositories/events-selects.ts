@@ -1,14 +1,4 @@
-import {
-  sql,
-  type Expression,
-  type ExpressionBuilder,
-  type SelectExpression,
-} from "kysely";
-
-import type {
-  SkillsAvailable,
-  SkillsResourceLoaded,
-} from "../../features/skills/trace";
+import type { Expression, ExpressionBuilder, SelectExpression } from "kysely";
 
 import {
   argMaxIf,
@@ -41,7 +31,11 @@ import {
   uniqIf,
 } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
-import type { FieldSetFieldKey } from "./events-field-sets";
+import {
+  orderedFieldKeys,
+  type EventsFieldKey,
+  type FieldSetFieldKey,
+} from "./events-field-sets";
 
 /** One row of the session aggregation (`sessionAggregationSelects`). */
 export type SessionEventsMetricsRow = {
@@ -76,6 +70,51 @@ type StringColumn = {
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
 type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
+
+const OBSERVATION_BY_ID_FIELDS = orderedFieldKeys([
+  "id",
+  "traceId",
+  "projectId",
+  "environment",
+  "type",
+  "parentObservationId",
+  "name",
+  "level",
+  "statusMessage",
+  "version",
+  "bookmarked",
+  "public",
+  "userId",
+  "sessionId",
+  "traceName",
+  "startTime",
+  "endTime",
+  "completionStartTime",
+  "createdAt",
+  "updatedAt",
+  "eventTs",
+  "providedModelName",
+  "internalModelId",
+  "modelParameters",
+  "providedUsageDetails",
+  "usageDetails",
+  "providedCostDetails",
+  "costDetails",
+  "totalCost",
+  "promptId",
+  "promptName",
+  "promptVersion",
+  "skillsAvailable",
+  "skillsResourceLoaded",
+  "toolDefinitions",
+  "toolCalls",
+  "toolCallNames",
+  "usagePricingTierId",
+  "usagePricingTierName",
+  "metadata",
+  "tags",
+  "release",
+] as const satisfies readonly EventsFieldKey[]);
 
 const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
@@ -296,11 +335,11 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
     ),
     session_input_cost: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.cost_details")),
-      "input",
+      literal("input"),
     ).as("session_input_cost"),
     session_output_cost: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.cost_details")),
-      "output",
+      literal("output"),
     ).as("session_output_cost"),
     session_total_cost: mapValue(
       sumMap(eb.ref("e.cost_details")),
@@ -308,11 +347,11 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
     ).as("session_total_cost"),
     session_input_usage: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.usage_details")),
-      "input",
+      literal("input"),
     ).as("session_input_usage"),
     session_output_usage: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.usage_details")),
-      "output",
+      literal("output"),
     ).as("session_output_usage"),
     session_total_usage: mapValue(
       sumMap(eb.ref("e.usage_details")),
@@ -320,57 +359,6 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
     ).as("session_total_usage"),
   } satisfies Record<SessionEventsField, EventsSelection>;
 }
-
-/** One observation's fields, without input/output. */
-export const observationByIdSelects = scopedToEvents(
-  (eb) =>
-    [
-      "e.span_id as id",
-      "e.trace_id as trace_id",
-      "e.project_id as project_id",
-      "e.environment as environment",
-      "e.type as type",
-      "e.parent_span_id as parent_observation_id",
-      "e.name as name",
-      "e.level as level",
-      "e.status_message as status_message",
-      "e.version as version",
-      "e.bookmarked as bookmarked",
-      "e.public as public",
-      "e.user_id as user_id",
-      "e.session_id as session_id",
-      traceNameSelect(eb),
-      "e.start_time as start_time",
-      "e.end_time as end_time",
-      "e.completion_start_time as completion_start_time",
-      "e.created_at as created_at",
-      "e.updated_at as updated_at",
-      "e.event_ts",
-      "e.provided_model_name as provided_model_name",
-      "e.model_id as internal_model_id",
-      "e.model_parameters as model_parameters",
-      "e.provided_usage_details as provided_usage_details",
-      "e.usage_details as usage_details",
-      "e.provided_cost_details as provided_cost_details",
-      "e.cost_details as cost_details",
-      "e.total_cost as total_cost",
-      "e.prompt_id as prompt_id",
-      "e.prompt_name as prompt_name",
-      "e.prompt_version as prompt_version",
-      sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
-      sql
-        .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-        .as("skills_resource_loaded"),
-      "e.tool_definitions as tool_definitions",
-      "e.tool_calls as tool_calls",
-      "e.tool_call_names as tool_call_names",
-      "e.usage_pricing_tier_id as usage_pricing_tier_id",
-      "e.usage_pricing_tier_name as usage_pricing_tier_name",
-      eventsMetadataMap(eb).as("metadata"),
-      "e.tags as tags",
-      "e.release as release",
-    ] satisfies EventsSelection[],
-);
 
 /** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
 export const millisecondsSinceStart = scopedToEvents(
@@ -413,12 +401,21 @@ type RowFieldSet =
   | "tools"
   | "export";
 
+type RowFieldKey =
+  | FieldSetFieldKey<RowFieldSet>
+  | (typeof OBSERVATION_BY_ID_FIELDS)[number];
+
 /**
  * Row-level event fields for `keys`, in that order. Pass keys in
  * `eventsFieldSetKeys` order: clustered reads align result blocks by column
  * position.
  */
 export const eventsRowFieldSelects = pickSelects(rowFieldSelectMap);
+
+/** One observation's fields, without input/output. */
+export const observationByIdSelects = eventsRowFieldSelects(
+  OBSERVATION_BY_ID_FIELDS,
+);
 
 /**
  * Row-level event fields, keyed like the legacy builder's field sets. Select
@@ -450,14 +447,20 @@ function rowFieldSelectMap(eb: EventsExpressionBuilder) {
     completionStartTime: "e.completion_start_time as completion_start_time",
     createdAt: "e.created_at as created_at",
     updatedAt: "e.updated_at as updated_at",
+    eventTs: "e.event_ts",
     providedModelName: "e.provided_model_name as provided_model_name",
+    internalModelId: "e.model_id as internal_model_id",
     modelParameters: "e.model_parameters as model_parameters",
+    providedUsageDetails: "e.provided_usage_details as provided_usage_details",
     usageDetails: "e.usage_details as usage_details",
+    providedCostDetails: "e.provided_cost_details as provided_cost_details",
     costDetails: "e.cost_details as cost_details",
     totalCost: "e.total_cost as total_cost",
     promptId: "e.prompt_id as prompt_id",
     promptName: "e.prompt_name as prompt_name",
     promptVersion: "e.prompt_version as prompt_version",
+    skillsAvailable: "e.skills_available as skills_available",
+    skillsResourceLoaded: "e.skills_resource_loaded as skills_resource_loaded",
     toolDefinitions: "e.tool_definitions as tool_definitions",
     toolCalls: "e.tool_calls as tool_calls",
     toolCallNames: "e.tool_call_names as tool_call_names",
@@ -472,7 +475,7 @@ function rowFieldSelectMap(eb: EventsExpressionBuilder) {
     timeToFirstToken: millisecondsSinceStart(eb, "e.completion_start_time").as(
       "time_to_first_token",
     ),
-  } satisfies Record<FieldSetFieldKey<RowFieldSet>, EventsSelection>;
+  } satisfies Record<RowFieldKey, EventsSelection>;
 }
 
 /** The `metrics` field set with latencies in seconds instead of milliseconds. */
