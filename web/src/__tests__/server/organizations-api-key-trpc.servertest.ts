@@ -533,7 +533,8 @@ describe("organization API keys trpc", () => {
     it("stops a deleted gateway key from resolving through the gateway cache", async () => {
       Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
       const gatewayKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId("user-1"),
         name: "Cached gateway key",
