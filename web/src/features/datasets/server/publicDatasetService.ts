@@ -1,6 +1,7 @@
 import type { NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { v4 } from "uuid";
+import { omit } from "lodash";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
@@ -648,8 +649,10 @@ export const createDatasetItemForApi = async ({
         projectId,
         orgId: auditScope.orgId,
         apiKeyId: auditScope.apiKeyId,
-        before: existingDatasetItem ?? undefined,
-        after: datasetItem,
+        before: existingDatasetItem
+          ? omit(existingDatasetItem, ["input", "expectedOutput", "metadata"])
+          : undefined,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
     }
 
@@ -717,7 +720,7 @@ export const deleteDatasetItemForApi = async ({
     projectId,
     orgId,
     apiKeyId,
-    before: result.deletedItem,
+    before: omit(result.deletedItem, ["input", "expectedOutput", "metadata"]),
   });
 
   return {

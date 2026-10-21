@@ -104,6 +104,14 @@ export const aiGatewayRouter = createTRPCRouter({
       };
     }),
 
+  /** Readable by every gateway reader; exposes only whether setup is done, not the config itself. */
+  getSetupStatus: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
   updateConfig: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
