@@ -764,6 +764,35 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it.each(["legacy", "shadow"] as const)(
+    "keeps gateway API key creation admin-only when API_AUTH_MIGRATION is %s",
+    async (migration) => {
+      const originalMigration = env.API_AUTH_MIGRATION;
+      Object.assign(env, { API_AUTH_MIGRATION: migration });
+      try {
+        const owner = await prepare();
+        const member = await createCallerForOrganizationRole(
+          owner,
+          Role.MEMBER,
+        );
+
+        await expect(
+          member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+      } finally {
+        Object.assign(env, { API_AUTH_MIGRATION: originalMigration });
+      }
+    },
+  );
+
   it("rejects gateway API key expiration dates in the past", async () => {
     const { caller, org } = await prepare();
 

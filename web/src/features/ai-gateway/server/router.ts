@@ -382,7 +382,13 @@ export const aiGatewayRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      // Legacy public API auth ignores key roles, so a gateway key passes as an
+      // organization admin key there; only managers may mint one outside enforce.
+      if (env.API_AUTH_MIGRATION === "enforce") {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      }
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
         name: input.name,
