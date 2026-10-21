@@ -9,6 +9,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/GatewayProvidersTable";
+import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
@@ -26,7 +27,7 @@ export function GatewayProvidersPage({
       ? router.query.connectionId
       : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: 100 },
+    { orgId: organizationId, limit: gatewayConnectionsPageSize },
     {
       enabled: !connectionId,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
