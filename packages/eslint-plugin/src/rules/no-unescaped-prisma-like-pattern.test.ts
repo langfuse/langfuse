@@ -1,6 +1,6 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
-import rule from "./no-unescaped-like-pattern.js";
+import rule from "./no-unescaped-prisma-like-pattern.js";
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -12,7 +12,7 @@ const ruleTester = new RuleTester({
   },
 });
 
-ruleTester.run("no-unescaped-like-pattern", rule, {
+ruleTester.run("no-unescaped-prisma-like-pattern", rule, {
   valid: [
     `where({ name: { contains: escapeSqlLikePattern(query) } });`,
     `where({ name: { startsWith: \`\${escapeSqlLikePattern(path)}/\` } });`,
@@ -27,12 +27,25 @@ ruleTester.run("no-unescaped-like-pattern", rule, {
      where({ name: { startsWith: \`\${prefix}/\` } });`,
     `where({ name: { contains: escapeSqlLikePattern(q) as string } });`,
     `where({ name: { contains: escapeSqlLikePattern(q)! } });`,
+    `const e = escapeSqlLikePattern(q);
+     where({ name: { contains: exact ? e : \`%\${e}%\` } });`,
+    `const e = escapeSqlLikePattern(q);
+     where({ name: { startsWith: e + "/" + e } });`,
+    `const insensitive = { mode: "insensitive" as const };
+     where({ name: { equals: escapeSqlLikePattern(q), ...insensitive } });`,
+    `const caseSensitive = { mode: "default" };
+     where({ name: { equals: q, ...caseSensitive } });`,
+    `const mode = "default";
+     where({ name: { equals: q, mode } });`,
+    `where({ name: { not: { contains: escapeSqlLikePattern(q) }, mode: "insensitive" } });`,
+    `where({ name: { not: q } });`,
     `const { contains } = filter;`,
     `const byIndex = { 1: query };`,
     `makeTag()\`name ILIKE \${q}\`;`,
     `gql\`query { items(filter: "name ILIKE \${q}") }\`;`,
     `Prisma.sql\`AND d.name ILIKE \${\`%\${escapeSqlLikePattern(q)}%\`}\`;`,
     `Prisma.sql\`AND d.name = \${name}\`;`,
+    `sql\`AND name ILIKE \${escapeSqlLikePattern(q)} AND id = \${id}\`;`,
     `Prisma.sql\`AND d.name LIKE '%/%' AND d.id = \${id}\`;`,
     `const pattern = \`%\${escapeSqlLikePattern(q)}%\`;
      prisma.$queryRaw\`SELECT 1 WHERE name ILIKE \${pattern}\`;`,
@@ -59,6 +72,40 @@ ruleTester.run("no-unescaped-like-pattern", rule, {
       errors: [{ messageId: "unescaped" }],
     },
     {
+      code: `where({ name: { equals: name, mode: "insensitive" as const } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `where({ name: { equals: name, mode: Prisma.QueryMode.insensitive } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `const insensitive = { mode: "insensitive" as const };
+             where({ name: { equals: name, ...insensitive } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `where({ name: { equals: name, ...modeFor(input) } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `where({ name: { equals: name, mode: modeFor(input) } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `const opts = makeOpts();
+             where({ name: { equals: name, ...opts } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `function f(mode: string) { where({ name: { equals: q, mode } }); }`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `where({ name: { not: name, mode: "insensitive" } });`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
       code: `let q = escapeSqlLikePattern(raw);
              where({ name: { contains: q } });`,
       errors: [{ messageId: "unescaped" }],
@@ -77,6 +124,14 @@ ruleTester.run("no-unescaped-like-pattern", rule, {
     },
     {
       code: `sql\`AND tag NOT ILIKE '%' || \${q} || '%'\`;`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `sql\`AND name ILIKE \${escapeSqlLikePattern(prefix)} || \${q}\`;`,
+      errors: [{ messageId: "unescaped" }],
+    },
+    {
+      code: `sql\`AND name ILIKE ('%' || \${q})\`;`,
       errors: [{ messageId: "unescaped" }],
     },
     {

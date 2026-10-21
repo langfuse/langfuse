@@ -62,11 +62,11 @@ export default [
 
   // Prisma `contains`/`startsWith`/`endsWith` and raw `LIKE` treat `_`, `%` and `\` as wildcards.
   {
-    name: "langfuse/shared/no-unescaped-like-pattern",
+    name: "langfuse/shared/no-unescaped-prisma-like-pattern",
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
     ignores: ["**/*.test.ts", "**/*.servertest.ts", "**/__tests__/**"],
     rules: {
-      "@repo/no-unescaped-like-pattern": "warn",
+      "@repo/no-unescaped-prisma-like-pattern": "warn",
     },
   },
 

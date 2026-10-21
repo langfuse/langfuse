@@ -11,12 +11,17 @@ const ESCAPE_FUNCTION = "escapeSqlLikePattern";
 
 // Prisma compiles these string filters to (I)LIKE on Postgres without escaping.
 const PRISMA_LIKE_KEYS = new Set(["contains", "startsWith", "endsWith"]);
+// With `mode: "insensitive"`, Prisma compiles these to ILIKE / NOT ILIKE too.
+const PRISMA_INSENSITIVE_KEYS = new Set(["equals", "not"]);
 
 const SQL_TAGS = new Set(["sql", "$queryRaw", "$executeRaw"]);
 
 // Matches template text that ends right before a LIKE pattern operand, e.g.
-// `name ILIKE `, `tag LIKE '%' || `, `x NOT ILIKE ANY(`.
-const LIKE_OPERAND_SUFFIX = /\bI?LIKE\s*(?:ANY\s*\(\s*)?(?:'%'\s*\|\|\s*)?$/i;
+// `name ILIKE `, `tag LIKE ('%' || `, `x NOT ILIKE ANY(`.
+const LIKE_OPERAND_SUFFIX =
+  /\bI?LIKE\s*(?:ANY\s*)?(?:\(\s*)?(?:'%'\s*\|\|\s*)?$/i;
+// Matches template text that joins two values of the same pattern, e.g. ` || `.
+const PATTERN_CONCAT = /^\s*(?:'%'\s*)?\|\|\s*(?:'%'\s*\|\|\s*)?$/;
 
 type Context = Readonly<TSESLint.RuleContext<"unescaped", []>>;
 
@@ -29,6 +34,35 @@ function calleeName(callee: TSESTree.Expression): string | null {
     return callee.property.name;
   }
   return null;
+}
+
+function constInit(
+  node: TSESTree.Identifier,
+  context: Context,
+): TSESTree.Expression | null {
+  const variable = ASTUtils.findVariable(
+    context.sourceCode.getScope(node),
+    node,
+  );
+  const def = variable?.defs.length === 1 ? variable.defs[0] : undefined;
+  if (
+    def?.node.type !== AST_NODE_TYPES.VariableDeclarator ||
+    def.node.parent.kind !== "const" ||
+    !def.node.init
+  ) {
+    return null;
+  }
+  return def.node.init;
+}
+
+function unwrap(node: TSESTree.Node): TSESTree.Node {
+  if (
+    node.type === AST_NODE_TYPES.TSAsExpression ||
+    node.type === AST_NODE_TYPES.TSNonNullExpression
+  ) {
+    return unwrap(node.expression);
+  }
+  return node;
 }
 
 function isEscaped(
@@ -60,33 +94,50 @@ function isEscaped(
   if (node.type !== AST_NODE_TYPES.Identifier) return false;
   if (node.name === "undefined") return true;
 
-  // Follow a single `const` binding to its initializer.
-  const variable = ASTUtils.findVariable(
-    context.sourceCode.getScope(node),
-    node,
-  );
-  const def = variable?.defs.length === 1 ? variable.defs[0] : undefined;
-  if (
-    def?.node.type !== AST_NODE_TYPES.VariableDeclarator ||
-    def.node.parent.kind !== "const" ||
-    !def.node.init ||
-    seen.has(def.node)
-  ) {
-    return false;
-  }
-  seen.add(def.node);
-  return recurse(def.node.init);
+  // Follow a single `const` binding to its initializer. `seen` holds only the
+  // bindings on the current path, so it stops cycles but allows reuse.
+  const init = constInit(node, context);
+  if (!init || seen.has(init)) return false;
+  seen.add(init);
+  const escaped = recurse(init);
+  seen.delete(init);
+  return escaped;
 }
 
-function isInsensitive(object: TSESTree.ObjectExpression): boolean {
-  return object.properties.some(
-    (p) =>
-      p.type === AST_NODE_TYPES.Property &&
+// A `mode` that cannot be resolved to a literal other than "insensitive"
+// counts as insensitive.
+function isInsensitiveMode(value: TSESTree.Node, context: Context): boolean {
+  const node = unwrap(value);
+  if (node.type === AST_NODE_TYPES.Literal) return node.value === "insensitive";
+  if (node.type === AST_NODE_TYPES.Identifier) {
+    const init = constInit(node, context);
+    return init ? isInsensitiveMode(init, context) : true;
+  }
+  return true;
+}
+
+function isInsensitive(
+  object: TSESTree.ObjectExpression,
+  context: Context,
+): boolean {
+  return object.properties.some((p) => {
+    if (p.type === AST_NODE_TYPES.SpreadElement) {
+      const argument = unwrap(p.argument);
+      const init =
+        argument.type === AST_NODE_TYPES.Identifier
+          ? constInit(argument, context)
+          : null;
+      const spread = init && unwrap(init);
+      return spread?.type === AST_NODE_TYPES.ObjectExpression
+        ? isInsensitive(spread, context)
+        : true;
+    }
+    return (
       !p.computed &&
       getStaticPropertyKeyValue(p.key) === "mode" &&
-      p.value.type === AST_NODE_TYPES.Literal &&
-      p.value.value === "insensitive",
-  );
+      isInsensitiveMode(p.value, context)
+    );
+  });
 }
 
 function isSqlTag(tag: TSESTree.Expression): boolean {
@@ -94,7 +145,7 @@ function isSqlTag(tag: TSESTree.Expression): boolean {
 }
 
 const rule = createRule<[], "unescaped">({
-  name: "no-unescaped-like-pattern",
+  name: "no-unescaped-prisma-like-pattern",
   meta: {
     type: "problem",
     docs: {
@@ -117,9 +168,11 @@ const rule = createRule<[], "unescaped">({
         const key = getStaticPropertyKeyValue(node.key) ?? "";
 
         const isLikeKey = PRISMA_LIKE_KEYS.has(key);
-        const isInsensitiveEquals =
-          key === "equals" && isInsensitive(node.parent);
-        if (!isLikeKey && !isInsensitiveEquals) return;
+        const isInsensitiveMatch =
+          PRISMA_INSENSITIVE_KEYS.has(key) &&
+          node.value.type !== AST_NODE_TYPES.ObjectExpression &&
+          isInsensitive(node.parent, context);
+        if (!isLikeKey && !isInsensitiveMatch) return;
 
         if (isEscaped(node.value, context)) return;
 
@@ -127,8 +180,8 @@ const rule = createRule<[], "unescaped">({
           node: node.value,
           messageId: "unescaped",
           data: {
-            where: isInsensitiveEquals
-              ? "Prisma insensitive `equals` (ILIKE)"
+            where: isInsensitiveMatch
+              ? `Prisma insensitive \`${key}\` (ILIKE)`
               : `Prisma \`${key}\``,
           },
         });
@@ -136,8 +189,13 @@ const rule = createRule<[], "unescaped">({
       TaggedTemplateExpression(node) {
         if (!isSqlTag(node.tag)) return;
         const { quasis, expressions } = node.quasi;
+        let inPattern = false;
         expressions.forEach((expression, i) => {
-          if (!LIKE_OPERAND_SUFFIX.test(quasis[i].value.raw)) return;
+          const before = quasis[i].value.raw;
+          inPattern =
+            LIKE_OPERAND_SUFFIX.test(before) ||
+            (inPattern && PATTERN_CONCAT.test(before));
+          if (!inPattern) return;
           if (isEscaped(expression, context)) return;
           context.report({
             node: expression,
