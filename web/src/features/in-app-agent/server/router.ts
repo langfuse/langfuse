@@ -471,6 +471,7 @@ export const inAppAgentRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       if (
         !hasInternalAccess({
+          email: ctx.session.user.email,
           isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",

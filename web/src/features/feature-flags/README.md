@@ -19,6 +19,13 @@ User-controlled previews may pass `{ enableForAdmins: false }` so an
 administrator can opt in or out like any other user. The deployment-wide
 `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on.
 
+Internal view is available to platform admins, users with an email ending
+exactly in `@langfuse.com` or `@clickhouse.com` (case-insensitive, no subdomains),
+and deployments with experimental features enabled. Eligible users can switch
+Internal view off through their account menu. Email eligibility grants access to
+internal surfaces only; it does not change `user.admin`, project membership,
+RBAC permissions, or admin-only feature-flag overrides.
+
 Topics is available through internal view or the `langfuseTopics` ("Langfuse
 Topics") personal flag. Internal view follows the shared internal eligibility
 and opt-out rules; its sidebar entry carries the Internal badge. Only platform

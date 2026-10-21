@@ -300,12 +300,14 @@ describe("Topics project allowlist", () => {
 describe("Topics visibility gate", () => {
   const session = ({
     admin = false,
+    email = "user@example.com",
     langfuseTopics = true,
     internalFeatures = true,
     enableExperimentalFeatures = false,
     role = "VIEWER",
   }: {
     admin?: boolean;
+    email?: string;
     langfuseTopics?: boolean;
     internalFeatures?: boolean;
     enableExperimentalFeatures?: boolean;
@@ -317,6 +319,7 @@ describe("Topics visibility gate", () => {
       user: {
         id: "user-a",
         admin,
+        email,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
@@ -328,6 +331,24 @@ describe("Topics visibility gate", () => {
   it.each([
     ["a member on an allowlisted project", {}, true, true],
     ["a project outside the allowlist", {}, false, false],
+    [
+      "a staff member without the Topics flag",
+      { email: "member@langfuse.com", langfuseTopics: false },
+      true,
+      true,
+    ],
+    [
+      "a staff member outside the project",
+      { email: "member@langfuse.com", langfuseTopics: false, role: null },
+      true,
+      false,
+    ],
+    [
+      "a staff member outside the allowlist",
+      { email: "member@langfuse.com", langfuseTopics: false },
+      false,
+      false,
+    ],
     [
       "a non-internal user without the flag",
       { langfuseTopics: false },

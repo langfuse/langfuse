@@ -31,7 +31,9 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   it.each([true, false])(
     "rejects a non-platform-admin Topics toggle to %s",
     async (enabled) => {
-      const { caller, userId } = await createCaller();
+      const { caller, userId } = await createCaller({
+        emailDomain: "langfuse.com",
+      });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
           flag: "langfuseTopics",
@@ -160,9 +162,15 @@ describe("userAccountRouter.setViewMode", () => {
     testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
   });
 
-  it("persists only the external override and preserves other preferences", async () => {
+  it.each([
+    { admin: true, emailDomain: "example.com" },
+    { admin: false, emailDomain: "langfuse.com" },
+    { admin: false, emailDomain: "clickhouse.com" },
+  ])("keeps $emailDomain admin=$admin", async (options) => {
+    const { admin, emailDomain } = options;
     const { caller, userId } = await createCaller({
-      admin: true,
+      admin,
+      emailDomain,
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -175,10 +183,11 @@ describe("userAccountRouter.setViewMode", () => {
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["sessionViewV2"]);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
+    expect(user.admin).toBe(admin);
   });
 
   it("does not allow ordinary users to select internal mode", async () => {

@@ -100,9 +100,15 @@ describe("in-app agent router", () => {
     const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
       admin: true,
     });
+    const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
+      email: "member@clickhouse.com",
+    });
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const originalExperimentalFeatures =
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
     try {
+      Object.assign(env, { LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false" });
       (
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
@@ -117,7 +123,15 @@ describe("in-app agent router", () => {
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: "ai-features-project" });
+      await expect(
+        staffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: "ai-features-project" });
     } finally {
+      Object.assign(env, {
+        LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: originalExperimentalFeatures,
+      });
       (
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
@@ -185,13 +199,16 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
-  { admin = false }: { admin?: boolean } = {},
+  {
+    admin = false,
+    email = `${userId}@example.com`,
+  }: { admin?: boolean; email?: string } = {},
 ) {
   const session: Session = {
     expires: "1",
     user: {
       id: userId,
-      email: `${userId}@example.com`,
+      email,
       name: "In-app Agent Router Test User",
       canCreateOrganizations: true,
       organizations: [

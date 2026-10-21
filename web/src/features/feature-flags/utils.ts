@@ -21,25 +21,28 @@ export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
 /**
- * Langfuse admins and deployments with experimental features enabled see
- * internal surfaces. Client and server gates share this rule.
+ * Platform admins, staff email domains and experimental deployments can use
+ * internal surfaces. This eligibility does not grant admin permissions.
  */
 export const hasInternalAccess = ({
   isAdmin,
   isExperimentalFeaturesEnabled,
+  email,
 }: {
   isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
-}) => isExperimentalFeaturesEnabled || isAdmin;
+  email: string | null | undefined;
+}) => isExperimentalFeaturesEnabled || isAdmin || hasInternalEmailDomain(email);
 
 export const isInternalViewEnabled = (session: Session | null | undefined) =>
   hasInternalAccess({
+    email: session?.user?.email,
     isAdmin: session?.user?.admin === true,
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
 
-const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
+const hasInternalEmailDomain = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
@@ -55,9 +58,7 @@ export const parseFlags = (
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
-  const enableFeaturePreviewsByDefault = receivesFeaturePreviewsByDefault(
-    context.email,
-  );
+  const enableFeaturePreviewsByDefault = hasInternalEmailDomain(context.email);
 
   availableFlags.forEach((flag) => {
     if (isRestrictedFlag(flag)) {

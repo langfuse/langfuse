@@ -5,11 +5,7 @@ import {
   isRestrictedFlag,
 } from "../available-flags";
 import type { Flag } from "../types";
-import {
-  getContextualFeatureFlags,
-  hasInternalAccess,
-  isInternalViewEnabled,
-} from "../utils";
+import { getContextualFeatureFlags, isInternalViewEnabled } from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -45,9 +41,8 @@ export default function useIsFeatureEnabled(
   }
 
   return (
-    hasInternalAccess({
-      isAdmin: enableForAdmins && isAdmin,
-      isExperimentalFeaturesEnabled,
-    }) || isFeatureEnabledOnUser
+    isExperimentalFeaturesEnabled ||
+    (enableForAdmins && isAdmin) ||
+    isFeatureEnabledOnUser
   );
 }
