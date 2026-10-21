@@ -159,8 +159,10 @@
   and add version-specific adapters; see the transcript README.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
-  `putTraceBatchInputs` and `getTraceBatchInputs` share a project/trace/revision
-  key in the event bucket. The writer takes `TraceBatchInputData` with transcript
+  `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
+  with `put` and `get`, sharing a project/trace/revision key in the event bucket
+  and one lazily initialized provider client across factory calls. Consumers
+  receive the storage object. The writer takes `TraceBatchInputData` with transcript
   and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps
   stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16

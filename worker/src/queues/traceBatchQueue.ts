@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
+  createTraceBatchInputStorage,
   getCurrentSpan,
   getTraceBatchEventStream,
   logger,
@@ -43,6 +44,8 @@ import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTr
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 import { storeInputs } from "../features/traceBatching/storeInputs";
+
+const inputStorage = createTraceBatchInputStorage();
 
 type TraceBatchObservation = Observation & {
   eventTimestamp: string;
@@ -187,7 +190,11 @@ async function summarizeTraceBatch(
         facets: project.facets,
       }),
       inputReference
-        ? storeInputs(inputReference, { transcript, traceContext })
+        ? storeInputs(
+            inputReference,
+            { transcript, traceContext },
+            inputStorage,
+          )
         : Promise.resolve(),
     ]);
     if (summary.status === "rejected") throw summary.reason;

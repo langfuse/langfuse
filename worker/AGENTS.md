@@ -88,7 +88,9 @@
   Allowlisted projects are then summarized from that assembled transcript.
   Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
-  revision. Store `{ transcript, traceContext }` using the same metadata selection
+  revision. The queue creates `createTraceBatchInputStorage()` once and injects
+  its `TraceBatchInputStorage` object into `storeInputs`. Store
+  `{ transcript, traceContext }` using the same metadata selection
   as Topics; preserve nullable session ID/name in storage and apply the Topics
   name fallback only at its call site.
   `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off.

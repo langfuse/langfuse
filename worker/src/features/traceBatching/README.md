@@ -330,7 +330,12 @@ Objects contain a versioned envelope:
 }
 ```
 
-`putTraceBatchInputs(reference, { transcript, traceContext })` requires all context
+The queue creates `inputStorage` with `createTraceBatchInputStorage()` and passes
+it into `storeInputs`. The factory returns the `TraceBatchInputStorage` interface
+with `put` and `get`; all instances share one lazily initialized provider client.
+Feature gating, instrumentation and tolerated failures remain in `storeInputs`.
+
+`inputStorage.put(reference, { transcript, traceContext })` requires all context
 fields, with null for an absent session ID or name. Context uses the event-domain
 field schemas and the existing Topics selection: earliest observation start,
 newest nonempty session ID, newest-event environment and first observation name.
@@ -339,7 +344,7 @@ time remains execution state rather than trace context.
 
 The transcript module owns the canonical schema and typed V1 serialization
 adapters; normalized IO owns the nested message/part schemas. Message dates are
-serialized as ISO strings. `getTraceBatchInputs(reference)` returns
+serialized as ISO strings. `inputStorage.get(reference)` returns
 `{ transcript, traceContext }`, validates nested content and restores message
 dates; `traceContext.traceTimestamp` remains an ISO string. Missing context,
 invalid JSON, unsupported versions and download errors propagate; an explicitly
@@ -371,7 +376,9 @@ explicitly accept this temporary retention or extend the deletion paths.
 
 ### Storage portability
 
-Keep producers and consumers behind `putTraceBatchInputs` / `getTraceBatchInputs`.
+Keep producers and consumers behind the `TraceBatchInputStorage` interface.
+`createTraceBatchInputStorage()` wires the production implementation; consumers
+receive the storage object so tests or another backend can supply the same contract.
 `TraceBatchInputData` is the application contract; the S3 key layout, client,
 serialization and physical retention belong to the storage implementation.
 The logical identity `(projectId, traceId, revision)` must remain stable across

@@ -23,7 +23,7 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
-  putTraceBatchInputs,
+  type TraceBatchInputStorage,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -53,6 +53,11 @@ import {
   traceBatchQueueProcessor,
 } from "../traceBatchQueue";
 
+const inputStorage = vi.hoisted(() => ({
+  put: vi.fn<TraceBatchInputStorage["put"]>(),
+  get: vi.fn<TraceBatchInputStorage["get"]>(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getTraceBatchEventStream: vi.fn(),
@@ -60,7 +65,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
-  putTraceBatchInputs: vi.fn(),
+  createTraceBatchInputStorage: () => inputStorage,
 }));
 
 vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
@@ -120,7 +125,7 @@ beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
-  vi.mocked(putTraceBatchInputs).mockResolvedValue({
+  inputStorage.put.mockResolvedValue({
     outcome: "stored",
     jsonLength: 100,
   });
@@ -1001,11 +1006,11 @@ describe("trace batch queue", () => {
         outcome === "disabled" ? "false" : "true";
       const info = vi.spyOn(logger, "info");
       if (outcome === "upload_failed")
-        vi.mocked(putTraceBatchInputs).mockRejectedValueOnce(
+        inputStorage.put.mockRejectedValueOnce(
           new Error("Failed to upload file to S3"),
         );
       if (outcome === "too_large")
-        vi.mocked(putTraceBatchInputs).mockResolvedValueOnce({
+        inputStorage.put.mockResolvedValueOnce({
           outcome,
           jsonLength: 1_000_001,
         });
@@ -1061,11 +1066,11 @@ describe("trace batch queue", () => {
       expect(
         vi.mocked(summarizeAssembledTrace).mock.calls[0][0].transcript?.threads,
       ).toHaveLength(1);
-      expect(putTraceBatchInputs).toHaveBeenCalledTimes(
+      expect(inputStorage.put).toHaveBeenCalledTimes(
         outcome === "disabled" ? 0 : 1,
       );
       if (outcome !== "disabled") {
-        expect(putTraceBatchInputs).toHaveBeenCalledWith(
+        expect(inputStorage.put).toHaveBeenCalledWith(
           {
             projectId: "project",
             traceId: "trace",
@@ -1113,7 +1118,7 @@ describe("trace batch queue", () => {
       const originalConcurrency = env.LANGFUSE_TOPICS_TRACE_CONCURRENCY;
       env.LANGFUSE_TOPICS_TRACE_CONCURRENCY = 1;
       let finishUpload!: () => void;
-      vi.mocked(putTraceBatchInputs).mockImplementationOnce(
+      inputStorage.put.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             finishUpload = () =>
@@ -1170,11 +1175,11 @@ describe("trace batch queue", () => {
           expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
         );
         await new Promise<void>((resolve) => setImmediate(resolve));
-        expect(putTraceBatchInputs).toHaveBeenCalledTimes(1);
+        expect(inputStorage.put).toHaveBeenCalledTimes(1);
         expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1);
         finishUpload();
         await processing;
-        expect(putTraceBatchInputs).toHaveBeenCalledTimes(2);
+        expect(inputStorage.put).toHaveBeenCalledTimes(2);
         expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2);
       } finally {
         finishUpload?.();
@@ -1246,8 +1251,8 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
-    expect(putTraceBatchInputs).toHaveBeenCalledTimes(1);
-    expect(putTraceBatchInputs).toHaveBeenCalledWith(
+    expect(inputStorage.put).toHaveBeenCalledTimes(1);
+    expect(inputStorage.put).toHaveBeenCalledWith(
       { projectId: "picked", traceId: "trace", revision: "revision-picked" },
       expect.objectContaining({
         transcript: expect.objectContaining({ threads: expect.any(Array) }),
@@ -1323,7 +1328,7 @@ describe("trace batch queue", () => {
       environment: "env-c",
       traceName: "generation-a",
     });
-    expect(putTraceBatchInputs).toHaveBeenCalledWith(
+    expect(inputStorage.put).toHaveBeenCalledWith(
       { projectId: "project", traceId: "trace", revision: "r" },
       expect.objectContaining({
         traceContext: {
@@ -1408,12 +1413,12 @@ describe("trace batch queue", () => {
       "on",
     ]);
     expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
-    expect(
-      vi.mocked(putTraceBatchInputs).mock.calls.map(([reference]) => reference),
-    ).toEqual([
-      { projectId: "on", traceId: "trace-1", revision: "r" },
-      { projectId: "on", traceId: "trace-2", revision: "r" },
-    ]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [
+        { projectId: "on", traceId: "trace-1", revision: "r" },
+        { projectId: "on", traceId: "trace-2", revision: "r" },
+      ],
+    );
     expect(
       vi
         .mocked(summarizeAssembledTrace)

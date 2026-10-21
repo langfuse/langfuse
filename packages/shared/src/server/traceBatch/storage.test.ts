@@ -3,13 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StorageService } from "../services/StorageService";
 import type { Transcript } from "../transcript/types";
 import storedV1 from "./fixtures/inputs-v1.json";
-import { getTraceBatchInputs, putTraceBatchInputs } from "./storage";
+import { createEventUploadStorageService } from "../s3";
+import { createTraceBatchInputStorage } from "./storage";
 
 const storage = vi.hoisted(() => ({
   uploadFile: vi.fn<StorageService["uploadFile"]>(),
   download: vi.fn<StorageService["download"]>(),
 }));
-vi.mock("../s3", () => ({ createEventUploadStorageService: () => storage }));
+vi.mock("../s3", () => ({
+  createEventUploadStorageService: vi.fn(() => storage),
+}));
 vi.mock("../../env", () => ({
   env: {
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "events",
@@ -17,6 +20,8 @@ vi.mock("../../env", () => ({
     LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES: 200,
   },
 }));
+
+const inputStorage = createTraceBatchInputStorage();
 
 const reference = {
   projectId: "project",
@@ -37,6 +42,22 @@ beforeEach(() => {
 });
 
 describe("trace batch input storage", () => {
+  it("initializes the provider lazily and reuses it across storage instances", async () => {
+    vi.resetModules();
+    vi.mocked(createEventUploadStorageService).mockClear();
+    const { createTraceBatchInputStorage } = await import("./storage.js");
+    const first = createTraceBatchInputStorage();
+    const second = createTraceBatchInputStorage();
+    expect(createEventUploadStorageService).not.toHaveBeenCalled();
+
+    await first.get(reference);
+    await second.put(reference, { transcript: null, traceContext });
+
+    expect(createEventUploadStorageService).toHaveBeenCalledExactlyOnceWith(
+      "events",
+    );
+  });
+
   it.each([
     { sessionId: "session", traceName: "agent" },
     { sessionId: null, traceName: null },
@@ -48,7 +69,7 @@ describe("trace batch input storage", () => {
         ...nullableFields,
       },
     };
-    await putTraceBatchInputs(reference, inputs);
+    await inputStorage.put(reference, inputs);
     let json = "";
     for await (const chunk of storage.uploadFile.mock.calls[0][0].data)
       json += chunk;
@@ -57,19 +78,19 @@ describe("trace batch input storage", () => {
       traceContext: inputs.traceContext,
     });
     storage.download.mockResolvedValueOnce(json);
-    expect(await getTraceBatchInputs(reference)).toEqual(inputs);
+    expect(await inputStorage.get(reference)).toEqual(inputs);
   });
 
   it("reads the saved v1 format and writes it at the deterministic revision key", async () => {
     const value = transcript();
     const key = "test/trace-batch/trace/ecb/project/trace/revision.json";
-    expect(await getTraceBatchInputs(reference)).toEqual({
+    expect(await inputStorage.get(reference)).toEqual({
       transcript: value,
       traceContext,
     });
     expect(storage.download).toHaveBeenCalledWith(key);
 
-    await putTraceBatchInputs(reference, { transcript: value, traceContext });
+    await inputStorage.put(reference, { transcript: value, traceContext });
     const upload = storage.uploadFile.mock.calls[0][0];
     expect(upload).toMatchObject({
       fileName: key,
@@ -85,7 +106,7 @@ describe("trace batch input storage", () => {
     storage.download.mockResolvedValueOnce(
       JSON.stringify({ schemaVersion: 1, transcript: null, traceContext }),
     );
-    expect(await getTraceBatchInputs(reference)).toEqual({
+    expect(await inputStorage.get(reference)).toEqual({
       transcript: null,
       traceContext,
     });
@@ -104,7 +125,7 @@ describe("trace batch input storage", () => {
         { type: "text", text: "x".repeat(size - overhead) },
       ];
       expect(
-        await putTraceBatchInputs(reference, {
+        await inputStorage.put(reference, {
           transcript: value,
           traceContext,
         }),
@@ -120,10 +141,10 @@ describe("trace batch input storage", () => {
 
   it("propagates upload and download failures", async () => {
     storage.download.mockRejectedValueOnce(new Error("NoSuchKey"));
-    await expect(getTraceBatchInputs(reference)).rejects.toThrow("NoSuchKey");
+    await expect(inputStorage.get(reference)).rejects.toThrow("NoSuchKey");
     storage.uploadFile.mockRejectedValueOnce(new Error("SlowDown"));
     await expect(
-      putTraceBatchInputs(reference, { transcript: null, traceContext }),
+      inputStorage.put(reference, { transcript: null, traceContext }),
     ).rejects.toThrow("SlowDown");
   });
 
@@ -164,7 +185,7 @@ describe("trace batch input storage", () => {
     ],
   ])("rejects %s", async (_label, json) => {
     storage.download.mockResolvedValueOnce(json);
-    await expect(getTraceBatchInputs(reference)).rejects.toThrow();
+    await expect(inputStorage.get(reference)).rejects.toThrow();
   });
 });
 

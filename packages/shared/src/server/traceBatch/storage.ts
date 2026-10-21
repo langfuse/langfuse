@@ -28,47 +28,57 @@ export type TraceBatchInputData = {
   traceContext: TraceBatchInputs["traceContext"];
 };
 
+export interface TraceBatchInputStorage {
+  /** Ordinary PUT: retries using the same revision can replace the saved input. */
+  put(
+    reference: TraceBatchInputReference,
+    inputs: TraceBatchInputData,
+  ): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }>;
+  /** Missing objects, invalid JSON and unsupported schemas propagate to the caller. */
+  get(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
+}
+
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
 let storage: StorageService | undefined;
 
-/** Ordinary PUT: retries using the same revision can replace the saved input. */
-export async function putTraceBatchInputs(
-  reference: TraceBatchInputReference,
-  { transcript, traceContext }: TraceBatchInputData,
-): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }> {
-  const inputs: TraceBatchInputs = {
-    schemaVersion: 1,
-    transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
-    traceContext,
-  };
-  const json = JSON.stringify(inputs);
-  const jsonLength = json.length;
-  if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
-    return { outcome: "too_large", jsonLength };
-
-  await getStorage().uploadFile({
-    fileName: getTraceBatchInputsKey(reference),
-    fileType: "application/json",
-    // Stream the serialized text so providers handle its UTF-8 byte length.
-    data: Readable.from([json]),
-  });
-  return { outcome: "stored", jsonLength };
-}
-
-/** Missing objects, invalid JSON and unsupported schemas propagate to the caller. */
-export async function getTraceBatchInputs(
-  reference: TraceBatchInputReference,
-): Promise<TraceBatchInputData> {
-  const json = await getStorage().download(getTraceBatchInputsKey(reference));
-  const inputs = traceBatchInputsSchema.parse(JSON.parse(json));
+/** Storage dependencies share one lazily initialized provider client. */
+export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   return {
-    transcript:
-      inputs.transcript === null
-        ? null
-        : fromStoredTranscriptV1(inputs.transcript),
-    traceContext: inputs.traceContext,
+    async put(reference, { transcript, traceContext }) {
+      const inputs: TraceBatchInputs = {
+        schemaVersion: 1,
+        transcript:
+          transcript === null ? null : toStoredTranscriptV1(transcript),
+        traceContext,
+      };
+      const json = JSON.stringify(inputs);
+      const jsonLength = json.length;
+      if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
+        return { outcome: "too_large", jsonLength };
+
+      await getStorage().uploadFile({
+        fileName: getTraceBatchInputsKey(reference),
+        fileType: "application/json",
+        // Stream the serialized text so providers handle its UTF-8 byte length.
+        data: Readable.from([json]),
+      });
+      return { outcome: "stored", jsonLength };
+    },
+    async get(reference) {
+      const json = await getStorage().download(
+        getTraceBatchInputsKey(reference),
+      );
+      const inputs = traceBatchInputsSchema.parse(JSON.parse(json));
+      return {
+        transcript:
+          inputs.transcript === null
+            ? null
+            : fromStoredTranscriptV1(inputs.transcript),
+        traceContext: inputs.traceContext,
+      };
+    },
   };
 }
 
