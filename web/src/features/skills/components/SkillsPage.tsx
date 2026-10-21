@@ -74,7 +74,7 @@ export function SkillsPage() {
         <InstallSkillDialog
           projectId={projectId}
           initialValues={{
-            by: "tag",
+            by: "all",
             name: "",
             version: null,
             label: "production",
