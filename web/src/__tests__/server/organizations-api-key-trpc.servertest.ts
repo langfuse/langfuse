@@ -553,6 +553,7 @@ describe("organization API keys trpc", () => {
         context: {
           organizationId,
           apiKeyId: gatewayKey.id,
+          userId: null,
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
