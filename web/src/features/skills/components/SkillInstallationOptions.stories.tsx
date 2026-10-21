@@ -79,25 +79,19 @@ export const InstallScopes = meta.story({
     await userEvent.click(configure);
     await expect(canvas.getByRole("tab", { name: "Version" })).toBeDisabled();
 
-    await userEvent.click(
-      canvas.getByRole("tab", { name: "Name", exact: true }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Name" }));
     await expect(
       canvas.getByText("langfuse skills install 'review-code' --version 7"),
     ).toBeVisible();
 
-    await userEvent.click(
-      canvas.getByRole("tab", { name: "Tag", exact: true }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Tag" }));
     await expect(
       canvas.getByText(
         "langfuse skills install --tag='engineering' --label='production'",
       ),
     ).toBeVisible();
 
-    await userEvent.click(
-      canvas.getByRole("tab", { name: "All", exact: true }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "All" }));
     await userEvent.click(configure);
     await expect(
       canvas.getByText("langfuse skills install --all --label='production'"),
