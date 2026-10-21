@@ -240,7 +240,8 @@ export function GatewayConfigurationView({
       <div className="flex items-center justify-end gap-3">
         {isConfigured ? null : (
           <p className="text-destructive text-sm">
-            Select an ingestion project to capture gateway traffic.
+            Select an ingestion project, or choose None to route without
+            capturing.
           </p>
         )}
         <Button
