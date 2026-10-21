@@ -3267,7 +3267,7 @@
           "input": {
             "queries": ["rivers of Germany major cities", "Stuttgart river"]
           },
-          "output": "[{\"query\": \"rivers of Germany major cities\", \"results\": [{\"title\": \"Rivers of Germany\", \"url\": \"https://example-geo.org/german-rivers\", \"snippet\": \"Rhine - Cologne, Düsseldorf, Mainz. Main - Frankfurt, Würzburg, Offenbach. Neckar - Heidelberg, Stuttgart, Tübingen. Elbe - Dresden, Magdeburg, Hamburg.\"}]}, {\"query\": \"Stuttgart river\", \"results\": [{\"title\": \"Stuttgart - city guide\", \"url\": \"https://example-travel.org/stuttgart\", \"snippet\": \"Stuttgart lies in a valley in the south-west of Germany, home of the Mercedes-Benz and Porsche museums.\"}]}]"
+          "output": "[{\"query\": \"rivers of Germany major cities\", \"results\": [{\"title\": \"Rivers of Germany\", \"url\": \"https://geo.example/german-rivers\", \"snippet\": \"Rhine - Cologne, Düsseldorf, Mainz. Main - Frankfurt, Würzburg, Offenbach. Neckar - Heidelberg, Stuttgart, Tübingen. Elbe - Dresden, Magdeburg, Hamburg.\"}]}, {\"query\": \"Stuttgart river\", \"results\": [{\"title\": \"Stuttgart - city guide\", \"url\": \"https://travel.example/stuttgart\", \"snippet\": \"Stuttgart lies in a valley in the south-west of Germany, home of the Mercedes-Benz and Porsche museums.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -3304,7 +3304,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-geo.org/german-rivers\"}"
+                  "arguments": "{\"url\": \"https://geo.example/german-rivers\"}"
                 }
               }
             ]
@@ -3316,9 +3316,9 @@
           "offsetMs": 6928,
           "durationMs": 1044,
           "input": {
-            "url": "https://example-geo.org/german-rivers"
+            "url": "https://geo.example/german-rivers"
           },
-          "output": "{\"url\": \"https://example-geo.org/german-rivers\", \"text\": \"Rhine - Cologne, Düsseldorf, Mainz. Main - Frankfurt, Würzburg, Offenbach; joins the Rhine at Mainz. Neckar - Heidelberg, Stuttgart, Tübingen; joins the Rhine at Mannheim.\"}"
+          "output": "{\"url\": \"https://geo.example/german-rivers\", \"text\": \"Rhine - Cologne, Düsseldorf, Mainz. Main - Frankfurt, Würzburg, Offenbach; joins the Rhine at Mainz. Neckar - Heidelberg, Stuttgart, Tübingen; joins the Rhine at Mannheim.\"}"
         },
         {
           "type": "GENERATION",
@@ -8260,7 +8260,7 @@
           "input": {
             "queries": ["Marseille population", "Lyon population city"]
           },
-          "output": "[{\"query\": \"Marseille population\", \"results\": [{\"title\": \"Marseille\", \"url\": \"https://example-encyclopedia.org/marseille\", \"snippet\": \"Marseille is the second-largest city of France. Its population was 873,076 at the 2021 census.\"}]}, {\"query\": \"Lyon population city\", \"results\": [{\"title\": \"Lyon\", \"url\": \"https://example-encyclopedia.org/lyon\", \"snippet\": \"Lyon is the capital of the Auvergne-Rhône-Alpes region and the third-largest city of France, a major centre of gastronomy and silk history.\"}, {\"title\": \"Lyon metropolitan area\", \"url\": \"https://example-geo.org/lyon-metro\", \"snippet\": \"The Lyon metropolitan area is among the largest in France.\"}]}]"
+          "output": "[{\"query\": \"Marseille population\", \"results\": [{\"title\": \"Marseille\", \"url\": \"https://encyclopedia.example/marseille\", \"snippet\": \"Marseille is the second-largest city of France. Its population was 873,076 at the 2021 census.\"}]}, {\"query\": \"Lyon population city\", \"results\": [{\"title\": \"Lyon\", \"url\": \"https://encyclopedia.example/lyon\", \"snippet\": \"Lyon is the capital of the Auvergne-Rhône-Alpes region and the third-largest city of France, a major centre of gastronomy and silk history.\"}, {\"title\": \"Lyon metropolitan area\", \"url\": \"https://geo.example/lyon-metro\", \"snippet\": \"The Lyon metropolitan area is among the largest in France.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -8279,7 +8279,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-encyclopedia.org/lyon\"}"
+                  "arguments": "{\"url\": \"https://encyclopedia.example/lyon\"}"
                 }
               }
             ]
@@ -8291,9 +8291,9 @@
           "offsetMs": 4690,
           "durationMs": 1018,
           "input": {
-            "url": "https://example-encyclopedia.org/lyon"
+            "url": "https://encyclopedia.example/lyon"
           },
-          "output": "{\"url\": \"https://example-encyclopedia.org/lyon\", \"text\": \"Lyon sits at the confluence of the Rhône and Saône rivers. UNESCO World Heritage site since 1998. Third-largest city of France.\"}"
+          "output": "{\"url\": \"https://encyclopedia.example/lyon\", \"text\": \"Lyon sits at the confluence of the Rhône and Saône rivers. UNESCO World Heritage site since 1998. Third-largest city of France.\"}"
         },
         {
           "type": "GENERATION",
@@ -10046,7 +10046,7 @@
           "input": {
             "queries": ["Atomium landmark city"]
           },
-          "output": "[{\"query\": \"Atomium landmark city\", \"results\": [{\"title\": \"Atomium - Brussels\", \"url\": \"https://example-travel.org/atomium\", \"snippet\": \"The Atomium is a building in Brussels, built for the 1958 World's Fair (Expo 58). It models an iron crystal enlarged 165 billion times.\"}, {\"title\": \"Expo 58\", \"url\": \"https://example-encyclopedia.org/expo-58\", \"snippet\": \"Expo 58 was held at Heysel Park in Brussels, Belgium.\"}]}]"
+          "output": "[{\"query\": \"Atomium landmark city\", \"results\": [{\"title\": \"Atomium - Brussels\", \"url\": \"https://travel.example/atomium\", \"snippet\": \"The Atomium is a building in Brussels, built for the 1958 World's Fair (Expo 58). It models an iron crystal enlarged 165 billion times.\"}, {\"title\": \"Expo 58\", \"url\": \"https://encyclopedia.example/expo-58\", \"snippet\": \"Expo 58 was held at Heysel Park in Brussels, Belgium.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -10065,7 +10065,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-travel.org/atomium\"}"
+                  "arguments": "{\"url\": \"https://travel.example/atomium\"}"
                 }
               }
             ]
@@ -10077,9 +10077,9 @@
           "offsetMs": 5222,
           "durationMs": 468,
           "input": {
-            "url": "https://example-travel.org/atomium"
+            "url": "https://travel.example/atomium"
           },
-          "output": "{\"url\": \"https://example-travel.org/atomium\", \"text\": \"Atomium, Square de l'Atomium, Laeken, Brussels. Nine steel spheres connected by tubes, 102 metres tall. Viewing platform in the top sphere.\"}"
+          "output": "{\"url\": \"https://travel.example/atomium\", \"text\": \"Atomium, Square de l'Atomium, Laeken, Brussels. Nine steel spheres connected by tubes, 102 metres tall. Viewing platform in the top sphere.\"}"
         },
         {
           "type": "GENERATION",
@@ -14316,7 +14316,7 @@
           "input": {
             "queries": ["Newcastle New South Wales river"]
           },
-          "output": "[{\"query\": \"Newcastle New South Wales river\", \"results\": [{\"title\": \"Hunter River (New South Wales)\", \"url\": \"https://example-geo.org/hunter-river\", \"snippet\": \"The Hunter River flows into the Pacific Ocean at Newcastle, New South Wales, Australia.\"}, {\"title\": \"Newcastle, NSW\", \"url\": \"https://example-travel.org/newcastle-nsw\", \"snippet\": \"Newcastle sits at the mouth of the Hunter River, north of Sydney.\"}]}]"
+          "output": "[{\"query\": \"Newcastle New South Wales river\", \"results\": [{\"title\": \"Hunter River (New South Wales)\", \"url\": \"https://geo.example/hunter-river\", \"snippet\": \"The Hunter River flows into the Pacific Ocean at Newcastle, New South Wales, Australia.\"}, {\"title\": \"Newcastle, NSW\", \"url\": \"https://travel.example/newcastle-nsw\", \"snippet\": \"Newcastle sits at the mouth of the Hunter River, north of Sydney.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -14335,7 +14335,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-geo.org/hunter-river\"}"
+                  "arguments": "{\"url\": \"https://geo.example/hunter-river\"}"
                 }
               }
             ]
@@ -14347,9 +14347,9 @@
           "offsetMs": 4672,
           "durationMs": 1358,
           "input": {
-            "url": "https://example-geo.org/hunter-river"
+            "url": "https://geo.example/hunter-river"
           },
-          "output": "{\"url\": \"https://example-geo.org/hunter-river\", \"text\": \"Hunter River. Length about 467 km. Rises in the Liverpool Range and reaches the sea at Newcastle.\"}"
+          "output": "{\"url\": \"https://geo.example/hunter-river\", \"text\": \"Hunter River. Length about 467 km. Rises in the Liverpool Range and reaches the sea at Newcastle.\"}"
         },
         {
           "type": "GENERATION",
@@ -18881,7 +18881,7 @@
           "input": {
             "queries": ["Pink Floyd 1973 album prism cover"]
           },
-          "output": "[{\"query\": \"Pink Floyd 1973 album prism cover\", \"results\": [{\"title\": \"The Dark Side of the Moon\", \"url\": \"https://example-music.org/dsotm\", \"snippet\": \"The Dark Side of the Moon is the eighth studio album by Pink Floyd, released in March 1973. Its cover shows a prism dispersing white light into a spectrum, designed by Hipgnosis.\"}, {\"title\": \"Pink Floyd discography\", \"url\": \"https://example-music.org/pink-floyd\", \"snippet\": \"1973: The Dark Side of the Moon. 1975: Wish You Were Here. 1977: Animals.\"}]}]"
+          "output": "[{\"query\": \"Pink Floyd 1973 album prism cover\", \"results\": [{\"title\": \"The Dark Side of the Moon\", \"url\": \"https://music.example/dsotm\", \"snippet\": \"The Dark Side of the Moon is the eighth studio album by Pink Floyd, released in March 1973. Its cover shows a prism dispersing white light into a spectrum, designed by Hipgnosis.\"}, {\"title\": \"Pink Floyd discography\", \"url\": \"https://music.example/pink-floyd\", \"snippet\": \"1973: The Dark Side of the Moon. 1975: Wish You Were Here. 1977: Animals.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -18900,7 +18900,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-music.org/dsotm\"}"
+                  "arguments": "{\"url\": \"https://music.example/dsotm\"}"
                 }
               }
             ]
@@ -18912,9 +18912,9 @@
           "offsetMs": 5244,
           "durationMs": 349,
           "input": {
-            "url": "https://example-music.org/dsotm"
+            "url": "https://music.example/dsotm"
           },
-          "output": "{\"url\": \"https://example-music.org/dsotm\", \"text\": \"The Dark Side of the Moon. Released 1 March 1973 (US). Cover design by Storm Thorgerson of Hipgnosis, with a prism and rainbow on a black background.\"}"
+          "output": "{\"url\": \"https://music.example/dsotm\", \"text\": \"The Dark Side of the Moon. Released 1 March 1973 (US). Cover design by Storm Thorgerson of Hipgnosis, with a prism and rainbow on a black background.\"}"
         },
         {
           "type": "GENERATION",
@@ -19744,7 +19744,7 @@
           "input": {
             "queries": ["Rano Raraku moai quarry country"]
           },
-          "output": "[{\"query\": \"Rano Raraku moai quarry country\", \"results\": [{\"title\": \"Rapa Nui National Park\", \"url\": \"https://example-heritage.org/rapa-nui\", \"snippet\": \"Rano Raraku is a volcanic crater on Easter Island (Rapa Nui) where most of the moai were carved from the soft volcanic tuff.\"}, {\"title\": \"Easter Island\", \"url\": \"https://example-encyclopedia.org/easter-island\", \"snippet\": \"Easter Island is a remote Polynesian island that is a special territory of Chile.\"}]}]"
+          "output": "[{\"query\": \"Rano Raraku moai quarry country\", \"results\": [{\"title\": \"Rapa Nui National Park\", \"url\": \"https://heritage.example/rapa-nui\", \"snippet\": \"Rano Raraku is a volcanic crater on Easter Island (Rapa Nui) where most of the moai were carved from the soft volcanic tuff.\"}, {\"title\": \"Easter Island\", \"url\": \"https://encyclopedia.example/easter-island\", \"snippet\": \"Easter Island is a remote Polynesian island that is a special territory of Chile.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -19763,7 +19763,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-encyclopedia.org/easter-island\"}"
+                  "arguments": "{\"url\": \"https://encyclopedia.example/easter-island\"}"
                 }
               }
             ]
@@ -19775,9 +19775,9 @@
           "offsetMs": 6157,
           "durationMs": 375,
           "input": {
-            "url": "https://example-encyclopedia.org/easter-island"
+            "url": "https://encyclopedia.example/easter-island"
           },
-          "output": "{\"url\": \"https://example-encyclopedia.org/easter-island\", \"text\": \"Easter Island, known locally as Rapa Nui, is a special territory of Chile in the southeastern Pacific. It is famous for its nearly 900 moai statues.\"}"
+          "output": "{\"url\": \"https://encyclopedia.example/easter-island\", \"text\": \"Easter Island, known locally as Rapa Nui, is a special territory of Chile in the southeastern Pacific. It is famous for its nearly 900 moai statues.\"}"
         },
         {
           "type": "GENERATION",
@@ -21208,7 +21208,7 @@
           "input": {
             "queries": ["Sevilla FC stadium Ramón Sánchez-Pizjuán opened year"]
           },
-          "output": "[{\"query\": \"Sevilla FC stadium Ramón Sánchez-Pizjuán opened year\", \"results\": [{\"title\": \"Estadio Ramón Sánchez-Pizjuán\", \"url\": \"https://example-stadiums.org/sanchez-pizjuan\", \"snippet\": \"The Ramón Sánchez-Pizjuán is the home of Sevilla FC. It opened on 7 September 1958.\"}, {\"title\": \"Sevilla FC\", \"url\": \"https://example-football.org/sevilla\", \"snippet\": \"Sevilla FC play at the Ramón Sánchez-Pizjuán in Seville.\"}]}]"
+          "output": "[{\"query\": \"Sevilla FC stadium Ramón Sánchez-Pizjuán opened year\", \"results\": [{\"title\": \"Estadio Ramón Sánchez-Pizjuán\", \"url\": \"https://stadiums.example/sanchez-pizjuan\", \"snippet\": \"The Ramón Sánchez-Pizjuán is the home of Sevilla FC. It opened on 7 September 1958.\"}, {\"title\": \"Sevilla FC\", \"url\": \"https://football.example/sevilla\", \"snippet\": \"Sevilla FC play at the Ramón Sánchez-Pizjuán in Seville.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -21227,7 +21227,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-stadiums.org/sanchez-pizjuan\"}"
+                  "arguments": "{\"url\": \"https://stadiums.example/sanchez-pizjuan\"}"
                 }
               }
             ]
@@ -21239,9 +21239,9 @@
           "offsetMs": 5089,
           "durationMs": 1286,
           "input": {
-            "url": "https://example-stadiums.org/sanchez-pizjuan"
+            "url": "https://stadiums.example/sanchez-pizjuan"
           },
-          "output": "{\"url\": \"https://example-stadiums.org/sanchez-pizjuan\", \"text\": \"Estadio Ramón Sánchez-Pizjuán. Opened 1958. Capacity about 43,000. Hosted the 1982 World Cup semi-final.\"}"
+          "output": "{\"url\": \"https://stadiums.example/sanchez-pizjuan\", \"text\": \"Estadio Ramón Sánchez-Pizjuán. Opened 1958. Capacity about 43,000. Hosted the 1982 World Cup semi-final.\"}"
         },
         {
           "type": "GENERATION",
@@ -25096,7 +25096,7 @@
           "input": {
             "queries": ["Olympique de Marseille home stadium"]
           },
-          "output": "[{\"query\": \"Olympique de Marseille home stadium\", \"results\": [{\"title\": \"Olympique de Marseille - Club profile\", \"url\": \"https://example-football.org/om\", \"snippet\": \"Olympique de Marseille, founded in 1899, plays its home games at the Stade Vélodrome in Marseille.\"}, {\"title\": \"Stade Vélodrome\", \"url\": \"https://example-stadiums.org/velodrome\", \"snippet\": \"The Stade Vélodrome is a stadium in Marseille, France, opened in 1937, with a covered roof added in the 2010s for Euro 2016.\"}]}]"
+          "output": "[{\"query\": \"Olympique de Marseille home stadium\", \"results\": [{\"title\": \"Olympique de Marseille - Club profile\", \"url\": \"https://football.example/om\", \"snippet\": \"Olympique de Marseille, founded in 1899, plays its home games at the Stade Vélodrome in Marseille.\"}, {\"title\": \"Stade Vélodrome\", \"url\": \"https://stadiums.example/velodrome\", \"snippet\": \"The Stade Vélodrome is a stadium in Marseille, France, opened in 1937, with a covered roof added in the 2010s for Euro 2016.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -25115,7 +25115,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-stadiums.org/velodrome\"}"
+                  "arguments": "{\"url\": \"https://stadiums.example/velodrome\"}"
                 }
               }
             ]
@@ -25127,9 +25127,9 @@
           "offsetMs": 6894,
           "durationMs": 528,
           "input": {
-            "url": "https://example-stadiums.org/velodrome"
+            "url": "https://stadiums.example/velodrome"
           },
-          "output": "{\"url\": \"https://example-stadiums.org/velodrome\", \"text\": \"Stade Vélodrome. Opened 1937. Renovated 2011 to 2014. Home of Olympique de Marseille. Host venue at the 1998 World Cup and Euro 2016.\"}"
+          "output": "{\"url\": \"https://stadiums.example/velodrome\", \"text\": \"Stade Vélodrome. Opened 1937. Renovated 2011 to 2014. Home of Olympique de Marseille. Host venue at the 1998 World Cup and Euro 2016.\"}"
         },
         {
           "type": "GENERATION",
@@ -25737,7 +25737,7 @@
           "input": {
             "queries": ["Bauhaus school founder", "Bauhaus founded year Weimar"]
           },
-          "output": "[{\"query\": \"Bauhaus school founder\", \"results\": [{\"title\": \"Bauhaus - history\", \"url\": \"https://example-design.org/bauhaus\", \"snippet\": \"The Bauhaus was founded by the architect Walter Gropius in Weimar in 1919. The school moved to Dessau in 1925 and to Berlin in 1932.\"}, {\"title\": \"Walter Gropius\", \"url\": \"https://example-design.org/gropius\", \"snippet\": \"Walter Gropius was a German architect and the founding director of the Bauhaus.\"}]}, {\"query\": \"Bauhaus founded year Weimar\", \"results\": [{\"title\": \"The Bauhaus movement\", \"url\": \"https://example-design.org/movement\", \"snippet\": \"Bauhaus was an influential German school combining crafts and fine arts. It closed in 1933 under pressure from the Nazi regime.\"}]}]"
+          "output": "[{\"query\": \"Bauhaus school founder\", \"results\": [{\"title\": \"Bauhaus - history\", \"url\": \"https://design.example/bauhaus\", \"snippet\": \"The Bauhaus was founded by the architect Walter Gropius in Weimar in 1919. The school moved to Dessau in 1925 and to Berlin in 1932.\"}, {\"title\": \"Walter Gropius\", \"url\": \"https://design.example/gropius\", \"snippet\": \"Walter Gropius was a German architect and the founding director of the Bauhaus.\"}]}, {\"query\": \"Bauhaus founded year Weimar\", \"results\": [{\"title\": \"The Bauhaus movement\", \"url\": \"https://design.example/movement\", \"snippet\": \"Bauhaus was an influential German school combining crafts and fine arts. It closed in 1933 under pressure from the Nazi regime.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -25756,7 +25756,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-design.org/bauhaus\"}"
+                  "arguments": "{\"url\": \"https://design.example/bauhaus\"}"
                 }
               }
             ]
@@ -25768,9 +25768,9 @@
           "offsetMs": 7101,
           "durationMs": 686,
           "input": {
-            "url": "https://example-design.org/bauhaus"
+            "url": "https://design.example/bauhaus"
           },
-          "output": "{\"url\": \"https://example-design.org/bauhaus\", \"text\": \"Bauhaus. Founded by Walter Gropius in Weimar in 1919. Dessau years from 1925. Closed in Berlin in 1933. Notable teachers included Kandinsky, Klee and Mies van der Rohe.\"}"
+          "output": "{\"url\": \"https://design.example/bauhaus\", \"text\": \"Bauhaus. Founded by Walter Gropius in Weimar in 1919. Dessau years from 1925. Closed in Berlin in 1933. Notable teachers included Kandinsky, Klee and Mies van der Rohe.\"}"
         },
         {
           "type": "GENERATION",
@@ -34111,7 +34111,7 @@
               "Médecins Sans Frontières founding year"
             ]
           },
-          "output": "[{\"query\": \"Médecins Sans Frontières founded by\", \"results\": [{\"title\": \"About MSF - history\", \"url\": \"https://example-ngo.org/msf-history\", \"snippet\": \"Médecins Sans Frontières was set up in Paris in the early 1970s by a group of French doctors and journalists who wanted to provide independent medical aid.\"}, {\"title\": \"Humanitarian organisations timeline\", \"url\": \"https://example-timeline.org/humanitarian\", \"snippet\": \"Doctors who had worked in conflict zones joined with journalists to form a new medical relief group in France.\"}]}, {\"query\": \"Médecins Sans Frontières founding year\", \"results\": [{\"title\": \"MSF International\", \"url\": \"https://example-ngo.org/msf\", \"snippet\": \"Médecins Sans Frontières, also known as Doctors Without Borders, is an international medical humanitarian organisation.\"}]}]"
+          "output": "[{\"query\": \"Médecins Sans Frontières founded by\", \"results\": [{\"title\": \"About MSF - history\", \"url\": \"https://ngo.example/msf-history\", \"snippet\": \"Médecins Sans Frontières was set up in Paris in the early 1970s by a group of French doctors and journalists who wanted to provide independent medical aid.\"}, {\"title\": \"Humanitarian organisations timeline\", \"url\": \"https://timeline.example/humanitarian\", \"snippet\": \"Doctors who had worked in conflict zones joined with journalists to form a new medical relief group in France.\"}]}, {\"query\": \"Médecins Sans Frontières founding year\", \"results\": [{\"title\": \"MSF International\", \"url\": \"https://ngo.example/msf\", \"snippet\": \"Médecins Sans Frontières, also known as Doctors Without Borders, is an international medical humanitarian organisation.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -34130,7 +34130,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-ngo.org/msf-history\"}"
+                  "arguments": "{\"url\": \"https://ngo.example/msf-history\"}"
                 }
               }
             ]
@@ -34142,9 +34142,9 @@
           "offsetMs": 6157,
           "durationMs": 504,
           "input": {
-            "url": "https://example-ngo.org/msf-history"
+            "url": "https://ngo.example/msf-history"
           },
-          "output": "{\"url\": \"https://example-ngo.org/msf-history\", \"text\": \"Our history. MSF began as a response to the crises of the era, when volunteer doctors and reporters in Paris agreed that medical care should reach people regardless of politics. Today MSF works in over 70 countries.\"}"
+          "output": "{\"url\": \"https://ngo.example/msf-history\", \"text\": \"Our history. MSF began as a response to the crises of the era, when volunteer doctors and reporters in Paris agreed that medical care should reach people regardless of politics. Today MSF works in over 70 countries.\"}"
         },
         {
           "type": "GENERATION",
@@ -44634,7 +44634,7 @@
           "input": {
             "phone_number": "07700900518"
           },
-          "output": "{\"registration\": \"ok\", \"signal_dbm\": -74, \"voice\": \"ok\", \"volte\": \"enabled\", \"last_call_attempts\": [{\"to\": \"01162 496012\", \"result\": \"busy\"}]}"
+          "output": "{\"registration\": \"ok\", \"signal_dbm\": -74, \"voice\": \"ok\", \"volte\": \"enabled\", \"last_call_attempts\": [{\"to\": \"0116 496 0012\", \"result\": \"busy\"}]}"
         },
         {
           "type": "GENERATION",
@@ -45321,7 +45321,7 @@
               "Borgund stave church dragon heads wooden church"
             ]
           },
-          "output": "[{\"query\": \"Borgund stave church location\", \"results\": [{\"title\": \"Borgund Stave Church - Visit Sogn\", \"url\": \"https://example-travel.org/borgund-stave-church\", \"snippet\": \"Borgund Stave Church stands in the Lærdal valley, beside the old Vindhellavegen road, and is among the best preserved wooden churches of its kind.\"}, {\"title\": \"Borgund stave church | Wikipedia-style entry\", \"url\": \"https://example-encyclopedia.org/borgund\", \"snippet\": \"Borgund stave church is a medieval wooden church in the Lærdal valley, known for its dragon-head gables and shingled walls.\"}]}, {\"query\": \"Borgund stave church dragon heads wooden church\", \"results\": [{\"title\": \"Stave churches of the Middle Ages\", \"url\": \"https://example-heritage.org/stave-churches\", \"snippet\": \"Stave churches were built with vertical wooden posts. Borgund is the most intact example and has carved dragon heads on its gables.\"}]}]"
+          "output": "[{\"query\": \"Borgund stave church location\", \"results\": [{\"title\": \"Borgund Stave Church - Visit Sogn\", \"url\": \"https://travel.example/borgund-stave-church\", \"snippet\": \"Borgund Stave Church stands in the Lærdal valley, beside the old Vindhellavegen road, and is among the best preserved wooden churches of its kind.\"}, {\"title\": \"Borgund stave church | Wikipedia-style entry\", \"url\": \"https://encyclopedia.example/borgund\", \"snippet\": \"Borgund stave church is a medieval wooden church in the Lærdal valley, known for its dragon-head gables and shingled walls.\"}]}, {\"query\": \"Borgund stave church dragon heads wooden church\", \"results\": [{\"title\": \"Stave churches of the Middle Ages\", \"url\": \"https://heritage.example/stave-churches\", \"snippet\": \"Stave churches were built with vertical wooden posts. Borgund is the most intact example and has carved dragon heads on its gables.\"}]}]"
         },
         {
           "type": "GENERATION",
@@ -45340,7 +45340,7 @@
                 "type": "function",
                 "function": {
                   "name": "open_page",
-                  "arguments": "{\"url\": \"https://example-travel.org/borgund-stave-church\"}"
+                  "arguments": "{\"url\": \"https://travel.example/borgund-stave-church\"}"
                 }
               }
             ]
@@ -45352,9 +45352,9 @@
           "offsetMs": 5615,
           "durationMs": 1020,
           "input": {
-            "url": "https://example-travel.org/borgund-stave-church"
+            "url": "https://travel.example/borgund-stave-church"
           },
-          "output": "{\"url\": \"https://example-travel.org/borgund-stave-church\", \"text\": \"Borgund Stave Church. Open daily from May to September. Guided tours start every hour. The church is a short drive from the village of Borgund along the Lærdal river.\"}"
+          "output": "{\"url\": \"https://travel.example/borgund-stave-church\", \"text\": \"Borgund Stave Church. Open daily from May to September. Guided tours start every hour. The church is a short drive from the village of Borgund along the Lærdal river.\"}"
         },
         {
           "type": "GENERATION",
