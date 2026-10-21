@@ -450,6 +450,13 @@ const eventsTableColsDefinition = [
     internal: "", // handled by comment filter helpers
   },
   {
+    name: "Topics",
+    id: "topics",
+    type: "categoryOptions",
+    internal: "", // resolved to trace ids by the web topic filter
+    options: [], // to be added at runtime
+  },
+  {
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",

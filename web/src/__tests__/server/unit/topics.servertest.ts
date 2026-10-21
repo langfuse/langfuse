@@ -1,5 +1,6 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { throwIfTopicFiltersNotAllowed } from "@/src/features/topics/server/topicsServerAccess";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,8 +45,9 @@ const mocks = vi.hoisted(() => ({
   auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
-  return { ...mocks, selectTopicTraceRows };
+  const { selectTopicTraceRows, isTopicFilter } =
+    await importOriginal<typeof topicsServer>();
+  return { ...mocks, selectTopicTraceRows, isTopicFilter };
 });
 vi.mock(
   "@langfuse/shared/src/server/repositories/clickhouse",
@@ -336,6 +338,45 @@ describe("Topics visibility gate", () => {
     expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
       expected,
     );
+  });
+});
+
+describe("Tracing topic filters", () => {
+  const topicFilter = {
+    type: "categoryOptions" as const,
+    column: "topics",
+    key: "Intent",
+    operator: "any of" as const,
+    value: ["Order Exchange Requests"],
+  };
+  const session = {
+    expires: "1",
+    user: {
+      id: "user-a",
+      admin: false,
+      featureFlags: testFeatureFlags({ langfuseTopics: true }),
+      organizations: [
+        {
+          id: "org-a",
+          role: "VIEWER",
+          projects: [{ id: projectId, role: "VIEWER" }],
+        },
+      ],
+    },
+  } as unknown as Session;
+
+  it("rejects topic filters on the tracing table when the Topics gate is closed", () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    expect(() =>
+      throwIfTopicFiltersNotAllowed(session, projectId, [topicFilter]),
+    ).toThrow("Topic filters are not available.");
+    expect(() =>
+      throwIfTopicFiltersNotAllowed(session, projectId, []),
+    ).not.toThrow();
+    mocks.isTopicsProjectEnabled.mockReturnValue(true);
+    expect(() =>
+      throwIfTopicFiltersNotAllowed(session, projectId, [topicFilter]),
+    ).not.toThrow();
   });
 });
 

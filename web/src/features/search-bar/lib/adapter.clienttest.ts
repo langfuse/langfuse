@@ -1335,3 +1335,29 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(v.ast).filters).toEqual(filters);
   });
 });
+
+describe("topic filters", () => {
+  it("round-trips the sidebar's topic filters through topics.<facet> text", () => {
+    const filters: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Flight cancellation and refund", "Order Exchange Requests"],
+      },
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Issues",
+        operator: "none of",
+        value: ["Missing requested final results"],
+      },
+    ];
+    const { text, skipped } = filterStateToQueryText(filters);
+    expect(skipped).toEqual([]);
+    const v = validateQuery(text);
+    expect(v.valid, text).toBe(true);
+    expect(astToFilterState(v.ast).filters).toEqual(filters);
+  });
+});

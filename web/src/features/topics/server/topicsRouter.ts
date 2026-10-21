@@ -25,7 +25,6 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
-  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -51,7 +50,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { canViewTopicsOnServer } from "./topicsServerAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
@@ -60,6 +59,7 @@ import {
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
+import { topicFilterOptions, tracesTopics } from "./traceTopics";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -73,12 +73,7 @@ const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    // The allowlist comes from env here, so admins outside the project are covered too.
-    const project = {
-      id: input.projectId,
-      topicsEnabled: isTopicsProjectEnabled(input.projectId),
-    };
-    if (!canViewTopics(ctx.session, project))
+    if (!canViewTopicsOnServer(ctx.session, input.projectId))
       throw new LangfuseNotFoundError("Topics is not available.");
     return next();
   });
@@ -310,6 +305,20 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       currentTopicResults(input.projectId, input.timeRange),
     ),
+  /** Tracing table column: current topics for the visible page, loaded after the rows. */
+  forTraces: topicsProcedure
+    .input(
+      projectInput.extend({
+        traces: z
+          .array(z.object({ traceId: z.string().min(1), timestamp: z.date() }))
+          .min(1)
+          .max(500),
+      }),
+    )
+    .query(({ input }) => tracesTopics(input.projectId, input.traces)),
+  filterOptions: topicsProcedure.query(({ input }) =>
+    topicFilterOptions(input.projectId),
+  ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),

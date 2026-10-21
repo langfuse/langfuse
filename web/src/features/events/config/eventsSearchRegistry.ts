@@ -19,6 +19,11 @@ export function eventsSearchRegistry(
       (column) => !omitted.has(column.id),
     ),
     metadata: EVENTS_FIELD_REGISTRY.metadata && !omitted.has("metadata"),
+    keyedOptionNamespaces: Object.fromEntries(
+      Object.entries(EVENTS_FIELD_REGISTRY.keyedOptionNamespaces ?? {}).filter(
+        ([, column]) => !omitted.has(column),
+      ),
+    ),
     scores:
       EVENTS_FIELD_REGISTRY.scores &&
       !["scores_avg", "score_categories", "score_booleans"].some((column) =>
@@ -37,7 +42,8 @@ export function eventsSearchRegistry(
     freeTextScopeLabel: useHostSearchScopes
       ? "IDs, user IDs and names"
       : EVENTS_FIELD_REGISTRY.freeTextScopeLabel,
-    // A scoped registry cannot use the full events AI vocabulary.
-    aiFilterPrompt: omittedColumns.length === 0,
+    // A scoped registry cannot use the full events AI vocabulary. Topics is not part
+    // of that vocabulary, so hiding it (Topics unavailable) keeps Ask AI on.
+    aiFilterPrompt: omittedColumns.every((column) => column === "topics"),
   });
 }

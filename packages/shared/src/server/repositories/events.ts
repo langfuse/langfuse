@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { isTopicFilter, topicFilterConditions } from "../topics/trace-filter";
 import { prisma } from "../../db";
 import {
   TupleParam,
@@ -855,8 +856,10 @@ async function getObservationsFromEventsTableInternal<T>(
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
   const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
+    ...filter.filter((f) => f.type !== "positionInTrace" && !isTopicFilter(f)),
   ];
+  // Topic membership lives in the topics tables; it joins the query as trace_id subqueries.
+  const topicConditions = await topicFilterConditions(projectId, filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
@@ -872,6 +875,8 @@ async function getObservationsFromEventsTableInternal<T>(
     searchType: opts.searchType,
     orderBy,
   });
+  for (const condition of topicConditions)
+    queryBuilder.whereRaw(condition.query, condition.params);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");

@@ -71,6 +71,8 @@ function subjectOf(ref: FieldRef): string {
       return ref.field.label;
     case "metadata":
       return `Metadata ${quote(ref.key)}`;
+    case "keyedOptions":
+      return `${ref.namespace[0]!.toUpperCase()}${ref.namespace.slice(1)} ${quote(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `Trace score ${quote(ref.key)}`
@@ -120,7 +122,7 @@ function defaultOpPredicate(ref: FieldRef, seg: FilterSegment): string {
       ? `is not exactly ${joinValues(values, "or")}`
       : `is exactly ${joinValues(values, "or")}`;
   }
-  if (ref.type === "scores") {
+  if (ref.type === "scores" || ref.type === "keyedOptions") {
     if (negated)
       return many
         ? `is none of ${commaList(values)}`
