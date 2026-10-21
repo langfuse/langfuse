@@ -14,6 +14,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { useProject } from "@/src/features/projects/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
@@ -42,6 +43,15 @@ interface CorrectedOutputFieldProps {
   onClosed?: () => void;
 }
 
+/** Corrections autosave by rewriting the same score id, which projects that
+    read scores without dedup must not do, so editing is off for them. */
+function useCanEditCorrection(projectId: string) {
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const project: { scoreEditsDisabled?: boolean } | null | undefined =
+    useProject(projectId).project;
+  return hasAccess && project?.scoreEditsDisabled !== true;
+}
+
 /** The Output header's pencil: opens the correction editor. Disabled without
     `scores:save`, like the section's own edit and delete actions. */
 export function useCorrectOutputAction({
@@ -52,11 +62,11 @@ export function useCorrectOutputAction({
   onOpen: () => void;
 }): IOSectionAction {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const canEdit = useCanEditCorrection(projectId);
   return {
     icon: Pencil,
     label: "Correct output",
-    disabled: !hasAccess,
+    disabled: !canEdit,
     onClick: () => {
       capture("trace_detail:io_section_collapse_toggle", {
         section: "corrected_output",
@@ -81,6 +91,7 @@ export function CorrectedOutputField({
   onClosed,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const canEdit = useCanEditCorrection(projectId);
   const capture = usePostHogClientCapture();
 
   // JSON validation toggle (persisted in localStorage)
@@ -133,7 +144,7 @@ export function CorrectedOutputField({
     onSave: handleSave,
     setSaveStatus,
     strictJsonMode,
-    initialEditing: startEditing && hasAccess,
+    initialEditing: startEditing && canEdit,
   });
 
   // When not editing, use correctionValue (source of truth from cache/server)
@@ -217,7 +228,7 @@ export function CorrectedOutputField({
             // One click: open the section straight into the editor (readers
             // without scores:save get the disabled placeholder).
             setIsExpanded(true);
-            if (hasAccess) handleEdit();
+            if (canEdit) handleEdit();
           }}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
@@ -249,7 +260,7 @@ export function CorrectedOutputField({
                 icon: Pencil,
                 label: "Edit corrected output",
                 onClick: handleEdit,
-                disabled: !hasAccess,
+                disabled: !canEdit,
               },
             ]
           : []),
@@ -279,7 +290,7 @@ export function CorrectedOutputField({
     <CorrectionBody
       hasContent={hasContent}
       isEditing={isEditing}
-      hasAccess={hasAccess}
+      hasAccess={canEdit}
       displayValue={displayValue}
       strictJsonMode={strictJsonMode}
       editorRef={editorRef}

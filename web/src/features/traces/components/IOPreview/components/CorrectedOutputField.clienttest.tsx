@@ -20,7 +20,10 @@ const editorHook = vi.hoisted(() => ({
   spy: vi.fn(),
   handleEdit: vi.fn(),
 }));
-const access = vi.hoisted(() => ({ hasAccess: true }));
+const access = vi.hoisted(() => ({
+  hasAccess: true,
+  scoreEditsDisabled: false,
+}));
 
 vi.mock("../hooks/useCorrectionEditor", () => ({
   useCorrectionEditor: (params: { correctionValue: string }) => {
@@ -38,6 +41,12 @@ vi.mock("../hooks/useCorrectionEditor", () => ({
 
 vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => access.hasAccess,
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useProject: () => ({
+    project: { scoreEditsDisabled: access.scoreEditsDisabled },
+  }),
 }));
 
 vi.mock("@/src/features/posthog-analytics", () => ({
@@ -79,6 +88,7 @@ const baseProps = {
 describe("CorrectedOutputField visibility", () => {
   beforeEach(() => {
     access.hasAccess = true;
+    access.scoreEditsDisabled = false;
     editorHook.spy.mockClear();
     editorHook.handleEdit.mockClear();
   });
@@ -104,6 +114,18 @@ describe("CorrectedOutputField visibility", () => {
 
   it("opens the inline link without entering edit mode for readers", () => {
     access.hasAccess = false;
+    render(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+
+    expect(editorHook.handleEdit).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Click to add corrected output" }),
+    ).toBeDisabled();
+  });
+
+  it("does not open the editor when the project disables score edits", () => {
+    access.scoreEditsDisabled = true;
     render(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Correct output" }));

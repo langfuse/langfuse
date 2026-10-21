@@ -64,6 +64,7 @@ import {
   deleteScores,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
@@ -100,6 +101,17 @@ type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
 };
 
 const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
+
+// Projects that read scores without dedup must not rewrite an existing score
+// id: every rewrite is a new row and would surface as a duplicate.
+const throwIfScoreEditsDisabled = (projectId: string) => {
+  if (shouldSkipScoresDedup(projectId)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Existing scores cannot be edited in this project.",
+    });
+  }
+};
 
 export const scoresRouter = createTRPCRouter({
   /**
@@ -635,6 +647,7 @@ export const scoresRouter = createTRPCRouter({
         input.configId,
         input.dataType,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp ?? new Date();
 
@@ -712,6 +725,8 @@ export const scoresRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "scores:save",
       });
+
+      throwIfScoreEditsDisabled(input.projectId);
 
       let updatedScore: ScoreDomain | null | undefined = null;
 
@@ -1050,6 +1065,7 @@ export const scoresRouter = createTRPCRouter({
         undefined,
         ScoreDataTypeEnum.CORRECTION,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp;
 

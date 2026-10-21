@@ -148,6 +148,7 @@ export function AnnotationScoreRow({
   showTarget,
   formRootRef,
   commentSaving,
+  editsDisabled = false,
   targetOptions,
   isActive = true,
   onRemove,
@@ -161,6 +162,8 @@ export function AnnotationScoreRow({
   showTarget: boolean;
   formRootRef: React.RefObject<HTMLDivElement | null>;
   commentSaving: boolean;
+  /** Saved scores in this project are immutable; new scores stay editable. */
+  editsDisabled?: boolean;
   targetOptions: { target: PreparedAnnotationTarget; hasField: boolean }[];
   isActive?: boolean;
   onRemove: () => void;
@@ -186,6 +189,7 @@ export function AnnotationScoreRow({
     null,
   );
   const focusFieldKey = useRef(fieldKey);
+  const locked = editsDisabled && !isScoreUnsaved(score.id);
   const hasScoreValue = Boolean(
     score.id || isPresent(score.value) || score.stringValue || score.comment,
   );
@@ -290,7 +294,7 @@ export function AnnotationScoreRow({
                               savedComment={score.comment ?? null}
                               localValue={commentDraft ?? score.comment ?? ""}
                               onValueChange={setCommentDraft}
-                              disabled={config.isArchived}
+                              disabled={config.isArchived || locked}
                               loading={commentSaving}
                               onSave={(newComment) => {
                                 const trimmed = newComment?.trim();
@@ -341,7 +345,7 @@ export function AnnotationScoreRow({
                         value={field.value ?? ""}
                         maxLength={TEXT_SCORE_MAX_LENGTH}
                         className="text-xs"
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         placeholder="Enter free form text..."
                         onBlur={(event) => {
                           field.onBlur();
@@ -392,7 +396,7 @@ export function AnnotationScoreRow({
                         max={config.maxValue ?? undefined}
                         step="any"
                         className="aria-invalid:border-destructive text-xs"
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         onBlur={(event) => {
                           field.onBlur();
                           if (!isMovingToScoreActions(event))
@@ -424,7 +428,7 @@ export function AnnotationScoreRow({
                         categories={categories}
                         name={field.name}
                         value={field.value ?? ""}
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         analyticsData={{
                           ...target.analyticsData,
                           targetType: getAnnotationTargetType(
@@ -447,6 +451,11 @@ export function AnnotationScoreRow({
               />
             ) : null}
           </div>
+          {locked ? (
+            <p className="text-muted-foreground mt-1 text-xs">
+              Saved scores cannot be edited in this project.
+            </p>
+          ) : null}
           {hasScoreValue || invalid || canRemove || targetOptions.length > 0 ? (
             <DropdownMenuController
               align="end"
