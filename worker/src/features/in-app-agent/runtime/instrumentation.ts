@@ -1035,7 +1035,17 @@ export class InAppAgentInstrumentation {
         ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
         : [];
 
-    return [...priorMessages, ...this.agentRunOutputMessages];
+    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+    return messages.map((message) => {
+      if (message.role !== "tool") {
+        return message;
+      }
+
+      return {
+        ...message,
+        content: `Output recorded in TOOL observation ${message.tool_call_id}.`,
+      };
+    });
   }
 
   private emitApprovalWaitObservation() {
@@ -1361,10 +1371,45 @@ function getModelCallInput(options: unknown): unknown {
     providerOptions: options.providerOptions,
   });
 
-  // The prompt is the exact provider-bound payload. Preserve it losslessly in
-  // tracing; this copy does not affect the options passed to the model.
+  // Only change telemetry, never the provider-bound prompt. Stable tool-result
+  // IDs let session transcripts attach the full TOOL observation output.
+  const messages = Array.isArray(options.prompt)
+    ? options.prompt.map((message: unknown) => {
+        if (!isRecord(message) || message.role !== "tool") {
+          return message;
+        }
+
+        if (!Array.isArray(message.content)) {
+          return {
+            ...message,
+            content: "Output recorded in the corresponding TOOL observation.",
+          };
+        }
+
+        return {
+          ...message,
+          content: message.content.map((part: unknown) => {
+            if (!isRecord(part) || part.type !== "tool-result") {
+              return part;
+            }
+
+            // Allowlist fields: Mastra also duplicates the payload in
+            // providerOptions.mastra.modelOutput.
+            return {
+              type: part.type,
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              output: {
+                type: "text",
+                value: `Output recorded in TOOL observation ${part.toolCallId}.`,
+              },
+            };
+          }),
+        };
+      })
+    : options.prompt;
   return {
-    ...(options.prompt === undefined ? {} : { messages: options.prompt }),
+    ...(messages === undefined ? {} : { messages }),
     ...(isRecord(serializedOptions) ? serializedOptions : {}),
   };
 }

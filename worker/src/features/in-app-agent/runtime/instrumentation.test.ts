@@ -1,11 +1,15 @@
 import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assembleTranscript } from "../../../../../packages/shared/src/server/transcript/transcript";
+import { orderObservations } from "../../../../../packages/shared/src/server/transcript/ordering";
+import type { TranscriptObservation } from "../../../../../packages/shared/src/server/transcript/types";
 
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "./types";
 import {
@@ -176,7 +180,7 @@ describe("InAppAgentInstrumentation", () => {
             {
               role: "tool",
               tool_call_id: "tool-1",
-              content: toolOutput,
+              content: "Output recorded in TOOL observation tool-1.",
             },
           ],
           text: "hi there",
@@ -193,6 +197,283 @@ describe("InAppAgentInstrumentation", () => {
       "SPAN",
       expect.anything(),
     );
+  });
+
+  it.each([false, true])(
+    "retains full TOOL output while bounding root duplicates (silent: %s)",
+    (silent) => {
+      const instrumentation = createInstrumentation();
+      const result = { data: '😀"\\'.repeat(100_000) };
+      const output = silent
+        ? {
+            type: IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+            output: result,
+            toolCallId: "tool-1",
+            toolName: "listObservations",
+          }
+        : result;
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-1",
+          toolCallName: "listObservations",
+        },
+        { type: EventType.TOOL_CALL_ARGS, toolCallId: "tool-1", delta: "{}" },
+        { type: EventType.TOOL_CALL_END, toolCallId: "tool-1" },
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-1",
+          content: JSON.stringify(output),
+        },
+        { type: EventType.TEXT_MESSAGE_CONTENT, delta: "Done" },
+      ]);
+      instrumentation.end({});
+
+      const tool = mocks.recordObservation.mock.calls.find(
+        ([type]) => type === "TOOL",
+      )?.[1];
+      const root = mocks.recordObservation.mock.calls
+        .filter(([type]) => type === "AGENT")
+        .at(-1)?.[1];
+      expect(tool.output).toEqual(output);
+      expect(root.output.messages).toEqual([
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "tool-1",
+              name: "listObservations",
+              arguments: "{}",
+              type: "function",
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tool-1",
+          content: "Output recorded in TOOL observation tool-1.",
+        },
+        { role: "assistant", content: "Done" },
+      ]);
+      expect(Buffer.byteLength(JSON.stringify(root.output))).toBeLessThan(1024);
+    },
+  );
+
+  it("references every root tool result, including small results", () => {
+    const instrumentation = createInstrumentation();
+    const output = { data: "x".repeat(6000) };
+    for (let index = 0; index < 40; index++) {
+      const toolCallId = `tool-${index}`;
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId,
+          toolCallName: "listObservations",
+        },
+        { type: EventType.TOOL_CALL_ARGS, toolCallId, delta: "{}" },
+        { type: EventType.TOOL_CALL_END, toolCallId },
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId,
+          content: JSON.stringify(output),
+        },
+      ]);
+    }
+    instrumentation.end({});
+
+    const tools = mocks.recordObservation.mock.calls.filter(
+      ([type]) => type === "TOOL",
+    );
+    expect(tools).toHaveLength(40);
+    for (const [, tool] of tools) {
+      expect(tool.output).toEqual(output);
+    }
+    const root = mocks.recordObservation.mock.calls
+      .filter(([type]) => type === "AGENT")
+      .at(-1)?.[1];
+    expect(root.output.messages).toHaveLength(80);
+    expect(root.output.tool_calls).toHaveLength(40);
+    expect(
+      root.output.messages.filter(
+        (message: { role: string }) => message.role === "tool",
+      ),
+    ).toEqual(
+      Array.from({ length: 40 }, (_, index) => ({
+        role: "tool",
+        tool_call_id: `tool-${index}`,
+        content: `Output recorded in TOOL observation tool-${index}.`,
+      })),
+    );
+    expect(JSON.stringify(root.output)).not.toContain(output.data);
+  });
+
+  it("keeps transcript continuity with full TOOL outputs and referenced generation results", () => {
+    const instrumentation = createInstrumentation();
+    const user = { role: "user", content: [{ type: "text", text: "hello" }] };
+    const call = {
+      role: "assistant",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "tool-1",
+          toolName: "listObservations",
+          input: {},
+        },
+      ],
+    };
+    const toolOutput = { type: "json", value: { data: "x".repeat(200_000) } };
+    const result = {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "tool-1",
+          toolName: "listObservations",
+          output: toolOutput,
+          providerOptions: { mastra: { modelOutput: toolOutput } },
+        },
+      ],
+    };
+    instrumentation.recordModelCallStart({ prompt: [user] });
+    instrumentation.recordModelStreamPart({
+      type: "tool-call",
+      toolCallId: "tool-1",
+      toolName: "listObservations",
+      input: "{}",
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "tool-calls",
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "listObservations",
+      },
+      { type: EventType.TOOL_CALL_ARGS, toolCallId: "tool-1", delta: "{}" },
+      { type: EventType.TOOL_CALL_END, toolCallId: "tool-1" },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: JSON.stringify({ data: "x".repeat(200_000) }),
+      },
+    ]);
+    const providerPrompt = [user, call, result];
+    const originalProviderPrompt = JSON.stringify(providerPrompt);
+    instrumentation.recordModelCallStart({ prompt: providerPrompt });
+    expect(JSON.stringify(providerPrompt)).toBe(originalProviderPrompt);
+    instrumentation.recordModelStreamPart({
+      type: "text-delta",
+      delta: "Done",
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "stop",
+    });
+    instrumentation.end({});
+
+    const observations: TranscriptObservation[] =
+      mocks.recordObservation.mock.calls
+        .filter(([type]) => type === "GENERATION" || type === "TOOL")
+        .map(([type, body]) => ({ ...body, type }));
+    const generations = observations.filter(
+      ({ type }) => type === "GENERATION",
+    );
+    const referencedResult = {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "tool-1",
+          toolName: "listObservations",
+          output: {
+            type: "text",
+            value: "Output recorded in TOOL observation tool-1.",
+          },
+        },
+      ],
+    };
+    expect(generations[1]?.input).toEqual({
+      messages: [user, call, referencedResult],
+    });
+    const nextTurn: TranscriptObservation = {
+      ...generations[1]!,
+      id: "next-generation",
+      traceId: "next-trace",
+      parentObservationId: null,
+      startTime: new Date(Date.now() + 1000),
+      input: {
+        messages: [
+          user,
+          call,
+          referencedResult,
+          { role: "assistant", content: "Done" },
+          { role: "user", content: "Thanks" },
+        ],
+      },
+      output: { text: "Welcome" },
+    };
+    const transcript = assembleTranscript(
+      orderObservations([...observations, nextTurn]),
+    );
+    expect(transcript?.threads).toHaveLength(1);
+    expect(
+      transcript?.threads[0]?.currentTurn.messages.map(({ role }) => role),
+    ).toEqual(["user", "assistant"]);
+    expect(
+      transcript?.threads[0]?.conversationHistory.filter(
+        ({ role }) => role === "tool",
+      ),
+    ).toHaveLength(1);
+    expect(
+      JSON.stringify(transcript?.threads[0]?.conversationHistory),
+    ).toContain(toolOutput.value.data);
+  });
+
+  it("keeps batched tool-result identities but omits their payloads from generation telemetry", () => {
+    const instrumentation = createInstrumentation();
+    const results = ["tool-1", "tool-2"].map((toolCallId) => ({
+      type: "tool-result",
+      toolCallId,
+      toolName: "listObservations",
+      output: { type: "json", value: { privatePayload: toolCallId } },
+      providerOptions: {
+        mastra: { modelOutput: { privatePayload: toolCallId } },
+      },
+    }));
+    const prompt = [
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      { role: "tool", content: results },
+    ];
+    const originalPrompt = JSON.stringify(prompt);
+    instrumentation.recordModelCallStart({ prompt });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "stop",
+    });
+
+    const generation = mocks.recordObservation.mock.calls.find(
+      ([type]) => type === "GENERATION",
+    )?.[1];
+    expect(generation.input.messages).toEqual([
+      prompt[0],
+      {
+        role: "tool",
+        content: ["tool-1", "tool-2"].map((toolCallId) => ({
+          type: "tool-result",
+          toolCallId,
+          toolName: "listObservations",
+          output: {
+            type: "text",
+            value: `Output recorded in TOOL observation ${toolCallId}.`,
+          },
+        })),
+      },
+    ]);
+    expect(JSON.stringify(generation.input)).not.toContain("privatePayload");
+    expect(JSON.stringify(prompt)).toBe(originalPrompt);
   });
 
   it("records approved manual tool approval metadata", () => {
@@ -953,7 +1234,7 @@ describe("InAppAgentInstrumentation", () => {
           {
             role: "tool",
             tool_call_id: "tool-1",
-            content: { name: "FOO", version: 1 },
+            content: "Output recorded in the corresponding TOOL observation.",
           },
         ],
       });
@@ -1215,7 +1496,11 @@ describe("InAppAgentInstrumentation", () => {
               thinking: [{ type: "thinking", content: "Checking filters" }],
               tool_calls: [toolCall],
             },
-            { role: "tool", tool_call_id: "tool-1", content: toolOutput },
+            {
+              role: "tool",
+              tool_call_id: "tool-1",
+              content: "Output recorded in TOOL observation tool-1.",
+            },
             {
               role: "assistant",
               content: "Done",
