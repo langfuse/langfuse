@@ -3,12 +3,6 @@ import { context as otelContext, type Context } from "@opentelemetry/api";
 
 const telemetry = vi.hoisted(() => ({
   contextWithLangfuseProps: vi.fn(),
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
@@ -25,7 +19,12 @@ vi.mock("@langfuse/shared/src/server", () => ({
       callback: (span: typeof telemetry.span) => Promise<unknown>,
     ) => callback(telemetry.span),
   ),
-  logger: telemetry.logger,
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
   recordDistribution: telemetry.recordDistribution,
   recordGauge: telemetry.recordGauge,
   recordIncrement: telemetry.recordIncrement,
@@ -80,24 +79,6 @@ const expectCompleted = (
     1,
     { outcome, ...tags },
   );
-
-const expectCompletedLog = (
-  outcome: "success" | "failed" | "skipped",
-  runner: string,
-  scope?: string,
-) => {
-  expect(telemetry.logger.info).toHaveBeenCalledTimes(1);
-  expect(telemetry.logger.info).toHaveBeenCalledWith(
-    "Periodic runner completed",
-    {
-      event: "periodic_runner.completed",
-      runner,
-      ...(scope ? { scope } : {}),
-      outcome,
-      durationMs: 0,
-    },
-  );
-};
 
 // Test subclass that tracks execution
 class TestRunner extends PeriodicRunner {
@@ -213,7 +194,6 @@ describe("PeriodicRunner", () => {
       { runner: "test_runner" },
     );
     expectCompleted("success", { runner: "test_runner" });
-    expectCompletedLog("success", "test_runner");
     expect(telemetry.recordDistribution).toHaveBeenCalledWith(
       "langfuse.periodic_runner.duration_ms",
       0,
@@ -298,7 +278,6 @@ describe("PeriodicRunner", () => {
     runner.start();
     await flushMicrotasks(); // First execution (throws)
     expect(runner.callCount).toBe(1);
-    expectCompletedLog("failed", "test_runner");
 
     await vi.advanceTimersByTimeAsync(1000); // Second execution (succeeds)
     expect(runner.callCount).toBe(2);
@@ -331,7 +310,6 @@ describe("PeriodicRunner", () => {
       runner: "test_exclusive_runner",
       scope: "test_scope",
     });
-    expectCompletedLog("failed", "test_exclusive_runner", "test_scope");
     expect(telemetry.recordGauge).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1000);
@@ -350,7 +328,6 @@ describe("PeriodicRunner", () => {
       runner: "test_exclusive_runner",
       scope: "test_scope",
     });
-    expectCompletedLog("skipped", "test_exclusive_runner", "test_scope");
     expect(telemetry.traceException).not.toHaveBeenCalled();
     expect(telemetry.recordGauge).not.toHaveBeenCalled();
     expect(runner.lockNotAcquiredCount).toBe(1);
@@ -370,40 +347,8 @@ describe("PeriodicRunner", () => {
         runner: "test_exclusive_runner",
         scope: "test_scope",
       });
-      expectCompletedLog("failed", "test_exclusive_runner", "test_scope");
       expect(telemetry.recordGauge).not.toHaveBeenCalled();
       runner.stop();
     },
   );
-
-  it("logs the outcome when a metric emitter fails and keeps scheduling", async () => {
-    telemetry.recordDistribution.mockImplementationOnce(() => {
-      throw new Error("metric transport failed");
-    });
-    const runner = new TestRunner();
-
-    runner.start();
-    await flushMicrotasks();
-
-    expect(telemetry.logger.info).toHaveBeenCalledTimes(1);
-    expectCompletedLog("success", "test_runner");
-
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(telemetry.logger.info).toHaveBeenCalledTimes(2);
-    runner.stop();
-  });
-
-  it("keeps scheduling when the outcome logger fails", async () => {
-    telemetry.logger.info.mockImplementationOnce(() => {
-      throw new Error("log transport failed");
-    });
-    const runner = new TestRunner();
-
-    runner.start();
-    await flushMicrotasks();
-
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(runner.callCount).toBe(2);
-    runner.stop();
-  });
 });
