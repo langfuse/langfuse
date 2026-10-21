@@ -10,6 +10,7 @@ import {
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 import { requireGatewayEnabledForOrganization } from "../availability";
+import { resolveGatewayJwtKeys } from "./gatewayJwtKeys";
 import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
 /** Outlives the gateway's default ten-minute execution ceiling plus upload batching. */
@@ -55,10 +56,15 @@ function configuredPublicKey(input: {
 }
 
 const gatewayIngestionTokenVerifier = (() => {
+  const current = resolveGatewayJwtKeys({
+    privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+  });
   const publicKeys = [
     ...configuredPublicKey({
-      keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
-      publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+      keyId: current.keyId,
+      publicKey: current.publicKey,
       keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_KEY_ID",
       publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY",
     }),
