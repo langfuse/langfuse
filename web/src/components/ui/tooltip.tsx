@@ -9,7 +9,10 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 const TOOLTIP_DELAY_MS = 150;
 
-/** Nested providers reset the delay, so every provider carries the app default. */
+/**
+ * Nested providers reset the delay, so every provider carries the app default.
+ * @deprecated Use design-system/Tooltip/Tooltip or design-system/CustomTooltip/CustomTooltip.
+ */
 const TooltipProvider = ({
   delayDuration = TOOLTIP_DELAY_MS,
   ...props
@@ -17,10 +20,19 @@ const TooltipProvider = ({
   <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
 );
 
+/**
+ * @deprecated Use Tooltip from design-system/Tooltip/Tooltip or CustomTooltip from design-system/CustomTooltip/CustomTooltip.
+ */
 const Tooltip = TooltipPrimitive.Root;
 
+/**
+ * @deprecated Use the render-prop getTriggerProps API of design-system/Tooltip/Tooltip or design-system/CustomTooltip/CustomTooltip.
+ */
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
+/**
+ * @deprecated Use the label prop of design-system/Tooltip/Tooltip or the content prop of design-system/CustomTooltip/CustomTooltip.
+ */
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>

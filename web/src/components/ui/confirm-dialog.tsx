@@ -34,6 +34,7 @@ const confirmDialogContentVariants = cva("", {
  * cancel/confirm footer so every confirm modal looks and behaves the same.
  * Callers keep their own access checks and mutation logic; pass extra content
  * (e.g. type-to-confirm input) via `children`.
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController or compose design-system/DialogController/DialogController with design-system/Dialog/Dialog.
  */
 export function ConfirmDialog({
   open,
