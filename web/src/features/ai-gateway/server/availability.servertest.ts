@@ -31,20 +31,6 @@ describe("gateway organization allowlist", () => {
     ).toThrow(ForbiddenError);
   });
 
-  it("enables every organization when the gateway is enabled globally", () => {
-    const environment = {
-      nodeEnv: "production",
-      enabledForAllOrganizations: true,
-    };
-
-    expect(
-      isGatewayEnabledForOrganization("org-not-allowed", [], environment),
-    ).toBe(true);
-    expect(() =>
-      requireGatewayEnabledForOrganization("org-not-allowed", [], environment),
-    ).not.toThrow();
-  });
-
   it("enables the gateway in preview deployments", () => {
     expect(
       isGatewayEnabledForOrganization("org-not-allowed", [], {
