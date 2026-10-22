@@ -1,4 +1,4 @@
-import { claimed } from "../../conventions";
+import { claimed, unmatched } from "../../conventions";
 import type {
   PartHandler,
   PartHandlerContext,
@@ -30,13 +30,19 @@ const rawToolCallKeys = new WeakMap<object, string>();
  * up in the convention registry.
  */
 
+/** Text parts carry `text` or `content`; other objects typed "text" (e.g. a tool's JSON result) fall through to the generic part. */
+const textPart: PartHandler = (value) =>
+  "text" in value || "content" in value
+    ? claimed(normalizeTextPart(value))
+    : unmatched;
+
 // `image` and `file` are contested type names: Anthropic/AI-SDK and
 // OpenAI/AI-SDK register guarded handlers for them in their own conventions;
 // a handler returning `unmatched` falls through to the next provider.
 const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
-  text: (value) => claimed(normalizeTextPart(value)),
-  input_text: (value) => claimed(normalizeTextPart(value)),
-  output_text: (value) => claimed(normalizeTextPart(value)),
+  text: textPart,
+  input_text: textPart,
+  output_text: textPart,
   reasoning: (value) => claimed(normalizeReasoningTextPart(value)),
 };
 
