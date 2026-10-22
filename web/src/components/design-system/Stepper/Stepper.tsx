@@ -138,7 +138,7 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           {isCollapsible ? (
             <button
               type="button"
