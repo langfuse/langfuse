@@ -452,6 +452,24 @@ export const InAppAgentMcpRunOverrideSchema = z
       "toolNames" in override ? override.toolNames : [override.toolName],
   }));
 
+export const InAppAgentSignedMcpRunOverrideSchema = z
+  .union([
+    z.object({
+      toolNames: z.array(InAppAgentLangfuseMcpToolNameSchema),
+      toolName: InAppAgentLangfuseMcpToolNameSchema.optional(),
+      signature: z.string().min(1),
+    }),
+    z.object({
+      toolName: InAppAgentLangfuseMcpToolNameSchema,
+      signature: z.string().min(1),
+    }),
+  ])
+  .transform((override) => ({
+    toolNames:
+      "toolNames" in override ? override.toolNames : [override.toolName],
+    signature: override.signature,
+  }));
+
 function getInAppAgentMcpOverrideSecret(): string {
   const secret =
     env.ENCRYPTION_KEY ??
@@ -470,20 +488,20 @@ export async function createInAppAgentMcpRunOverride(params: {
   secret?: string;
 }): Promise<string> {
   const signingKey = params.secret ?? getInAppAgentMcpOverrideSecret();
-  const payload = {
+  const signaturePayload = JSON.stringify({
+    toolNames: params.toolNames,
+  });
+  const signature = crypto
+    .createHmac("sha256", signingKey)
+    .update(signaturePayload)
+    .digest("base64url");
+
+  return JSON.stringify({
     // Older web pods read the singular field during rolling deploys.
     toolName: params.toolNames[0],
     toolNames: params.toolNames,
-  };
-  const payloadBase64 = Buffer.from(JSON.stringify(payload), "utf8").toString(
-    "base64url",
-  );
-  const signature = crypto
-    .createHmac("sha256", signingKey)
-    .update(payloadBase64)
-    .digest("base64url");
-
-  return `${payloadBase64}.${signature}`;
+    signature,
+  });
 }
 
 export function verifyInAppAgentMcpRunOverride(
@@ -494,13 +512,13 @@ export function verifyInAppAgentMcpRunOverride(
     return undefined;
   }
 
-  const parts = token.split(".");
-  if (parts.length !== 2) {
+  const rawJson = safeJsonParse(token);
+  if (!rawJson || typeof rawJson !== "object") {
     return undefined;
   }
 
-  const [payloadBase64, signature] = parts;
-  if (!payloadBase64 || !signature) {
+  const parsed = InAppAgentSignedMcpRunOverrideSchema.safeParse(rawJson);
+  if (!parsed.success) {
     return undefined;
   }
 
@@ -513,10 +531,10 @@ export function verifyInAppAgentMcpRunOverride(
 
   const expectedSignature = crypto
     .createHmac("sha256", signingKey)
-    .update(payloadBase64)
+    .update(JSON.stringify({ toolNames: parsed.data.toolNames }))
     .digest("base64url");
 
-  const sigBuffer = Buffer.from(signature);
+  const sigBuffer = Buffer.from(parsed.data.signature);
   const expectedSigBuffer = Buffer.from(expectedSignature);
 
   if (
@@ -526,14 +544,7 @@ export function verifyInAppAgentMcpRunOverride(
     return undefined;
   }
 
-  const payloadJson = Buffer.from(payloadBase64, "base64url").toString("utf8");
-  const rawData = safeJsonParse(payloadJson);
-  const parsed = InAppAgentMcpRunOverrideSchema.safeParse(rawData);
-  if (!parsed.success) {
-    return undefined;
-  }
-
-  return parsed.data;
+  return { toolNames: parsed.data.toolNames };
 }
 
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([

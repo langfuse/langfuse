@@ -72,7 +72,10 @@ describe("MCP route in-app-agent context", () => {
     const validHeader = await createInAppAgentMcpRunOverride({
       toolNames: ["upsertDataset"],
     });
-    const tamperedReq = createRequest(validHeader + "tampered");
+    const parsed = JSON.parse(validHeader);
+    const tamperedReq = createRequest(
+      JSON.stringify({ ...parsed, signature: `${parsed.signature}tampered` }),
+    );
 
     expect(getInAppAgentContext(tamperedReq, true)).toEqual({
       permissions: "read",

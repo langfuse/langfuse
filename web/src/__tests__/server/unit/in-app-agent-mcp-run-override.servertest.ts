@@ -5,22 +5,24 @@ import {
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 describe("in-app agent MCP run override", () => {
-  it("creates a signed HMAC token for the override", async () => {
+  it("creates a signed JSON envelope compatible with older web pods during rolling deploys", async () => {
     const token = await createInAppAgentMcpRunOverride({
       toolNames: ["upsertDataset"],
     });
 
-    const parts = token.split(".");
-    expect(parts.length).toBe(2);
-
-    const [payloadBase64] = parts;
-    const payload = JSON.parse(
-      Buffer.from(payloadBase64, "base64url").toString("utf8"),
-    );
-
-    expect(payload).toEqual({
+    const parsedJson = JSON.parse(token);
+    expect(parsedJson).toEqual({
       toolName: "upsertDataset",
       toolNames: ["upsertDataset"],
+      signature: expect.any(String),
+    });
+
+    // Older web pods reading InAppAgentMcpRunOverrideSchema still parse it
+    expect(InAppAgentMcpRunOverrideSchema.safeParse(parsedJson)).toEqual({
+      success: true,
+      data: {
+        toolNames: ["upsertDataset"],
+      },
     });
   });
 
@@ -47,20 +49,20 @@ describe("in-app agent MCP run override", () => {
     const token = await createInAppAgentMcpRunOverride({
       toolNames: ["upsertDataset"],
     });
-    const [payloadBase64, signature] = token.split(".");
+    const parsed = JSON.parse(token);
 
     // Tampered signature
     expect(
-      verifyInAppAgentMcpRunOverride(`${payloadBase64}.${signature}tampered`),
+      verifyInAppAgentMcpRunOverride(
+        JSON.stringify({ ...parsed, signature: `${parsed.signature}tampered` }),
+      ),
     ).toBeUndefined();
 
-    // Tampered payload
-    const tamperedPayload = Buffer.from(
-      JSON.stringify({ toolNames: ["createDashboardWidget"] }),
-      "utf8",
-    ).toString("base64url");
+    // Tampered toolNames
     expect(
-      verifyInAppAgentMcpRunOverride(`${tamperedPayload}.${signature}`),
+      verifyInAppAgentMcpRunOverride(
+        JSON.stringify({ ...parsed, toolNames: ["createDashboardWidget"] }),
+      ),
     ).toBeUndefined();
   });
 
