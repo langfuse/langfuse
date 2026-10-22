@@ -447,7 +447,12 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
-  topics: ["results_view_select"],
+  topics: [
+    "results_view_select",
+    "setup_opened",
+    "setup_step_saved",
+    "setup_started",
+  ],
   in_app_agent: [
     "activity_opened",
     "entry_point_click",

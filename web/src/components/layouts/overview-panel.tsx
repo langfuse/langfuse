@@ -7,7 +7,7 @@ import { PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 
 // --- Toggle Button ---
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { backOff } from "exponential-backoff";
@@ -5,8 +6,10 @@ import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
+  createTraceBatchInputStorage,
   getCurrentSpan,
   getTraceBatchEventStream,
+  isInternalEvalEnvironment,
   logger,
   recordDistribution,
   recordGauge,
@@ -15,6 +18,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
   type Transcript,
+  type TraceBatchInputReference,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
@@ -41,6 +45,9 @@ import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+import { storeInputs } from "../features/traceBatching/storeInputs";
+
+const inputStorage = createTraceBatchInputStorage();
 
 type TraceBatchObservation = Observation & {
   eventTimestamp: string;
@@ -52,6 +59,10 @@ type TraceOutcome = (
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string }
 ) & { rows: TopicSummary[] };
+
+/** Identity of one trace within a batch; a batch spans projects. */
+const traceKey = (projectId: string, traceId: string) =>
+  JSON.stringify([projectId, traceId]);
 
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
@@ -135,6 +146,7 @@ async function summarizeTraceBatch(
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
+  revisions: ReadonlyMap<string, string>,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -148,12 +160,25 @@ async function summarizeTraceBatch(
     throw new Error(
       "Trace batch observations crossed a project or trace boundary.",
     );
+  // Match manual processing and discovery, preserving event_ts microseconds.
+  const latest = newestEvent(observations)!;
+  if (isInternalEvalEnvironment(latest.environment))
+    return { outcome: "disabled", rows: [] };
+  const revision = revisions.get(traceKey(first.projectId, traceId));
+  const inputReference: TraceBatchInputReference | undefined =
+    revision === undefined
+      ? undefined
+      : { projectId: first.projectId, traceId, revision };
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
-  // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = newestEvent(observations)!;
   const sessionId = newestSessionId(observations);
+  const traceContext = {
+    sessionId,
+    traceTimestamp,
+    environment: latest.environment,
+    traceName: first.name,
+  };
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
@@ -165,18 +190,28 @@ async function summarizeTraceBatch(
       })
     )
       return { outcome: "disabled", rows };
-    const result = await summarizeAssembledTrace({
-      projectId: first.projectId,
-      traceId,
-      sessionId,
-      traceTimestamp,
-      jobEnqueuedAt,
-      environment: latest.environment,
-      traceName: first.name ?? "",
-      transcript,
-      models: project.models,
-      facets: project.facets,
-    });
+    // Capture reports its own failures; drain both before releasing the Topics slot.
+    const [summary] = await Promise.allSettled([
+      summarizeAssembledTrace({
+        projectId: first.projectId,
+        traceId,
+        ...traceContext,
+        jobEnqueuedAt,
+        traceName: traceContext.traceName ?? "",
+        transcript,
+        models: project.models,
+        facets: project.facets,
+      }),
+      inputReference
+        ? storeInputs(
+            inputReference,
+            { transcript, traceContext },
+            inputStorage,
+          )
+        : Promise.resolve(),
+    ]);
+    if (summary.status === "rejected") throw summary.reason;
+    const result = summary.value;
     rows = result.rows;
     if (result.failure === undefined) return { outcome: result.outcome, rows };
     throw result.failure;
@@ -324,6 +359,12 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const revisions = new Map(
+      batch.traces.map((trace) => [
+        traceKey(trace.projectId, trace.traceId),
+        trace.revision,
+      ]),
+    );
     const topicsOutcomes: TraceOutcome[] = [];
     let droppedRows = new Set<TopicSummary>();
     const topics = new TopicsBatchProjects(
@@ -424,6 +465,7 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
+                  revisions,
                 ),
               );
           });
@@ -445,7 +487,7 @@ export const traceBatchQueueProcessor: Processor<
       let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
-        foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+        foundTraces.add(traceKey(event.project_id, event.trace_id));
         foundProjects.add(event.project_id);
         // Logical UTF-8 payload size, excluding JSON transport and compression.
         const eventInputBytes = Buffer.byteLength(event.input);

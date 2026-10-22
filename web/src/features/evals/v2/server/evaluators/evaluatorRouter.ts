@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog } from "@/src/features/audit-logs/server";
 import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {

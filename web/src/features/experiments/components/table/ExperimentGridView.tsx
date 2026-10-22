@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { ExperimentInputCell } from "./ExperimentInputCell";
 import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
 import { DataTable } from "@/src/components/table/data-table";

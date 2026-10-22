@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { assertUnreachable } from "@langfuse/shared";

@@ -18,6 +18,10 @@ const recorder = vi.hoisted(() => {
   return { captured, uid };
 });
 
+const mockShouldSkipScoresDedup = vi.hoisted(() =>
+  vi.fn<(projectId: string) => boolean>(() => false),
+);
+
 vi.mock("./clickhouse", () => ({
   queryClickhouse: vi.fn(async (opts: any) => {
     recorder.captured.push({ fn: "queryClickhouse", ...opts });
@@ -39,6 +43,7 @@ vi.mock("./clickhouse", () => ({
 // calls it.
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: mockShouldSkipScoresDedup,
 }));
 
 // Import via the server barrel so it initializes in the correct order; entering
@@ -287,13 +292,15 @@ const ROWS: Array<
   ["f", "n1", "2026-01-10 05:00:00.000", "T2", null, 0.9, 3],
 ];
 
-const insertRows = () => {
-  const values = ROWS.map(
-    ([id, name, ts, traceId, obsId, value, eventTs]) =>
-      `('${id}', '${ts}', '${PROJECT_ID}', '${traceId}', ${
-        obsId === null ? "NULL" : `'${obsId}'`
-      }, '${name}', ${value}, 'API', NULL, NULL, NULL, 'NUMERIC', NULL, NULL, 'default', NULL, NULL, NULL, NULL, NULL, map(), 'pk', 'sdk', '1', '${ts}', '${ts}', toDateTime64(${eventTs}, 3), 0)`,
-  ).join(",\n");
+const insertRows = (rows = ROWS) => {
+  const values = rows
+    .map(
+      ([id, name, ts, traceId, obsId, value, eventTs]) =>
+        `('${id}', '${ts}', '${PROJECT_ID}', '${traceId}', ${
+          obsId === null ? "NULL" : `'${obsId}'`
+        }, '${name}', ${value}, 'API', NULL, NULL, NULL, 'NUMERIC', NULL, NULL, 'default', NULL, NULL, NULL, NULL, NULL, map(), 'pk', 'sdk', '1', '${ts}', '${ts}', toDateTime64(${eventTs}, 3), 0)`,
+    )
+    .join(",\n");
   return `INSERT INTO scores VALUES ${values};`;
 };
 
@@ -304,8 +311,8 @@ const finalCount = (predicate: string) =>
 const finalIds = (predicate: string) =>
   `SELECT id FROM scores FINAL WHERE project_id = '${PROJECT_ID}' AND data_type = 'NUMERIC' AND (${predicate}) ORDER BY id;`;
 
-const runLocal = (sql: string) =>
-  executeClickhouseLocal(`${SCORES_DDL}\n${insertRows()}\n${sql}`);
+const runLocal = (sql: string, rows = ROWS) =>
+  executeClickhouseLocal(`${SCORES_DDL}\n${insertRows(rows)}\n${sql}`);
 
 const sortedLines = (out: string) =>
   out
@@ -361,6 +368,68 @@ describeWithLocal("scores selective-seek: parity vs FINAL", () => {
       const appIds = sortedLines(appOut).map((l) => l.split("\t")[0]);
       const refIds = sortedLines(refOut);
       expect(appIds).toEqual(refIds);
+    });
+  }
+});
+
+// Projects listed in LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS never update scores,
+// so a plain scan over single-version rows must match FINAL.
+describe("scores skip-dedup: plain scan", () => {
+  // b, c, d each have one row per dedup key (c spans two day-buckets).
+  const SINGLE_VERSION_ROWS = ROWS.filter(([id]) =>
+    ["b", "c", "d"].includes(id),
+  );
+
+  beforeEach(() => mockShouldSkipScoresDedup.mockReturnValue(true));
+  afterEach(() => mockShouldSkipScoresDedup.mockReturnValue(false));
+
+  it("emits no dedup reconstruction or seek", async () => {
+    const count = await captureCountSql(traceIdEq("T1"));
+    const rows = await captureRowsSql(traceIdEq("T1"));
+    for (const q of [count, rows]) {
+      expect(q.query).not.toContain("argMax");
+      expect(q.query).not.toContain("latest_event_ts");
+      expect(q.query).not.toContain("SELECT DISTINCT");
+    }
+  });
+
+  const scenarios = [
+    { name: "no filter", filter: [] as FilterState, predicate: "1" },
+    {
+      name: "name IN [n1]",
+      filter: nameIn(["n1"]),
+      predicate: "name = 'n1'",
+    },
+    {
+      name: "trace_id = T1",
+      filter: traceIdEq("T1"),
+      predicate: "trace_id = 'T1'",
+    },
+  ];
+
+  for (const { name, filter, predicate } of scenarios) {
+    it.skipIf(!clickhouseLocalAvailable())(
+      `count parity: ${name}`,
+      async () => {
+        const q = await captureCountSql(filter);
+        const appCount = runLocal(
+          substituteNamedParams(q.query, q.params ?? {}),
+          SINGLE_VERSION_ROWS,
+        );
+        const refCount = runLocal(finalCount(predicate), SINGLE_VERSION_ROWS);
+        expect(appCount.trim()).toBe(refCount.trim());
+      },
+    );
+
+    it.skipIf(!clickhouseLocalAvailable())(`rows parity: ${name}`, async () => {
+      const q = await captureRowsSql(filter);
+      const appOut = runLocal(
+        substituteNamedParams(q.query, q.params ?? {}),
+        SINGLE_VERSION_ROWS,
+      );
+      const refOut = runLocal(finalIds(predicate), SINGLE_VERSION_ROWS);
+      const appIds = sortedLines(appOut).map((l) => l.split("\t")[0]);
+      expect(appIds).toEqual(sortedLines(refOut));
     });
   }
 });

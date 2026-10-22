@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type ComponentProps,
   useCallback,
@@ -12,6 +13,8 @@ import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
   Download,
+  ChevronDown,
+  ExternalLink,
   Loader2,
   Pencil,
   TriangleAlert,
@@ -23,6 +26,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -194,10 +198,8 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft &&
-    (selectedTab === "linked-traces" ||
-      (selectedTab === "metrics" && canReadMetrics))
-      ? selectedTab
+    !isDraft && ["usage", "linked-traces", "metrics"].includes(selectedTab)
+      ? "usage"
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
@@ -373,6 +375,32 @@ export function SkillEditor({
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      {canReadMetrics ? (
+        <SkillAnalytics
+          projectId={projectId}
+          skillId={view.skillId}
+          name={name}
+          version={baseVersion}
+          paths={Object.keys(store.getState().files).toSorted()}
+        />
+      ) : (
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={baseVersion}
+        />
+      )}
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
     openDialog: (
       state:
@@ -401,36 +429,47 @@ export function SkillEditor({
           <div className="bg-border hidden h-6 w-px sm:block" />
         </>
       ) : null}
-      {baseVersion !== null ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={download}
-          disabled={isDownloading}
-          aria-label={`Download version ${baseVersion}`}
+      {baseVersion !== null && !isDraft ? (
+        <DropdownMenu
+          ariaLabel="Use skill"
+          items={[
+            {
+              type: "item",
+              id: "install",
+              title: "Install with CLI",
+              icon: Terminal,
+              onClick: () => {
+                closeMenu?.();
+                openDialog({ kind: "install" });
+              },
+            },
+            {
+              type: "item",
+              id: "download",
+              title: downloadTitle,
+              icon: Download,
+              disabled: downloadDisabled,
+              onClick: download,
+            },
+            {
+              type: "item",
+              id: "api",
+              title: "API",
+              icon: ExternalLink,
+              href: "https://api.reference.langfuse.com/#tag/skills",
+              linkTarget: "_blank",
+            },
+          ]}
         >
-          {isDownloading ? (
-            <Loader2
-              size="base"
-              color="default"
-              __rawClassName="mr-1.5 animate-spin"
+          {({ getTriggerProps }) => (
+            <DesignSystemButton
+              text="Use skill"
+              variant="secondary"
+              icon={ChevronDown}
+              {...getTriggerProps()}
             />
-          ) : (
-            <Download size="base" color="default" __rawClassName="mr-1.5" />
           )}
-          Download
-        </Button>
-      ) : null}
-      {!isDraft && baseVersion !== null ? (
-        <DesignSystemButton
-          text="Install with CLI"
-          variant="secondary"
-          icon={Terminal}
-          onClick={() => {
-            closeMenu?.();
-            openDialog({ kind: "install" });
-          }}
-        />
+        </DropdownMenu>
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -685,36 +724,12 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
-                        value="metrics"
-                        label="Metrics"
-                        disabled={isDraft || !canReadMetrics}
-                      />
-                      <Tabs.Trigger
-                        value="linked-traces"
-                        label="Observations"
+                        value="usage"
+                        label="Usage"
                         disabled={isDraft}
                       />
                     </Tabs.List>
-                    {canReadMetrics &&
-                    view.kind === "version" &&
-                    baseVersion !== null ? (
-                      <Tabs.Content value="metrics" layout="fill">
-                        <SkillAnalytics
-                          projectId={projectId}
-                          skillId={view.skillId}
-                          paths={Object.keys(store.getState().files).toSorted()}
-                        />
-                      </Tabs.Content>
-                    ) : null}
-                    {!isDraft && baseVersion !== null ? (
-                      <Tabs.Content value="linked-traces" layout="fill">
-                        <SkillLinkedTraces
-                          projectId={projectId}
-                          name={name}
-                          version={baseVersion}
-                        />
-                      </Tabs.Content>
-                    ) : null}
+                    {usageTab}
                     <Tabs.Content value="files" layout="fill">
                       <ResizablePanelGroup
                         key={isDesktop ? "desktop" : "mobile"}

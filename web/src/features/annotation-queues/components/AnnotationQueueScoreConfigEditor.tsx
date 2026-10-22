@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Info, Pencil, Plus, X } from "@langfuse/icons";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type ScoreConfigDomain } from "@langfuse/shared";

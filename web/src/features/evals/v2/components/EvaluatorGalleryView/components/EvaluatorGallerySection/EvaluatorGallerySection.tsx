@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
