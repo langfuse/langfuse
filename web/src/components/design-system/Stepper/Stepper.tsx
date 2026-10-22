@@ -122,7 +122,7 @@ export function Stepper({
   return (
     <div className="group/step flex gap-1.5">
       <div className="flex flex-col items-center">
-        <div className={markerVariants({ variant, size, status })}>
+        <div className={cn(markerVariants({ variant, size, status }))}>
           {status === "complete" ? (
             <Check size="sm" aria-label="Completed" />
           ) : (
@@ -155,11 +155,15 @@ export function Stepper({
                   !expanded && "-rotate-90",
                 )}
               />
-              <span className={titleVariants({ size, status })}>{title}</span>
+              <span className={cn(titleVariants({ size, status }))}>
+                {title}
+              </span>
             </button>
           ) : (
             <div className={headerVariants({ size })}>
-              <span className={titleVariants({ size, status })}>{title}</span>
+              <span className={cn(titleVariants({ size, status }))}>
+                {title}
+              </span>
             </div>
           )}
           {docsHref ? (
