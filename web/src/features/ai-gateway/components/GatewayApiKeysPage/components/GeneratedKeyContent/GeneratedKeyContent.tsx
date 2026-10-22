@@ -52,11 +52,12 @@ export function GeneratedKeyContent({
             href={activeInstructions?.docsUrl ?? AGENT_SETUP_DOCS_URLS.api}
           />
         </div>
+      </DialogHeader>
+      <DialogBody>
+        {/* Outside the header, which centers its close button against all of its content. */}
         <DialogDescription>
           Copy the key now. It is shown only once.
         </DialogDescription>
-      </DialogHeader>
-      <DialogBody>
         <MaskedGatewayKey secretKey={secretKey} />
         <SetupInstructions
           instructions={instructions}
