@@ -46,7 +46,6 @@ export const notificationQueueProcessor = async (
     logger.error("Failed to process notification job", {
       ...logContext,
       error,
-      payload,
     });
     throw error;
   }
