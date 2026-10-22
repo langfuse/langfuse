@@ -230,11 +230,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
 ## Run the experiment
 
-1. Initialize facets and inspect their instructions. `Intent`, `Outcome`, and
-   `Issues` are built-in presets with immutable instructions. `Sentiment` is a
-   built-in preset only for projects that already have it; new setups do not
-   get it. Create a custom
-   facet for different instructions; a facet is not a list of topic classes.
+1. Initialize facets and inspect their instructions. `Intent`, `Outcome`, and `Issues` are built-in presets with immutable instructions. `Sentiment` is a built-in preset only for projects that already have it; new setups do not get it. Create a custom facet for different instructions; a facet is not a list of topic classes.
 2. Choose **Process traces** and select traces through filters or pasted IDs.
    The request freezes the selection and selected facet versions. It generates
    summaries and embeddings, then assigns only this batch to the current
