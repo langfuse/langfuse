@@ -20,7 +20,6 @@ import {
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
-import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -63,7 +62,7 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
-  skills?: SectionSkillsProps["skills"];
+  skills?: React.ComponentProps<typeof IOPreviewPretty>["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;

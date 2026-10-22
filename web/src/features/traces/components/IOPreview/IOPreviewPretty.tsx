@@ -4,10 +4,21 @@ import {
   type ObservationType,
   type Prisma,
   type ScoreDomain,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type IOSectionAction } from "@/src/components/ui/IOSection";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
+import { FileCode2, FileText } from "@langfuse/icons";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
@@ -18,10 +29,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
-import {
-  SectionSkills,
-  type SectionSkillsProps,
-} from "./components/SectionSkills";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
@@ -106,7 +113,9 @@ function JsonInputOutputView({
 }
 
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
-  skills?: SectionSkillsProps["skills"];
+  skills?:
+    | { kind: "available"; items: SkillsAvailable }
+    | { kind: "loaded"; items: SkillsResourceLoaded };
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -175,6 +184,35 @@ export function IOPreviewPretty({
   contentMode = "all",
   showSystemPrompt,
 }: IOPreviewPrettyProps) {
+  const [isSkillsExpanded, setSkillsExpanded] = useState(false);
+  const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const skillGroups = new Map<
+    string,
+    {
+      key: string;
+      skill: SkillsAvailable[number];
+      files: Set<string>;
+    }
+  >();
+  const skillItems =
+    skills?.kind === "loaded"
+      ? skills.items.map((skill) => ({ skill, filePath: skill.filePath }))
+      : (skills?.items ?? []).map((skill) => ({ skill, filePath: undefined }));
+  for (const { skill, filePath } of skillItems) {
+    const key = JSON.stringify([
+      skill.langfuseSkillId ?? null,
+      skill.skillName,
+      skill.skillVersion ?? null,
+    ]);
+    const group = skillGroups.get(key) ?? {
+      key,
+      skill,
+      files: new Set<string>(),
+    };
+    skillGroups.set(key, group);
+    if (filePath !== undefined) group.files.add(filePath);
+  }
+
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
@@ -358,7 +396,115 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && skills && skills.items.length > 0 ? (
-        <SectionSkills projectId={projectId} skills={skills} />
+        <IOSection title="Skills" count={skillGroups.size}>
+          <Collapsible
+            open={isSkillsExpanded}
+            onOpenChange={setSkillsExpanded}
+            className="flex flex-col gap-2"
+          >
+            <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <FileCode2 size="base" color="muted" aria-hidden />
+                <span>
+                  {skillGroups.size}{" "}
+                  {skills.kind === "available" ? "available" : "loaded"}{" "}
+                  {skillGroups.size === 1 ? "skill" : "skills"}
+                </span>
+              </span>
+              <Badge
+                color="filled"
+                size="sm"
+                text={isSkillsExpanded ? "hide" : "show"}
+              />
+              <DropdownIndicator
+                direction={isSkillsExpanded ? "down" : "right"}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent asChild>
+              <ul className="flex flex-col gap-2">
+                {Array.from(skillGroups.values(), ({ key, skill, files }) => (
+                  <Collapsible
+                    key={key}
+                    asChild
+                    open={expandedSkillKey === key}
+                    onOpenChange={(open) =>
+                      setExpandedSkillKey(open ? key : "")
+                    }
+                  >
+                    <li className="min-w-0 overflow-hidden rounded-sm border">
+                      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+                        <FileCode2 size="base" color="muted" aria-hidden />
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                          {skill.langfuseSkillId &&
+                          skill.skillVersion != null ? (
+                            <LinkBadge
+                              href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
+                              text={skill.skillName}
+                              newTab
+                              noCapture
+                            />
+                          ) : (
+                            <Badge
+                              color="ghost"
+                              font="mono"
+                              text={skill.skillName}
+                            />
+                          )}
+                          {skill.skillVersion != null ? (
+                            <Badge
+                              color="filled"
+                              size="sm"
+                              text={`v${skill.skillVersion}`}
+                            />
+                          ) : null}
+                        </div>
+                        {files.size > 0 ? (
+                          <CollapsibleTrigger
+                            className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
+                            aria-label={`Files loaded for ${skill.skillName}`}
+                          >
+                            <Badge
+                              color="green"
+                              size="sm"
+                              text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
+                            />
+                            <DropdownIndicator
+                              direction={
+                                expandedSkillKey === key ? "down" : "right"
+                              }
+                            />
+                          </CollapsibleTrigger>
+                        ) : null}
+                      </div>
+                      {files.size > 0 ? (
+                        <CollapsibleContent asChild>
+                          <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
+                            {Array.from(files, (filePath) => (
+                              <li
+                                key={filePath}
+                                className="flex min-w-0 items-start gap-2"
+                              >
+                                <FileText
+                                  size="base"
+                                  color="muted"
+                                  __rawClassName="mt-0.5"
+                                  aria-hidden
+                                />
+                                <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
+                                  {filePath}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      ) : null}
+                    </li>
+                  </Collapsible>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </IOSection>
       ) : null}
 
       {shouldRenderMessages ? (
