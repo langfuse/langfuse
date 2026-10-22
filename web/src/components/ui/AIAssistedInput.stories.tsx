@@ -1,7 +1,7 @@
 import { expect, fn, userEvent } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { AIAssistedInput } from "./ai-assisted-input";
+import { AIAssistedInput } from "./AIAssistedInput";
 
 const meta = preview.meta({ component: AIAssistedInput });
 
