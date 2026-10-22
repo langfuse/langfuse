@@ -1,10 +1,8 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 
 import { EmailTag } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
-import {
-  appendEmails,
-  EMAIL_SEPARATOR,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/fns/appendEmails";
+import { appendEmails } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/fns/appendEmails";
+import { splitEmailText } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/fns/splitEmailText";
 import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/isEmailAddress";
 
 export type EmailTagInputProps = {
@@ -33,7 +31,7 @@ export function EmailTagInput({
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const text = event.target.value;
-    if (EMAIL_SEPARATOR.test(text)) commit(text);
+    if (splitEmailText(text).length > 1) commit(text);
     else setDraft(text);
   }
 
