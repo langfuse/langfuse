@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";

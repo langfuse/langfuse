@@ -1,6 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
-import { groupScoresByName } from "@/src/components/grouped-score-badge";
+import { groupScoresByName } from "@/src/components/GroupedScoreBadges";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import {
   formatMetricCost,

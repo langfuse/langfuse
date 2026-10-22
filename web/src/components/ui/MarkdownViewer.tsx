@@ -34,7 +34,7 @@ import {
   isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";

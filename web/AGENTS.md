@@ -213,7 +213,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   production-only `ReferenceError`; caught by the CI client-bundle scan,
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
-  (`src/features/evals/components/code-eval-template-form-body.tsx`).
+  (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and

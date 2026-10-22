@@ -22,7 +22,7 @@ import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import { plexMono } from "@/src/styles/fonts";
-import { AppLayout } from "@/src/components/layouts/app-layout";
+import { AppLayout } from "@/src/components/layouts/app-layout/AppLayout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";

@@ -5,7 +5,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {

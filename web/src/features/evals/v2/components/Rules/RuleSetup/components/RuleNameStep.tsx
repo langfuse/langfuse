@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
-import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 

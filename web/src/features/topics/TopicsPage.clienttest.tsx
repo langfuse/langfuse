@@ -105,7 +105,7 @@ vi.mock("@/src/components/layouts/page", () => ({
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
 }));
-vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
+vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({

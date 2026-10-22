@@ -12,7 +12,7 @@ import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
