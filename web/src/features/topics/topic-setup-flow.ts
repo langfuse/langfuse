@@ -5,7 +5,6 @@ import {
 } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 
 export const TOPIC_SETUP_QUESTIONS = [
   { name: "Intent" },
@@ -15,15 +14,13 @@ export const TOPIC_SETUP_QUESTIONS = [
 ] as const;
 
 export const TOPIC_SETUP_WAIT_MINUTES = [2, 5, 10] as const;
-export const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;
-export const TOPIC_SETUP_PAST_RANGES = [
-  { days: 1, label: "Past 24 hours" },
-  { days: 7, label: "Past 7 days" },
-  { days: 30, label: "Past 30 days" },
-] as const;
-export const TOPIC_SETUP_MIN_PAST_TRACES = 100;
+const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;
+// Every setup summarizes up to this many recent traces so first topics form quickly.
+export const TOPIC_SETUP_BACKFILL_DAYS = 14;
+export const TOPIC_SETUP_BACKFILL_LIMIT = 500;
+const TOPIC_SETUP_MIN_PAST_TRACES = 100;
 
-export const TOPIC_SETUP_DEFAULT_FILTER: FilterState = [
+export const TOPIC_SETUP_BACKFILL_FILTER: FilterState = [
   {
     column: "isRootObservation",
     type: "boolean",
@@ -34,8 +31,6 @@ export const TOPIC_SETUP_DEFAULT_FILTER: FilterState = [
 
 export type TopicSetupStep = "questions" | "traces" | "review";
 export type TopicSetupWaitMinutes = (typeof TOPIC_SETUP_WAIT_MINUTES)[number];
-export type TopicSetupPastDays =
-  (typeof TOPIC_SETUP_PAST_RANGES)[number]["days"];
 export type TopicSetupQuestion = {
   name: (typeof TOPIC_SETUP_QUESTIONS)[number]["name"];
   description: string;
@@ -59,19 +54,16 @@ export type TopicSetupDraft = {
   waitMinutes: TopicSetupWaitMinutes;
   advancedOpen: boolean;
   samplePercent: number;
-  pastOn: boolean;
-  pastDays: TopicSetupPastDays;
-  filter: FilterState;
-  filterMode: "query" | "builder";
 };
 
-const RECOMMENDED_MODEL: Record<
+// Best family first; within a family the highest version wins (6.1 over 6).
+const RECOMMENDED_MODELS: Record<
   "summary" | "embedding" | "clustering",
   RegExp[]
 > = {
-  summary: [/haiku/i, /luna/i, /flash/i, /mini/i],
-  embedding: [/embed/i, /titan/i],
-  clustering: [/sonnet/i, /terra/i, /opus/i],
+  summary: [/luna/i, /haiku-5[-.]5/i],
+  embedding: [/text-embedding-3-small/i, /embed-v4/i],
+  clustering: [/terra/i, /\bsol\b/i, /sonnet-5[-.]5/i],
 };
 
 const OPENAI_EMBEDDING_MODELS = [
@@ -88,7 +80,7 @@ export function isRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
   model: string,
 ) {
-  return RECOMMENDED_MODEL[slot].some((pattern) => pattern.test(model));
+  return RECOMMENDED_MODELS[slot].some((pattern) => pattern.test(model));
 }
 
 export function topicConnectionCaption(
@@ -109,10 +101,6 @@ export function setupWaitMinutes(
   const minutes = traceIdleMs / 60_000;
   if (minutes === 2 || minutes === 5 || minutes === 10) return minutes;
   return TOPIC_SETUP_DEFAULT_WAIT_MINUTES;
-}
-
-export function firstTopicsEstimate(waitMinutes: number) {
-  return `New traces are summarized after they have been idle for ${waitMinutes} min.`;
 }
 
 export function topicModelsFor(
@@ -155,11 +143,28 @@ export function pickRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
   providerGroups: Array<[string, string[]]>,
 ): JudgeModel | null {
-  for (const [provider, models] of providerGroups) {
-    const model = models.find((item) => isRecommendedTopicModel(slot, item));
-    if (model) return { provider, model };
+  for (const pattern of RECOMMENDED_MODELS[slot]) {
+    const matches = providerGroups.flatMap(([provider, models]) =>
+      models
+        .filter((model) => pattern.test(model))
+        .map((model) => ({ provider, model })),
+    );
+    if (matches.length > 0)
+      return matches.reduce((best, item) =>
+        compareModelVersions(item.model, best.model) > 0 ? item : best,
+      );
   }
   return null;
+}
+
+function compareModelVersions(a: string, b: string) {
+  const left = (a.match(/\d+/g) ?? []).map(Number);
+  const right = (b.match(/\d+/g) ?? []).map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] ?? -1) - (right[i] ?? -1);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 export function topicJudgeModel(
@@ -258,10 +263,6 @@ export function initialTopicSetupDraft(input: {
     waitMinutes: setupWaitMinutes(input.traceIdleMs),
     advancedOpen: false,
     samplePercent: 100,
-    pastOn: true,
-    pastDays: 7,
-    filter: TOPIC_SETUP_DEFAULT_FILTER,
-    filterMode: "query",
   };
 }
 
@@ -299,25 +300,9 @@ export function followsTopicRecommendations(input: {
   );
 }
 
-export function pastBatchLimit(matched: number, samplePercent: number) {
-  const selected = Math.round((matched * samplePercent) / 100);
-  if (selected <= 0) return 0;
-  return Math.min(TOPICS_BACKFILL_TRACE_LIMIT, selected);
-}
-
-export function pastBatchNotice(matched: number, samplePercent: number) {
-  const selected = Math.round((matched * samplePercent) / 100);
-  if (selected < TOPIC_SETUP_MIN_PAST_TRACES)
-    return {
-      kind: "small" as const,
-      message: `Only ${selected.toLocaleString("en-US")} past traces match. Topics need about 100 to form.`,
-    };
-  if (selected > TOPICS_BACKFILL_TRACE_LIMIT)
-    return {
-      kind: "capped" as const,
-      message: "Only the first 1,000 will run.",
-    };
-  return null;
+export function backfillNotice(matched: number) {
+  if (matched >= TOPIC_SETUP_MIN_PAST_TRACES) return null;
+  return `Only ${matched.toLocaleString("en-US")} traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days. Topics need about ${TOPIC_SETUP_MIN_PAST_TRACES} to form, so the first topics may take longer.`;
 }
 
 export function summaryRunProgress(

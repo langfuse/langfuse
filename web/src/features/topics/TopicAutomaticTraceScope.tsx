@@ -274,26 +274,7 @@ function ProjectTraceScope({
   );
 }
 
-function TraceScopeFrame({
-  projectId,
-  mode: modeProp,
-  filters: filtersProp,
-  searchQuery: searchQueryProp,
-  searchType: searchTypeProp,
-  observed,
-  builderColumns,
-  erroredColumns,
-  onRequestColumns,
-  countLabel,
-  description,
-  tooltip,
-  rows,
-  status,
-  onModeChange,
-  onFiltersChange,
-  onSearchQueryChange,
-  onSearchTypeChange,
-}: {
+type TopicTraceFilterSectionProps = {
   projectId?: string;
   mode?: EvaluatorFilterExperience;
   filters?: FilterState;
@@ -303,22 +284,30 @@ function TraceScopeFrame({
   builderColumns?: ReturnType<typeof experimentEvalFilterColsWithOptions>;
   erroredColumns?: ReadonlySet<string>;
   onRequestColumns?: (columns: readonly string[]) => void;
-  countLabel?: string | null;
-  description?: string;
-  tooltip?: string;
-  rows: Array<{
-    id?: string;
-    start: string;
-    type: string;
-    name: string;
-    input: string;
-  }>;
-  status?: string | null;
   onModeChange?: (mode: EvaluatorFilterExperience) => void;
   onFiltersChange?: (filters: FilterState) => void;
   onSearchQueryChange?: (query: string | null) => void;
   onSearchTypeChange?: (searchType: TracingSearchType[]) => void;
-}) {
+  description?: string;
+};
+
+/** The trace filter, shown disabled until custom filters ship. */
+export function TopicTraceFilterSection({
+  projectId,
+  mode: modeProp,
+  filters: filtersProp,
+  searchQuery: searchQueryProp,
+  searchType: searchTypeProp,
+  observed,
+  builderColumns,
+  erroredColumns,
+  onRequestColumns,
+  onModeChange,
+  onFiltersChange,
+  onSearchQueryChange,
+  onSearchTypeChange,
+  description = "The sampling rate applies to all incoming traces. Custom trace filters are coming soon.",
+}: TopicTraceFilterSectionProps) {
   const [localMode, setLocalMode] =
     useState<EvaluatorFilterExperience>("query");
   const [localFilters, setLocalFilters] = useState<FilterState>([]);
@@ -349,50 +338,75 @@ function TraceScopeFrame({
   });
 
   return (
+    <section className="flex flex-col gap-2">
+      <SectionHeader
+        title="Filter traces"
+        meta={<Badge text="Coming soon" color="blue" size="sm" />}
+        description={description}
+        tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
+        trailing={
+          <div inert className="opacity-50">
+            <FilterModeToggle
+              mode={mode}
+              onChange={(next) => {
+                if (next === "builder" && searchQuery !== null)
+                  search.applyFilters(filters);
+                setMode(next);
+              }}
+            />
+          </div>
+        }
+      />
+      <div inert aria-disabled className="opacity-50">
+        {mode === "query" ? (
+          <EventsSearchBarRow
+            projectId={projectId}
+            tableName="topics-automatic-processing"
+            store={search.store}
+            commit={search.commit}
+            observed={observed}
+            erroredColumns={erroredColumns}
+            registry={topicsFilterRegistry}
+            onApplyFilters={search.applyFilters}
+            onRequestColumns={onRequestColumns}
+            className="p-0"
+          />
+        ) : (
+          <ObservationFilterBuilder
+            columns={builderColumns ?? [...topicsFilterRegistry.columns]}
+            filterState={filters}
+            onChange={setFilters}
+            queryOnlyColumnIds={queryOnlyColumnIds}
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TraceScopeFrame({
+  countLabel,
+  description,
+  tooltip,
+  rows,
+  status,
+  ...filterProps
+}: Omit<TopicTraceFilterSectionProps, "description"> & {
+  countLabel?: string | null;
+  description?: string;
+  tooltip?: string;
+  rows: Array<{
+    id?: string;
+    start: string;
+    type: string;
+    name: string;
+    input: string;
+  }>;
+  status?: string | null;
+}) {
+  return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Filter traces"
-          meta={<Badge text="Coming soon" color="blue" size="sm" />}
-          description="The sampling rate applies to all incoming traces. Custom trace filters are coming soon."
-          tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
-          trailing={
-            <div inert className="opacity-50">
-              <FilterModeToggle
-                mode={mode}
-                onChange={(next) => {
-                  if (next === "builder" && searchQuery !== null)
-                    search.applyFilters(filters);
-                  setMode(next);
-                }}
-              />
-            </div>
-          }
-        />
-        <div inert aria-disabled className="opacity-50">
-          {mode === "query" ? (
-            <EventsSearchBarRow
-              projectId={projectId}
-              tableName="topics-automatic-processing"
-              store={search.store}
-              commit={search.commit}
-              observed={observed}
-              erroredColumns={erroredColumns}
-              registry={topicsFilterRegistry}
-              onApplyFilters={search.applyFilters}
-              onRequestColumns={onRequestColumns}
-              className="p-0"
-            />
-          ) : (
-            <ObservationFilterBuilder
-              columns={builderColumns ?? [...topicsFilterRegistry.columns]}
-              filterState={filters}
-              onChange={setFilters}
-              queryOnlyColumnIds={queryOnlyColumnIds}
-            />
-          )}
-        </div>
-      </section>
+      <TopicTraceFilterSection {...filterProps} />
       <section className="flex flex-col gap-2">
         <SectionHeader
           title="Matching traces"

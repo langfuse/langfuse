@@ -1,31 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  eventsEvalFilterColumns,
-  experimentEvalFilterColsWithOptions,
-  observationEvalFilterColsWithOptions,
-  type FilterState,
-  type TimeFilter,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
-import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
-import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
 } from "./TopicSetupFlowDialog";
-import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import {
+  TOPIC_SETUP_BACKFILL_DAYS,
+  TOPIC_SETUP_BACKFILL_FILTER,
+  TOPIC_SETUP_BACKFILL_LIMIT,
   followsTopicRecommendations,
   initialTopicSetupDraft,
-  pastBatchLimit,
   resolveTopicModelSlot,
   topicConnectionCaption,
   topicProviderGroups,
@@ -146,25 +136,21 @@ function TopicSetupSession({
     capture("topics:setup_opened", { source });
   }, [capture, source]);
   const [countedAt] = useState(() => new Date());
-  const range = relativeTopicTimeRange(draft.pastDays, countedAt);
+  const range = relativeTopicTimeRange(TOPIC_SETUP_BACKFILL_DAYS, countedAt);
   const preview = api.topics.previewTraces.useQuery(
     {
       projectId,
-      filter: draft.filter,
+      filter: TOPIC_SETUP_BACKFILL_FILTER,
       from: range.from,
       to: range.to,
-      limit: TOPICS_BACKFILL_TRACE_LIMIT,
+      limit: TOPIC_SETUP_BACKFILL_LIMIT,
       sampling: "random",
       seed: "setup-count",
     },
-    {
-      enabled: draft.pastOn && draft.step !== "questions",
-      retry: false,
-    },
+    { enabled: draft.step !== "questions", retry: false },
   );
   const pastCount = pastTraceCount(
-    draft.pastOn,
-    preview.data?.matchedTraceCount,
+    preview.data,
     preview.error?.message ?? null,
     preview.isFetching,
   );
@@ -231,17 +217,15 @@ function TopicSetupSession({
   async function startAnalyzing() {
     onHoldOpen();
     await persistSampling(true);
-    if (!draft.pastOn) {
+    const backfillCount = preview.data?.selectedTraceCount ?? 0;
+    if (backfillCount === 0) {
       capture("topics:setup_started", {
-        hasPastTraces: false,
+        backfillCount,
         samplePercent: draft.samplePercent,
       });
       closeDialog();
       return;
     }
-    const matched = preview.data?.matchedTraceCount ?? 0;
-    const limit = pastBatchLimit(matched, draft.samplePercent);
-    if (limit === 0) throw new Error("No past traces match this selection.");
     const facets = await utils.topics.facets.fetch({ projectId });
     const enabled = new Set<string>(
       draft.questions
@@ -262,10 +246,10 @@ function TopicSetupSession({
       reuseExistingSummaries: true,
       requestId: crypto.randomUUID(),
       selection: {
-        filter: draft.filter,
+        filter: TOPIC_SETUP_BACKFILL_FILTER,
         from: range.from,
         to: range.to,
-        limit,
+        limit: TOPIC_SETUP_BACKFILL_LIMIT,
         sampling: "random",
         seed: crypto.randomUUID(),
         excludedTraceIds: [],
@@ -273,9 +257,8 @@ function TopicSetupSession({
     });
     await utils.topics.executions.invalidate({ projectId });
     capture("topics:setup_started", {
-      hasPastTraces: true,
+      backfillCount,
       samplePercent: draft.samplePercent,
-      pastDays: draft.pastDays,
     });
     closeDialog();
   }
@@ -293,8 +276,6 @@ function TopicSetupSession({
         capture("topics:setup_step_saved", {
           step: "traces",
           samplePercent: draft.samplePercent,
-          hasPastTraces: draft.pastOn,
-          pastDays: draft.pastDays,
         });
         setDraft((current) => ({ ...current, step: "review" }));
         return;
@@ -331,23 +312,8 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
-      pastOn={draft.pastOn}
-      pastDays={draft.pastDays}
       pastCount={pastCount}
-      renderFilter={() => (
-        <TopicSetupPastFilter
-          projectId={projectId}
-          filter={draft.filter}
-          filterMode={draft.filterMode}
-          range={range}
-          onFilterChange={(filter) =>
-            setDraft((current) => ({ ...current, filter }))
-          }
-          onFilterModeChange={(filterMode) =>
-            setDraft((current) => ({ ...current, filterMode }))
-          }
-        />
-      )}
+      projectId={projectId}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,
@@ -373,12 +339,6 @@ function TopicSetupSession({
       onSamplePercentChange={(samplePercent) =>
         setDraft((current) => ({ ...current, samplePercent }))
       }
-      onPastOnChange={(pastOn) =>
-        setDraft((current) => ({ ...current, pastOn }))
-      }
-      onPastDaysChange={(pastDays) =>
-        setDraft((current) => ({ ...current, pastDays }))
-      }
       onEdit={(step) => setDraft((current) => ({ ...current, step }))}
       onBack={() =>
         setDraft((current) => ({
@@ -394,106 +354,18 @@ function TopicSetupSession({
 }
 
 function pastTraceCount(
-  pastOn: boolean,
-  matched: number | undefined,
+  data: { selectedTraceCount: number; matchedTraceCount: number } | undefined,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
-  if (!pastOn) return { status: "hidden", matched: null };
-  if (matched !== undefined) return { status: "ready", matched };
-  if (error && !fetching)
-    return { status: "error", matched: null, message: error };
-  return { status: "loading", matched: null };
-}
-
-function TopicSetupPastFilter({
-  filter,
-  filterMode,
-  onFilterChange,
-  onFilterModeChange,
-  projectId,
-  range,
-}: {
-  projectId: string;
-  filter: FilterState;
-  filterMode: "query" | "builder";
-  range: { from: Date; to: Date };
-  onFilterChange: (filter: FilterState) => void;
-  onFilterModeChange: (mode: "query" | "builder") => void;
-}) {
-  const startTimeFilter: TimeFilter[] = [
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: ">=",
-      value: range.from,
-    },
-    { column: "startTime", type: "datetime", operator: "<", value: range.to },
-  ];
-  const options = useEventsFilterOptions({
-    projectId,
-    startTimeFilter,
-    refiningFilter: filter.map((item) =>
-      item.column === "tags" ? { ...item, column: "traceTags" } : item,
-    ),
-    lazy: filterMode === "query",
-    columns: [
-      "environment",
-      "name",
-      "traceTags",
-      "traceName",
-      "calledToolNames",
-      "experimentDatasetId",
-      "experimentId",
-    ],
-    enabled: true,
-  });
-  const observed = toObservedOptions(
-    options.filterOptions,
-    options.isFilterOptionsPending,
-  );
-  const builderColumns = experimentEvalFilterColsWithOptions(
-    options.filterOptions,
-    observationEvalFilterColsWithOptions(
-      { ...options.filterOptions, tags: options.filterOptions?.traceTags },
-      [...eventsEvalFilterColumns],
-    ),
-  ).map((column) =>
-    column.id === "experimentId" && column.type === "stringOptions"
-      ? { ...column, options: options.filterOptions?.experimentId ?? [] }
-      : column,
-  );
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-end">
-        <FilterModeToggle mode={filterMode} onChange={onFilterModeChange} />
-      </div>
-      {filterMode === "builder" ? (
-        <ObservationFilterBuilder
-          columns={builderColumns}
-          filterState={filter}
-          queryOnlyColumnIds={RULE_FIELD_REGISTRY.fields
-            .filter((field) => field.directFilter === false)
-            .map((field) => field.filterColumn ?? field.id)}
-          onChange={onFilterChange}
-        />
-      ) : (
-        <TableSearchBar
-          projectId={projectId}
-          tableName="topics-setup-traces"
-          registry={RULE_FIELD_REGISTRY}
-          filterState={filter}
-          setFilterState={onFilterChange}
-          observed={
-            observed
-              ? { ...observed, tags: observed.traceTags ?? [] }
-              : undefined
-          }
-          isV4
-        />
-      )}
-    </div>
-  );
+  if (data)
+    return {
+      status: "ready",
+      matched: data.selectedTraceCount,
+      dailyTraces: data.matchedTraceCount / TOPIC_SETUP_BACKFILL_DAYS,
+    };
+  if (error && !fetching) return { status: "error", message: error };
+  return { status: "loading" };
 }
 
 function setQuestionEnabled(

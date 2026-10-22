@@ -1,31 +1,25 @@
-import { useState, type ReactElement } from "react";
-import { ChevronDown, ChevronRight } from "@langfuse/icons";
+import { useState } from "react";
+import { ChevronDown, ChevronRight, Clock, RefreshCw } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  JudgeModelPicker,
-  JudgeModelPickerTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
+import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
-  TOPIC_SETUP_PAST_RANGES,
+  TOPIC_SETUP_BACKFILL_DAYS,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
-  firstTopicsEstimate,
   isRecommendedTopicModel,
-  pastBatchLimit,
-  pastBatchNotice,
-  type TopicSetupPastDays,
+  backfillNotice,
   type TopicSetupQuestion,
   type TopicSetupStep,
   type TopicSetupWaitMinutes,
 } from "./topic-setup-flow";
+import { TopicTraceFilterSection } from "./TopicAutomaticTraceScope";
 
 const STEP_TITLES: Record<TopicSetupStep, string> = {
   questions: "Set up topics",
@@ -45,11 +39,10 @@ const MODEL_ROWS = [
   { slot: "clustering", label: "Grouping" },
 ] as const;
 
-export type TopicSetupPastCount = {
-  status: "hidden" | "loading" | "ready" | "error";
-  matched: number | null;
-  message?: string;
-};
+export type TopicSetupPastCount =
+  | { status: "loading" }
+  | { status: "ready"; matched: number; dailyTraces: number }
+  | { status: "error"; message: string };
 
 export type TopicSetupFlowDialogProps = {
   advancedOpen: boolean;
@@ -60,7 +53,6 @@ export type TopicSetupFlowDialogProps = {
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
-  renderFilter: (() => unknown) | null;
   onAdvancedOpenChange: (open: boolean) => void;
   onBack: () => void;
   onClusteringChange: (model: JudgeModel) => void;
@@ -68,8 +60,6 @@ export type TopicSetupFlowDialogProps = {
   onEdit: (step: "questions" | "traces") => void;
   onEmbeddingChange: (model: JudgeModel) => void;
   onNext: () => void;
-  onPastDaysChange: (days: TopicSetupPastDays) => void;
-  onPastOnChange: (on: boolean) => void;
   onQuestionEnabled: (
     name: TopicSetupQuestion["name"],
     enabled: boolean,
@@ -78,8 +68,7 @@ export type TopicSetupFlowDialogProps = {
   onSummaryChange: (model: JudgeModel) => void;
   onWaitMinutesChange: (minutes: TopicSetupWaitMinutes) => void;
   pastCount: TopicSetupPastCount;
-  pastDays: TopicSetupPastDays;
-  pastOn: boolean;
+  projectId?: string;
   providerGroups: Array<[string, string[]]>;
   questions: TopicSetupQuestion[];
   samplePercent: number;
@@ -97,7 +86,6 @@ export function TopicSetupFlowDialog({
   embedding,
   embeddingProviderGroups,
   error,
-  renderFilter,
   onAdvancedOpenChange,
   onBack,
   onClusteringChange,
@@ -105,15 +93,12 @@ export function TopicSetupFlowDialog({
   onEdit,
   onEmbeddingChange,
   onNext,
-  onPastDaysChange,
-  onPastOnChange,
   onQuestionEnabled,
   onSamplePercentChange,
   onSummaryChange,
   onWaitMinutesChange,
   pastCount,
-  pastDays,
-  pastOn,
+  projectId,
   providerGroups,
   questions,
   samplePercent,
@@ -139,14 +124,7 @@ export function TopicSetupFlowDialog({
     embedding,
     clustering,
   });
-  const pastReady = pastCount.status === "ready" ? pastCount.matched : null;
-  const runCount =
-    pastReady !== null ? pastBatchLimit(pastReady, samplePercent) : null;
-  const canStart =
-    canWrite &&
-    !busy &&
-    (!pastOn ||
-      (pastReady !== null && pastBatchLimit(pastReady, samplePercent) > 0));
+  const canStart = canWrite && !busy && pastCount.status === "ready";
   const nextDisabled = nextStepDisabled({
     step,
     busy,
@@ -155,12 +133,10 @@ export function TopicSetupFlowDialog({
     canStart,
   });
   const notice =
-    pastOn && pastReady !== null
-      ? pastBatchNotice(pastReady, samplePercent)
-      : null;
+    pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
 
   return (
-    <Dialog title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`} size="lg">
+    <Dialog title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}>
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
@@ -171,7 +147,7 @@ export function TopicSetupFlowDialog({
                   {questions.map((question) => (
                     <div
                       key={question.name}
-                      className="flex items-start gap-2.5 px-3 py-2.5"
+                      className="grid grid-cols-[16px_96px_minmax(0,1fr)] items-center gap-2.5 px-3 py-2.5"
                     >
                       <Checkbox
                         checked={question.enabled}
@@ -181,12 +157,10 @@ export function TopicSetupFlowDialog({
                           onQuestionEnabled(question.name, checked === true)
                         }
                       />
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold">{question.name}</div>
-                        <p className="text-muted-foreground text-sm">
-                          {question.description}
-                        </p>
-                      </div>
+                      <span className="text-sm font-bold">{question.name}</span>
+                      <span className="text-muted-foreground text-sm">
+                        {question.description}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -221,6 +195,9 @@ export function TopicSetupFlowDialog({
                     );
                   })}
                 </div>
+                {error ? (
+                  <p className="text-destructive text-sm">{error}</p>
+                ) : null}
               </section>
               <div className="flex flex-col gap-3">
                 <button
@@ -266,6 +243,10 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
+              <TopicTraceFilterSection
+                projectId={projectId}
+                description="Custom trace filters are coming soon. For now, the sample rate applies to all new traces."
+              />
               <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
                 <span className="text-sm font-bold">Sample rate</span>
                 <div className="flex flex-wrap items-center gap-3">
@@ -301,72 +282,10 @@ export function TopicSetupFlowDialog({
                 </div>
               </div>
               <p className="text-muted-foreground text-xs">
-                Saved for automatic processing. Starting analysis turns it on.
-                The past-trace batch includes at most 1,000 traces.
+                {pastCount.status === "ready"
+                  ? `About ${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days.`
+                  : "Share of new traces analyzed once automatic processing is on."}
               </p>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <Checkbox
-                  checked={pastOn}
-                  disabled={!canWrite}
-                  aria-label="Include past traces"
-                  onCheckedChange={(checked) =>
-                    onPastOnChange(checked === true)
-                  }
-                />
-                <span className="text-sm font-bold">Include past traces</span>
-                {pastOn ? (
-                  <div className="w-44">
-                    <SelectInput
-                      aria-label="Past trace range"
-                      placeholder="Past range"
-                      value={String(pastDays)}
-                      options={TOPIC_SETUP_PAST_RANGES.map((range) => ({
-                        value: String(range.days),
-                        label: range.label,
-                      }))}
-                      onValueChange={(value) =>
-                        onPastDaysChange(Number(value) as TopicSetupPastDays)
-                      }
-                    />
-                  </div>
-                ) : null}
-                {pastCount.status === "ready" && runCount !== null ? (
-                  <span className="text-muted-foreground ml-auto text-xs">
-                    {runCount.toLocaleString("en-US")} traces
-                  </span>
-                ) : null}
-                {pastCount.status === "loading" ? (
-                  <span className="text-muted-foreground ml-auto text-xs">
-                    Counting traces…
-                  </span>
-                ) : null}
-                {pastCount.status === "error" ? (
-                  <span className="text-destructive ml-auto text-xs">
-                    {pastCount.message ?? "Could not count traces."}
-                  </span>
-                ) : null}
-              </div>
-              {pastOn ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-muted-foreground text-xs">
-                    This filter applies to the past-trace batch only. New traces
-                    are not filtered.
-                  </p>
-                  {renderFilter?.() as ReactElement | null}
-                </div>
-              ) : null}
-              {notice?.kind === "small" ? (
-                <Alert variant="warning" size="sm">
-                  <Alert.Description>
-                    <p>{notice.message}</p>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
-              {notice?.kind === "capped" ? (
-                <p className="text-muted-foreground text-xs">
-                  {notice.message}
-                </p>
-              ) : null}
             </div>
           ) : null}
           {step === "review" ? (
@@ -375,42 +294,72 @@ export function TopicSetupFlowDialog({
                 label="Look for"
                 onEdit={() => onEdit("questions")}
                 lines={[
-                  questions
-                    .filter((question) => question.enabled)
-                    .map((question) => question.name)
-                    .join(" · "),
+                  {
+                    value: questions
+                      .filter((question) => question.enabled)
+                      .map((question) => question.name)
+                      .join(" · "),
+                  },
                 ]}
               />
               <ReviewRow
                 label="Models"
                 onEdit={() => onEdit("questions")}
                 lines={[
-                  summary ? `Summaries ${summary.model}` : "Summaries",
-                  embedding ? `Embeddings ${embedding.model}` : "Embeddings",
-                  clustering ? `Grouping ${clustering.model}` : "Grouping",
+                  {
+                    key: "Summaries",
+                    value: summary?.model ?? "—",
+                    mono: true,
+                  },
+                  {
+                    key: "Embeddings",
+                    value: embedding?.model ?? "—",
+                    mono: true,
+                  },
+                  {
+                    key: "Grouping",
+                    value: clustering?.model ?? "—",
+                    mono: true,
+                  },
                 ]}
-                mono
               />
               <ReviewRow
                 label="Traces"
                 onEdit={() => onEdit("traces")}
                 lines={[
-                  `${samplePercent}% sample rate`,
-                  pastOn
-                    ? (TOPIC_SETUP_PAST_RANGES.find(
-                        (range) => range.days === pastDays,
-                      )?.label ?? "Include past traces")
-                    : "New traces only",
+                  {
+                    value:
+                      pastCount.status === "ready"
+                        ? `${samplePercent}% sampling rate · ~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new / day`
+                        : `${samplePercent}% sampling rate`,
+                  },
+                  { value: backfillLine(pastCount) },
                 ]}
               />
-              <Alert variant="info" size="sm">
-                <Alert.Description>
-                  <p>{firstTopicsEstimate(waitMinutes)}</p>
-                </Alert.Description>
-              </Alert>
+              {notice ? (
+                <Alert variant="warning" size="sm">
+                  <Alert.Description>
+                    <p>{notice}</p>
+                  </Alert.Description>
+                </Alert>
+              ) : null}
+              <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
+                {pastCount.status !== "ready" || pastCount.matched > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <Clock size="base" aria-hidden="true" />
+                    First results from past traces in about 3–5 min
+                  </span>
+                ) : null}
+                <span className="flex items-center gap-2">
+                  <RefreshCw size="base" aria-hidden="true" />
+                  New traces show up {waitMinutes} min after their last activity
+                </span>
+              </div>
             </div>
           ) : null}
-          {error ? <p className="text-destructive text-sm">{error}</p> : null}
+          {step !== "questions" && error ? (
+            <p className="text-destructive text-sm">{error}</p>
+          ) : null}
         </div>
         <div className="flex items-center justify-between border-t px-4 py-3">
           {step === "questions" ? (
@@ -434,6 +383,20 @@ export function TopicSetupFlowDialog({
       </div>
     </Dialog>
   );
+}
+
+function dailyEstimate(dailyTraces: number, samplePercent: number) {
+  const perDay = (dailyTraces * samplePercent) / 100;
+  if (perDay > 0 && perDay < 1) return "<1";
+  return Math.round(perDay).toLocaleString("en-US");
+}
+
+function backfillLine(count: TopicSetupPastCount) {
+  if (count.status === "loading") return "Counting past traces…";
+  if (count.status === "error") return count.message;
+  if (count.matched === 0)
+    return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
+  return `Include ${count.matched.toLocaleString("en-US")} past traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
 }
 
 function samplePercentFromInput(value: string) {
@@ -480,32 +443,46 @@ function ModelRow({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-2 px-3 py-1.5">
+    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-2 py-1.5 pr-1.5 pl-3">
       <span className="text-sm">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0 flex-1 [&_button]:w-full">
-          <JudgeModelPicker
-            purpose="decision"
-            open={open && !disabled}
-            onOpenChange={setOpen}
-            providerGroups={providerGroups}
-            selectedModel={model}
-            onSelect={onSelect}
-            onConfigureProviders={onConfigureProviders}
+      <JudgeModelPicker
+        purpose="decision"
+        open={open && !disabled}
+        onOpenChange={setOpen}
+        providerGroups={providerGroups}
+        selectedModel={model}
+        onSelect={onSelect}
+        onConfigureProviders={onConfigureProviders}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={`${label} model`}
+            title={model ? `${model.provider} / ${model.model}` : undefined}
+            className="hover:bg-muted data-[state=open]:bg-muted flex h-8 min-w-0 items-center justify-between gap-2 rounded-md px-2.5 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <PopoverTrigger asChild>
-              <JudgeModelPickerTrigger
-                mode={model ? "custom" : "default"}
-                selectedModel={model}
-                disabled={disabled}
-              />
-            </PopoverTrigger>
-          </JudgeModelPicker>
-        </div>
-        {recommended ? (
-          <Badge text="Recommended" color="green" size="sm" />
-        ) : null}
-      </div>
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={
+                  model
+                    ? "truncate font-mono text-xs"
+                    : "text-muted-foreground truncate text-sm"
+                }
+              >
+                {model?.model ?? "Select a model"}
+              </span>
+              {recommended ? (
+                <Badge text="Recommended" color="green" size="sm" />
+              ) : null}
+            </span>
+            <ChevronDown
+              size="base"
+              __rawClassName="text-muted-foreground shrink-0"
+            />
+          </button>
+        </PopoverTrigger>
+      </JudgeModelPicker>
     </div>
   );
 }
@@ -513,26 +490,33 @@ function ModelRow({
 function ReviewRow({
   label,
   lines,
-  mono = false,
   onEdit,
 }: {
   label: string;
-  lines: string[];
-  mono?: boolean;
+  lines: Array<{ key?: string; value: string; mono?: boolean }>;
   onEdit: () => void;
 }) {
   return (
     <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3.5 py-3">
       <span className="text-sm font-bold">{label}</span>
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5">
         {lines.map((line) => (
-          <span
-            key={line}
-            className={mono ? "truncate font-mono text-xs" : "text-sm"}
-            title={line}
+          <div
+            key={`${line.key ?? ""}${line.value}`}
+            className="flex min-w-0 items-baseline gap-1.5"
           >
-            {line}
-          </span>
+            {line.key ? (
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {line.key}
+              </span>
+            ) : null}
+            <span
+              className={line.mono ? "truncate font-mono text-xs" : "text-sm"}
+              title={line.value}
+            >
+              {line.value}
+            </span>
+          </div>
         ))}
       </div>
       <Button text="Edit" variant="ghost" size="sm" onClick={onEdit} />

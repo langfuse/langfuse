@@ -1,12 +1,9 @@
 import { expect, it } from "vitest";
 import {
   canLeaveTopicQuestions,
-  firstTopicsEstimate,
   followsTopicRecommendations,
   initialTopicSetupDraft,
   isRecommendedTopicModel,
-  pastBatchLimit,
-  pastBatchNotice,
   pickRecommendedTopicModel,
   setupWaitMinutes,
   summaryRunProgress,
@@ -19,44 +16,46 @@ const connections = [
     provider: "Amazon Bedrock",
     adapter: "bedrock",
     customModels: [
-      "eu.anthropic.claude-haiku-4-5",
-      "eu.anthropic.claude-sonnet-4-5",
-      "cohere.embed-english-v3",
+      "us.anthropic.claude-haiku-5-5",
+      "us.anthropic.claude-sonnet-5-5",
+      "us.cohere.embed-v4:0",
     ],
     withDefaultModels: false,
   },
 ];
 
-it("marks a fast text model, an embedding model, and a stronger text model as recommended", () => {
+it("recommends only the listed models for each job", () => {
+  expect(isRecommendedTopicModel("summary", "us.openai.gpt-6-luna")).toBe(true);
   expect(
     isRecommendedTopicModel("summary", "eu.anthropic.claude-haiku-4-5"),
-  ).toBe(true);
-  expect(
-    isRecommendedTopicModel("summary", "eu.anthropic.claude-sonnet-4-5"),
   ).toBe(false);
-  expect(isRecommendedTopicModel("embedding", "cohere.embed-english-v3")).toBe(
+  expect(isRecommendedTopicModel("summary", "gemini-2.5-pro")).toBe(false);
+  expect(isRecommendedTopicModel("embedding", "us.cohere.embed-v4:0")).toBe(
     true,
   );
   expect(
-    isRecommendedTopicModel("clustering", "eu.anthropic.claude-haiku-4-5"),
+    isRecommendedTopicModel("embedding", "amazon.titan-embed-text-v2:0"),
   ).toBe(false);
   expect(
-    isRecommendedTopicModel("clustering", "eu.anthropic.claude-sonnet-4-5"),
+    isRecommendedTopicModel("clustering", "us.anthropic.claude-sonnet-5-5"),
   ).toBe(true);
+  expect(
+    isRecommendedTopicModel("clustering", "us.anthropic.claude-opus-5-5"),
+  ).toBe(false);
 });
 
-it("picks the first recommended model on the project's connection", () => {
+it("pre-selects the highest-ranked recommended model across connections", () => {
   expect(
     pickRecommendedTopicModel("summary", [
-      [
-        "Amazon Bedrock",
-        ["eu.anthropic.claude-sonnet-4-5", "eu.anthropic.claude-haiku-4-5"],
-      ],
+      ["Anthropic", ["claude-sonnet-5-5", "claude-haiku-5-5"]],
+      ["Amazon Bedrock", ["us.openai.gpt-6-luna"]],
     ]),
-  ).toEqual({
-    provider: "Amazon Bedrock",
-    model: "eu.anthropic.claude-haiku-4-5",
-  });
+  ).toEqual({ provider: "Amazon Bedrock", model: "us.openai.gpt-6-luna" });
+  expect(
+    pickRecommendedTopicModel("clustering", [
+      ["OpenAI", ["gpt-6-sol", "gpt-6.1-sol", "claude-sonnet-5-5"]],
+    ]),
+  ).toEqual({ provider: "OpenAI", model: "gpt-6.1-sol" });
 });
 
 it("starts from recommended models and a 5 minute wait when the project has no topics setup", () => {
@@ -71,11 +70,10 @@ it("starts from recommended models and a 5 minute wait when the project has no t
   expect(
     draft.questions.find((question) => question.name === "Intent")?.description,
   ).toBe("What the run was asked to do.");
-  expect(draft.summary?.model).toBe("eu.anthropic.claude-haiku-4-5");
-  expect(draft.embedding?.model).toBe("cohere.embed-english-v3");
-  expect(draft.clustering?.model).toBe("eu.anthropic.claude-sonnet-4-5");
+  expect(draft.summary?.model).toBe("us.anthropic.claude-haiku-5-5");
+  expect(draft.embedding?.model).toBe("us.cohere.embed-v4:0");
+  expect(draft.clustering?.model).toBe("us.anthropic.claude-sonnet-5-5");
   expect(draft.waitMinutes).toBe(5);
-  expect(draft.pastDays).toBe(7);
   expect(followsTopicRecommendations(draft)).toBe(true);
 });
 
@@ -141,21 +139,6 @@ it("requires one question and all three models before the first step can save", 
       clustering: model,
     }),
   ).toBe(false);
-});
-
-it("describes first data by the project idle time", () => {
-  expect(firstTopicsEstimate(5)).toBe(
-    "New traces are summarized after they have been idle for 5 min.",
-  );
-});
-
-it("caps the past batch at 1,000 and warns below 100", () => {
-  expect(pastBatchLimit(412, 100)).toBe(412);
-  expect(pastBatchLimit(4_000, 100)).toBe(1_000);
-  expect(pastBatchLimit(0, 100)).toBe(0);
-  expect(pastBatchNotice(40, 100)?.kind).toBe("small");
-  expect(pastBatchNotice(2_000, 100)?.kind).toBe("capped");
-  expect(pastBatchNotice(412, 100)).toBeNull();
 });
 
 it("averages summary progress across facets", () => {

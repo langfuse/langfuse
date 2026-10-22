@@ -14,9 +14,9 @@ const providerGroups: Array<[string, string[]]> = [
   [
     "Amazon Bedrock",
     [
-      "eu.anthropic.claude-haiku-4-5",
-      "eu.anthropic.claude-sonnet-4-5",
-      "cohere.embed-english-v3",
+      "us.anthropic.claude-haiku-5-5",
+      "us.anthropic.claude-sonnet-5-5",
+      "us.cohere.embed-v4:0",
     ],
   ],
 ];
@@ -40,12 +40,12 @@ function SetupStory({ step }: { step: "questions" | "traces" | "review" }) {
       canWrite
       clustering={{
         provider: "Amazon Bedrock",
-        model: "eu.anthropic.claude-sonnet-4-5",
+        model: "us.anthropic.claude-sonnet-5-5",
       }}
       connectionCaption="Amazon Bedrock"
       embedding={{
         provider: "Amazon Bedrock",
-        model: "cohere.embed-english-v3",
+        model: "us.cohere.embed-v4:0",
       }}
       embeddingProviderGroups={providerGroups}
       error={null}
@@ -56,8 +56,6 @@ function SetupStory({ step }: { step: "questions" | "traces" | "review" }) {
       onEdit={fn()}
       onEmbeddingChange={fn()}
       onNext={fn()}
-      onPastDaysChange={fn()}
-      onPastOnChange={fn()}
       onQuestionEnabled={(name, enabled) =>
         setSelected((current) =>
           current.map((question) =>
@@ -68,19 +66,14 @@ function SetupStory({ step }: { step: "questions" | "traces" | "review" }) {
       onSamplePercentChange={fn()}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
-      pastCount={{ status: "ready", matched: 412 }}
-      pastDays={7}
-      pastOn
+      pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
-      renderFilter={() => (
-        <p className="text-muted-foreground text-sm">isRootObservation:true</p>
-      )}
       samplePercent={100}
       step={step}
       summary={{
         provider: "Amazon Bedrock",
-        model: "eu.anthropic.claude-haiku-4-5",
+        model: "us.anthropic.claude-haiku-5-5",
       }}
       waitMinutes={5}
     />
