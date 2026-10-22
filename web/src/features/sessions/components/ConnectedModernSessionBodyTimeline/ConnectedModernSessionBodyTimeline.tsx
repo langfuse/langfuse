@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
@@ -28,6 +28,9 @@ type ConnectedModernSessionBodyTimelineProps = {
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
+  sidebarMode?: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["sidebarMode"];
 };
 
 export function ConnectedModernSessionBodyTimeline({
@@ -35,6 +38,7 @@ export function ConnectedModernSessionBodyTimeline({
   projectId,
   sessionId,
   openPeek,
+  sidebarMode,
 }: ConnectedModernSessionBodyTimelineProps) {
   const [transcriptSourceParam] = useQueryParam(
     "transcriptSource",
@@ -262,6 +266,7 @@ export function ConnectedModernSessionBodyTimeline({
       controller={timelineController}
       resultsByTraceId={resultsByTraceId}
       scrollTarget={scrollTarget}
+      sidebarMode={sidebarMode}
     />
   );
 }
