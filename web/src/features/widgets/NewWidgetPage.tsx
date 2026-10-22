@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";

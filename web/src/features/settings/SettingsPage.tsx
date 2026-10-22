@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,

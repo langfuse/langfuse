@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useEffectEvent, useReducer } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";

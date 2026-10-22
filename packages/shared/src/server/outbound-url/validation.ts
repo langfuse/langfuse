@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import dns from "node:dns/promises";
 import { URL } from "node:url";
 import { env } from "../../env";

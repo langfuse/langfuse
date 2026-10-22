@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JobConfigState, prisma, type Prisma } from "../../db";
 import { EvalTargetObject } from "../../features/evals/types";
 import { logger } from "../logger";

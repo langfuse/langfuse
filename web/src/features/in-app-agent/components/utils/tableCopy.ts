@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 
 export type RenderedTable = {

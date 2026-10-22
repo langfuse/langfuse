@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import type { Thread, ThreadMessage } from "./types";
 import type { OrderedObservation } from "./ordering";
