@@ -102,17 +102,6 @@ type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
 
 const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
 
-// Projects that read scores without dedup must not rewrite an existing score
-// id: every rewrite is a new row and would surface as a duplicate.
-const throwIfScoreEditsDisabled = (projectId: string) => {
-  if (shouldSkipScoresDedup(projectId)) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Existing scores cannot be edited in this project.",
-    });
-  }
-};
-
 export const scoresRouter = createTRPCRouter({
   /**
    * Get all scores for a project, meant for internal use and *excludes metadata of scores*
@@ -1206,3 +1195,14 @@ export const scoresRouter = createTRPCRouter({
       return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
 });
+
+// Projects that read scores without dedup must not rewrite an existing score
+// id: every rewrite is a new row and would surface as a duplicate.
+function throwIfScoreEditsDisabled(projectId: string) {
+  if (shouldSkipScoresDedup(projectId)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Existing scores cannot be edited in this project.",
+    });
+  }
+}

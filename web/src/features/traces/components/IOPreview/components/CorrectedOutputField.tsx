@@ -43,14 +43,6 @@ interface CorrectedOutputFieldProps {
   onClosed?: () => void;
 }
 
-/** Corrections autosave by rewriting the same score id, which projects that
-    read scores without dedup must not do, so editing is off for them. */
-function useCanEditCorrection(projectId: string) {
-  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
-  const scoreEditsDisabled = useScoreEditsDisabled(projectId);
-  return hasAccess && !scoreEditsDisabled;
-}
-
 /** The Output header's pencil: opens the correction editor. Disabled without
     `scores:save`, like the section's own edit and delete actions. */
 export function useCorrectOutputAction({
@@ -425,4 +417,12 @@ function CorrectionBody({
       appearance="flat"
     />
   );
+}
+
+/** Corrections autosave by rewriting the same score id, which projects that
+    read scores without dedup must not do, so editing is off for them. */
+function useCanEditCorrection(projectId: string) {
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const scoreEditsDisabled = useScoreEditsDisabled(projectId);
+  return hasAccess && !scoreEditsDisabled;
 }

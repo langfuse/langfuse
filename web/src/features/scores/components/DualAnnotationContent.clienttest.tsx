@@ -419,7 +419,7 @@ describe("unified annotation targets", () => {
     },
   );
 
-  it("locks saved scores when the project disables score edits", () => {
+  it("locks saved scores when the project disables score edits", async () => {
     mocks.scoreEditsDisabled = true;
     renderContent(
       cloneElement(content, {
@@ -433,6 +433,8 @@ describe("unified annotation targets", () => {
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(quality).getByText("True"));
+    act(() => quality.focus());
+    await act(async () => fireEvent.keyDown(quality, { key: "2" }));
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
   });

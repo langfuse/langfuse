@@ -169,6 +169,7 @@ export function AnnotationFormContent({
       createScore: createMutation.mutateAsync,
       updateScore: updateMutation.mutateAsync,
       deleteScore: deleteMutation.mutateAsync,
+      editsDisabled: scoreEditsDisabled,
     }),
   );
   const formRootRef = useRef<HTMLDivElement | null>(null);
