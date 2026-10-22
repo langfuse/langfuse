@@ -1,5 +1,8 @@
 import { JobConfigState, prisma, type Prisma } from "../../db";
-import { EvalTargetObject } from "../../features/evals/types";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+} from "../../features/evals/types";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
 import { isTopicsProjectEnabled } from "./config";
@@ -22,7 +25,7 @@ export function topicRuleWhere(
 ): Prisma.EvaluationRuleWhereInput {
   return {
     projectId,
-    targetObject: { in: [EvalTargetObject.TRACE, "trace_transcript"] },
+    targetObject: { in: [EvalTargetObject.TRACE, TopicsTargetObject] },
     assignments: {
       some: {},
       every: { projectId, evaluator: { projectId, type: "FACET" } },
