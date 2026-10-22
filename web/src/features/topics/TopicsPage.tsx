@@ -55,7 +55,10 @@ import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
+import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
@@ -125,27 +128,6 @@ export default function TopicsPage() {
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
-  return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicsWorkspaceView
-        key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-        projectId={projectId}
-        facets={facets}
-      />
-    </TopicsWorkspaceGate>
-  );
-}
-
-type TopicsWorkspaceViewProps = {
-  projectId: string;
-  facets: UseQueryResult<TopicFacet[], { message: string }>;
-};
-
-/**
- * Wraps the workspace in the dialog controllers whose dialogs open from more
- * than one place, and hands their `openDialog` to the content.
- */
-function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const modelSettings = useTopicModelSettings({
     projectId,
@@ -153,6 +135,48 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      <TopicSetupFlowController
+        projectId={projectId}
+        canWrite={canWrite}
+        settings={modelSettings.configure.settings}
+        onSaveSampling={modelSettings.automaticProcessing.save}
+      >
+        {({ openSetup }) => (
+          <TopicsWorkspaceView
+            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+            projectId={projectId}
+            facets={facets}
+            canWrite={canWrite}
+            modelSettings={modelSettings}
+            openSetup={openSetup}
+          />
+        )}
+      </TopicSetupFlowController>
+    </TopicsWorkspaceGate>
+  );
+}
+
+type TopicsWorkspaceViewProps = {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openSetup: () => void;
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openSetup,
+}: TopicsWorkspaceViewProps) {
   return (
     <ConfigureTopicsDialogController
       projectId={projectId}
@@ -169,6 +193,7 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
               canWrite={canWrite}
               modelSettings={modelSettings}
               openConfigure={openConfigure}
+              openSetup={openSetup}
               openAutomaticProcessing={openAutomaticProcessing}
             />
           )}
@@ -179,8 +204,6 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
 }
 
 type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
-  canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
   openConfigure: () => void;
   openAutomaticProcessing: (initialEnabled: boolean) => void;
 };
@@ -191,6 +214,7 @@ function TopicsWorkspaceContent({
   canWrite,
   modelSettings,
   openConfigure,
+  openSetup,
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -231,12 +255,66 @@ function TopicsWorkspaceContent({
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) =>
-        query.state.data?.some((execution) => busy(execution.status))
+      refetchInterval: (query) => {
+        const data = query.state.data ?? [];
+        if (data.some((execution) => busy(execution.status))) return 3000;
+        // Keep polling through the hand-off from summaries to the topic update.
+        const run = topicSetupRun(data);
+        return run &&
+          !run.update &&
+          topicSetupStage(run, Date.now()).stage === "grouping"
           ? 3000
-          : false,
+          : false;
+      },
     },
   );
+  const [mountedAt] = useState(Date.now);
+  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
+    null,
+  );
+  const setupRun = topicSetupRun(executions.data ?? []);
+  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
+  // A run that finished before this visit is not replayed; results show instead.
+  const showSetupProgress =
+    setupRun !== null &&
+    setup !== null &&
+    setupRun.process.id !== acknowledgedSetupId &&
+    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
+      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
+  const setupRunIds =
+    setupRun?.update?.facets.flatMap((facet) =>
+      facet.runId ? [facet.runId] : [],
+    ) ?? [];
+  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
+    { projectId, runIds: setupRunIds },
+    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
+  );
+  const setupRetry = api.topics.retry.useMutation({
+    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
+  });
+  // A run worth inspecting: the one that failed, or a topic run with failed facets.
+  const setupDetailsId =
+    setupRun && setup ? detailsRunId(setupRun, setup) : null;
+  const setupFacets =
+    setupRun?.process.facets.map((facet) => {
+      const update = setupRun.update?.facets.find(
+        (item) =>
+          item.facetId === facet.facetId &&
+          item.facetVersion === facet.facetVersion,
+      );
+      return {
+        key: `${facet.facetId}:${facet.facetVersion}`,
+        name:
+          facets.data?.find((item) => item.id === facet.facetId)?.name ??
+          "Facet",
+        complete: facet.counts.complete,
+        requested: facet.counts.requested,
+        outcome: update?.outcome ?? null,
+        topicCount:
+          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
+            ?.topicCount ?? null,
+      };
+    }) ?? [];
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -295,6 +373,10 @@ function TopicsWorkspaceContent({
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
+  const setupBlockedReason = startBlockedReason(
+    running,
+    modelSettings.automaticProcessing.state.status === "on",
+  );
   const results = useCurrentTopics({
     projectId,
     running,
@@ -397,12 +479,13 @@ function TopicsWorkspaceContent({
           results.data?.facets ?? [],
           selectedFacetId,
         );
-        const showOnboarding =
+        const showLanding =
           validTimeRange &&
           results.data !== undefined &&
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        const showOnboarding = showSetupProgress || showLanding;
         return (
           <Page
             headerProps={{
@@ -434,7 +517,7 @@ function TopicsWorkspaceContent({
                   manualAvailable={pipeline.available}
                   openManual={openManualProcessing}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                  onConfigure={openConfigure}
+                  onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
                 />
@@ -507,17 +590,36 @@ function TopicsWorkspaceContent({
                 notice={modelSettings.notice}
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
-                onConfigure={openConfigure}
+                onStart={openSetup}
+                startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showOnboarding}
-                configured={configured}
-                canProcess={canWrite}
-                automaticEnabled={automaticProcessing.state.status === "on"}
-                running={running}
-                onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                onManualProcessing={openManualProcessing}
+                showOnboarding={showLanding && !showSetupProgress}
               />
+              {showSetupProgress && setup ? (
+                <TopicSetupProgressView
+                  stage={setup.stage}
+                  facets={setupFacets}
+                  retrying={setupRetry.isPending}
+                  canRetry={setup.retryId !== null}
+                  onViewDetails={
+                    setupDetailsId
+                      ? () => openExecution(setupDetailsId)
+                      : undefined
+                  }
+                  onRetry={() => {
+                    if (setup.retryId)
+                      setupRetry.mutate({
+                        projectId,
+                        executionId: setup.retryId,
+                      });
+                  }}
+                  onDisplayResults={() => {
+                    setAcknowledgedSetupId(setupRun.process.id);
+                    return utils.topics.invalidate();
+                  }}
+                />
+              ) : null}
               <Sheet
                 open={historyOpen || executionId !== null}
                 onOpenChange={showExecutionList}
@@ -928,4 +1030,26 @@ function ErrorMessage({ message }: { message: string }) {
       </Alert.Description>
     </Alert>
   );
+}
+
+function startBlockedReason(running: boolean, automaticOn: boolean) {
+  if (running)
+    return "Analysis is running. Topics appear here when it finishes.";
+  if (automaticOn)
+    return "Automatic processing is on. Topics appear here as traces are summarized.";
+  return null;
+}
+
+function detailsRunId(
+  run: {
+    process: { id: string };
+    update: { id: string; facets: Array<{ outcome: string }> } | null;
+  },
+  setup: { stage: string; retryId: string | null },
+) {
+  if (setup.stage === "failed")
+    return setup.retryId ?? run.update?.id ?? run.process.id;
+  return run.update?.facets.some((facet) => facet.outcome === "failed")
+    ? run.update.id
+    : null;
 }
