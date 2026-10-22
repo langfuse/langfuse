@@ -470,7 +470,27 @@ describe("evalsV2 tRPC", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("rejects writes to built-in evaluators for viewers and members", async () => {
+  it("rejects evaluator writes without write access", async () => {
+    const evaluator = await caller.evalsV2.create({
+      projectId,
+      name: "Viewer write target",
+      description: null,
+      definition,
+    });
+
+    for (const write of evaluatorWrites(
+      createCallerWithProjectRole("VIEWER"),
+      evaluator.id,
+    )) {
+      await expect(write()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+
+    await expect(
+      prisma.evaluator.count({ where: { id: evaluator.id } }),
+    ).resolves.toBe(1);
+  });
+
+  it("rejects writes to built-in evaluators", async () => {
     const builtIn = await caller.evalsV2.create({
       projectId,
       name: "Built-in transport evaluator",
@@ -488,16 +508,11 @@ describe("evalsV2 tRPC", () => {
       },
     });
 
-    for (const [role, code] of [
-      ["VIEWER", "FORBIDDEN"],
-      ["MEMBER", "BAD_REQUEST"],
-    ] as const) {
-      for (const write of evaluatorWrites(
-        createCallerWithProjectRole(role),
-        builtIn.id,
-      )) {
-        await expect(write()).rejects.toMatchObject({ code });
-      }
+    for (const write of evaluatorWrites(
+      createCallerWithProjectRole("MEMBER"),
+      builtIn.id,
+    )) {
+      await expect(write()).rejects.toMatchObject({ code: "BAD_REQUEST" });
     }
 
     await expect(
@@ -516,7 +531,7 @@ describe("evalsV2 tRPC", () => {
     });
   });
 
-  it("treats FACET evaluators as missing for viewers and members", async () => {
+  it("treats FACET evaluators as missing on writes", async () => {
     const blockedAt = new Date("2026-01-01T00:00:00.000Z");
     const facet = await prisma.evaluator.create({
       data: {
@@ -530,16 +545,11 @@ describe("evalsV2 tRPC", () => {
       },
     });
 
-    for (const [role, code] of [
-      ["VIEWER", "FORBIDDEN"],
-      ["MEMBER", "NOT_FOUND"],
-    ] as const) {
-      for (const write of evaluatorWrites(
-        createCallerWithProjectRole(role),
-        facet.id,
-      )) {
-        await expect(write()).rejects.toMatchObject({ code });
-      }
+    for (const write of evaluatorWrites(
+      createCallerWithProjectRole("MEMBER"),
+      facet.id,
+    )) {
+      await expect(write()).rejects.toMatchObject({ code: "NOT_FOUND" });
     }
 
     await expect(
