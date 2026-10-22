@@ -11,7 +11,10 @@ export type EmailTagInputProps = {
   "aria-describedby"?: string;
 };
 
-/** Turns typed or pasted addresses into removable chips on comma, Enter, or blur. */
+/**
+ * Turns typed or pasted addresses into removable chips on comma, Enter, or
+ * blur. Borderless: the surrounding field draws the frame.
+ */
 export function EmailTagInput({
   id,
   value,
@@ -51,7 +54,7 @@ export function EmailTagInput({
   }
 
   return (
-    <div className="border-input bg-background ring-offset-background focus-within:ring-ring ph-no-capture flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-sm focus-within:ring-2 focus-within:ring-offset-2">
+    <div className="ph-no-capture flex min-h-6 min-w-0 flex-wrap items-center gap-1.5 text-sm">
       {value.map((email) => (
         <EmailTag
           key={email}
@@ -66,9 +69,10 @@ export function EmailTagInput({
         inputMode="email"
         autoComplete="off"
         data-1p-ignore
-        placeholder={value.length === 0 ? "name@company.com" : undefined}
+        placeholder={value.length === 0 ? "jsdoe@example.com" : undefined}
+        aria-label="Email addresses"
         aria-describedby={ariaDescribedBy}
-        className="placeholder:text-muted-foreground min-w-40 flex-1 bg-transparent px-1 outline-hidden"
+        className="placeholder:text-muted-foreground h-6 min-w-24 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0"
         value={draft}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

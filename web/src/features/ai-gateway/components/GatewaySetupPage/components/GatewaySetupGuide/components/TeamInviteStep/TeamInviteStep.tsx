@@ -22,6 +22,7 @@ export function TeamInviteStep({
       status={status}
       isCollapsible={false}
       docsHref={GATEWAY_SETUP_DOCS_URL}
+      description="Members can create their own gateway keys and use the models you enabled. New people join as Member."
     >
       {status === "current" ? (
         <TeamInviteForm organizationId={organizationId} onFinish={onFinish} />

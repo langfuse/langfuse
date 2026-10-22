@@ -21,12 +21,14 @@ export function IngestionStep({
   config,
   projects,
 }: IngestionStepProps) {
-  const summary =
+  const description =
     status === "complete" && config ? (
       <span className="ph-no-capture">
         {describeGatewayIngestion({ config, projects })}
       </span>
-    ) : undefined;
+    ) : (
+      "You can change this later."
+    );
 
   return (
     <Stepper
@@ -36,7 +38,7 @@ export function IngestionStep({
       status={status}
       isCollapsible={false}
       docsHref={GATEWAY_SETUP_DOCS_URL}
-      description={summary}
+      description={description}
     >
       {status === "current" ? (
         <IngestionStepForm

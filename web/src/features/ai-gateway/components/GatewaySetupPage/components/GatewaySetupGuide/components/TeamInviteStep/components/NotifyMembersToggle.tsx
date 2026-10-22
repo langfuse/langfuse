@@ -2,7 +2,6 @@ import { useId } from "react";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { TagShell } from "@/src/components/design-system/Tag/Tag";
 import type { RouterOutputs } from "@/src/utils/api";
 
 export type NotifyMembersToggleProps = {
@@ -22,28 +21,46 @@ export function NotifyMembersToggle({
   const overflowCount = memberCount - previewMembers.length;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
+    <div className="flex items-center gap-3">
+      <div className="ph-no-capture flex shrink-0 items-center -space-x-1">
+        {previewMembers.map((member) => (
+          <span
+            key={member.id}
+            className="ring-background inline-flex rounded-full ring-2"
+          >
+            <Avatar
+              size="sm"
+              tone="tinted"
+              displayName={member.name ?? member.email ?? ""}
+              email={member.email ?? undefined}
+              src={member.image ?? undefined}
+            />
+          </span>
+        ))}
+        {overflowCount > 0 ? (
+          <span className="bg-muted text-foreground-secondary ring-background flex size-6 items-center justify-center rounded-full text-[10px] ring-2">
+            +{overflowCount}
+          </span>
+        ) : null}
+      </div>
+      <label
+        htmlFor={id}
+        className="flex min-w-0 flex-1 cursor-pointer flex-col"
+      >
+        <span className="text-sm">
+          Notify the {memberCount} existing member
+          {memberCount === 1 ? "" : "s"}
+        </span>
+        <span className="text-muted-foreground text-xs">
+          They get an email that the AI Gateway is available.
+        </span>
+      </label>
       <Switch
         id={id}
         size="sm"
         checked={checked}
         onCheckedChange={onCheckedChange}
       />
-      <label htmlFor={id} className="cursor-pointer">
-        Notify the {memberCount} existing member{memberCount === 1 ? "" : "s"}
-      </label>
-      <div className="ph-no-capture flex items-center -space-x-1.5">
-        {previewMembers.map((member) => (
-          <Avatar
-            key={member.id}
-            size="sm"
-            displayName={member.name ?? member.email ?? ""}
-            email={member.email ?? undefined}
-            src={member.image ?? undefined}
-          />
-        ))}
-      </div>
-      {overflowCount > 0 ? <TagShell>+{overflowCount}</TagShell> : null}
     </div>
   );
 }

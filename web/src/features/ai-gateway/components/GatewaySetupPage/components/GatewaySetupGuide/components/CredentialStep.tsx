@@ -19,10 +19,10 @@ export function CredentialStep({
   organizationId,
   firstConnection,
 }: CredentialStepProps) {
-  const summary =
+  const description =
     status === "complete" && firstConnection
       ? `${providerLabels[firstConnection.provider]} credential added`
-      : undefined;
+      : `Connect ${Object.values(providerLabels).join(" or ")} with an API key. Available models are loaded from the provider.`;
 
   return (
     <Stepper
@@ -32,14 +32,10 @@ export function CredentialStep({
       status={status}
       isCollapsible={false}
       docsHref={GATEWAY_SETUP_DOCS_URL}
-      description={summary}
+      description={description}
     >
       {status === "current" ? (
-        <div className="flex flex-col items-start gap-3 pt-1">
-          <p className="text-muted-foreground text-xs">
-            The gateway routes requests with your own provider keys. They are
-            validated against the provider when saved.
-          </p>
+        <div className="flex flex-col items-start pt-1">
           <ProviderDialogController organizationId={organizationId}>
             {({ openAddDialog }) => (
               <Button

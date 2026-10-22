@@ -1,9 +1,8 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { EmailTagInput } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/EmailTagInput/EmailTagInput";
-import { NotifyMembersToggle } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/NotifyMembersToggle";
+import { TeamInviteFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteFields";
 import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/isEmailAddress";
 import { useGatewayTeamInvite } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/hooks/useGatewayTeamInvite";
 
@@ -16,8 +15,6 @@ export function TeamInviteForm({
   organizationId,
   onFinish,
 }: TeamInviteFormProps) {
-  const inputId = useId();
-  const hintId = useId();
   const { summary, inviteTeam, isInviting } =
     useGatewayTeamInvite(organizationId);
   const [emails, setEmails] = useState<string[]>([]);
@@ -49,26 +46,21 @@ export function TeamInviteForm({
   }
 
   return (
-    <div className="flex flex-col gap-4 pt-2">
-      <div className="flex max-w-xl flex-col gap-1.5">
-        <EmailTagInput
-          id={inputId}
-          value={emails}
-          onChange={setEmails}
-          aria-describedby={hintId}
-        />
-        <p id={hintId} className="text-muted-foreground text-xs">
-          Separate with a comma or Enter. They join as Member.
-        </p>
-      </div>
-      {canNotify ? (
-        <NotifyMembersToggle
-          memberCount={summary.notifiableMemberCount}
-          previewMembers={summary.notifiableMemberPreview}
-          checked={notifyMembers}
-          onCheckedChange={setNotifyMembers}
-        />
-      ) : null}
+    <div className="flex flex-col gap-4 pt-1">
+      <TeamInviteFields
+        emails={emails}
+        onEmailsChange={setEmails}
+        notifyMembers={
+          canNotify
+            ? {
+                memberCount: summary.notifiableMemberCount,
+                previewMembers: summary.notifiableMemberPreview,
+                checked: notifyMembers,
+                onCheckedChange: setNotifyMembers,
+              }
+            : undefined
+        }
+      />
       {failures.length > 0 ? (
         <Alert variant="destructive">
           <Alert.Title>Some invitations were not sent</Alert.Title>
