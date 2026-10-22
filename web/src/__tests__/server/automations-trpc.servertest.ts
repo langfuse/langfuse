@@ -272,10 +272,16 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-api-key": encrypt("secret-api-key-123"),
-              authorization: encrypt("Bearer secret-token-456"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-api-key": {
+                secret: true,
+                value: encrypt("secret-api-key-123"),
+              },
+              authorization: {
+                secret: true,
+                value: encrypt("Bearer secret-token-456"),
+              },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
@@ -661,7 +667,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             displayHeaders: {
               "Content-Type": { secret: false, value: "application/json" },
             },
@@ -738,10 +746,10 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-custom": "public-value",
-              "x-secret": encrypt("secret-value-789"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-custom": { secret: false, value: "public-value" },
+              "x-secret": { secret: true, value: encrypt("secret-value-789") },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
