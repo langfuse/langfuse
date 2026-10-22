@@ -71,6 +71,7 @@ export class GatewayTeamService {
       ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
     ];
 
+    const invited = new Set<string>();
     const failed: Array<{ email: string; message: string }> = [];
     for (const email of emails) {
       try {
@@ -87,6 +88,7 @@ export class GatewayTeamService {
               ...inviter,
             }),
         });
+        invited.add(email);
       } catch (error) {
         failed.push({
           email,
@@ -100,13 +102,13 @@ export class GatewayTeamService {
           ctx,
           organizationId,
           orgName: organization.name,
-          excludeEmails: new Set(emails),
+          excludeEmails: invited,
           inviter,
         })
       : 0;
 
     return {
-      invitedCount: emails.length - failed.length,
+      invitedCount: invited.size,
       failed,
       notifiedCount,
     };

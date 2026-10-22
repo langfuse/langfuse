@@ -461,6 +461,37 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ orgRole: Role.MEMBER });
   });
 
+  it("still notifies an existing member whose invite fails", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmail = membership.user.email!;
+
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [memberEmail],
+      notifyMembers: true,
+    });
+
+    expect(result).toMatchObject({ invitedCount: 0, notifiedCount: 1 });
+    expect(result.failed.map(({ email }) => email)).toEqual([
+      memberEmail.toLowerCase(),
+    ]);
+    expect(SharedServer.sendGatewayInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: { kind: "member" },
+        to: memberEmail.toLowerCase(),
+      }),
+    );
+  });
+
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
     const { caller, org } = await prepare();
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
