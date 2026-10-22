@@ -16,13 +16,13 @@ const CACHE_KEY_PREFIX = "langfuse:topics:processing-active";
 
 const cacheKey = (projectId: string) => `${CACHE_KEY_PREFIX}:${projectId}`;
 
-/** The project's Topics rule: a trace rule whose evaluators are all facets. */
+/** The project's Topics rule: a transcript rule whose evaluators are all facets. */
 export function topicRuleWhere(
   projectId: string,
 ): Prisma.EvaluationRuleWhereInput {
   return {
     projectId,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: { in: [EvalTargetObject.TRACE, "trace_transcript"] },
     assignments: {
       some: {},
       every: { projectId, evaluator: { projectId, type: "FACET" } },
