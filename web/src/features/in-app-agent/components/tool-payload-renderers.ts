@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { deepParseJson } from "@langfuse/shared";
 
 const MAX_PAYLOAD_DEPTH = 6;

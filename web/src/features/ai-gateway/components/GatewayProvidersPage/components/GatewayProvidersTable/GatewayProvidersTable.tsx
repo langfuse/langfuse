@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components */
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 

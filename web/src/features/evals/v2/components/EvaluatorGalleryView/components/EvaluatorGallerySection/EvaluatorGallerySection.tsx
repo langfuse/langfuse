@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/design-system/Button/Button";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";

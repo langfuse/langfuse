@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components */
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { ExternalLink } from "@langfuse/icons";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type LoggerInstance } from "next-auth";
 
 import { logger } from "@langfuse/shared/src/server";

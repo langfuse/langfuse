@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { backOff } from "exponential-backoff";

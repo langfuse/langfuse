@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
 import { singleFilterList } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";

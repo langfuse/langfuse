@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {

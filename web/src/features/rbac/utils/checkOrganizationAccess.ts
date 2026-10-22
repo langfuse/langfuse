@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
