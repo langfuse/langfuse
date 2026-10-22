@@ -1,7 +1,7 @@
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import EvalLogTable from "@/src/features/evals/components/eval-log";
+import EvalLogTable from "@/src/features/evals/components/EvalLogTable";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import Page from "@/src/components/layouts/page";
