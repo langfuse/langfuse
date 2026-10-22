@@ -81,16 +81,22 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
         ) : null}
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <Tabs.List variant="underline" aria-label="Setup instructions">
-          {instructions.map((entry) => (
-            <Tabs.Trigger
-              key={entry.id}
-              value={entry.id}
-              label={entry.label}
-              icon={TAB_ICONS[entry.id]}
-            />
-          ))}
-        </Tabs.List>
+        <div className="flex h-9 items-center border-b">
+          <Tabs.List
+            variant="underline"
+            overflow="menu"
+            aria-label="Setup instructions"
+          >
+            {instructions.map((entry) => (
+              <Tabs.Trigger
+                key={entry.id}
+                value={entry.id}
+                label={entry.label}
+                icon={TAB_ICONS[entry.id]}
+              />
+            ))}
+          </Tabs.List>
+        </div>
         {instructions.map((entry) => (
           <Tabs.Content key={entry.id} value={entry.id}>
             <div className="flex flex-col items-start gap-3 pt-4">
