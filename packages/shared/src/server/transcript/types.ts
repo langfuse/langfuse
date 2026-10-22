@@ -1,4 +1,10 @@
-import type { NormalizedMessage } from "../../utils/normalized-io/types";
+import type { z } from "zod";
+import type {
+  threadMessageSchema,
+  turnSchema,
+  threadSchema,
+  transcriptSchema,
+} from "./schema";
 import type { Observation } from "../../domain";
 
 export type TranscriptOptions = {
@@ -26,36 +32,7 @@ export type TranscriptObservation = Pick<
   | "metadata"
 >;
 
-export type ThreadMessage = NormalizedMessage & {
-  /** Observation that first emitted this message. */
-  observationId: string;
-  /** Trace the emitting observation belongs to. Helpful when the transcript
-   * spans several traces, for example one session. */
-  traceId: string;
-  /** Start time of the source observation, not the individual message. */
-  startTime: Date;
-  /** End time of the source observation; null while unavailable. */
-  endTime: Date | null;
-};
-
-/** Messages of one turn with the observations that emitted them. */
-export type Turn = {
-  /** Tree depth of the first contributing generation; fetched roots are level 0. */
-  nestingLevel: number;
-  messages: ThreadMessage[];
-  /** Observations that contributed to this turn, in contribution order. */
-  observations: { id: string; traceId: string }[];
-};
-
-export type Thread = {
-  /** Messages replayed from earlier turns, in replay order, without provenance. */
-  conversationHistory: NormalizedMessage[];
-  /** Messages the supplied observations added to the conversation. */
-  currentTurn: Turn;
-};
-
-export type Transcript = {
-  threads: Thread[];
-  /** The character limit shortened text or omitted messages. */
-  truncated?: true;
-};
+export type ThreadMessage = z.infer<typeof threadMessageSchema>;
+export type Turn = z.infer<typeof turnSchema>;
+export type Thread = z.infer<typeof threadSchema>;
+export type Transcript = z.infer<typeof transcriptSchema>;

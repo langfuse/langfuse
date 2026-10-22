@@ -274,9 +274,8 @@ export function applySelection(
   // "no filter": exclusions outside the current option list may still be
   // live. Skip the all-selected removal shortcut and let
   // resolveCheckboxOperator re-derive the exclusion set (an emptied set is
-  // removed below). For arrayOptions this also covers "none checked",
-  // which means exclude-everything rather than reset; stringOptions keeps
-  // its long-standing uncheck-everything-resets behavior. The managed
+  // removed below). This also covers "none checked", which means
+  // exclude every listed value rather than reset. The managed
   // environment column is exempt: its all-selected shortcut persists the
   // explicit enable-all-environments override, and its hidden
   // environments are always listed, so there is nothing to carry.
@@ -287,7 +286,6 @@ export function applySelection(
     (colType !== "arrayOptions" &&
       existingFilter?.type === "stringOptions" &&
       existingFilter.operator === "none of" &&
-      values.length > 0 &&
       !isManagedEnvironmentColumn);
 
   if (operator !== undefined) {

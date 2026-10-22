@@ -40,11 +40,12 @@ Check the selected folder contains the intended SKILL.md files before pushing. T
   };
 
   return (
-    <div className="ph-no-capture flex flex-col gap-4">
+    <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <p className="text-muted-foreground">
         Choose what to import, then let your coding agent handle setup or run
         the command yourself.
       </p>
+      <CliSetupAccordion projectId={projectId} host={host} />
       <div className="flex flex-col gap-3">
         <Accordion type="single" collapsible>
           <Accordion.Item value="configuration">
@@ -89,13 +90,21 @@ Check the selected folder contains the intended SKILL.md files before pushing. T
           <CopyAgentPromptPanel prompt={prompt} command={command} />
         )}
       </div>
-      <CliSetupAccordion projectId={projectId} host={host}>
-        <p className="text-muted-foreground">
-          Run the same import command after editing your local skills. The name
-          in SKILL.md identifies each skill in Langfuse. Changed files publish a
-          new version; new names create new skills.
-        </p>
-      </CliSetupAccordion>
+
+      <Accordion type="single" collapsible>
+        <Accordion.Item value="updates">
+          <Accordion.Trigger size="sm">Updating later</Accordion.Trigger>
+          <Accordion.Content>
+            <div className="flex min-w-0 flex-col gap-3 py-3">
+              <p className="text-muted-foreground">
+                Run the same import command after editing your local skills. The
+                name in SKILL.md identifies each skill in Langfuse. Changed
+                files publish a new version; new names create new skills.
+              </p>
+            </div>
+          </Accordion.Content>
+        </Accordion.Item>
+      </Accordion>
     </div>
   );
 }

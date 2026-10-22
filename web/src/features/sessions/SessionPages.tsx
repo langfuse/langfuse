@@ -2,7 +2,7 @@ import { headerActionClassName } from "@/src/features/traces/components/headerAc
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -30,7 +30,7 @@ import React, {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { type AnnotateDrawerPayload } from "@/src/features/scores/components/AnnotateDrawerController";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   CommentDrawerController,
@@ -74,7 +74,7 @@ import {
   useWebCalloutAction,
   WebCalloutButton,
 } from "@/src/features/web-callouts";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/features/sessions/TraceRow";
@@ -1323,6 +1323,10 @@ const LoadedSessionEventsPage: React.FC<{
     };
   }, [positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
+  const [transcriptSource, setTranscriptSource] = useQueryParam(
+    "transcriptSource",
+    StringParam,
+  );
   const filtersQuery = React.useMemo(
     () =>
       urlFiltersQuery ??
@@ -1928,7 +1932,13 @@ const LoadedSessionEventsPage: React.FC<{
                           onShowSystemPromptChange:
                             setShowSystemPromptForSession,
                         }
-                      : {})}
+                      : {
+                          useRootIO: transcriptSource === "root",
+                          onUseRootIOChange: (checked: boolean) =>
+                            setTranscriptSource(
+                              checked ? "root" : "generations",
+                            ),
+                        })}
                   />
                 )}
               </>
@@ -1943,6 +1953,13 @@ const LoadedSessionEventsPage: React.FC<{
                   sessionId={sessionId}
                   isPublic={session.public}
                   layout="menu"
+                  {...(isModernSessionEnabled && isSessionTimelineEnabled
+                    ? {
+                        useRootIO: transcriptSource === "root",
+                        onUseRootIOChange: (checked: boolean) =>
+                          setTranscriptSource(checked ? "root" : "generations"),
+                      }
+                    : {})}
                 />
                 <CommentDrawerController
                   projectId={projectId}

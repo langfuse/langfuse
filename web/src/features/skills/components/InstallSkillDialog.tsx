@@ -1,3 +1,4 @@
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -37,6 +38,7 @@ export function InstallSkillDialog({
           Choose what to install, then let your coding agent handle setup or run
           the command yourself.
         </p>
+        <CliSetupAccordion projectId={projectId} host={host} />
         {skillOptions.isPending && (
           <p className="text-muted-foreground">Loading installation options…</p>
         )}
@@ -65,17 +67,25 @@ export function InstallSkillDialog({
             }}
           />
         )}
-        <CliSetupAccordion projectId={projectId} host={host}>
-          <p className="text-muted-foreground">
-            Commit <code>langfuse-skills-lock.json</code> to share your
-            selection. Updates follow labels; pinned versions stay fixed.
-          </p>
-          <Codeblock
-            language="bash"
-            value="langfuse skills update"
-            variant="read-only"
-          />
-        </CliSetupAccordion>
+
+        <Accordion type="single" collapsible>
+          <Accordion.Item value="updates">
+            <Accordion.Trigger size="sm">Updating later</Accordion.Trigger>
+            <Accordion.Content>
+              <div className="flex min-w-0 flex-col gap-3 py-3">
+                <p className="text-muted-foreground">
+                  Commit <code>langfuse-skills-lock.json</code> to share your
+                  selection. Updates follow labels; pinned versions stay fixed.
+                </p>
+                <Codeblock
+                  language="bash"
+                  value="langfuse skills update"
+                  variant="read-only"
+                />
+              </div>
+            </Accordion.Content>
+          </Accordion.Item>
+        </Accordion>
       </Dialog.Body>
     </Dialog>
   );

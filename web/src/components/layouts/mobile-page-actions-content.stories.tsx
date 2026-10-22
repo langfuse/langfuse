@@ -8,7 +8,7 @@ import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
-import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
+import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
 
 const meta = preview.meta({
   component: MobilePageActionsContent,

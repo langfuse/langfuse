@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/src/components/ui/badge";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";

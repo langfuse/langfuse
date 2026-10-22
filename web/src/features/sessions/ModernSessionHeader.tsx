@@ -1,6 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
-import { groupScoresByName } from "@/src/components/grouped-score-badge";
+import { groupScoresByName } from "@/src/components/GroupedScoreBadges";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import {
   formatMetricCost,
@@ -133,7 +133,7 @@ const MetadataJsonPathPill = ({
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex max-w-full min-w-0 items-center">
+  <span className="ph-no-capture group flex max-w-full min-w-0 items-center">
     <BadgeShell font="mono" data-session-header-pill="true">
       <span
         className="text-muted-foreground max-w-64 shrink-0 truncate"
@@ -201,7 +201,7 @@ const MetadataJsonPathEditorContent = ({
   return (
     <PopoverContent
       align="end"
-      className="w-96"
+      className="ph-no-capture w-96"
       aria-label="Add metadata JSONPath"
     >
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -516,7 +516,7 @@ export function ModernSessionHeader({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="w-80 p-0"
+                className="ph-no-capture w-80 p-0"
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
