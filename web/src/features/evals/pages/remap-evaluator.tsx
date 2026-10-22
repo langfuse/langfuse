@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
+import { InnerEvaluatorForm } from "@/src/features/evals/components/InnerEvaluatorForm";
 import {
   mapLegacyToModernTarget,
   isTraceTarget,

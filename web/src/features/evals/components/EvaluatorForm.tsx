@@ -1,5 +1,5 @@
 import { type EvalTemplate, type EvalTargetObject } from "@langfuse/shared";
-import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
+import { InnerEvaluatorForm } from "@/src/features/evals/components/InnerEvaluatorForm";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { Skeleton } from "@/src/components/ui/skeleton";
