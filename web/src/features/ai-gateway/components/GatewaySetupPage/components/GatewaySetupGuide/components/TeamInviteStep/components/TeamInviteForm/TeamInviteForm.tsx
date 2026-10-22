@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/TeamInviteFields";
 import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/isEmailAddress";
 import { useGatewayTeamInvite } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/hooks/useGatewayTeamInvite";
@@ -22,13 +23,17 @@ export function TeamInviteForm({
   const [failures, setFailures] = useState<
     Array<{ email: string; message: string }>
   >([]);
+  // Retrying failed invites must not announce the gateway to every member again.
+  const [haveMembersBeenNotified, setHaveMembersBeenNotified] = useState(false);
 
   const canNotify =
+    !haveMembersBeenNotified &&
     notifiableMembers !== undefined &&
     notifiableMembers.isEmailConfigured &&
     notifiableMembers.count > 0;
   const willNotify = canNotify && notifyMembers;
   const hasInvalidEmail = emails.some((email) => !isEmailAddress(email));
+  const hasTooManyEmails = emails.length > MAX_TEAM_INVITES;
   const sendLabel =
     emails.length > 0
       ? `Send ${emails.length} invite${emails.length === 1 ? "" : "s"}`
@@ -37,6 +42,7 @@ export function TeamInviteForm({
   async function handleSend() {
     const result = await inviteTeam({ emails, notifyMembers: willNotify });
     if (!result) return;
+    if (willNotify) setHaveMembersBeenNotified(true);
     if (result.failed.length > 0) {
       setFailures(result.failed);
       setEmails(result.failed.map((failure) => failure.email));
@@ -50,6 +56,11 @@ export function TeamInviteForm({
       <TeamInviteFields
         emails={emails}
         onEmailsChange={setEmails}
+        errorMessage={
+          hasTooManyEmails
+            ? `You can invite up to ${MAX_TEAM_INVITES} people at once.`
+            : undefined
+        }
         notifyMembers={
           canNotify
             ? {
@@ -79,7 +90,11 @@ export function TeamInviteForm({
         <Button
           text={sendLabel}
           loading={isInviting}
-          disabled={hasInvalidEmail || (emails.length === 0 && !willNotify)}
+          disabled={
+            hasInvalidEmail ||
+            hasTooManyEmails ||
+            (emails.length === 0 && !willNotify)
+          }
           onClick={handleSend}
         />
         <Button text="Skip for now" variant="ghost" onClick={onFinish} />

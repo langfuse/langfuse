@@ -10,6 +10,8 @@ import {
 export type TeamInviteFieldsProps = {
   emails: string[];
   onEmailsChange: (emails: string[]) => void;
+  /** Replaces the input hint while set. */
+  errorMessage?: string;
   /** Omit when there is nobody to notify or email is not configured. */
   notifyMembers?: NotifyMembersToggleProps;
 };
@@ -18,6 +20,7 @@ export type TeamInviteFieldsProps = {
 export function TeamInviteFields({
   emails,
   onEmailsChange,
+  errorMessage,
   notifyMembers,
 }: TeamInviteFieldsProps) {
   const inputId = useId();
@@ -39,9 +42,15 @@ export function TeamInviteFields({
             onChange={onEmailsChange}
             aria-describedby={hintId}
           />
-          <p id={hintId} className="text-muted-foreground text-xs">
-            Separate with a comma, space or Enter. They join as Member.
-          </p>
+          {errorMessage ? (
+            <p id={hintId} role="alert" className="text-destructive text-xs">
+              {errorMessage}
+            </p>
+          ) : (
+            <p id={hintId} className="text-muted-foreground text-xs">
+              Separate with a comma, space or Enter. They join as Member.
+            </p>
+          )}
         </div>
       </div>
       {notifyMembers ? (

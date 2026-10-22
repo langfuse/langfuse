@@ -28,6 +28,7 @@ import {
 } from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
+import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
@@ -49,7 +50,6 @@ const offsetPaginatedOrganizationInput = organizationInput.extend({
   limit: pageLimitSchema,
 });
 const connectionInput = organizationInput.extend({ id: z.string() });
-const MAX_TEAM_INVITES = 50;
 const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
