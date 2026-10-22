@@ -33,7 +33,7 @@ import {
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessage } from "./components/ChatMessage";
-import { SectionMedia } from "./components/SectionMedia";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import {
   filterAlreadyRenderedMedia,
@@ -708,7 +708,21 @@ export function IOPreviewPretty({
                 />
               )}
               {remainingMedia.length > 0 && (
-                <SectionMedia media={remainingMedia} />
+                <IOSection title="Media" variant="media">
+                  <div className="flex flex-wrap gap-2">
+                    {remainingMedia.map((media) => (
+                      <LangfuseMediaView
+                        key={media.mediaId}
+                        mediaAPIReturnValue={media}
+                        variant={
+                          media.contentType.startsWith("image")
+                            ? "inline"
+                            : "icon"
+                        }
+                      />
+                    ))}
+                  </div>
+                </IOSection>
               )}
             </div>
           </div>
