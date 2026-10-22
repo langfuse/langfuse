@@ -195,14 +195,20 @@ export class TokenCountWorkerManager {
 // Singleton instance
 let workerManager: TokenCountWorkerManager | null = null;
 
-export function getTokenCountWorkerManager(
-  poolSize?: number,
-): TokenCountWorkerManager {
+function ensureTokenCountWorkerManager(): TokenCountWorkerManager {
   if (!workerManager) {
     workerManager = new TokenCountWorkerManager(
-      poolSize ?? env.LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE,
+      env.LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE,
     );
   }
+  return workerManager;
+}
+
+/**
+ * The pool as it stands, without constructing one. Shutdown uses this so that a
+ * worker which never tokenized anything does not spawn threads on its way out.
+ */
+export function peekTokenCountWorkerManager(): TokenCountWorkerManager | null {
   return workerManager;
 }
 
@@ -213,6 +219,6 @@ export async function tokenCountAsync(
   },
   timeoutMs?: number,
 ): Promise<number | undefined> {
-  const manager = getTokenCountWorkerManager();
+  const manager = ensureTokenCountWorkerManager();
   return manager.tokenCount(params, timeoutMs);
 }

@@ -3,6 +3,7 @@ import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
 import {
   initializeClickhouseCompatibility,
+  isModelDefinitionsEnabled,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -12,7 +13,20 @@ export const initializeWorker = async (): Promise<void> => {
 
   await initializeClickhouseCompatibility();
 
-  await Promise.all([upsertDefaultModelPrices(), upsertLangfuseDashboards()]);
+  await Promise.all([
+    seedDefaultModelPrices(),
+    upsertLangfuseDashboards(),
+  ]);
+};
+
+const seedDefaultModelPrices = async (): Promise<void> => {
+  if (!isModelDefinitionsEnabled()) {
+    logger.info(
+      "Model definitions are disabled; skipping the managed model price list.",
+    );
+    return;
+  }
+  await upsertDefaultModelPrices();
 };
 
 // Two separate success signals. The addon must load and run, or the build is

@@ -9,7 +9,10 @@ import {
 } from "@/src/features/public-api/server";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
+import {
+  assertModelDefinitionsEnabled,
+  clearModelCacheForProject,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 const modelPricingInclude = {
@@ -143,6 +146,7 @@ export const listModelsForApi = async ({
   page,
   limit,
 }: ListModelsInput) => {
+  assertModelDefinitionsEnabled();
   const where = visibleModelsWhere(projectId);
 
   const [models, totalItems] = await Promise.all([
@@ -177,6 +181,7 @@ export const listModelsForApi = async ({
 };
 
 export const getModelForApi = async ({ projectId, modelId }: GetModelInput) => {
+  assertModelDefinitionsEnabled();
   const model = await prisma.model.findFirst({
     where: {
       AND: [{ id: modelId }, visibleModelsWhere(projectId)],
@@ -196,6 +201,7 @@ export const createModelForApi = async ({
   input,
   auditScope,
 }: CreateModelInput) => {
+  assertModelDefinitionsEnabled();
   const validRegex = await isValidPostgresRegex(input.matchPattern, prisma);
   if (!validRegex) {
     throw new InvalidRequestError(
@@ -265,6 +271,7 @@ export const upsertModelForApi = async ({
   input,
   auditScope,
 }: UpsertModelInput) => {
+  assertModelDefinitionsEnabled();
   const validRegex = await isValidPostgresRegex(input.matchPattern, prisma);
   if (!validRegex) {
     throw new InvalidRequestError(
@@ -357,6 +364,7 @@ export const deleteModelForApi = async ({
   apiKeyId,
   modelId,
 }: DeleteModelInput) => {
+  assertModelDefinitionsEnabled();
   const model = await prisma.model.findFirst({
     where: {
       id: modelId,
