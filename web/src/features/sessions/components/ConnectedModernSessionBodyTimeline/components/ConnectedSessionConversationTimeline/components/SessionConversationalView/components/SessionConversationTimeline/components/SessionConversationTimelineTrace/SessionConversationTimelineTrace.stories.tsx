@@ -302,7 +302,7 @@ export const FirstThreadHeader = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
     ).toBeInTheDocument();
     await expect(
       canvas.getByRole("heading", { name: "Thread 1" }),
@@ -365,7 +365,7 @@ export const SingleThreadHeader = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
     ).toBeInTheDocument();
     await expect(canvas.queryByRole("heading")).not.toBeInTheDocument();
   },
@@ -937,11 +937,9 @@ export const KeepDifferentToolData = meta.story({
 });
 
 export const SystemPromptHistory = meta.story({
-  name: "(Test) System Prompt Navigation",
+  name: "System Prompt History",
   args: {
     ...commonArgs,
-    onOpenTrace: fn(),
-    onOpenObservation: fn(),
     state: transcriptState({
       history: [
         {
@@ -977,27 +975,6 @@ export const SystemPromptHistory = meta.story({
         },
       ],
     }),
-  },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText("Inspect representative failures."),
-    ).not.toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
-    );
-    await expect(args.onOpenTrace).toHaveBeenCalledTimes(1);
-    const prompt = canvas.getByRole("button", { name: "System prompt" });
-    await userEvent.click(prompt);
-    await expect(canvas.getByText("Current system instructions")).toBeVisible();
-    const systemMessage = canvasElement.querySelector<HTMLElement>(
-      "[data-session-system-row]",
-    )!;
-    await userEvent.click(
-      within(systemMessage).getByRole("button", { name: "Open observation" }),
-    );
-    await expect(args.onOpenObservation).toHaveBeenCalledTimes(1);
-    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
 });
 

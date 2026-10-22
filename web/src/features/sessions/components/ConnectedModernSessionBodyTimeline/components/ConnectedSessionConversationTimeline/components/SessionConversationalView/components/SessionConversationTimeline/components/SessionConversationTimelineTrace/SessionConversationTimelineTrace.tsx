@@ -111,7 +111,7 @@ export function SessionConversationTimelineTrace({
                   onClick={onToggleCollapsed}
                   aria-expanded={!isCollapsed}
                   aria-label={`${isCollapsed ? "Expand" : "Collapse"} trace ${trace.name ?? "Trace"}`}
-                  className="text-muted-foreground hover:text-foreground absolute -inset-1 flex items-center justify-center opacity-0 group-focus-within/trace-header:opacity-100 group-hover/trace-header:opacity-100"
+                  className="text-muted-foreground hover:text-foreground ph-no-capture absolute -inset-1 flex items-center justify-center opacity-0 group-focus-within/trace-header:opacity-100 group-hover/trace-header:opacity-100"
                 >
                   {isCollapsed ? (
                     <ChevronRight size="base" />
