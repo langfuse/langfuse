@@ -3781,7 +3781,7 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
       "param2": "golden-session",
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -3795,57 +3795,16 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
             ) AS name,
             min(e.start_time) AS timestamp,
             argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
             argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS session_id,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.input, e.event_ts, e.parent_span_id = '') AS input,
-            argMaxIf(e.output, e.event_ts, e.parent_span_id = '') AS output,
-            argMaxIf(
-                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
-                e.event_ts,
-                e.parent_span_id = ''
-            ) AS metadata,
-            min(e.created_at) AS created_at,
-            max(e.updated_at) AS updated_at,
-            sum(e.total_cost) AS total_cost,
-            if(
-                max(e.end_time) IS NULL,
-                NULL,
-                dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time)))
-            ) AS latency_milliseconds,
-            groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
-            length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
-            ) AS observation_count,
-            argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
-            max(e.public) AS public,
-            argMaxIf(e.experiment_item_id, e.event_ts, e.experiment_item_id != '') AS experiment_item_id,
-            sumMap(e.usage_details) AS usage_details,
-            sumMap(e.cost_details) AS cost_details,
-            multiIf(
-                arrayExists(x -> (x = 'ERROR'), groupArray(e.level)),
-                'ERROR',
-                arrayExists(x -> (x = 'WARNING'), groupArray(e.level)),
-                'WARNING',
-                arrayExists(x -> (x = 'DEFAULT'), groupArray(e.level)),
-                'DEFAULT',
-                'DEBUG'
-            ) AS aggregated_level,
-            countIf(e.level = 'WARNING') AS warning_count,
-            countIf(e.level = 'ERROR') AS error_count,
-            countIf(e.level = 'DEFAULT') AS default_count,
-            countIf(e.level = 'DEBUG') AS debug_count,
-            argMaxIf(e.tags, e.event_ts, notEmpty(e.tags)) AS tags,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') AS evaluator_id,
-            argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') AS evaluation_rule_id,
-            any(e.experiment_id) AS experiment_id
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT DISTINCT trace_id
-                FROM events_core
-                WHERE (project_id = {param1:String})
+                FROM events_core AS events
+                WHERE (events.project_id = {param1:String})
+                    AND (events.is_deleted = 0)
                     AND (session_id = {param2:String})
             ))
         GROUP BY
@@ -3860,7 +3819,7 @@ SELECT
     t.timestamp,
     t.project_id,
     t.environment
-FROM traces AS t
+FROM event_traces AS t
 ORDER BY t.timestamp ASC
 LIMIT 1 BY
     t.id,

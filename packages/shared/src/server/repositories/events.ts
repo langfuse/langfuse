@@ -144,6 +144,7 @@ import {
   eventsTraceName,
   observationByIdSelects,
   sessionAggregationSelects,
+  TRACE_AGGREGATION_FIELDS,
   traceAggregationSelects,
   type SessionEventsField,
   type SessionEventsMetricsRow,
@@ -189,6 +190,17 @@ import type {
   SkillsAvailable,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
+
+/** Trace aggregates a session's trace identifiers read: no input/output, so `events` routes to `events_core`. */
+const SESSION_TRACE_FIELDS = [
+  "id",
+  "project_id",
+  "name",
+  "timestamp",
+  "environment",
+  "session_id",
+  "user_id",
+] as const;
 
 /** The `input`/`output` pair an I/O select reads from one relation. */
 type IoColumns = { input: string; output: string };
@@ -1205,7 +1217,7 @@ export const getTraceByIdFromEventsTable = async ({
   const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
     qb
       .selectFrom(truncated ? "events_core as e" : "events_full as e")
-      .select((eb) => traceAggregationSelects(eb))
+      .select((eb) => traceAggregationSelects(TRACE_AGGREGATION_FIELDS)(eb))
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -4066,46 +4078,42 @@ export const getTracesIdentifierForSessionFromEvents = async (
   projectId: string,
   sessionId: string,
 ) => {
-  // Build traces CTE using eventsTracesAggregation
-  const tracesBuilder = eventsTracesAggregation({
-    projectId,
-    truncated: true,
-    orderByTimestamp: false,
-  });
+  /** tracesCte aggregates traces with a span in the session, keeping those whose aggregated session_id equals sessionId */
+  const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
+    qb
+      .selectFrom("events as e")
+      .select((eb) => traceAggregationSelects(SESSION_TRACE_FIELDS)(eb))
+      .where("e.trace_id", "in", (eb) =>
+        eb
+          .selectFrom("events")
+          .select("trace_id")
+          .distinct()
+          .where("session_id", "=", sessionId),
+      )
+      .groupBy(["trace_id", "project_id"])
+      .having("session_id", "=", sessionId);
 
-  tracesBuilder.whereRaw(
-    `e.trace_id IN (
-      SELECT DISTINCT trace_id
-      FROM events_core
-      WHERE project_id = {projectId: String}
-        AND session_id = {sessionId: String}
-    )`,
-    {
-      projectId: projectId,
-      sessionId: sessionId,
-    },
-  );
-
-  tracesBuilder.havingRaw("session_id = {sessionId: String}", {
-    sessionId: sessionId,
-  });
-
-  // Build the final query
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("traces", tracesBuilder)
-    .from("traces", "t")
-    .selectColumns(
+  /** builder emits `select t.id, t.user_id, … from event_traces t order by t.timestamp limit 1 by t.id, t.project_id` */
+  const builder = getClickhouseKysely()
+    .with("event_traces", tracesCte)
+    .selectFrom("event_traces as t")
+    .select([
       "t.id",
       "t.user_id",
       "t.name",
       "t.timestamp",
       "t.project_id",
       "t.environment",
-    )
-    .orderBy("ORDER BY t.timestamp ASC")
-    .limitBy("t.id", "t.project_id");
+    ])
+    .orderBy("t.timestamp", "asc")
+    .$call(
+      limitBy({
+        count: 1,
+        columns: (eb) => [eb.ref("t.id"), eb.ref("t.project_id")],
+      }),
+    );
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;
