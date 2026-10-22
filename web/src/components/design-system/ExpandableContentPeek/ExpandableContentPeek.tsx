@@ -29,6 +29,33 @@ type ExpandableContentPeekProps = PropsWithChildren<{
   collapsedHeight?: "sm" | "md" | "lg";
 }>;
 
+function useIsOverflowing(
+  containerRef: RefObject<HTMLDivElement | null>,
+  contentRef: RefObject<HTMLDivElement | null>,
+  isEnabled: boolean,
+) {
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  // Measured before paint so clamped content never flashes without its fade.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!isEnabled || !container || !content) return;
+
+    const measure = () =>
+      setIsOverflowing(content.offsetHeight > container.clientHeight);
+    measure();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(container);
+    resizeObserver.observe(content);
+    return () => resizeObserver.disconnect();
+  }, [containerRef, contentRef, isEnabled]);
+
+  return isOverflowing;
+}
+
 /**
  * Shows the top of its content and fades the rest out behind an expand button.
  * Expanding is one-way; remount (e.g. with a `key`) to collapse again. Content
@@ -75,31 +102,4 @@ export function ExpandableContentPeek({
       ) : null}
     </div>
   );
-}
-
-function useIsOverflowing(
-  containerRef: RefObject<HTMLDivElement | null>,
-  contentRef: RefObject<HTMLDivElement | null>,
-  isEnabled: boolean,
-) {
-  const [isOverflowing, setIsOverflowing] = useState(false);
-
-  // Measured before paint so clamped content never flashes without its fade.
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!isEnabled || !container || !content) return;
-
-    const measure = () =>
-      setIsOverflowing(content.offsetHeight > container.clientHeight);
-    measure();
-
-    if (typeof ResizeObserver === "undefined") return;
-    const resizeObserver = new ResizeObserver(measure);
-    resizeObserver.observe(container);
-    resizeObserver.observe(content);
-    return () => resizeObserver.disconnect();
-  }, [containerRef, contentRef, isEnabled]);
-
-  return isOverflowing;
 }
