@@ -8,7 +8,11 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/features/traces";
+import {
+  ChatMessage,
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -721,13 +725,34 @@ export const PromptDetail = ({
                 <PromptReferenceProvider projectId={projectId}>
                   {prompt.type === PromptType.Chat && chatMessages ? (
                     <div className="w-full">
-                      <ChatMessageList
-                        messages={chatMessages}
-                        shouldRenderMarkdown={true}
-                        currentView="pretty"
-                        messageToToolCallNumbers={new Map()}
-                        collapseLongHistory={false}
-                      />
+                      <div className="flex max-h-full min-h-0 flex-col gap-2">
+                        <div className="flex max-h-full min-h-0 flex-col gap-2">
+                          <div className="flex flex-col gap-2">
+                            {chatMessages.map((message, index) => {
+                              if (
+                                !shouldRenderMessageForContentMode(
+                                  message,
+                                  "all",
+                                  undefined,
+                                )
+                              )
+                                return null;
+                              return (
+                                <ChatMessage
+                                  key={index}
+                                  message={message}
+                                  title={getMessageTitle(message)}
+                                  shouldRenderMarkdown={true}
+                                  currentView="pretty"
+                                  isOutputMessage={true}
+                                  contentMode="all"
+                                  defaultCollapsed={false}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ) : typeof prompt.prompt === "string" ? (
                     resolutionMode === "resolved" &&

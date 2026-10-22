@@ -6,6 +6,17 @@ import type {
   ChatMLParserResult,
   ToolCallInvocation,
 } from "../../hooks/useChatMLParser";
+import { useState, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createTRPCReact, getQueryKey } from "@trpc/react-query";
+import { createTRPCClient, TRPCClientError } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
+import type { AppRouter } from "@/src/server/api/root";
+import { api } from "@/src/utils/api";
+import { MarkdownRenderCharacterLimitContext } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitContext";
+import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import { MediaContentType, type MediaReturnType } from "@/src/features/media";
+import { MediaEnabledFields } from "@/src/features/media/validation";
 
 const meta = preview.meta({
   component: IOPreviewPretty,
@@ -580,6 +591,289 @@ export const CollapsedByDefault = meta.story({
     ).toBeVisible();
     await expect(sessionStorage.getItem(TOOLS_COLLAPSED_KEY)).toBe("false");
     sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+  },
+});
+
+const conversation = [
+  { role: "system", name: "Instructions", content: "Be brief." },
+  ...Array.from({ length: 5 }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    name: `Turn ${index + 1}`,
+    content: `Message content ${index + 1}`,
+  })),
+];
+const longConversation = [
+  ...conversation,
+  { role: "assistant", name: "Turn 6", content: "Message content 6" },
+  { role: "user", name: "Turn 7", content: "Message content 7" },
+];
+
+function conversationPreviewArgs(messages: unknown[]) {
+  return {
+    chatMLParserResult: {
+      canDisplayAsChat: true,
+      allMessages: messages.map((message) =>
+        ChatMlMessageSchema.parse(message),
+      ),
+      additionalInput: undefined,
+      allTools: [],
+      toolCallCounts: new Map(),
+      toolCallsByName: new Map(),
+      messageToToolCallNumbers: new Map(),
+      inputMessageCount: 0,
+    } satisfies ChatMLParserResult,
+  };
+}
+
+export const EarlierMessagesCollapsed = meta.story({
+  name: "(Test) Earlier messages collapsed",
+  args: conversationPreviewArgs(conversation),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Collapse Instructions" }),
+    ).toBeVisible();
+    for (const turn of [1, 2]) {
+      await expect(
+        canvas.getByRole("button", { name: `Expand Turn ${turn}` }),
+      ).toHaveAttribute("aria-expanded", "false");
+      await expect(
+        canvas.queryByText(`Message content ${turn}`),
+      ).not.toBeInTheDocument();
+    }
+    for (const turn of [3, 4, 5]) {
+      await expect(
+        canvas.getByRole("button", { name: `Collapse Turn ${turn}` }),
+      ).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        canvas
+          .getAllByText(`Message content ${turn}`)
+          .some((element) => element.checkVisibility()),
+      ).toBe(true);
+    }
+  },
+});
+
+export const ShortHistoryNotFolded = meta.story({
+  name: "(Test) Short history not folded",
+  args: conversationPreviewArgs(conversation),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: /other messages?/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getAllByRole("button", {
+        name: /^(Expand|Collapse) (Instructions|Turn \d)$/,
+      }),
+    ).toHaveLength(6);
+  },
+});
+
+export const FoldedConversation = meta.story({
+  name: "(Test) Folded conversation",
+  args: conversationPreviewArgs(longConversation),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getByRole("button", { name: "4 other messages" });
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    for (const turn of [1, 2, 3, 4]) {
+      await expect(
+        canvas.queryByRole("button", { name: `Expand Turn ${turn}` }),
+      ).not.toBeInTheDocument();
+    }
+    for (const turn of [5, 6, 7]) {
+      await expect(
+        canvas
+          .getAllByText(`Message content ${turn}`)
+          .some((element) => element.checkVisibility()),
+      ).toBe(true);
+    }
+    await userEvent.click(row);
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    for (const turn of [1, 2, 3, 4]) {
+      await expect(
+        canvas.getByRole("button", { name: `Expand Turn ${turn}` }),
+      ).toHaveAttribute("aria-expanded", "false");
+      await expect(
+        canvas.queryByText(`Message content ${turn}`),
+      ).not.toBeInTheDocument();
+    }
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand Turn 1" }),
+    );
+    await expect(
+      canvas
+        .getAllByText("Message content 1")
+        .some((element) => element.checkVisibility()),
+    ).toBe(true);
+    await userEvent.click(row);
+    await expect(
+      canvas.queryByText("Message content 1"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Expand Turn 2" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const EmptyMessagesDoNotTakeTailSlots = meta.story({
+  name: "(Test) Empty messages do not take tail slots",
+  args: conversationPreviewArgs([
+    ...longConversation.slice(0, 6),
+    { role: "assistant" },
+    ...longConversation.slice(6),
+  ]),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "4 other messages" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getAllByRole("button", {
+        name: /^(Expand|Collapse) (Instructions|Turn \d)$/,
+      }),
+    ).toHaveLength(4);
+    for (const turn of [5, 6, 7]) {
+      await expect(
+        canvas
+          .getAllByText(`Message content ${turn}`)
+          .some((element) => element.checkVisibility()),
+      ).toBe(true);
+    }
+  },
+});
+
+const MEDIA_REF = "@@@langfuseMedia:type=image/png|id=media-1|source=base64@@@";
+const AUDIO_REF = "@@@langfuseMedia:type=audio/wav|id=audio-1|source=base64@@@";
+const TEST_MARKDOWN_LIMIT = 1_000;
+const imageUrl =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
+const conversationMedia: MediaReturnType[] = [
+  {
+    mediaId: "media-1",
+    contentType: MediaContentType.PNG,
+    contentLength: 68,
+    url: imageUrl,
+    urlExpiry: "2099-01-01T00:00:00Z",
+    field: MediaEnabledFields.Input,
+  },
+  {
+    mediaId: "audio-1",
+    contentType: MediaContentType.WAV,
+    contentLength: 44,
+    url: "/storybook-audio.wav",
+    urlExpiry: "2099-01-01T00:00:00Z",
+    field: MediaEnabledFields.Output,
+  },
+];
+
+const storyApi = createTRPCReact<AppRouter>();
+
+function ConversationMediaProviders({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    for (const media of conversationMedia) {
+      client.setQueryData(
+        getQueryKey(
+          api.media.getById,
+          { mediaId: media.mediaId, projectId: "storybook-project" },
+          "query",
+        ),
+        media,
+      );
+    }
+    return client;
+  });
+  const [client] = useState(() =>
+    createTRPCClient<AppRouter>({
+      links: [
+        () => () =>
+          observable((observer) => {
+            observer.error(
+              new TRPCClientError<AppRouter>(
+                "Unexpected API request in conversation media story",
+              ),
+            );
+          }),
+      ],
+    }),
+  );
+  return (
+    <storyApi.Provider client={client} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <MarkdownRenderCharacterLimitContext.Provider
+          value={TEST_MARKDOWN_LIMIT}
+        >
+          {children}
+        </MarkdownRenderCharacterLimitContext.Provider>
+      </QueryClientProvider>
+    </storyApi.Provider>
+  );
+}
+
+export const InlineMediaNotDuplicated = meta.story({
+  name: "(Test) Inline media not duplicated",
+  decorators: [
+    (Story) => (
+      <ConversationMediaProviders>
+        <Story />
+      </ConversationMediaProviders>
+    ),
+  ],
+  parameters: {
+    nextjs: { router: { query: { projectId: "storybook-project" } } },
+  },
+  args: {
+    ...conversationPreviewArgs([{ role: "user", content: MEDIA_REF }]),
+    media: [conversationMedia[0]],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("img")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Collapse Media" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const JsonFallbackKeepsMedia = meta.story({
+  name: "(Test) JSON fallback keeps media",
+  decorators: [
+    (Story) => (
+      <ConversationMediaProviders>
+        <Story />
+      </ConversationMediaProviders>
+    ),
+  ],
+  parameters: {
+    nextjs: { router: { query: { projectId: "storybook-project" } } },
+  },
+  args: {
+    ...conversationPreviewArgs([
+      {
+        role: "assistant",
+        content: MEDIA_REF.repeat(
+          Math.ceil((TEST_MARKDOWN_LIMIT + 1) / MEDIA_REF.length),
+        ),
+        audio: {
+          data: AUDIO_REF,
+        },
+      },
+    ]),
+    media: conversationMedia,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const mediaHeader = canvas.getByRole("button", { name: "Collapse Media" });
+    await expect(mediaHeader).toBeVisible();
+    const mediaSection = within(mediaHeader.parentElement!.parentElement!);
+    await expect(await mediaSection.findByRole("img")).toBeVisible();
+    await expect(
+      await mediaSection.findByText("storybook-audio.wav"),
+    ).toBeVisible();
   },
 });
 

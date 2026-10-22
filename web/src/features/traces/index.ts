@@ -24,11 +24,13 @@ export {
   type IOPreviewContentMode,
   type ViewMode,
 } from "@/src/features/traces/components/IOPreview/IOPreview";
-export { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
+export { ChatMessage } from "@/src/features/traces/components/IOPreview/components/ChatMessage";
 export { ThinkingBlock } from "@/src/features/traces/components/ThinkingBlock";
 export {
   hasRenderableConversationMessages,
   isOnlyJsonMessage,
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
 export {
   useChatMLParser,
