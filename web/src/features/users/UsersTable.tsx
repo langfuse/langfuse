@@ -350,13 +350,17 @@ export function UsersTable({
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
 
-  type CoreType = Omit<UserCoreOutput, "userId"> & { id: string };
+  type CoreType = Omit<UserCoreOutput, "userId"> & {
+    id: string;
+    traceCount: UserCoreOutput["totalTraces"];
+  };
   type MetricType = Omit<UserMetricsOutput, "userId"> & { id: string };
 
   const userRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
     users.data?.users.map((u) => ({
       ...u,
       id: u.userId,
+      traceCount: u.totalTraces,
     })),
     userMetrics.data?.map((u) => ({
       ...u,
@@ -431,6 +435,8 @@ export function UsersTable({
       accessorKey: "totalTraces",
       header: "Trace Count",
       size: 120,
+      mapValue: (value) =>
+        users.isSuccess ? (value ?? undefined) : { type: "loading" },
     }),
     createTextTableColumn<RowData>({
       accessorKey: "totalEvents",
@@ -596,7 +602,7 @@ export function UsersTable({
                             userId: t.id,
                             environment: t.environment ?? undefined,
                             totalTraces: compactNumberFormatter(
-                              Number(t.totalTraces ?? 0),
+                              Number(t.traceCount),
                             ),
                             firstEvent:
                               t.firstTrace?.toLocaleString() ?? "No event yet",
