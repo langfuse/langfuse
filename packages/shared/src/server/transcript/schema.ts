@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { normalizedMessageSchema } from "../../utils/normalized-io/schema";
-import { ObservationTypeDomain } from "../../domain/observations";
+import {
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+} from "../../domain/observations";
 
 export const threadMessageSchema = normalizedMessageSchema.extend({
   /** Observation that first emitted this message. */
@@ -41,7 +44,7 @@ export const executionIssueSchema = z.object({
   traceId: z.string().nullable(),
   type: ObservationTypeDomain,
   name: z.string().nullable(),
-  level: z.enum(["ERROR", "WARNING"]),
+  level: ObservationLevelDomain.extract(["ERROR", "WARNING"]),
   /** First 1,000 characters of the status message. */
   statusMessage: z.string().nullable(),
   startTime: z.date(),
