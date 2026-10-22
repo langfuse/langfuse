@@ -36,13 +36,6 @@ export const Fallback = meta.story({
   },
 });
 
-export const TintedFallback = meta.story({
-  args: {
-    displayName: "Ben Bachem",
-    tone: "tinted",
-  },
-});
-
 export const WithEmail = meta.story({
   args: {
     displayName: "Ada Lovelace",
