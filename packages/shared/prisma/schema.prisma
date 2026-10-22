@@ -347,6 +347,8 @@ model GatewayConfig {
   defaultIngestionProjectId String?              @map("default_ingestion_project_id")
   defaultIngestionProject   Project?             @relation("GatewayDefaultIngestionProject", fields: [defaultIngestionProjectId], references: [id], onDelete: SetNull)
   ingestionMode             GatewayIngestionMode @default(USAGE) @map("ingestion_mode")
+  /// Set when members were told the gateway is available, so the announcement goes out once.
+  membersNotifiedAt         DateTime?            @map("members_notified_at")
   createdAt                 DateTime             @default(now()) @map("created_at")
   updatedAt                 DateTime             @default(now()) @updatedAt @map("updated_at")
 
