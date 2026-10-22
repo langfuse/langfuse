@@ -96,7 +96,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
+import { DataTableAIFilters } from "@/src/components/table/DataTableAIFilters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type FilterState } from "@langfuse/shared";
 
