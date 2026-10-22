@@ -66,7 +66,7 @@ export function GatewayApiKeysTable({
       id: "user",
       header: "User",
       variant: "avatar",
-      nullValue: "-",
+      nullValue: "Service account",
       hideBelowMd: true,
       enableResizing: false,
     }),
