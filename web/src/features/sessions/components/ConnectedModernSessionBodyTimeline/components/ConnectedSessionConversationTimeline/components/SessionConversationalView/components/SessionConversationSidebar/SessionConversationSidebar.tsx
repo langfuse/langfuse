@@ -8,7 +8,14 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "@langfuse/icons";
+import {
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+} from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -73,7 +80,10 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden"; searchLeading?: ReactNode },
+  ) & {
+    searchVisibility?: "hidden";
+    sidebarToggle?: { open: boolean; onToggle: () => void };
+  },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -228,6 +238,36 @@ export function SessionConversationSidebar(
     }
   };
 
+  const sidebarToggle = props.sidebarToggle;
+  const toggleButton = sidebarToggle && (
+    <Tooltip
+      label={
+        sidebarToggle.open ? "Hide session sidebar" : "Show session sidebar"
+      }
+      placement={sidebarToggle.open ? "top" : "right"}
+    >
+      {({ getTriggerProps }) => (
+        <Button
+          {...getTriggerProps()}
+          variant="ghost"
+          size="icon"
+          onClick={sidebarToggle.onToggle}
+          aria-label={
+            sidebarToggle.open ? "Hide session sidebar" : "Show session sidebar"
+          }
+          aria-expanded={sidebarToggle.open}
+          className="h-6 w-6 shrink-0"
+        >
+          {sidebarToggle.open ? (
+            <PanelLeftClose size="base" color="default" />
+          ) : (
+            <PanelLeftOpen size="base" color="default" />
+          )}
+        </Button>
+      )}
+    </Tooltip>
+  );
+
   if (props.state === "loading") {
     return (
       <div
@@ -242,7 +282,7 @@ export function SessionConversationSidebar(
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
-          {props.searchLeading}
+          {toggleButton}
           <div className="relative min-w-0 flex-1">
             <Search
               size="base"
@@ -293,7 +333,7 @@ export function SessionConversationSidebar(
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
-        {props.searchLeading}
+        {toggleButton}
         <div className="relative min-w-0 flex-1">
           <Search
             size="base"
