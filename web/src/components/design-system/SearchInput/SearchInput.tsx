@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "@langfuse/icons";
+import { Search, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -80,8 +80,22 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onKeyDown={(event) => {
           if (event.key === "Enter") onSubmit(value);
         }}
-        className="placeholder:text-muted-foreground disabled:bg-muted/50 min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 font-mono text-xs shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:cursor-pointer"
+        className="placeholder:text-muted-foreground disabled:bg-muted/50 min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 font-mono text-xs shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:hidden"
       />
+      {!disabled && value !== "" && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          // Keep the action out of the tab order so Tab moves between inputs.
+          tabIndex={-1}
+          // The button unmounts as the value clears, so hold focus in the field.
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChange("")}
+          className="text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center"
+        >
+          <X size="base" />
+        </button>
+      )}
       {dropdown && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

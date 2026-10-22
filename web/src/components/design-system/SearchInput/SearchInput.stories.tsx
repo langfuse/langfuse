@@ -48,6 +48,13 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+/** The clear button appears only while the field has a value. */
+export const WithValue = meta.story({
+  args: {
+    value: "Prompt name",
+  },
+});
+
 /** `default` for embedded toolbars, `large` for full-page lists. */
 export const Sizes = meta.story({
   render: (args) => (
@@ -92,5 +99,22 @@ export const TestOpensDropdown = meta.story({
     const trigger = canvas.getByRole("button", { name: "Names, Tags" });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("data-state", "open");
+  },
+});
+
+export const TestClearsTheValue = meta.story({
+  name: "(Test) Clears the Value",
+  args: {
+    value: "Prompt name",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("searchbox");
+    await userEvent.click(canvas.getByRole("button", { name: "Clear search" }));
+    await expect(input).toHaveValue("");
+    await expect(args.onChange).toHaveBeenCalledWith("");
+    await expect(
+      canvas.queryByRole("button", { name: "Clear search" }),
+    ).not.toBeInTheDocument();
   },
 });
