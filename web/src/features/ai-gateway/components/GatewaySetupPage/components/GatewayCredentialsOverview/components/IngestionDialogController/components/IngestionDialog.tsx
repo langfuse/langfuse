@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/IngestionSettingsFields";
-import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupDocsUrl";
+import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { getInitialIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/getInitialIngestionSettings";
 import { isIngestionSettingsValid } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isIngestionSettingsValid";
 import { useSaveGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useSaveGatewayIngestion";
@@ -44,7 +44,7 @@ export function IngestionDialog({
     <Dialog
       title="Gateway ingestion"
       size="md"
-      docsHref={GATEWAY_SETUP_DOCS_URL}
+      docsHref={GATEWAY_SETUP.docsUrl}
       actions={[
         {
           label: "Save",

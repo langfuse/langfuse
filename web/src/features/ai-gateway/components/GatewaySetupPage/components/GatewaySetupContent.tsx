@@ -3,7 +3,7 @@ import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { GatewayCredentialsOverview } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/GatewayCredentialsOverview";
 import { GatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/GatewaySetupGuide";
-import { GATEWAY_SETUP_COPY } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupCopy";
+import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { isGatewayConfigComplete } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isGatewayConfigComplete";
 import type {
   GatewayConfig,
@@ -50,9 +50,9 @@ export function GatewaySetupContent({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Header title={GATEWAY_SETUP_COPY.title} />
+        <Header title={GATEWAY_SETUP.title} />
         <p className="text-muted-foreground text-sm">
-          {GATEWAY_SETUP_COPY.description}
+          {GATEWAY_SETUP.description}
         </p>
       </div>
       <GatewaySetupGuide

@@ -1,7 +1,7 @@
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { IngestionStepForm } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/components/IngestionStepForm";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
-import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupDocsUrl";
+import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { describeGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/fns/describeGatewayIngestion";
 import type {
   GatewayConfig,
@@ -37,7 +37,7 @@ export function IngestionStep({
       size="sm"
       status={status}
       isCollapsible={false}
-      docsHref={GATEWAY_SETUP_DOCS_URL}
+      docsHref={GATEWAY_SETUP.docsUrl}
       description={description}
     >
       {status === "current" ? (

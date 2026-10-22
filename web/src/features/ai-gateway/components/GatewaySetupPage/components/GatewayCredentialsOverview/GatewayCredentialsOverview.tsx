@@ -19,7 +19,7 @@ import type {
   GatewayConfig,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import { GATEWAY_SETUP_COPY } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupCopy";
+import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gatewayIngestionModes";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -118,7 +118,7 @@ export function GatewayCredentialsOverview({
   if (connectionsQuery.isError) {
     return (
       <div className="flex flex-col gap-4">
-        <Header title={GATEWAY_SETUP_COPY.title} />
+        <Header title={GATEWAY_SETUP.title} />
         <Alert variant="destructive">
           <Alert.Title>Provider credentials could not be loaded</Alert.Title>
           <Alert.Description>
@@ -177,7 +177,7 @@ export function GatewayCredentialsOverview({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
         <Header
-          title={GATEWAY_SETUP_COPY.title}
+          title={GATEWAY_SETUP.title}
           actionButtons={
             <div className="flex items-center gap-2">
               <IngestionDialogController
@@ -213,7 +213,7 @@ export function GatewayCredentialsOverview({
           }
         />
         <p className="text-muted-foreground text-sm">
-          {GATEWAY_SETUP_COPY.description}
+          {GATEWAY_SETUP.description}
         </p>
       </div>
       <Header title="Provider credentials" />
