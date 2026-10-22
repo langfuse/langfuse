@@ -75,7 +75,6 @@ export function IngestionProjectRow({
       ) : (
         <div className="w-fit">
           <SelectInput
-            noCapture
             aria-label="Ingestion project"
             placeholder="Select a project"
             search={{ placeholder: "Search projects" }}
