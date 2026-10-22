@@ -167,7 +167,7 @@ export function Stepper({
             </div>
           )}
           {docsHref ? (
-            <Button variant="text" size="sm" text="Docs" href={docsHref} />
+            <Button variant="ghost" size="sm" text="Docs" href={docsHref} />
           ) : null}
         </div>
         {expanded && hasBody ? (

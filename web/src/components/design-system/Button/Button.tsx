@@ -21,7 +21,7 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        /** Inline text action: muted, underlined, no box. External links rely on their icon instead of the underline. */
+        /** Inline text action: muted, underlined, no box. */
         text: "text-muted-foreground hover:text-foreground underline",
       },
       size: {
@@ -90,7 +90,7 @@ export function Button(props: ButtonProps) {
 
       return (
         <a
-          className={cn(className, "gap-1", "no-underline")}
+          className={`${className} gap-1`}
           href={props.href}
           ref={props.ref}
           target="_blank"

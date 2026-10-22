@@ -46,7 +46,7 @@ type DialogProps = {
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
-  /** Shown as a muted "Docs" link next to the title. */
+  /** Shown as a ghost "Docs" link next to the title. */
   docsHref?: string;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
@@ -171,7 +171,7 @@ function DialogRoot({
                 </DialogPrimitive.Title>
                 {docsHref ? (
                   <Button
-                    variant="text"
+                    variant="ghost"
                     size="sm"
                     text="Docs"
                     href={docsHref}
