@@ -154,10 +154,11 @@
   The optional cap bounds `JSON.stringify(result).length`; see its README.
   `schema.ts` owns the current transcript shape; `types.ts` infers its output
   types. Message/part types come from `src/utils/normalized-io/schema.ts`.
-  `versions/v1.ts` freezes stored V1 without importing live schemas;
-  `serialization.ts` owns the typed adapters between the live transcript and V1.
-  Compatible optional additions may extend V1; anything else starts
-  `versions/v2.ts` with its own adapters; see the transcript README.
+  `src/server/transcript/versions/v1.ts` freezes stored V1 without importing
+  live schemas; `serialization.ts` owns the typed adapters between the live
+  transcript and V1. Compatible optional additions may extend V1; anything else
+  starts a new version module beside it with its own adapters; see the
+  transcript README.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
