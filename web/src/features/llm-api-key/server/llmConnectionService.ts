@@ -4,6 +4,7 @@ import {
   AuthMethod,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
@@ -92,6 +93,10 @@ export type SafeLlmConnection = {
   scope?: "project" | "organization";
   projectId?: string;
   organizationId?: string;
+};
+
+type LlmConnectionWithAvailableModels = SafeLlmConnection & {
+  availableModels: string[];
 };
 
 type TestLlmConnectionParams = Omit<
@@ -492,6 +497,20 @@ export class LlmConnectionService {
     });
 
     return { data: connections.map(toSafeConnection) };
+  }
+
+  async listEffectiveWithAvailableModels(params: {
+    owner: Extract<LlmConnectionOwner, { type: "project" }>;
+    includeDecisionModels?: boolean;
+  }): Promise<{ data: LlmConnectionWithAvailableModels[] }> {
+    const { data } = await this.listEffective(params);
+
+    return {
+      data: data.map((connection) => ({
+        ...connection,
+        availableModels: getConnectionAvailableModels(connection),
+      })),
+    };
   }
 
   async exists(params: {

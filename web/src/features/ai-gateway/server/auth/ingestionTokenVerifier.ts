@@ -2,14 +2,19 @@ import { env } from "@/src/env.mjs";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import type { ApiAccessScopeWithOptionalApiKeyId } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessScopeWithOptionalApiKeyId,
+  logger,
+} from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 import {
   createEs256JwtVerifier,
+  deriveEs256KeyId,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 import { requireGatewayEnabledForOrganization } from "../availability";
+import { resolveGatewayJwtKeys } from "./gatewayJwtKeys";
 import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
 /** Outlives the gateway's default ten-minute execution ceiling plus upload batching. */
@@ -54,17 +59,40 @@ function configuredPublicKey(input: {
   return [{ id: input.keyId, publicKey: input.publicKey }];
 }
 
+// Every authenticated public API route imports this module, so invalid key
+// configuration must disable gateway token verification instead of failing
+// the import.
 const gatewayIngestionTokenVerifier = (() => {
+  try {
+    return createGatewayIngestionTokenVerifier();
+  } catch (error) {
+    logger.error(
+      "Invalid AI gateway JWT key configuration; gateway ingestion tokens are not accepted",
+      error,
+    );
+    return undefined;
+  }
+})();
+
+function createGatewayIngestionTokenVerifier() {
+  const current = resolveGatewayJwtKeys({
+    privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+  });
+  const previousPublicKey = env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY;
   const publicKeys = [
     ...configuredPublicKey({
-      keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
-      publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+      keyId: current.keyId,
+      publicKey: current.publicKey,
       keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_KEY_ID",
       publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY",
     }),
     ...configuredPublicKey({
-      keyId: env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID,
-      publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
+      keyId:
+        env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID ??
+        (previousPublicKey ? deriveEs256KeyId(previousPublicKey) : undefined),
+      publicKey: previousPublicKey,
       keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID",
       publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY",
     }),
@@ -78,7 +106,7 @@ const gatewayIngestionTokenVerifier = (() => {
         claimsSchema: GatewayIngestionClaimsSchema,
       })
     : undefined;
-})();
+}
 
 export async function verifyGatewayIngestionAuthorization(
   authorization: string | undefined,

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -23,7 +23,7 @@ import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
-import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
 import {
   requiresLegacyMigrationAction,
   isLegacyEvalTarget,

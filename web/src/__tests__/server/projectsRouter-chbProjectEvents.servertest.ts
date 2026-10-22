@@ -14,7 +14,12 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
 }));
 
 import { createApiKey } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -187,7 +192,8 @@ describe("projectsRouter system role assignments", () => {
     const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
 
     const key = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });
@@ -251,7 +257,8 @@ describe("projectsRouter system role assignments", () => {
     });
 
     const key = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(sourceOrgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });

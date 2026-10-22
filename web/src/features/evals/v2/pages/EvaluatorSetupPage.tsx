@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -39,7 +39,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {

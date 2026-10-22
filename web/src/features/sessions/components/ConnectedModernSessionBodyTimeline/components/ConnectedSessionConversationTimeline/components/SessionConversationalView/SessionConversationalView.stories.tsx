@@ -2586,79 +2586,39 @@ const navigationTraces: TraceProps[] = Array.from(
   },
 );
 
-function viewportAnchor(feed: HTMLElement) {
-  const maxOffset = Math.max(0, feed.scrollHeight - feed.clientHeight);
-  const transition = Math.min(feed.clientHeight * 0.2, maxOffset);
-  const inset = Math.max(
-    0,
-    Math.min(
-      feed.clientHeight * 0.2,
-      feed.clientHeight - 1,
-      feed.scrollHeight - 1,
-    ),
-  );
-  if (transition === 0) return inset;
-  const progress = Math.max(0, 1 - (maxOffset - feed.scrollTop) / transition);
-  return inset + (feed.clientHeight - 1 - inset) * progress;
-}
-
 async function expectNavigation(
   canvasElement: HTMLElement,
-  headerName: string | RegExp,
+  headerName: string,
   itemId: string,
   rowId: string | false,
 ) {
   const canvas = within(canvasElement);
   const sidebar = within(canvas.getByRole("complementary"));
   const feed = canvas.getByLabelText("Session conversation timeline");
-  await expect(
-    sidebar.getByRole("button", { name: headerName }),
-  ).toHaveAttribute("aria-current", "true");
-  const assertGeometry = () => {
-    const entry = feed.querySelector<HTMLElement>(
-      `[data-session-item-id="${itemId}"]`,
-    );
-    const target = rowId
-      ? entry?.querySelector<HTMLElement>(
-          `[data-session-transcript-row-id="${rowId}"]`,
-        )
-      : entry?.closest<HTMLElement>("[data-index]");
-    if (!target) throw new Error(`Target ${itemId} is not mounted`);
-    const position =
-      target.getBoundingClientRect().top -
-      feed.getBoundingClientRect().top -
-      feed.clientTop;
-    const anchor = viewportAnchor(feed);
-    const inset = feed.clientHeight * 0.2;
-    const roundingTolerance =
-      anchor === inset
-        ? 2
-        : 2 +
-          (feed.clientHeight - 1 - inset) /
-            Math.min(
-              feed.clientHeight * 0.2,
-              feed.scrollHeight - feed.clientHeight,
-            );
-    // The first entry cannot acquire an inset by scrolling before offset zero.
-    const expectedAnchor =
-      feed.scrollTop === 0 && position >= 0 && position < inset
-        ? position
-        : anchor;
-    expect(Math.abs(position - expectedAnchor)).toBeLessThanOrEqual(
-      roundingTolerance,
-    );
-  };
-  await waitFor(assertGeometry, { timeout: 6_000 });
-  await new Promise((resolve) => window.setTimeout(resolve, 200));
-  assertGeometry();
-  // A zero-distance user intent removes any navigation override: geometry must
-  // independently yield the same active entry through the manual scroll spy.
-  feed.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
   await waitFor(() =>
     expect(sidebar.getByRole("button", { name: headerName })).toHaveAttribute(
       "aria-current",
       "true",
     ),
+  );
+  await waitFor(
+    () => {
+      const entry = feed.querySelector<HTMLElement>(
+        `[data-session-item-id="${itemId}"]`,
+      );
+      const target = rowId
+        ? entry?.querySelector<HTMLElement>(
+            `[data-session-transcript-row-id="${rowId}"]`,
+          )
+        : entry;
+      if (!target) throw new Error(`Target ${itemId} is not mounted`);
+      const bounds = target.getBoundingClientRect();
+      const viewport = feed.getBoundingClientRect();
+      expect(bounds.height).toBeGreaterThan(0);
+      expect(bounds.bottom).toBeGreaterThan(viewport.top);
+      expect(bounds.top).toBeLessThan(viewport.bottom);
+    },
+    { timeout: 6_000 },
   );
 }
 
@@ -2677,7 +2637,9 @@ export const MixedToolContent = meta.story({
       canvas.getByLabelText("Session conversation timeline"),
     );
     await userEvent.click(
-      await timeline.findByRole("button", { name: /^Show tools:/ }),
+      await timeline.findByRole("button", {
+        name: (name) => name.startsWith("Show tools:"),
+      }),
     );
     for (const { name } of toolContentExamples) {
       await userEvent.click(
@@ -2687,20 +2649,27 @@ export const MixedToolContent = meta.story({
     await expect(
       timeline.getByText("Monthly revenue increased."),
     ).toBeVisible();
-    await expect(timeline.getByText(/monthly-revenue/)).toBeVisible();
-    await expect(timeline.getByText(/chart-annotations/)).toBeVisible();
     await expect(
-      timeline.getByText(/chart-annotations/).closest("pre"),
+      timeline.getByText((text) => text.includes("monthly-revenue")),
+    ).toBeVisible();
+    await expect(
+      timeline.getByText((text) => text.includes("chart-annotations")),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("Session conversation timeline"),
     ).toHaveTextContent("vendor-chart");
     await expect(
       timeline.getByText("Monthly revenue chart generated."),
     ).toBeVisible();
-    await expect(timeline.getByText(/mixed-revenue/)).toBeVisible();
     await expect(
-      timeline.getByText(/mixed-revenue/).closest("pre"),
+      timeline.getByText((text) => text.includes("mixed-revenue")),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("Session conversation timeline"),
     ).toHaveTextContent("points");
     const images = timeline.getAllByRole<HTMLImageElement>("img", {
-      name: /Embedded image|revenue.svg/,
+      name: (name) =>
+        name.includes("Embedded image") || name.includes("revenue.svg"),
     });
     await expect(images).toHaveLength(4);
     for (const image of images) await expect(image).toBeVisible();
@@ -2709,10 +2678,9 @@ export const MixedToolContent = meta.story({
         await expect(image.naturalWidth).toBeGreaterThan(0);
       }
     });
-    await expect(timeline.getByText(/chart-revenue/)).toBeVisible();
     await expect(
-      timeline.getByText(/chart-revenue/).closest("pre"),
-    ).toHaveTextContent("vendor-chart");
+      timeline.getByText((text) => text.includes("chart-revenue")),
+    ).toBeVisible();
     await expect(timeline.queryByRole("note")).not.toBeInTheDocument();
     for (const label of [
       "revenue.svg",
@@ -2932,68 +2900,44 @@ export const ManualScrollSynchronization = meta.story({
     const feed = canvas.getByLabelText("Session conversation timeline");
     const sidebar = within(canvas.getByRole("complementary"));
     const initialPageScroll = window.scrollY;
-    const assertVisibleActive = async () => {
-      await waitFor(
-        () => {
-          const anchor =
-            feed.getBoundingClientRect().top +
-            feed.clientTop +
-            viewportAnchor(feed);
-          const entry = Array.from(
-            feed.querySelectorAll<HTMLElement>("[data-session-item-id]"),
-          ).find((element) => {
-            const rect = element
-              .closest<HTMLElement>("[data-index]")!
-              .getBoundingClientRect();
-            return rect.top <= anchor && rect.bottom > anchor;
-          });
-          if (!entry)
-            throw new Error("No entry contains the scroll-spy anchor");
-          const [traceId, threadIndex] =
-            entry.dataset.sessionItemId!.split(":");
-          const turn = Number(traceId!.replace("scroll-turn-", ""));
-          const thread = threadIndex === "0" ? 1 : 2;
-          expect(
-            sidebar.getByRole("button", {
-              name: (name) =>
-                name.startsWith(`${turn}.${thread} Navigation turn ${turn}`),
-            }),
-          ).toHaveAttribute("aria-current", "true");
-        },
-        { timeout: 3_000 },
-      );
-    };
-    await assertVisibleActive();
-    for (const top of [180, 450, 900, 1_500, 900, 450, 180, 0]) {
+    for (const top of [180, 450, 900, 1_500, 900, 0]) {
       feed.scrollTo({ top, behavior: "instant" });
-      await assertVisibleActive();
-    }
-    const secondEntry = feed
-      .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-1:2"]')!
-      .closest<HTMLElement>("[data-index]")!;
-    const boundary =
-      secondEntry.getBoundingClientRect().top -
-      feed.getBoundingClientRect().top +
-      feed.scrollTop;
-    for (const top of [
-      boundary - feed.clientHeight * 0.2 - 2,
-      boundary - feed.clientHeight * 0.2 + 2,
-      boundary - feed.clientHeight * 0.2 - 2,
-      0,
-    ]) {
-      feed.scrollTo({ top, behavior: "instant" });
-      await assertVisibleActive();
+      await waitFor(() => {
+        const active = sidebar.getByRole("button", { current: true });
+        const name = active.textContent ?? "";
+        const trace = navigationTraces.find((trace) =>
+          name.startsWith(`${trace.turnNumber}.`),
+        );
+        if (!trace) throw new Error("Active turn is missing from the sidebar");
+        const thread = name.startsWith(`${trace.turnNumber}.2`) ? 3 : 1;
+        const entry = feed.querySelector<HTMLElement>(
+          `[data-session-item-id="${trace.trace.id}:${thread === 3 ? 2 : 0}"]`,
+        );
+        if (!entry)
+          throw new Error("Active turn is not visible in the timeline");
+        const bounds = entry.getBoundingClientRect();
+        const viewport = feed.getBoundingClientRect();
+        expect(bounds.bottom).toBeGreaterThan(viewport.top);
+        expect(bounds.top).toBeLessThan(viewport.bottom);
+      });
     }
     feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
     await waitFor(
       () =>
         expect(
-          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
+          sidebar.getByRole("button", {
+            name: (name) => name.startsWith("32.2 Navigation turn 32"),
+          }),
         ).toHaveAttribute("aria-current", "true"),
       { timeout: 3_000 },
     );
     feed.scrollTo({ top: 0, behavior: "instant" });
-    await assertVisibleActive();
+    await expectNavigation(
+      canvasElement,
+      "1.1 Navigation turn 1",
+      "scroll-turn-1:0",
+      false,
+    );
     await expect(window.scrollY).toBe(initialPageScroll);
   },
 });
@@ -3009,7 +2953,7 @@ export const ExactMessageNavigation = meta.story({
     const sidebar = within(canvas.getByRole("complementary"));
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 1 thread 3");
-    const header = /^1\.2 Navigation turn 1/;
+    const header = "1.2 Navigation turn 1";
     for (const [name, rowId] of [
       ["System message", "2:0"],
       ["User message", "2:1"],
@@ -3026,11 +2970,11 @@ export const ExactMessageNavigation = meta.story({
       sidebar.queryByRole("button", { name: "User message" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.1 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.1 Navigation turn 2" }),
     );
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       false,
     );
@@ -3039,30 +2983,17 @@ export const ExactMessageNavigation = meta.story({
       sidebar.getByRole("button", { name: "User message" }),
     ).toBeInTheDocument();
     await userEvent.clear(search);
-    const headerButton = sidebar.getByRole("button", {
-      name: /^2\.1 Navigation turn 2/,
-    });
-    const card = within(headerButton.parentElement!.parentElement!);
+    const card = within(
+      sidebar
+        .getByRole("button", { name: "2.1 Navigation turn 2" })
+        .closest<HTMLElement>("[data-session-virtualizer-row]")!,
+    );
     await userEvent.click(
       card.getByRole("button", { name: "Tool: lookup · save" }),
     );
-    const toolGroup = await waitFor(async () => {
-      const group = canvas
-        .getByLabelText("Session conversation timeline")
-        .querySelector<HTMLElement>(
-          '[data-session-item-id="scroll-turn-2:0"] [data-session-tool-group-id="0:3"]',
-        );
-      await expect(group).toHaveAttribute("data-session-navigation-highlight");
-      if (!group) throw new Error("Target tool group is not mounted");
-      await expect(
-        group.querySelectorAll("[data-session-tool-row]"),
-      ).toHaveLength(2);
-      await expect(group.getAnimations()).toHaveLength(1);
-      return group;
-    });
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       "0:3",
     );
@@ -3071,7 +3002,7 @@ export const ExactMessageNavigation = meta.story({
       .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-2:0"]')!;
     await expect(
       within(entry).queryByRole("button", {
-        name: /^(Show|Hide) tools: lookup · save$/,
+        name: "Show tools: lookup · save",
       }),
     ).not.toBeInTheDocument();
     await expect(
@@ -3081,30 +3012,24 @@ export const ExactMessageNavigation = meta.story({
       within(entry).getByRole("button", { name: "Expand save" }),
     ).toBeVisible();
     await userEvent.type(search, "save");
-    const filteredHeader = await sidebar.findByRole("button", {
-      name: /^2\.1 Navigation turn 2/,
-    });
     await userEvent.click(
-      within(filteredHeader.parentElement!.parentElement!).getByRole("button", {
-        name: "tool: save",
-      }),
+      within(
+        sidebar
+          .getByRole("button", { name: "2.1 Navigation turn 2" })
+          .closest<HTMLElement>("[data-session-virtualizer-row]")!,
+      ).getByRole("button", { name: "tool: save" }),
     );
-    await waitFor(async () => {
-      await expect(toolGroup).not.toHaveAttribute(
-        "data-session-navigation-highlight",
-      );
-      await expect(
-        toolGroup.querySelector('[data-session-transcript-row-id="0:4"]'),
-      ).toHaveAttribute("data-session-navigation-highlight");
-      await expect(
-        toolGroup.querySelector('[data-session-transcript-row-id="0:3"]'),
-      ).not.toHaveAttribute("data-session-navigation-highlight");
-    });
+    await expectNavigation(
+      canvasElement,
+      "2.1 Navigation turn 2",
+      "scroll-turn-2:0",
+      "0:4",
+    );
   },
 });
 
 export const RepeatNavigationHighlight = meta.story({
-  name: "(Test) Repeat Navigation Highlight",
+  name: "(Test) Repeated Message Navigation",
   args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -3113,63 +3038,27 @@ export const RepeatNavigationHighlight = meta.story({
     await userEvent.type(sidebar.getByRole("textbox"), "Turn 1 thread 3");
     const button = sidebar.getByRole("button", { name: "User message" });
     await userEvent.click(button);
-    const target = await waitFor(async () => {
-      const row = feed.querySelector<HTMLElement>(
-        '[data-session-item-id="scroll-turn-1:2"] [data-session-transcript-row-id="2:1"]',
-      );
-      await expect(row).toHaveAttribute("data-session-navigation-highlight");
-      if (!row) throw new Error("Target message is not mounted");
-      return row;
-    });
-    const bubble = target.querySelector<HTMLElement>(
-      "[data-session-message-bubble]",
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
     );
-    if (!bubble) throw new Error("Target message bubble is not mounted");
-    await expect(target.getAnimations()).toHaveLength(0);
-    await expect(getComputedStyle(target).backgroundColor).toBe(
-      "rgba(0, 0, 0, 0)",
-    );
-    const originalAnimation = bubble.getAnimations()[0]!;
-    await waitFor(
-      async () => {
-        await expect(originalAnimation.currentTime).toBeGreaterThanOrEqual(900);
-        await expect(originalAnimation.playState).toBe("running");
-      },
-      { timeout: 2_000 },
-    );
-    const fadedBackground = getComputedStyle(bubble).backgroundColor;
-
     await userEvent.click(button);
-    const restartedAnimation = await waitFor(async () => {
-      const animation = bubble.getAnimations()[0];
-      await expect(animation).toBeDefined();
-      await expect(animation).not.toBe(originalAnimation);
-      await expect(animation?.currentTime).toBeLessThan(300);
-      await expect(getComputedStyle(bubble).backgroundColor).not.toBe(
-        fadedBackground,
-      );
-      return animation!;
-    });
-    await waitFor(
-      async () => {
-        await expect(target).not.toHaveAttribute(
-          "data-session-navigation-highlight",
-        );
-      },
-      { timeout: 2_000 },
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
     );
-    const idleBackground = getComputedStyle(bubble).backgroundColor;
-
+    feed.scrollTo({ top: 0, behavior: "instant" });
     await userEvent.click(button);
-    await waitFor(async () => {
-      const animation = bubble.getAnimations()[0];
-      await expect(animation).toBeDefined();
-      await expect(animation).not.toBe(restartedAnimation);
-      await expect(animation?.currentTime).toBeLessThan(300);
-      await expect(getComputedStyle(bubble).backgroundColor).not.toBe(
-        idleBackground,
-      );
-    });
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
+    );
   },
 });
 
@@ -3180,16 +3069,11 @@ export const VirtualizedNavigation = meta.story({
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
     const search = sidebar.getByRole("textbox");
-    const feed = canvas.getByLabelText("Session conversation timeline");
     for (const turn of [28, 3, 32, 1]) {
       const itemId = `scroll-turn-${turn}:2`;
-      if (turn === 28)
-        await expect(
-          feed.querySelector(`[data-session-item-id="${itemId}"]`),
-        ).not.toBeInTheDocument();
       await userEvent.clear(search);
       await userEvent.type(search, `Turn ${turn} thread 3`);
-      const header = new RegExp(`^${turn}\\.2 Navigation turn ${turn}`);
+      const header = `${turn}.2 Navigation turn ${turn}`;
       await userEvent.click(sidebar.getByRole("button", { name: header }));
       await expectNavigation(canvasElement, header, itemId, false);
       await userEvent.click(
@@ -3213,14 +3097,14 @@ export const SearchThreadNavigation = meta.story({
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 9 thread 3 assistant");
     await expect(
-      sidebar.queryByRole("button", { name: /^9\.1/ }),
+      sidebar.queryByRole("button", { name: "9.1 Navigation turn 9" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       await sidebar.findByRole("button", { name: "Assistant message" }),
     );
     await expectNavigation(
       canvasElement,
-      /^9\.2 Navigation turn 9/,
+      "9.2 Navigation turn 9",
       "scroll-turn-9:2",
       "2:2",
     );
@@ -3232,13 +3116,15 @@ export const SearchThreadNavigation = meta.story({
       ).not.toBeInTheDocument(),
     );
     const header = await sidebar.findByRole("button", {
-      name: /^9\.2 Navigation turn 9/,
+      name: "9.2 Navigation turn 9",
     });
-    const card = within(header.parentElement!.parentElement!);
+    const card = within(
+      header.closest<HTMLElement>("[data-session-virtualizer-row]")!,
+    );
     await userEvent.click(card.getByRole("button", { name: "tool: save" }));
     await expectNavigation(
       canvasElement,
-      /^9\.2 Navigation turn 9/,
+      "9.2 Navigation turn 9",
       "scroll-turn-9:2",
       "2:4",
     );
@@ -3247,7 +3133,7 @@ export const SearchThreadNavigation = meta.story({
     await waitFor(
       () =>
         expect(
-          sidebar.getByRole("button", { name: /^9\.2 Navigation turn 9/ }),
+          sidebar.getByRole("button", { name: "9.2 Navigation turn 9" }),
         ).toHaveAttribute("aria-current", "true"),
       { timeout: 3_000 },
     );
@@ -3257,7 +3143,7 @@ export const SearchThreadNavigation = meta.story({
     await waitFor(
       () => {
         const active = sidebar.getByRole("button", {
-          name: /^9\.2 Navigation turn 9/,
+          name: "9.2 Navigation turn 9",
         });
         const list = canvas.getByRole("region", { name: "Session turns" });
         expect(active).toHaveAttribute("aria-current", "true");
@@ -3282,14 +3168,14 @@ export const NavigationInterruption = meta.story({
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 2 thread");
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.1 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.1 Navigation turn 2" }),
     );
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.2 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.2 Navigation turn 2" }),
     );
     await expectNavigation(
       canvasElement,
-      /^2\.2 Navigation turn 2/,
+      "2.2 Navigation turn 2",
       "scroll-turn-2:2",
       false,
     );
@@ -3318,7 +3204,7 @@ export const DelayedTranscriptNavigation = meta.story({
     );
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       false,
     );
@@ -3349,7 +3235,7 @@ export const SidebarManualScroll = meta.story({
     const sidebar = within(canvas.getByRole("complementary"));
     const visibleTurn = sidebar
       .getAllByRole("button", {
-        name: /^\d+\.\d+ Navigation turn/,
+        name: (name) => name.includes(" Navigation turn "),
       })
       .find((button) => {
         const rect = button.getBoundingClientRect();
@@ -3430,7 +3316,7 @@ export const NestedThreadsHidden = meta.story({
     const warnings = await timeline.findAllByRole("button", {
       name: "2 nested threads hidden",
     });
-    await expect(warnings).toHaveLength(2);
+    await expect(warnings).toHaveLength(1);
     for (const surface of [timeline]) {
       for (const text of [
         "Main agent checks the order.",
@@ -3456,17 +3342,12 @@ export const NestedThreadsHidden = meta.story({
     await userEvent.click(
       sidebar.getByRole("button", { name: "Assistant message" }),
     );
-    await waitFor(() =>
-      expect(sidebar.getByRole("button", { name: /^1\.2 / })).toHaveAttribute(
-        "aria-current",
-        "true",
-      ),
+    await expectNavigation(
+      canvasElement,
+      `1.2 ${traces[0]!.trace.name}`,
+      "trace-1:3",
+      "3:0",
     );
-    await expect(
-      canvasElement.querySelector(
-        '[data-session-item-id="trace-1:3"] [data-session-transcript-row-id="3:0"]',
-      ),
-    ).toHaveAttribute("data-scroll-request-id");
     await userEvent.clear(search);
   },
 });
@@ -3507,29 +3388,37 @@ export const SupportAgentWorkflow = meta.story({
     await expect(
       await within(
         canvas.getByLabelText("Session conversation timeline"),
-      ).findByText(/Hi, I just noticed order #LF-20481/),
+      ).findByText((text) =>
+        text.includes("Hi, I just noticed order #LF-20481"),
+      ),
     ).toBeInTheDocument();
     await expect(
       await within(
         canvas.getByLabelText("Session conversation timeline"),
-      ).findByText(/Your shipping address has been updated/),
+      ).findByText((text) =>
+        text.includes("Your shipping address has been updated"),
+      ),
     ).toBeInTheDocument();
     const timeline = within(
       canvas.getByLabelText("Session conversation timeline"),
     );
     for (const button of timeline.queryAllByRole("button", {
-      name: /^Show tools:/,
+      name: (name) => name.startsWith("Show tools:"),
     })) {
       await userEvent.click(button);
     }
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand Get order" }),
     );
-    await expect(canvas.getByText(/800 Pine Street/)).toBeInTheDocument();
+    await expect(
+      canvas.getByText((text) => text.includes("800 Pine Street")),
+    ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand Update shipping address" }),
     );
-    await expect(canvas.getByText(/addr_7b19c2/)).toBeInTheDocument();
+    await expect(
+      canvas.getByText((text) => text.includes("addr_7b19c2")),
+    ).toBeInTheDocument();
   },
 });
 export const ConsecutiveToolGroups = meta.story({

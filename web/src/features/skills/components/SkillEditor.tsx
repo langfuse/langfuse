@@ -521,7 +521,7 @@ export function SkillEditor({
             <InstallSkillDialog
               projectId={projectId}
               initialValues={{
-                by: "name",
+                by: "all",
                 name,
                 version: baseVersion,
                 label: labels.includes("production") ? "production" : "latest",

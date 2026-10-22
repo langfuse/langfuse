@@ -409,6 +409,8 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  // Opt in to the AI-features project's production skills with this tag.
+  LANGFUSE_IN_APP_AGENT_SKILLS_TAG: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

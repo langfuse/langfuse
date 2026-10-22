@@ -66,6 +66,8 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       apiKey: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       // Starter-org provisioning serializes on SELECT ... FOR UPDATE.
       $queryRaw: vi.fn(async (): Promise<unknown> => []),

@@ -21,6 +21,7 @@ import { healthFeature } from "./health";
 import { scoresFeature } from "./scores";
 import { metricsFeature } from "./metrics";
 import { modelsFeature } from "./models";
+import { llmConnectionsFeature } from "./llmConnections";
 import { mediaFeature } from "./media";
 import { evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
@@ -41,6 +42,7 @@ const MCP_FEATURES = [
   scoresFeature,
   metricsFeature,
   modelsFeature,
+  llmConnectionsFeature,
   mediaFeature,
   evalsFeature,
   dashboardWidgetsFeature,

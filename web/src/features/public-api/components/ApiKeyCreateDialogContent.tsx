@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
 import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";

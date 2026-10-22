@@ -1,11 +1,15 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SEPARATE_GATEWAY_API_KEYS } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   ApiKeySettingsTable,
@@ -26,15 +30,24 @@ export function ConnectedApiKeySettingsTable({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
 
-  const projectApiKeys = api.projectApiKeys.byProjectId.useQuery(
-    { projectId: entityId },
-    { enabled: scope === "project" },
-  );
-  const organizationApiKeys = api.organizationApiKeys.byOrganizationId.useQuery(
-    { orgId: entityId },
-    { enabled: scope === "organization" },
-  );
-  const apiKeys = scope === "project" ? projectApiKeys : organizationApiKeys;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [includeGatewayKeys, setIncludeGatewayKeys] = useState(false);
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    enableForAdmins: false,
+    organizationId: scope === "organization" ? entityId : undefined,
+  });
+  const showGatewayKeyFilter =
+    SEPARATE_GATEWAY_API_KEYS && scope === "organization" && isAiGatewayEnabled;
+  const tableData = useApiKeySettingsTableData({
+    entityId,
+    scope,
+    includeGatewayKeys,
+    searchQuery,
+  });
+  const noResultsMessage =
+    searchQuery.trim().length > 0
+      ? "No API keys match the current search."
+      : "None";
 
   const deleteProjectApiKey = api.projectApiKeys.delete.useMutation({
     onSuccess: () => utils.projectApiKeys.invalidate(),
@@ -42,13 +55,6 @@ export function ConnectedApiKeySettingsTable({
   const deleteOrganizationApiKey = api.organizationApiKeys.delete.useMutation({
     onSuccess: () => utils.organizationApiKeys.invalidate(),
   });
-  const tableData = useMemo<AsyncTableData<ApiKeySettingsTableRow[]>>(() => {
-    if (apiKeys.isLoading) return { status: "loading" };
-    if (apiKeys.isError) {
-      return { status: "error", error: "Failed to load API keys" };
-    }
-    return { status: "success", data: apiKeys.data ?? [] };
-  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading]);
 
   const deleteApiKey =
     scope === "project" ? deleteProjectApiKey : deleteOrganizationApiKey;
@@ -86,6 +92,15 @@ export function ConnectedApiKeySettingsTable({
         >
           {({ openDialog: openDeleteDialog }) => (
             <ApiKeySettingsTable
+              search={{ value: searchQuery, onChange: setSearchQuery }}
+              gatewayKeyFilter={
+                showGatewayKeyFilter
+                  ? {
+                      includeGatewayKeys,
+                      onIncludeGatewayKeysChange: setIncludeGatewayKeys,
+                    }
+                  : undefined
+              }
               data={tableData}
               editNameAction={{
                 hasAccess: hasWriteAccess,
@@ -93,7 +108,7 @@ export function ConnectedApiKeySettingsTable({
               }}
               hasWriteAccess={hasWriteAccess}
               onDelete={openDeleteDialog}
-              noResultsMessage="None"
+              noResultsMessage={noResultsMessage}
             />
           )}
         </ConfirmationDialogController>
@@ -212,4 +227,38 @@ function ApiKeyNameDialog({
       </Dialog.Body>
     </Dialog>
   );
+}
+
+function useApiKeySettingsTableData({
+  entityId,
+  scope,
+  includeGatewayKeys,
+  searchQuery,
+}: {
+  entityId: string;
+  scope: ApiKeyScope;
+  includeGatewayKeys: boolean;
+  searchQuery: string;
+}) {
+  const projectApiKeys = api.projectApiKeys.byProjectId.useQuery(
+    { projectId: entityId },
+    { enabled: scope === "project" },
+  );
+  // keepPreviousData keeps the current rows visible while the gateway filter refetches.
+  const organizationApiKeys = api.organizationApiKeys.byOrganizationId.useQuery(
+    { orgId: entityId, includeGatewayKeys },
+    { enabled: scope === "organization", placeholderData: keepPreviousData },
+  );
+  const apiKeys = scope === "project" ? projectApiKeys : organizationApiKeys;
+
+  return useMemo<AsyncTableData<ApiKeySettingsTableRow[]>>(() => {
+    if (apiKeys.isLoading) return { status: "loading" };
+    if (apiKeys.isError) {
+      return { status: "error", error: "Failed to load API keys" };
+    }
+    return {
+      status: "success",
+      data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
+    };
+  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
 }

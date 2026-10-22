@@ -8,13 +8,8 @@ import {
   GatewayConfigurationView,
   type IngestionMode,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
-import { IngestionProjectSetupPlaceholder } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/IngestionProjectSetupPlaceholder/IngestionProjectSetupPlaceholder";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-
-const CLOUD_INGESTION_MODES = ["USAGE", "FULL"] as const;
-const SELF_HOSTED_INGESTION_MODES = ["NONE", "USAGE", "FULL"] as const;
 
 type Project = {
   id: string;
@@ -30,7 +25,6 @@ export function GatewayConfigurationPage({
   projects: Project[];
 }) {
   const session = useSession();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const configQuery = api.aiGateway.getConfig.useQuery({
     orgId: organizationId,
   });
@@ -105,43 +99,13 @@ export function GatewayConfigurationPage({
     }
   }
 
-  async function handleSelectProject(projectId: string) {
-    try {
-      await saveGatewayConfig({
-        projectId,
-        ingestionMode: initialIngestionMode,
-      });
-    } catch (error) {
-      reportNonTrpcError(error, "ai-gateway-configuration");
-    }
-  }
-
-  /** Cloud always captures traffic, so it needs a project; self-hosted can use `NONE`. */
-  const showSetupPlaceholder =
-    isLangfuseCloud &&
-    !hasActiveIngestionProject(config?.defaultIngestionProject, organizationId);
-  if (showSetupPlaceholder) {
-    return (
-      <IngestionProjectSetupPlaceholder
-        ingestionMode={initialIngestionMode}
-        isSaving={createProject.isPending || updateConfig.isPending}
-        onCreate={handleCreateProject}
-        projects={projects.filter((project) => !project.deletedAt)}
-        onSelectProject={handleSelectProject}
-      />
-    );
-  }
-
   return (
     <GatewayConfigurationView
-      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
+      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${initialIngestionMode}`}
       projects={projects}
       gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
       initialIngestionMode={initialIngestionMode}
-      availableIngestionModes={
-        isLangfuseCloud ? CLOUD_INGESTION_MODES : SELF_HOSTED_INGESTION_MODES
-      }
       isSaving={createProject.isPending || updateConfig.isPending}
       saveError={createProject.isError || updateConfig.isError}
       onSave={async ({ projectId, ingestionMode }) => {
@@ -169,11 +133,4 @@ function ConfigurationSkeleton() {
       </div>
     </div>
   );
-}
-
-function hasActiveIngestionProject(
-  project: { orgId: string; deletedAt: Date | null } | null | undefined,
-  organizationId: string,
-) {
-  return !!project && !project.deletedAt && project.orgId === organizationId;
 }

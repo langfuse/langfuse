@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";

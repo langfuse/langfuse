@@ -8,7 +8,7 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusMessage } from "@/src/components/design-system/StatusMessage/StatusMessage";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";

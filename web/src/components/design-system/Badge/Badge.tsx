@@ -2,12 +2,12 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type IconComponent } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, type ElementType } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border text-xs leading-none font-normal",
   {
     variants: {
       size: {
@@ -57,6 +57,10 @@ const badgeVariants = cva(
         true: "underline-dotted",
         false: "",
       },
+      dismissible: {
+        true: "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        false: "",
+      },
       /** Metric values (latency, cost, timestamps) read in mono. */
       font: {
         sans: "font-sans",
@@ -80,8 +84,10 @@ type BadgeShellProps = Omit<
   ComponentPropsWithoutRef<"span">,
   "className" | "style"
 > &
-  VariantProps<typeof badgeVariants> & {
+  Omit<VariantProps<typeof badgeVariants>, "dismissible"> & {
     asChild?: boolean;
+    /** When set, the shell renders as a `<button type="button">` and calls this on click. */
+    onDismiss?: () => void;
   };
 
 /**
@@ -97,17 +103,30 @@ export function BadgeShell({
   interactive,
   font,
   shouldWrap,
+  onDismiss,
   ...props
 }: BadgeShellProps) {
-  const Component = asChild ? Slot : "span";
+  const Component = ((): ElementType => {
+    if (asChild) return Slot;
+    if (onDismiss != null) return "button";
+    return "span";
+  })();
 
   return (
     <Component
+      {...props}
+      {...(onDismiss != null && { type: "button", onClick: onDismiss })}
       className={cn(
         "group/badge",
-        badgeVariants({ color, size, interactive, font, shouldWrap }),
+        badgeVariants({
+          color,
+          size,
+          interactive,
+          font,
+          shouldWrap,
+          dismissible: onDismiss != null,
+        }),
       )}
-      {...props}
     />
   );
 }

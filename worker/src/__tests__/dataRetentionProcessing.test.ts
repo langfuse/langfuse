@@ -31,7 +31,12 @@ import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/lic
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { InAppAgentRetentionCleaner } from "../features/in-app-agent-retention-cleaner";
 
@@ -133,7 +138,8 @@ describe("DataRetentionProcessingJob", () => {
         },
       });
       const key = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(creator.id),
         isInAppAgentKey: true,

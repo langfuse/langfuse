@@ -742,8 +742,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
         NULL,
         dateDiff('millisecond', e.start_time, e.completion_start_time)
     ) AS time_to_first_token,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -804,8 +804,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     e.parent_span_id AS parent_observation_id,
     e.start_time AS start_time,
     e.end_time AS end_time,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -1012,8 +1012,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
         NULL,
         dateDiff('millisecond', e.start_time, e.completion_start_time)
     ) AS time_to_first_token,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -1227,8 +1227,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
         NULL,
         dateDiff('millisecond', e.start_time, e.completion_start_time)
     ) AS time_to_first_token,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -1297,8 +1297,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
     e.tags AS tags,
     e.release AS release,
     e.model_id AS model_id,
-    input,
-    output,
+    e.input,
+    e.output,
     if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) AS latency,
     if(
         isNull(e.completion_start_time),
@@ -1336,8 +1336,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     e.parent_span_id AS parent_observation_id,
     e.start_time AS start_time,
     e.end_time AS end_time,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -1405,8 +1405,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     e.tags AS tags,
     e.release AS release,
     e.model_id AS model_id,
-    input,
-    output,
+    e.input,
+    e.output,
     if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) AS latency,
     if(
         isNull(e.completion_start_time),
@@ -1486,8 +1486,8 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
         NULL,
         dateDiff('millisecond', e.start_time, e.completion_start_time)
     ) AS time_to_first_token,
-    input,
-    output
+    e.input,
+    e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
@@ -2119,8 +2119,8 @@ FROM
         mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
         e.tags AS tags,
         e.release AS release,
-        input,
-        output,
+        e.input,
+        e.output,
         e.is_deleted AS is_deleted
     FROM events_full AS e
     WHERE (e.project_id = {param1:String})
@@ -2240,8 +2240,8 @@ FROM
         mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
         e.tags AS tags,
         e.release AS release,
-        leftUTF8(input, 1000) AS input,
-        leftUTF8(output, 1000) AS output,
+        leftUTF8(e.input, 1000) AS input,
+        leftUTF8(e.output, 1000) AS output,
         e.is_deleted AS is_deleted
     FROM events_core AS e
     WHERE (e.project_id = {param1:String})
@@ -3542,6 +3542,288 @@ WHERE (e.project_id = {param1:String})
     AND (session_id != '')
 GROUP BY session_id
 LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events trace aggregation family > getTracesFromEventsTableForPublicApi fields=all 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 50,
+    },
+    "route": "unknown",
+    "sql": "WITH
+    traces AS
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(e.start_time) AS timestamp,
+            argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS session_id,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.input, e.event_ts, e.parent_span_id = '') AS input,
+            argMaxIf(e.output, e.event_ts, e.parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                e.event_ts,
+                e.parent_span_id = ''
+            ) AS metadata,
+            min(e.created_at) AS created_at,
+            max(e.updated_at) AS updated_at,
+            sum(e.total_cost) AS total_cost,
+            if(
+                max(e.end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+            ) AS observation_count,
+            argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
+            max(e.public) AS public,
+            argMaxIf(e.experiment_item_id, e.event_ts, e.experiment_item_id != '') AS experiment_item_id,
+            sumMap(e.usage_details) AS usage_details,
+            sumMap(e.cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(e.level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(e.level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(e.level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(e.level = 'WARNING') AS warning_count,
+            countIf(e.level = 'ERROR') AS error_count,
+            countIf(e.level = 'DEFAULT') AS default_count,
+            countIf(e.level = 'DEBUG') AS debug_count,
+            argMaxIf(e.tags, e.event_ts, notEmpty(e.tags)) AS tags,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') AS evaluator_id,
+            argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') AS evaluation_rule_id,
+            any(e.experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE e.project_id = {param1:String}
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    ),
+    score_stats AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids
+        FROM scores
+        WHERE (project_id = {param1:String})
+            AND (observation_id IS NULL)
+        GROUP BY
+            trace_id,
+            project_id
+    )
+SELECT
+    t.id,
+    t.project_id,
+    t.timestamp,
+    t.name,
+    t.environment,
+    t.session_id,
+    t.user_id,
+    t.version,
+    t.created_at,
+    t.updated_at,
+    t.tags,
+    t.bookmarked,
+    t.public,
+    t.release,
+    CONCAT('/project/', t.project_id, '/traces/', t.id) AS htmlPath,
+    t.input,
+    t.output,
+    t.metadata,
+    s.score_ids AS scores,
+    t.observation_ids AS observations,
+    t.total_cost AS totalCost,
+    COALESCE(t.latency_milliseconds / 1000, 0) AS latency
+FROM traces AS t
+LEFT JOIN score_stats AS s ON (s.trace_id = t.id) AND (s.project_id = t.project_id)
+ORDER BY
+    t.project_id DESC,
+    t.timestamp DESC
+LIMIT {param2:Int32}",
+  },
+]
+`;
+
+exports[`golden: events trace aggregation family > getTracesFromEventsTableForPublicApi fields=core fromTimestamp=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-01 00:00:00.000",
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": 50,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(e.start_time) AS timestamp,
+            argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS session_id,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.input, e.event_ts, e.parent_span_id = '') AS input,
+            argMaxIf(e.output, e.event_ts, e.parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                e.event_ts,
+                e.parent_span_id = ''
+            ) AS metadata,
+            min(e.created_at) AS created_at,
+            max(e.updated_at) AS updated_at,
+            sum(e.total_cost) AS total_cost,
+            if(
+                max(e.end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+            ) AS observation_count,
+            argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
+            max(e.public) AS public,
+            argMaxIf(e.experiment_item_id, e.event_ts, e.experiment_item_id != '') AS experiment_item_id,
+            sumMap(e.usage_details) AS usage_details,
+            sumMap(e.cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(e.level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(e.level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(e.level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(e.level = 'WARNING') AS warning_count,
+            countIf(e.level = 'ERROR') AS error_count,
+            countIf(e.level = 'DEFAULT') AS default_count,
+            countIf(e.level = 'DEBUG') AS debug_count,
+            argMaxIf(e.tags, e.event_ts, notEmpty(e.tags)) AS tags,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') AS evaluator_id,
+            argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') AS evaluation_rule_id,
+            any(e.experiment_id) AS experiment_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (start_time >= ({param2:DateTime64(3)} - toIntervalDay(2)))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.project_id,
+    t.timestamp,
+    t.name,
+    t.environment,
+    t.session_id,
+    t.user_id,
+    t.version,
+    t.created_at,
+    t.updated_at,
+    t.tags,
+    t.bookmarked,
+    t.public,
+    t.release,
+    CONCAT('/project/', t.project_id, '/traces/', t.id) AS htmlPath
+FROM traces AS t
+WHERE t.timestamp >= {param3:DateTime64(3, 'UTC')}
+ORDER BY
+    t.project_id DESC,
+    t.timestamp DESC
+LIMIT {param4:Int32}",
+  },
+]
+`;
+
+exports[`golden: events trace aggregation family > getTracesIdentifierForSessionFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+    },
+    "route": "unknown",
+    "sql": "WITH event_traces AS
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(e.start_time) AS timestamp,
+            argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
+            argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS session_id,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.trace_id IN (
+                SELECT DISTINCT trace_id
+                FROM events_core AS events
+                WHERE (events.project_id = {param1:String})
+                    AND (events.is_deleted = 0)
+                    AND (session_id = {param2:String})
+            ))
+        GROUP BY
+            trace_id,
+            project_id
+        HAVING session_id = {param2:String}
+    )
+SELECT
+    t.id,
+    t.user_id,
+    t.name,
+    t.timestamp,
+    t.project_id,
+    t.environment
+FROM event_traces AS t
+ORDER BY t.timestamp ASC
+LIMIT 1 BY
+    t.id,
+    t.project_id",
   },
 ]
 `;

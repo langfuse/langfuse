@@ -21,7 +21,7 @@ import { Button as DesignSystemButton } from "@/src/components/design-system/But
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import {
   Table,
   type AsyncTableData,
@@ -74,7 +74,7 @@ export function SkillsPage() {
         <InstallSkillDialog
           projectId={projectId}
           initialValues={{
-            by: "tag",
+            by: "all",
             name: "",
             version: null,
             label: "production",

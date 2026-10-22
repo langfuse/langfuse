@@ -6,6 +6,8 @@ import { z } from "zod/v4";
 import {
   createEs256JwtSigner,
   createEs256JwtVerifier,
+  deriveEs256KeyId,
+  deriveEs256PublicKey,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 
@@ -208,5 +210,50 @@ describe("ES256 JWT utilities", () => {
     expect(() =>
       verifyToken(token, [{ id: "current", publicKey: key.publicKey }]),
     ).toThrow();
+  });
+
+  describe("key derivation", () => {
+    const { privateKey, publicKey } = generateKeyPairSync("ec", {
+      namedCurve: "P-256",
+    });
+    const publicKeyPem = publicKey
+      .export({ format: "pem", type: "spki" })
+      .toString();
+    // What Helm's `genPrivateKey "ecdsa"` emits.
+    const sec1Pem = privateKey
+      .export({ format: "pem", type: "sec1" })
+      .toString();
+
+    it.each([
+      {
+        format: "PKCS#8",
+        privateKey: privateKey
+          .export({ format: "pem", type: "pkcs8" })
+          .toString(),
+      },
+      { format: "SEC1", privateKey: sec1Pem },
+      { format: "escaped SEC1", privateKey: sec1Pem.replaceAll("\n", "\\n") },
+    ])(
+      "derives a public key that verifies tokens from a $format private key",
+      ({ privateKey }) => {
+        const derived = deriveEs256PublicKey(privateKey);
+        const token = signToken({ privateKey, keyId: "current" });
+
+        expect(derived).toBe(publicKeyPem);
+        expect(
+          verifyToken(token, [{ id: "current", publicKey: derived }]).subjectId,
+        ).toBe("subject-1");
+      },
+    );
+
+    it("derives the same key ID from escaped and unescaped public keys", () => {
+      const keyId = deriveEs256KeyId(publicKeyPem);
+
+      expect(keyId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(deriveEs256KeyId(publicKeyPem.replaceAll("\n", "\\n"))).toBe(
+        keyId,
+      );
+      expect(deriveEs256KeyId(generatePemKeyPair().publicKey)).not.toBe(keyId);
+    });
   });
 });

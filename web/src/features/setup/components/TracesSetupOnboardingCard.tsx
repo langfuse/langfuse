@@ -1,7 +1,7 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";

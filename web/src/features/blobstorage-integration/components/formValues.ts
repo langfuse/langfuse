@@ -6,7 +6,7 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type BlobStorageIntegration,
-  type ObservationFieldGroupFull,
+  type ExportFieldGroup,
   type ExportSourceContext,
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
@@ -63,7 +63,7 @@ export function buildBlobStorageFormValues(
     // Empty array in the DB means "export everything" (the worker falls back
     // to all groups), so surface it as the full selection in the form.
     exportFieldGroups: state?.exportFieldGroups?.length
-      ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+      ? (state.exportFieldGroups as ExportFieldGroup[])
       : [...OBSERVATION_FIELD_GROUPS_FULL],
     compressed: state?.compressed ?? true,
   };

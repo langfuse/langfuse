@@ -4701,6 +4701,44 @@ describe("Clickhouse Events Repository Test", () => {
         ]);
       });
     });
+
+    it("should skip traces whose session spans are all soft-deleted", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const deletedTraceId = randomUUID();
+      const liveTraceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: deletedTraceId,
+          session_id: sessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+          is_deleted: 1,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: liveTraceId,
+          session_id: sessionId,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+        expect(traces.map((trace) => trace.id)).toEqual([liveTraceId]);
+      });
+    });
   });
 
   maybe("Update methods", () => {

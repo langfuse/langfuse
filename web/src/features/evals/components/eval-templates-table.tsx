@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -38,7 +38,7 @@ import {
   useSingleTemplateValidation,
 } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";

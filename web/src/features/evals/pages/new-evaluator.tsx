@@ -15,7 +15,7 @@ import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {

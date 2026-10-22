@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePeekEvalTemplateData";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { TablePeekView } from "@/src/components/table/peek";
 

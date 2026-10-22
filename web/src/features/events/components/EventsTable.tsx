@@ -14,7 +14,7 @@ import {
 
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -96,7 +96,7 @@ import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";

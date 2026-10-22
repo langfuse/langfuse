@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider, usePlaygroundContext } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";

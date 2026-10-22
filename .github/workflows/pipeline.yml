@@ -1853,29 +1853,53 @@ jobs:
         include:
           - component: web
             image_name: langfuse
+            context: .
             dockerfile: ./web/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: web
             image_name: langfuse
+            context: .
             dockerfile: ./web/Dockerfile
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
           - component: worker
             image_name: langfuse-worker
+            context: .
             dockerfile: ./worker/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: worker
             image_name: langfuse-worker
+            context: .
             dockerfile: ./worker/Dockerfile
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
+          # The gateway crate is its own build context (ai-gateway/.dockerignore).
+          - component: ai-gateway
+            image_name: ai-gateway
+            context: ./ai-gateway
+            dockerfile: ./ai-gateway/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: ai-gateway
+            image_name: ai-gateway
+            context: ./ai-gateway
+            dockerfile: ./ai-gateway/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
     runs-on: ${{ matrix.runner }}
+    # publish-docker-image-release is gated on this whole matrix succeeding, so
+    # a failed gateway leg must not fail the job and block web and worker. The
+    # gateway publish leg then finds fewer than two digests and fails, which
+    # still raises the release Slack alert.
+    continue-on-error: ${{ matrix.component == 'ai-gateway' }}
     permissions:
       packages: write
       contents: read
@@ -1956,7 +1980,7 @@ jobs:
         id: build-ghcr
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
@@ -1964,13 +1988,14 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-dockerhub
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
@@ -1978,6 +2003,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests
@@ -2016,6 +2042,8 @@ jobs:
             image_name: langfuse
           - component: worker
             image_name: langfuse-worker
+          - component: ai-gateway
+            image_name: ai-gateway
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       packages: write

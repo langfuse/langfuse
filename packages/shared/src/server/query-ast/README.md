@@ -96,12 +96,15 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
   it, and an unqualified truncated column are compile errors while `events`
-  is in scope. Name `events_core` to read the truncated copy on purpose;
-  `events_core` / `events_full` stay selectable by name, which is also the
-  override for a shape the pass rejects.
+  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  (input/output/metadata previews): it always compiles to `events_core`,
+  whatever columns it reads, and the pass does not reject `*` or raw SQL over
+  it. `events_core` / `events_full` are not part of the Kysely schema, and
+  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
+  compile error; only the routing pass writes them.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
   identifier that is not a registry table (`traces`, `events_core`, the
-  logical `events`, …) and doesn't reuse the name of a sibling or an
+  logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
   enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
   name is an unqualified registry table or a CTE in scope; schema-qualified
   names (`default.traces`) are rejected, since the registry describes tables
@@ -109,9 +112,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
   recursive and cyclic CTEs are out. The passes then read every registry
   name as its table. Rename or reorder the CTEs when the compile rejects
   them; add a physical table to the registry to read it.
-- **Function and aggregate names must be plain identifiers.**
-  The compiler writes them verbatim, so anything else fails to compile.
-  `collate` is not supported.
+- **Identifiers, function and aggregate names must be plain identifiers**
+  (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
+  else fails to compile. This covers columns, tables, aliases, CTE names,
+  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  columns instead. A positive integer after a qualifier (`x.1`) is tuple
+  element access and compiles as is. `collate` is not supported.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -163,8 +169,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Build shared expressions from the calling query's expression builder.**
   A reusable events expression or select list is wrapped in
   `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects)` or called inside
-  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join, no
   narrower `e`. Columns inside such a helper are written `e.…`, so an alias
   of the same name in the calling query can't shadow them. A helper typed
@@ -212,7 +222,7 @@ db.selectFrom("events")
 // soft-delete pass so a deleted latest version is dropped
 ```
 
-**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
 
 ```ts
 db.selectFrom("scores as s")

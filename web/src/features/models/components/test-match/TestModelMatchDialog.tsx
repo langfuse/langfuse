@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {

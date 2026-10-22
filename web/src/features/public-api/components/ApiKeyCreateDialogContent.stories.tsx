@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import preview from "../../../../.storybook/preview";
 import { Dialog } from "@/src/components/ui/dialog";
 import { type Session } from "next-auth";

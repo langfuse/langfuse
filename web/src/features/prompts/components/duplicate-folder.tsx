@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";

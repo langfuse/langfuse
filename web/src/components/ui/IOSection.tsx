@@ -13,6 +13,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 
 /** An icon button in the section header. */
@@ -40,6 +41,13 @@ export type IOSectionToggle = {
   disabled?: boolean;
 };
 
+/** A segmented switch in the header, always visible while the section is open. */
+type IOSectionTabs = {
+  value: string;
+  onValueChange: (value: string) => void;
+  items: { value: string; label: string; count?: number }[];
+};
+
 /** An info hover card after the title. */
 export type IOSectionInfo = {
   /** Accessible name of the info trigger. */
@@ -62,6 +70,8 @@ export type IOSectionProps = {
   actions?: IOSectionAction[];
   status?: IOSectionStatus;
   toggle?: IOSectionToggle;
+  /** Primary view switch for the body; hidden while collapsed. */
+  tabs?: IOSectionTabs;
   /** Initial state of an uncontrolled section. */
   defaultCollapsed?: boolean;
   /** Controlled state; the header calls `onCollapsedChange`. */
@@ -144,6 +154,7 @@ export function IOSection({
   actions,
   status,
   toggle,
+  tabs,
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
@@ -200,6 +211,22 @@ export function IOSection({
           tabIndex={-1}
           onClick={toggleCollapsed}
         />
+        {tabs && !isCollapsed ? (
+          <div className="flex shrink-0 items-center pr-1 font-normal normal-case">
+            <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
+              <Tabs.List variant="inset" size="sm">
+                {tabs.items.map((item) => (
+                  <Tabs.Trigger
+                    key={item.value}
+                    value={item.value}
+                    label={item.label}
+                    count={item.count}
+                  />
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </div>
+        ) : null}
         <div
           className={cn(
             "mr-1 flex shrink-0 flex-row items-center gap-1",

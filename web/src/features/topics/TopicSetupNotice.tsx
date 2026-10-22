@@ -2,7 +2,7 @@ import { Sparkles } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
 
 type TopicSetupNoticeProps = {
@@ -143,18 +143,6 @@ export function TopicSetupNotice({
             ]}
           />
         </div>
-      ) : null}
-      {status?.kind === "models" && !showOnboarding ? (
-        <Alert variant="info">
-          <Alert.Title>Choose the models Topics runs on</Alert.Title>
-          <Alert.Description>
-            <p>
-              Topics uses your LLM connections for three jobs: facet summaries,
-              embeddings, and topic clustering. Open Configure Topics to set all
-              three.
-            </p>
-          </Alert.Description>
-        </Alert>
       ) : null}
     </>
   );

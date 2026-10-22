@@ -24,7 +24,12 @@ import {
   PromptService,
   redis,
 } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   createUserWithOrgRole,
   protectPromptLabel,
@@ -3355,7 +3360,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         role: Role.MEMBER,
       });
       const apiKey = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(userId),
         isInAppAgentKey: true,
@@ -3441,7 +3447,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         role: Role.MEMBER,
       });
       const apiKey = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(userId),
         isInAppAgentKey: true,
