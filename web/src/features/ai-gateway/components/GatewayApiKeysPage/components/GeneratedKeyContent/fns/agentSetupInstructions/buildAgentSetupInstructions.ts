@@ -1,6 +1,7 @@
 import type { AgentSetupContext } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import { buildApiInstructions } from "./buildApiInstructions";
 import { buildClaudeCodeInstructions } from "./buildClaudeCodeInstructions";
+import { buildClaudeDesktopInstructions } from "./buildClaudeDesktopInstructions";
 import { buildCodexInstructions } from "./buildCodexInstructions";
 import { buildOpenCodeInstructions } from "./buildOpenCodeInstructions";
 
@@ -8,6 +9,7 @@ import { buildOpenCodeInstructions } from "./buildOpenCodeInstructions";
 export function buildAgentSetupInstructions(context: AgentSetupContext) {
   return [
     buildApiInstructions(context),
+    buildClaudeDesktopInstructions(context),
     buildClaudeCodeInstructions(context),
     buildCodexInstructions(context),
     buildOpenCodeInstructions(context),

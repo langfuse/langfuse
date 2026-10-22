@@ -7,7 +7,9 @@ export function formatAgentSetupMarkdown(instructions: AgentSetupInstructions) {
     [
       `## ${index + 1}. ${step.title}`,
       step.description,
-      `\`\`\`${step.language}\n${step.code}\n\`\`\``,
+      step.code === undefined
+        ? undefined
+        : `\`\`\`${step.language}\n${step.code}\n\`\`\``,
     ]
       .filter(Boolean)
       .join("\n\n"),

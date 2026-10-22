@@ -5,7 +5,8 @@ const GATEWAY_DOCS_URL = "https://langfuse.com/docs/ai-gateway";
 
 export const AGENT_SETUP_DOCS_URLS = {
   api: `${GATEWAY_DOCS_URL}/get-started`,
-  "claude-code": `${GATEWAY_DOCS_URL}/coding-agents/claude-code`,
+  "claude-desktop": `${GATEWAY_DOCS_URL}/coding-agents/claude-code#claude-desktop`,
+  "claude-code": `${GATEWAY_DOCS_URL}/coding-agents/claude-code#claude-code-cli`,
   codex: `${GATEWAY_DOCS_URL}/coding-agents/codex`,
   opencode: `${GATEWAY_DOCS_URL}/coding-agents/opencode`,
 } as const;

@@ -12,7 +12,9 @@ const context = {
 
 describe("agent setup instructions", () => {
   it("only checks the routes of configured providers", () => {
-    const codes = buildApiInstructions(context).steps.map((s) => s.code);
+    const codes = buildApiInstructions(context).steps.flatMap(
+      (s) => s.code ?? [],
+    );
 
     expect(codes.some((code) => code.includes("/anthropic/v1/models"))).toBe(
       true,
@@ -45,6 +47,7 @@ describe("agent setup instructions", () => {
       expect(markdown).toMatch(/^# /);
       expect(markdown).toContain(GATEWAY_KEY_PLACEHOLDER);
       expect(markdown).not.toMatch(/sk-lf-/);
+      expect(markdown).not.toContain("undefined");
       expect(markdown.trimEnd()).toMatch(
         new RegExp(`Docs: ${instructions.docsUrl}$`),
       );

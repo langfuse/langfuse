@@ -27,11 +27,13 @@ export function AgentSetupSteps({ instructions }: AgentSetupStepsProps) {
             isCollapsible={false}
             compactBottomSpacing
           >
-            <CodeSection
-              variant="outline"
-              content={step.code}
-              shouldWrapLines={false}
-            />
+            {step.code === undefined ? null : (
+              <CodeSection
+                variant="outline"
+                content={step.code}
+                shouldWrapLines={false}
+              />
+            )}
           </Stepper>
         ))}
       </div>

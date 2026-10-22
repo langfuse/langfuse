@@ -13,12 +13,14 @@ export type AgentSetupContext = {
 export type AgentSetupStep = {
   title: string;
   description?: string;
-  language: "sh" | "toml" | "json";
-  code: string;
-};
+} & (
+  | { language: "sh" | "toml" | "json" | "text"; code: string }
+  /** A step done in a settings UI, with nothing to paste. */
+  | { language?: never; code?: never }
+);
 
 export type AgentSetupInstructions = {
-  id: "api" | "claude-code" | "codex" | "opencode";
+  id: "api" | "claude-desktop" | "claude-code" | "codex" | "opencode";
   label: string;
   /** First line of the "Copy for agent" Markdown. */
   heading: string;
