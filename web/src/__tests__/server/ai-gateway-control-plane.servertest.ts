@@ -269,6 +269,32 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it.skipIf(env.NODE_ENV === "development")(
+    "turns the gateway off on a self-hosted deployment without a gateway",
+    async () => {
+      const { caller, org } = await prepare();
+      const original = {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+        LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      };
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "false",
+        LANGFUSE_AI_GATEWAY_ENABLED: "true",
+      });
+
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        Object.assign(env, original);
+      }
+    },
+  );
+
   it("enforces admin scope and validates the ingestion project organization", async () => {
     const owner = await prepare();
     const member = await prepare(Role.MEMBER);

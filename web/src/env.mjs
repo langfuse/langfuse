@@ -368,9 +368,15 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
-    // Enables the gateway for every organization, e.g. on self-hosted
-    // deployments. When false, LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST applies.
-    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).default("false"),
+    // Whether an AI gateway is deployed next to Web. When false, every gateway
+    // surface in Web is off regardless of the flags below. Langfuse Cloud (any
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION), development and preview deployments
+    // count as deployed.
+    LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).default("false"),
+    // Enables a deployed gateway for every organization. When false, only
+    // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
+    // Unset means true, except on Langfuse Cloud where it means false.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()
@@ -1153,6 +1159,7 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_DEPLOYED: process.env.LANGFUSE_AI_GATEWAY_DEPLOYED,
     LANGFUSE_AI_GATEWAY_ENABLED: process.env.LANGFUSE_AI_GATEWAY_ENABLED,
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
       process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
