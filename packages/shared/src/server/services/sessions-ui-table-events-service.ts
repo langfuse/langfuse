@@ -53,7 +53,7 @@ export const getSessionTracesFromEvents = async (props: {
 }) => {
   const { projectId, sessionId } = props;
   const builder = getClickhouseKysely()
-    .selectFrom("events_full as e")
+    .selectFrom("events as e")
     .select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))
     .where("e.session_id", "=", sessionId)
     .groupBy(["trace_id", "project_id"])

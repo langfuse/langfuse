@@ -60,7 +60,10 @@ import {
 } from "../../domain/observation-field-groups";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../queries/clickhouse-sql/query-options";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -811,7 +814,7 @@ const getObservationsTableInternal = async <T>(
         data_type,
         comment
       FROM
-        scores FINAL
+        scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
       WHERE ${appliedScoresFilter.query}
       GROUP BY
         trace_id,
