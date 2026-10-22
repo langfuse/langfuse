@@ -14,7 +14,8 @@ const SETUP_GATED_SETTINGS_SLUGS = new Set([
 /**
  * Gateway managers cannot open provider, model or API key settings before an
  * ingestion project is configured; they are sent to the configuration page.
- * Readers are not redirected because their Models page explains the state.
+ * Other members are not redirected because their Models and API key pages
+ * explain the state.
  */
 export async function getGatewaySetupRedirect(params: {
   prisma: PrismaClient;

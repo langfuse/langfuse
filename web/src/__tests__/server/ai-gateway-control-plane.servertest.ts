@@ -697,6 +697,102 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow("Gateway API key not found");
   });
 
+  it("scopes gateway API keys to their creator for members", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+
+    const memberList = await member.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(memberList.data.map(({ apiKey }) => apiKey.id)).toEqual([
+      memberKey.id,
+    ]);
+    expect(memberList.data[0]?.apiKey.user).toMatchObject({
+      name: "Gateway member",
+    });
+
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.map(({ apiKey }) => [apiKey.id, apiKey.user?.name]),
+    ).toEqual(
+      expect.arrayContaining([
+        [ownerKey.id, "Gateway tester"],
+        [memberKey.id, "Gateway member"],
+      ]),
+    );
+
+    const search = async (
+      caller: typeof member,
+      searchQuery: string,
+    ): Promise<string[]> =>
+      (
+        await caller.aiGateway.listApiKeys({ orgId: owner.org.id, searchQuery })
+      ).data.map(({ apiKey }) => apiKey.id);
+    expect(await search(owner.caller, "owner KEY")).toEqual([ownerKey.id]);
+    expect(await search(owner.caller, "gateway member")).toEqual([
+      memberKey.id,
+    ]);
+    expect(await search(owner.caller, "%")).toEqual([]);
+    expect(await search(member, "owner key")).toEqual([]);
+
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
+    ).rejects.toThrow("Gateway API key not found");
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      viewer.aiGateway.listApiKeys({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      viewer.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it.each(["legacy", "shadow"] as const)(
+    "keeps gateway API key creation admin-only when API_AUTH_MIGRATION is %s",
+    async (migration) => {
+      const originalMigration = env.API_AUTH_MIGRATION;
+      Object.assign(env, { API_AUTH_MIGRATION: migration });
+      try {
+        const owner = await prepare();
+        const member = await createCallerForOrganizationRole(
+          owner,
+          Role.MEMBER,
+        );
+
+        await expect(
+          member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+      } finally {
+        Object.assign(env, { API_AUTH_MIGRATION: originalMigration });
+      }
+    },
+  );
+
   it("rejects gateway API key expiration dates in the past", async () => {
     const { caller, org } = await prepare();
 
@@ -1584,7 +1680,8 @@ describe("AI gateway control plane", () => {
     try {
       const { org, user } = await prepare();
       const adminKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
         role: SystemRoleId("ADMIN"),
         createdBy: UserId(user.id),
       });

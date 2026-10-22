@@ -1,6 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
+import { createSkill } from "@mastra/core/skills";
 import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +15,7 @@ import {
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
+import { loadInAppAgentSkills } from "./skills";
 import {
   createInAppAgentSandbox,
   type SandboxProvider,
@@ -160,6 +162,7 @@ const instrumentationMocks = vi.hoisted(() => {
   const instrumentation = {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
+    recordAvailableSkills: vi.fn(),
     recordToolCallApproval: vi.fn(),
     recordToolExecutionStart: vi.fn(),
     recordToolExecutionEnd: vi.fn(),
@@ -588,6 +591,7 @@ describe("createAgUiStream", () => {
     model = testBedrockModel("test-model"),
     onComplete?: (outcome?: unknown) => void,
     context: Array<{ description: string; value: string }> = [],
+    skills: ReturnType<typeof createSkill>[] = [],
   ) => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -635,6 +639,7 @@ describe("createAgUiStream", () => {
           getPrompt: promptMocks.getPrompt,
         } as unknown as Langfuse,
         useLocalPrompt: false,
+        skills,
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -651,6 +656,29 @@ describe("createAgUiStream", () => {
       });
     };
   };
+
+  it("uses the supplied managed skills for Mastra and tracing", async () => {
+    const skills = [
+      createSkill({
+        name: "local-guide",
+        description: "Local published guide",
+        instructions: "Follow the local guide.",
+      }),
+    ];
+
+    await initializeBasicTracedAgent(
+      "managed-skills-run",
+      undefined,
+      undefined,
+      [],
+      skills,
+    );
+
+    expect(vi.mocked(Agent).mock.calls.at(-1)?.[0].skills).toBe(skills);
+    expect(
+      instrumentationMocks.instrumentation.recordAvailableSkills,
+    ).toHaveBeenCalledWith(skills);
+  });
 
   it("uses the shared Bedrock default-credential auth", async () => {
     const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
@@ -1301,6 +1329,7 @@ describe("createAgUiStream", () => {
         sandbox: sandboxState.sandbox,
         onFinish: sandboxState.onTurnEnded,
         useLocalPrompt: false,
+        skills: (await loadInAppAgentSkills({})).skills,
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -1613,6 +1642,7 @@ describe("createAgUiStream", () => {
           getPrompt: promptMocks.getPrompt,
         } as unknown as Langfuse,
         useLocalPrompt: false,
+        skills: [],
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -1685,6 +1715,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
       },
     });
 
@@ -1755,6 +1786,7 @@ describe("createAgUiStream", () => {
         sandbox: sandboxState.sandbox,
         sandboxWorkspaceWasReset: sandboxState.workspaceWasReset,
         useLocalPrompt: false,
+        skills: [],
       },
     });
 
@@ -1856,6 +1888,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
       },
     });
 
@@ -1925,6 +1958,7 @@ describe("createAgUiStream", () => {
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
       },
     });
 
@@ -1989,6 +2023,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2283,6 +2318,7 @@ describe("createAgUiStream", () => {
         langfuseClient,
         sandbox: (await createTestSandbox()).sandbox,
         useLocalPrompt: false,
+        skills: [],
       },
     });
     const streamedText = await readStream(stream);
@@ -2364,6 +2400,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2528,6 +2565,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
       },
     });
     await readStream(stream);
@@ -2612,6 +2650,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2778,6 +2817,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        skills: [],
       },
     });
     await readStream(stream);
@@ -2867,6 +2907,7 @@ describe("createAgUiStream", () => {
           getPrompt: promptMocks.getPrompt,
         } as unknown as Langfuse,
         useLocalPrompt: false,
+        skills: [],
       },
     });
 

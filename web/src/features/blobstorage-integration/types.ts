@@ -5,6 +5,7 @@ import {
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,
+  EXPORT_FIELD_GROUPS,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
@@ -56,7 +57,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   exportFieldGroups: z
-    .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
+    .array(z.enum(EXPORT_FIELD_GROUPS))
     .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
 });

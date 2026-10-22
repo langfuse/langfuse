@@ -33,7 +33,8 @@ export const BATCH_DATA_RETENTION_TABLES = [
 export type BatchDataRetentionTable =
   (typeof BATCH_DATA_RETENTION_TABLES)[number];
 
-const METRIC_PREFIX = "langfuse.batch_data_retention_cleaner";
+const RUNNER_NAME = "batch_data_retention_cleaner";
+const METRIC_PREFIX = `langfuse.${RUNNER_NAME}`;
 
 const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
@@ -97,38 +98,6 @@ function toParamKey(projectId: string): string {
 }
 
 /**
- * Group exact serialized cutoffs for candidate discovery. Batch deletion uses
- * separate per-project predicates.
- */
-function buildCandidateDiscoveryConditions(
-  timestampColumn: string,
-  projects: ProjectRetention[],
-): { conditions: string; params: Record<string, unknown> } {
-  const projectIdsByCutoff = new Map<string, string[]>();
-  for (const project of projects) {
-    const cutoff = convertDateToClickhouseDateTime(project.cutoffDate);
-    const projectIds = projectIdsByCutoff.get(cutoff);
-    if (projectIds) {
-      projectIds.push(project.projectId);
-    } else {
-      projectIdsByCutoff.set(cutoff, [project.projectId]);
-    }
-  }
-
-  const params: Record<string, unknown> = {};
-  const conditions = Array.from(
-    projectIdsByCutoff,
-    ([cutoff, projectIds], index) => {
-      params[`discoveryProjectIds_${index}`] = projectIds;
-      params[`discoveryCutoff_${index}`] = cutoff;
-      return `(project_id IN ({discoveryProjectIds_${index}: Array(String)}) AND ${timestampColumn} < {discoveryCutoff_${index}: DateTime64(3)})`;
-    },
-  ).join(" OR ");
-
-  return { conditions, params };
-}
-
-/**
  * Build OR conditions for project-specific cutoffs.
  * Used by batch deletion.
  * Uses hashed projectId keys to prevent index mismatch bugs.
@@ -188,6 +157,7 @@ function buildRetentionConditions(
 export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   private readonly tableName: BatchDataRetentionTable;
   private readonly candidateQueryHttpTimeoutSeconds: number;
+  private runOutcome: "success" | "failed" | "skipped" = "success";
 
   protected get defaultIntervalMs(): number {
     return env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS;
@@ -208,7 +178,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: `BatchDataRetentionCleaner(${tableName})`,
-      metricName: "batch_data_retention_cleaner",
+      metricName: RUNNER_NAME,
       metricScope: tableName,
       lockKey: `${BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
@@ -242,6 +212,31 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
+    this.runOutcome = "success";
+    const startedAt = Date.now();
+    try {
+      await this.executeRetentionBatch();
+    } catch (error) {
+      this.runOutcome = "failed";
+      throw error;
+    } finally {
+      this.logCompletion(Date.now() - startedAt);
+    }
+  }
+
+  protected override markRunFailed(error: unknown): void {
+    this.runOutcome = "failed";
+    super.markRunFailed(error);
+  }
+
+  protected override markRunSkipped(): void {
+    if (this.runOutcome === "success") {
+      this.runOutcome = "skipped";
+    }
+    super.markRunSkipped();
+  }
+
+  private async executeRetentionBatch(): Promise<void> {
     // Data retention is an enterprise feature. Without a license the setting
     // cannot be viewed or changed, so stored policies must not be enforced
     // either: a deployment that loses its license would otherwise keep
@@ -345,6 +340,20 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     );
   }
 
+  private logCompletion(durationMs: number): void {
+    try {
+      logger.info(`${this.instanceName}: Retention run completed`, {
+        event: "periodic_runner.completed",
+        runner: RUNNER_NAME,
+        scope: this.tableName,
+        outcome: this.runOutcome,
+        durationMs,
+      });
+    } catch {
+      /** Best-effort logging preserves the cleanup outcome. */
+    }
+  }
+
   /**
    * Get project workloads using bounded candidate discovery:
    * 1. PostgreSQL: Get all projects with retention enabled
@@ -384,20 +393,12 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       }),
     );
 
-    // Step 3: Bound both the project parameters and returned candidates for
-    // each ClickHouse query. A completed query can return every matching
-    // project in its input chunk because both use the same configured limit.
-    const chunkSize = env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE;
-    const projectChunks: ProjectRetention[][] = [];
-    for (
-      let offset = 0;
-      offset < allProjectRetentions.length;
-      offset += chunkSize
-    ) {
-      projectChunks.push(
-        allProjectRetentions.slice(offset, offset + chunkSize),
-      );
-    }
+    // Step 3: Keep each bounded discovery chunk within one exact cutoff so
+    // its predicate uses a single project IN set and timestamp comparison.
+    const projectChunks = chunkProjectsByCutoff(
+      allProjectRetentions,
+      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE,
+    );
 
     // Step 4: Oldest timestamp provides the main ordering signal and total
     // count breaks ties, but deletion must not depend on this grouped query
@@ -502,21 +503,17 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    */
   private async findExpiredProjectCandidates(
     timestampColumn: string,
-    projects: ProjectRetention[],
+    { projects, cutoff }: ProjectRetentionChunk,
   ): Promise<CandidateDiscoveryResult> {
     if (projects.length === 0) {
       return { candidates: [], complete: true };
     }
 
-    const { conditions, params } = buildCandidateDiscoveryConditions(
-      timestampColumn,
-      projects,
-    );
-
     const query = `
       SELECT DISTINCT project_id
       FROM ${this.tableName}
-      PREWHERE ${conditions}
+      PREWHERE project_id IN ({discoveryProjectIds: Array(String)})
+        AND ${timestampColumn} < {discoveryCutoff: DateTime64(3)}
       LIMIT {candidateLimit: UInt32}
     `;
 
@@ -530,8 +527,9 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       const stream = queryClickhouseStream<{ project_id: string }>({
         query,
         params: {
-          ...params,
-          candidateLimit: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE,
+          discoveryProjectIds: projects.map((project) => project.projectId),
+          discoveryCutoff: cutoff,
+          candidateLimit: projects.length,
         },
         useMultipartParamsAuto: true,
         clickhouseConfigs: {
@@ -763,4 +761,37 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       },
     });
   }
+}
+
+/** Keep discovery chunks bounded and tied to one exact serialized cutoff. */
+function chunkProjectsByCutoff(
+  projects: ProjectRetention[],
+  chunkSize: number,
+): ProjectRetentionChunk[] {
+  const projectsByCutoff = new Map<string, ProjectRetention[]>();
+  for (const project of projects) {
+    const cutoff = convertDateToClickhouseDateTime(project.cutoffDate);
+    const group = projectsByCutoff.get(cutoff);
+    if (group) {
+      group.push(project);
+    } else {
+      projectsByCutoff.set(cutoff, [project]);
+    }
+  }
+
+  const chunks: ProjectRetentionChunk[] = [];
+  for (const [cutoff, group] of projectsByCutoff) {
+    for (let offset = 0; offset < group.length; offset += chunkSize) {
+      chunks.push({
+        cutoff,
+        projects: group.slice(offset, offset + chunkSize),
+      });
+    }
+  }
+  return chunks;
+}
+
+interface ProjectRetentionChunk {
+  cutoff: string;
+  projects: ProjectRetention[];
 }

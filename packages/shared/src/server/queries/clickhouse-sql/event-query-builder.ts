@@ -1,12 +1,7 @@
-import { eventsTableTraceNameAggregationSql } from "../../../eventsTable";
 import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
-import {
-  metadataMap,
-  toBool,
-  latestNonEmpty,
-} from "../../query-ast/extensions";
+import { metadataMap, toBool } from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import {
@@ -16,6 +11,9 @@ import {
   type FieldSetName,
 } from "../../repositories/events-field-sets";
 import {
+  EXPERIMENT_AGGREGATION_SQL,
+  SESSION_AGGREGATION_SQL,
+  TRACE_AGGREGATION_SQL,
   eventsTraceNameOrEmpty,
   eventsIsRootObservation,
   millisecondsSinceStart,
@@ -39,10 +37,6 @@ const eventsMetadataMap = metadataMap(
 );
 
 const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
-
-const TRACE_SESSION_ID_SQL = renderClickhouseExpression(
-  latestNonEmpty(eventsRef.ref("session_id"), eventsRef.ref("event_ts")),
-);
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -248,72 +242,11 @@ function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
 }
 
 /**
- * Aggregation fields for trace-level queries
- * These fields use ClickHouse aggregation functions and require GROUP BY
- */
-export const EVENTS_AGGREGATION_FIELDS = {
-  // Grouping keys (must be in GROUP BY)
-  id: "trace_id AS id",
-  projectId: "project_id",
-
-  // Aggregated fields
-  name: `${eventsTableTraceNameAggregationSql} AS name`,
-  timestamp: "min(start_time) as timestamp",
-  environment:
-    "argMaxIf(environment, event_ts, environment <> '') AS environment",
-  version: "argMaxIf(version, event_ts, version <> '') AS version",
-  session_id: `${TRACE_SESSION_ID_SQL} AS session_id`,
-  user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
-  input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
-  output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
-  // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
-  // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
-  metadata: `argMaxIf(${EVENTS_METADATA_MAP_SQL}, event_ts, parent_span_id = '') AS metadata`,
-  created_at: "min(created_at) AS created_at",
-  updated_at: "max(updated_at) AS updated_at",
-  total_cost: "sum(total_cost) AS total_cost",
-  latency_milliseconds:
-    "if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))) AS latency_milliseconds",
-  observation_ids:
-    "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
-  observation_count:
-    "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
-
-  bookmarked:
-    "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
-  public: "max(public) AS public",
-  experiment_item_id:
-    "argMaxIf(experiment_item_id, event_ts, experiment_item_id <> '') AS experiment_item_id",
-
-  // Observation-level aggregations for filtering support
-  usage_details: "sumMap(usage_details) as usage_details",
-  cost_details: "sumMap(cost_details) as cost_details",
-  aggregated_level:
-    "multiIf(arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT', 'DEBUG') AS aggregated_level",
-  warning_count: "countIf(level = 'WARNING') as warning_count",
-  error_count: "countIf(level = 'ERROR') as error_count",
-  default_count: "countIf(level = 'DEFAULT') as default_count",
-  debug_count: "countIf(level = 'DEBUG') as debug_count",
-
-  tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
-  release: "argMaxIf(release, event_ts, release <> '') AS release",
-
-  // Evaluator execution fields are stamped on every internal evaluation span.
-  evaluator_id:
-    "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
-  evaluation_rule_id:
-    "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
-
-  // experiment fields
-  experiment_id: "any(experiment_id) as experiment_id",
-} as const;
-
-/**
  * Field sets for aggregation queries
  */
 const AGGREGATION_FIELD_SETS = {
-  all: Object.keys(EVENTS_AGGREGATION_FIELDS) as Array<
-    keyof typeof EVENTS_AGGREGATION_FIELDS
+  all: Object.keys(TRACE_AGGREGATION_SQL) as Array<
+    keyof typeof TRACE_AGGREGATION_SQL
   >,
 } as const;
 
@@ -1066,12 +999,12 @@ type AliasedColumns<
  * const { query, params } = builder.buildWithParams();
  */
 export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
-  typeof EVENTS_AGGREGATION_FIELDS
+  typeof TRACE_AGGREGATION_SQL
 > {
   private truncated = true;
 
   constructor(options: { projectId: string }) {
-    super(EVENTS_AGGREGATION_FIELDS, options);
+    super(TRACE_AGGREGATION_SQL, options);
   }
 
   /**
@@ -1130,7 +1063,7 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   protected buildSelectClause(): string {
     const fieldExpressions = [...this.selectFields]
       .map((key) => {
-        return this.fields[key as keyof typeof EVENTS_AGGREGATION_FIELDS];
+        return this.fields[key as keyof typeof TRACE_AGGREGATION_SQL];
       })
       .filter(Boolean);
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
@@ -1188,62 +1121,24 @@ export type SessionEventsFields<F extends SessionEventsField> = readonly [
 ];
 
 /**
- * Aggregation fields for session-level queries.
- * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
- */
-export const EVENTS_SESSION_AGGREGATION_FIELDS = {
-  session_id: "session_id",
-  max_timestamp: "max(start_time) AS max_timestamp",
-  min_timestamp: "min(start_time) AS min_timestamp",
-  trace_ids: "groupUniqArray(trace_id) AS trace_ids",
-  user_ids:
-    "groupUniqArrayIf(user_id, user_id IS NOT NULL AND user_id != '') AS user_ids",
-  trace_count: "uniq(trace_id) AS trace_count",
-  trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
-  tool_names: "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
-  called_tool_names:
-    "groupUniqArrayArray(tool_call_names) AS called_tool_names",
-  tool_calls_count: "sum(length(tool_calls)) AS tool_calls_count",
-  environment:
-    "argMaxIf(environment, event_ts, environment <> '') AS environment",
-  metadata_names:
-    "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
-  metadata_values:
-    "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
-  total_observations:
-    "uniqIf(span_id, parent_span_id != '') AS total_observations",
-  duration:
-    "date_diff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration",
-  session_usage_details: "sumMap(usage_details) AS session_usage_details",
-  session_cost_details: "sumMap(cost_details) AS session_cost_details",
-  session_input_cost:
-    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(cost_details)))) AS session_input_cost",
-  session_output_cost:
-    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(cost_details)))) AS session_output_cost",
-  session_total_cost: "sumMap(cost_details)['total'] AS session_total_cost",
-  session_input_usage:
-    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(usage_details)))) AS session_input_usage",
-  session_output_usage:
-    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(usage_details)))) AS session_output_usage",
-  session_total_usage: "sumMap(usage_details)['total'] AS session_total_usage",
-} as const;
-
-/**
  * Field sets for session aggregation queries
  */
 export const SESSION_AGGREGATION_FIELD_SETS = {
-  all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
-    keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
+  all: Object.keys(SESSION_AGGREGATION_SQL) as Array<
+    keyof typeof SESSION_AGGREGATION_SQL
   >,
-  base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
+  base: Object.keys(SESSION_AGGREGATION_SQL).filter(
     (field) =>
       field !== "metadata_names" &&
       field !== "metadata_values" &&
       !["tool_names", "called_tool_names", "tool_calls_count"].includes(field),
-  ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
+  ) as Array<keyof typeof SESSION_AGGREGATION_SQL>,
   metadata: ["metadata_names", "metadata_values"],
   tools: ["tool_names", "called_tool_names", "tool_calls_count"],
-} as const;
+} as const satisfies Record<
+  string,
+  ReadonlyArray<keyof typeof SESSION_AGGREGATION_SQL>
+>;
 
 /**
  * Every session field. Only for a CTE whose outer SELECT picks the columns;
@@ -1268,12 +1163,12 @@ export const ALL_SESSION_EVENTS_FIELDS =
  * const { query, params } = builder.buildWithParams();
  */
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
-  typeof EVENTS_SESSION_AGGREGATION_FIELDS
+  typeof SESSION_AGGREGATION_SQL
 > {
   private fullTable = false;
 
   constructor(options: { projectId: string }) {
-    super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+    super(SESSION_AGGREGATION_SQL, options);
   }
 
   /**
@@ -1301,7 +1196,9 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
     return this;
   }
 
-  selectSessionFields(fields: readonly SessionEventsField[]): this {
+  selectSessionFields(
+    fields: ReadonlyArray<keyof typeof SESSION_AGGREGATION_SQL>,
+  ): this {
     fields.forEach((field) => this.selectFields.add(field));
     return this;
   }
@@ -1360,9 +1257,7 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
   protected buildSelectClause(): string {
     const fieldExpressions = [...this.selectFields]
       .map((key) => {
-        return this.fields[
-          key as keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
-        ];
+        return this.fields[key as keyof typeof SESSION_AGGREGATION_SQL];
       })
       .filter(Boolean);
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
@@ -1729,53 +1624,38 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
 // ============================================================
 
 /**
- * Aggregation fields for experiment-level queries.
- * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id, project_id.
- */
-export const EXPERIMENTS_AGGREGATION_FIELDS = {
-  // Base aggregated fields
-  experimentId: "e.experiment_id AS experiment_id",
-  experimentName: "any(e.experiment_name) AS experiment_name",
-  experimentDescription:
-    "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
-  experimentDatasetId:
-    "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-  startTime: "min(e.start_time) AS start_time",
-  itemCount: "uniq(e.experiment_item_id) AS item_count",
-  // Distinct items that carry any ERROR event, so the number matches the
-  // items-view Status=ERROR list the badge opens.
-  errorCount: "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
-  prompts:
-    "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
-  experimentMetadata:
-    "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
-} as const;
-
-/**
  * Field sets for experiment aggregation queries.
  */
 const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
-  count: ["experimentId"] as const,
+  count: ["experiment_id"] as const,
   base: [
-    "experimentId",
-    "experimentName",
-    "experimentDescription",
-    "experimentDatasetId",
-    "startTime",
-    "itemCount",
-    "errorCount",
+    "experiment_id",
+    "experiment_name",
+    "experiment_description",
+    "experiment_dataset_id",
+    "start_time",
+    "item_count",
+    "error_count",
     "prompts",
-    "experimentMetadata",
+    "experiment_metadata",
   ] as const,
   publicApiSummary: [
-    "experimentId",
-    "experimentName",
-    "experimentDescription",
-    "experimentDatasetId",
-    "startTime",
+    "experiment_id",
+    "experiment_name",
+    "experiment_description",
+    "experiment_dataset_id",
+    "start_time",
   ] as const,
-  publicApiSummaryMetadata: ["experimentMetadata"] as const,
-} as const;
+  publicApiSummaryMetadata: ["experiment_metadata"] as const,
+  datasetMetrics: [
+    "experiment_id",
+    "experiment_dataset_id",
+    "start_time",
+  ] as const,
+} as const satisfies Record<
+  string,
+  ReadonlyArray<keyof typeof EXPERIMENT_AGGREGATION_SQL>
+>;
 
 export type ExperimentsAggregationFieldSetName =
   keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS;
@@ -1784,14 +1664,14 @@ export type ExperimentsAggregationFieldSetName =
  * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
-  typeof EXPERIMENTS_AGGREGATION_FIELDS
+  typeof EXPERIMENT_AGGREGATION_SQL
 > {
   private selectedFieldSets: Set<ExperimentsAggregationFieldSetName> =
     new Set();
   private rawSelectExpressions: string[] = [];
 
   constructor(opts: { projectId: string }) {
-    super(EXPERIMENTS_AGGREGATION_FIELDS, { projectId: opts.projectId });
+    super(EXPERIMENT_AGGREGATION_SQL, { projectId: opts.projectId });
   }
 
   /**
@@ -1845,10 +1725,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
     for (const setName of this.selectedFieldSets) {
       const fieldKeys = EXPERIMENTS_AGGREGATION_FIELD_SETS[setName];
       for (const key of fieldKeys) {
-        const fieldExpr =
-          EXPERIMENTS_AGGREGATION_FIELDS[
-            key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
-          ];
+        const fieldExpr = EXPERIMENT_AGGREGATION_SQL[key];
         if (fieldExpr) {
           fields.push(fieldExpr);
         }

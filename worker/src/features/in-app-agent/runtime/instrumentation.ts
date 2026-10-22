@@ -19,7 +19,11 @@ import {
 import { ResumeForwardedPropsSchema, type AgUiRunAgentInput } from "./types";
 import { compactTextMessageChunks } from "@langfuse/shared/in-app-agent/server/eventCompaction";
 import type { InAppAgentUserAccess } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import { assertUnreachable } from "@langfuse/shared";
+import {
+  assertUnreachable,
+  SkillsAvailableInputSchema,
+  type SkillsAvailableInput,
+} from "@langfuse/shared";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -106,6 +110,7 @@ type ObservationBody = {
   promptVersion?: number;
   userId?: string;
   sessionId?: string;
+  skillsAvailable?: SkillsAvailableInput;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
 type AgentRunToolSpan = {
@@ -207,6 +212,8 @@ export class InAppAgentInstrumentation {
   private openModelObservationId?: string;
   private lastModelObservationId?: string;
   private readonly metadata: Record<string, unknown>;
+  private readonly targetProjectId: string;
+  private skillsAvailable: SkillsAvailableInput = [];
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
   private output = "";
@@ -254,6 +261,7 @@ export class InAppAgentInstrumentation {
     this.agentRunInput = getAgentRunInput(params.input);
     this.wrappingRootInput = getWrappingRootUserText(params.input);
     this.prompt = params.prompt;
+    this.targetProjectId = params.targetProjectId;
     this.model = params.model;
     this.runId = params.runId;
     this.userId = params.userId;
@@ -445,6 +453,23 @@ export class InAppAgentInstrumentation {
     if (this.ended) {
       return;
     }
+
+    const catalogue = SkillsAvailableInputSchema.safeParse(
+      skills.flatMap((skill) => {
+        if (!isRecord(skill)) return [];
+        const metadata = isRecord(skill.metadata) ? skill.metadata : {};
+        const reference = SkillsAvailableInputSchema.element.safeParse({
+          name: skill.name,
+          // Foreign-project skills remain visible without resolving to a local version.
+          version:
+            metadata.langfuseProjectId === this.targetProjectId
+              ? metadata.langfuseSkillVersion
+              : undefined,
+        });
+        return reference.success ? [reference.data] : [];
+      }),
+    );
+    this.skillsAvailable = catalogue.success ? catalogue.data : [];
 
     const availableSkills = getAgentRunAvailableSkills(skills);
 
@@ -919,6 +944,10 @@ export class InAppAgentInstrumentation {
       }
     ).enqueue(type, {
       ...body,
+      ...((type === "generation-create" || type === "tool-create") &&
+      this.skillsAvailable.length > 0
+        ? { skillsAvailable: this.skillsAvailable }
+        : {}),
       userId: this.userId,
       sessionId: this.sessionId,
       metadata: { ...this.metadata, ...body.metadata },

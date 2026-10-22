@@ -1,7 +1,11 @@
 import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
+import {
+  compileClickhouseQuery,
+  renderClickhouseExpression,
+  renderClickhouseSelections,
+} from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
@@ -353,6 +357,63 @@ describe("renderClickhouseExpression", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
     );
+  });
+});
+
+describe("renderClickhouseSelections", () => {
+  const events = getClickhouseKysely().selectFrom("events_core as e");
+
+  it("keys each select by its output name, in select order", () => {
+    const rendered = renderClickhouseSelections(
+      events.select((eb) => [
+        "e.span_id as id",
+        "e.trace_id",
+        eb.fn.min("e.start_time").as("start"),
+      ]),
+    );
+    expect(Object.entries(rendered)).toEqual([
+      ["id", "e.span_id as id"],
+      ["trace_id", "e.trace_id"],
+      ["start", "min(e.start_time) as start"],
+    ]);
+    expectTypeOf(rendered).toEqualTypeOf<
+      Record<"id" | "trace_id" | "start", string>
+    >();
+  });
+
+  it("keys an output name that is also an Object prototype key", () => {
+    expect(
+      renderClickhouseSelections(
+        events.select((eb) => eb.ref("e.trace_id").as("constructor")),
+      ),
+    ).toEqual({ constructor: "e.trace_id as constructor" });
+  });
+
+  it("rejects a select without an output name", () => {
+    expect(() => renderClickhouseSelections(events.selectAll())).toThrow(
+      QueryCompileError,
+    );
+  });
+
+  it("rejects two selects with one output name", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) => [
+          "e.trace_id",
+          eb.ref("e.span_id").as("trace_id"),
+        ]),
+      ),
+    ).toThrow(/share the output name "trace_id"/);
+  });
+
+  it("rejects a select containing a subquery", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) =>
+          eb.selectFrom("events_core as x").select("x.trace_id").as("t"),
+        ),
+      ),
+    ).toThrow(UnscopedRelationError);
   });
 });
 
