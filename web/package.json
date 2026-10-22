@@ -166,7 +166,7 @@
     "remark-gfm": "^4.0.1",
     "rxjs": "7.8.1",
     "sonner": "^2.0.7",
-    "streamdown": "^2.5.0",
+    "streamdown": "^2.6.0",
     "stripe": "^18.5.0",
     "superjson": "2.2.2",
     "tailwind-merge": "^3.5.0",
