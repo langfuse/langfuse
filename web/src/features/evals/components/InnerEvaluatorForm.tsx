@@ -116,7 +116,7 @@ import {
   isCodeEvalTemplate,
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
+import { CodeEvalTestRunCard } from "@/src/features/evals/components/CodeEvalTestRunCard";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
