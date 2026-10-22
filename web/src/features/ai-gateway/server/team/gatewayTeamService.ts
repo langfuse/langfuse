@@ -121,10 +121,15 @@ export class GatewayTeamService {
         scope: GATEWAY_USER_SCOPE,
         excludeUserId: ctx.session.user.id,
       });
-      for (const { email } of members) {
+      for (const { email, name } of members) {
         const to = email.toLowerCase();
         if (invited.has(to)) continue;
-        emailJobs.push({ ...sender, to, audience: { kind: "member" } });
+        emailJobs.push({
+          ...sender,
+          to,
+          receiverName: name ?? undefined,
+          audience: { kind: "member" },
+        });
         notifiedCount++;
       }
     }

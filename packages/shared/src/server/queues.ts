@@ -294,6 +294,7 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     orgId: z.string(),
     orgName: z.string(),
     to: z.string(),
+    receiverName: z.string().optional(),
     audience: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("invitee"), hasAccount: z.boolean() }),
       z.object({ kind: z.literal("member") }),

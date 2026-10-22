@@ -24,6 +24,8 @@ type GatewayInvitationEmailTemplateProps = {
   inviterEmail: string;
   orgName: string;
   receiverEmail: string;
+  /** Greets the receiver by name when known. */
+  receiverName?: string;
   link: string;
   emailFromAddress: string;
   langfuseCloudRegion?: string;
@@ -35,6 +37,7 @@ export const GatewayInvitationEmailTemplate = ({
   inviterEmail,
   orgName,
   receiverEmail,
+  receiverName,
   link,
   emailFromAddress,
   langfuseCloudRegion,
@@ -67,7 +70,9 @@ export const GatewayInvitationEmailTemplate = ({
               The <strong>AI Gateway</strong> is ready in{" "}
               <strong>{orgName}</strong>
             </Heading>
-            <Text className="text-sm leading-6 text-black">Hello,</Text>
+            <Text className="text-sm leading-6 text-black">
+              {receiverName ? `Hello ${receiverName},` : "Hello,"}
+            </Text>
             <Text className="text-sm leading-6 text-black">
               <strong>{inviterName}</strong> (
               <span className="text-blue-600 no-underline">{inviterEmail}</span>

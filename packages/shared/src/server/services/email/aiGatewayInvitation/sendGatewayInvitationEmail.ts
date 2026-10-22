@@ -20,6 +20,7 @@ type SendGatewayInvitationEmailParams = {
   >;
   audience: GatewayInvitationEmailAudience;
   to: string;
+  receiverName?: string;
   inviterName: string;
   inviterEmail: string;
   orgName: string;
@@ -36,6 +37,7 @@ export const sendGatewayInvitationEmail = async ({
   env,
   audience,
   to,
+  receiverName,
   inviterName,
   inviterEmail,
   orgName,
@@ -69,6 +71,7 @@ export const sendGatewayInvitationEmail = async ({
       inviterEmail,
       orgName,
       receiverEmail: to,
+      receiverName,
       link,
       emailFromAddress: env.EMAIL_FROM_ADDRESS,
       langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,

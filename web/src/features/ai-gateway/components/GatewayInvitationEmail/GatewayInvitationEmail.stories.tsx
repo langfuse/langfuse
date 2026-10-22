@@ -41,5 +41,5 @@ export const InviteeWithAccount = meta.story({
 });
 
 export const ExistingMember = meta.story({
-  args: { audience: { kind: "member" } },
+  args: { audience: { kind: "member" }, receiverName: "Grace Hopper" },
 });
