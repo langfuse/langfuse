@@ -14,7 +14,7 @@
 /packages/langfuse-skills/ @LysanderKie @bezbac
 
 # Code review policy
-/REVIEW.md @nimarb
+/REVIEW.md @bezbac
 
 # Normalized I/O and transcripts
 /packages/shared/src/utils/normalized-io/ @marliessophie
