@@ -8,8 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy, type IconComponent } from "@langfuse/icons";
-import { type IOSectionAction } from "@/src/components/ui/IOSection";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -103,15 +102,17 @@ export const canRenderContentAsMarkdown = (
 
 const isOpenAIContentWithExternalS3Image = (content: unknown) => {
   if (!Array.isArray(content)) return false;
-
   let hasExternalS3Image = false;
-  const hasOnlyRenderableParts = content.every((part) => {
+  const hasOnlyRenderableParts = content.every((part: unknown) => {
     if (
       typeof part === "object" &&
       part !== null &&
+      "type" in part &&
       part.type === "image_url" &&
+      "image_url" in part &&
       typeof part.image_url === "object" &&
-      part.image_url !== null
+      part.image_url !== null &&
+      "url" in part.image_url
     ) {
       const descriptor = classifyMediaValue(part.image_url.url);
       if (descriptor?.kind === "s3") {
@@ -119,54 +120,37 @@ const isOpenAIContentWithExternalS3Image = (content: unknown) => {
         return true;
       }
     }
-
     return OpenAIContentParts.safeParse([part]).success;
   });
-
   return hasExternalS3Image && hasOnlyRenderableParts;
 };
 
-// MarkdownJsonView renders markdown whenever the content is valid markdown
-// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
-  title,
-  titleIcon,
-  className,
   audio,
   media,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
+  className,
+  borderless,
+  expandAllRef,
+  onExpandStateChange,
+  copyRef,
+  onDisplayModeChange,
+  onExpandabilityChange,
 }: {
   content?: unknown;
-  title?: string;
-  titleIcon?: IconComponent;
-  className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  /** Section header actions. */
-  actions?: IOSectionAction[];
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Long system prompts start collapsed (from raw `role === "system"`, since
-      the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
-}) {
+  className?: string;
+} & Pick<
+  React.ComponentProps<typeof PrettyJsonView>,
+  | "borderless"
+  | "expandAllRef"
+  | "onExpandStateChange"
+  | "copyRef"
+  | "onDisplayModeChange"
+  | "onExpandabilityChange"
+>) {
   const characterLimit = useMarkdownRenderCharacterLimit();
-  // Boxed so a renderable `null` content stays distinguishable from
-  // "not renderable as markdown", without re-widening the narrowed type.
   const markdownContent = useMemo(
     () =>
       canRenderContentAsMarkdown(content, characterLimit)
@@ -174,37 +158,29 @@ export function MarkdownJsonView({
         : null,
     [content, characterLimit],
   );
-
   return markdownContent ? (
     <MarkdownView
       markdown={markdownContent.value}
-      title={title}
-      titleIcon={titleIcon}
       audio={audio}
       media={media}
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
+      className={className}
+      borderless={borderless}
+      copyRef={copyRef}
+      onDisplayModeChange={onDisplayModeChange}
+      onExpandabilityChange={onExpandabilityChange}
     />
   ) : (
     <PrettyJsonView
       json={content ?? (audio ? { audio } : null)}
-      title={title}
-      titleIcon={titleIcon}
-      className={className}
       media={media}
+      className={className}
+      borderless={borderless}
       currentView="pretty"
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
+      expandAllRef={expandAllRef}
+      onExpandStateChange={onExpandStateChange}
+      copyRef={copyRef}
+      onDisplayModeChange={onDisplayModeChange}
+      onExpandabilityChange={onExpandabilityChange}
     />
   );
 }

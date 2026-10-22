@@ -1,18 +1,30 @@
 import preview from "../../../.storybook/preview";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { MarkdownView } from "./MarkdownViewer";
 
 const meta = preview.meta({
   component: MarkdownView,
-  args: {
-    title: "assistant",
-  },
 });
 
 export const Default = meta.story({
   args: {
     markdown:
       "Langfuse is an **open-source** observability tool for LLM apps. Use `trace.generation()` to record a model call.",
+  },
+});
+
+export const ContentOnly = meta.story({
+  name: "(Test) Content without section chrome",
+  args: { markdown: "Content rendered without a section header." },
+  render: (args) => <MarkdownView {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Content rendered without a section header."),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Collapse assistant" }),
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -151,21 +163,5 @@ trace.generation({ name: "answer" });
 - Nested follow-ups
   - Re-run with a tighter prompt
   - Compare cost`,
-  },
-});
-
-export const HeaderControlsOnFocus = meta.story({
-  name: "(Test) Reveals Header Controls On Focus",
-  args: {
-    markdown: "Hover this message to reveal its header controls.",
-    title: "assistant",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const copyButton = canvas.getByTitle("Copy to clipboard");
-    await waitFor(() => expect(copyButton).not.toBeVisible());
-
-    copyButton.focus();
-    await waitFor(() => expect(copyButton).toBeVisible());
   },
 });

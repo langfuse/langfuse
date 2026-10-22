@@ -1,4 +1,14 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
+import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
+import {
+  hasPassthroughJson,
+  isPlaceholderMessage,
+} from "@/src/features/traces/fns/chatMessageUtils";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -28,6 +38,7 @@ import {
   extractVariables,
   PRODUCTION_LABEL,
   PromptType,
+  isOpenAITextContentPart,
 } from "@langfuse/shared";
 import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import { PromptHistoryNode } from "./PromptHistoryNode";
@@ -44,6 +55,10 @@ import {
   MoreVertical,
   Plus,
   Terminal,
+  FoldVertical,
+  UnfoldVertical,
+  ListChevronsDownUp,
+  ListChevronsUpDown,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -56,7 +71,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/page";
@@ -738,7 +753,7 @@ export const PromptDetail = ({
                               )
                                 return null;
                               return (
-                                <ChatMessage
+                                <MessageSectionController
                                   key={index}
                                   message={message}
                                   title={getMessageTitle(message)}
@@ -747,7 +762,82 @@ export const PromptDetail = ({
                                   isOutputMessage={true}
                                   contentMode="all"
                                   defaultCollapsed={false}
-                                />
+                                >
+                                  {function renderMessage(
+                                    {
+                                      title,
+                                      collapsed,
+                                      onCollapsedChange,
+                                      variant,
+                                      actions,
+                                      onCopy,
+                                    },
+                                    messageProps,
+                                  ) {
+                                    return (
+                                      <IOSection
+                                        title={title}
+                                        collapsed={collapsed}
+                                        onCollapsedChange={onCollapsedChange}
+                                        variant={variant}
+                                        actions={actions}
+                                        onCopy={onCopy}
+                                      >
+                                        <ChatMessage
+                                          message={messageProps.message}
+                                          shouldRenderMarkdown={
+                                            messageProps.shouldRenderMarkdown
+                                          }
+                                          currentView={messageProps.currentView}
+                                          contentMode={messageProps.contentMode}
+                                          showPassthroughJson={
+                                            messageProps.showPassthroughJson
+                                          }
+                                          borderless
+                                          expandAllRef={
+                                            messageProps.expandAllRef
+                                          }
+                                          onExpandStateChange={
+                                            messageProps.onExpandStateChange
+                                          }
+                                          copyRef={messageProps.copyRef}
+                                          onDisplayModeChange={
+                                            messageProps.onDisplayModeChange
+                                          }
+                                          onExpandabilityChange={
+                                            messageProps.onExpandabilityChange
+                                          }
+                                          renderResponse={(response) =>
+                                            shouldRenderMessageForContentMode(
+                                              response,
+                                              messageProps.contentMode ?? "all",
+                                              undefined,
+                                            ) ? (
+                                              <MessageSectionController
+                                                message={response}
+                                                title={getMessageTitle(
+                                                  response,
+                                                )}
+                                                shouldRenderMarkdown={
+                                                  messageProps.shouldRenderMarkdown
+                                                }
+                                                currentView={
+                                                  messageProps.currentView
+                                                }
+                                                contentMode={
+                                                  messageProps.contentMode
+                                                }
+                                                defaultCollapsed={false}
+                                              >
+                                                {renderMessage}
+                                              </MessageSectionController>
+                                            ) : null
+                                          }
+                                        />
+                                      </IOSection>
+                                    );
+                                  }}
+                                </MessageSectionController>
                               );
                             })}
                           </div>
@@ -811,3 +901,121 @@ export const PromptDetail = ({
     </Page>
   );
 };
+
+function MessageSectionController({
+  children,
+  title,
+  actions,
+  defaultCollapsed,
+  isOutputMessage,
+  ...props
+}: React.ComponentProps<typeof ChatMessage> &
+  Pick<
+    React.ComponentProps<typeof IOSection>,
+    "title" | "actions" | "defaultCollapsed"
+  > & {
+    isOutputMessage?: boolean;
+    children: (
+      sectionProps: Pick<
+        React.ComponentProps<typeof IOSection>,
+        | "title"
+        | "collapsed"
+        | "onCollapsedChange"
+        | "variant"
+        | "actions"
+        | "onCopy"
+      >,
+      messageProps: React.ComponentProps<typeof ChatMessage>,
+    ) => React.ReactNode;
+  }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
+  const [showPassthroughJson, setShowPassthroughJson] = useState(false);
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const copyRef = useRef<(() => void) | null>(null);
+  const [variant, setVariant] = useState<"text" | "table">("text");
+  const [canExpand, setCanExpand] = useState(false);
+  const characterLimit = useMarkdownRenderCharacterLimit();
+  const { message } = props;
+  const placeholder = isPlaceholderMessage(message);
+  const textContent = (() => {
+    if (message.role !== "system" || isLargeRenderString(message.content))
+      return "";
+    if (typeof message.content === "string")
+      return splitStringByMediaReferences(message.content)
+        .filter((part) => part.type === "text")
+        .map((part) => part.value)
+        .join("")
+        .trim();
+    if (Array.isArray(message.content))
+      return message.content
+        .filter(isOpenAITextContentPart)
+        .map((part) => part.text)
+        .join("\n");
+    return "";
+  })();
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt: (() => {
+      if (message.role !== "system" || showPassthroughJson) return false;
+      if (!textContent || textContent.length > characterLimit) return false;
+      if (
+        !props.shouldRenderMarkdown &&
+        (props.currentView !== "pretty" || typeof message.content !== "string")
+      )
+        return false;
+      return canRenderContentAsMarkdown(message.content, characterLimit);
+    })(),
+    content: textContent,
+  });
+  const isCollapsed = systemPrompt.shouldBeCollapsible
+    ? systemPrompt.isCollapsed
+    : collapsed;
+  const sectionActions: IOSectionAction[] = [
+    ...(canExpand
+      ? [
+          {
+            icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+            label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
+            onClick: () => expandAllRef.current?.(),
+          },
+        ]
+      : []),
+    ...(props.contentMode !== "conversation" && hasPassthroughJson(message)
+      ? [
+          {
+            icon: showPassthroughJson ? ListChevronsDownUp : ListChevronsUpDown,
+            label: showPassthroughJson
+              ? "Show formatted view"
+              : "Show passthrough JSON data",
+            onClick: () => setShowPassthroughJson((value) => !value),
+            active: showPassthroughJson,
+          },
+        ]
+      : []),
+    ...(actions ?? []),
+  ];
+  return children(
+    {
+      title: placeholder
+        ? "Placeholder"
+        : title || (isOutputMessage ? "Output" : "Input"),
+      collapsed: isCollapsed,
+      onCollapsedChange: systemPrompt.shouldBeCollapsible
+        ? systemPrompt.toggleCollapsed
+        : setCollapsed,
+      variant,
+      actions: sectionActions,
+      onCopy: isCollapsed ? undefined : () => copyRef.current?.(),
+    },
+    {
+      ...props,
+      showPassthroughJson,
+      borderless: true,
+      expandAllRef,
+      onExpandStateChange: setAllRowsExpanded,
+      copyRef,
+      onDisplayModeChange: setVariant,
+      onExpandabilityChange: setCanExpand,
+    },
+  );
+}

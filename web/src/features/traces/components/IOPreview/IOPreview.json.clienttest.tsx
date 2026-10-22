@@ -6,6 +6,7 @@
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import type * as Shared from "@langfuse/shared";
+import type * as PrettyJsonViewModule from "@/src/components/ui/PrettyJsonView";
 
 const normalizedIo = vi.hoisted(() => ({ normalize: vi.fn() }));
 vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => false }));
@@ -15,9 +16,10 @@ vi.mock("@langfuse/shared/src/utils/normalized-io", () => ({
 
 // PrettyJsonView is the unvirtualized render path we must NOT reach for
 // over-limit fields — mock it so its presence is observable by test id.
-vi.mock("@/src/components/ui/PrettyJsonView", () => ({
-  PrettyJsonView: (props: { title?: string }) => (
-    <div data-testid="pretty-json-view">{props.title}</div>
+vi.mock("@/src/components/ui/PrettyJsonView", async (importOriginal) => ({
+  ...(await importOriginal<typeof PrettyJsonViewModule>()),
+  PrettyJsonView: (props: { downloadLabel?: string }) => (
+    <div data-testid="pretty-json-view">{props.downloadLabel}</div>
   ),
 }));
 

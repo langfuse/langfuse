@@ -7,6 +7,7 @@ import {
   type ReactElement,
   memo,
   useMemo,
+  useEffect,
   isValidElement,
   Children,
   createElement,
@@ -20,7 +21,7 @@ import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
-import { ImageOff, Info, type IconComponent } from "@langfuse/icons";
+import { ImageOff, Info } from "@langfuse/icons";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -38,10 +39,9 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
+import type { PrettyJsonView } from "./PrettyJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
@@ -61,7 +61,6 @@ import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   classifyMediaValue,
-  splitStringByMediaReferences,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -511,73 +510,47 @@ const parseOpenAIContentParts = (
 
 export function MarkdownView({
   markdown,
-  title,
-  titleIcon,
   audio,
   media,
   className,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
+  borderless = false,
+  copyRef,
+  onDisplayModeChange,
+  onExpandabilityChange,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
   markdown: string | z.input<typeof OpenAIContentSchema>;
-  title?: string;
-  titleIcon?: IconComponent;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
-  /** Section header actions. */
-  actions?: IOSectionAction[];
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Long system prompts start collapsed. Pass the raw message role check
-      (`role === "system"`) — the title can be a message `name` instead of the
-      role. Falls back to matching the title for callers without role data. */
-  isSystemPrompt?: boolean;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
-}) {
+  borderless?: boolean;
+} & Pick<
+  React.ComponentProps<typeof PrettyJsonView>,
+  "copyRef" | "onDisplayModeChange" | "onExpandabilityChange"
+>) {
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
+  useEffect(() => {
+    if (!copyRef) return;
+    const copy = () =>
+      copyTextToClipboard(
+        typeof markdown === "string"
+          ? markdown
+          : parseOpenAIContentParts(markdown),
+      );
+    copyRef.current = copy;
+    return () => {
+      if (copyRef.current === copy) copyRef.current = null;
+    };
+  }, [copyRef, markdown]);
+  useEffect(() => {
+    onDisplayModeChange?.("text");
+    onExpandabilityChange?.(false);
+  }, [onDisplayModeChange, onExpandabilityChange]);
 
-  const markdownContent =
-    typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
   const standaloneMediaDescriptor: MediaDescriptor | null =
     typeof markdown === "string" ? classifyMediaValue(markdown) : null;
-
-  // Length is judged on text parts only: serialized image/audio parts
-  // (media-reference strings, base64 data URIs) must not make a prompt long.
-  const textContent =
-    typeof markdown === "string"
-      ? splitStringByMediaReferences(markdown)
-          .filter((s) => s.type === "text")
-          .map((s) => s.value)
-          .join("")
-          .trim()
-      : (markdown ?? [])
-          .filter(isOpenAITextContentPart)
-          .map((part) => part.text)
-          .join("\n");
-
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt: Boolean(title) && (isSystemPrompt ?? title === "system"),
-    content: textContent,
-  });
-
-  const handleOnCopy = () => {
-    copyTextToClipboard(markdownContent);
-  };
 
   const inlineMediaReferenceStrings =
     typeof markdown === "string"
@@ -637,39 +610,17 @@ export function MarkdownView({
     </div>
   );
 
-  if (!title) {
-    return (
-      <div
-        className={cn(
-          "io-message-content ph-no-capture px-1 pt-1 pb-2",
-          className,
-        )}
-        key={theme}
-      >
-        {body}
-      </div>
-    );
-  }
-
   return (
-    <IOSection
+    <div
+      className={cn(
+        "io-message-content ph-no-capture",
+        !borderless && "px-1 pt-1 pb-2",
+        className,
+      )}
       key={theme}
-      title={title}
-      titleIcon={titleIcon}
-      onCopy={handleOnCopy}
-      actions={actions}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
-      {...(systemPrompt.shouldBeCollapsible && {
-        collapsed: systemPrompt.isCollapsed,
-        onCollapsedChange: systemPrompt.toggleCollapsed,
-      })}
     >
-      {beforeContent}
       {body}
-      {afterContent}
-    </IOSection>
+    </div>
   );
 
   function renderContentPart(

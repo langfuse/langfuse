@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { type ReactNode } from "react";
+import { createRef, type ReactNode } from "react";
+
+const { copyTextToClipboard } = vi.hoisted(() => ({
+  copyTextToClipboard: vi.fn(),
+}));
+vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -16,6 +21,42 @@ function prettyTable() {
 }
 
 describe("PrettyJsonView short-list expansion", () => {
+  it("updates caller controls and copy behavior when the rendered content changes", () => {
+    const copyRef = createRef<(() => void) | null>();
+    const onDisplayModeChange = vi.fn();
+    const onExpandabilityChange = vi.fn();
+    const { rerender, unmount } = render(
+      <PrettyJsonView
+        json={{ nested: { value: "\\u4e16\\u754c" } }}
+        copyRef={copyRef}
+        onDisplayModeChange={onDisplayModeChange}
+        onExpandabilityChange={onExpandabilityChange}
+      />,
+    );
+    expect(onDisplayModeChange).toHaveBeenLastCalledWith("table");
+    expect(onExpandabilityChange).toHaveBeenLastCalledWith(true);
+    copyRef.current?.();
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith(
+      JSON.stringify({ nested: { value: "世界" } }, null, 4),
+    );
+
+    rerender(
+      <PrettyJsonView
+        json="Plain text"
+        currentView="json"
+        copyRef={copyRef}
+        onDisplayModeChange={onDisplayModeChange}
+        onExpandabilityChange={onExpandabilityChange}
+      />,
+    );
+    expect(onDisplayModeChange).toHaveBeenLastCalledWith("text");
+    expect(onExpandabilityChange).toHaveBeenLastCalledWith(false);
+    copyRef.current?.();
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith("Plain text");
+    unmount();
+    expect(copyRef.current).toBeNull();
+  });
+
   it("keeps a short primitive list collapsed so the preview is not duplicated", () => {
     renderPrettyJson(
       <PrettyJsonView
@@ -23,7 +64,7 @@ describe("PrettyJsonView short-list expansion", () => {
           brand: "Acme",
           channels: ["email", "paid_social"],
         }}
-        title="Input"
+        borderless
       />,
     );
 
@@ -43,7 +84,7 @@ describe("PrettyJsonView short-list expansion", () => {
         json={{
           channels: ["email", "paid_social"],
         }}
-        title="Input"
+        borderless
       />,
     );
 
@@ -71,7 +112,7 @@ describe("PrettyJsonView short-list expansion", () => {
         json={{
           flags: [null, 0, ""],
         }}
-        title="Input"
+        borderless
         showNullValues={false}
       />,
     );
@@ -97,7 +138,7 @@ describe("PrettyJsonView short-list expansion", () => {
         json={{
           quoted: ['a"b'],
         }}
-        title="Input"
+        borderless
       />,
     );
 
@@ -110,7 +151,7 @@ describe("PrettyJsonView short-list expansion", () => {
         json={{
           users: [{ name: "Ada" }],
         }}
-        title="Input"
+        borderless
       />,
     );
 
@@ -129,7 +170,7 @@ describe("PrettyJsonView short-list expansion", () => {
         json={{
           users: [{ name: "Ada" }],
         }}
-        title="Input"
+        borderless
       />,
     );
 

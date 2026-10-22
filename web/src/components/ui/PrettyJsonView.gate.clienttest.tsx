@@ -31,9 +31,19 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 
 describe("PrettyJsonView large-string gate (LFE-10991)", () => {
+  it("renders content without owning a section header", () => {
+    render(<PrettyJsonView json={{ answer: "hello" }} />);
+    expect(screen.getByText("hello")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Collapse Input" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the bounded fallback and mounts neither the JSON viewer nor the table for an over-limit string", () => {
     const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    const { container } = render(<PrettyJsonView json={huge} title="Input" />);
+    const { container } = render(
+      <PrettyJsonView json={huge} borderless downloadLabel="Input" />,
+    );
 
     // Bounded fallback + download affordance are shown...
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
@@ -50,7 +60,13 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   });
 
   it("renders normally (JSON viewer mounted, no fallback) for small I/O", () => {
-    render(<PrettyJsonView json={{ foo: "bar", n: 1 }} title="Input" />);
+    render(
+      <PrettyJsonView
+        json={{ foo: "bar", n: 1 }}
+        borderless
+        downloadLabel="Input"
+      />,
+    );
 
     expect(screen.queryByText(/Large string —/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("json-view")).toBeInTheDocument();
@@ -71,7 +87,8 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
         json={hugeRawJson}
         parsedJson={undefined}
         isParsing
-        title="Input"
+        borderless
+        downloadLabel="Input"
       />,
     );
 
@@ -89,7 +106,8 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
       <PrettyJsonView
         json="ignored-raw"
         parsedJson={hugePlainString}
-        title="Input"
+        borderless
+        downloadLabel="Input"
       />,
     );
 
@@ -101,7 +119,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
     // The header collapse path must not split() the multi-MB string the
     // large-string gate exists to keep off the main thread.
     const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    render(<PrettyJsonView json={huge} title="system" isSystemPrompt />);
+    render(<PrettyJsonView json={huge} borderless downloadLabel="system" />);
 
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
     expect(

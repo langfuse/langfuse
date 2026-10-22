@@ -18,7 +18,8 @@ describe("PrettyJsonView media layout", () => {
     render(
       <PrettyJsonView
         json={"x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1)}
-        title="Output"
+        borderless
+        downloadLabel="Output"
         media={[
           {
             mediaId: "media-id",

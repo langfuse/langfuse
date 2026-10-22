@@ -1,6 +1,7 @@
 /** Trace metadata, or observation attributes, model parameters and metadata. */
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type MediaReturnType } from "@/src/features/media";
 
@@ -68,7 +69,7 @@ export function DetailAttributesTab({
     >
       <div className="space-y-2 pt-3">
         {observation && hasAttributes ? (
-          <PrettyJsonView
+          <JsonSectionController
             title="Attributes"
             json={observation.attributes}
             currentView={currentView}
@@ -83,14 +84,57 @@ export function DetailAttributesTab({
                 capture,
               })
             }
-          />
+          >
+            {({ title, variant, onCopy, actions }, viewer) => (
+              <IOSection
+                title={title}
+                variant={variant}
+                onCopy={onCopy}
+                actions={actions}
+              >
+                <PrettyJsonView
+                  json={viewer.json}
+                  currentView={viewer.currentView}
+                  rowActions={viewer.rowActions}
+                  borderless
+                  downloadLabel={title}
+                  expandAllRef={viewer.expandAllRef}
+                  onExpandStateChange={viewer.onExpandStateChange}
+                  copyRef={viewer.copyRef}
+                  onDisplayModeChange={viewer.onDisplayModeChange}
+                  onExpandabilityChange={viewer.onExpandabilityChange}
+                />
+              </IOSection>
+            )}
+          </JsonSectionController>
         ) : null}
         {observation?.modelParameters ? (
-          <PrettyJsonView
+          <JsonSectionController
             title="Model parameters"
             json={observation.modelParameters}
             currentView={currentView}
-          />
+          >
+            {({ title, variant, onCopy, actions }, viewer) => (
+              <IOSection
+                title={title}
+                variant={variant}
+                onCopy={onCopy}
+                actions={actions}
+              >
+                <PrettyJsonView
+                  json={viewer.json}
+                  currentView={viewer.currentView}
+                  borderless
+                  downloadLabel={title}
+                  expandAllRef={viewer.expandAllRef}
+                  onExpandStateChange={viewer.onExpandStateChange}
+                  copyRef={viewer.copyRef}
+                  onDisplayModeChange={viewer.onDisplayModeChange}
+                  onExpandabilityChange={viewer.onExpandabilityChange}
+                />
+              </IOSection>
+            )}
+          </JsonSectionController>
         ) : null}
         {hasMetadata ? (
           <div>
@@ -106,7 +150,7 @@ export function DetailAttributesTab({
                 />
               </IOSection>
             ) : (
-              <PrettyJsonView
+              <JsonSectionController
                 title="Metadata"
                 json={metadata}
                 parsedJson={parsedMetadata}
@@ -134,7 +178,35 @@ export function DetailAttributesTab({
                   }
                   onMetadataExpansionChange?.(expansion);
                 }}
-              />
+              >
+                {({ title, variant, onCopy, actions }, viewer) => (
+                  <IOSection
+                    title={title}
+                    variant={variant}
+                    onCopy={onCopy}
+                    actions={actions}
+                  >
+                    <PrettyJsonView
+                      json={viewer.json}
+                      parsedJson={viewer.parsedJson}
+                      currentView={viewer.currentView}
+                      rowActions={viewer.rowActions}
+                      media={viewer.media}
+                      externalExpansionState={viewer.externalExpansionState}
+                      onExternalExpansionChange={
+                        viewer.onExternalExpansionChange
+                      }
+                      borderless
+                      downloadLabel={title}
+                      expandAllRef={viewer.expandAllRef}
+                      onExpandStateChange={viewer.onExpandStateChange}
+                      copyRef={viewer.copyRef}
+                      onDisplayModeChange={viewer.onDisplayModeChange}
+                      onExpandabilityChange={viewer.onExpandabilityChange}
+                    />
+                  </IOSection>
+                )}
+              </JsonSectionController>
             )}
           </div>
         ) : null}
@@ -147,5 +219,52 @@ export function DetailAttributesTab({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function JsonSectionController({
+  children,
+  title,
+  ...props
+}: React.ComponentProps<typeof PrettyJsonView> & {
+  title: string;
+  children: (
+    sectionProps: Pick<
+      React.ComponentProps<typeof IOSection>,
+      "title" | "variant" | "onCopy" | "actions"
+    >,
+    viewerProps: React.ComponentProps<typeof PrettyJsonView>,
+  ) => React.ReactNode;
+}) {
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const copyRef = useRef<(() => void) | null>(null);
+  const [variant, setVariant] = useState<"text" | "table">("text");
+  const [canExpand, setCanExpand] = useState(false);
+  return children(
+    {
+      title,
+      variant,
+      onCopy: () => copyRef.current?.(),
+      actions: canExpand
+        ? [
+            {
+              icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+              label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
+              onClick: () => expandAllRef.current?.(),
+            },
+          ]
+        : undefined,
+    },
+    {
+      ...props,
+      borderless: true,
+      downloadLabel: title,
+      expandAllRef,
+      onExpandStateChange: setAllRowsExpanded,
+      copyRef,
+      onDisplayModeChange: setVariant,
+      onExpandabilityChange: setCanExpand,
+    },
   );
 }

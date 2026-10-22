@@ -2,11 +2,13 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import type * as PrettyJsonViewModule from "@/src/components/ui/PrettyJsonView";
 import { DetailAttributesTab } from "./DetailAttributesTab";
 import { MediaContentType } from "@langfuse/shared";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
-vi.mock("@/src/components/ui/PrettyJsonView", () => ({
+vi.mock("@/src/components/ui/PrettyJsonView", async (importOriginal) => ({
+  ...(await importOriginal<typeof PrettyJsonViewModule>()),
   PrettyJsonView: vi.fn(() => null),
 }));
 vi.mock("@/src/features/feature-flags", () => ({

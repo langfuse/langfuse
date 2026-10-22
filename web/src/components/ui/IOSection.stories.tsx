@@ -108,8 +108,15 @@ export const VariantMatrix = meta.story({
         </IOSection>
       </Example>
 
-      <Example caption="Table body: PrettyJsonView owns the section (variant table, py-1)">
-        <PrettyJsonView title="Input" json={TOOL_INPUT} currentView="pretty" />
+      <Example caption="Table body: IOSection wraps PrettyJsonView (variant table, py-1)">
+        <IOSection onCopy={args.onCopy} title="Input" variant="table">
+          <PrettyJsonView
+            json={TOOL_INPUT}
+            currentView="pretty"
+            borderless
+            downloadLabel="Input"
+          />
+        </IOSection>
       </Example>
 
       <Example caption="Media body: tiles sit 12px from every edge (variant media)">
@@ -152,12 +159,19 @@ export const VariantMatrix = meta.story({
       </Example>
 
       <Example caption="Toned table: the plain table box with the tone as fill, neutral dividers">
-        <PrettyJsonView
+        <IOSection
+          onCopy={args.onCopy}
           title="Output"
-          json={ERROR_OUTPUT}
-          currentView="pretty"
+          variant="table"
           tone="danger"
-        />
+        >
+          <PrettyJsonView
+            json={ERROR_OUTPUT}
+            currentView="pretty"
+            borderless
+            downloadLabel="Output"
+          />
+        </IOSection>
       </Example>
 
       <Example caption="Collapsed: header only, body not rendered">

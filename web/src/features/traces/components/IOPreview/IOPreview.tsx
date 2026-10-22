@@ -14,6 +14,7 @@ import {
   type SkillsAvailable,
   type SkillsResourceLoaded,
   deepParseJson,
+  isOpenAITextContentPart,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -43,6 +44,10 @@ import {
   Pencil,
   Trash,
   FileDiff,
+  FoldVertical,
+  UnfoldVertical,
+  ListChevronsDownUp,
+  ListChevronsUpDown,
 } from "@langfuse/icons";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -105,6 +110,7 @@ import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
+import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   ToolCallDefinitionCard,
@@ -114,8 +120,12 @@ import { useCorrectionData } from "./hooks/useCorrectionData";
 import {
   getMessageTitle,
   shouldRenderMessageForContentMode,
+  hasPassthroughJson,
+  isPlaceholderMessage,
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   getStatusMessagePresentation,
   parseStructuredStatusMessage,
@@ -1303,13 +1313,36 @@ function IOPreviewContent({
         status &&
         statusPresentation &&
         (parsedStatusMessage !== undefined ? (
-          <PrettyJsonView
+          <JsonSectionController
             title={statusPresentation.title}
             json={status.message}
             parsedJson={parsedStatusMessage}
             currentView={isJson ? "json" : "pretty"}
             tone={statusPresentation.tone}
-          />
+          >
+            {({ title, tone, variant, onCopy, actions }, viewer) => (
+              <IOSection
+                title={title}
+                tone={tone}
+                variant={variant}
+                onCopy={onCopy}
+                actions={actions}
+              >
+                <PrettyJsonView
+                  json={viewer.json}
+                  parsedJson={viewer.parsedJson}
+                  currentView={viewer.currentView}
+                  borderless
+                  downloadLabel={title}
+                  expandAllRef={viewer.expandAllRef}
+                  onExpandStateChange={viewer.onExpandStateChange}
+                  copyRef={viewer.copyRef}
+                  onDisplayModeChange={viewer.onDisplayModeChange}
+                  onExpandabilityChange={viewer.onExpandabilityChange}
+                />
+              </IOSection>
+            )}
+          </JsonSectionController>
         ) : (
           <IOSection
             title={statusPresentation.title}
@@ -1489,7 +1522,7 @@ function IOPreviewContent({
                     // Folded messages do not mount (no parsing) until the row opens.
                     if (folded && !othersOpen) return null;
                     const chatMessage = (
-                      <ChatMessage
+                      <MessageSectionController
                         key={originalIndex}
                         message={message}
                         title={
@@ -1514,7 +1547,75 @@ function IOPreviewContent({
                             ? outputActions
                             : undefined
                         }
-                      />
+                      >
+                        {function renderMessage(
+                          {
+                            title,
+                            collapsed,
+                            onCollapsedChange,
+                            variant,
+                            actions,
+                            onCopy,
+                          },
+                          messageProps,
+                        ) {
+                          return (
+                            <IOSection
+                              title={title}
+                              collapsed={collapsed}
+                              onCollapsedChange={onCollapsedChange}
+                              variant={variant}
+                              actions={actions}
+                              onCopy={onCopy}
+                            >
+                              <ChatMessage
+                                message={messageProps.message}
+                                shouldRenderMarkdown={
+                                  messageProps.shouldRenderMarkdown
+                                }
+                                currentView={messageProps.currentView}
+                                toolCallNumbers={messageProps.toolCallNumbers}
+                                contentMode={messageProps.contentMode}
+                                showPassthroughJson={
+                                  messageProps.showPassthroughJson
+                                }
+                                borderless
+                                expandAllRef={messageProps.expandAllRef}
+                                onExpandStateChange={
+                                  messageProps.onExpandStateChange
+                                }
+                                copyRef={messageProps.copyRef}
+                                onDisplayModeChange={
+                                  messageProps.onDisplayModeChange
+                                }
+                                onExpandabilityChange={
+                                  messageProps.onExpandabilityChange
+                                }
+                                renderResponse={(response) =>
+                                  shouldRenderMessageForContentMode(
+                                    response,
+                                    messageProps.contentMode ?? "all",
+                                    undefined,
+                                  ) ? (
+                                    <MessageSectionController
+                                      message={response}
+                                      title={getMessageTitle(response)}
+                                      shouldRenderMarkdown={
+                                        messageProps.shouldRenderMarkdown
+                                      }
+                                      currentView={messageProps.currentView}
+                                      contentMode={messageProps.contentMode}
+                                      defaultCollapsed={false}
+                                    >
+                                      {renderMessage}
+                                    </MessageSectionController>
+                                  ) : null
+                                }
+                              />
+                            </IOSection>
+                          );
+                        }}
+                      </MessageSectionController>
                     );
                     if (foldsMiddle && filteredIndex === 0) {
                       return (
@@ -1542,11 +1643,32 @@ function IOPreviewContent({
                 )}
               </div>
               {showData && additionalInputToShow && (
-                <PrettyJsonView
+                <JsonSectionController
                   title="Additional Input"
                   json={additionalInputToShow}
                   currentView={shouldRenderMarkdown ? "pretty" : "json"}
-                />
+                >
+                  {({ title, variant, onCopy, actions }, viewer) => (
+                    <IOSection
+                      title={title}
+                      variant={variant}
+                      onCopy={onCopy}
+                      actions={actions}
+                    >
+                      <PrettyJsonView
+                        json={viewer.json}
+                        currentView={viewer.currentView}
+                        borderless
+                        downloadLabel={title}
+                        expandAllRef={viewer.expandAllRef}
+                        onExpandStateChange={viewer.onExpandStateChange}
+                        copyRef={viewer.copyRef}
+                        onDisplayModeChange={viewer.onDisplayModeChange}
+                        onExpandabilityChange={viewer.onExpandabilityChange}
+                      />
+                    </IOSection>
+                  )}
+                </JsonSectionController>
               )}
               {remainingMedia.length > 0 && (
                 <IOSection title="Media" variant="media">
@@ -1588,7 +1710,7 @@ function IOPreviewContent({
                     />
                   </IOSection>
                 ) : (
-                  <PrettyJsonView
+                  <JsonSectionController
                     title={field.title}
                     json={isJson ? field.raw : field.value}
                     parsedJson={isJson ? field.value : undefined}
@@ -1606,7 +1728,36 @@ function IOPreviewContent({
                           field.onJsonExpansion?.(expansion);
                       } else field.onExpansion?.(expansion);
                     }}
-                  />
+                  >
+                    {({ title, variant, onCopy, actions }, viewer) => (
+                      <IOSection
+                        title={title}
+                        variant={variant}
+                        onCopy={onCopy}
+                        actions={actions}
+                      >
+                        <PrettyJsonView
+                          json={viewer.json}
+                          parsedJson={viewer.parsedJson}
+                          isLoading={viewer.isLoading}
+                          isParsing={viewer.isParsing}
+                          media={viewer.media}
+                          currentView={viewer.currentView}
+                          externalExpansionState={viewer.externalExpansionState}
+                          onExternalExpansionChange={
+                            viewer.onExternalExpansionChange
+                          }
+                          borderless
+                          downloadLabel={title}
+                          expandAllRef={viewer.expandAllRef}
+                          onExpandStateChange={viewer.onExpandStateChange}
+                          copyRef={viewer.copyRef}
+                          onDisplayModeChange={viewer.onDisplayModeChange}
+                          onExpandabilityChange={viewer.onExpandabilityChange}
+                        />
+                      </IOSection>
+                    )}
+                  </JsonSectionController>
                 ))}
               {field.key === "output" && correctedOutputField}
             </Fragment>
@@ -1676,4 +1827,194 @@ function useIOParserComparisonCapture({
     shouldRenderMessages,
     traceId,
   ]);
+}
+
+function JsonSectionController({
+  children,
+  title,
+  titleIcon,
+  actions,
+  tone,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
+  ...props
+}: React.ComponentProps<typeof PrettyJsonView> &
+  Pick<
+    React.ComponentProps<typeof IOSection>,
+    | "title"
+    | "titleIcon"
+    | "actions"
+    | "tone"
+    | "defaultCollapsed"
+    | "collapsed"
+    | "onCollapsedChange"
+  > & {
+    children: (
+      sectionProps: Pick<
+        React.ComponentProps<typeof IOSection>,
+        | "title"
+        | "titleIcon"
+        | "tone"
+        | "defaultCollapsed"
+        | "collapsed"
+        | "onCollapsedChange"
+        | "variant"
+        | "onCopy"
+        | "actions"
+      >,
+      viewerProps: React.ComponentProps<typeof PrettyJsonView>,
+    ) => React.ReactNode;
+  }) {
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const copyRef = useRef<(() => void) | null>(null);
+  const [variant, setVariant] = useState<"text" | "table">("text");
+  const [canExpand, setCanExpand] = useState(false);
+  const expandAction: IOSectionAction = {
+    icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+    label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
+    onClick: () => expandAllRef.current?.(),
+  };
+  return children(
+    {
+      title,
+      titleIcon,
+      tone,
+      defaultCollapsed,
+      collapsed,
+      onCollapsedChange,
+      variant,
+      onCopy: () => copyRef.current?.(),
+      actions: [...(canExpand ? [expandAction] : []), ...(actions ?? [])],
+    },
+    {
+      ...props,
+      borderless: true,
+      downloadLabel: title,
+      expandAllRef,
+      onExpandStateChange: setAllRowsExpanded,
+      copyRef,
+      onDisplayModeChange: setVariant,
+      onExpandabilityChange: setCanExpand,
+    },
+  );
+}
+
+function MessageSectionController({
+  children,
+  title,
+  actions,
+  defaultCollapsed,
+  isOutputMessage,
+  ...props
+}: React.ComponentProps<typeof ChatMessage> &
+  Pick<
+    React.ComponentProps<typeof IOSection>,
+    "title" | "actions" | "defaultCollapsed"
+  > & {
+    isOutputMessage?: boolean;
+    children: (
+      sectionProps: Pick<
+        React.ComponentProps<typeof IOSection>,
+        | "title"
+        | "collapsed"
+        | "onCollapsedChange"
+        | "variant"
+        | "actions"
+        | "onCopy"
+      >,
+      messageProps: React.ComponentProps<typeof ChatMessage>,
+    ) => React.ReactNode;
+  }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
+  const [showPassthroughJson, setShowPassthroughJson] = useState(false);
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const copyRef = useRef<(() => void) | null>(null);
+  const [variant, setVariant] = useState<"text" | "table">("text");
+  const [canExpand, setCanExpand] = useState(false);
+  const characterLimit = useMarkdownRenderCharacterLimit();
+  const { message } = props;
+  const placeholder = isPlaceholderMessage(message);
+  const textContent = (() => {
+    if (message.role !== "system" || isLargeRenderString(message.content))
+      return "";
+    if (typeof message.content === "string")
+      return splitStringByMediaReferences(message.content)
+        .filter((part) => part.type === "text")
+        .map((part) => part.value)
+        .join("")
+        .trim();
+    if (Array.isArray(message.content))
+      return message.content
+        .filter(isOpenAITextContentPart)
+        .map((part) => part.text)
+        .join("\n");
+    return "";
+  })();
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt: (() => {
+      if (message.role !== "system" || showPassthroughJson) return false;
+      if (!textContent || textContent.length > characterLimit) return false;
+      if (
+        !props.shouldRenderMarkdown &&
+        (props.currentView !== "pretty" || typeof message.content !== "string")
+      )
+        return false;
+      return canRenderContentAsMarkdown(message.content, characterLimit);
+    })(),
+    content: textContent,
+  });
+  const isCollapsed = systemPrompt.shouldBeCollapsible
+    ? systemPrompt.isCollapsed
+    : collapsed;
+  const sectionActions: IOSectionAction[] = [
+    ...(canExpand
+      ? [
+          {
+            icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+            label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
+            onClick: () => expandAllRef.current?.(),
+          },
+        ]
+      : []),
+    ...(props.contentMode !== "conversation" && hasPassthroughJson(message)
+      ? [
+          {
+            icon: showPassthroughJson ? ListChevronsDownUp : ListChevronsUpDown,
+            label: showPassthroughJson
+              ? "Show formatted view"
+              : "Show passthrough JSON data",
+            onClick: () => setShowPassthroughJson((value) => !value),
+            active: showPassthroughJson,
+          },
+        ]
+      : []),
+    ...(actions ?? []),
+  ];
+  return children(
+    {
+      title: placeholder
+        ? "Placeholder"
+        : title || (isOutputMessage ? "Output" : "Input"),
+      collapsed: isCollapsed,
+      onCollapsedChange: systemPrompt.shouldBeCollapsible
+        ? systemPrompt.toggleCollapsed
+        : setCollapsed,
+      variant,
+      actions: sectionActions,
+      onCopy: isCollapsed ? undefined : () => copyRef.current?.(),
+    },
+    {
+      ...props,
+      showPassthroughJson,
+      borderless: true,
+      expandAllRef,
+      onExpandStateChange: setAllRowsExpanded,
+      copyRef,
+      onDisplayModeChange: setVariant,
+      onExpandabilityChange: setCanExpand,
+    },
+  );
 }

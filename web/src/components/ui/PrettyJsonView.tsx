@@ -11,22 +11,14 @@ import React, {
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
-import {
-  ChevronDown,
-  ChevronRight,
-  UnfoldVertical,
-  FoldVertical,
-  type IconComponent,
-} from "@langfuse/icons";
+import { ChevronDown, ChevronRight } from "@langfuse/icons";
 import {
   useReactTable,
   getCoreRowModel,
@@ -82,8 +74,6 @@ const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
-
-type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
 
 // decodeUnicodeInJson was extracted to a standalone module so that other JSON
 // viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
@@ -166,8 +156,8 @@ function isChatMLFormat(json: unknown): boolean {
     }
   }
 
-  if ("messages" in json && Array.isArray((json as any).messages)) {
-    const messagesArray = ChatMlArraySchema.safeParse((json as any).messages);
+  if ("messages" in json && Array.isArray(json.messages)) {
+    const messagesArray = ChatMlArraySchema.safeParse(json.messages);
     if (messagesArray.success) return true;
   }
 
@@ -683,8 +673,8 @@ function JsonPrettyTable({
 export function PrettyJsonView(props: {
   json?: unknown;
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
-  title?: string;
-  titleIcon?: IconComponent;
+  borderless?: boolean;
+  downloadLabel?: string;
   /** Drop the Path / Value header row. */
   className?: string;
   isLoading?: boolean;
@@ -693,8 +683,12 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  /** Section header actions, after the table's own. */
-  actions?: IOSectionAction[];
+  expandAllRef?: React.RefObject<(() => void) | null>;
+  onExpandStateChange?: (allExpanded: boolean) => void;
+  /** Lets a caller-owned copy button copy the rendered, decoded value. */
+  copyRef?: React.RefObject<(() => void) | null>;
+  onDisplayModeChange?: (mode: "text" | "table") => void;
+  onExpandabilityChange?: (canExpand: boolean) => void;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
   onExternalExpansionChange?: (
@@ -703,21 +697,8 @@ export function PrettyJsonView(props: {
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
-  tone?: PrettyJsonViewTone;
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
   /** Shows an actions menu instead of the default one-click copy button. */
   rowActions?: React.ComponentProps<typeof ValueCell>["rowActions"];
-  /** Long system prompts start collapsed (from raw `role === "system"`,
-      since the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
 }) {
   const codeClassName = props.codeClassName;
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
@@ -778,7 +759,7 @@ export function PrettyJsonView(props: {
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
   // The section box frames titled tables, toned ones included.
-  const tableBorderless = Boolean(props.title);
+  const tableBorderless = props.borderless ?? false;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -793,8 +774,6 @@ export function PrettyJsonView(props: {
   }, [parsedJson, props.json]);
 
   const actualCurrentView = props.currentView ?? "pretty";
-  const expandAllRef = useRef<(() => void) | null>(null);
-  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
   // For JSON view: derive collapsed state from external expansion state
   // false or empty object = collapsed, true or object with keys = expanded
@@ -1121,18 +1100,6 @@ export function PrettyJsonView(props: {
     [onExternalExpansionChange, actualExpansionState],
   );
 
-  const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
-    if (event) {
-      event.preventDefault();
-    }
-    const textToCopy = stringifyJsonNode(parsedJson);
-    copyTextToClipboard(textToCopy);
-
-    if (event) {
-      event.currentTarget.focus();
-    }
-  };
-
   const handleJsonToggleCollapse = () => {
     const newCollapsed = !jsonIsCollapsed;
     setJsonIsCollapsed(newCollapsed);
@@ -1141,12 +1108,6 @@ export function PrettyJsonView(props: {
     }
   };
 
-  const hasExpandableRows = useMemo(() => {
-    if (typeof parsedJson !== "object" || parsedJson === null) return false;
-    return Object.values(parsedJson as Record<string, unknown>).some((value) =>
-      hasChildren(value, getValueType(value)),
-    );
-  }, [parsedJson]);
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
@@ -1156,14 +1117,6 @@ export function PrettyJsonView(props: {
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt:
-      Boolean(props.title) &&
-      !!props.isSystemPrompt &&
-      isMarkdownMode &&
-      !shouldRenderStandaloneMedia,
-    content: markdownContent ?? "",
-  });
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1177,10 +1130,43 @@ export function PrettyJsonView(props: {
     !isMarkdown &&
     !emptyValueDisplay;
 
+  const canExpand = useMemo(() => {
+    if (
+      !shouldUseTableView ||
+      parsedJson === null ||
+      typeof parsedJson !== "object"
+    )
+      return false;
+    return Object.values(parsedJson).some((value) =>
+      hasChildren(value, getValueType(value)),
+    );
+  }, [shouldUseTableView, parsedJson]);
+  const { copyRef, onDisplayModeChange, onExpandabilityChange } = props;
+  useEffect(() => {
+    if (!copyRef) return;
+    const copy = () => copyTextToClipboard(stringifyJsonNode(parsedJson));
+    copyRef.current = copy;
+    return () => {
+      if (copyRef.current === copy) copyRef.current = null;
+    };
+  }, [copyRef, parsedJson]);
+  useEffect(() => {
+    onDisplayModeChange?.(shouldUseTableView ? "table" : "text");
+    onExpandabilityChange?.(canExpand);
+  }, [
+    shouldUseTableView,
+    canExpand,
+    onDisplayModeChange,
+    onExpandabilityChange,
+  ]);
+
   const body = (
     <>
       {largeStringValue !== null ? (
-        <LargeStringFallback title={props.title} value={largeStringValue} />
+        <LargeStringFallback
+          title={props.downloadLabel}
+          value={largeStringValue}
+        />
       ) : props.isLoading || props.isParsing ? (
         <div className="io-message-content ph-no-capture">
           <div
@@ -1236,7 +1222,7 @@ export function PrettyJsonView(props: {
             <MarkdownView
               markdown={markdownContent || ""}
               media={props.media}
-              className={cn(props.title && "p-0")}
+              borderless={props.borderless}
             />
           )}
         </div>
@@ -1263,8 +1249,8 @@ export function PrettyJsonView(props: {
               ) : (
                 <JsonPrettyTable
                   data={tableData}
-                  expandAllRef={expandAllRef}
-                  onExpandStateChange={setAllRowsExpanded}
+                  expandAllRef={props.expandAllRef}
+                  onExpandStateChange={props.onExpandStateChange}
                   noBorder={true}
                   expanded={
                     actualExpansionState === false ? {} : actualExpansionState
@@ -1295,7 +1281,7 @@ export function PrettyJsonView(props: {
               // mutating the shared parsedJson / rawChildData tree.
               json={jsonViewInput}
               className=""
-              borderless={Boolean(props.title)}
+              borderless={props.borderless}
               isLoading={props.isLoading}
               codeClassName={codeClassName}
               collapseStringsAfterLength={props.collapseStringsAfterLength}
@@ -1345,19 +1331,6 @@ export function PrettyJsonView(props: {
     </>
   );
 
-  const expandAllAction: IOSectionAction | undefined =
-    shouldUseTableView && hasExpandableRows
-      ? {
-          icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
-          label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
-          onClick: () => expandAllRef.current?.(),
-        }
-      : undefined;
-  const sectionActions = [
-    ...(expandAllAction ? [expandAllAction] : []),
-    ...(props.actions ?? []),
-  ];
-
   const scrollableBody = props.scrollable ? (
     <div
       className={cn(
@@ -1373,20 +1346,6 @@ export function PrettyJsonView(props: {
     body
   );
 
-  if (!props.title) {
-    return (
-      <div
-        className={cn(
-          "flex max-h-full min-h-0 flex-col",
-          props.className,
-          props.scrollable ? "overflow-hidden" : "",
-        )}
-      >
-        {scrollableBody}
-      </div>
-    );
-  }
-
   return (
     <div
       className={cn(
@@ -1395,25 +1354,7 @@ export function PrettyJsonView(props: {
         props.scrollable ? "overflow-hidden" : "",
       )}
     >
-      <IOSection
-        title={props.title}
-        titleIcon={props.titleIcon}
-        onCopy={handleOnCopy}
-        actions={sectionActions.length > 0 ? sectionActions : undefined}
-        defaultCollapsed={props.defaultCollapsed}
-        collapsed={props.collapsed}
-        onCollapsedChange={props.onCollapsedChange}
-        variant={shouldUseTableView ? "table" : "text"}
-        tone={props.tone}
-        {...(systemPrompt.shouldBeCollapsible && {
-          collapsed: systemPrompt.isCollapsed,
-          onCollapsedChange: systemPrompt.toggleCollapsed,
-        })}
-      >
-        {props.beforeContent}
-        {scrollableBody}
-        {props.afterContent}
-      </IOSection>
+      {scrollableBody}
     </div>
   );
 }

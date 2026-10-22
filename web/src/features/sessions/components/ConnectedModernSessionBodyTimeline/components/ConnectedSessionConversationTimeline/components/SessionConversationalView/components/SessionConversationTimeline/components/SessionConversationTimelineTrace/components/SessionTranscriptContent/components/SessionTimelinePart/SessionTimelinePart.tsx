@@ -1,5 +1,11 @@
-import { FileIcon, Wrench } from "@langfuse/icons";
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { IOSection } from "@/src/components/ui/IOSection";
+import {
+  FileIcon,
+  Wrench,
+  FoldVertical,
+  UnfoldVertical,
+} from "@langfuse/icons";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
 import {
@@ -29,6 +35,12 @@ export function SessionTimelinePart({
   trailingContent?: ReactNode;
   mediaVariant?: "tool-output";
 }) {
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const copyRef = useRef<(() => void) | null>(null);
+  const [variant, setVariant] = useState<"text" | "table">("text");
+  const [canExpand, setCanExpand] = useState(false);
+
   if (part.type === "text") {
     if (part.refusal) {
       return (
@@ -95,11 +107,36 @@ export function SessionTimelinePart({
 
   if (part.type === "custom") {
     return (
-      <PrettyJsonView
+      <IOSection
         title={part.kind}
-        json={part.value}
-        currentView="pretty"
-      />
+        variant={variant}
+        onCopy={() => copyRef.current?.()}
+        actions={
+          canExpand
+            ? [
+                {
+                  icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+                  label: allRowsExpanded
+                    ? "Collapse all rows"
+                    : "Expand all rows",
+                  onClick: () => expandAllRef.current?.(),
+                },
+              ]
+            : undefined
+        }
+      >
+        <PrettyJsonView
+          json={part.value}
+          currentView="pretty"
+          borderless
+          downloadLabel={part.kind}
+          expandAllRef={expandAllRef}
+          onExpandStateChange={setAllRowsExpanded}
+          copyRef={copyRef}
+          onDisplayModeChange={setVariant}
+          onExpandabilityChange={setCanExpand}
+        />
+      </IOSection>
     );
   }
 
