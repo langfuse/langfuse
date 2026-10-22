@@ -24,26 +24,9 @@ const TAB_ICONS: Record<AgentSetupInstructions["id"], IconComponent> = {
   opencode: SquareTerminal,
 };
 
-type GeneratedKeyContentProps = {
+type SetupInstructionsProps = {
   organizationId: string;
-  secretKey: string;
 };
-
-export function GeneratedKeyContent({
-  organizationId,
-  secretKey,
-}: GeneratedKeyContentProps) {
-  return (
-    <Dialog.Body>
-      <p className="text-muted-foreground">
-        Copy the key now. It is shown only once.
-      </p>
-      <MaskedGatewayKey secretKey={secretKey} />
-      <hr className="-mx-4" />
-      <SetupInstructions organizationId={organizationId} />
-    </Dialog.Body>
-  );
-}
 
 function SetupInstructions({ organizationId }: SetupInstructionsProps) {
   const { instructions, isPending, isError } =
@@ -115,6 +98,23 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
   );
 }
 
-type SetupInstructionsProps = {
+type GeneratedKeyContentProps = {
   organizationId: string;
+  secretKey: string;
 };
+
+export function GeneratedKeyContent({
+  organizationId,
+  secretKey,
+}: GeneratedKeyContentProps) {
+  return (
+    <Dialog.Body>
+      <p className="text-muted-foreground">
+        Copy the key now. It is shown only once.
+      </p>
+      <MaskedGatewayKey secretKey={secretKey} />
+      <hr className="-mx-4" />
+      <SetupInstructions organizationId={organizationId} />
+    </Dialog.Body>
+  );
+}
