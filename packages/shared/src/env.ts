@@ -740,6 +740,20 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
     .enum(["true", "false"])
     .default("false"),
+  // Comma-separated project ids whose scores are never updated after ingestion.
+  // Reads of the scores table skip deduplication (FINAL / LIMIT 1 BY) for them.
+  LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
 
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),

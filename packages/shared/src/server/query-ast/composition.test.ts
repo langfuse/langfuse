@@ -20,7 +20,7 @@ const costArrayJoin = () =>
 const dedup = () =>
   limitBy({
     count: 1,
-    columns: (eb: ExpressionBuilder<ClickHouseDatabase, "events_core">) => [
+    columns: (eb: ExpressionBuilder<ClickHouseDatabase, "events">) => [
       eb.ref("span_id"),
       eb.ref("project_id"),
     ],
@@ -105,7 +105,7 @@ describe("LIMIT BY composition across nesting positions", () => {
   it("emits LIMIT BY at the top level (baseline)", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select(["span_id", "project_id"])
       .orderBy("event_ts", "desc")
       .$call(dedup());
@@ -119,7 +119,7 @@ describe("LIMIT BY composition across nesting positions", () => {
     const qb = db
       .with("lb", (qb) =>
         qb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select(["span_id", "project_id"])
           .orderBy("event_ts", "desc")
           .$call(dedup()),
@@ -172,7 +172,7 @@ describe("FINAL composition across nesting positions", () => {
   it("keeps FINAL on a JOIN table and not on events_core", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .innerJoin("scores as s", (join) =>
         join
           .onRef("e.trace_id", "=", "s.trace_id")
