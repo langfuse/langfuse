@@ -7,7 +7,7 @@ import {
   type MovableResizablePanelGeometry,
   type MovableResizablePanelPosition,
   type MovableResizablePanelSize,
-} from "./movable-resizable-panel";
+} from "./MovableResizablePanel";
 
 type TestPanelProps = {
   boundsPadding?: number;
