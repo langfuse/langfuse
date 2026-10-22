@@ -2,7 +2,7 @@ import { headerActionClassName } from "@/src/features/traces/components/headerAc
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Skeleton } from "@/src/components/ui/skeleton";

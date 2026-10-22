@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 
 import {

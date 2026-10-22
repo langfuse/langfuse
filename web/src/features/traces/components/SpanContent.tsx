@@ -19,7 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { Skeleton } from "@/src/components/ui/skeleton";
