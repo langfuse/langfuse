@@ -165,7 +165,7 @@ function DialogRoot({
             className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4"
           >
             <div className="flex w-full items-center justify-between gap-4 text-left">
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
                 <DialogPrimitive.Title className="min-w-0 text-lg leading-none font-bold tracking-tight">
                   {title}
                 </DialogPrimitive.Title>
