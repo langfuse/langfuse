@@ -46,6 +46,7 @@ Use their technical rules, not their implementation or handoff workflows.
 - No nested ternaries, including JSX. Use guards or separate components. Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without commentary or speculation.
+- In Markdown files only, do not hard-wrap prose paragraphs or list items; rely on editor soft wrapping. Preserve line breaks required by Markdown syntax. This rule does not apply to code comments or code blocks.
 
 ### Tests
 
