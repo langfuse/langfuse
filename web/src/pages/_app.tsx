@@ -85,24 +85,24 @@ if (typeof window !== "undefined") {
 }
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
-import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitProvider";
-import { SupportDrawerProvider } from "@/src/features/support-chat";
+import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
-import { InAppAiAgentProvider } from "@/src/features/in-app-agent";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { ScoreCacheProvider } from "@/src/features/scores";
-import { CorrectionCacheProvider } from "@/src/features/corrections";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheProvider";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  V4_BETA_ENABLED_POSTHOG_PROPERTY,
   getPostHogClientConfig,
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
-} from "@/src/features/posthog-analytics";
+} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 
 // Session replay is a Langfuse Cloud feature, so self-hosted never records.
 // The product-analytics gate makes this redundant in HIPAA (PostHog is not

@@ -1,7 +1,8 @@
 import {
   isRegionProduction,
   type CloudRegionName,
-} from "@/src/features/organizations";
+} from "@/src/features/organizations/cloudRegions";
+
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { assertUnreachable } from "@/src/utils/types";
 import { useMemo } from "react";

@@ -1,5 +1,5 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 // A stored workspace that fails validation reads as inactive, same as no

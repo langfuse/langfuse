@@ -9,7 +9,7 @@ import { z } from "zod";
 import {
   getEventFilterNumericRange,
   getEventFilterValuePage,
-} from "@/src/features/events/server";
+} from "@/src/features/events/server/eventsService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
@@ -17,7 +17,7 @@ import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",

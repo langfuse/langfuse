@@ -16,7 +16,7 @@ import {
   getSdkVersionCapability,
   getSdkVersionCapabilityStatus,
   toSdkVersionInfo,
-} from "@/src/features/sdk-version";
+} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
 const levelFilter: FilterState[number] = {
   column: "level",

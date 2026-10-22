@@ -36,8 +36,8 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/feature-flags", () => ({
-  useIsFeatureEnabled: () => true,
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: () => true,
 }));
 
 const renderMarkdown = (markdown: string) =>

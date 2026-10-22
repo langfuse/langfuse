@@ -8,7 +8,7 @@ import { planCommit } from "./commit";
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/usersSearchRegistry";
 
 const scopedRegistry = createFieldRegistry({
   ...EVENTS_FIELD_REGISTRY,

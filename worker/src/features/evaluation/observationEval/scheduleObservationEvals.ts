@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { ObservationVariableMapping } from "@langfuse/shared";
+import {
+  type ObservationVariableMapping,
+  EvalTemplateType,
+  JobExecutionStatus,
+  type FilterState,
+  type EvalExecutionMode,
+  canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
+  mapEventEvalFilterColumnIdToField,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import {
   type ObservationForEval,
   type ObservationEvalAssignment,
@@ -15,17 +25,8 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
-import {
-  EvalTemplateType,
-  JobExecutionStatus,
-  type FilterState,
-  type EvalExecutionMode,
-  canRunEvalRule,
-  coerceLegacyEmptyMetadataFilters,
-  mapEventEvalFilterColumnIdToField,
-  observationVariableMappingList,
-} from "@langfuse/shared";
-import { createW3CTraceId } from "../../utils";
+
+import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
 const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([

@@ -5,7 +5,7 @@
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
-import { UpsertModelFormDialogController } from "@/src/features/models";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 
 export function ModelBadge({
   model,

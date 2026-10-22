@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/features/external-media-storage/types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

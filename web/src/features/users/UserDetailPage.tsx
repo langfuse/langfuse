@@ -3,20 +3,20 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
-import { TracesTable } from "@/src/features/traces";
-import { ScoresTable } from "@/src/features/scores";
+import { default as TracesTable } from "@/src/features/traces/TracesTable";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
-import { SessionsTable } from "@/src/features/sessions";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { default as SessionsTable } from "@/src/features/sessions/SessionsTable";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "@langfuse/icons";
 import Page from "@/src/components/layouts/page";
-import { useReadPath } from "@/src/features/events";
-import { ObservationsEventsTable } from "@/src/features/events/components";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { default as ObservationsEventsTable } from "@/src/features/events/components/EventsTable";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 

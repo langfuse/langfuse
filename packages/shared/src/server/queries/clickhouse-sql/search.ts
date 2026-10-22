@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-exotic-operators */
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
   hasValidTracingSearchTypes,
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,

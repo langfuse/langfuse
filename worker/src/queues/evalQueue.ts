@@ -16,8 +16,9 @@ import {
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
-import { processObservationEval } from "../features/evaluation/observationEval";
-import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
+import { processObservationEval } from "../features/evaluation/observationEval/observationEvalProcessor";
+import { createW3CTraceId } from "../features/utils/utilities";
+import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";

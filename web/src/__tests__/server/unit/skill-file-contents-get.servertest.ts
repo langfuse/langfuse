@@ -7,7 +7,7 @@ const { getFileContents, shadowAuth } = vi.hoisted(() => ({
   shadowAuth: vi.fn(),
 }));
 
-vi.mock("@/src/features/skills/server", () => ({
+vi.mock("@/src/features/skills/server/skill-service", () => ({
   SkillService: class {
     getFileContents = getFileContents;
   },
@@ -23,11 +23,21 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-vi.mock("@/src/features/ai-gateway/server", () => ({
+vi.mock("@/src/features/ai-gateway/server/auth/ingestionTokenVerifier", () => ({
   verifyGatewayIngestionAuthorization: vi.fn(),
 }));
 
-vi.mock("@/src/features/public-api/server", async () => {
+vi.mock(
+  "@/src/features/public-api/server/createAuthedProjectAPIRoute",
+  async () => {
+    const { createAuthedProjectAPIRoute } =
+      await import("@/src/features/public-api/server/createAuthedProjectAPIRoute");
+    const { withMiddlewares } =
+      await import("@/src/features/public-api/server/withMiddlewares");
+    return { createAuthedProjectAPIRoute, withMiddlewares };
+  },
+);
+vi.mock("@/src/features/public-api/server/withMiddlewares", async () => {
   const { createAuthedProjectAPIRoute } =
     await import("@/src/features/public-api/server/createAuthedProjectAPIRoute");
   const { withMiddlewares } =

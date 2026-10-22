@@ -5,7 +5,7 @@ import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
 import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
-import { projectsRouter } from "@/src/features/projects/server";
+import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
@@ -22,7 +22,7 @@ import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evalu
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/mixpanel-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
-import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server";
+import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server/router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { organizationLlmApiKeyRouter } from "@/src/features/llm-api-key/server/organizationRouter";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
@@ -64,7 +64,7 @@ import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRou
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
-import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
+import { aiGatewayRouter } from "@/src/features/ai-gateway/server/router";
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 

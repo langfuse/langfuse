@@ -55,7 +55,10 @@ vi.mock(
   }),
 );
 
-import { shadowAuth, shadowAuthorize } from "@/src/features/public-api/server";
+import {
+  shadowAuth,
+  shadowAuthorize,
+} from "@/src/features/public-api/server/shadowAuth";
 import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 

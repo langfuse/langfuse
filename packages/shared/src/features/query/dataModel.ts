@@ -6,7 +6,7 @@ import {
   type views,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   eventsTableIsRootObservationSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,

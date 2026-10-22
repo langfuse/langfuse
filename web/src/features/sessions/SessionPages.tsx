@@ -8,13 +8,11 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { IOPreview } from "@/src/features/traces";
+import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  DetailPageNav,
-  useDetailPageLists,
-} from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -28,14 +26,17 @@ import React, {
   useRef,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawerController } from "@/src/features/scores";
-import { type AnnotateDrawerPayload } from "@/src/features/scores/components/AnnotateDrawerController";
+import {
+  AnnotateDrawerController,
+  type AnnotateDrawerPayload,
+} from "@/src/features/scores/components/AnnotateDrawerController";
+
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
@@ -50,7 +51,7 @@ import {
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
@@ -66,14 +67,12 @@ import {
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
-import {
-  AnnotationQueueItemDropdownMenuController,
-  AnnotationQueueItemCountBadge,
-} from "@/src/features/annotation-queues";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import {
   useWebCalloutAction,
   WebCalloutButton,
-} from "@/src/features/web-callouts";
+} from "@/src/features/web-callouts/components/WebCalloutButton";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -82,17 +81,17 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
-import {
-  observationEventsFilterConfig,
-  useEventsFilterOptions,
-} from "@/src/features/events";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
   buildSidebarFilterQueryStorageKey,
   readPersistedSidebarFilterQuery,
-  PopoverFilterBuilder,
-} from "@/src/features/filters";
+} from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 
 import { StringParam, useQueryParam } from "use-query-params";
 
@@ -121,7 +120,7 @@ import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBa
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";

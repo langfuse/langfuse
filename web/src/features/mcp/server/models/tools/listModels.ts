@@ -1,8 +1,8 @@
 import {
   GetModelsV1Query,
   GetModelsV1Response,
-} from "@/src/features/public-api/server";
-import { listModelsForApi } from "@/src/features/models/server";
+} from "@/src/features/public-api/types/models";
+import { listModelsForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { buildModelUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

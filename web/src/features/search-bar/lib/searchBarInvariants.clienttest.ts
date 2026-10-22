@@ -15,10 +15,12 @@ import {
 import {
   SESSIONS_FIELD_REGISTRY,
   sessionsFieldRegistry,
-  getSessionFilterConfig,
+} from "@/src/features/filters/config/sessionsSearchRegistry";
+import { getSessionFilterConfig } from "@/src/features/filters/config/sessions-config";
+import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/usersSearchRegistry";
 
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
 

@@ -2,7 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({

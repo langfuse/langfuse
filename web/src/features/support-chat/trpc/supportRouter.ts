@@ -7,7 +7,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { nanoid } from "nanoid";
 import { logger } from "@langfuse/shared/src/server";
 

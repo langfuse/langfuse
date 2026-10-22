@@ -1,11 +1,9 @@
 import type { FilterState } from "@langfuse/shared";
 import { useMemo } from "react";
-import type { FilterConfig } from "@/src/features/filters";
-import {
-  type ComposerSize,
-  TableSearchBar,
-  toObservedOptions,
-} from "@/src/features/search-bar";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
 

@@ -65,14 +65,16 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: vi.fn(),
+}));
 vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
   useScoreEditsDisabled: () => mocks.scoreEditsDisabled,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

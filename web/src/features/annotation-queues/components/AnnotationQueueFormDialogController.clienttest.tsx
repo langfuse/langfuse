@@ -15,9 +15,13 @@ const { create, update, assign, notify, draft } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: notify }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: notify,
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("./AnnotationQueueFormDialogContent", () => ({

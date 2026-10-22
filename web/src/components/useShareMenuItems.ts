@@ -5,7 +5,7 @@ import {
   getShareUrl,
   usePublishObject,
 } from "@/src/components/publish-object-switch";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 /**

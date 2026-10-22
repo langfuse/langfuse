@@ -1,4 +1,5 @@
-import { Chart, type MetricFormatterFunction } from "@/src/features/widgets";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import type { MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export type BarListDataPoint = {

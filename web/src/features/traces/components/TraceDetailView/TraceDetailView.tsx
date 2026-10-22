@@ -15,8 +15,8 @@ import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSecti
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-  useCommentedPaths,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -39,20 +39,20 @@ import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";

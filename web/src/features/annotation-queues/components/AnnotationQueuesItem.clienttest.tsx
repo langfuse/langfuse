@@ -50,8 +50,10 @@ vi.mock("next/router", () => ({ useRouter: () => router }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({ status: "authenticated" }),
 }));
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
@@ -62,7 +64,7 @@ vi.mock("@/src/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children: ReactNode }) => children,
   TooltipContent: () => null,
 }));
-vi.mock("@/src/features/scores", () => ({
+vi.mock("@/src/features/scores/lib/keyboardShortcuts", () => ({
   hasModifier: () => false,
   isCompleteShortcut: () => false,
   isInteractiveTarget: () => false,
@@ -137,7 +139,7 @@ vi.mock("./shared/hooks/useAnnotationObjectData", () => ({
     isLoading: false,
   }),
 }));
-vi.mock("@/src/features/traces", () => ({
+vi.mock("@/src/features/traces/components/Trace", () => ({
   Trace: () => <p>Trace loaded</p>,
 }));
 vi.mock("./shared/AnnotationDrawerSection", () => ({

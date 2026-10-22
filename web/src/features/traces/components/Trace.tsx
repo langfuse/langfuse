@@ -36,13 +36,13 @@ import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 

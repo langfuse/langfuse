@@ -15,10 +15,8 @@ import {
 } from "@/src/components/ui/tooltip";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
-import {
-  DetailPageNav,
-  type ListEntry,
-} from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/context";
 import {
   ExternalLink,
   Maximize2,

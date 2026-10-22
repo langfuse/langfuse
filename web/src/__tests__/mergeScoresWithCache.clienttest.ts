@@ -4,9 +4,9 @@ import {
   mergeScoresWithCache,
   mergeAggregatesWithCache,
   mergeAnnotationScoresWithCache,
-  type CachedScore,
-  type AnnotationScore,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/mergeScoresWithCache";
+import type { CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
+import type { AnnotationScore } from "@/src/features/scores/types";
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

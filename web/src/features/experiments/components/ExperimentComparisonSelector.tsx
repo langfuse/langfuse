@@ -12,7 +12,7 @@ import {
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   autoComparisonPreferenceChangedProps,
   comparisonChangedProps,

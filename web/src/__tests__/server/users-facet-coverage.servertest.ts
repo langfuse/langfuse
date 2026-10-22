@@ -13,7 +13,7 @@
  */
 import { randomUUID } from "crypto";
 
-import { observationEventsFilterConfig } from "@/src/features/events/server";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import {
   usersEventsFilterConfig,

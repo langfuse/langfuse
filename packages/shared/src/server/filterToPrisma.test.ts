@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type ColumnDefinition } from "../tableDefinitions";
+import type { ColumnDefinition } from "../tableDefinitions/types";
 import { type FilterState } from "../types";
 import { tableColumnsToSqlFilter } from "./filterToPrisma";
 

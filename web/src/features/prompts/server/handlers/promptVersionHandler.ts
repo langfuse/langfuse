@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
-import {
-  withMiddlewares,
-  createAuthedProjectAPIRoute,
-} from "@/src/features/public-api/server";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 const UpdatePromptBodySchema = z.object({

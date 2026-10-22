@@ -36,7 +36,7 @@ import {
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { copyTextToClipboard } from "@/src/utils/clipboard";

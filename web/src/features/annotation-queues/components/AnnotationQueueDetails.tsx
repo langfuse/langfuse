@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
-import { getScoreDataTypeIcon } from "@/src/features/scores";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 

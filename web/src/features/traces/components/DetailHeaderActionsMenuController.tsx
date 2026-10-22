@@ -10,11 +10,11 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
 
 type IdItem = {
   name: string;

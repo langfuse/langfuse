@@ -10,13 +10,14 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import { ExternalMediaStorageForm } from "@/src/features/external-media-storage/components/ExternalMediaStorageForm/ExternalMediaStorageForm";
 import { TestMediaObjectDialog } from "@/src/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
 import { testSignedMediaUrlCors } from "@/src/features/external-media-storage/fns/testSignedMediaUrlCors";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 

@@ -43,7 +43,7 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
 }));
 
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: () => null,
 }));
 

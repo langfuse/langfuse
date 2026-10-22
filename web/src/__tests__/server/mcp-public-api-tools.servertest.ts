@@ -51,46 +51,40 @@ import {
 import "@/src/features/mcp/server/bootstrap";
 import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
+import { handleCreateAnnotationQueueAssignment } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueAssignment";
+import { handleCreateAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueItem";
+import { handleDeleteAnnotationQueueAssignment } from "@/src/features/mcp/server/annotationQueues/tools/deleteAnnotationQueueAssignment";
+import { handleDeleteAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/deleteAnnotationQueueItem";
+import { handleGetAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/getAnnotationQueue";
+import { handleGetAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/getAnnotationQueueItem";
+import { handleListAnnotationQueueItems } from "@/src/features/mcp/server/annotationQueues/tools/listAnnotationQueueItems";
+import { handleListAnnotationQueues } from "@/src/features/mcp/server/annotationQueues/tools/listAnnotationQueues";
+import { handleUpdateAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/updateAnnotationQueueItem";
+import { handleCreateComment } from "@/src/features/mcp/server/comments/tools/createComment";
+import { handleGetComment } from "@/src/features/mcp/server/comments/tools/getComment";
+import { handleListComments } from "@/src/features/mcp/server/comments/tools/listComments";
+import { handleBatchUpsertDatasetItems } from "@/src/features/mcp/server/datasets/tools/batchUpsertDatasetItems";
+import { handleCreateDatasetRunItem } from "@/src/features/mcp/server/datasets/tools/createDatasetRunItem";
+import { handleDeleteDatasetItem } from "@/src/features/mcp/server/datasets/tools/deleteDatasetItem";
+import { handleDeleteDatasetRun } from "@/src/features/mcp/server/datasets/tools/deleteDatasetRun";
+import { handleGetDataset } from "@/src/features/mcp/server/datasets/tools/getDataset";
+import { handleGetDatasetItem } from "@/src/features/mcp/server/datasets/tools/getDatasetItem";
+import { handleGetDatasetRun } from "@/src/features/mcp/server/datasets/tools/getDatasetRun";
+import { handleListDatasetItems } from "@/src/features/mcp/server/datasets/tools/listDatasetItems";
+import { handleListDatasetRunItems } from "@/src/features/mcp/server/datasets/tools/listDatasetRunItems";
+import { handleListDatasetRuns } from "@/src/features/mcp/server/datasets/tools/listDatasetRuns";
+import { handleListDatasets } from "@/src/features/mcp/server/datasets/tools/listDatasets";
 import {
-  handleCreateAnnotationQueue,
-  handleCreateAnnotationQueueAssignment,
-  handleCreateAnnotationQueueItem,
-  handleDeleteAnnotationQueueAssignment,
-  handleDeleteAnnotationQueueItem,
-  handleGetAnnotationQueue,
-  handleGetAnnotationQueueItem,
-  handleListAnnotationQueueItems,
-  handleListAnnotationQueues,
-  handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/server/annotationQueues/tools";
-import {
-  handleCreateComment,
-  handleGetComment,
-  handleListComments,
-} from "@/src/features/mcp/server/comments/tools";
-import {
-  handleBatchUpsertDatasetItems,
-  handleCreateDatasetRunItem,
-  handleDeleteDatasetItem,
-  handleDeleteDatasetRun,
-  handleGetDataset,
-  handleGetDatasetItem,
-  handleGetDatasetRun,
-  handleListDatasetItems,
-  handleListDatasetRunItems,
-  handleListDatasetRuns,
-  handleListDatasets,
   handleUpsertDataset,
-  handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/server/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
-import {
-  handleCreateModel,
-  handleDeleteModel,
-  handleGetModel,
-  handleListModels,
-} from "@/src/features/mcp/server/models/tools";
+} from "@/src/features/mcp/server/datasets/tools/upsertDataset";
+import { handleUpsertDatasetItem } from "@/src/features/mcp/server/datasets/tools/upsertDatasetItem";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools/getHealth";
+import { handleCreateModel } from "@/src/features/mcp/server/models/tools/createModel";
+import { handleDeleteModel } from "@/src/features/mcp/server/models/tools/deleteModel";
+import { handleGetModel } from "@/src/features/mcp/server/models/tools/getModel";
+import { handleListModels } from "@/src/features/mcp/server/models/tools/listModels";
 import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
 import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
 import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";

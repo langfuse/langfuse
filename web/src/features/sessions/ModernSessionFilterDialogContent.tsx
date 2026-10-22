@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { InlineFilterBuilder } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 
 export type ModernSessionFilterDialogViewActions =
   | { type: "none" }

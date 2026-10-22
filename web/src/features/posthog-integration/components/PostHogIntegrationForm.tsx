@@ -20,7 +20,7 @@ import {
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations";
+} from "@/src/features/analytics-integrations/exportSource";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 
 type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;

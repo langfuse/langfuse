@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env } from "../../env";
-import { getRetentionCutoffDate } from "../utils";
+import { getRetentionCutoffDate } from "../utils/utilities";
 import {
   PeriodicExclusiveRunner,
   PeriodicExclusiveRunnerLeaseLostError,

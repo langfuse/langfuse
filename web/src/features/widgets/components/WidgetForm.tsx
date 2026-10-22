@@ -24,7 +24,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
   useController,
@@ -40,12 +40,12 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import startCase from "lodash/startCase";
 import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { addMinutes } from "date-fns";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { type useMetricsFilterBuilderData } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
@@ -60,7 +60,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {

@@ -48,10 +48,13 @@ vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
   };
 });
 
-vi.mock(import("@/src/features/public-api/server"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  shadowAuth,
-}));
+vi.mock(
+  import("@/src/features/public-api/server/shadowAuth"),
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    shadowAuth,
+  }),
+);
 
 vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
   const original = await importOriginal();

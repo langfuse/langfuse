@@ -1,6 +1,6 @@
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";

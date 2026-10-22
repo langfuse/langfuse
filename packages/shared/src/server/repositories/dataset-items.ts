@@ -3,13 +3,11 @@ import { Dataset, DatasetItem, DatasetStatus, prisma, Prisma } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { datasetItemsFilterCols } from "./dataset-items-columns";
-import {
-  InternalServerError,
-  InvalidRequestError,
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-} from "../../errors";
-import { DatasetItemValidator } from "../services/DatasetService";
+import { InternalServerError } from "../../errors/InternalServerError";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseConflictError } from "../../errors/ConflictError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { DatasetItemValidator } from "../services/DatasetService/DatasetItemValidator";
 import {
   executeWithDatasetServiceStrategy,
   Implementation,
@@ -28,12 +26,13 @@ import {
   DatasetItemDomain,
   DatasetItemDomainWithoutIO,
   type DatasetItemMediaField,
-} from "../../domain";
+} from "../../domain/dataset-items";
+
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
-import { postgresSearchCondition } from "../queries";
+import { postgresSearchCondition } from "../queries/postgres-sql/search";
 import { TracingSearchType } from "../../interfaces/search";
 
 const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};

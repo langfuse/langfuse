@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { IOSection } from "@/src/components/ui/IOSection";
@@ -10,7 +10,7 @@ import { cn } from "@/src/utils/tailwind";
 import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { getMetadataRowActions } from "@/src/features/traces/fns/getMetadataRowActions";
 import { getAttributeRowActions } from "@/src/features/traces/fns/getAttributeRowActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,

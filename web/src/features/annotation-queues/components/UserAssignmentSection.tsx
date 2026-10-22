@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
 import { MoreHorizontal, X } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {

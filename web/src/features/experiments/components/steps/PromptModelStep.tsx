@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/popover";
 import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 import {
   hasPromptToolStructuredOutputConflict,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,

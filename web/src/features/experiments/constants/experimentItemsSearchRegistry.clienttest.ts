@@ -6,7 +6,8 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "./experimentItemsSearchRegistry";
-import { planCommit, filterStateToQueryText } from "@/src/features/search-bar";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { experimentItemsFilterTargeting } from "../lib/experimentItemsFilterTargeting";
 import {
   completeExperimentFilter,

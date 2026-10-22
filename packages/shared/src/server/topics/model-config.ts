@@ -6,13 +6,13 @@ import {
   type TopicConfig,
 } from "@prisma/client";
 import { prisma } from "../../db";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   type LLMConnection,
 } from "../llm/llmText";
 import { LLMAdapter } from "../llm/types";
-import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys";
+import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys/findCompatibleLlmApiKeysForProjects";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,

@@ -5,9 +5,9 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { SkillService } from "@/src/features/skills/server/skill-service";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
 

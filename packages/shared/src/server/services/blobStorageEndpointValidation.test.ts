@@ -1,5 +1,8 @@
 import { afterEach, describe, it, expect } from "vitest";
-import { OutboundUrlValidationError, parseOutboundUrl } from "../outbound-url";
+import {
+  OutboundUrlValidationError,
+  parseOutboundUrl,
+} from "../outbound-url/validation";
 import {
   assertGcsBlobStorageBucketAllowed,
   validateBlobStorageEndpoint,

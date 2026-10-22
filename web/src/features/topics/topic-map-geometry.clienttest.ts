@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "./EmbeddingMapView";
+import { __test } from "@/src/features/topics/map/TopicMapExplorer";
 import {
   baseScale,
   fitCamera,

@@ -17,7 +17,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { CommentEditor, type CommentEditorHandle } from "./CommentEditor";
 import { MentionAutocomplete } from "./MentionAutocomplete";

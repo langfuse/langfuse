@@ -126,6 +126,13 @@ export default [
 
   ...sharedConfig,
 
+  // Next.js discovers routes by filename, not imports.
+  {
+    name: "langfuse/next/route-entrypoints",
+    files: ["src/pages/**/*.{js,jsx,ts,tsx}"],
+    rules: { "@repo/no-internal-barrel-files": "off" },
+  },
+
   {
     name: "langfuse/next/no-let-assign-in-react",
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],

@@ -3,8 +3,10 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server";
-import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
+import {
+  listScoresV3ForPublicApi,
+  buildScoreSubjectUrl,
+} from "@langfuse/shared/src/server";
 
 const GetScoreInputSchema = z.object({ scoreId: z.string() }).strict();
 

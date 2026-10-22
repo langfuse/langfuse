@@ -7,7 +7,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { Check, Copy, type IconComponent } from "@langfuse/icons";
 import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMemo, useState } from "react";

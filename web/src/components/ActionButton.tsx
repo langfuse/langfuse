@@ -4,7 +4,7 @@ import { Lock, AlertCircle, Sparkle } from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type ActionButtonProps = Pick<
   ButtonProps,

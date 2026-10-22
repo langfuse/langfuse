@@ -206,7 +206,7 @@ import {
   handleListLlmConnections,
   listLlmConnectionsTool,
 } from "@/src/features/mcp/server/llmConnections/tools/listLlmConnections";
-import { SkillService } from "@/src/features/skills/server";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 import { handleListSkills } from "@/src/features/mcp/server/skills/tools/listSkills";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
 import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";

@@ -1,4 +1,4 @@
-import { CommentList } from "@/src/features/comments";
+import { CommentList } from "@/src/features/comments/CommentList";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 
 interface CommentsSectionProps {

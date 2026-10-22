@@ -1,12 +1,10 @@
 /* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { TraceDetailBody } from "@/src/features/traces";
+import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { TablePeekView } from "@/src/components/table/peek";
-import {
-  ExperimentPeekFooter,
-  useExperimentPeekNavigation,
-} from "@/src/features/experiments";
+import { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
+import { useExperimentPeekNavigation } from "@/src/features/experiments/hooks/useExperimentPeekNavigation";
 import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {

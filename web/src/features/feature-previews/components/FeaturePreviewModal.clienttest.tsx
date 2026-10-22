@@ -10,11 +10,15 @@ import { FeaturePreviewModal } from "./FeaturePreviewModal";
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), isV4: true }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: mocks.isV4 }),
   V4_PREVIEW_LABEL: "Fast (Preview)",
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/events/lib/v4PreviewLabel", () => ({
+  useReadPath: () => ({ isV4: mocks.isV4 }),
+  V4_PREVIEW_LABEL: "Fast (Preview)",
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/utils/api", () => ({

@@ -39,7 +39,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
 import {
   isProductFeedbackAvailable,
   submitFeedback,
-} from "@/src/features/feedback/server";
+} from "@/src/features/feedback/server/FeedbackService";
 import { feedbackFeature } from "@/src/features/mcp/server/feedback";
 import { getMcpServerInstructions } from "@/src/features/mcp/server/mcpServer";
 import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";

@@ -1,11 +1,11 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   isPublicApiEvaluatorType,
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { EvalTemplateType, InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";

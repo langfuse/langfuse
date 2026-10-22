@@ -16,8 +16,8 @@ import {
   validateExternalMediaStorageEndpoint,
 } from "@langfuse/shared/src/server";
 
-import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,

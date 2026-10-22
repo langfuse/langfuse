@@ -4,11 +4,9 @@ import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import {
-  PopoverFilterBuilder,
-  useQueryFilterState,
-  MultiSelect,
-} from "@/src/features/filters";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -25,14 +23,18 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
+
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -43,15 +45,15 @@ import {
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "@langfuse/icons";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { setupTracingRoute } from "@/src/features/setup";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of

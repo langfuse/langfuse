@@ -26,7 +26,7 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
-import { ServiceUnavailableError } from "../../errors";
+import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
 import {
   BufferedStreamUploader,
   type UploadPartStats,
@@ -44,7 +44,8 @@ import { URL } from "node:url";
 import {
   getSecureOutboundHttpAgents,
   type OutboundUrlConnectionValidationOptions,
-} from "../outbound-url";
+} from "../outbound-url/connection";
+
 import { isS3SlowDownError } from "./s3ThrottleError";
 
 export interface S3SseConfig {

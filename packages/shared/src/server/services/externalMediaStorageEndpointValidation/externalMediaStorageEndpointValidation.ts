@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "../../../env";
+import type { OutboundUrlConnectionValidationOptions } from "../../outbound-url/connection";
 import {
-  type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../../outbound-url";
+} from "../../outbound-url/validation";
+
 import {
   type S3VirtualHostTarget,
   withS3VirtualHostedBucket,

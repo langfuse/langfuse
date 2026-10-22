@@ -8,11 +8,11 @@ import {
   safeMultiDel,
   scanKeys,
 } from "../";
-import { LocalCache } from "../cache";
+import { LocalCache } from "../cache/localCache";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
-import type { PricingTierWithPrices } from "../pricing-tiers";
+import type { PricingTierWithPrices } from "../pricing-tiers/types";
 
 export type ModelMatchProps = {
   projectId: string;

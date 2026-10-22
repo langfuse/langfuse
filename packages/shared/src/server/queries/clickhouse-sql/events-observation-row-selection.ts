@@ -1,8 +1,8 @@
 import { eventsTableCols } from "../../../eventsTable";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import type { TracingSearchType } from "../../../interfaces/search";
-import { findUiColumnMapping } from "../../../tableDefinitions";
+import { findUiColumnMapping } from "../../../tableDefinitions/types";
 import type { FilterCondition } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import {

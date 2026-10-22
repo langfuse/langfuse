@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Edit, Trash2 } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { formatDistanceToNow } from "date-fns";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";

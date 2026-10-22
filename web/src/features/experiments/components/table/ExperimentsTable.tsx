@@ -12,15 +12,14 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import {
-  useQueryFilterState,
-  useSidebarFilterState,
-} from "@/src/features/filters";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -36,7 +35,7 @@ import {
   buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
@@ -46,41 +45,37 @@ import {
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { GitCompareArrows, LightbulbIcon } from "@langfuse/icons";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
-import {
-  TableActionMenu,
-  type TableAction,
-  TableSelectionManager,
-} from "@/src/features/table";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import type { TableAction } from "@/src/features/table/types";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
 import {
   collectPresentScoreKeys,
-  collectScoreNameCoverage,
   revealScoreColumns,
   scoreFilters,
-  useScoreColumns,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
+import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
-import { RunEvaluationDialog } from "@/src/features/batch-actions";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ExperimentChartsLayout } from "../ExperimentChartsLayout";
 import { metricOptionsFromScoreColumns } from "../../fns/metricOptionsFromScoreColumns";
 import {
@@ -89,7 +84,7 @@ import {
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
 import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   baselineChangedProps,
   comparisonChangedProps,

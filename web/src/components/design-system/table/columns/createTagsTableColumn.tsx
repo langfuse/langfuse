@@ -3,7 +3,7 @@ import { type RowData } from "@tanstack/react-table";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCompactRows } from "@/src/components/table/data-table-row-height-switch";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import {
   createTableColumn,

@@ -5,13 +5,13 @@ import { type Extension } from "@codemirror/state";
 import { Check, Copy, Loader2, Paperclip } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { createFileDropPasteExtension } from "@/src/components/editor";
+import { createFileDropPasteExtension } from "@/src/components/editor/fileDropPaste";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-} from "@/src/features/media";
+import type {
+  MediaContentType,
+  MediaReturnType,
+} from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {

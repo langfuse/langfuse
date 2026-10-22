@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
@@ -29,8 +29,8 @@ import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Copy } from "@langfuse/icons";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 enum CopySettings {
   LATEST_ONLY = "latest_only",

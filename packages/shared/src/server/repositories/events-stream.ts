@@ -2,7 +2,7 @@ import { Readable } from "stream";
 import { normalizeEventsTraceName } from "../../eventsTable";
 import type { FilterCondition } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
-import { buildEventsStreamQuery } from "../queries";
+import { buildEventsStreamQuery } from "../queries/clickhouse-sql/events-stream-query";
 import { queryClickhouseStream } from "./clickhouse";
 
 /**

@@ -12,7 +12,7 @@ import {
   type MetricFormatterFunction,
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {

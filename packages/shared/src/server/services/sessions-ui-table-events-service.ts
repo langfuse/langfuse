@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -8,16 +8,23 @@ import {
   ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   normalizeSessionCounts,
+  type SessionEventsFields,
+} from "../queries/clickhouse-sql/event-query-builder";
+import {
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
   filtersRequireEventsFull,
   metadataFilterCanPruneEventsFull,
-  orderByToClickhouseSql,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import {
   type SessionEventsField,
-  type SessionEventsFields,
   type SessionEventsMetricsRow,
-} from "../queries";
+  TRACE_AGGREGATION_FIELDS,
+  traceAggregationSelects,
+} from "../repositories/events-selects";
+
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
@@ -25,18 +32,17 @@ import {
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { queryClickhouse } from "../repositories";
 import {
-  TRACE_AGGREGATION_FIELDS,
-  traceAggregationSelects,
-} from "../repositories/events-selects";
+  queryClickhouse,
+  parseClickhouseUTCDateTimeFormat,
+} from "../repositories/clickhouse";
+
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
 } from "../tableMappings/mapSessionTable";
 import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
-import { findUiColumnMapping } from "../../tableDefinitions";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import { findUiColumnMapping } from "../../tableDefinitions/types";
 
 export type SessionTraceFromEvents = {
   id: string;

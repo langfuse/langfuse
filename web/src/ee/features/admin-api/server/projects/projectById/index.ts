@@ -10,10 +10,10 @@ import {
 import { randomUUID } from "crypto";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { ApiAuthService } from "@/src/features/public-api/server";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export async function handleUpdateProject(
   req: NextApiRequest,

@@ -4,33 +4,31 @@ import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
-import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import { SSOSettings } from "@/src/ee/features/sso-settings";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { Building2 } from "@langfuse/icons";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { LlmConnectionEmptyState } from "@/src/features/public-api";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { env } from "@/src/env.mjs";
-import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
+import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import {
-  GatewayApiKeysPage,
-  GatewayConfigurationPage,
-  GatewayModelsPage,
-  GatewayProvidersPage,
-} from "@/src/features/ai-gateway";
+import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
+import { GatewayConfigurationPage } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/GatewayConfigurationPage";
+import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
+import { GatewayProvidersPage } from "@/src/features/ai-gateway/components/GatewayProvidersPage/GatewayProvidersPage";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";

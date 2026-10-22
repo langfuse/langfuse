@@ -37,10 +37,12 @@ vi.mock("../contexts/TraceDataContext", () => ({
     ],
   }),
 }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
 vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
   AnnotationPanelContent: ({
     data,

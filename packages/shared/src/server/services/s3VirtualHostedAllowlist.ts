@@ -3,7 +3,7 @@ import { BLOB_STORAGE_REGION_REGEX } from "../../utils/stringChecks";
 import {
   type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 /** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
 const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;

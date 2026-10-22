@@ -20,14 +20,12 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTabl
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3 } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps

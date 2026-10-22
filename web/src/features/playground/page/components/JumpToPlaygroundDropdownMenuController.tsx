@@ -23,7 +23,7 @@ import {
   getWindowState,
   setWindowState,
 } from "@/src/features/playground/page/storage/windowStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -39,8 +39,10 @@ import {
   type PlaceholderMessage,
   PromptType,
   isGenerationLike,
+  normalizeInput,
+  normalizeOutput,
 } from "@langfuse/shared";
-import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
+
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";

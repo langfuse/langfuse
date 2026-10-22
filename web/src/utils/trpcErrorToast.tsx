@@ -1,5 +1,5 @@
 import { TRPCClientError } from "@trpc/client";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";

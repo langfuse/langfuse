@@ -5,7 +5,8 @@ import {
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
 
-import { InvalidRequestError, NotImplementedError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { NotImplementedError } from "../../errors/NotImplementedError";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   hasApiKeyKind,

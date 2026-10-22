@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";

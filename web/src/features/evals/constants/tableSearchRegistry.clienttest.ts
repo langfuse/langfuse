@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { planCommit, runSearchBarInvariants } from "@/src/features/search-bar";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
 
 import {
   EVAL_LOGS_FIELD_REGISTRY,

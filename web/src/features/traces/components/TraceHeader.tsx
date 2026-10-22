@@ -8,7 +8,7 @@ import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import {
   SessionBadge,
   UserIdBadge,

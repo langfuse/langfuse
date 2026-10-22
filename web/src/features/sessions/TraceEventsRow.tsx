@@ -17,10 +17,10 @@ import {
 } from "@/src/features/sessions/sessionVisibleObservations";
 import {
   hasRenderableConversationMessages,
-  type IOPreviewContentMode,
   isOnlyJsonMessage,
-  useChatMLParser,
-} from "@/src/features/traces";
+} from "@/src/features/traces/fns/chatMessageUtils";
+import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { useChatMLParser } from "@/src/features/traces/hooks/useChatMLParser";
 
 export type TraceEventsSurface = "card" | "modern";
 

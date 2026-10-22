@@ -15,7 +15,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -28,7 +28,7 @@ import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { AnnotateDrawerController } from "@/src/features/scores";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import {

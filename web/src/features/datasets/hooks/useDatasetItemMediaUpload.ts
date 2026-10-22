@@ -2,9 +2,9 @@
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
 
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ToastErrorAnalytics } from "@/src/features/notifications/toastAnalytics";
-import { MediaContentType } from "@/src/features/media";
+import { MediaContentType } from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";

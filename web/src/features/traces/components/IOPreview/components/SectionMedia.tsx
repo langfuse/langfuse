@@ -1,6 +1,6 @@
 import { IOSection } from "@/src/components/ui/IOSection";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 
 // SectionMedia props
 export interface SectionMediaProps {

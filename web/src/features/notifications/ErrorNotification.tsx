@@ -4,8 +4,8 @@ import {
   type ToastErrorAnalytics,
   getToastErrorProperties,
 } from "@/src/features/notifications/toastAnalytics";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { AlertTriangle, Check, Copy, X } from "@langfuse/icons";

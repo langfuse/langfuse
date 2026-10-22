@@ -1,13 +1,16 @@
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
+} from "@/src/features/analytics-integrations/server/exportSource";
+import {
   isPrismaRecordNotFoundError,
-  getDisplayCredential,
-} from "@/src/features/analytics-integrations/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+  validateWebhookURL,
+} from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -16,7 +19,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { validateWebhookURL } from "@langfuse/shared/src/server";
+
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,

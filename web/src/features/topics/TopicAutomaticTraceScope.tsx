@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { toObservedOptions } from "@/src/features/search-bar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {

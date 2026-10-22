@@ -18,8 +18,8 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";

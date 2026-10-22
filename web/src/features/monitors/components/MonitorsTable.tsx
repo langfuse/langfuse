@@ -24,14 +24,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  getMonitorFilterConfig,
-  useSidebarFilterState,
-} from "@/src/features/filters";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useOrderByState } from "@/src/features/orderBy";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { TagList } from "@/src/features/tag";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
@@ -47,14 +46,13 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
 

@@ -16,7 +16,8 @@ import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
   type PersonalFeaturePreviewFlag,
-} from "@/src/features/feature-flags";
+} from "@/src/features/feature-flags/available-flags";
+
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
 
