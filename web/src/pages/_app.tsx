@@ -1,7 +1,7 @@
-// Must stay the first import: installs a `crypto.randomUUID` fallback for
-// non-secure (plain-HTTP) origins before any other module can call it
-// (LFE-10858).
-import "@/src/polyfills/crypto-random-uuid";
+// Must stay the first import: installs crypto.randomUUID (plain HTTP) and
+// getRandomValues OperationError fallbacks before any other module can call
+// them.
+import { isFirefoxGetRandomValuesOperationError } from "@/src/polyfills/crypto-random-uuid";
 
 import { type AppType } from "next/app";
 import Head from "next/head";
@@ -115,32 +115,43 @@ const isPostHogSessionRecordingEnabled =
 // are set, and that the deployment region runs product analytics at all.
 const postHogClientConfig = getPostHogClientConfig();
 if (typeof window !== "undefined" && postHogClientConfig) {
-  posthog.init(postHogClientConfig.key, {
-    api_host: postHogClientConfig.host,
-    ui_host: "https://eu.posthog.com",
-    // Enable debug mode in development
-    loaded: (posthog) => {
-      if (process.env.NODE_ENV === "development") posthog.debug();
-    },
-    disable_session_recording: !isPostHogSessionRecordingEnabled,
-    session_recording: {
-      maskAllInputs: true,
-      // Custom editors and the trace search composer render customer text in
-      // contenteditable elements, which maskAllInputs does not cover.
-      maskTextSelector: '[contenteditable="true"]',
-      // Trace/observation payload renderers use this class so recordings show
-      // the surrounding UI without capturing customer input/output values.
-      blockClass: "ph-no-capture",
-      maskCapturedNetworkRequestFn(request) {
-        request.requestBody = request.requestBody ? "REDACTED" : undefined;
-        request.responseBody = request.responseBody ? "REDACTED" : undefined;
-        return request;
+  try {
+    posthog.init(postHogClientConfig.key, {
+      api_host: postHogClientConfig.host,
+      ui_host: "https://eu.posthog.com",
+      // Enable debug mode in development
+      loaded: (posthog) => {
+        if (process.env.NODE_ENV === "development") posthog.debug();
       },
-    },
-    autocapture: false,
-    enable_heatmaps: true,
-    persistence: "cookie",
-  });
+      disable_session_recording: !isPostHogSessionRecordingEnabled,
+      session_recording: {
+        maskAllInputs: true,
+        // Custom editors and the trace search composer render customer text in
+        // contenteditable elements, which maskAllInputs does not cover.
+        maskTextSelector: '[contenteditable="true"]',
+        // Trace/observation payload renderers use this class so recordings show
+        // the surrounding UI without capturing customer input/output values.
+        blockClass: "ph-no-capture",
+        maskCapturedNetworkRequestFn(request) {
+          request.requestBody = request.requestBody ? "REDACTED" : undefined;
+          request.responseBody = request.responseBody ? "REDACTED" : undefined;
+          return request;
+        },
+      },
+      autocapture: false,
+      enable_heatmaps: true,
+      persistence: "cookie",
+    });
+  } catch (error) {
+    // Firefox can still throw OperationError from crypto.getRandomValues
+    // during PostHog device-id generation if a dependency bound the native
+    // method before the entry-point fallback. Product analytics is
+    // best-effort — do not take down the tab, and do not console.error
+    // (that mints a Sentry event).
+    if (!isFirefoxGetRandomValuesOperationError(error)) {
+      throw error;
+    }
+  }
 }
 
 const MyApp: AppType<{ session: Session | null }> = ({
