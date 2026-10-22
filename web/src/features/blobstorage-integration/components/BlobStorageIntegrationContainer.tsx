@@ -16,7 +16,10 @@ import {
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
-import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
+import {
+  buildBlobStorageFormValues,
+  toStoredFieldGroups,
+} from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
 
 // State layer. Owns everything async and entity-scoped: availability
@@ -112,7 +115,14 @@ export const BlobStorageIntegrationContainer = ({
     onSaved: () => void,
   ) => {
     capture("integrations:blob_storage_form_submitted");
-    mut.mutate({ projectId, ...values }, { onSuccess: onSaved });
+    mut.mutate(
+      {
+        projectId,
+        ...values,
+        exportFieldGroups: toStoredFieldGroups(values.exportFieldGroups),
+      },
+      { onSuccess: onSaved },
+    );
   };
 
   return (

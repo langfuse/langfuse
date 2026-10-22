@@ -40,6 +40,23 @@ function withTraceFieldGroups(groups: ExportFieldGroup[]): ExportFieldGroup[] {
   return groups.includes("trace_core") ? groups : [...groups, "trace_core"];
 }
 
+// A full trace selection exports the same as no trace group, so it is stored
+// without trace groups; the stored list then only names trace groups when the
+// user deselected one.
+export function toStoredFieldGroups(
+  groups: ExportFieldGroup[],
+): ExportFieldGroup[] {
+  const isFullTraceSelection = TRACE_EXPORT_FIELD_GROUPS.every((group) =>
+    groups.includes(group),
+  );
+  return isFullTraceSelection
+    ? groups.filter(
+        (group) =>
+          !(TRACE_EXPORT_FIELD_GROUPS as readonly string[]).includes(group),
+      )
+    : groups;
+}
+
 export function buildBlobStorageFormValues(
   state:
     | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })

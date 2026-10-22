@@ -14,7 +14,10 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
+import {
+  buildBlobStorageFormValues,
+  toStoredFieldGroups,
+} from "@/src/features/blobstorage-integration/components/formValues";
 
 const VALID_BASE: BlobStorageIntegrationFormSchema = {
   type: BlobStorageIntegrationType.S3,
@@ -193,5 +196,35 @@ describe("buildBlobStorageFormValues — trace field groups", () => {
       ctx,
     );
     expect(values.exportFieldGroups).toEqual(expected);
+  });
+});
+
+describe("toStoredFieldGroups", () => {
+  const ctx: ExportSourceContext = {
+    isCloud: false,
+    enrichedAvailable: true,
+    legacyWritesActive: true,
+  };
+
+  it.each([
+    // an untouched save stores the same list it loaded (no trace groups)
+    [
+      ["core", "io"],
+      ["core", "io"],
+    ],
+    [
+      ["core", "trace_core"],
+      ["core", "trace_core"],
+    ],
+    [
+      ["core", "trace_core", "trace_io"],
+      ["core", "trace_core", "trace_io"],
+    ],
+  ])("round-trips stored groups %j as %j", (stored, expected) => {
+    const formGroups = buildBlobStorageFormValues(
+      { exportFieldGroups: stored },
+      ctx,
+    ).exportFieldGroups;
+    expect(toStoredFieldGroups(formGroups ?? [])).toEqual(expected);
   });
 });
