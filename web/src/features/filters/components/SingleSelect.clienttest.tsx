@@ -4,7 +4,7 @@
  * apply a filter that matches nothing.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { SingleSelect } from "./single-select";
+import { SingleSelect } from "./SingleSelect";
 
 describe("SingleSelect", () => {
   beforeAll(() => {
