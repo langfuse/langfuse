@@ -52,14 +52,14 @@ import {
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
   type QueryId,
-  type ReferenceNode,
+  ReferenceNode,
   type RootOperationNode,
   type SelectQueryNode,
 } from "kysely";
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode, FinalTableNode } from "./nodes";
+import { ArrayIndexNode, FinalTableNode, walkNodes } from "./nodes";
 import { describeRelation, selectRelations, type Relation } from "./relations";
 import {
   EVENTS_CORE_TRUNCATED_COLUMNS,
@@ -109,6 +109,15 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   ): T {
     const lookup = coreSafeMetadataLookup(node);
     if (lookup) {
+      // The lookup's columns read no truncated value, but their qualifiers
+      // must still not name a physical table.
+      walkNodes(lookup.array, (child) => {
+        if (!ReferenceNode.is(child)) return;
+        const qualifier = child.table?.table.identifier.name;
+        if (qualifier !== undefined && PHYSICAL_EVENTS_TABLES.has(qualifier)) {
+          throw physicalNameError(qualifier);
+        }
+      });
       this.transformNode(lookup.index, queryId);
       return node;
     }

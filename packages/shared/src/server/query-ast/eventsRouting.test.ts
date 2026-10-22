@@ -264,7 +264,7 @@ describe("logical events routing", () => {
     ).toThrow(/FINAL cannot wrap the logical "events" relation/);
   });
 
-  it.each([
+  it.each<[string, () => Parameters<typeof compile>[0]]>([
     ["FROM", () => untypedDb.selectFrom("events_core").select("span_id")],
     [
       "JOIN",
@@ -285,6 +285,27 @@ describe("logical events routing", () => {
           .selectFrom("scores as s")
           .select(sql.ref<string>("events_core.input").as("x")),
     ],
+    ...["events_core", "events_full"].map(
+      (table) =>
+        [
+          `qualifier in a core-safe metadata predicate (${table})`,
+          () =>
+            db
+              .selectFrom("events as e")
+              .select("e.span_id")
+              .where((eb) =>
+                eb(
+                  metadataValue(
+                    eb.ref(`${table}.metadata_names` as never),
+                    eb.ref(`${table}.metadata_values` as never),
+                    "k",
+                  ),
+                  "=",
+                  "x",
+                ),
+              ),
+        ] as [string, () => Parameters<typeof compile>[0]],
+    ),
     [
       "raw SQL text",
       () =>
