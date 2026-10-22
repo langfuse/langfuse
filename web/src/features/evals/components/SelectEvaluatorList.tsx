@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Bot, Check, Code2 } from "@langfuse/icons";
-import { EvaluatorSelector } from "./evaluator-selector";
+import { EvaluatorSelector } from "./EvaluatorSelector";
 import { EvalTemplateForm } from "./EvalTemplateForm";
 import { showSuccessToast } from "@/src/features/notifications";
 import { Card } from "@/src/components/ui/card";
