@@ -6,37 +6,83 @@ import {
   requireGatewayEnabledForOrganization,
 } from "./availability";
 
+const deployedProduction = { nodeEnv: "production", deployed: true };
+
 describe("gateway organization allowlist", () => {
   it("matches organization IDs exactly", () => {
-    const environment = { nodeEnv: "production" };
-
     expect(
-      isGatewayEnabledForOrganization("org-1", ["org-1", "org-2"], environment),
+      isGatewayEnabledForOrganization(
+        "org-1",
+        ["org-1", "org-2"],
+        deployedProduction,
+      ),
     ).toBe(true);
-    expect(isGatewayEnabledForOrganization("org", ["org-1"], environment)).toBe(
-      false,
-    );
+    expect(
+      isGatewayEnabledForOrganization("org", ["org-1"], deployedProduction),
+    ).toBe(false);
   });
 
-  it("keeps the allowlist active outside local development", () => {
+  it("keeps the allowlist active when the gateway is not enabled for all", () => {
     expect(
-      isGatewayEnabledForOrganization("org-not-allowed", [], {
-        nodeEnv: "production",
-      }),
+      isGatewayEnabledForOrganization(
+        "org-not-allowed",
+        [],
+        deployedProduction,
+      ),
     ).toBe(false);
     expect(() =>
-      requireGatewayEnabledForOrganization("org-not-allowed", [], {
-        nodeEnv: "production",
-      }),
+      requireGatewayEnabledForOrganization(
+        "org-not-allowed",
+        [],
+        deployedProduction,
+      ),
     ).toThrow(ForbiddenError);
   });
 
-  it("enables the gateway in preview deployments", () => {
+  it("enables every organization when enabled for all", () => {
     expect(
       isGatewayEnabledForOrganization("org-not-allowed", [], {
-        nodeEnv: "production",
-        previewPrUrl: "https://github.com/langfuse/langfuse/pull/18561",
+        ...deployedProduction,
+        enabledForAllOrganizations: true,
       }),
     ).toBe(true);
   });
+});
+
+describe("gateway deployment", () => {
+  it("turns the gateway off when none is deployed, despite flags and allowlist", () => {
+    const notDeployed = {
+      nodeEnv: "production",
+      deployed: false,
+      enabledForAllOrganizations: true,
+    };
+
+    expect(
+      isGatewayEnabledForOrganization("org-1", ["org-1"], notDeployed),
+    ).toBe(false);
+    expect(() =>
+      requireGatewayEnabledForOrganization("org-1", ["org-1"], notDeployed),
+    ).toThrow(ForbiddenError);
+  });
+
+  it.each([
+    { nodeEnv: "development" },
+    {
+      nodeEnv: "production",
+      previewPrUrl: "https://github.com/langfuse/langfuse/pull/18561",
+    },
+  ])(
+    "treats $nodeEnv with preview $previewPrUrl as deployed",
+    (environment) => {
+      expect(
+        isGatewayEnabledForOrganization("org-not-allowed", [], {
+          ...environment,
+          enabledForAllOrganizations: true,
+        }),
+      ).toBe(true);
+      expect(
+        isGatewayEnabledForOrganization("org-not-allowed", [], environment),
+      ).toBe(false);
+    },
+  );
 });

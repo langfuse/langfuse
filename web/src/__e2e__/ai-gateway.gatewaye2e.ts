@@ -266,6 +266,7 @@ const apiKeyIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+const originalDeployed = env.LANGFUSE_AI_GATEWAY_DEPLOYED;
 
 describe("AI gateway live end-to-end", () => {
   beforeAll(async () => {
@@ -407,6 +408,7 @@ describe("AI gateway live end-to-end", () => {
     ) {
       env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(ORGANIZATION_ID);
     }
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_DEPLOYED: "true" });
     admin = await createGatewayAdmin();
     const gateway = await startGatewayProcess();
     gatewayBaseUrl = gateway.url;
@@ -431,6 +433,9 @@ describe("AI gateway live end-to-end", () => {
               env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
               ...originalAllowlist,
             );
+            Object.assign(env, {
+              LANGFUSE_AI_GATEWAY_DEPLOYED: originalDeployed,
+            });
           }
         }
       }

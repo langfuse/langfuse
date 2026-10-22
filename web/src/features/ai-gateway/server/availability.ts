@@ -5,6 +5,7 @@ import { env } from "@/src/env.mjs";
 type GatewayAvailabilityEnvironment = {
   nodeEnv: string | undefined;
   previewPrUrl?: string;
+  deployed?: boolean;
   enabledForAllOrganizations?: boolean;
 };
 
@@ -12,8 +13,15 @@ const getGatewayAvailabilityEnvironment =
   (): GatewayAvailabilityEnvironment => ({
     nodeEnv: env.NODE_ENV,
     previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+    deployed: env.LANGFUSE_AI_GATEWAY_DEPLOYED === "true",
     enabledForAllOrganizations: env.LANGFUSE_AI_GATEWAY_ENABLED === "true",
   });
+
+/** Local development and preview deployments always run a gateway next to Web. */
+const isGatewayDeployed = (environment: GatewayAvailabilityEnvironment) =>
+  environment.deployed === true ||
+  environment.nodeEnv === "development" ||
+  environment.previewPrUrl !== undefined;
 
 export const isGatewayEnabledForOrganization = (
   organizationId: string,
@@ -21,10 +29,9 @@ export const isGatewayEnabledForOrganization = (
     [],
   environment = getGatewayAvailabilityEnvironment(),
 ): boolean =>
-  environment.enabledForAllOrganizations === true ||
-  environment.nodeEnv === "development" ||
-  environment.previewPrUrl !== undefined ||
-  allowedOrganizationIds.includes(organizationId);
+  isGatewayDeployed(environment) &&
+  (environment.enabledForAllOrganizations === true ||
+    allowedOrganizationIds.includes(organizationId));
 
 export const requireGatewayEnabledForOrganization = (
   organizationId: string,
