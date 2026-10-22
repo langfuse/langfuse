@@ -375,7 +375,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).default("false"),
     // Enables a deployed gateway for every organization. When false, only
     // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
-    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).default("true"),
+    // Unset means true, except on Langfuse Cloud where it means false.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()

@@ -1613,7 +1613,6 @@ jobs:
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
             echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
-            echo "LANGFUSE_AI_GATEWAY_DEPLOYED=true"
             echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
             echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
             echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"

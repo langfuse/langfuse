@@ -19,6 +19,7 @@ vi.mock("@/src/env.mjs", () => ({
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: "current-service-secret",
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: "previous-service-secret",
     LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+    LANGFUSE_AI_GATEWAY_ENABLED: "false",
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
     SALT: "test-salt",
   },

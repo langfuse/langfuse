@@ -2,7 +2,7 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
@@ -55,19 +55,6 @@ const originalGatewayJwtConfig = {
   issuer: env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
   audience: env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
 };
-// A deployed gateway limited to the allowlist, as on Cloud.
-const gatewayRolloutEnv = {
-  LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
-  LANGFUSE_AI_GATEWAY_ENABLED: "false",
-} as const;
-const originalGatewayRolloutEnv = {
-  LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
-  LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
-};
-Object.assign(env, gatewayRolloutEnv);
-afterAll(() => {
-  Object.assign(env, originalGatewayRolloutEnv);
-});
 const gatewaySigningKeys = generateKeyPairSync("ec", { namedCurve: "P-256" });
 const gatewayPrivateKey = gatewaySigningKeys.privateKey
   .export({ format: "pem", type: "pkcs8" })
@@ -110,7 +97,6 @@ afterEach(async () => {
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
     ...originalGatewayOrganizationAllowlist,
   );
-  Object.assign(env, gatewayRolloutEnv);
   Object.assign(env, {
     LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: originalGatewayJwtConfig.privateKey,
     LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: originalGatewayJwtConfig.publicKey,
@@ -275,23 +261,37 @@ describe("AI gateway control plane", () => {
       1,
     );
 
-    await expect(
-      caller.aiGateway.getConfig({ orgId: org.id }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const request = caller.aiGateway.getConfig({ orgId: org.id });
+    if (env.NODE_ENV === "development") {
+      await expect(request).resolves.toMatchObject({ config: null });
+    } else {
+      await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
   });
 
-  it.skipIf(
-    env.NODE_ENV === "development" ||
-      Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-  )(
-    "turns the gateway off for allowlisted organizations when none is deployed",
+  it.skipIf(env.NODE_ENV === "development")(
+    "turns the gateway off on a self-hosted deployment without a gateway",
     async () => {
       const { caller, org } = await prepare();
-      Object.assign(env, { LANGFUSE_AI_GATEWAY_DEPLOYED: "false" });
+      const original = {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+        LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      };
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "false",
+        LANGFUSE_AI_GATEWAY_ENABLED: "true",
+      });
 
-      await expect(
-        caller.aiGateway.getConfig({ orgId: org.id }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        Object.assign(env, original);
+      }
     },
   );
 
