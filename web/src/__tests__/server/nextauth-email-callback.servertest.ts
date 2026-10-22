@@ -29,6 +29,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 vi.mock(
   "@/src/features/auth/server/verifyTurnstile",
@@ -292,8 +293,11 @@ describe("NextAuth OAuth staff email verification", () => {
         emailDomain: "clickhouse.com",
       });
       const fetchMock = vi.spyOn(globalThis, "fetch");
+      const warnMock = vi.spyOn(logger, "warn");
       if (scenario === "failed-lookup")
-        fetchMock.mockRejectedValue(new Error("lookup failed"));
+        fetchMock.mockRejectedValue(
+          new Error("lookup failed: test-oauth-token"),
+        );
       else
         fetchMock.mockResolvedValue(
           Response.json([
@@ -322,6 +326,15 @@ describe("NextAuth OAuth staff email verification", () => {
         where: { id: userId },
       });
       expect(user.emailVerified).toBeNull();
+      if (scenario === "failed-lookup") {
+        expect(warnMock).toHaveBeenCalledWith(
+          "Could not verify staff email during OAuth sign-in",
+          { stage: "provider", errorName: "Error" },
+        );
+        expect(JSON.stringify(warnMock.mock.calls)).not.toContain(
+          "test-oauth-token",
+        );
+      }
     },
   );
 });

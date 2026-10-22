@@ -31,6 +31,8 @@ RBAC permissions, or admin-only feature-flag overrides.
 Fresh OAuth sign-in records staff email ownership from a matching verified-email
 claim or GitHub's verified email list. Existing sessions without stored
 verification need another sign-in. Missing proof never grants internal access.
+Verification records past email ownership, not current employment; closing a
+company mailbox does not automatically revoke Internal view eligibility.
 
 Topics is available through internal view or the `langfuseTopics` ("Langfuse
 Topics") personal flag. Internal view follows the shared internal eligibility

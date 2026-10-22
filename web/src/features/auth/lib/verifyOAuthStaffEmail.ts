@@ -33,46 +33,64 @@ export async function verifyOAuthStaffEmail({
     return;
   }
 
+  let stage = "provider";
   try {
-    let verified = false;
-    if (
-      account.provider === "github" ||
-      account.provider === `${email.split("@")[1]}.github`
-    ) {
-      if (!account.access_token) return;
-      const response = await fetch("https://api.github.com/user/emails", {
-        headers: {
-          Authorization: `Bearer ${account.access_token}`,
-          Accept: "application/vnd.github+json",
-        },
-        redirect: "error",
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!response.ok) {
-        logger.warn("GitHub staff email verification failed", {
-          status: response.status,
-        });
-        return;
-      }
-      const emails = githubEmailsSchema.safeParse(await response.json());
-      verified =
-        emails.success &&
-        emails.data.some(
-          (entry) => entry.verified && entry.email.toLowerCase() === email,
-        );
-    } else {
-      const proof = verifiedProfileSchema.safeParse(profile);
-      verified = proof.success && proof.data.email.toLowerCase() === email;
-    }
-
-    if (verified) {
-      await prisma.user.updateMany({
-        where: { id: user.id, email, emailVerified: null },
-        data: { emailVerified: new Date() },
-      });
-    }
-  } catch {
+    if (!(await hasVerifiedOAuthEmail(account, profile, email))) return;
+    stage = "database";
+    await markEmailVerified(user.id, email);
+  } catch (error) {
     // Optional ownership verification must not prevent ordinary sign-in.
-    logger.warn("Could not verify staff email during OAuth sign-in");
+    logger.warn("Could not verify staff email during OAuth sign-in", {
+      stage,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
   }
+}
+
+async function hasVerifiedOAuthEmail(
+  account: Account,
+  profile: Profile | undefined,
+  email: string,
+) {
+  if (
+    account.provider === "github" ||
+    account.provider === `${email.split("@")[1]}.github`
+  ) {
+    return account.access_token
+      ? hasVerifiedGithubEmail(account.access_token, email)
+      : false;
+  }
+  const proof = verifiedProfileSchema.safeParse(profile);
+  return proof.success && proof.data.email.toLowerCase() === email;
+}
+
+async function hasVerifiedGithubEmail(accessToken: string, email: string) {
+  const response = await fetch("https://api.github.com/user/emails", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/vnd.github+json",
+    },
+    redirect: "error",
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) {
+    logger.warn("GitHub staff email verification failed", {
+      status: response.status,
+    });
+    return false;
+  }
+  const emails = githubEmailsSchema.safeParse(await response.json());
+  return (
+    emails.success &&
+    emails.data.some(
+      (entry) => entry.verified && entry.email.toLowerCase() === email,
+    )
+  );
+}
+
+function markEmailVerified(userId: string, email: string) {
+  return prisma.user.updateMany({
+    where: { id: userId, email, emailVerified: null },
+    data: { emailVerified: new Date() },
+  });
 }
