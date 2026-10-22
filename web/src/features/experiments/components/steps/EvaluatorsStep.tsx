@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { TemplateSelector } from "@/src/features/evals/components/template-selector";
+import { TemplateSelector } from "@/src/features/evals/components/TemplateSelector";
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
