@@ -67,7 +67,7 @@ type StepperProps = {
   size?: "default" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
-  /** Renders a "Docs" link after the title. */
+  /** Renders a "Docs" link after the title while the step is current. */
   docsHref?: string;
   compactBottomSpacing?: boolean;
   children?: ReactNode;
@@ -166,7 +166,7 @@ export function Stepper({
               </span>
             </div>
           )}
-          {docsHref ? (
+          {docsHref && status === "current" ? (
             <Button variant="link" size="sm" text="Docs" href={docsHref} />
           ) : null}
         </div>
