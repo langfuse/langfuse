@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   InvokeCommand,
   LambdaClient,
@@ -145,6 +144,266 @@ function getSharedLambdaClient(endpoint?: string): LambdaClient {
   });
   sharedLambdaClientEndpoint = endpoint;
   return sharedLambdaClient;
+}
+
+function setSpanAttributes(
+  span: Span,
+  attributes: Record<string, AttributeValue | undefined>,
+): void {
+  const definedAttributes = Object.fromEntries(
+    Object.entries(attributes).filter(([, value]) => value !== undefined),
+  ) as Record<string, AttributeValue>;
+
+  if (Object.keys(definedAttributes).length > 0) {
+    span.setAttributes(definedAttributes);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getAwsMetadataSpanAttributes(
+  metadata: unknown,
+): Record<string, AttributeValue | undefined> {
+  if (!isRecord(metadata)) return {};
+
+  return {
+    "aws.request_id":
+      typeof metadata.requestId === "string" ? metadata.requestId : undefined,
+    "aws.http_status_code":
+      typeof metadata.httpStatusCode === "number"
+        ? metadata.httpStatusCode
+        : undefined,
+    "aws.sdk.attempts":
+      typeof metadata.attempts === "number" ? metadata.attempts : undefined,
+    "aws.sdk.total_retry_delay_ms":
+      typeof metadata.totalRetryDelay === "number"
+        ? metadata.totalRetryDelay
+        : undefined,
+  };
+}
+
+function parseLambdaErrorPayload(payload: Uint8Array | undefined): unknown {
+  if (!payload) return null;
+
+  try {
+    return JSON.parse(Buffer.from(payload).toString("utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function parseUserCodeError(payload: unknown): UserCodeError | null {
+  return UserCodeErrorSchema.safeParse(payload).data ?? null;
+}
+
+function createCodeEvalDispatcherErrorFromUserCodeError(
+  userCodeError: UserCodeError,
+): CodeEvalDispatcherError {
+  return new CodeEvalDispatcherError(userCodeError.message, {
+    code: userCodeError.code,
+    retryable: RETRYABLE_ERROR_CODES.has(userCodeError.code),
+  });
+}
+
+function isTimeoutErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("task timed out") || normalized.includes("timeout")
+  );
+}
+
+function classifyLambdaFunctionError(params: {
+  functionName: string;
+  functionError: string;
+  payload: Uint8Array | undefined;
+}): CodeEvalDispatcherError {
+  const errorPayload = parseLambdaErrorPayload(params.payload);
+
+  // Our runners emit `{ error: { code, message } }` on user-code failures.
+  const userCodeError = parseUserCodeError(errorPayload);
+  if (userCodeError) {
+    return createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
+  }
+
+  // AWS-runtime error envelope: `{ errorMessage, errorType, stackTrace? }`.
+  const record = isRecord(errorPayload) ? errorPayload : null;
+  const errorType =
+    typeof record?.errorType === "string" ? record.errorType : null;
+  const errorMessage =
+    typeof record?.errorMessage === "string" ? record.errorMessage : null;
+  const composedMessage =
+    errorType && errorMessage
+      ? `${errorType}: ${errorMessage}`
+      : (errorMessage ?? errorType ?? "");
+
+  if (
+    errorType === "Function.TimedOut" ||
+    errorType === "Sandbox.Timedout" ||
+    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /runtime exited without providing a reason/i.test(errorMessage))
+  ) {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Lambda task timed out",
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
+    );
+  }
+
+  const isOutOfMemoryError =
+    errorType === "Runtime.OutOfMemory" ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /signal:\s*killed/i.test(errorMessage));
+
+  if (isOutOfMemoryError) {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator exceeded the available memory",
+      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
+    );
+  }
+
+  // Other abnormal runtime exits (segfault, process.exit, SIGKILL).
+  // Retrying never recovers from these.
+  if (errorType === "Runtime.ExitError") {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Lambda runtime exited abnormally",
+      {
+        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+        retryable: false,
+      },
+    );
+  }
+
+  // The managed runtime caught a user-code exception and populated
+  // errorType + errorMessage with the language-specific class and message.
+  if (params.functionError === "Handled") {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator code threw an uncaught exception",
+      { code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR, retryable: false },
+    );
+  }
+
+  // Unknown failure — default retryable so a flake doesn't burn the job.
+  return new CodeEvalDispatcherError(
+    composedMessage ||
+      `Code eval Lambda ${params.functionName} failed with ${params.functionError}`,
+    {
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+      retryable: true,
+    },
+  );
+}
+
+function traceLambdaFunctionError(params: {
+  span: Span;
+  functionName: string;
+  functionError: string;
+  payload: Uint8Array | undefined;
+}): void {
+  const errorPayload = parseLambdaErrorPayload(params.payload);
+  const record = isRecord(errorPayload) ? errorPayload : null;
+
+  const error = new Error(
+    typeof record?.errorMessage === "string"
+      ? record.errorMessage
+      : `Code eval Lambda ${params.functionName} returned FunctionError=${params.functionError}`,
+  );
+  error.name =
+    typeof record?.errorType === "string"
+      ? record.errorType
+      : "LambdaFunctionError";
+
+  if (Array.isArray(record?.stackTrace)) {
+    error.stack = record.stackTrace
+      .filter((line) => typeof line === "string")
+      .join("\n");
+  }
+
+  traceException(error, params.span, "code_eval.aws_lambda.function_error");
+}
+
+function parseLambdaResponsePayload(params: {
+  functionName: string;
+  payload: Uint8Array;
+}): DispatchResult {
+  assertDispatchResultWithinByteLimit(params.payload.byteLength);
+
+  const responseBody = Buffer.from(params.payload).toString("utf8");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseBody) as unknown;
+  } catch (error) {
+    throw new CodeEvalDispatcherError(
+      `Code eval Lambda ${params.functionName} returned invalid JSON`,
+      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT, cause: error },
+    );
+  }
+
+  // Try the success shape first so a runner can't smuggle an `error`
+  // envelope alongside valid scores to force a retry or mask the outcome.
+  try {
+    return parseDispatchResult(parsed);
+  } catch (dispatchError) {
+    const userCodeError = parseUserCodeError(parsed);
+    if (userCodeError) {
+      throw createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
+    }
+    throw dispatchError;
+  }
+}
+
+function setDispatcherErrorSpanAttributes(
+  span: Span,
+  error: CodeEvalDispatcherError,
+): void {
+  span.setAttributes({
+    "langfuse.code_eval.error.code": error.code,
+    "langfuse.code_eval.error.retryable": error.retryable,
+  });
+}
+
+// Warn on non-user errors only, so infrastructure issues surface in Datadog
+// without drowning the channel in routine user-template failures.
+function logDispatcherError(params: {
+  functionName: string;
+  error: CodeEvalDispatcherError;
+}): void {
+  if (USER_ERROR_CODES.has(params.error.code)) return;
+
+  logger.warn(
+    `Code eval Lambda ${params.functionName} dispatcher failed: ${params.error.message}`,
+    {
+      code: params.error.code,
+      retryable: params.error.retryable,
+    },
+  );
+}
+
+function classifyAwsLambdaError(
+  error: unknown,
+): CodeEvalDispatcherErrorClassification {
+  if (!(error instanceof Error)) {
+    return {
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+      retryable: true,
+    };
+  }
+
+  const errorCode = (error as { code?: unknown }).code;
+
+  return (
+    AWS_ERROR_CLASSIFICATION_BY_NAME[error.name] ??
+    (typeof errorCode === "string"
+      ? AWS_ERROR_CLASSIFICATION_BY_CODE[errorCode]
+      : undefined) ?? {
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+      retryable: true,
+    }
+  );
 }
 
 export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
@@ -304,264 +563,4 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
       throw dispatcherError;
     }
   }
-}
-
-// Warn on non-user errors only, so infrastructure issues surface in Datadog
-// without drowning the channel in routine user-template failures.
-function logDispatcherError(params: {
-  functionName: string;
-  error: CodeEvalDispatcherError;
-}): void {
-  if (USER_ERROR_CODES.has(params.error.code)) return;
-
-  logger.warn(
-    `Code eval Lambda ${params.functionName} dispatcher failed: ${params.error.message}`,
-    {
-      code: params.error.code,
-      retryable: params.error.retryable,
-    },
-  );
-}
-
-function setDispatcherErrorSpanAttributes(
-  span: Span,
-  error: CodeEvalDispatcherError,
-): void {
-  span.setAttributes({
-    "langfuse.code_eval.error.code": error.code,
-    "langfuse.code_eval.error.retryable": error.retryable,
-  });
-}
-
-function getAwsMetadataSpanAttributes(
-  metadata: unknown,
-): Record<string, AttributeValue | undefined> {
-  if (!isRecord(metadata)) return {};
-
-  return {
-    "aws.request_id":
-      typeof metadata.requestId === "string" ? metadata.requestId : undefined,
-    "aws.http_status_code":
-      typeof metadata.httpStatusCode === "number"
-        ? metadata.httpStatusCode
-        : undefined,
-    "aws.sdk.attempts":
-      typeof metadata.attempts === "number" ? metadata.attempts : undefined,
-    "aws.sdk.total_retry_delay_ms":
-      typeof metadata.totalRetryDelay === "number"
-        ? metadata.totalRetryDelay
-        : undefined,
-  };
-}
-
-function setSpanAttributes(
-  span: Span,
-  attributes: Record<string, AttributeValue | undefined>,
-): void {
-  const definedAttributes = Object.fromEntries(
-    Object.entries(attributes).filter(([, value]) => value !== undefined),
-  ) as Record<string, AttributeValue>;
-
-  if (Object.keys(definedAttributes).length > 0) {
-    span.setAttributes(definedAttributes);
-  }
-}
-
-function traceLambdaFunctionError(params: {
-  span: Span;
-  functionName: string;
-  functionError: string;
-  payload: Uint8Array | undefined;
-}): void {
-  const errorPayload = parseLambdaErrorPayload(params.payload);
-  const record = isRecord(errorPayload) ? errorPayload : null;
-
-  const error = new Error(
-    typeof record?.errorMessage === "string"
-      ? record.errorMessage
-      : `Code eval Lambda ${params.functionName} returned FunctionError=${params.functionError}`,
-  );
-  error.name =
-    typeof record?.errorType === "string"
-      ? record.errorType
-      : "LambdaFunctionError";
-
-  if (Array.isArray(record?.stackTrace)) {
-    error.stack = record.stackTrace
-      .filter((line) => typeof line === "string")
-      .join("\n");
-  }
-
-  traceException(error, params.span, "code_eval.aws_lambda.function_error");
-}
-
-function classifyLambdaFunctionError(params: {
-  functionName: string;
-  functionError: string;
-  payload: Uint8Array | undefined;
-}): CodeEvalDispatcherError {
-  const errorPayload = parseLambdaErrorPayload(params.payload);
-
-  // Our runners emit `{ error: { code, message } }` on user-code failures.
-  const userCodeError = parseUserCodeError(errorPayload);
-  if (userCodeError) {
-    return createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
-  }
-
-  // AWS-runtime error envelope: `{ errorMessage, errorType, stackTrace? }`.
-  const record = isRecord(errorPayload) ? errorPayload : null;
-  const errorType =
-    typeof record?.errorType === "string" ? record.errorType : null;
-  const errorMessage =
-    typeof record?.errorMessage === "string" ? record.errorMessage : null;
-  const composedMessage =
-    errorType && errorMessage
-      ? `${errorType}: ${errorMessage}`
-      : (errorMessage ?? errorType ?? "");
-
-  if (
-    errorType === "Function.TimedOut" ||
-    errorType === "Sandbox.Timedout" ||
-    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
-    (errorType === "Runtime.ExitError" &&
-      errorMessage !== null &&
-      /runtime exited without providing a reason/i.test(errorMessage))
-  ) {
-    return new CodeEvalDispatcherError(
-      composedMessage || "Lambda task timed out",
-      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
-    );
-  }
-
-  const isOutOfMemoryError =
-    errorType === "Runtime.OutOfMemory" ||
-    (errorType === "Runtime.ExitError" &&
-      errorMessage !== null &&
-      /signal:\s*killed/i.test(errorMessage));
-
-  if (isOutOfMemoryError) {
-    return new CodeEvalDispatcherError(
-      composedMessage || "Evaluator exceeded the available memory",
-      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
-    );
-  }
-
-  // Other abnormal runtime exits (segfault, process.exit, SIGKILL).
-  // Retrying never recovers from these.
-  if (errorType === "Runtime.ExitError") {
-    return new CodeEvalDispatcherError(
-      composedMessage || "Lambda runtime exited abnormally",
-      {
-        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
-        retryable: false,
-      },
-    );
-  }
-
-  // The managed runtime caught a user-code exception and populated
-  // errorType + errorMessage with the language-specific class and message.
-  if (params.functionError === "Handled") {
-    return new CodeEvalDispatcherError(
-      composedMessage || "Evaluator code threw an uncaught exception",
-      { code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR, retryable: false },
-    );
-  }
-
-  // Unknown failure — default retryable so a flake doesn't burn the job.
-  return new CodeEvalDispatcherError(
-    composedMessage ||
-      `Code eval Lambda ${params.functionName} failed with ${params.functionError}`,
-    {
-      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
-      retryable: true,
-    },
-  );
-}
-
-function createCodeEvalDispatcherErrorFromUserCodeError(
-  userCodeError: UserCodeError,
-): CodeEvalDispatcherError {
-  return new CodeEvalDispatcherError(userCodeError.message, {
-    code: userCodeError.code,
-    retryable: RETRYABLE_ERROR_CODES.has(userCodeError.code),
-  });
-}
-
-function classifyAwsLambdaError(
-  error: unknown,
-): CodeEvalDispatcherErrorClassification {
-  if (!(error instanceof Error)) {
-    return {
-      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
-      retryable: true,
-    };
-  }
-
-  const errorCode = (error as { code?: unknown }).code;
-
-  return (
-    AWS_ERROR_CLASSIFICATION_BY_NAME[error.name] ??
-    (typeof errorCode === "string"
-      ? AWS_ERROR_CLASSIFICATION_BY_CODE[errorCode]
-      : undefined) ?? {
-      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
-      retryable: true,
-    }
-  );
-}
-
-function parseLambdaResponsePayload(params: {
-  functionName: string;
-  payload: Uint8Array;
-}): DispatchResult {
-  assertDispatchResultWithinByteLimit(params.payload.byteLength);
-
-  const responseBody = Buffer.from(params.payload).toString("utf8");
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(responseBody) as unknown;
-  } catch (error) {
-    throw new CodeEvalDispatcherError(
-      `Code eval Lambda ${params.functionName} returned invalid JSON`,
-      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT, cause: error },
-    );
-  }
-
-  // Try the success shape first so a runner can't smuggle an `error`
-  // envelope alongside valid scores to force a retry or mask the outcome.
-  try {
-    return parseDispatchResult(parsed);
-  } catch (dispatchError) {
-    const userCodeError = parseUserCodeError(parsed);
-    if (userCodeError) {
-      throw createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
-    }
-    throw dispatchError;
-  }
-}
-
-function parseUserCodeError(payload: unknown): UserCodeError | null {
-  return UserCodeErrorSchema.safeParse(payload).data ?? null;
-}
-
-function parseLambdaErrorPayload(payload: Uint8Array | undefined): unknown {
-  if (!payload) return null;
-
-  try {
-    return JSON.parse(Buffer.from(payload).toString("utf8")) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function isTimeoutErrorMessage(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("task timed out") || normalized.includes("timeout")
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

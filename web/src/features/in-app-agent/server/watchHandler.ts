@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
@@ -17,6 +16,70 @@ const WatchQuerySchema = z.object({
   cursor: z.coerce.number().int().min(-1).default(-1),
   openRunId: z.string().min(1).optional(),
 });
+
+function encodeFrame(frame: InAppAgentWatchFrame): string {
+  const id = frame.type === "event" ? `id: ${frame.sequenceNumber}\n` : "";
+
+  return `${id}event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`;
+}
+
+function createWatchStream(params: {
+  projectId: string;
+  conversationId: string;
+  cursor: number;
+  openRunId?: string;
+  signal: AbortSignal;
+}): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const frames = watchConversationFrames({
+        prisma,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        cursor: params.cursor,
+        openRunId: params.openRunId,
+        signal: params.signal,
+      });
+
+      try {
+        for await (const frame of frames) {
+          if (params.signal.aborted) {
+            break;
+          }
+
+          controller.enqueue(
+            encoder.encode(
+              frame === null ? ": keepalive\n\n" : encodeFrame(frame),
+            ),
+          );
+        }
+      } catch (error) {
+        logger.error("In-app agent watch stream failed", {
+          error,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        });
+
+        if (!params.signal.aborted) {
+          controller.enqueue(
+            encoder.encode(
+              encodeFrame({
+                type: "error",
+                code: "watch_failed",
+                message: "The connection to the run was interrupted.",
+              }),
+            ),
+          );
+        }
+      } finally {
+        await frames.return(undefined);
+        controller.close();
+      }
+    },
+  });
+}
 
 export default async function watchHandler(request: Request) {
   try {
@@ -96,68 +159,4 @@ export default async function watchHandler(request: Request) {
 
     throw error;
   }
-}
-
-function createWatchStream(params: {
-  projectId: string;
-  conversationId: string;
-  cursor: number;
-  openRunId?: string;
-  signal: AbortSignal;
-}): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const frames = watchConversationFrames({
-        prisma,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        cursor: params.cursor,
-        openRunId: params.openRunId,
-        signal: params.signal,
-      });
-
-      try {
-        for await (const frame of frames) {
-          if (params.signal.aborted) {
-            break;
-          }
-
-          controller.enqueue(
-            encoder.encode(
-              frame === null ? ": keepalive\n\n" : encodeFrame(frame),
-            ),
-          );
-        }
-      } catch (error) {
-        logger.error("In-app agent watch stream failed", {
-          error,
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-        });
-
-        if (!params.signal.aborted) {
-          controller.enqueue(
-            encoder.encode(
-              encodeFrame({
-                type: "error",
-                code: "watch_failed",
-                message: "The connection to the run was interrupted.",
-              }),
-            ),
-          );
-        }
-      } finally {
-        await frames.return(undefined);
-        controller.close();
-      }
-    },
-  });
-}
-
-function encodeFrame(frame: InAppAgentWatchFrame): string {
-  const id = frame.type === "event" ? `id: ${frame.sequenceNumber}\n` : "";
-
-  return `${id}event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`;
 }

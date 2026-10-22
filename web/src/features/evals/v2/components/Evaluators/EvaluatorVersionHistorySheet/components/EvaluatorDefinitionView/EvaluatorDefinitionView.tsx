@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
@@ -100,6 +99,21 @@ function CodeEvaluatorDefinitionView({
         />
       </section>
     </div>
+  );
+}
+
+function renderMediaAwareText(value: string) {
+  return splitStringByMediaReferences(value).map((segment, index) =>
+    segment.type === "media" ? (
+      <span
+        key={`${segment.value}-${index}`}
+        className="relative -top-px inline-flex"
+      >
+        <MediaReferenceTag descriptor={segment.descriptor} />
+      </span>
+    ) : (
+      <Fragment key={index}>{segment.value}</Fragment>
+    ),
   );
 }
 
@@ -251,21 +265,6 @@ function DecisionModelDefinitionView({
         />
       </section>
     </div>
-  );
-}
-
-function renderMediaAwareText(value: string) {
-  return splitStringByMediaReferences(value).map((segment, index) =>
-    segment.type === "media" ? (
-      <span
-        key={`${segment.value}-${index}`}
-        className="relative -top-px inline-flex"
-      >
-        <MediaReferenceTag descriptor={segment.descriptor} />
-      </span>
-    ) : (
-      <Fragment key={index}>{segment.value}</Fragment>
-    ),
   );
 }
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -29,6 +28,33 @@ import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { buildAdminOrgContext } from "@/src/features/organizations/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+
+async function isGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  const config = await params.prisma.gatewayConfig.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      defaultIngestionProjectId: params.projectId,
+    },
+    select: { organizationId: true },
+  });
+  return config !== null;
+}
+
+async function throwIfGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  if (await isGatewayIngestionProject(params)) {
+    throw new LangfuseConflictError(
+      "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+    );
+  }
+}
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -406,30 +432,3 @@ export const projectsRouter = createTRPCRouter({
       return { project, organization };
     }),
 });
-
-async function isGatewayIngestionProject(params: {
-  prisma: PrismaClient;
-  organizationId: string;
-  projectId: string;
-}) {
-  const config = await params.prisma.gatewayConfig.findFirst({
-    where: {
-      organizationId: params.organizationId,
-      defaultIngestionProjectId: params.projectId,
-    },
-    select: { organizationId: true },
-  });
-  return config !== null;
-}
-
-async function throwIfGatewayIngestionProject(params: {
-  prisma: PrismaClient;
-  organizationId: string;
-  projectId: string;
-}) {
-  if (await isGatewayIngestionProject(params)) {
-    throw new LangfuseConflictError(
-      "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
-    );
-  }
-}

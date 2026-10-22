@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Pencil, Trash, FileDiff } from "@langfuse/icons";
 import {
   IOSection,
@@ -44,6 +43,14 @@ interface CorrectedOutputFieldProps {
   onClosed?: () => void;
 }
 
+/** Corrections autosave by rewriting the same score id, which projects that
+    read scores without dedup must not do, so editing is off for them. */
+function useCanEditCorrection(projectId: string) {
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const scoreEditsDisabled = useScoreEditsDisabled(projectId);
+  return hasAccess && !scoreEditsDisabled;
+}
+
 /** The Output header's pencil: opens the correction editor. Disabled without
     `scores:save`, like the section's own edit and delete actions. */
 export function useCorrectOutputAction({
@@ -67,6 +74,92 @@ export function useCorrectOutputAction({
       onOpen();
     },
   };
+}
+
+function getStatus({
+  isEditing,
+  hasContent,
+  isValidJson,
+  saveStatus,
+  strictJsonMode,
+}: {
+  isEditing: boolean;
+  hasContent: boolean;
+  isValidJson: boolean;
+  saveStatus: "idle" | "saving" | "saved";
+  strictJsonMode: boolean;
+}): IOSectionStatus | undefined {
+  if (!isValidJson) {
+    if (!isEditing || !hasContent) return undefined;
+    return {
+      kind: "error",
+      text: strictJsonMode
+        ? "Invalid JSON - fix to save"
+        : "Cannot save empty content",
+    };
+  }
+  if (saveStatus === "saving") return { kind: "saving", text: "Saving" };
+  if (saveStatus === "saved") return { kind: "saved", text: "Saved" };
+  return undefined;
+}
+
+/** Placeholder, editor, or read-only view of the correction. */
+function CorrectionBody({
+  hasContent,
+  isEditing,
+  hasAccess,
+  displayValue,
+  strictJsonMode,
+  editorRef,
+  onEdit,
+  onChange,
+  onEditorMount,
+}: {
+  hasContent: boolean;
+  isEditing: boolean;
+  hasAccess: boolean;
+  displayValue: string;
+  strictJsonMode: boolean;
+  editorRef: React.RefObject<ReactCodeMirrorRef | null>;
+  onEdit: () => void;
+  onChange: (value: string) => void;
+  onEditorMount: () => void;
+}) {
+  if (!hasContent && !isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={!hasAccess}
+        className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
+      >
+        Click to add corrected output
+      </button>
+    );
+  }
+  if (isEditing) {
+    return (
+      <CodeMirrorEditor
+        value={displayValue}
+        onChange={onChange}
+        mode={strictJsonMode ? "json" : "text"}
+        minHeight={200}
+        placeholder="Enter corrected output..."
+        editorRef={editorRef}
+        onEditorMount={onEditorMount}
+        appearance="flat"
+        className="focus-within:ring-ring focus-within:ring-2"
+      />
+    );
+  }
+  return (
+    <CodeMirrorEditor
+      value={displayValue}
+      mode={strictJsonMode ? "json" : "text"}
+      editable={false}
+      appearance="flat"
+    />
+  );
 }
 
 export function CorrectedOutputField({
@@ -332,98 +425,4 @@ export function CorrectedOutputField({
       )}
     </>
   );
-}
-
-function getStatus({
-  isEditing,
-  hasContent,
-  isValidJson,
-  saveStatus,
-  strictJsonMode,
-}: {
-  isEditing: boolean;
-  hasContent: boolean;
-  isValidJson: boolean;
-  saveStatus: "idle" | "saving" | "saved";
-  strictJsonMode: boolean;
-}): IOSectionStatus | undefined {
-  if (!isValidJson) {
-    if (!isEditing || !hasContent) return undefined;
-    return {
-      kind: "error",
-      text: strictJsonMode
-        ? "Invalid JSON - fix to save"
-        : "Cannot save empty content",
-    };
-  }
-  if (saveStatus === "saving") return { kind: "saving", text: "Saving" };
-  if (saveStatus === "saved") return { kind: "saved", text: "Saved" };
-  return undefined;
-}
-
-/** Placeholder, editor, or read-only view of the correction. */
-function CorrectionBody({
-  hasContent,
-  isEditing,
-  hasAccess,
-  displayValue,
-  strictJsonMode,
-  editorRef,
-  onEdit,
-  onChange,
-  onEditorMount,
-}: {
-  hasContent: boolean;
-  isEditing: boolean;
-  hasAccess: boolean;
-  displayValue: string;
-  strictJsonMode: boolean;
-  editorRef: React.RefObject<ReactCodeMirrorRef | null>;
-  onEdit: () => void;
-  onChange: (value: string) => void;
-  onEditorMount: () => void;
-}) {
-  if (!hasContent && !isEditing) {
-    return (
-      <button
-        type="button"
-        onClick={onEdit}
-        disabled={!hasAccess}
-        className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
-      >
-        Click to add corrected output
-      </button>
-    );
-  }
-  if (isEditing) {
-    return (
-      <CodeMirrorEditor
-        value={displayValue}
-        onChange={onChange}
-        mode={strictJsonMode ? "json" : "text"}
-        minHeight={200}
-        placeholder="Enter corrected output..."
-        editorRef={editorRef}
-        onEditorMount={onEditorMount}
-        appearance="flat"
-        className="focus-within:ring-ring focus-within:ring-2"
-      />
-    );
-  }
-  return (
-    <CodeMirrorEditor
-      value={displayValue}
-      mode={strictJsonMode ? "json" : "text"}
-      editable={false}
-      appearance="flat"
-    />
-  );
-}
-
-/** Corrections autosave by rewriting the same score id, which projects that
-    read scores without dedup must not do, so editing is off for them. */
-function useCanEditCorrection(projectId: string) {
-  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
-  const scoreEditsDisabled = useScoreEditsDisabled(projectId);
-  return hasAccess && !scoreEditsDisabled;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { addSecureOutboundConnectionValidation } from "./connection";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
@@ -135,6 +134,48 @@ export type RedirectOptions =
       skipValidation?: false;
       redirectValidation: RedirectValidationOptions;
     });
+
+function addConnectionTimeValidation(
+  options: RequestInit,
+  redirectOptions: RedirectOptions,
+): RequestInit {
+  if (redirectOptions.skipValidation === true) {
+    return options;
+  }
+
+  return addSecureOutboundConnectionValidation(options, {
+    whitelist: redirectOptions.redirectValidation.whitelist,
+    logContext: redirectOptions.redirectValidation.logContext,
+    addressAttemptTimeoutMs:
+      redirectOptions.redirectValidation.addressAttemptTimeoutMs,
+  });
+}
+
+function stripSensitiveRedirectHeaders(
+  headers: RequestInit["headers"],
+  sensitiveHeaderNames: Set<string>,
+): {
+  headers: RequestInit["headers"];
+  strippedHeaderNames: string[];
+} {
+  const strippedHeaderNames: string[] = [];
+
+  const headerEntries = Array.from(new Headers(headers).entries()).filter(
+    ([headerName]) => {
+      if (sensitiveHeaderNames.has(headerName)) {
+        strippedHeaderNames.push(headerName);
+        return false;
+      }
+
+      return true;
+    },
+  );
+
+  return {
+    headers: new Headers(headerEntries),
+    strippedHeaderNames,
+  };
+}
 
 /**
  * Fetches a URL with manual redirect handling and validation at each step.
@@ -330,46 +371,4 @@ export async function fetchWithSecureRedirects(
     ...redirectChain,
     currentUrl,
   ]);
-}
-
-function addConnectionTimeValidation(
-  options: RequestInit,
-  redirectOptions: RedirectOptions,
-): RequestInit {
-  if (redirectOptions.skipValidation === true) {
-    return options;
-  }
-
-  return addSecureOutboundConnectionValidation(options, {
-    whitelist: redirectOptions.redirectValidation.whitelist,
-    logContext: redirectOptions.redirectValidation.logContext,
-    addressAttemptTimeoutMs:
-      redirectOptions.redirectValidation.addressAttemptTimeoutMs,
-  });
-}
-
-function stripSensitiveRedirectHeaders(
-  headers: RequestInit["headers"],
-  sensitiveHeaderNames: Set<string>,
-): {
-  headers: RequestInit["headers"];
-  strippedHeaderNames: string[];
-} {
-  const strippedHeaderNames: string[] = [];
-
-  const headerEntries = Array.from(new Headers(headers).entries()).filter(
-    ([headerName]) => {
-      if (sensitiveHeaderNames.has(headerName)) {
-        strippedHeaderNames.push(headerName);
-        return false;
-      }
-
-      return true;
-    },
-  );
-
-  return {
-    headers: new Headers(headerEntries),
-    strippedHeaderNames,
-  };
 }

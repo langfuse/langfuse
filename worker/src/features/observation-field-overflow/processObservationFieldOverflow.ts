@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type EventRecordInsertType,
   instrumentAsync,
@@ -33,87 +32,6 @@ type OverflowResult = {
   bytesRemoved: number;
 };
 
-export async function applyObservationFieldOverflow(
-  eventRecord: EventRecordInsertType,
-): Promise<EventRecordInsertType> {
-  if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
-    return eventRecord;
-  }
-
-  try {
-    const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-    const candidates = collectOverflowCandidates(eventRecord);
-
-    if (candidates.length === 0) {
-      return eventRecord;
-    }
-    if (!mediaBucket) {
-      throw new Error("Media upload bucket is not configured");
-    }
-
-    return await instrumentAsync(
-      {
-        name: "langfuse.ingestion.observation_field_overflow.process",
-      },
-      async (span) => {
-        const startedAt = Date.now();
-
-        try {
-          const results = await uploadOverflowCandidates(
-            eventRecord,
-            candidates,
-            mediaBucket,
-          );
-
-          span.setAttributes({
-            "langfuse.project.id": eventRecord.project_id,
-            "langfuse.trace.id": eventRecord.trace_id,
-            "langfuse.observation.id": eventRecord.span_id,
-            "langfuse.ingestion.observation_field_overflow.candidates":
-              candidates.length,
-            "langfuse.ingestion.observation_field_overflow.fields":
-              candidates.map(({ field }) => field),
-            "langfuse.ingestion.observation_field_overflow.uploaded":
-              results.filter(({ outcome }) => outcome === "uploaded").length,
-            "langfuse.ingestion.observation_field_overflow.reused":
-              results.filter(({ outcome }) => outcome === "reused").length,
-            "langfuse.ingestion.observation_field_overflow.failed":
-              results.filter(({ outcome }) => outcome === "failed").length,
-            "langfuse.ingestion.observation_field_overflow.bytes_processed":
-              candidates.reduce(
-                (total, { originalBytes }) => total + originalBytes,
-                0,
-              ),
-            "langfuse.ingestion.observation_field_overflow.bytes_removed":
-              results.reduce(
-                (total, { bytesRemoved }) => total + bytesRemoved,
-                0,
-              ),
-          });
-
-          return applyOverflowResults(eventRecord, results);
-        } finally {
-          recordDistribution(
-            "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
-            Date.now() - startedAt,
-          );
-        }
-      },
-    );
-  } catch (error) {
-    logger.warn(
-      "Observation field overflow processing failed; persisting original record",
-      {
-        error,
-        projectId: eventRecord.project_id,
-        traceId: eventRecord.trace_id,
-        observationId: eventRecord.span_id,
-      },
-    );
-    return eventRecord;
-  }
-}
-
 function collectOverflowCandidates(
   eventRecord: EventRecordInsertType,
 ): OverflowCandidate[] {
@@ -136,70 +54,6 @@ function collectOverflowCandidates(
   });
 
   return candidates;
-}
-
-async function uploadOverflowCandidates(
-  eventRecord: EventRecordInsertType,
-  candidates: OverflowCandidate[],
-  mediaBucket: string,
-): Promise<OverflowResult[]> {
-  const overflowResults: OverflowResult[] = [];
-
-  // Bound the additional buffers retained by concurrent uploads per event.
-  for (
-    let start = 0;
-    start < candidates.length;
-    start += OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE
-  ) {
-    const batch = candidates.slice(
-      start,
-      start + OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE,
-    );
-    const settledBatch = await Promise.allSettled(
-      batch.map((candidate) =>
-        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
-      ),
-    );
-
-    for (const result of settledBatch) {
-      if (result.status === "rejected") {
-        throw result.reason;
-      }
-      overflowResults.push(result.value);
-    }
-  }
-
-  return overflowResults;
-}
-
-function applyOverflowResults(
-  eventRecord: EventRecordInsertType,
-  results: OverflowResult[],
-): EventRecordInsertType {
-  let input = eventRecord.input;
-  let output = eventRecord.output;
-  const metadataValues = eventRecord.metadata_values.slice();
-
-  for (const { candidate, overflowedValue } of results) {
-    switch (candidate.field) {
-      case "input":
-        input = overflowedValue;
-        break;
-      case "output":
-        output = overflowedValue;
-        break;
-      case "metadata":
-        metadataValues[candidate.metadataIndex] = overflowedValue;
-        break;
-    }
-  }
-
-  return {
-    ...eventRecord,
-    input,
-    output,
-    metadata_values: metadataValues,
-  };
 }
 
 async function uploadOverflowCandidate(
@@ -280,4 +134,149 @@ async function uploadOverflowCandidate(
     outcome: uploadResult.outcome,
     bytesRemoved,
   };
+}
+
+async function uploadOverflowCandidates(
+  eventRecord: EventRecordInsertType,
+  candidates: OverflowCandidate[],
+  mediaBucket: string,
+): Promise<OverflowResult[]> {
+  const overflowResults: OverflowResult[] = [];
+
+  // Bound the additional buffers retained by concurrent uploads per event.
+  for (
+    let start = 0;
+    start < candidates.length;
+    start += OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE
+  ) {
+    const batch = candidates.slice(
+      start,
+      start + OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE,
+    );
+    const settledBatch = await Promise.allSettled(
+      batch.map((candidate) =>
+        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
+      ),
+    );
+
+    for (const result of settledBatch) {
+      if (result.status === "rejected") {
+        throw result.reason;
+      }
+      overflowResults.push(result.value);
+    }
+  }
+
+  return overflowResults;
+}
+
+function applyOverflowResults(
+  eventRecord: EventRecordInsertType,
+  results: OverflowResult[],
+): EventRecordInsertType {
+  let input = eventRecord.input;
+  let output = eventRecord.output;
+  const metadataValues = eventRecord.metadata_values.slice();
+
+  for (const { candidate, overflowedValue } of results) {
+    switch (candidate.field) {
+      case "input":
+        input = overflowedValue;
+        break;
+      case "output":
+        output = overflowedValue;
+        break;
+      case "metadata":
+        metadataValues[candidate.metadataIndex] = overflowedValue;
+        break;
+    }
+  }
+
+  return {
+    ...eventRecord,
+    input,
+    output,
+    metadata_values: metadataValues,
+  };
+}
+
+export async function applyObservationFieldOverflow(
+  eventRecord: EventRecordInsertType,
+): Promise<EventRecordInsertType> {
+  if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
+    return eventRecord;
+  }
+
+  try {
+    const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+    const candidates = collectOverflowCandidates(eventRecord);
+
+    if (candidates.length === 0) {
+      return eventRecord;
+    }
+    if (!mediaBucket) {
+      throw new Error("Media upload bucket is not configured");
+    }
+
+    return await instrumentAsync(
+      {
+        name: "langfuse.ingestion.observation_field_overflow.process",
+      },
+      async (span) => {
+        const startedAt = Date.now();
+
+        try {
+          const results = await uploadOverflowCandidates(
+            eventRecord,
+            candidates,
+            mediaBucket,
+          );
+
+          span.setAttributes({
+            "langfuse.project.id": eventRecord.project_id,
+            "langfuse.trace.id": eventRecord.trace_id,
+            "langfuse.observation.id": eventRecord.span_id,
+            "langfuse.ingestion.observation_field_overflow.candidates":
+              candidates.length,
+            "langfuse.ingestion.observation_field_overflow.fields":
+              candidates.map(({ field }) => field),
+            "langfuse.ingestion.observation_field_overflow.uploaded":
+              results.filter(({ outcome }) => outcome === "uploaded").length,
+            "langfuse.ingestion.observation_field_overflow.reused":
+              results.filter(({ outcome }) => outcome === "reused").length,
+            "langfuse.ingestion.observation_field_overflow.failed":
+              results.filter(({ outcome }) => outcome === "failed").length,
+            "langfuse.ingestion.observation_field_overflow.bytes_processed":
+              candidates.reduce(
+                (total, { originalBytes }) => total + originalBytes,
+                0,
+              ),
+            "langfuse.ingestion.observation_field_overflow.bytes_removed":
+              results.reduce(
+                (total, { bytesRemoved }) => total + bytesRemoved,
+                0,
+              ),
+          });
+
+          return applyOverflowResults(eventRecord, results);
+        } finally {
+          recordDistribution(
+            "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
+            Date.now() - startedAt,
+          );
+        }
+      },
+    );
+  } catch (error) {
+    logger.warn(
+      "Observation field overflow processing failed; persisting original record",
+      {
+        error,
+        projectId: eventRecord.project_id,
+        traceId: eventRecord.trace_id,
+        observationId: eventRecord.span_id,
+      },
+    );
+    return eventRecord;
+  }
 }

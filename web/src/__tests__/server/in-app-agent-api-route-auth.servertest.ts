@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -44,6 +43,74 @@ vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
     hasEntitlement: entitlementMocks.hasEntitlement,
   };
 });
+
+async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalBedrockModel = env.LANGFUSE_AI_MODEL;
+  const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+  const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+  (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  (env as any).LANGFUSE_AI_MODEL = "test-model";
+  (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+  (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+  try {
+    return await run();
+  } finally {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (env as any).LANGFUSE_AI_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = originalAiFeaturesPublicKey;
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = originalAiFeaturesSecretKey;
+  }
+}
+
+function createInAppAgentSession(params: {
+  orgId: string;
+  projectId: string;
+  userId: string;
+  includeProjectMembership?: boolean;
+}): Session {
+  return {
+    expires: new Date(Date.now() + 60_000).toISOString(),
+    environment: { enableExperimentalFeatures: false },
+    user: {
+      id: params.userId,
+      name: "Test User",
+      email: "test@example.com",
+      image: null,
+      admin: false,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      organizations:
+        (params.includeProjectMembership ?? true)
+          ? [
+              {
+                id: params.orgId,
+                name: "Test Org",
+                plan: "cloud:team",
+                role: "OWNER",
+                metadata: {},
+                aiFeaturesEnabled: true,
+                aiTelemetryEnabled: false,
+                cloudConfig: { plan: "Team" },
+                projects: [
+                  {
+                    id: params.projectId,
+                    name: "Test Project",
+                    role: "ADMIN",
+                    retentionDays: 30,
+                    hasTraces: false,
+                    deletedAt: null,
+                    metadata: {},
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              },
+            ]
+          : [],
+    },
+  } as Session;
+}
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
@@ -352,71 +419,3 @@ describe("in-app agent public API route auth", () => {
     });
   });
 });
-
-function createInAppAgentSession(params: {
-  orgId: string;
-  projectId: string;
-  userId: string;
-  includeProjectMembership?: boolean;
-}): Session {
-  return {
-    expires: new Date(Date.now() + 60_000).toISOString(),
-    environment: { enableExperimentalFeatures: false },
-    user: {
-      id: params.userId,
-      name: "Test User",
-      email: "test@example.com",
-      image: null,
-      admin: false,
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations:
-        (params.includeProjectMembership ?? true)
-          ? [
-              {
-                id: params.orgId,
-                name: "Test Org",
-                plan: "cloud:team",
-                role: "OWNER",
-                metadata: {},
-                aiFeaturesEnabled: true,
-                aiTelemetryEnabled: false,
-                cloudConfig: { plan: "Team" },
-                projects: [
-                  {
-                    id: params.projectId,
-                    name: "Test Project",
-                    role: "ADMIN",
-                    retentionDays: 30,
-                    hasTraces: false,
-                    deletedAt: null,
-                    metadata: {},
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              },
-            ]
-          : [],
-    },
-  } as Session;
-}
-
-async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
-  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalBedrockModel = env.LANGFUSE_AI_MODEL;
-  const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
-  const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
-
-  (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-  (env as any).LANGFUSE_AI_MODEL = "test-model";
-  (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
-  (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
-
-  try {
-    return await run();
-  } finally {
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    (env as any).LANGFUSE_AI_MODEL = originalBedrockModel;
-    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = originalAiFeaturesPublicKey;
-    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = originalAiFeaturesSecretKey;
-  }
-}

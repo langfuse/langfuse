@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Prisma,
   type GatewayConnectionStatus,
@@ -25,6 +24,52 @@ import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
+
+async function validateGatewayCredential(params: {
+  provider: GatewayProviderName;
+  credential: string;
+}): Promise<void> {
+  const definition = getGatewayProviderDefinition(params.provider);
+  const adapter =
+    params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
+  const model = definition.validationModel;
+
+  try {
+    await testModelCall({
+      provider: params.provider.toLowerCase(),
+      model,
+      apiKey: {
+        id: "gateway-credential-validation",
+        projectId: "gateway-credential-validation",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        adapter,
+        provider: params.provider.toLowerCase(),
+        displaySecretKey: "",
+        secretKey: encrypt(params.credential),
+        extraHeaders: null,
+        extraHeaderKeys: [],
+        baseURL: definition.baseUrl,
+        customModels: [],
+        withDefaultModels: true,
+        config: null,
+      },
+      timeout: 10_000,
+    });
+  } catch {
+    throw new InvalidRequestError("Provider credential validation failed");
+  }
+}
+
+function rethrowConnectionMutationError(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+  }
+  throw error;
+}
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -269,52 +314,6 @@ export class GatewayProviderService {
       this.prisma,
     );
     return updated;
-  }
-}
-
-function rethrowConnectionMutationError(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
-    throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
-  }
-  throw error;
-}
-
-async function validateGatewayCredential(params: {
-  provider: GatewayProviderName;
-  credential: string;
-}): Promise<void> {
-  const definition = getGatewayProviderDefinition(params.provider);
-  const adapter =
-    params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
-  const model = definition.validationModel;
-
-  try {
-    await testModelCall({
-      provider: params.provider.toLowerCase(),
-      model,
-      apiKey: {
-        id: "gateway-credential-validation",
-        projectId: "gateway-credential-validation",
-        createdAt: new Date(0),
-        updatedAt: new Date(0),
-        adapter,
-        provider: params.provider.toLowerCase(),
-        displaySecretKey: "",
-        secretKey: encrypt(params.credential),
-        extraHeaders: null,
-        extraHeaderKeys: [],
-        baseURL: definition.baseUrl,
-        customModels: [],
-        withDefaultModels: true,
-        config: null,
-      },
-      timeout: 10_000,
-    });
-  } catch {
-    throw new InvalidRequestError("Provider credential validation failed");
   }
 }
 

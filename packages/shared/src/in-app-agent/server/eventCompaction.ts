@@ -1,7 +1,25 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 
 import type { AgUiEvent } from "../schema";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getString(event: unknown, key: string): string | undefined {
+  if (!isRecord(event)) {
+    return undefined;
+  }
+
+  const value = event[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function getTextChunkRole(event: unknown) {
+  const role = getString(event, "role");
+
+  return role === undefined || role === "assistant" ? "assistant" : role;
+}
 
 export function compactTextMessageChunks(
   events: readonly AgUiEvent[],
@@ -33,6 +51,13 @@ export function compactTextMessageChunks(
   return compactedEvents;
 }
 
+function isReasoningDelta(event: AgUiEvent) {
+  return (
+    event.type === EventType.REASONING_MESSAGE_CHUNK ||
+    event.type === EventType.REASONING_MESSAGE_CONTENT
+  );
+}
+
 export function compactPersistedEventDeltas(
   events: readonly AgUiEvent[],
 ): AgUiEvent[] {
@@ -60,30 +85,4 @@ export function compactPersistedEventDeltas(
   }
 
   return compactedEvents;
-}
-
-function isReasoningDelta(event: AgUiEvent) {
-  return (
-    event.type === EventType.REASONING_MESSAGE_CHUNK ||
-    event.type === EventType.REASONING_MESSAGE_CONTENT
-  );
-}
-
-function getTextChunkRole(event: unknown) {
-  const role = getString(event, "role");
-
-  return role === undefined || role === "assistant" ? "assistant" : role;
-}
-
-function getString(event: unknown, key: string): string | undefined {
-  if (!isRecord(event)) {
-    return undefined;
-  }
-
-  const value = event[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

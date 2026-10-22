@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
@@ -117,6 +116,17 @@ export function getFernDeprecatedOperations(
   });
 }
 
+function deprecatedPropertyPaths(
+  properties: FernProperties | undefined,
+  prefix: string[],
+): string[][] {
+  return Object.entries(properties ?? {}).flatMap(([name, property]) =>
+    typeof property === "object" && isDeprecated(property.availability)
+      ? [[...prefix, name]]
+      : [],
+  );
+}
+
 /** getFernDeprecatedProperties locates named-type and inline-request properties in the exported schema. */
 export function getFernDeprecatedProperties(
   definitionDirectory: string,
@@ -161,17 +171,6 @@ export function getFernDeprecatedProperties(
     );
     return [...typeProperties, ...requestProperties];
   });
-}
-
-function deprecatedPropertyPaths(
-  properties: FernProperties | undefined,
-  prefix: string[],
-): string[][] {
-  return Object.entries(properties ?? {}).flatMap(([name, property]) =>
-    typeof property === "object" && isDeprecated(property.availability)
-      ? [[...prefix, name]]
-      : [],
-  );
 }
 
 type FernProperties = Record<

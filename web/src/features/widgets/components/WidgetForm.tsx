@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -180,6 +180,291 @@ type WidgetFieldContext = {
   chartType: DashboardWidgetChartType;
 };
 
+export function useWidgetFormState({
+  initialValues,
+  projectId,
+  onSave,
+  widgetId,
+}: {
+  initialValues: WidgetInitialValues;
+  projectId: string;
+  onSave: (widgetData: WidgetSavePayload) => void;
+  widgetId?: string;
+}) {
+  const { isV4 } = useReadPath();
+
+  // The initial widget's persisted version is a local hint frozen at mount.
+  // The resolver and live viewVersion additionally derive v2 from the current
+  // form shape; the server derives the value that gets persisted.
+  const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
+  const activeVersion: ViewVersion = isV4 ? "v2" : "v1";
+
+  // The auto-suggestions change on every keystroke; a ref keeps the resolver
+  // closure from being rebuilt on each one (the filled name/description do not
+  // affect validity — name/description are nullable with no min).
+  const suggestionsRef = useRef<{ name: string; description: string }>({
+    name: "",
+    description: "",
+  });
+
+  // Precompute both version schemas/resolvers once. A blank name/description is
+  // filled with the live suggestion and the filters are mapped into view space
+  // before zod (mirrors MonitorForm).
+  const resolversByVersion = useMemo(
+    () => ({
+      v1: zodResolver(makeWidgetFormSchema("v1") as any),
+      v2: zodResolver(makeWidgetFormSchema("v2") as any),
+    }),
+    [],
+  );
+  // The schema version is derived INSIDE the resolver from the (mapped) view
+  // being validated — not from a render-written ref — so it is never render
+  // stale after a version-flipping view or import. baseMinVersion and
+  // activeVersion are in the dep list so either promotion rebuilds the closure
+  // (react-hook-form re-reads control._options each render).
+  const resolver = useMemo<Resolver<WidgetFormValues>>(() => {
+    return (values, context, options) => {
+      const v = values as WidgetFormValues;
+      const suggestions = suggestionsRef.current;
+      const mapped = {
+        ...v,
+        name: effectiveWidgetName(v.name, suggestions.name),
+        description: effectiveWidgetName(
+          v.description,
+          suggestions.description,
+        ),
+        // mapWidgetUiTableFilterToView MUST stay idempotent: the form holds
+        // editor-space filters, and both this validation path and toSavePayload
+        // map them to view space independently.
+        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
+      };
+      const version = resolveWidgetFormVersion({
+        view: mapped.view,
+        baseMinVersion,
+        activeVersion,
+        shape: mapped,
+      });
+      return resolversByVersion[version](mapped as any, context, options);
+    };
+  }, [resolversByVersion, baseMinVersion, activeVersion]);
+
+  // The initial view version, derived from initialValues alone (view is known
+  // before the form mounts) so the seed can normalize against the right view
+  // declaration.
+  const initialViewVersion = resolveWidgetFormVersion({
+    view: initialValues.view,
+    baseMinVersion,
+    activeVersion,
+  });
+
+  const form = useForm<WidgetFormValues>({
+    resolver,
+    defaultValues: toDefaultValues(initialValues, initialViewVersion),
+    mode: "onChange",
+  });
+
+  // THE single useWatch. Everything below is derived from `values` once.
+  const values = useWatch({ control: form.control }) as WidgetFormValues;
+
+  const selectedView = values.view;
+  const chartType = values.chart.type;
+  const viewVersion = resolveWidgetFormVersion({
+    view: selectedView,
+    baseMinVersion,
+    activeVersion,
+    shape: values,
+  });
+  const suggestions = deriveWidgetSuggestions(values);
+  const effectiveSort = deriveEffectiveSort(values);
+
+  suggestionsRef.current = suggestions;
+
+  // Preview time range. The picker here is a transient PREVIEW control — the
+  // widget does not own a time range, so it must not write the user's shared
+  // cross-view default. Kept as LOCAL state (not RHF).
+  const { timeRange, setTimeRange } = useDashboardDateRange({
+    defaultRelativeAggregation: "last7Days",
+    persistAsDefault: false,
+  });
+  const dateRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange) ?? undefined,
+    [timeRange],
+  );
+  const selectedOption = useMemo(() => {
+    if ("range" in timeRange) return timeRange.range;
+    return "custom" as const;
+  }, [timeRange]);
+  const setDateRangeAndOption = (
+    option: DashboardDateRangeOptions,
+    range?: { from: Date; to: Date },
+  ) => {
+    if (option === "custom") {
+      if (range) setTimeRange({ from: range.from, to: range.to });
+    } else {
+      setTimeRange({ range: option });
+    }
+  };
+  const unsupportedFilters = useMemo(
+    () =>
+      partitionWidgetUiTableFiltersToView(selectedView, values.filters)
+        .unsupportedFilters,
+    [selectedView, values.filters],
+  );
+  const unsupportedFilterColumns = useMemo(
+    () =>
+      Array.from(
+        new Set(unsupportedFilters.map((filter) => filter.column)),
+      ).join(", "),
+    [unsupportedFilters],
+  );
+  const normalizedUserFilters = useMemo(
+    () => mapWidgetUiTableFilterToView(selectedView, values.filters),
+    [selectedView, values.filters],
+  );
+
+  const previewSortState = effectiveSort ?? null;
+  const pivotDimensionFields = values.dimensions.map((d) => d.field);
+
+  // Preview query. Depends ONLY on the fields that affect it — not
+  // name/description.
+  const query = useMemo<QueryType>(() => {
+    const fromTimestamp = dateRange
+      ? dateRange.from
+      : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000);
+    const toTimestamp = dateRange ? dateRange.to : new Date();
+
+    const queryDimensions =
+      chartType === "PIVOT_TABLE"
+        ? values.dimensions.map((d) => ({ field: d.field }))
+        : values.dimensions.length > 0
+          ? [{ field: values.dimensions[0].field }]
+          : [];
+
+    const queryMetrics =
+      chartType === "PIVOT_TABLE"
+        ? values.metrics
+            .filter((metric) => metric.measure && metric.measure !== "")
+            .map((metric) => ({
+              measure: metric.measure,
+              aggregation: metric.aggregation,
+            }))
+        : [
+            {
+              measure: values.metrics[0]?.measure ?? "count",
+              aggregation: values.metrics[0]?.aggregation ?? "count",
+            },
+          ];
+
+    const needsTopN = isV2BreakdownChart({
+      version: viewVersion,
+      hasDimension: queryDimensions.length > 0,
+      isTimeSeries: isTimeSeriesChart(chartType),
+      chartType,
+    });
+
+    const orderBy = buildWidgetOrderBy({
+      chartType,
+      sortState: previewSortState,
+      needsTopN,
+      firstMetric: {
+        aggregation: values.metrics[0]?.aggregation ?? "count",
+        measure: values.metrics[0]?.measure ?? "count",
+      },
+    });
+
+    let chartConfig: QueryType["chartConfig"];
+    if (chartType === "HISTOGRAM") {
+      chartConfig = { type: chartType, bins: values.chart.bins };
+    } else if (chartType === "PIVOT_TABLE" || needsTopN) {
+      chartConfig = { type: chartType, row_limit: values.chart.rowLimit };
+    } else {
+      chartConfig = { type: chartType };
+    }
+
+    return {
+      view: selectedView,
+      dimensions: queryDimensions,
+      metrics: queryMetrics,
+      filters: [...normalizedUserFilters],
+      timeDimension: isTimeSeriesChart(chartType)
+        ? { granularity: "auto" }
+        : null,
+      fromTimestamp: fromTimestamp.toISOString(),
+      toTimestamp: toTimestamp.toISOString(),
+      orderBy,
+      chartConfig,
+    };
+  }, [
+    selectedView,
+    values.metrics,
+    values.dimensions,
+    chartType,
+    values.chart.bins,
+    values.chart.rowLimit,
+    dateRange,
+    previewSortState,
+    viewVersion,
+    normalizedUserFilters,
+  ]);
+
+  const queryValidation = useMemo(() => {
+    if (unsupportedFilters.length > 0) {
+      return {
+        valid: false as const,
+        reason:
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          "Remove them or switch to a compatible view before saving this widget.",
+      };
+    }
+    return validateQuery(query, viewVersion);
+  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: widgetId ? "edit_editor" : "create_editor",
+    chartType,
+    isV4: viewVersion === "v2",
+  });
+
+  const selectedMeasure = values.metrics[0]?.measure ?? "count";
+  const selectedAggregation = values.metrics[0]?.aggregation ?? "count";
+  const selectedDimension = values.dimensions[0]?.field ?? "none";
+
+  const displayName = effectiveWidgetName(values.name, suggestions.name);
+  const displayDescription = effectiveWidgetName(
+    values.description,
+    suggestions.description,
+  );
+
+  return {
+    form,
+    onSave,
+    baseMinVersion,
+    activeVersion,
+    projectId,
+    query,
+    selectedDimension,
+    widgetId,
+    isV4,
+    viewVersion,
+    dateRange,
+    selectedView,
+    chartType,
+    selectedMeasure,
+    effectiveSort,
+    suggestions,
+    setDateRangeAndOption,
+    selectedOption,
+    displayName,
+    displayDescription,
+    queryValidation,
+    values,
+    pivotDimensionFields,
+    selectedAggregation,
+    previewSortState,
+  };
+}
+
 export type WidgetFormState = ReturnType<typeof useWidgetFormState>;
 
 type WidgetFormProps = Pick<
@@ -201,6 +486,842 @@ type WidgetFormProps = Pick<
 > & {
   filterData: ReturnType<typeof useMetricsFilterBuilderData>;
 };
+
+function ViewSelect({
+  control,
+  ctx,
+  availableViewOptions,
+  onViewChange,
+}: {
+  control: Control<WidgetFormValues>;
+  ctx: WidgetFieldContext;
+  availableViewOptions: typeof views | typeof viewsV2;
+  onViewChange: (view: z.infer<typeof views>) => void;
+}) {
+  return (
+    <FormField control={control} name="view" label="View">
+      {(field) => (
+        <SelectInput
+          value={field.value}
+          onValueChange={(value) =>
+            onViewChange(value as z.infer<typeof views>)
+          }
+          id={field.id}
+          placeholder="Select a view"
+          error={Boolean(field.error)}
+          aria-invalid={Boolean(field.error)}
+          aria-describedby={field.inputDescribedById}
+          options={availableViewOptions.options.map((view) => ({
+            value: view,
+            label: startCase(view),
+            explanation: {
+              title: startCase(view),
+              description: viewDeclarations[ctx.viewVersion][view].description,
+            },
+          }))}
+        />
+      )}
+    </FormField>
+  );
+}
+
+function PivotMetricsField({
+  control,
+  ctx,
+  error,
+  getAvailablePivotMetrics,
+  getAvailablePivotAggregations,
+}: {
+  control: Control<WidgetFormValues>;
+  ctx: WidgetFieldContext;
+  error?: string;
+  getAvailablePivotMetrics: (
+    index: number,
+  ) => { value: string; label: string }[];
+  getAvailablePivotAggregations: (
+    index: number,
+    measure: string,
+  ) => z.infer<typeof metricAggregations>[];
+}) {
+  // Owns the entire `metrics` slice — one value in (field.value), one onChange
+  // out (field.onChange with a fresh array).
+  const { field } = useController({ control, name: "metrics" });
+  const metrics = field.value;
+
+  const updateMetric = (
+    index: number,
+    measure: string,
+    aggregation?: z.infer<typeof metricAggregations>,
+  ) => {
+    const next = [...metrics];
+    if (measure && measure !== "none") {
+      let finalAggregation: z.infer<typeof metricAggregations>;
+      if (measure === "count") {
+        finalAggregation = "count";
+      } else {
+        const available = getAvailablePivotAggregations(index, measure);
+        const defaultAggregation =
+          viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[measure]
+            ?.defaultAggregation;
+        finalAggregation =
+          aggregation && available.includes(aggregation)
+            ? aggregation
+            : defaultAggregation && available.includes(defaultAggregation)
+              ? defaultAggregation
+              : (available[0] ?? "sum");
+      }
+      next[index] = { measure, aggregation: finalAggregation };
+    } else {
+      next.splice(index);
+    }
+    field.onChange(next);
+  };
+
+  const addSlot = () => {
+    if (metrics.length < MAX_PIVOT_TABLE_METRICS) {
+      field.onChange([...metrics, { measure: "", aggregation: "sum" }]);
+    }
+  };
+
+  const removeSlot = (index: number) => {
+    if (index > 0) {
+      const next = [...metrics];
+      next.splice(index, 1);
+      field.onChange(next);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: Math.max(1, metrics.length) }, (_, index) => {
+        const isEnabled =
+          index === 0 ||
+          Boolean(metrics[index - 1] && metrics[index - 1].measure);
+        const currentMetric = metrics[index];
+        const currentMeasure = currentMetric?.measure || "";
+        const currentAggregation = currentMetric?.aggregation || "sum";
+        const metricsForIndex = getAvailablePivotMetrics(index);
+        const aggregationsForIndex = getAvailablePivotAggregations(
+          index,
+          currentMeasure,
+        );
+        const canEdit = metricsForIndex.length > 0;
+
+        return (
+          <div key={index} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor={`pivot-metric-${index}`}>
+                Metric {index + 1} {index === 0 ? "(Required)" : "(Optional)"}
+              </Label>
+              {index > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeSlot(index)}
+                  className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
+                >
+                  <X size="base" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <SelectInput
+                  value={currentMeasure}
+                  onValueChange={(value) =>
+                    updateMetric(index, value, undefined)
+                  }
+                  disabled={!isEnabled || !canEdit}
+                  id={`pivot-metric-${index}`}
+                  error={Boolean(error && index === 0)}
+                  aria-invalid={error && index === 0 ? true : undefined}
+                  aria-describedby={
+                    error && index === 0 ? "pivot-metrics-error" : undefined
+                  }
+                  placeholder={
+                    !isEnabled
+                      ? "Select previous metric first"
+                      : !canEdit
+                        ? "No more measures available"
+                        : "Select measure"
+                  }
+                  options={metricsForIndex.map((metric) => {
+                    const meta =
+                      viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
+                        metric.value
+                      ];
+                    return {
+                      ...metric,
+                      explanation: {
+                        title: metric.label,
+                        description: meta?.description,
+                        badges: [
+                          ...(meta?.unit
+                            ? [{ label: "Unit", value: meta.unit }]
+                            : []),
+                          ...(meta?.type
+                            ? [{ label: "Type", value: meta.type }]
+                            : []),
+                        ],
+                      },
+                    };
+                  })}
+                />
+              </div>
+
+              {currentMeasure && currentMeasure !== "count" && (
+                <div className="flex-1">
+                  <SelectInput
+                    value={currentAggregation}
+                    onValueChange={(value) =>
+                      updateMetric(
+                        index,
+                        currentMeasure,
+                        value as z.infer<typeof metricAggregations>,
+                      )
+                    }
+                    placeholder="Select aggregation"
+                    options={aggregationsForIndex.map((aggregation) => ({
+                      value: aggregation,
+                      label: startCase(aggregation),
+                    }))}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {metrics.length < MAX_PIVOT_TABLE_METRICS &&
+        getAvailablePivotMetrics(metrics.length).length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addSlot}
+            className="w-full"
+          >
+            <Plus size="base" color="default" __rawClassName="mr-1" />
+            Add Metric {metrics.length + 1}
+          </Button>
+        )}
+      {error && (
+        <p id="pivot-metrics-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SingleMetricField({
+  control,
+  ctx,
+  error,
+  measure,
+  onMeasureChange,
+  availableMetrics,
+  validAggregationsForMeasure,
+}: {
+  control: Control<WidgetFormValues>;
+  ctx: WidgetFieldContext;
+  error?: string;
+  measure: string;
+  onMeasureChange: (measure: string) => void;
+  availableMetrics: { value: string; label: string }[];
+  validAggregationsForMeasure: z.infer<typeof metricAggregations>[];
+}) {
+  // Owns metrics.0.aggregation; the measure is a cross-slice trigger handled by
+  // the parent (onMeasureChange also resolves the chart type).
+  const { field: aggField } = useController({
+    control,
+    name: "metrics.0.aggregation",
+  });
+
+  // THE HISTOGRAM FIX (a): the histogram aggregation is offered only on the
+  // histogram chart (where it is forced and this Select is disabled). It is
+  // never manually selectable on a non-histogram chart, so no silent revert.
+  const aggregationOptions = validAggregationsForMeasure.filter(
+    (agg) => agg !== "histogram" || ctx.chartType === "HISTOGRAM",
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <SelectInput
+            value={measure}
+            onValueChange={(value) => onMeasureChange(value)}
+            id="metrics-select"
+            placeholder="Select metrics"
+            error={Boolean(error)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "single-metric-error" : undefined}
+            options={availableMetrics.map((metric) => {
+              const meta =
+                viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
+                  metric.value
+                ];
+              return {
+                ...metric,
+                explanation: {
+                  title: metric.label,
+                  description: meta?.description,
+                  badges: [
+                    ...(meta?.unit
+                      ? [{ label: "Unit", value: meta.unit }]
+                      : []),
+                    ...(meta?.type
+                      ? [{ label: "Type", value: meta.type }]
+                      : []),
+                  ],
+                },
+              };
+            })}
+          />
+        </div>
+        {measure !== "count" && (
+          <div className="flex-1">
+            <SelectInput
+              value={aggField.value}
+              disabled={ctx.chartType === "HISTOGRAM"}
+              onValueChange={(value) =>
+                aggField.onChange(value as z.infer<typeof metricAggregations>)
+              }
+              id="aggregation-select"
+              placeholder="Select Aggregation"
+              options={aggregationOptions.map((aggregation) => ({
+                value: aggregation,
+                label: startCase(aggregation),
+              }))}
+            />
+          </div>
+        )}
+      </div>
+      {measure !== "count" && ctx.chartType === "HISTOGRAM" && (
+        <p className="text-muted-foreground text-xs">
+          Aggregation is automatically set to &quot;histogram&quot; for
+          histogram charts
+        </p>
+      )}
+      {error && (
+        <p id="single-metric-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FiltersField({
+  filterData,
+  control,
+  selectedView,
+}: {
+  filterData: ReturnType<typeof useMetricsFilterBuilderData>;
+  control: Control<WidgetFormValues>;
+  selectedView: z.infer<typeof views>;
+}) {
+  const { field } = useController({ control, name: "filters" });
+  return (
+    <div className="space-y-2">
+      <Label>Filters</Label>
+      <MetricsFilterBuilder
+        {...filterData}
+        view={selectedView}
+        filters={field.value}
+        onChange={(next: FilterState) => field.onChange(next)}
+      />
+    </div>
+  );
+}
+
+function BreakdownSelect({
+  control,
+  ctx,
+  error,
+  availableDimensions,
+}: {
+  control: Control<WidgetFormValues>;
+  ctx: WidgetFieldContext;
+  error?: string;
+  availableDimensions: { value: string; label: string }[];
+}) {
+  // Owns the entire `dimensions` slice; a non-pivot chart carries at most one.
+  return (
+    <FormField
+      control={control}
+      name="dimensions"
+      label="Breakdown Dimension (Optional)"
+    >
+      {(field) => (
+        <SelectInput
+          value={field.value[0]?.field ?? "none"}
+          onValueChange={(next) =>
+            field.onChange(next === "none" ? [] : [{ field: next }])
+          }
+          id={field.id}
+          placeholder="Select a dimension"
+          error={Boolean(error || field.error)}
+          aria-invalid={Boolean(error || field.error)}
+          aria-describedby={field.inputDescribedById}
+          options={[
+            { value: "none", label: "None" },
+            ...availableDimensions.map((dimension) => {
+              const meta =
+                viewDeclarations[ctx.viewVersion][ctx.view]?.dimensions?.[
+                  dimension.value
+                ];
+              return {
+                ...dimension,
+                explanation: {
+                  title: dimension.label,
+                  description: meta?.description,
+                  badges: [
+                    ...(meta?.unit
+                      ? [{ label: "Unit", value: meta.unit }]
+                      : []),
+                    ...(meta?.type
+                      ? [{ label: "Type", value: meta.type }]
+                      : []),
+                  ],
+                },
+              };
+            }),
+          ]}
+        />
+      )}
+    </FormField>
+  );
+}
+
+function PivotDimensionsField({
+  control,
+  ctx,
+  error,
+  availableDimensions,
+}: {
+  control: Control<WidgetFormValues>;
+  ctx: WidgetFieldContext;
+  error?: string;
+  availableDimensions: { value: string; label: string }[];
+}) {
+  const { field } = useController({ control, name: "dimensions" });
+  const pivotDimensions = field.value.map((d) => d.field);
+
+  const updateDimension = (index: number, value: string) => {
+    const next = [...pivotDimensions];
+    if (value && value !== "none") {
+      next[index] = value;
+    } else {
+      next.splice(index);
+    }
+    field.onChange(next.map((f) => ({ field: f })));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="mb-2 text-sm font-bold">Row Dimensions</h4>
+        <p className="text-muted-foreground mb-3 text-xs">
+          Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions for pivot
+          table rows. Each dimension creates groupings with subtotals.
+        </p>
+      </div>
+
+      {Array.from({ length: MAX_PIVOT_TABLE_DIMENSIONS }, (_, index) => {
+        const isEnabled = index === 0 || Boolean(pivotDimensions[index - 1]);
+        const selectedDimensions = pivotDimensions.slice(0, index);
+        const currentValue = pivotDimensions[index] || "";
+
+        return (
+          <div key={index} className="space-y-2">
+            <Label htmlFor={`pivot-dimension-${index}`}>
+              Dimension {index + 1} (Optional)
+            </Label>
+            <SelectInput
+              value={currentValue}
+              onValueChange={(value) => updateDimension(index, value)}
+              disabled={!isEnabled}
+              id={`pivot-dimension-${index}`}
+              error={Boolean(error && index === 0)}
+              aria-invalid={error && index === 0 ? true : undefined}
+              aria-describedby={
+                error && index === 0 ? "pivot-dimensions-error" : undefined
+              }
+              placeholder={
+                isEnabled
+                  ? "Select a dimension"
+                  : "Select previous dimension first"
+              }
+              options={[
+                { value: "none", label: "None" },
+                ...availableDimensions
+                  .filter((d) => !selectedDimensions.includes(d.value))
+                  .map((dimension) => {
+                    const meta =
+                      viewDeclarations[ctx.viewVersion][ctx.view]?.dimensions?.[
+                        dimension.value
+                      ];
+                    return {
+                      ...dimension,
+                      explanation: {
+                        title: dimension.label,
+                        description: meta?.description,
+                        badges: [
+                          ...(meta?.unit
+                            ? [{ label: "Unit", value: meta.unit }]
+                            : []),
+                          ...(meta?.type
+                            ? [{ label: "Type", value: meta.type }]
+                            : []),
+                        ],
+                      },
+                    };
+                  }),
+              ]}
+            />
+          </div>
+        );
+      })}
+      {error && (
+        <p id="pivot-dimensions-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PivotSortField({
+  control,
+  effectiveSort,
+  metricsForSort,
+}: {
+  control: Control<WidgetFormValues>;
+  effectiveSort: SortField | undefined;
+  metricsForSort: { id: string }[];
+}) {
+  // Owns chart.sort; the DISPLAY value is always the sanitized effectiveSort so
+  // a stale sort column shows as "no default sort" without any write-back.
+  const column = effectiveSort?.column ?? "none";
+  const order = effectiveSort?.order ?? "DESC";
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="mb-2 text-sm font-bold">Default Sort Configuration</h4>
+        <p className="text-muted-foreground mb-3 text-xs">
+          Configure the default sort order for the pivot table. This will be
+          applied when the widget is first loaded.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField control={control} name="chart.sort" label="Sort Column">
+          {(field) => (
+            <SelectInput
+              value={column}
+              onValueChange={(next) =>
+                field.onChange(next === "none" ? null : { column: next, order })
+              }
+              id={field.id}
+              placeholder="Select a column to sort by"
+              error={Boolean(field.error)}
+              aria-invalid={Boolean(field.error)}
+              aria-describedby={field.inputDescribedById}
+              options={[
+                { value: "none", label: "No default sort" },
+                ...metricsForSort.map((metric) => ({
+                  value: metric.id,
+                  label: formatMetricName(metric.id),
+                })),
+              ]}
+            />
+          )}
+        </FormField>
+
+        <FormField control={control} name="chart.sort" label="Sort Order">
+          {(field) => (
+            <SelectInput
+              value={order}
+              onValueChange={(value: "ASC" | "DESC") =>
+                field.onChange({ column, order: value })
+              }
+              disabled={column === "none"}
+              id={field.id}
+              placeholder="Select sort order"
+              options={[
+                { value: "ASC", label: "Ascending (A-Z)" },
+                { value: "DESC", label: "Descending (Z-A)" },
+              ]}
+            />
+          )}
+        </FormField>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NameField / DescriptionField isolate the "override vs. live suggestion"
+ * presentation. The field value is the user's override; a blank (null) override
+ * shows the live-derived suggestion as the input's value (today's behaviour —
+ * pre-filled, live-updating until the user edits, then it sticks). The whole
+ * placeholder decision lives here, so switching to a grey-placeholder variant
+ * later is a one-component change.
+ */
+function NameField({
+  control,
+  suggestion,
+}: {
+  control: Control<WidgetFormValues>;
+  suggestion: string;
+}) {
+  return (
+    <FormField control={control} name="name" label="Name">
+      {(field) => (
+        <Input
+          id={field.id}
+          aria-invalid={Boolean(field.error)}
+          aria-describedby={field.inputDescribedById}
+          error={Boolean(field.error)}
+          // A blank/whitespace-only override shows the live suggestion; typing
+          // real content sticks; clearing reverts to tracking + saving the
+          // suggestion. Uses the same trim-aware effective logic as the preview
+          // title and toSavePayload, so input, preview, and saved value agree.
+          value={effectiveWidgetName(field.value, suggestion)}
+          onChange={(e) => field.onChange(e.target.value)}
+          placeholder="Enter widget name"
+        />
+      )}
+    </FormField>
+  );
+}
+
+function DescriptionField({
+  control,
+  suggestion,
+}: {
+  control: Control<WidgetFormValues>;
+  suggestion: string;
+}) {
+  return (
+    <FormField control={control} name="description" label="Description">
+      {(field) => (
+        <Input
+          id={field.id}
+          aria-invalid={Boolean(field.error)}
+          aria-describedby={field.inputDescribedById}
+          error={Boolean(field.error)}
+          value={effectiveWidgetName(field.value, suggestion)}
+          onChange={(e) => field.onChange(e.target.value)}
+          placeholder="Enter widget description"
+        />
+      )}
+    </FormField>
+  );
+}
+
+function ChartTypeSelect({
+  control,
+  value,
+  onChartTypeChange,
+  measureSupportsHistogram,
+  error,
+}: {
+  control: Control<WidgetFormValues>;
+  value: DashboardWidgetChartType;
+  onChartTypeChange: (type: DashboardWidgetChartType) => void;
+  measureSupportsHistogram: boolean;
+  error?: string;
+}) {
+  return (
+    <FormField control={control} name="chart.type" label="Chart Type">
+      {(field) => (
+        <SelectInput
+          value={value}
+          onValueChange={(next) =>
+            onChartTypeChange(next as DashboardWidgetChartType)
+          }
+          id={field.id}
+          placeholder="Select a chart type"
+          error={Boolean(error || field.error)}
+          aria-invalid={Boolean(error || field.error)}
+          aria-describedby={field.inputDescribedById}
+          options={[
+            {
+              type: "group",
+              id: "time-series",
+              label: "Time Series",
+              options: chartTypes
+                .filter((chart) => chart.group === "time-series")
+                .map((chart) => ({
+                  value: chart.value,
+                  label: chart.name,
+                  icon: chart.icon,
+                })),
+            },
+            {
+              type: "group",
+              id: "total-value",
+              label: "Total Value",
+              options: chartTypes
+                .filter((chart) => chart.group === "total-value")
+                .map((chart) =>
+                  chart.value === "HISTOGRAM" && !measureSupportsHistogram
+                    ? {
+                        value: chart.value,
+                        label: chart.name,
+                        icon: chart.icon,
+                        disabled: true as const,
+                        disabledReason:
+                          "Histogram is not supported for this metric",
+                      }
+                    : {
+                        value: chart.value,
+                        label: chart.name,
+                        icon: chart.icon,
+                      },
+                ),
+            },
+          ]}
+        />
+      )}
+    </FormField>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Field subcomponents. Each binds exactly ONE nested field via a single
+// useController and receives the read-only ctx as props. Cross-slice cascades
+// are invoked through the parent-owned handlers (onViewChange, onChartTypeChange,
+// onMeasureChange); no child pokes a sibling field or calls `watch`.
+// -----------------------------------------------------------------------------
+
+function WidgetDateRangeInput({
+  id,
+  "aria-describedby": ariaDescribedBy,
+  dateRange,
+  selectedOption,
+  setDateRangeAndOption,
+}: {
+  id: string;
+  "aria-describedby"?: string;
+  dateRange?: { from: Date; to: Date };
+  selectedOption: DashboardDateRangeOptions;
+  setDateRangeAndOption: (
+    option: DashboardDateRangeOptions,
+    date?: { from: Date; to: Date },
+  ) => void;
+}) {
+  const lookbackLimit = useEntitlementLimit("data-access-days");
+
+  const handlePresetChange = (option: DashboardDateRangeOptions) => {
+    if (option === "custom") return;
+    const now = new Date();
+    const minutes = dashboardDateRangeAggregationSettings[option].minutes;
+    if (minutes === null) return;
+    setDateRangeAndOption(option, {
+      from: addMinutes(now, -minutes),
+      to: now,
+    });
+  };
+  const handleCustomChange = (range: { from: Date; to: Date }) => {
+    setDateRangeAndOption("custom", range);
+  };
+
+  return (
+    <DateRangeInput
+      id={id}
+      aria-describedby={ariaDescribedBy}
+      earliestDate={
+        lookbackLimit === false
+          ? undefined
+          : addMinutes(new Date(), -lookbackLimit * 24 * 60)
+      }
+      value={selectedOption}
+      customValue="custom"
+      range={dateRange}
+      presets={DASHBOARD_AGGREGATION_OPTIONS.map((option) => ({
+        value: option,
+        label: getTimeRangeLabel(option),
+        disabled: !isDashboardDateRangeOptionAvailable({
+          option,
+          limitDays: lookbackLimit,
+        }),
+      }))}
+      onPresetChange={handlePresetChange}
+      onCustomChange={handleCustomChange}
+    />
+  );
+}
+
+function HistogramBinsField({
+  control,
+}: {
+  control: Control<WidgetFormValues>;
+}) {
+  return (
+    <FormField
+      control={control}
+      name="chart.bins"
+      label="Number of Bins (1-100)"
+    >
+      {(field) => (
+        <Input
+          id={field.id}
+          type="number"
+          min={1}
+          max={100}
+          aria-invalid={Boolean(field.error)}
+          aria-describedby={field.inputDescribedById}
+          error={Boolean(field.error)}
+          value={field.value}
+          onChange={(e) => {
+            const value = parseInt(e.target.value);
+            if (!isNaN(value) && value >= 1 && value <= 100) {
+              field.onChange(value);
+            }
+          }}
+          placeholder="Enter number of bins (1-100)"
+        />
+      )}
+    </FormField>
+  );
+}
+
+function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
+  return (
+    <FormField
+      control={control}
+      name="chart.rowLimit"
+      label="Breakdown Row Limit (0-1000)"
+    >
+      {(field) => (
+        <Input
+          id={field.id}
+          type="number"
+          min={0}
+          max={1000}
+          aria-invalid={Boolean(field.error)}
+          aria-describedby={field.inputDescribedById}
+          error={Boolean(field.error)}
+          value={field.value}
+          onChange={(e) => {
+            const value = parseInt(e.target.value);
+            if (!isNaN(value) && value >= 0 && value <= 1000) {
+              field.onChange(value);
+            }
+          }}
+          placeholder="Enter breakdown row limit (0-1000)"
+        />
+      )}
+    </FormField>
+  );
+}
 
 export function WidgetForm({
   filterData,
@@ -729,1125 +1850,4 @@ export function WidgetForm({
       </Card>
     </div>
   );
-}
-
-// -----------------------------------------------------------------------------
-// Field subcomponents. Each binds exactly ONE nested field via a single
-// useController and receives the read-only ctx as props. Cross-slice cascades
-// are invoked through the parent-owned handlers (onViewChange, onChartTypeChange,
-// onMeasureChange); no child pokes a sibling field or calls `watch`.
-// -----------------------------------------------------------------------------
-
-function WidgetDateRangeInput({
-  id,
-  "aria-describedby": ariaDescribedBy,
-  dateRange,
-  selectedOption,
-  setDateRangeAndOption,
-}: {
-  id: string;
-  "aria-describedby"?: string;
-  dateRange?: { from: Date; to: Date };
-  selectedOption: DashboardDateRangeOptions;
-  setDateRangeAndOption: (
-    option: DashboardDateRangeOptions,
-    date?: { from: Date; to: Date },
-  ) => void;
-}) {
-  const lookbackLimit = useEntitlementLimit("data-access-days");
-
-  const handlePresetChange = (option: DashboardDateRangeOptions) => {
-    if (option === "custom") return;
-    const now = new Date();
-    const minutes = dashboardDateRangeAggregationSettings[option].minutes;
-    if (minutes === null) return;
-    setDateRangeAndOption(option, {
-      from: addMinutes(now, -minutes),
-      to: now,
-    });
-  };
-  const handleCustomChange = (range: { from: Date; to: Date }) => {
-    setDateRangeAndOption("custom", range);
-  };
-
-  return (
-    <DateRangeInput
-      id={id}
-      aria-describedby={ariaDescribedBy}
-      earliestDate={
-        lookbackLimit === false
-          ? undefined
-          : addMinutes(new Date(), -lookbackLimit * 24 * 60)
-      }
-      value={selectedOption}
-      customValue="custom"
-      range={dateRange}
-      presets={DASHBOARD_AGGREGATION_OPTIONS.map((option) => ({
-        value: option,
-        label: getTimeRangeLabel(option),
-        disabled: !isDashboardDateRangeOptionAvailable({
-          option,
-          limitDays: lookbackLimit,
-        }),
-      }))}
-      onPresetChange={handlePresetChange}
-      onCustomChange={handleCustomChange}
-    />
-  );
-}
-
-function ViewSelect({
-  control,
-  ctx,
-  availableViewOptions,
-  onViewChange,
-}: {
-  control: Control<WidgetFormValues>;
-  ctx: WidgetFieldContext;
-  availableViewOptions: typeof views | typeof viewsV2;
-  onViewChange: (view: z.infer<typeof views>) => void;
-}) {
-  return (
-    <FormField control={control} name="view" label="View">
-      {(field) => (
-        <SelectInput
-          value={field.value}
-          onValueChange={(value) =>
-            onViewChange(value as z.infer<typeof views>)
-          }
-          id={field.id}
-          placeholder="Select a view"
-          error={Boolean(field.error)}
-          aria-invalid={Boolean(field.error)}
-          aria-describedby={field.inputDescribedById}
-          options={availableViewOptions.options.map((view) => ({
-            value: view,
-            label: startCase(view),
-            explanation: {
-              title: startCase(view),
-              description: viewDeclarations[ctx.viewVersion][view].description,
-            },
-          }))}
-        />
-      )}
-    </FormField>
-  );
-}
-
-function SingleMetricField({
-  control,
-  ctx,
-  error,
-  measure,
-  onMeasureChange,
-  availableMetrics,
-  validAggregationsForMeasure,
-}: {
-  control: Control<WidgetFormValues>;
-  ctx: WidgetFieldContext;
-  error?: string;
-  measure: string;
-  onMeasureChange: (measure: string) => void;
-  availableMetrics: { value: string; label: string }[];
-  validAggregationsForMeasure: z.infer<typeof metricAggregations>[];
-}) {
-  // Owns metrics.0.aggregation; the measure is a cross-slice trigger handled by
-  // the parent (onMeasureChange also resolves the chart type).
-  const { field: aggField } = useController({
-    control,
-    name: "metrics.0.aggregation",
-  });
-
-  // THE HISTOGRAM FIX (a): the histogram aggregation is offered only on the
-  // histogram chart (where it is forced and this Select is disabled). It is
-  // never manually selectable on a non-histogram chart, so no silent revert.
-  const aggregationOptions = validAggregationsForMeasure.filter(
-    (agg) => agg !== "histogram" || ctx.chartType === "HISTOGRAM",
-  );
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <SelectInput
-            value={measure}
-            onValueChange={(value) => onMeasureChange(value)}
-            id="metrics-select"
-            placeholder="Select metrics"
-            error={Boolean(error)}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "single-metric-error" : undefined}
-            options={availableMetrics.map((metric) => {
-              const meta =
-                viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
-                  metric.value
-                ];
-              return {
-                ...metric,
-                explanation: {
-                  title: metric.label,
-                  description: meta?.description,
-                  badges: [
-                    ...(meta?.unit
-                      ? [{ label: "Unit", value: meta.unit }]
-                      : []),
-                    ...(meta?.type
-                      ? [{ label: "Type", value: meta.type }]
-                      : []),
-                  ],
-                },
-              };
-            })}
-          />
-        </div>
-        {measure !== "count" && (
-          <div className="flex-1">
-            <SelectInput
-              value={aggField.value}
-              disabled={ctx.chartType === "HISTOGRAM"}
-              onValueChange={(value) =>
-                aggField.onChange(value as z.infer<typeof metricAggregations>)
-              }
-              id="aggregation-select"
-              placeholder="Select Aggregation"
-              options={aggregationOptions.map((aggregation) => ({
-                value: aggregation,
-                label: startCase(aggregation),
-              }))}
-            />
-          </div>
-        )}
-      </div>
-      {measure !== "count" && ctx.chartType === "HISTOGRAM" && (
-        <p className="text-muted-foreground text-xs">
-          Aggregation is automatically set to &quot;histogram&quot; for
-          histogram charts
-        </p>
-      )}
-      {error && (
-        <p id="single-metric-error" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function PivotMetricsField({
-  control,
-  ctx,
-  error,
-  getAvailablePivotMetrics,
-  getAvailablePivotAggregations,
-}: {
-  control: Control<WidgetFormValues>;
-  ctx: WidgetFieldContext;
-  error?: string;
-  getAvailablePivotMetrics: (
-    index: number,
-  ) => { value: string; label: string }[];
-  getAvailablePivotAggregations: (
-    index: number,
-    measure: string,
-  ) => z.infer<typeof metricAggregations>[];
-}) {
-  // Owns the entire `metrics` slice — one value in (field.value), one onChange
-  // out (field.onChange with a fresh array).
-  const { field } = useController({ control, name: "metrics" });
-  const metrics = field.value;
-
-  const updateMetric = (
-    index: number,
-    measure: string,
-    aggregation?: z.infer<typeof metricAggregations>,
-  ) => {
-    const next = [...metrics];
-    if (measure && measure !== "none") {
-      let finalAggregation: z.infer<typeof metricAggregations>;
-      if (measure === "count") {
-        finalAggregation = "count";
-      } else {
-        const available = getAvailablePivotAggregations(index, measure);
-        const defaultAggregation =
-          viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[measure]
-            ?.defaultAggregation;
-        finalAggregation =
-          aggregation && available.includes(aggregation)
-            ? aggregation
-            : defaultAggregation && available.includes(defaultAggregation)
-              ? defaultAggregation
-              : (available[0] ?? "sum");
-      }
-      next[index] = { measure, aggregation: finalAggregation };
-    } else {
-      next.splice(index);
-    }
-    field.onChange(next);
-  };
-
-  const addSlot = () => {
-    if (metrics.length < MAX_PIVOT_TABLE_METRICS) {
-      field.onChange([...metrics, { measure: "", aggregation: "sum" }]);
-    }
-  };
-
-  const removeSlot = (index: number) => {
-    if (index > 0) {
-      const next = [...metrics];
-      next.splice(index, 1);
-      field.onChange(next);
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: Math.max(1, metrics.length) }, (_, index) => {
-        const isEnabled =
-          index === 0 ||
-          Boolean(metrics[index - 1] && metrics[index - 1].measure);
-        const currentMetric = metrics[index];
-        const currentMeasure = currentMetric?.measure || "";
-        const currentAggregation = currentMetric?.aggregation || "sum";
-        const metricsForIndex = getAvailablePivotMetrics(index);
-        const aggregationsForIndex = getAvailablePivotAggregations(
-          index,
-          currentMeasure,
-        );
-        const canEdit = metricsForIndex.length > 0;
-
-        return (
-          <div key={index} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor={`pivot-metric-${index}`}>
-                Metric {index + 1} {index === 0 ? "(Required)" : "(Optional)"}
-              </Label>
-              {index > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeSlot(index)}
-                  className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
-                >
-                  <X size="base" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <SelectInput
-                  value={currentMeasure}
-                  onValueChange={(value) =>
-                    updateMetric(index, value, undefined)
-                  }
-                  disabled={!isEnabled || !canEdit}
-                  id={`pivot-metric-${index}`}
-                  error={Boolean(error && index === 0)}
-                  aria-invalid={error && index === 0 ? true : undefined}
-                  aria-describedby={
-                    error && index === 0 ? "pivot-metrics-error" : undefined
-                  }
-                  placeholder={
-                    !isEnabled
-                      ? "Select previous metric first"
-                      : !canEdit
-                        ? "No more measures available"
-                        : "Select measure"
-                  }
-                  options={metricsForIndex.map((metric) => {
-                    const meta =
-                      viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
-                        metric.value
-                      ];
-                    return {
-                      ...metric,
-                      explanation: {
-                        title: metric.label,
-                        description: meta?.description,
-                        badges: [
-                          ...(meta?.unit
-                            ? [{ label: "Unit", value: meta.unit }]
-                            : []),
-                          ...(meta?.type
-                            ? [{ label: "Type", value: meta.type }]
-                            : []),
-                        ],
-                      },
-                    };
-                  })}
-                />
-              </div>
-
-              {currentMeasure && currentMeasure !== "count" && (
-                <div className="flex-1">
-                  <SelectInput
-                    value={currentAggregation}
-                    onValueChange={(value) =>
-                      updateMetric(
-                        index,
-                        currentMeasure,
-                        value as z.infer<typeof metricAggregations>,
-                      )
-                    }
-                    placeholder="Select aggregation"
-                    options={aggregationsForIndex.map((aggregation) => ({
-                      value: aggregation,
-                      label: startCase(aggregation),
-                    }))}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-
-      {metrics.length < MAX_PIVOT_TABLE_METRICS &&
-        getAvailablePivotMetrics(metrics.length).length > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addSlot}
-            className="w-full"
-          >
-            <Plus size="base" color="default" __rawClassName="mr-1" />
-            Add Metric {metrics.length + 1}
-          </Button>
-        )}
-      {error && (
-        <p id="pivot-metrics-error" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function FiltersField({
-  filterData,
-  control,
-  selectedView,
-}: {
-  filterData: ReturnType<typeof useMetricsFilterBuilderData>;
-  control: Control<WidgetFormValues>;
-  selectedView: z.infer<typeof views>;
-}) {
-  const { field } = useController({ control, name: "filters" });
-  return (
-    <div className="space-y-2">
-      <Label>Filters</Label>
-      <MetricsFilterBuilder
-        {...filterData}
-        view={selectedView}
-        filters={field.value}
-        onChange={(next: FilterState) => field.onChange(next)}
-      />
-    </div>
-  );
-}
-
-function BreakdownSelect({
-  control,
-  ctx,
-  error,
-  availableDimensions,
-}: {
-  control: Control<WidgetFormValues>;
-  ctx: WidgetFieldContext;
-  error?: string;
-  availableDimensions: { value: string; label: string }[];
-}) {
-  // Owns the entire `dimensions` slice; a non-pivot chart carries at most one.
-  return (
-    <FormField
-      control={control}
-      name="dimensions"
-      label="Breakdown Dimension (Optional)"
-    >
-      {(field) => (
-        <SelectInput
-          value={field.value[0]?.field ?? "none"}
-          onValueChange={(next) =>
-            field.onChange(next === "none" ? [] : [{ field: next }])
-          }
-          id={field.id}
-          placeholder="Select a dimension"
-          error={Boolean(error || field.error)}
-          aria-invalid={Boolean(error || field.error)}
-          aria-describedby={field.inputDescribedById}
-          options={[
-            { value: "none", label: "None" },
-            ...availableDimensions.map((dimension) => {
-              const meta =
-                viewDeclarations[ctx.viewVersion][ctx.view]?.dimensions?.[
-                  dimension.value
-                ];
-              return {
-                ...dimension,
-                explanation: {
-                  title: dimension.label,
-                  description: meta?.description,
-                  badges: [
-                    ...(meta?.unit
-                      ? [{ label: "Unit", value: meta.unit }]
-                      : []),
-                    ...(meta?.type
-                      ? [{ label: "Type", value: meta.type }]
-                      : []),
-                  ],
-                },
-              };
-            }),
-          ]}
-        />
-      )}
-    </FormField>
-  );
-}
-
-function PivotDimensionsField({
-  control,
-  ctx,
-  error,
-  availableDimensions,
-}: {
-  control: Control<WidgetFormValues>;
-  ctx: WidgetFieldContext;
-  error?: string;
-  availableDimensions: { value: string; label: string }[];
-}) {
-  const { field } = useController({ control, name: "dimensions" });
-  const pivotDimensions = field.value.map((d) => d.field);
-
-  const updateDimension = (index: number, value: string) => {
-    const next = [...pivotDimensions];
-    if (value && value !== "none") {
-      next[index] = value;
-    } else {
-      next.splice(index);
-    }
-    field.onChange(next.map((f) => ({ field: f })));
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="mb-2 text-sm font-bold">Row Dimensions</h4>
-        <p className="text-muted-foreground mb-3 text-xs">
-          Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions for pivot
-          table rows. Each dimension creates groupings with subtotals.
-        </p>
-      </div>
-
-      {Array.from({ length: MAX_PIVOT_TABLE_DIMENSIONS }, (_, index) => {
-        const isEnabled = index === 0 || Boolean(pivotDimensions[index - 1]);
-        const selectedDimensions = pivotDimensions.slice(0, index);
-        const currentValue = pivotDimensions[index] || "";
-
-        return (
-          <div key={index} className="space-y-2">
-            <Label htmlFor={`pivot-dimension-${index}`}>
-              Dimension {index + 1} (Optional)
-            </Label>
-            <SelectInput
-              value={currentValue}
-              onValueChange={(value) => updateDimension(index, value)}
-              disabled={!isEnabled}
-              id={`pivot-dimension-${index}`}
-              error={Boolean(error && index === 0)}
-              aria-invalid={error && index === 0 ? true : undefined}
-              aria-describedby={
-                error && index === 0 ? "pivot-dimensions-error" : undefined
-              }
-              placeholder={
-                isEnabled
-                  ? "Select a dimension"
-                  : "Select previous dimension first"
-              }
-              options={[
-                { value: "none", label: "None" },
-                ...availableDimensions
-                  .filter((d) => !selectedDimensions.includes(d.value))
-                  .map((dimension) => {
-                    const meta =
-                      viewDeclarations[ctx.viewVersion][ctx.view]?.dimensions?.[
-                        dimension.value
-                      ];
-                    return {
-                      ...dimension,
-                      explanation: {
-                        title: dimension.label,
-                        description: meta?.description,
-                        badges: [
-                          ...(meta?.unit
-                            ? [{ label: "Unit", value: meta.unit }]
-                            : []),
-                          ...(meta?.type
-                            ? [{ label: "Type", value: meta.type }]
-                            : []),
-                        ],
-                      },
-                    };
-                  }),
-              ]}
-            />
-          </div>
-        );
-      })}
-      {error && (
-        <p id="pivot-dimensions-error" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function PivotSortField({
-  control,
-  effectiveSort,
-  metricsForSort,
-}: {
-  control: Control<WidgetFormValues>;
-  effectiveSort: SortField | undefined;
-  metricsForSort: { id: string }[];
-}) {
-  // Owns chart.sort; the DISPLAY value is always the sanitized effectiveSort so
-  // a stale sort column shows as "no default sort" without any write-back.
-  const column = effectiveSort?.column ?? "none";
-  const order = effectiveSort?.order ?? "DESC";
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="mb-2 text-sm font-bold">Default Sort Configuration</h4>
-        <p className="text-muted-foreground mb-3 text-xs">
-          Configure the default sort order for the pivot table. This will be
-          applied when the widget is first loaded.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={control} name="chart.sort" label="Sort Column">
-          {(field) => (
-            <SelectInput
-              value={column}
-              onValueChange={(next) =>
-                field.onChange(next === "none" ? null : { column: next, order })
-              }
-              id={field.id}
-              placeholder="Select a column to sort by"
-              error={Boolean(field.error)}
-              aria-invalid={Boolean(field.error)}
-              aria-describedby={field.inputDescribedById}
-              options={[
-                { value: "none", label: "No default sort" },
-                ...metricsForSort.map((metric) => ({
-                  value: metric.id,
-                  label: formatMetricName(metric.id),
-                })),
-              ]}
-            />
-          )}
-        </FormField>
-
-        <FormField control={control} name="chart.sort" label="Sort Order">
-          {(field) => (
-            <SelectInput
-              value={order}
-              onValueChange={(value: "ASC" | "DESC") =>
-                field.onChange({ column, order: value })
-              }
-              disabled={column === "none"}
-              id={field.id}
-              placeholder="Select sort order"
-              options={[
-                { value: "ASC", label: "Ascending (A-Z)" },
-                { value: "DESC", label: "Descending (Z-A)" },
-              ]}
-            />
-          )}
-        </FormField>
-      </div>
-    </div>
-  );
-}
-
-/**
- * NameField / DescriptionField isolate the "override vs. live suggestion"
- * presentation. The field value is the user's override; a blank (null) override
- * shows the live-derived suggestion as the input's value (today's behaviour —
- * pre-filled, live-updating until the user edits, then it sticks). The whole
- * placeholder decision lives here, so switching to a grey-placeholder variant
- * later is a one-component change.
- */
-function NameField({
-  control,
-  suggestion,
-}: {
-  control: Control<WidgetFormValues>;
-  suggestion: string;
-}) {
-  return (
-    <FormField control={control} name="name" label="Name">
-      {(field) => (
-        <Input
-          id={field.id}
-          aria-invalid={Boolean(field.error)}
-          aria-describedby={field.inputDescribedById}
-          error={Boolean(field.error)}
-          // A blank/whitespace-only override shows the live suggestion; typing
-          // real content sticks; clearing reverts to tracking + saving the
-          // suggestion. Uses the same trim-aware effective logic as the preview
-          // title and toSavePayload, so input, preview, and saved value agree.
-          value={effectiveWidgetName(field.value, suggestion)}
-          onChange={(e) => field.onChange(e.target.value)}
-          placeholder="Enter widget name"
-        />
-      )}
-    </FormField>
-  );
-}
-
-function DescriptionField({
-  control,
-  suggestion,
-}: {
-  control: Control<WidgetFormValues>;
-  suggestion: string;
-}) {
-  return (
-    <FormField control={control} name="description" label="Description">
-      {(field) => (
-        <Input
-          id={field.id}
-          aria-invalid={Boolean(field.error)}
-          aria-describedby={field.inputDescribedById}
-          error={Boolean(field.error)}
-          value={effectiveWidgetName(field.value, suggestion)}
-          onChange={(e) => field.onChange(e.target.value)}
-          placeholder="Enter widget description"
-        />
-      )}
-    </FormField>
-  );
-}
-
-function ChartTypeSelect({
-  control,
-  value,
-  onChartTypeChange,
-  measureSupportsHistogram,
-  error,
-}: {
-  control: Control<WidgetFormValues>;
-  value: DashboardWidgetChartType;
-  onChartTypeChange: (type: DashboardWidgetChartType) => void;
-  measureSupportsHistogram: boolean;
-  error?: string;
-}) {
-  return (
-    <FormField control={control} name="chart.type" label="Chart Type">
-      {(field) => (
-        <SelectInput
-          value={value}
-          onValueChange={(next) =>
-            onChartTypeChange(next as DashboardWidgetChartType)
-          }
-          id={field.id}
-          placeholder="Select a chart type"
-          error={Boolean(error || field.error)}
-          aria-invalid={Boolean(error || field.error)}
-          aria-describedby={field.inputDescribedById}
-          options={[
-            {
-              type: "group",
-              id: "time-series",
-              label: "Time Series",
-              options: chartTypes
-                .filter((chart) => chart.group === "time-series")
-                .map((chart) => ({
-                  value: chart.value,
-                  label: chart.name,
-                  icon: chart.icon,
-                })),
-            },
-            {
-              type: "group",
-              id: "total-value",
-              label: "Total Value",
-              options: chartTypes
-                .filter((chart) => chart.group === "total-value")
-                .map((chart) =>
-                  chart.value === "HISTOGRAM" && !measureSupportsHistogram
-                    ? {
-                        value: chart.value,
-                        label: chart.name,
-                        icon: chart.icon,
-                        disabled: true as const,
-                        disabledReason:
-                          "Histogram is not supported for this metric",
-                      }
-                    : {
-                        value: chart.value,
-                        label: chart.name,
-                        icon: chart.icon,
-                      },
-                ),
-            },
-          ]}
-        />
-      )}
-    </FormField>
-  );
-}
-
-function HistogramBinsField({
-  control,
-}: {
-  control: Control<WidgetFormValues>;
-}) {
-  return (
-    <FormField
-      control={control}
-      name="chart.bins"
-      label="Number of Bins (1-100)"
-    >
-      {(field) => (
-        <Input
-          id={field.id}
-          type="number"
-          min={1}
-          max={100}
-          aria-invalid={Boolean(field.error)}
-          aria-describedby={field.inputDescribedById}
-          error={Boolean(field.error)}
-          value={field.value}
-          onChange={(e) => {
-            const value = parseInt(e.target.value);
-            if (!isNaN(value) && value >= 1 && value <= 100) {
-              field.onChange(value);
-            }
-          }}
-          placeholder="Enter number of bins (1-100)"
-        />
-      )}
-    </FormField>
-  );
-}
-
-function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
-  return (
-    <FormField
-      control={control}
-      name="chart.rowLimit"
-      label="Breakdown Row Limit (0-1000)"
-    >
-      {(field) => (
-        <Input
-          id={field.id}
-          type="number"
-          min={0}
-          max={1000}
-          aria-invalid={Boolean(field.error)}
-          aria-describedby={field.inputDescribedById}
-          error={Boolean(field.error)}
-          value={field.value}
-          onChange={(e) => {
-            const value = parseInt(e.target.value);
-            if (!isNaN(value) && value >= 0 && value <= 1000) {
-              field.onChange(value);
-            }
-          }}
-          placeholder="Enter breakdown row limit (0-1000)"
-        />
-      )}
-    </FormField>
-  );
-}
-
-export function useWidgetFormState({
-  initialValues,
-  projectId,
-  onSave,
-  widgetId,
-}: {
-  initialValues: WidgetInitialValues;
-  projectId: string;
-  onSave: (widgetData: WidgetSavePayload) => void;
-  widgetId?: string;
-}) {
-  const { isV4 } = useReadPath();
-
-  // The initial widget's persisted version is a local hint frozen at mount.
-  // The resolver and live viewVersion additionally derive v2 from the current
-  // form shape; the server derives the value that gets persisted.
-  const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
-  const activeVersion: ViewVersion = isV4 ? "v2" : "v1";
-
-  // The auto-suggestions change on every keystroke; a ref keeps the resolver
-  // closure from being rebuilt on each one (the filled name/description do not
-  // affect validity — name/description are nullable with no min).
-  const suggestionsRef = useRef<{ name: string; description: string }>({
-    name: "",
-    description: "",
-  });
-
-  // Precompute both version schemas/resolvers once. A blank name/description is
-  // filled with the live suggestion and the filters are mapped into view space
-  // before zod (mirrors MonitorForm).
-  const resolversByVersion = useMemo(
-    () => ({
-      v1: zodResolver(makeWidgetFormSchema("v1") as any),
-      v2: zodResolver(makeWidgetFormSchema("v2") as any),
-    }),
-    [],
-  );
-  // The schema version is derived INSIDE the resolver from the (mapped) view
-  // being validated — not from a render-written ref — so it is never render
-  // stale after a version-flipping view or import. baseMinVersion and
-  // activeVersion are in the dep list so either promotion rebuilds the closure
-  // (react-hook-form re-reads control._options each render).
-  const resolver = useMemo<Resolver<WidgetFormValues>>(() => {
-    return (values, context, options) => {
-      const v = values as WidgetFormValues;
-      const suggestions = suggestionsRef.current;
-      const mapped = {
-        ...v,
-        name: effectiveWidgetName(v.name, suggestions.name),
-        description: effectiveWidgetName(
-          v.description,
-          suggestions.description,
-        ),
-        // mapWidgetUiTableFilterToView MUST stay idempotent: the form holds
-        // editor-space filters, and both this validation path and toSavePayload
-        // map them to view space independently.
-        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
-      };
-      const version = resolveWidgetFormVersion({
-        view: mapped.view,
-        baseMinVersion,
-        activeVersion,
-        shape: mapped,
-      });
-      return resolversByVersion[version](mapped as any, context, options);
-    };
-  }, [resolversByVersion, baseMinVersion, activeVersion]);
-
-  // The initial view version, derived from initialValues alone (view is known
-  // before the form mounts) so the seed can normalize against the right view
-  // declaration.
-  const initialViewVersion = resolveWidgetFormVersion({
-    view: initialValues.view,
-    baseMinVersion,
-    activeVersion,
-  });
-
-  const form = useForm<WidgetFormValues>({
-    resolver,
-    defaultValues: toDefaultValues(initialValues, initialViewVersion),
-    mode: "onChange",
-  });
-
-  // THE single useWatch. Everything below is derived from `values` once.
-  const values = useWatch({ control: form.control }) as WidgetFormValues;
-
-  const selectedView = values.view;
-  const chartType = values.chart.type;
-  const viewVersion = resolveWidgetFormVersion({
-    view: selectedView,
-    baseMinVersion,
-    activeVersion,
-    shape: values,
-  });
-  const suggestions = deriveWidgetSuggestions(values);
-  const effectiveSort = deriveEffectiveSort(values);
-
-  suggestionsRef.current = suggestions;
-
-  // Preview time range. The picker here is a transient PREVIEW control — the
-  // widget does not own a time range, so it must not write the user's shared
-  // cross-view default. Kept as LOCAL state (not RHF).
-  const { timeRange, setTimeRange } = useDashboardDateRange({
-    defaultRelativeAggregation: "last7Days",
-    persistAsDefault: false,
-  });
-  const dateRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange) ?? undefined,
-    [timeRange],
-  );
-  const selectedOption = useMemo(() => {
-    if ("range" in timeRange) return timeRange.range;
-    return "custom" as const;
-  }, [timeRange]);
-  const setDateRangeAndOption = (
-    option: DashboardDateRangeOptions,
-    range?: { from: Date; to: Date },
-  ) => {
-    if (option === "custom") {
-      if (range) setTimeRange({ from: range.from, to: range.to });
-    } else {
-      setTimeRange({ range: option });
-    }
-  };
-  const unsupportedFilters = useMemo(
-    () =>
-      partitionWidgetUiTableFiltersToView(selectedView, values.filters)
-        .unsupportedFilters,
-    [selectedView, values.filters],
-  );
-  const unsupportedFilterColumns = useMemo(
-    () =>
-      Array.from(
-        new Set(unsupportedFilters.map((filter) => filter.column)),
-      ).join(", "),
-    [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => mapWidgetUiTableFilterToView(selectedView, values.filters),
-    [selectedView, values.filters],
-  );
-
-  const previewSortState = effectiveSort ?? null;
-  const pivotDimensionFields = values.dimensions.map((d) => d.field);
-
-  // Preview query. Depends ONLY on the fields that affect it — not
-  // name/description.
-  const query = useMemo<QueryType>(() => {
-    const fromTimestamp = dateRange
-      ? dateRange.from
-      : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000);
-    const toTimestamp = dateRange ? dateRange.to : new Date();
-
-    const queryDimensions =
-      chartType === "PIVOT_TABLE"
-        ? values.dimensions.map((d) => ({ field: d.field }))
-        : values.dimensions.length > 0
-          ? [{ field: values.dimensions[0].field }]
-          : [];
-
-    const queryMetrics =
-      chartType === "PIVOT_TABLE"
-        ? values.metrics
-            .filter((metric) => metric.measure && metric.measure !== "")
-            .map((metric) => ({
-              measure: metric.measure,
-              aggregation: metric.aggregation,
-            }))
-        : [
-            {
-              measure: values.metrics[0]?.measure ?? "count",
-              aggregation: values.metrics[0]?.aggregation ?? "count",
-            },
-          ];
-
-    const needsTopN = isV2BreakdownChart({
-      version: viewVersion,
-      hasDimension: queryDimensions.length > 0,
-      isTimeSeries: isTimeSeriesChart(chartType),
-      chartType,
-    });
-
-    const orderBy = buildWidgetOrderBy({
-      chartType,
-      sortState: previewSortState,
-      needsTopN,
-      firstMetric: {
-        aggregation: values.metrics[0]?.aggregation ?? "count",
-        measure: values.metrics[0]?.measure ?? "count",
-      },
-    });
-
-    let chartConfig: QueryType["chartConfig"];
-    if (chartType === "HISTOGRAM") {
-      chartConfig = { type: chartType, bins: values.chart.bins };
-    } else if (chartType === "PIVOT_TABLE" || needsTopN) {
-      chartConfig = { type: chartType, row_limit: values.chart.rowLimit };
-    } else {
-      chartConfig = { type: chartType };
-    }
-
-    return {
-      view: selectedView,
-      dimensions: queryDimensions,
-      metrics: queryMetrics,
-      filters: [...normalizedUserFilters],
-      timeDimension: isTimeSeriesChart(chartType)
-        ? { granularity: "auto" }
-        : null,
-      fromTimestamp: fromTimestamp.toISOString(),
-      toTimestamp: toTimestamp.toISOString(),
-      orderBy,
-      chartConfig,
-    };
-  }, [
-    selectedView,
-    values.metrics,
-    values.dimensions,
-    chartType,
-    values.chart.bins,
-    values.chart.rowLimit,
-    dateRange,
-    previewSortState,
-    viewVersion,
-    normalizedUserFilters,
-  ]);
-
-  const queryValidation = useMemo(() => {
-    if (unsupportedFilters.length > 0) {
-      return {
-        valid: false as const,
-        reason:
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
-          "Remove them or switch to a compatible view before saving this widget.",
-      };
-    }
-    return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
-
-  useCaptureWidgetHighCardinalityError({
-    validation: queryValidation,
-    surface: widgetId ? "edit_editor" : "create_editor",
-    chartType,
-    isV4: viewVersion === "v2",
-  });
-
-  const selectedMeasure = values.metrics[0]?.measure ?? "count";
-  const selectedAggregation = values.metrics[0]?.aggregation ?? "count";
-  const selectedDimension = values.dimensions[0]?.field ?? "none";
-
-  const displayName = effectiveWidgetName(values.name, suggestions.name);
-  const displayDescription = effectiveWidgetName(
-    values.description,
-    suggestions.description,
-  );
-
-  return {
-    form,
-    onSave,
-    baseMinVersion,
-    activeVersion,
-    projectId,
-    query,
-    selectedDimension,
-    widgetId,
-    isV4,
-    viewVersion,
-    dateRange,
-    selectedView,
-    chartType,
-    selectedMeasure,
-    effectiveSort,
-    suggestions,
-    setDateRangeAndOption,
-    selectedOption,
-    displayName,
-    displayDescription,
-    queryValidation,
-    values,
-    pivotDimensionFields,
-    selectedAggregation,
-    previewSortState,
-  };
 }

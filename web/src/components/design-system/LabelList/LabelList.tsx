@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cva } from "class-variance-authority";
@@ -27,6 +26,116 @@ const labelListVariants = cva("ph-no-capture", {
 const DEFAULT_MAX_VISIBLE = 5;
 /** Matches `gap-1` between chips. */
 const CHIP_GAP = 4;
+
+function sumWithGaps(widths: number[]): number {
+  return widths.reduce(
+    (sum, width, index) => sum + width + (index > 0 ? CHIP_GAP : 0),
+    0,
+  );
+}
+
+function useFittingCount(labels: LabelListItem[], isEnabled: boolean) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+  const [fittingCount, setFittingCount] = useState(labels.length);
+  const labelsKey = labels
+    .map((label) => `${label.name}:${label.isProduction ?? false}`)
+    .join("\u0000");
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const probe = probeRef.current;
+    if (!isEnabled || !list || !probe) return;
+
+    const update = () => {
+      const widths = [...probe.children].map(
+        (child) => (child as HTMLElement).offsetWidth,
+      );
+      const overflowWidth = widths.pop() ?? 0;
+      // Sub-pixel rounding at the exact boundary: allow a pixel of slack.
+      const available = list.clientWidth + 1;
+      const allWidth = sumWithGaps(widths);
+      if (allWidth <= available) {
+        setFittingCount(widths.length);
+        return;
+      }
+      let count = 0;
+      while (
+        count < widths.length &&
+        sumWithGaps(widths.slice(0, count + 1)) + CHIP_GAP + overflowWidth <=
+          available
+      ) {
+        count++;
+      }
+      setFittingCount(Math.max(1, count));
+    };
+
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    // Resize callbacks run before paint; a synchronous commit keeps it that way.
+    const observer = new ResizeObserver(() => flushSync(update));
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [isEnabled, labelsKey]);
+
+  return { listRef, probeRef, fittingCount };
+}
+
+function LabelChip({
+  name,
+  isProduction,
+}: {
+  name: string;
+  isProduction: boolean;
+}) {
+  return (
+    <BadgeShell color="filled" font="mono" size="md">
+      {isProduction && (
+        <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
+      )}
+      <span className="truncate py-0.5" title={name}>
+        {name}
+      </span>
+    </BadgeShell>
+  );
+}
+
+function LabelOverflow({
+  chips,
+  totalCount,
+  hiddenCount,
+}: {
+  chips: ReactNode;
+  totalCount: number;
+  hiddenCount: number;
+}) {
+  return (
+    <HoverCard
+      placement="bottom-start"
+      content={
+        <div className="ph-no-capture w-80 p-3">
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold">All Labels</h4>
+            <div className="flex flex-wrap gap-1">{chips}</div>
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <BadgeShell asChild color="filled" font="mono" size="md">
+          <button
+            type="button"
+            className="text-muted-foreground cursor-pointer self-center"
+            aria-label={`Show all ${totalCount} labels`}
+            {...getTriggerProps()}
+          >
+            +{hiddenCount}
+          </button>
+        </BadgeShell>
+      )}
+    </HoverCard>
+  );
+}
 
 export function LabelList(props: LabelListProps) {
   const { labels, layout = "contained" } = props;
@@ -114,113 +223,3 @@ type LabelListProps = {
       maxVisible?: number;
     }
 );
-
-function useFittingCount(labels: LabelListItem[], isEnabled: boolean) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const probeRef = useRef<HTMLDivElement>(null);
-  const [fittingCount, setFittingCount] = useState(labels.length);
-  const labelsKey = labels
-    .map((label) => `${label.name}:${label.isProduction ?? false}`)
-    .join("\u0000");
-
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    const probe = probeRef.current;
-    if (!isEnabled || !list || !probe) return;
-
-    const update = () => {
-      const widths = [...probe.children].map(
-        (child) => (child as HTMLElement).offsetWidth,
-      );
-      const overflowWidth = widths.pop() ?? 0;
-      // Sub-pixel rounding at the exact boundary: allow a pixel of slack.
-      const available = list.clientWidth + 1;
-      const allWidth = sumWithGaps(widths);
-      if (allWidth <= available) {
-        setFittingCount(widths.length);
-        return;
-      }
-      let count = 0;
-      while (
-        count < widths.length &&
-        sumWithGaps(widths.slice(0, count + 1)) + CHIP_GAP + overflowWidth <=
-          available
-      ) {
-        count++;
-      }
-      setFittingCount(Math.max(1, count));
-    };
-
-    update();
-    if (typeof ResizeObserver === "undefined") return;
-    // Resize callbacks run before paint; a synchronous commit keeps it that way.
-    const observer = new ResizeObserver(() => flushSync(update));
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [isEnabled, labelsKey]);
-
-  return { listRef, probeRef, fittingCount };
-}
-
-function sumWithGaps(widths: number[]): number {
-  return widths.reduce(
-    (sum, width, index) => sum + width + (index > 0 ? CHIP_GAP : 0),
-    0,
-  );
-}
-
-function LabelOverflow({
-  chips,
-  totalCount,
-  hiddenCount,
-}: {
-  chips: ReactNode;
-  totalCount: number;
-  hiddenCount: number;
-}) {
-  return (
-    <HoverCard
-      placement="bottom-start"
-      content={
-        <div className="ph-no-capture w-80 p-3">
-          <div className="space-y-2">
-            <h4 className="text-sm font-bold">All Labels</h4>
-            <div className="flex flex-wrap gap-1">{chips}</div>
-          </div>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <BadgeShell asChild color="filled" font="mono" size="md">
-          <button
-            type="button"
-            className="text-muted-foreground cursor-pointer self-center"
-            aria-label={`Show all ${totalCount} labels`}
-            {...getTriggerProps()}
-          >
-            +{hiddenCount}
-          </button>
-        </BadgeShell>
-      )}
-    </HoverCard>
-  );
-}
-
-function LabelChip({
-  name,
-  isProduction,
-}: {
-  name: string;
-  isProduction: boolean;
-}) {
-  return (
-    <BadgeShell color="filled" font="mono" size="md">
-      {isProduction && (
-        <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
-      )}
-      <span className="truncate py-0.5" title={name}>
-        {name}
-      </span>
-    </BadgeShell>
-  );
-}

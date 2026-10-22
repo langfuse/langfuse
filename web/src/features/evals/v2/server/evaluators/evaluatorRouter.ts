@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog } from "@/src/features/audit-logs/server";
 import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -34,12 +33,6 @@ const TestEvaluatorSchema = z.object({
   startTime: z.coerce.date(),
 });
 
-function serviceForContext(ctx: ProjectAuthedContext) {
-  return new EvaluatorService(ctx.prisma, ({ action, evaluatorId }) =>
-    auditEvaluator(ctx, action, evaluatorId),
-  );
-}
-
 function auditEvaluator(
   ctx: ProjectAuthedContext,
   action: "create" | "update" | "delete",
@@ -51,6 +44,12 @@ function auditEvaluator(
     resourceId: evaluatorId,
     action,
   });
+}
+
+function serviceForContext(ctx: ProjectAuthedContext) {
+  return new EvaluatorService(ctx.prisma, ({ action, evaluatorId }) =>
+    auditEvaluator(ctx, action, evaluatorId),
+  );
 }
 
 export const evaluatorRouter = createTRPCRouter({

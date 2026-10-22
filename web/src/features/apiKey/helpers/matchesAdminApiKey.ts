@@ -1,5 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { timingSafeEqual } from "node:crypto";
+
+function timingSafeTokenEquals(token: string, expectedToken: string): boolean {
+  const supplied = Buffer.from(token);
+  const expected = Buffer.from(expectedToken);
+  return (
+    supplied.length === expected.length && timingSafeEqual(supplied, expected)
+  );
+}
 
 /** matchesAdminApiKey compares a token against the nonempty, trimmed admin secret. */
 export function matchesAdminApiKey(
@@ -9,12 +16,4 @@ export function matchesAdminApiKey(
   const adminApiKey = configuredKey?.trim();
   if (!adminApiKey) return false;
   return timingSafeTokenEquals(token, adminApiKey);
-}
-
-function timingSafeTokenEquals(token: string, expectedToken: string): boolean {
-  const supplied = Buffer.from(token);
-  const expected = Buffer.from(expectedToken);
-  return (
-    supplied.length === expected.length && timingSafeEqual(supplied, expected)
-  );
 }

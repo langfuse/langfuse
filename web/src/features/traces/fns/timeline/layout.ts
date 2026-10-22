@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * `layout()` — the one pure function that owns every timeline coordinate.
  *
@@ -328,59 +327,32 @@ export function timeCompressionFor(
     : identityCompression(prepared.durationMs);
 }
 
-export function layout<TNode extends LayoutNode>(
-  input: LayoutInput<TNode>,
-): TimelineLayout<TNode> {
-  const { box, density, measurer } = input;
-  const laneWidth = Math.max(Number.isFinite(box.width) ? box.width : 0, 0);
+/**
+ * The decision CSS flow gets wrong in a narrow lane: inside the bar if it fits,
+ * else outside on whichever side has room, else not drawn at all.
+ */
+function placeLabel(args: {
+  label: string;
+  labelWidth: number;
+  x: number;
+  width: number;
+  laneWidth: number;
+  density: Density;
+}): { labelPlacement: LabelPlacement; labelX: number } {
+  const { label, labelWidth, x, width, laneWidth, density } = args;
+  if (!label) return { labelPlacement: "hidden", labelX: x };
 
-  const prepared =
-    input.prepared ?? prepareTimeline(input.roots, input.collapsed);
-  const compression =
-    input.compression ?? timeCompressionFor(prepared, box, input.compress);
-
-  const traceSpace = traceSpaceOf(compression.compressedDurationMs);
-  const view = clampView(input.view ?? fitView(traceSpace), traceSpace);
-  const transform = createViewTransform(view, { ...box, width: laneWidth });
-
-  const rowHeight = density.rowHeight;
-  const from = Math.max(input.rowRange?.startIndex ?? 0, 0);
-  const to = Math.min(
-    input.rowRange?.endIndex ?? prepared.rows.length - 1,
-    prepared.rows.length - 1,
-  );
-
-  const nodes: Array<PositionedNode<TNode>> = [];
-  for (let index = from; index <= to; index++) {
-    const row = prepared.rows[index]!;
-    nodes.push(
-      positionRow(row, index, {
-        originMs: prepared.originMs,
-        compression,
-        transform,
-        laneWidth,
-        rowHeight,
-        density,
-        measurer,
-        formatLabel: input.formatLabel ?? formatDurationMs,
-      }),
-    );
+  if (labelWidth + density.labelPaddingPx * 2 <= width) {
+    return { labelPlacement: "inside", labelX: x + density.labelPaddingPx };
   }
+  const after = x + width + density.labelGapPx;
+  if (after + labelWidth <= laneWidth) {
+    return { labelPlacement: "after", labelX: after };
+  }
+  const before = x - density.labelGapPx - labelWidth;
+  if (before >= 0) return { labelPlacement: "before", labelX: before };
 
-  return {
-    nodes,
-    rowCount: prepared.rows.length,
-    rowHeight,
-    contentHeight: prepared.rows.length * rowHeight,
-    traceSpace,
-    view,
-    pxPerMs: transform.pxPerMs,
-    realDurationMs: prepared.durationMs,
-    originMs: prepared.originMs,
-    ticks: buildTicks({ view, compression, transform, laneWidth, measurer }),
-    gaps: buildGapMarkers({ compression, transform, laneWidth }),
-    compression,
-  };
+  return { labelPlacement: "hidden", labelX: x };
 }
 
 function positionRow<TNode extends LayoutNode>(
@@ -477,34 +449,6 @@ function positionRow<TNode extends LayoutNode>(
   };
 }
 
-/**
- * The decision CSS flow gets wrong in a narrow lane: inside the bar if it fits,
- * else outside on whichever side has room, else not drawn at all.
- */
-function placeLabel(args: {
-  label: string;
-  labelWidth: number;
-  x: number;
-  width: number;
-  laneWidth: number;
-  density: Density;
-}): { labelPlacement: LabelPlacement; labelX: number } {
-  const { label, labelWidth, x, width, laneWidth, density } = args;
-  if (!label) return { labelPlacement: "hidden", labelX: x };
-
-  if (labelWidth + density.labelPaddingPx * 2 <= width) {
-    return { labelPlacement: "inside", labelX: x + density.labelPaddingPx };
-  }
-  const after = x + width + density.labelGapPx;
-  if (after + labelWidth <= laneWidth) {
-    return { labelPlacement: "after", labelX: after };
-  }
-  const before = x - density.labelGapPx - labelWidth;
-  if (before >= 0) return { labelPlacement: "before", labelX: before };
-
-  return { labelPlacement: "hidden", labelX: x };
-}
-
 function buildTicks(context: {
   view: TimeSpan;
   compression: TimeCompression;
@@ -599,4 +543,59 @@ function buildGapMarkers(context: {
     });
   }
   return markers;
+}
+
+export function layout<TNode extends LayoutNode>(
+  input: LayoutInput<TNode>,
+): TimelineLayout<TNode> {
+  const { box, density, measurer } = input;
+  const laneWidth = Math.max(Number.isFinite(box.width) ? box.width : 0, 0);
+
+  const prepared =
+    input.prepared ?? prepareTimeline(input.roots, input.collapsed);
+  const compression =
+    input.compression ?? timeCompressionFor(prepared, box, input.compress);
+
+  const traceSpace = traceSpaceOf(compression.compressedDurationMs);
+  const view = clampView(input.view ?? fitView(traceSpace), traceSpace);
+  const transform = createViewTransform(view, { ...box, width: laneWidth });
+
+  const rowHeight = density.rowHeight;
+  const from = Math.max(input.rowRange?.startIndex ?? 0, 0);
+  const to = Math.min(
+    input.rowRange?.endIndex ?? prepared.rows.length - 1,
+    prepared.rows.length - 1,
+  );
+
+  const nodes: Array<PositionedNode<TNode>> = [];
+  for (let index = from; index <= to; index++) {
+    const row = prepared.rows[index]!;
+    nodes.push(
+      positionRow(row, index, {
+        originMs: prepared.originMs,
+        compression,
+        transform,
+        laneWidth,
+        rowHeight,
+        density,
+        measurer,
+        formatLabel: input.formatLabel ?? formatDurationMs,
+      }),
+    );
+  }
+
+  return {
+    nodes,
+    rowCount: prepared.rows.length,
+    rowHeight,
+    contentHeight: prepared.rows.length * rowHeight,
+    traceSpace,
+    view,
+    pxPerMs: transform.pxPerMs,
+    realDurationMs: prepared.durationMs,
+    originMs: prepared.originMs,
+    ticks: buildTicks({ view, compression, transform, laneWidth, measurer }),
+    gaps: buildGapMarkers({ compression, transform, laneWidth }),
+    compression,
+  };
 }

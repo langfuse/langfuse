@@ -1,10 +1,39 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type {
   MonitorSeverity,
   MonitorThresholdOperator,
   Monitor,
 } from "../types";
 import type { MonitorCompletion } from "./applyStateMachine";
+
+/** selectThreshold picks the threshold relevant to the current severity (warning band for WARNING, alert for everything else). */
+function selectThreshold(
+  severity: MonitorSeverity,
+  alertThreshold: number,
+  warningThreshold: number | null,
+): number {
+  if (severity === "WARNING" && warningThreshold !== null) {
+    return warningThreshold;
+  }
+  return alertThreshold;
+}
+
+/** operatorWord returns the human-readable form of a threshold operator. */
+function operatorWord(op: MonitorThresholdOperator): string {
+  switch (op) {
+    case "GT":
+      return "above";
+    case "GTE":
+      return "at or above";
+    case "LT":
+      return "below";
+    case "LTE":
+      return "at or below";
+    case "EQ":
+      return "equal to";
+    case "NEQ":
+      return "not equal to";
+  }
+}
 
 /** renderAlertMessage builds the human-readable title/body for a MonitorAlert. The body distinguishes no-data alerts from threshold-crossing alerts. */
 export function renderAlertMessage(args: {
@@ -33,34 +62,4 @@ export function renderAlertMessage(args: {
     body = `${metricRef} is **${operatorWord(monitor.thresholdOperator)}** \`${threshold}\` over the last **${monitor.window}**`;
   }
   return { title, body };
-}
-
-/** operatorWord returns the human-readable form of a threshold operator. */
-function operatorWord(op: MonitorThresholdOperator): string {
-  switch (op) {
-    case "GT":
-      return "above";
-    case "GTE":
-      return "at or above";
-    case "LT":
-      return "below";
-    case "LTE":
-      return "at or below";
-    case "EQ":
-      return "equal to";
-    case "NEQ":
-      return "not equal to";
-  }
-}
-
-/** selectThreshold picks the threshold relevant to the current severity (warning band for WARNING, alert for everything else). */
-function selectThreshold(
-  severity: MonitorSeverity,
-  alertThreshold: number,
-  warningThreshold: number | null,
-): number {
-  if (severity === "WARNING" && warningThreshold !== null) {
-    return warningThreshold;
-  }
-  return alertThreshold;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   ForbiddenError,
   InternalServerError,
@@ -26,6 +25,51 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
 type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
+
+/**
+ * Service-account keys survive membership changes, so only gateway managers may
+ * issue them. Legacy public API auth ignores key roles and accepts a gateway key
+ * as an organization admin key, so outside enforce they also need the right to
+ * create organization API keys.
+ */
+export function gatewayApiKeyCreatorScopes(
+  issuedAs: GatewayApiKeyIssuedAs,
+): OrganizationScope[] {
+  if (issuedAs === "user") return ["gateway:invoke"];
+  return env.API_AUTH_MIGRATION === "enforce"
+    ? ["gateway:manage"]
+    : ["gateway:manage", "organization:CRUD_apiKeys"];
+}
+
+/** assertCreatorCanInvokeGateway share-locks the creator's membership so removal and demotion order after the key insert. */
+async function assertCreatorCanInvokeGateway(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    issuedAs: GatewayApiKeyIssuedAs;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const [membership] = await tx.$queryRaw<{ role: Role }[]>`
+    SELECT role FROM organization_memberships
+    WHERE org_id = ${params.organizationId}
+      AND user_id = ${params.session.user.id}
+    FOR SHARE
+  `;
+  if (params.session.user.admin) return;
+  const allowed =
+    membership !== undefined &&
+    gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>
+      hasOrganizationAccess({ role: membership.role, scope }),
+    );
+  if (!allowed) {
+    throw new ForbiddenError(
+      params.issuedAs === "serviceAccount"
+        ? "Your organization role cannot issue service-account gateway API keys"
+        : "Only organization members who can invoke the gateway can create gateway API keys",
+    );
+  }
+}
 
 export class GatewayApiKeyService {
   private readonly repository: GatewayApiKeyRepository;
@@ -143,51 +187,6 @@ export class GatewayApiKeyService {
         before: association,
       },
       this.prisma,
-    );
-  }
-}
-
-/**
- * Service-account keys survive membership changes, so only gateway managers may
- * issue them. Legacy public API auth ignores key roles and accepts a gateway key
- * as an organization admin key, so outside enforce they also need the right to
- * create organization API keys.
- */
-export function gatewayApiKeyCreatorScopes(
-  issuedAs: GatewayApiKeyIssuedAs,
-): OrganizationScope[] {
-  if (issuedAs === "user") return ["gateway:invoke"];
-  return env.API_AUTH_MIGRATION === "enforce"
-    ? ["gateway:manage"]
-    : ["gateway:manage", "organization:CRUD_apiKeys"];
-}
-
-/** assertCreatorCanInvokeGateway share-locks the creator's membership so removal and demotion order after the key insert. */
-async function assertCreatorCanInvokeGateway(
-  tx: Prisma.TransactionClient,
-  params: {
-    organizationId: string;
-    issuedAs: GatewayApiKeyIssuedAs;
-    session: OrgAuthedContext["session"];
-  },
-) {
-  const [membership] = await tx.$queryRaw<{ role: Role }[]>`
-    SELECT role FROM organization_memberships
-    WHERE org_id = ${params.organizationId}
-      AND user_id = ${params.session.user.id}
-    FOR SHARE
-  `;
-  if (params.session.user.admin) return;
-  const allowed =
-    membership !== undefined &&
-    gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>
-      hasOrganizationAccess({ role: membership.role, scope }),
-    );
-  if (!allowed) {
-    throw new ForbiddenError(
-      params.issuedAs === "serviceAccount"
-        ? "Your organization role cannot issue service-account gateway API keys"
-        : "Only organization members who can invoke the gateway can create gateway API keys",
     );
   }
 }

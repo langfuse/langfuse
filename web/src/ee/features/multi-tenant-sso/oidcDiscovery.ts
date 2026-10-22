@@ -1,5 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const oneLoginOidcPath = "/oidc/2";
+
+export function stripTrailingSlash(url: string): string {
+  return url.replace(/\/$/, "");
+}
 
 /**
  * resolveOneLoginIssuer returns the OIDC issuer for a configured OneLogin URL.
@@ -15,8 +18,4 @@ export function resolveOneLoginIssuer(configured: string): string {
 /** getDiscoveryUrl builds the discovery-document URL for issuer. */
 export function getDiscoveryUrl(issuer: string): string {
   return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
-}
-
-export function stripTrailingSlash(url: string): string {
-  return url.replace(/\/$/, "");
 }

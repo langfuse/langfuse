@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -344,38 +344,25 @@ const InkeepChoiceResultSchema = z.object({
   }),
 });
 
-export function getInAppAgentError(
-  error: unknown,
-  now = Date.now(),
-): InAppAgentError {
+function getErrorMessage(error: unknown) {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
-  const payload = parsedError.success ? parsedError.data.payload : undefined;
-  const message = getErrorMessage(error);
-  const rateLimitError =
-    parseRateLimitError(payload) ??
-    parseRateLimitError(error) ??
-    parseEmbeddedRateLimitError(message);
-
-  if (rateLimitError) {
-    return {
-      type: "rate_limit",
-      retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
-    };
+  if (!parsedError.success) {
+    return "Halo request failed. Please try again.";
   }
 
-  return { type: "generic", message };
+  const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
+    parsedError.data.payload,
+  );
+  if (legacyPayload.success) {
+    return legacyPayload.data.error;
+  }
+
+  return parsedError.data.message ?? "Halo request failed. Please try again.";
 }
 
 function parseRateLimitError(value: unknown) {
   const parsed = InAppAgentRateLimitErrorResponseSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
-}
-
-export function isInAppAgentRateLimited(
-  error: InAppAgentError | null,
-  now = Date.now(),
-) {
-  return error?.type === "rate_limit" && error.retryAt > now;
 }
 
 function parseEmbeddedRateLimitError(message: string) {
@@ -402,20 +389,164 @@ function parseEmbeddedRateLimitError(message: string) {
   return null;
 }
 
-function getErrorMessage(error: unknown) {
+export function getInAppAgentError(
+  error: unknown,
+  now = Date.now(),
+): InAppAgentError {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
-  if (!parsedError.success) {
-    return "Halo request failed. Please try again.";
+  const payload = parsedError.success ? parsedError.data.payload : undefined;
+  const message = getErrorMessage(error);
+  const rateLimitError =
+    parseRateLimitError(payload) ??
+    parseRateLimitError(error) ??
+    parseEmbeddedRateLimitError(message);
+
+  if (rateLimitError) {
+    return {
+      type: "rate_limit",
+      retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
+    };
   }
 
-  const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
-    parsedError.data.payload,
+  return { type: "generic", message };
+}
+
+export function isInAppAgentRateLimited(
+  error: InAppAgentError | null,
+  now = Date.now(),
+) {
+  return error?.type === "rate_limit" && error.retryAt > now;
+}
+
+function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
+  const results = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
+
+  for (const message of messages) {
+    if (message.role === "tool") {
+      results.set(message.toolCallId, message);
+    }
+  }
+
+  return results;
+}
+
+function getRedirectActionFromToolResult(
+  message: Extract<AgUiMessage, { role: "tool" }>,
+): Extract<InAppAgentMessageContent, { type: "redirectAction" }> | null {
+  try {
+    return InAppAgentRedirectActionToolResultSchema.parse(
+      JSON.parse(message.content),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function parseJsonString(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function findPendingApprovalForToolCall({
+  toolCall,
+  pendingApprovals,
+  pendingApprovalsByToolCallId,
+  mappedPendingApprovalIds,
+}: {
+  toolCall: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"] extends
+    | Array<infer TToolCall>
+    | undefined
+    ? TToolCall
+    : never;
+  pendingApprovals: readonly InAppAgentPendingToolApproval[];
+  pendingApprovalsByToolCallId: ReadonlyMap<
+    string,
+    InAppAgentPendingToolApproval
+  >;
+  mappedPendingApprovalIds: ReadonlySet<string>;
+}) {
+  const exactMatch = pendingApprovalsByToolCallId.get(toolCall.id);
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const toolArgsFingerprint = stableJsonStringify(
+    parseJsonString(toolCall.function.arguments) ?? toolCall.function.arguments,
   );
-  if (legacyPayload.success) {
-    return legacyPayload.data.error;
+  const matchingApprovals = pendingApprovals.filter(
+    (approval) =>
+      !mappedPendingApprovalIds.has(approval.id) &&
+      approval.approvalRequest.toolName === toolCall.function.name &&
+      stableJsonStringify(approval.approvalRequest.args) ===
+        toolArgsFingerprint,
+  );
+
+  return matchingApprovals.length === 1 ? matchingApprovals[0] : undefined;
+}
+
+function mergeSources(
+  existing: readonly InAppAgentMessageSource[],
+  next: readonly InAppAgentMessageSource[],
+): InAppAgentMessageSource[] {
+  return deduplicateBy([...existing, ...next], (source) => source.url);
+}
+
+function extractSourcesFromToolResult(
+  result: string,
+): InAppAgentMessageSource[] {
+  const parsed = parseJsonString(result);
+  const parsedResult = InkeepChoiceResultSchema.safeParse(parsed);
+
+  if (!parsedResult.success) {
+    return [];
   }
 
-  return parsedError.data.message ?? "Halo request failed. Please try again.";
+  return parsedResult.data._meta.choices.flatMap((choice) => {
+    const parsedContent = parseJsonString(choice.message.content);
+    const parsedSource =
+      InkeepChoiceContentSourceSchema.safeParse(parsedContent);
+
+    if (!parsedSource.success) {
+      return [];
+    }
+
+    return parsedSource.data;
+  });
+}
+
+function extractLangfuseDocsSources(
+  tools: readonly InAppAgentToolCallContent[],
+): InAppAgentMessageSource[] {
+  return mergeSources(
+    [],
+    tools.flatMap((tool) => {
+      if (!tool.name.startsWith("langfuseDocs_") || !tool.result) {
+        return [];
+      }
+
+      return extractSourcesFromToolResult(tool.result);
+    }),
+  );
+}
+
+function stringifyToolArgs(args: unknown) {
+  if (typeof args === "string") {
+    return args;
+  }
+
+  try {
+    return JSON.stringify(args ?? {});
+  } catch {
+    return "{}";
+  }
 }
 
 export function getDrawerMessages({
@@ -727,135 +858,4 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
-}
-
-function stringifyToolArgs(args: unknown) {
-  if (typeof args === "string") {
-    return args;
-  }
-
-  try {
-    return JSON.stringify(args ?? {});
-  } catch {
-    return "{}";
-  }
-}
-
-function findPendingApprovalForToolCall({
-  toolCall,
-  pendingApprovals,
-  pendingApprovalsByToolCallId,
-  mappedPendingApprovalIds,
-}: {
-  toolCall: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"] extends
-    | Array<infer TToolCall>
-    | undefined
-    ? TToolCall
-    : never;
-  pendingApprovals: readonly InAppAgentPendingToolApproval[];
-  pendingApprovalsByToolCallId: ReadonlyMap<
-    string,
-    InAppAgentPendingToolApproval
-  >;
-  mappedPendingApprovalIds: ReadonlySet<string>;
-}) {
-  const exactMatch = pendingApprovalsByToolCallId.get(toolCall.id);
-
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  const toolArgsFingerprint = stableJsonStringify(
-    parseJsonString(toolCall.function.arguments) ?? toolCall.function.arguments,
-  );
-  const matchingApprovals = pendingApprovals.filter(
-    (approval) =>
-      !mappedPendingApprovalIds.has(approval.id) &&
-      approval.approvalRequest.toolName === toolCall.function.name &&
-      stableJsonStringify(approval.approvalRequest.args) ===
-        toolArgsFingerprint,
-  );
-
-  return matchingApprovals.length === 1 ? matchingApprovals[0] : undefined;
-}
-
-function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
-  const results = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
-
-  for (const message of messages) {
-    if (message.role === "tool") {
-      results.set(message.toolCallId, message);
-    }
-  }
-
-  return results;
-}
-
-function getRedirectActionFromToolResult(
-  message: Extract<AgUiMessage, { role: "tool" }>,
-): Extract<InAppAgentMessageContent, { type: "redirectAction" }> | null {
-  try {
-    return InAppAgentRedirectActionToolResultSchema.parse(
-      JSON.parse(message.content),
-    );
-  } catch {
-    return null;
-  }
-}
-
-function extractLangfuseDocsSources(
-  tools: readonly InAppAgentToolCallContent[],
-): InAppAgentMessageSource[] {
-  return mergeSources(
-    [],
-    tools.flatMap((tool) => {
-      if (!tool.name.startsWith("langfuseDocs_") || !tool.result) {
-        return [];
-      }
-
-      return extractSourcesFromToolResult(tool.result);
-    }),
-  );
-}
-
-function extractSourcesFromToolResult(
-  result: string,
-): InAppAgentMessageSource[] {
-  const parsed = parseJsonString(result);
-  const parsedResult = InkeepChoiceResultSchema.safeParse(parsed);
-
-  if (!parsedResult.success) {
-    return [];
-  }
-
-  return parsedResult.data._meta.choices.flatMap((choice) => {
-    const parsedContent = parseJsonString(choice.message.content);
-    const parsedSource =
-      InkeepChoiceContentSourceSchema.safeParse(parsedContent);
-
-    if (!parsedSource.success) {
-      return [];
-    }
-
-    return parsedSource.data;
-  });
-}
-
-function parseJsonString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function mergeSources(
-  existing: readonly InAppAgentMessageSource[],
-  next: readonly InAppAgentMessageSource[],
-): InAppAgentMessageSource[] {
-  return deduplicateBy([...existing, ...next], (source) => source.url);
 }

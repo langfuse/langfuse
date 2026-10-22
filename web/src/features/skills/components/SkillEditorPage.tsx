@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
@@ -86,18 +86,19 @@ export function NewSkillPage() {
   );
 }
 
-export function ExistingSkillPage() {
-  const router = useRouter();
-  const projectId = useProjectIdFromURL();
-  const skillName =
-    typeof router.query.skillName === "string" ? router.query.skillName : "";
-  return (
-    <ExistingSkillSession
-      key={`${projectId}:${skillName}`}
-      projectId={projectId ?? ""}
-      skillName={skillName}
-    />
+function SkillEditorForInitialValue({
+  initialValue,
+  store: draftStore,
+  ...props
+}: Omit<ComponentProps<typeof SkillEditor>, "store"> & {
+  store?: SkillEditorStore;
+  initialValue: SkillEditorInitialValue;
+}) {
+  const [store] = useState(
+    () => draftStore ?? createSkillEditorStore(initialValue),
   );
+
+  return <SkillEditor {...props} store={store} />;
 }
 
 function ExistingSkillSession({
@@ -329,17 +330,16 @@ function ExistingSkillSession({
   return <Page headerProps={headerProps}>{content}</Page>;
 }
 
-function SkillEditorForInitialValue({
-  initialValue,
-  store: draftStore,
-  ...props
-}: Omit<ComponentProps<typeof SkillEditor>, "store"> & {
-  store?: SkillEditorStore;
-  initialValue: SkillEditorInitialValue;
-}) {
-  const [store] = useState(
-    () => draftStore ?? createSkillEditorStore(initialValue),
+export function ExistingSkillPage() {
+  const router = useRouter();
+  const projectId = useProjectIdFromURL();
+  const skillName =
+    typeof router.query.skillName === "string" ? router.query.skillName : "";
+  return (
+    <ExistingSkillSession
+      key={`${projectId}:${skillName}`}
+      projectId={projectId ?? ""}
+      skillName={skillName}
+    />
   );
-
-  return <SkillEditor {...props} store={store} />;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState, type ChangeEvent } from "react";
 import { SkillNameSchema } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -21,6 +20,10 @@ export type SkillInstallationOptionsProps = {
   tags: string[];
   names: string[];
 };
+
+function selectedOption(value: string, options: string[]) {
+  return options.includes(value) ? value : (options[0] ?? "");
+}
 
 export function SkillInstallationOptions({
   host,
@@ -264,8 +267,4 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
       </div>
     </div>
   );
-}
-
-function selectedOption(value: string, options: string[]) {
-  return options.includes(value) ? value : (options[0] ?? "");
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -19,6 +18,15 @@ export type ConnectionSummaryProps = {
   onRefresh: () => void;
   onRetry: () => void;
 };
+
+function ConnectionDetailsSkeleton() {
+  return (
+    <SkeletonGroup className="flex flex-col gap-3">
+      <Skeleton className="h-7 w-52" />
+      <Skeleton className="h-10 w-full max-w-2xl" />
+    </SkeletonGroup>
+  );
+}
 
 export function ConnectionSummary({
   connection,
@@ -93,14 +101,5 @@ export function ConnectionSummary({
       </ConfirmationDialogController>
       <p className="text-muted-foreground text-sm">{access}</p>
     </>
-  );
-}
-
-function ConnectionDetailsSkeleton() {
-  return (
-    <SkeletonGroup className="flex flex-col gap-3">
-      <Skeleton className="h-7 w-52" />
-      <Skeleton className="h-10 w-full max-w-2xl" />
-    </SkeletonGroup>
   );
 }

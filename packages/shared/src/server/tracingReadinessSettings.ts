@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma } from "../db";
 import type { Prisma } from "../db";
@@ -31,6 +30,23 @@ export type TracingReadinessSettings = z.infer<
 >;
 
 const cacheKey = (projectId: string) => `${CACHE_KEY_PREFIX}:${projectId}`;
+
+async function readCache(
+  projectId: string,
+): Promise<TracingReadinessSettings | null> {
+  try {
+    const cached = await redis?.get(cacheKey(projectId));
+    if (!cached) return null;
+    const parsed = tracingReadinessSettingsSchema.safeParse(JSON.parse(cached));
+    return parsed.success ? parsed.data : null;
+  } catch (error) {
+    logger.warn("Failed to read cached tracing readiness settings", {
+      projectId,
+      error,
+    });
+    return null;
+  }
+}
 
 /**
  * Null fields mean the deployment default; a project without a row has all
@@ -73,22 +89,6 @@ export async function getTracingReadinessSettings(
   return settings;
 }
 
-export async function saveTracingReadinessSettings(
-  projectId: string,
-  settings: TracingReadinessSettings,
-  { userId = null }: { userId?: string | null } = {},
-): Promise<TracingReadinessSettings> {
-  const data = tracingReadinessSettingsSchema.parse(settings);
-  const saved = await writeTracingReadinessSettings(
-    prisma,
-    projectId,
-    data,
-    userId,
-  );
-  await cacheTracingReadinessSettings(projectId, saved);
-  return saved;
-}
-
 export async function writeTracingReadinessSettings(
   tx: Prisma.TransactionClient,
   projectId: string,
@@ -124,19 +124,18 @@ export async function cacheTracingReadinessSettings(
   }
 }
 
-async function readCache(
+export async function saveTracingReadinessSettings(
   projectId: string,
-): Promise<TracingReadinessSettings | null> {
-  try {
-    const cached = await redis?.get(cacheKey(projectId));
-    if (!cached) return null;
-    const parsed = tracingReadinessSettingsSchema.safeParse(JSON.parse(cached));
-    return parsed.success ? parsed.data : null;
-  } catch (error) {
-    logger.warn("Failed to read cached tracing readiness settings", {
-      projectId,
-      error,
-    });
-    return null;
-  }
+  settings: TracingReadinessSettings,
+  { userId = null }: { userId?: string | null } = {},
+): Promise<TracingReadinessSettings> {
+  const data = tracingReadinessSettingsSchema.parse(settings);
+  const saved = await writeTracingReadinessSettings(
+    prisma,
+    projectId,
+    data,
+    userId,
+  );
+  await cacheTracingReadinessSettings(projectId, saved);
+  return saved;
 }

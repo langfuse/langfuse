@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import {
   type SkillsAvailable,
@@ -17,49 +16,68 @@ import {
 import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
 
-export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
-  const [expandedSkillKey, setExpandedSkillKey] = useState("");
-  const groups = groupSkills(skills.items);
-  const singleLoadedSkill =
-    skills.kind === "loaded" && groups.length === 1 ? groups[0] : undefined;
-  const title =
-    skills.kind === "available" ? "Available skills" : "Loaded skills";
+function groupSkills(
+  items: SectionSkillsProps["skills"]["items"],
+): SkillGroup[] {
+  const groups = new Map<string, SkillGroup>();
+  for (const skill of items) {
+    const key = JSON.stringify([
+      skill.langfuseSkillId ?? null,
+      skill.skillName,
+      skill.skillVersion ?? null,
+    ]);
+    const group = groups.get(key) ?? { key, skill, files: new Set<string>() };
+    groups.set(key, group);
+    if ("filePath" in skill) group.files.add(skill.filePath);
+  }
+  return Array.from(groups.values());
+}
 
+function SkillIdentity({
+  projectId,
+  skill,
+}: {
+  projectId: string;
+  skill: SkillsAvailable[number];
+}) {
   return (
-    <IOSection
-      title={singleLoadedSkill ? "Loaded skill" : title}
-      count={singleLoadedSkill ? undefined : groups.length}
-      variant="table"
-      defaultCollapsed={groups.length > 5}
-    >
-      {singleLoadedSkill ? (
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2 pb-1.5">
-            <FileCode2 size="base" color="muted" aria-hidden />
-            <SkillIdentity
-              projectId={projectId}
-              skill={singleLoadedSkill.skill}
-            />
-          </div>
-          <div className="border-border border-t py-3 pl-5.5">
-            <SkillFiles files={singleLoadedSkill.files} />
-          </div>
-        </div>
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+      {skill.langfuseSkillId && skill.skillVersion != null ? (
+        <LinkBadge
+          href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
+          text={skill.skillName}
+          newTab
+          noCapture
+        />
       ) : (
-        <ul className="divide-border flex flex-col divide-y">
-          {groups.map((group, index) => (
-            <SkillRow
-              key={group.key}
-              projectId={projectId}
-              group={group}
-              rowNumber={index + 1}
-              expanded={expandedSkillKey === group.key}
-              onExpandedChange={setExpandedSkillKey}
-            />
-          ))}
-        </ul>
+        <span className="min-w-0 truncate text-sm" title={skill.skillName}>
+          {skill.skillName}
+        </span>
       )}
-    </IOSection>
+      {skill.skillVersion != null ? (
+        <Badge color="filled" size="sm" text={`v${skill.skillVersion}`} />
+      ) : null}
+    </div>
+  );
+}
+
+function SkillFiles({ files }: { files: Set<string> }) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {Array.from(files, (filePath) => (
+        <li key={filePath} className="flex min-w-0 items-start gap-2">
+          <FileText
+            size="base"
+            color="muted"
+            __rawClassName="mt-0.5"
+            aria-hidden
+          />
+          <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
+            {filePath}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -112,69 +130,50 @@ function SkillRow({
   );
 }
 
-function SkillIdentity({
-  projectId,
-  skill,
-}: {
-  projectId: string;
-  skill: SkillsAvailable[number];
-}) {
+export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
+  const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const groups = groupSkills(skills.items);
+  const singleLoadedSkill =
+    skills.kind === "loaded" && groups.length === 1 ? groups[0] : undefined;
+  const title =
+    skills.kind === "available" ? "Available skills" : "Loaded skills";
+
   return (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-      {skill.langfuseSkillId && skill.skillVersion != null ? (
-        <LinkBadge
-          href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
-          text={skill.skillName}
-          newTab
-          noCapture
-        />
+    <IOSection
+      title={singleLoadedSkill ? "Loaded skill" : title}
+      count={singleLoadedSkill ? undefined : groups.length}
+      variant="table"
+      defaultCollapsed={groups.length > 5}
+    >
+      {singleLoadedSkill ? (
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2 pb-1.5">
+            <FileCode2 size="base" color="muted" aria-hidden />
+            <SkillIdentity
+              projectId={projectId}
+              skill={singleLoadedSkill.skill}
+            />
+          </div>
+          <div className="border-border border-t py-3 pl-5.5">
+            <SkillFiles files={singleLoadedSkill.files} />
+          </div>
+        </div>
       ) : (
-        <span className="min-w-0 truncate text-sm" title={skill.skillName}>
-          {skill.skillName}
-        </span>
+        <ul className="divide-border flex flex-col divide-y">
+          {groups.map((group, index) => (
+            <SkillRow
+              key={group.key}
+              projectId={projectId}
+              group={group}
+              rowNumber={index + 1}
+              expanded={expandedSkillKey === group.key}
+              onExpandedChange={setExpandedSkillKey}
+            />
+          ))}
+        </ul>
       )}
-      {skill.skillVersion != null ? (
-        <Badge color="filled" size="sm" text={`v${skill.skillVersion}`} />
-      ) : null}
-    </div>
+    </IOSection>
   );
-}
-
-function SkillFiles({ files }: { files: Set<string> }) {
-  return (
-    <ul className="flex flex-col gap-2">
-      {Array.from(files, (filePath) => (
-        <li key={filePath} className="flex min-w-0 items-start gap-2">
-          <FileText
-            size="base"
-            color="muted"
-            __rawClassName="mt-0.5"
-            aria-hidden
-          />
-          <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
-            {filePath}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function groupSkills(
-  items: SectionSkillsProps["skills"]["items"],
-): SkillGroup[] {
-  const groups = new Map<string, SkillGroup>();
-  for (const skill of items) {
-    const key = JSON.stringify([
-      skill.langfuseSkillId ?? null,
-      skill.skillName,
-      skill.skillVersion ?? null,
-    ]);
-    const group = groups.get(key) ?? { key, skill, files: new Set<string>() };
-    groups.set(key, group);
-    if ("filePath" in skill) group.files.add(skill.filePath);
-  }
-  return Array.from(groups.values());
 }
 
 export interface SectionSkillsProps {

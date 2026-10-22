@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props */
 // Search-bar row: the query composer at full width, with an AI sub-mode.
 // EventsTable owns the sticky stack around this row + the toolbar so the toolbar
 // cannot scroll under the composer. Time-range + refresh controls live in the
@@ -40,25 +40,6 @@ type EventsSearchBarRowProps = Omit<
   React.ComponentProps<typeof EventsSearchBarRowContent>,
   "aiFeaturesEnabled"
 >;
-
-export function EventsSearchBarRow(props: EventsSearchBarRowProps) {
-  const registry = props.registry ?? EVENTS_FIELD_REGISTRY;
-  return props.projectId && registry.aiFilterPrompt ? (
-    <ProjectSearchBarRow {...props} />
-  ) : (
-    <EventsSearchBarRowContent {...props} aiFeaturesEnabled={false} />
-  );
-}
-
-function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
-  const { organization } = useQueryProject();
-  return (
-    <EventsSearchBarRowContent
-      {...props}
-      aiFeaturesEnabled={Boolean(organization?.aiFeaturesEnabled)}
-    />
-  );
-}
 
 function EventsSearchBarRowContent({
   aiFeaturesEnabled,
@@ -190,5 +171,24 @@ function EventsSearchBarRowContent({
         </SearchBarStoreProvider>
       )}
     </div>
+  );
+}
+
+function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
+  const { organization } = useQueryProject();
+  return (
+    <EventsSearchBarRowContent
+      {...props}
+      aiFeaturesEnabled={Boolean(organization?.aiFeaturesEnabled)}
+    />
+  );
+}
+
+export function EventsSearchBarRow(props: EventsSearchBarRowProps) {
+  const registry = props.registry ?? EVENTS_FIELD_REGISTRY;
+  return props.projectId && registry.aiFilterPrompt ? (
+    <ProjectSearchBarRow {...props} />
+  ) : (
+    <EventsSearchBarRowContent {...props} aiFeaturesEnabled={false} />
   );
 }

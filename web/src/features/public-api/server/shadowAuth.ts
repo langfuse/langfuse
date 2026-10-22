@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest } from "next";
 import { getRequestMeta } from "next/dist/server/request-meta";
 
@@ -50,13 +49,42 @@ import { isPrismaException } from "@/src/utils/exceptions";
 /** shadowResources retains request route templates for asynchronous per-item checks. */
 const shadowResources = new WeakMap<AuthorizationContext, string>();
 
-/** shadowAuth authorizes a public-API request under the active migration mode, returning the scope or the error to render. */
-export async function shadowAuth(
-  params: ShadowAuthParams,
-): Promise<ShadowAuthResult> {
-  if (env.API_AUTH_MIGRATION === "enforce") return enforceOnly(params);
-  if (env.API_AUTH_MIGRATION === "shadow") return legacyWithShadow(params);
-  return legacyOnly(params);
+/** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
+function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
+  return enforceAuth(params);
+}
+
+function errorDiagnostic(error: unknown): string {
+  return error instanceof Error
+    ? (error.stack ?? error.message)
+    : String(error);
+}
+
+function logAuthenticationError(error: unknown): void {
+  logger.error("Public API authentication failed", {
+    error: redactLangfuseSecretKeys(errorDiagnostic(error)),
+  });
+}
+
+function genericInfrastructureError(httpCode: number): ErrorResult<BaseError> {
+  if (httpCode === 503) return serviceUnavailableError();
+  if (httpCode === 500) return internalServerError();
+  return {
+    success: false,
+    error: new ApiError("Internal Server Error", httpCode),
+  };
+}
+
+/** infrastructureHttpCode preserves typed statuses and maps Prisma failures to 503. */
+function infrastructureHttpCode(error: unknown): number {
+  const fallbackCode = isPrismaException(error) ? 503 : 500;
+  return isBaseError(error) ? error.httpCode : fallbackCode;
+}
+
+/** enforceInfrastructureError logs diagnostics and returns a generic failure. */
+function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
+  logAuthenticationError(error);
+  return genericInfrastructureError(infrastructureHttpCode(error));
 }
 
 /** enforceOnly authorizes solely with the new pipeline and returns its scope or error. */
@@ -73,96 +101,18 @@ async function enforceOnly(
   }
 }
 
-/** enforceInfrastructureError logs diagnostics and returns a generic failure. */
-function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
-  logAuthenticationError(error);
-  return genericInfrastructureError(infrastructureHttpCode(error));
-}
-
-function logAuthenticationError(error: unknown): void {
-  logger.error("Public API authentication failed", {
-    error: redactLangfuseSecretKeys(errorDiagnostic(error)),
-  });
-}
-
-function errorDiagnostic(error: unknown): string {
-  return error instanceof Error
-    ? (error.stack ?? error.message)
-    : String(error);
-}
-
-/** infrastructureHttpCode preserves typed statuses and maps Prisma failures to 503. */
-function infrastructureHttpCode(error: unknown): number {
-  const fallbackCode = isPrismaException(error) ? 503 : 500;
-  return isBaseError(error) ? error.httpCode : fallbackCode;
-}
-
-function genericInfrastructureError(httpCode: number): ErrorResult<BaseError> {
-  if (httpCode === 503) return serviceUnavailableError();
-  if (httpCode === 500) return internalServerError();
-  return {
-    success: false,
-    error: new ApiError("Internal Server Error", httpCode),
-  };
-}
-
-/** legacyWithShadow lets legacy decide while the new pipeline records parity. */
-async function legacyWithShadow(
-  params: ShadowAuthParams,
-): Promise<ShadowAuthResult> {
-  const resource = requestResource(params.req);
-  const legacyAuth = await runLegacyAuth(params);
-  const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action, {
-    ...getScopeIdentity(newAuth, legacyAuth),
-    resource,
-  });
-  const result = legacyResult(legacyAuth);
-  if (result.success && newAuth.success) {
-    return { ...result, ctx: withShadowResource(newAuth.ctx, resource) };
-  }
-  return result;
-}
-
-function getScopeIdentity(
-  newAuth: EnforceAuthResult,
-  legacyAuth: LegacyDecision,
-) {
-  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
-  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
-  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
-}
-
-function withShadowResource(
-  ctx: AuthorizationContext,
-  resource: string,
-): AuthorizationContext {
-  const shadowCtx = { ...ctx };
-  shadowResources.set(shadowCtx, resource);
-  return shadowCtx;
-}
-
 /** requestResource reads Next's matched route independently of recording spans. */
 function requestResource(req: NextApiRequest): string {
   const route = getRequestMeta(req, "match")?.definition.pathname;
   return `${req.method ?? "UNKNOWN"} ${route ?? "unknown"}`;
 }
 
-/** legacyOnly authorizes solely with the legacy verify. */
-async function legacyOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
-  return legacyResult(await runLegacyAuth(params));
-}
-
-/** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
-function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
-  return enforceAuth(params);
-}
-
-/** runLegacyAuth dispatches to the legacy verify the route's access levels select. */
-function runLegacyAuth(params: ShadowAuthParams): Promise<LegacyDecision> {
-  return isOrgFamily(params.allowedAccessLevels)
-    ? runLegacyOrgAuth(params.req)
-    : runLegacyProjectAuth(params);
+/** isOrgFamily reports whether the route's access levels select the organization legacy verify. */
+function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
+  return (
+    allowedAccessLevels.length === 1 &&
+    allowedAccessLevels[0] === "organization"
+  );
 }
 
 /** runLegacyOrgAuth verifies the credential and its organization access level, capturing every outcome as a value. */
@@ -213,33 +163,67 @@ async function runLegacyProjectAuth(
   }
 }
 
+/** runLegacyAuth dispatches to the legacy verify the route's access levels select. */
+function runLegacyAuth(params: ShadowAuthParams): Promise<LegacyDecision> {
+  return isOrgFamily(params.allowedAccessLevels)
+    ? runLegacyOrgAuth(params.req)
+    : runLegacyProjectAuth(params);
+}
+
+function getScopeIdentity(
+  newAuth: EnforceAuthResult,
+  legacyAuth: LegacyDecision,
+) {
+  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
+  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
+  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
+}
+
 /** legacyResult lifts a legacy decision into the seam's success or error value. */
 function legacyResult(legacy: LegacyDecision): ShadowAuthResult {
   if (legacy.success) return { success: true, scope: legacy.scope };
   return { success: false, error: legacy.error };
 }
 
-/** isOrgFamily reports whether the route's access levels select the organization legacy verify. */
-function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
-  return (
-    allowedAccessLevels.length === 1 &&
-    allowedAccessLevels[0] === "organization"
-  );
+function withShadowResource(
+  ctx: AuthorizationContext,
+  resource: string,
+): AuthorizationContext {
+  const shadowCtx = { ...ctx };
+  shadowResources.set(shadowCtx, resource);
+  return shadowCtx;
 }
 
-/** shadowAuthorize enforces per-item permissions or compares them with the caller's legacy decision. */
-export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
-  if (params.action === __dangerouslySkipAuthz) {
-    return { success: true };
+/** legacyWithShadow lets legacy decide while the new pipeline records parity. */
+async function legacyWithShadow(
+  params: ShadowAuthParams,
+): Promise<ShadowAuthResult> {
+  const resource = requestResource(params.req);
+  const legacyAuth = await runLegacyAuth(params);
+  const newAuth = await runNewAuth(params);
+  shadowAuthDiff(newAuth, legacyAuth, params.action, {
+    ...getScopeIdentity(newAuth, legacyAuth),
+    resource,
+  });
+  const result = legacyResult(legacyAuth);
+  if (result.success && newAuth.success) {
+    return { ...result, ctx: withShadowResource(newAuth.ctx, resource) };
   }
-  if (!params.ctx) return skipAuthorization(params);
-  const decision = authorize(
-    params.ctx,
-    tenantFor(params.ctx, params.resource),
-    params.action,
-    toResourceId(params.resource),
-  );
-  return diffOrGate(params, decision);
+  return result;
+}
+
+/** legacyOnly authorizes solely with the legacy verify. */
+async function legacyOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
+  return legacyResult(await runLegacyAuth(params));
+}
+
+/** shadowAuth authorizes a public-API request under the active migration mode, returning the scope or the error to render. */
+export async function shadowAuth(
+  params: ShadowAuthParams,
+): Promise<ShadowAuthResult> {
+  if (env.API_AUTH_MIGRATION === "enforce") return enforceOnly(params);
+  if (env.API_AUTH_MIGRATION === "shadow") return legacyWithShadow(params);
+  return legacyOnly(params);
 }
 
 /** skipAuthorization returns an early decision when policy evaluation is skipped or unavailable. */
@@ -248,6 +232,40 @@ function skipAuthorization(params: ShadowAuthorizeParams): Decision {
     return unauthorizedError("Missing authz context");
   }
   return params.legacyDecision;
+}
+
+/** tenantFor is the resource's tenant: an org resource is its own tenant; a per-item project is scoped to the key's already-resolved bound org. Admin carries no tenant and the PDP grants it directly. */
+function tenantFor(ctx: AuthorizationContext, resource: Resource): TenantId {
+  if ("orgId" in resource) return OrganizationId(resource.orgId);
+  const boundOrg =
+    ctx.principal.kind === "apiKey" ? ctx.principal.boundResource.orgId : "";
+  return OrganizationId(boundOrg);
+}
+
+/** toResourceId tags a per-item resource for the PDP. */
+function toResourceId(resource: Resource): ResourceId {
+  return "projectId" in resource
+    ? ProjectId(resource.projectId)
+    : OrganizationId(resource.orgId);
+}
+
+function getPrincipalIdentity(ctx: AuthorizationContext | undefined) {
+  const principal = ctx?.principal;
+  if (principal?.kind === "apiKey") {
+    return { apiKeyId: principal.apiKeyId, publicKey: principal.publicKey };
+  }
+  if (principal?.kind === "admin") {
+    return { apiKeyId: "ADMIN_API_KEY", publicKey: "ADMIN_API_KEY" };
+  }
+  return { apiKeyId: undefined, publicKey: undefined };
+}
+
+function getResource(ctx: AuthorizationContext | undefined): string {
+  return (ctx && shadowResources.get(ctx)) ?? "unknown";
+}
+
+function getAuthMetadata(ctx: AuthorizationContext | undefined) {
+  return { ...getPrincipalIdentity(ctx), resource: getResource(ctx) };
 }
 
 /** diffOrGate shadows the authorization outcome or enforces it depending on the AUTH_API_MIGRATION */
@@ -267,38 +285,19 @@ function diffOrGate(
   return decision;
 }
 
-function getAuthMetadata(ctx: AuthorizationContext | undefined) {
-  return { ...getPrincipalIdentity(ctx), resource: getResource(ctx) };
-}
-
-function getPrincipalIdentity(ctx: AuthorizationContext | undefined) {
-  const principal = ctx?.principal;
-  if (principal?.kind === "apiKey") {
-    return { apiKeyId: principal.apiKeyId, publicKey: principal.publicKey };
+/** shadowAuthorize enforces per-item permissions or compares them with the caller's legacy decision. */
+export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
+  if (params.action === __dangerouslySkipAuthz) {
+    return { success: true };
   }
-  if (principal?.kind === "admin") {
-    return { apiKeyId: "ADMIN_API_KEY", publicKey: "ADMIN_API_KEY" };
-  }
-  return { apiKeyId: undefined, publicKey: undefined };
-}
-
-function getResource(ctx: AuthorizationContext | undefined): string {
-  return (ctx && shadowResources.get(ctx)) ?? "unknown";
-}
-
-/** toResourceId tags a per-item resource for the PDP. */
-function toResourceId(resource: Resource): ResourceId {
-  return "projectId" in resource
-    ? ProjectId(resource.projectId)
-    : OrganizationId(resource.orgId);
-}
-
-/** tenantFor is the resource's tenant: an org resource is its own tenant; a per-item project is scoped to the key's already-resolved bound org. Admin carries no tenant and the PDP grants it directly. */
-function tenantFor(ctx: AuthorizationContext, resource: Resource): TenantId {
-  if ("orgId" in resource) return OrganizationId(resource.orgId);
-  const boundOrg =
-    ctx.principal.kind === "apiKey" ? ctx.principal.boundResource.orgId : "";
-  return OrganizationId(boundOrg);
+  if (!params.ctx) return skipAuthorization(params);
+  const decision = authorize(
+    params.ctx,
+    tenantFor(params.ctx, params.resource),
+    params.action,
+    toResourceId(params.resource),
+  );
+  return diffOrGate(params, decision);
 }
 
 /** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */

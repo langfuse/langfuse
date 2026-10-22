@@ -1,29 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, useState } from "react";
 import preview from "../../../../.storybook/preview";
 import DiffViewer from "@/src/components/DiffViewer";
 import { compareSkillFiles } from "../utils/compareSkillFiles";
 import { SkillFileChanges } from "./SkillFileChanges";
-
-const meta = preview.meta({ component: FileStatusesExample });
-
-export const FileStatuses = meta.story({
-  args: {
-    files: compareSkillFiles(
-      [
-        { path: "SKILL.md", sha256Hash: "original" },
-        { path: "references/legacy.md", sha256Hash: "removed" },
-        { path: "scripts/review.py", sha256Hash: "unchanged" },
-      ],
-      [
-        { path: "SKILL.md", sha256Hash: "updated" },
-        { path: "references/checklist.md", sha256Hash: "added" },
-        { path: "scripts/review.py", sha256Hash: "unchanged" },
-      ],
-    ),
-    emptyMessage: "No file changes.",
-  },
-});
 
 function FileStatusesExample({
   files,
@@ -52,3 +31,23 @@ function FileStatusesExample({
     </SkillFileChanges>
   );
 }
+
+const meta = preview.meta({ component: FileStatusesExample });
+
+export const FileStatuses = meta.story({
+  args: {
+    files: compareSkillFiles(
+      [
+        { path: "SKILL.md", sha256Hash: "original" },
+        { path: "references/legacy.md", sha256Hash: "removed" },
+        { path: "scripts/review.py", sha256Hash: "unchanged" },
+      ],
+      [
+        { path: "SKILL.md", sha256Hash: "updated" },
+        { path: "references/checklist.md", sha256Hash: "added" },
+        { path: "scripts/review.py", sha256Hash: "unchanged" },
+      ],
+    ),
+    emptyMessage: "No file changes.",
+  },
+});

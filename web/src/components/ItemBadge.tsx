@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import type React from "react";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -136,6 +136,16 @@ const tileVariants = cva("", {
   },
 });
 
+/**
+ * `"DATASET_RUN"` -> `{ label: "Dataset_run", displayLabel: "Dataset run" }`.
+ * `label` titles the element, `displayLabel` is what the user reads.
+ */
+export function getItemTypeLabels(type: LangfuseItemType) {
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
+  return { label, displayLabel: label.replace(/_/g, " ") };
+}
+
 /** The type icon on a filled square in the type's colour; anchors headers. */
 export function ItemTypeTile({
   type,
@@ -171,16 +181,6 @@ export function renderFilterIcon(value: string): React.ReactNode {
   const Icon = iconMap[type];
   if (!Icon) return null;
   return <Icon size="base" __rawClassName={cn(iconVariants({ type }))} />;
-}
-
-/**
- * `"DATASET_RUN"` -> `{ label: "Dataset_run", displayLabel: "Dataset run" }`.
- * `label` titles the element, `displayLabel` is what the user reads.
- */
-export function getItemTypeLabels(type: LangfuseItemType) {
-  const label =
-    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
-  return { label, displayLabel: label.replace(/_/g, " ") };
 }
 
 export function ItemBadge({

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   FilterState,
   matchesUiColumnMapping,
@@ -103,6 +102,24 @@ export function mapTraceFilterColumn(
 }
 
 /**
+ * Determines if a filter requires a database lookup.
+ * We make the decision based on whether the filter only selects for allow-listed columns
+ */
+export function requiresDatabaseLookup(filter: FilterState): boolean {
+  if (!filter || filter.length === 0) {
+    return false;
+  }
+
+  for (const condition of filter) {
+    if (!getInMemoryTraceFilterColumn(condition.column)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Whether in-memory evaluation of this trace filter reads the metadata field.
  * False when the filter never runs in memory (it requires a database lookup)
  * or references no metadata column. Unknown columns report true so the cached
@@ -120,22 +137,4 @@ export function inMemoryFilterRequiresMetadata(filter: FilterState): boolean {
   } catch {
     return true;
   }
-}
-
-/**
- * Determines if a filter requires a database lookup.
- * We make the decision based on whether the filter only selects for allow-listed columns
- */
-export function requiresDatabaseLookup(filter: FilterState): boolean {
-  if (!filter || filter.length === 0) {
-    return false;
-  }
-
-  for (const condition of filter) {
-    if (!getInMemoryTraceFilterColumn(condition.column)) {
-      return true;
-    }
-  }
-
-  return false;
 }

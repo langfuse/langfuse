@@ -1,7 +1,26 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getFips } from "crypto";
 import { env, type SharedEnv } from "../../../env";
 import { isEnterpriseLicenseAvailable } from "../licenseCheck";
+
+/**
+ * getFipsIncompatibleOptions lists configured options whose code paths compute
+ * MD5, which the FIPS provider rejects at runtime, so startup fails instead of
+ * the affected uploads or deletes.
+ */
+function getFipsIncompatibleOptions(e: SharedEnv): string[] {
+  const options: string[] = [];
+  if (e.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM === "MD5") {
+    options.push(
+      "LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM=MD5 (use SHA256, or leave it unset for CRC32)",
+    );
+  }
+  if (e.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true") {
+    options.push(
+      "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE=true (the OCI SDK hashes every upload part with MD5; use OCI's S3-compatible endpoint instead)",
+    );
+  }
+  return options;
+}
 
 /**
  * Enforce FIPS mode (LANGFUSE_REQUIRE_FIPS=true), an enterprise feature.
@@ -39,24 +58,4 @@ export function assertFipsMode(envOverride?: SharedEnv): void {
       `LANGFUSE_REQUIRE_FIPS=true cannot be combined with ${incompatibleOptions.join("; ")}.`,
     );
   }
-}
-
-/**
- * getFipsIncompatibleOptions lists configured options whose code paths compute
- * MD5, which the FIPS provider rejects at runtime, so startup fails instead of
- * the affected uploads or deletes.
- */
-function getFipsIncompatibleOptions(e: SharedEnv): string[] {
-  const options: string[] = [];
-  if (e.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM === "MD5") {
-    options.push(
-      "LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM=MD5 (use SHA256, or leave it unset for CRC32)",
-    );
-  }
-  if (e.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true") {
-    options.push(
-      "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE=true (the OCI SDK hashes every upload part with MD5; use OCI's S3-compatible endpoint instead)",
-    );
-  }
-  return options;
 }

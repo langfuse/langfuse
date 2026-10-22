@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { FilePart, ModelMessage } from "ai";
 
 import { env } from "../../env";
@@ -175,6 +174,56 @@ async function fetchMediaBytes(
     offset += chunk.byteLength;
   }
   return bytes;
+}
+
+function buildTraceContent(content: string): string | TraceContentPart[] {
+  const parts: TraceContentPart[] = [];
+  let cursor = 0;
+
+  for (const match of content.matchAll(
+    new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
+  )) {
+    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
+    if (!parsed.success || match.index === undefined) continue;
+    if (match.index > cursor) {
+      parts.push({ type: "text", text: content.slice(cursor, match.index) });
+    }
+    parts.push({
+      type: "file",
+      data: match[0],
+      mediaType: normalizeEvaluatorMediaType(parsed.data.type),
+    });
+    cursor = match.index + match[0].length;
+  }
+
+  if (parts.length === 0) return content;
+  if (cursor < content.length) {
+    parts.push({ type: "text", text: content.slice(cursor) });
+  }
+  return parts;
+}
+
+function getSupportedReferences(content: string): SupportedReference[] {
+  const references: SupportedReference[] = [];
+  for (const match of content.matchAll(
+    new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
+  )) {
+    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
+    if (!parsed.success || match.index === undefined) continue;
+    const mediaType = normalizeEvaluatorMediaType(parsed.data.type);
+    if (
+      !EVALUATOR_MEDIA_TYPES.has(mediaType) ||
+      parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE
+    )
+      continue;
+    references.push({
+      index: match.index,
+      id: parsed.data.id,
+      mediaType,
+      referenceString: match[0],
+    });
+  }
+  return references;
 }
 
 /**
@@ -357,53 +406,3 @@ type SupportedReference = {
 type TraceContentPart =
   | { type: "text"; text: string }
   | { type: "file"; data: string; mediaType: string };
-
-function buildTraceContent(content: string): string | TraceContentPart[] {
-  const parts: TraceContentPart[] = [];
-  let cursor = 0;
-
-  for (const match of content.matchAll(
-    new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
-  )) {
-    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
-    if (!parsed.success || match.index === undefined) continue;
-    if (match.index > cursor) {
-      parts.push({ type: "text", text: content.slice(cursor, match.index) });
-    }
-    parts.push({
-      type: "file",
-      data: match[0],
-      mediaType: normalizeEvaluatorMediaType(parsed.data.type),
-    });
-    cursor = match.index + match[0].length;
-  }
-
-  if (parts.length === 0) return content;
-  if (cursor < content.length) {
-    parts.push({ type: "text", text: content.slice(cursor) });
-  }
-  return parts;
-}
-
-function getSupportedReferences(content: string): SupportedReference[] {
-  const references: SupportedReference[] = [];
-  for (const match of content.matchAll(
-    new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
-  )) {
-    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
-    if (!parsed.success || match.index === undefined) continue;
-    const mediaType = normalizeEvaluatorMediaType(parsed.data.type);
-    if (
-      !EVALUATOR_MEDIA_TYPES.has(mediaType) ||
-      parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE
-    )
-      continue;
-    references.push({
-      index: match.index,
-      id: parsed.data.id,
-      mediaType,
-      referenceString: match[0],
-    });
-  }
-  return references;
-}

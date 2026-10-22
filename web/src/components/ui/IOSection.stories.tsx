@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import preview from "../../../.storybook/preview";
 import { expect, fn, userEvent, within } from "storybook/test";
@@ -95,6 +94,22 @@ export const Default = meta.story({
     children: <p className="text-sm">{USER_TEXT}</p>,
   },
 });
+
+/** Caption + example, used by the variant matrix only. */
+function Example({
+  caption,
+  children,
+}: {
+  caption: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground text-xs">{caption}</p>
+      {children}
+    </div>
+  );
+}
 
 export const VariantMatrix = meta.story({
   args: {
@@ -292,19 +307,3 @@ export const HeaderRowToggles = meta.story({
     ).toHaveAttribute("aria-expanded", "true");
   },
 });
-
-/** Caption + example, used by the variant matrix only. */
-function Example({
-  caption,
-  children,
-}: {
-  caption: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-xs">{caption}</p>
-      {children}
-    </div>
-  );
-}

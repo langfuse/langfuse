@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
@@ -317,129 +316,6 @@ async function deprovisionOrReject(
   }
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  await runMiddleware(req, res, cors);
-
-  if (!["GET", "DELETE", "PATCH", "PUT"].includes(req.method || "")) {
-    logger.error(
-      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
-    );
-    return res.status(405).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "Method not allowed",
-      status: 405,
-    });
-  }
-
-  // CHECK AUTH
-  const authCheck = await shadowAuth({
-    req,
-    action:
-      req.method === "GET"
-        ? "organizationMembers:read"
-        : "organizationMembers:CUD",
-    allowedAccessLevels: ["organization"],
-  });
-  if (!authCheck.success) {
-    return writeScimError(res, authCheck.error);
-  }
-  // END CHECK AUTH
-
-  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
-  // sibling organization admin endpoints (memberships, projects, apiKeys).
-  // Without this, any org-scoped key could mutate memberships and roles on
-  // plans that do not include the feature.
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "admin-api",
-    })
-  ) {
-    return res.status(403).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "This feature is not available on your current plan.",
-      status: 403,
-    });
-  }
-
-  logger.info(
-    `[SCIM] Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
-  );
-
-  // First, check if the user exists in the system at all
-  const user = await prisma.user.findUnique({
-    where: {
-      id: req.query.id as string,
-    },
-  });
-
-  if (!user) {
-    return res.status(404).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "User not found",
-      status: 404,
-    });
-  }
-
-  // Route to the appropriate handler based on HTTP method
-  try {
-    switch (req.method) {
-      case "PATCH":
-        return await handlePatch(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
-      case "PUT":
-        return await handlePut(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
-      case "GET":
-        return handleGet(req, res, user, authCheck.scope.orgId);
-      case "DELETE":
-        return await handleDelete(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
-      default:
-        // This should never happen due to the check at the beginning
-        return res.status(405).json({
-          schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-          detail: "Method not allowed",
-          status: 405,
-        });
-    }
-  } catch (error) {
-    logger.error(
-      `[SCIM] Error handling user ${req.query.id} for ${req.method}`,
-      error,
-    );
-    if (isBaseError(error)) {
-      return writeScimError(res, error);
-    }
-    return res.status(500).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "Internal server error",
-      status: 500,
-    });
-  }
-}
-
 // Resolve the caller organization's membership for `userId`. When the user is
 // not a member, write a 404 that never echoes any of the user's attributes and
 // return null.
@@ -713,4 +589,127 @@ async function handleDelete(
   // Return empty response with 204 No Content.
   // With NextJS 15, we can't return NextApiResponse objects anymore
   res.status(204).end();
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  await runMiddleware(req, res, cors);
+
+  if (!["GET", "DELETE", "PATCH", "PUT"].includes(req.method || "")) {
+    logger.error(
+      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
+    );
+    return res.status(405).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "Method not allowed",
+      status: 405,
+    });
+  }
+
+  // CHECK AUTH
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeScimError(res, authCheck.error);
+  }
+  // END CHECK AUTH
+
+  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
+  // sibling organization admin endpoints (memberships, projects, apiKeys).
+  // Without this, any org-scoped key could mutate memberships and roles on
+  // plans that do not include the feature.
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
+  ) {
+    return res.status(403).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "This feature is not available on your current plan.",
+      status: 403,
+    });
+  }
+
+  logger.info(
+    `[SCIM] Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
+  );
+
+  // First, check if the user exists in the system at all
+  const user = await prisma.user.findUnique({
+    where: {
+      id: req.query.id as string,
+    },
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found",
+      status: 404,
+    });
+  }
+
+  // Route to the appropriate handler based on HTTP method
+  try {
+    switch (req.method) {
+      case "PATCH":
+        return await handlePatch(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          authCheck.ctx,
+        );
+      case "PUT":
+        return await handlePut(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          authCheck.ctx,
+        );
+      case "GET":
+        return handleGet(req, res, user, authCheck.scope.orgId);
+      case "DELETE":
+        return await handleDelete(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          authCheck.ctx,
+        );
+      default:
+        // This should never happen due to the check at the beginning
+        return res.status(405).json({
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+          detail: "Method not allowed",
+          status: 405,
+        });
+    }
+  } catch (error) {
+    logger.error(
+      `[SCIM] Error handling user ${req.query.id} for ${req.method}`,
+      error,
+    );
+    if (isBaseError(error)) {
+      return writeScimError(res, error);
+    }
+    return res.status(500).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "Internal server error",
+      status: 500,
+    });
+  }
 }

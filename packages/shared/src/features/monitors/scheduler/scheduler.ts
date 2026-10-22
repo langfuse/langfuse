@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { MonitorView as PrismaMonitorView } from "@prisma/client";
 import type { z } from "zod";
 
@@ -10,77 +9,6 @@ import type { MonitorQueueEventInput } from "./types";
 
 /** monitorProcessorTtl bounds how long a published run can be in flight before the scheduler republishes it. */
 export const monitorProcessorTtl = 5 * 60 * 1000;
-
-/** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
-export class MonitorScheduler {
-  public static readonly claimTimeoutMs = 20_000;
-
-  private readonly schedulerId: number;
-  private readonly totalSchedulers: number;
-  private readonly db: PrismaClient;
-  private readonly publish: PublishMonitorEvent;
-
-  constructor(deps: {
-    schedulerId: number;
-    totalSchedulers: number;
-    db: PrismaClient;
-    publish: PublishMonitorEvent;
-  }) {
-    this.schedulerId = deps.schedulerId;
-    this.totalSchedulers = deps.totalSchedulers;
-    this.db = deps.db;
-    this.publish = deps.publish;
-  }
-
-  /**
-   * schedule returns messages to queue for the current due monitors and
-   * advances the schedule to the next run.
-   */
-  async schedule(scheduledAt: Date): Promise<number> {
-    const [, , results] = await this.db.$transaction([
-      this.db.$executeRawUnsafe(
-        `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
-      ),
-      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
-      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
-      this.db.$queryRaw<MonitorBatchResult[]>(
-        buildScheduleQuery({
-          tick: scheduledAt,
-          schedulerId: this.schedulerId,
-          totalSchedulers: this.totalSchedulers,
-        }),
-      ),
-    ]);
-
-    if (results.length === 0) return 0;
-
-    await Promise.all(
-      results.map((result) =>
-        this.publish(toMonitorQueueEvent(result, scheduledAt)),
-      ),
-    );
-
-    return results.length;
-  }
-}
-
-/** toMonitorQueueEvent converts a MonitorBatchResult into its JSON-safe wire shape. */
-function toMonitorQueueEvent(
-  row: MonitorBatchResult,
-  publishedAt: Date,
-): MonitorQueueEventInput {
-  return {
-    projectId: row.project_id,
-    schedulerBatchId: row.scheduler_batch_id.toString(),
-    runAt: row.run_at,
-    publishedAt,
-    view: viewFromPrisma(row.view),
-    filters: row.filters,
-    window: windowFromMs(row.window_ms),
-    metrics: row.metrics,
-    monitors: row.monitors,
-  };
-}
 
 /** buildScheduleQuery returns the SQL that claims due monitors, advances next_run_at, and aggregates published rows by (project_id, scheduler_batch_id). */
 function buildScheduleQuery({
@@ -201,6 +129,77 @@ function buildScheduleQuery({
     GROUP BY project_id, scheduler_batch_id
     ORDER BY MAX(run_at) ASC
   `;
+}
+
+/** toMonitorQueueEvent converts a MonitorBatchResult into its JSON-safe wire shape. */
+function toMonitorQueueEvent(
+  row: MonitorBatchResult,
+  publishedAt: Date,
+): MonitorQueueEventInput {
+  return {
+    projectId: row.project_id,
+    schedulerBatchId: row.scheduler_batch_id.toString(),
+    runAt: row.run_at,
+    publishedAt,
+    view: viewFromPrisma(row.view),
+    filters: row.filters,
+    window: windowFromMs(row.window_ms),
+    metrics: row.metrics,
+    monitors: row.monitors,
+  };
+}
+
+/** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
+export class MonitorScheduler {
+  public static readonly claimTimeoutMs = 20_000;
+
+  private readonly schedulerId: number;
+  private readonly totalSchedulers: number;
+  private readonly db: PrismaClient;
+  private readonly publish: PublishMonitorEvent;
+
+  constructor(deps: {
+    schedulerId: number;
+    totalSchedulers: number;
+    db: PrismaClient;
+    publish: PublishMonitorEvent;
+  }) {
+    this.schedulerId = deps.schedulerId;
+    this.totalSchedulers = deps.totalSchedulers;
+    this.db = deps.db;
+    this.publish = deps.publish;
+  }
+
+  /**
+   * schedule returns messages to queue for the current due monitors and
+   * advances the schedule to the next run.
+   */
+  async schedule(scheduledAt: Date): Promise<number> {
+    const [, , results] = await this.db.$transaction([
+      this.db.$executeRawUnsafe(
+        `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
+      ),
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$queryRaw<MonitorBatchResult[]>(
+        buildScheduleQuery({
+          tick: scheduledAt,
+          schedulerId: this.schedulerId,
+          totalSchedulers: this.totalSchedulers,
+        }),
+      ),
+    ]);
+
+    if (results.length === 0) return 0;
+
+    await Promise.all(
+      results.map((result) =>
+        this.publish(toMonitorQueueEvent(result, scheduledAt)),
+      ),
+    );
+
+    return results.length;
+  }
 }
 
 type Metric = z.infer<typeof MetricSchema>;

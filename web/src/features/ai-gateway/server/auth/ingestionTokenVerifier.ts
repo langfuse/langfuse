@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
@@ -60,21 +59,6 @@ function configuredPublicKey(input: {
   return [{ id: input.keyId, publicKey: input.publicKey }];
 }
 
-// Every authenticated public API route imports this module, so invalid key
-// configuration must disable gateway token verification instead of failing
-// the import.
-const gatewayIngestionTokenVerifier = (() => {
-  try {
-    return createGatewayIngestionTokenVerifier();
-  } catch (error) {
-    logger.error(
-      "Invalid AI gateway JWT key configuration; gateway ingestion tokens are not accepted",
-      error,
-    );
-    return undefined;
-  }
-})();
-
 function createGatewayIngestionTokenVerifier() {
   const current = resolveGatewayJwtKeys({
     privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
@@ -108,6 +92,21 @@ function createGatewayIngestionTokenVerifier() {
       })
     : undefined;
 }
+
+// Every authenticated public API route imports this module, so invalid key
+// configuration must disable gateway token verification instead of failing
+// the import.
+const gatewayIngestionTokenVerifier = (() => {
+  try {
+    return createGatewayIngestionTokenVerifier();
+  } catch (error) {
+    logger.error(
+      "Invalid AI gateway JWT key configuration; gateway ingestion tokens are not accepted",
+      error,
+    );
+    return undefined;
+  }
+})();
 
 export async function verifyGatewayIngestionAuthorization(
   authorization: string | undefined,

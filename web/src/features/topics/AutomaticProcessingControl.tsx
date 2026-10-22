@@ -1,10 +1,27 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
   StatusBadge,
   type Status,
 } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+function disabledReason(state: AutomaticProcessingState, canWrite: boolean) {
+  if (state.status === "unconfigured") return "Configure Topics first.";
+  if (!canWrite) return "You need permission to edit Topics.";
+  return null;
+}
+
+function statusLabel(state: AutomaticProcessingState) {
+  if (state.status === "on") return "On";
+  if (state.status === "paused") return "Paused";
+  return "Off";
+}
+
+function badgeStatus(state: AutomaticProcessingState): Status {
+  if (state.status === "on") return "active";
+  if (state.status === "paused") return "paused";
+  return "inactive";
+}
 
 /**
  * Topics header status for automatic processing. Turning it on or off and the
@@ -50,24 +67,6 @@ export function AutomaticProcessingControl({
       )}
     </div>
   );
-}
-
-function badgeStatus(state: AutomaticProcessingState): Status {
-  if (state.status === "on") return "active";
-  if (state.status === "paused") return "paused";
-  return "inactive";
-}
-
-function statusLabel(state: AutomaticProcessingState) {
-  if (state.status === "on") return "On";
-  if (state.status === "paused") return "Paused";
-  return "Off";
-}
-
-function disabledReason(state: AutomaticProcessingState, canWrite: boolean) {
-  if (state.status === "unconfigured") return "Configure Topics first.";
-  if (!canWrite) return "You need permission to edit Topics.";
-  return null;
 }
 
 export type AutomaticProcessingState =

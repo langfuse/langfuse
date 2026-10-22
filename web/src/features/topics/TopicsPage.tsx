@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo, useState } from "react";
 import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
@@ -110,104 +110,319 @@ const loadingPage = (
   </Page>
 );
 
-export default function TopicsPage() {
-  const router = useRouter();
-  const projectId =
-    typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useCanViewTopics(projectId);
-  if (!topicsEnabled) {
-    return (
-      <ErrorPage title="Not found" message="This page is not available." />
-    );
-  }
-  return projectId ? (
-    <TopicsWorkspace key={projectId} projectId={projectId} />
-  ) : (
-    loadingPage
-  );
+function detailsRunId(
+  run: {
+    process: { id: string };
+    update: { id: string; facets: Array<{ outcome: string }> } | null;
+  },
+  setup: { stage: string; retryId: string | null },
+) {
+  if (setup.stage === "failed")
+    return setup.retryId ?? run.update?.id ?? run.process.id;
+  return run.update?.facets.some((facet) => facet.outcome === "failed")
+    ? run.update.id
+    : null;
 }
 
-function TopicsWorkspace({ projectId }: { projectId: string }) {
-  const facets = api.topics.facets.useQuery({ projectId });
-  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
-  const modelSettings = useTopicModelSettings({
-    projectId,
-    canWrite,
-    facets: facets.data ?? [],
-    facetsReady: facets.isSuccess,
-  });
+function startBlockedReason(running: boolean, automaticOn: boolean) {
+  if (running)
+    return "Analysis is running. Topics appear here when it finishes.";
+  if (automaticOn)
+    return "Automatic processing is on. Topics appear here as traces are summarized.";
+  return null;
+}
+
+function ErrorMessage({ message }: { message: string }) {
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicSetupFlowController
-        projectId={projectId}
-        canWrite={canWrite}
-        settings={modelSettings.configure.settings}
-        onSaveSampling={modelSettings.automaticProcessing.save}
-      >
-        {({ openSetup }) => (
-          <TopicsWorkspaceView
-            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-            projectId={projectId}
-            facets={facets}
-            canWrite={canWrite}
-            modelSettings={modelSettings}
-            openSetup={openSetup}
-          />
-        )}
-      </TopicSetupFlowController>
-    </TopicsWorkspaceGate>
+    <Alert variant="destructive">
+      <Alert.Description>
+        <p className="break-words">{message}</p>
+      </Alert.Description>
+    </Alert>
   );
 }
 
-type TopicsWorkspaceViewProps = {
-  projectId: string;
-  facets: UseQueryResult<TopicFacet[], { message: string }>;
-  canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
-  openSetup: () => void;
-};
+function estimatedExecutionCost(cost: number | null) {
+  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
+}
 
-/**
- * Wraps the workspace in the dialog controllers whose dialogs open from more
- * than one place, and hands their `openDialog` to the content.
- */
-function TopicsWorkspaceView({
+function ExecutionPanel({
   projectId,
+  executionId,
+  query,
   facets,
   canWrite,
-  modelSettings,
-  openSetup,
-}: TopicsWorkspaceViewProps) {
+}: {
+  projectId: string;
+  executionId: string;
+  query: UseQueryResult<
+    RouterOutputs["topics"]["execution"],
+    { message: string }
+  >;
+  facets: TopicFacet[];
+  canWrite: boolean;
+}) {
+  const utils = api.useUtils();
+  const retry = api.topics.retry.useMutation({
+    onSuccess: () =>
+      Promise.all([
+        query.refetch(),
+        utils.topics.executions.invalidate({ projectId }),
+      ]),
+  });
+  const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
+  const traceErrors = api.topics.traceErrors.useQuery(
+    { projectId, executionId },
+    { enabled: traceErrorsOpen },
+  );
+  const execution = query.data;
+  if (query.error) return <ErrorMessage message={query.error.message} />;
+  if (!execution) return <p>Loading execution…</p>;
+  const isUpdate = execution.input.operation === "update";
+  const selectionDescription = isUpdate
+    ? `${execution.facets.reduce((count, facet) => count + facet.counts.requested, 0).toLocaleString()} stored facet summaries`
+    : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
+  const facetCount = execution.facets.length;
+  const operationLabel = operationLabels[execution.input.operation];
+  const modeLabel = (() => {
+    if (execution.input.operation !== "update")
+      return "Assign to current topics";
+    return execution.input.exploratory ? "Small sample" : "Standard";
+  })();
+  const selectionPrefix = (() => {
+    if (execution.status === "running") return "Running on ";
+    if (execution.status === "queued") return "Queued for ";
+    return "Run selection: ";
+  })();
   return (
-    <ConfigureTopicsDialogController
-      projectId={projectId}
-      settings={modelSettings.configure.settings}
-    >
-      {({ openDialog: openConfigure }) => (
-        <AutomaticProcessingDialogController
-          {...modelSettings.automaticProcessing.dialog}
-        >
-          {({ openDialog: openAutomaticProcessing }) => (
-            <TopicsWorkspaceContent
-              projectId={projectId}
-              facets={facets}
-              canWrite={canWrite}
-              modelSettings={modelSettings}
-              openConfigure={openConfigure}
-              openSetup={openSetup}
-              openAutomaticProcessing={openAutomaticProcessing}
-            />
+    <section className="flex w-full min-w-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge text={executionLabels[execution.status]} />
+          {execution.input.operation === "update" &&
+            execution.input.exploratory && (
+              <Badge text="Small sample · provisional" />
+            )}
+        </div>
+        <PopoverController
+          align="end"
+          contentClassName="w-80 max-w-[calc(100vw-2rem)]"
+          disabled={false}
+          modal={false}
+          renderContent={() => (
+            <div className="ph-no-capture flex flex-col gap-3 text-sm">
+              <h3 className="font-bold">Run details</h3>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <dt className="text-muted-foreground">Triggered</dt>
+                <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
+                <dt className="text-muted-foreground">Operation</dt>
+                <dd>{operationLabel}</dd>
+                <dt className="text-muted-foreground">Mode</dt>
+                <dd>{modeLabel}</dd>
+                <dt className="text-muted-foreground">Last step</dt>
+                <dd className="capitalize">
+                  {execution.phase.replaceAll("_", " ")}
+                </dd>
+                <dt className="text-muted-foreground">Embedding dimensions</dt>
+                <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
+                {execution.input.operation === "update" && (
+                  <>
+                    <dt className="text-muted-foreground">
+                      Minimum traces for clustering
+                    </dt>
+                    <dd>
+                      {execution.input.minimumTraceCount ??
+                        (execution.input.exploratory ? 10 : 100)}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </div>
           )}
-        </AutomaticProcessingDialogController>
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <PopoverButton variant="ghost" size="sm">
+                Run details
+              </PopoverButton>
+            </Trigger>
+          )}
+        </PopoverController>
+      </div>
+      <div
+        className="flex flex-col gap-1"
+        role={busy(execution.status) ? "status" : undefined}
+      >
+        <p className="text-sm">
+          {operationLabel} · {selectionPrefix}
+          {selectionDescription} across {facetCount.toLocaleString()}{" "}
+          {facetCount === 1 ? "facet" : "facets"}.
+        </p>
+        {busy(execution.status) && (
+          <p className="text-muted-foreground text-sm">
+            {executionPhaseLabels[execution.phase] ??
+              execution.phase.replaceAll("_", " ")}
+            . Counts update after each processing batch. You can leave this page
+            and reopen the run.
+          </p>
+        )}
+      </div>
+      {!isUpdate && (
+        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+          <p className="flex items-center justify-between gap-3">
+            <span className="font-bold">Estimated cost</span>
+            <span className="tabular-nums">
+              {estimatedExecutionCost(execution.estimatedCost)}
+            </span>
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Estimated cost for this run’s currently stored summaries and
+            embeddings. Costs may decrease when summaries are reused,
+            reprocessed, or deleted.
+          </p>
+        </section>
       )}
-    </ConfigureTopicsDialogController>
+      {execution.error && <ErrorMessage message={execution.error} />}
+      {execution.facets.some((facet) => facet.counts.failed > 0) && (
+        <details
+          className="ph-no-capture text-sm"
+          onToggle={(event) => setTraceErrorsOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer">Trace errors</summary>
+          {traceErrorsOpen && (
+            <div className="flex flex-col gap-2 pt-2">
+              {traceErrors.isPending && <p>Loading trace errors…</p>}
+              {traceErrors.error && (
+                <ErrorMessage message={traceErrors.error.message} />
+              )}
+              {traceErrors.data?.expired && (
+                <p>
+                  Trace error details have expired. The run counts are still
+                  available.
+                </p>
+              )}
+              {traceErrors.data?.errors.map((item) => (
+                <p
+                  key={`${item.traceId}:${item.error}`}
+                  className="break-words"
+                >
+                  <TextLink
+                    path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
+                    value={item.traceId}
+                  />
+                  : {item.error}
+                </p>
+              ))}
+              {traceErrors.data &&
+                !traceErrors.data.expired &&
+                traceErrors.data.errors.length === 0 && (
+                  <p>No trace-level errors were recorded.</p>
+                )}
+            </div>
+          )}
+        </details>
+      )}
+      {canWrite &&
+        !busy(execution.status) &&
+        (execution.status === "failed" ||
+          (execution.status === "completed_with_errors" &&
+            execution.facets.some(
+              (facet) =>
+                facet.outcome === "pending" || facet.outcome === "failed",
+            ))) && (
+          <div className="self-start">
+            <Button
+              text="Resume interrupted stages"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate({ projectId, executionId })}
+            />
+          </div>
+        )}
+      {retry.error && <ErrorMessage message={retry.error.message} />}
+      {execution.facets.map((progress) => {
+        const facet = facets.find((item) => item.id === progress.facetId);
+        return (
+          <div
+            key={`${progress.facetId}:${progress.facetVersion}`}
+            className="flex flex-col gap-3 border-t pt-4"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold">{facet?.name ?? "Facet"}</h3>
+              <Badge text={facetOutcomeLabels[progress.outcome]} />
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {[
+                `${progress.counts.complete.toLocaleString()} / ${progress.counts.requested.toLocaleString()} traces have summaries and embeddings ready`,
+                ...(progress.runId
+                  ? [
+                      `${progress.counts.assigned.toLocaleString()} assigned`,
+                      `${progress.counts.outlier.toLocaleString()} outliers`,
+                    ]
+                  : []),
+                ...(progress.counts.nonApplicable
+                  ? [
+                      `${progress.counts.nonApplicable.toLocaleString()} not applicable`,
+                    ]
+                  : []),
+                ...(progress.counts.insufficientInput
+                  ? [
+                      `${progress.counts.insufficientInput.toLocaleString()} insufficient input`,
+                    ]
+                  : []),
+                `${progress.counts.failed.toLocaleString()} failed`,
+              ].join(" · ")}
+            </p>
+            {progress.outcome === "awaiting_topics" && (
+              <p className="text-sm">
+                {progress.counts.complete.toLocaleString()} summaries are ready.
+                Run Update topics to create topics for this facet and embedding
+                configuration.
+              </p>
+            )}
+            {progress.error &&
+              (progress.outcome === "published" ? (
+                <Alert variant="warning">
+                  <Alert.Description>{progress.error}</Alert.Description>
+                </Alert>
+              ) : (
+                <ErrorMessage message={progress.error} />
+              ))}
+            {progress.outcome === "insufficient_data" &&
+              execution.input.operation === "update" && (
+                <p className="text-sm">
+                  Clustering needs at least{" "}
+                  {execution.input.minimumTraceCount ??
+                    (execution.input.exploratory ? 10 : 100)}{" "}
+                  compatible stored summaries for this facet. Process more
+                  traces or lower the minimum when starting a new update.
+                </p>
+              )}
+            {progress.outcome === "no_topics" && (
+              <p className="text-sm">
+                No stable groups found. Inspect the summaries, adjust the facet,
+                or try a larger and more varied batch.
+              </p>
+            )}
+          </div>
+        );
+      })}
+      {!busy(execution.status) && (
+        <div className="self-start">
+          <Button
+            text="Refresh status"
+            variant="ghost"
+            onClick={() => {
+              query.refetch();
+              utils.topics.currentResults.invalidate({ projectId });
+              utils.topics.executions.invalidate({ projectId });
+              utils.topics.summaryCounts.invalidate({ projectId });
+            }}
+          />
+        </div>
+      )}
+    </section>
   );
 }
-
-type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
-  openConfigure: () => void;
-  openAutomaticProcessing: (initialEnabled: boolean) => void;
-};
 
 function TopicsWorkspaceContent({
   projectId,
@@ -742,316 +957,101 @@ function TopicsWorkspaceContent({
   );
 }
 
-function ExecutionPanel({
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({
   projectId,
-  executionId,
-  query,
   facets,
   canWrite,
-}: {
-  projectId: string;
-  executionId: string;
-  query: UseQueryResult<
-    RouterOutputs["topics"]["execution"],
-    { message: string }
-  >;
-  facets: TopicFacet[];
-  canWrite: boolean;
-}) {
-  const utils = api.useUtils();
-  const retry = api.topics.retry.useMutation({
-    onSuccess: () =>
-      Promise.all([
-        query.refetch(),
-        utils.topics.executions.invalidate({ projectId }),
-      ]),
-  });
-  const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
-  const traceErrors = api.topics.traceErrors.useQuery(
-    { projectId, executionId },
-    { enabled: traceErrorsOpen },
-  );
-  const execution = query.data;
-  if (query.error) return <ErrorMessage message={query.error.message} />;
-  if (!execution) return <p>Loading execution…</p>;
-  const isUpdate = execution.input.operation === "update";
-  const selectionDescription = isUpdate
-    ? `${execution.facets.reduce((count, facet) => count + facet.counts.requested, 0).toLocaleString()} stored facet summaries`
-    : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
-  const facetCount = execution.facets.length;
-  const operationLabel = operationLabels[execution.input.operation];
-  const modeLabel = (() => {
-    if (execution.input.operation !== "update")
-      return "Assign to current topics";
-    return execution.input.exploratory ? "Small sample" : "Standard";
-  })();
-  const selectionPrefix = (() => {
-    if (execution.status === "running") return "Running on ";
-    if (execution.status === "queued") return "Queued for ";
-    return "Run selection: ";
-  })();
+  modelSettings,
+  openSetup,
+}: TopicsWorkspaceViewProps) {
   return (
-    <section className="flex w-full min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge text={executionLabels[execution.status]} />
-          {execution.input.operation === "update" &&
-            execution.input.exploratory && (
-              <Badge text="Small sample · provisional" />
-            )}
-        </div>
-        <PopoverController
-          align="end"
-          contentClassName="w-80 max-w-[calc(100vw-2rem)]"
-          disabled={false}
-          modal={false}
-          renderContent={() => (
-            <div className="ph-no-capture flex flex-col gap-3 text-sm">
-              <h3 className="font-bold">Run details</h3>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <dt className="text-muted-foreground">Triggered</dt>
-                <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
-                <dt className="text-muted-foreground">Operation</dt>
-                <dd>{operationLabel}</dd>
-                <dt className="text-muted-foreground">Mode</dt>
-                <dd>{modeLabel}</dd>
-                <dt className="text-muted-foreground">Last step</dt>
-                <dd className="capitalize">
-                  {execution.phase.replaceAll("_", " ")}
-                </dd>
-                <dt className="text-muted-foreground">Embedding dimensions</dt>
-                <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
-                {execution.input.operation === "update" && (
-                  <>
-                    <dt className="text-muted-foreground">
-                      Minimum traces for clustering
-                    </dt>
-                    <dd>
-                      {execution.input.minimumTraceCount ??
-                        (execution.input.exploratory ? 10 : 100)}
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          )}
+    <ConfigureTopicsDialogController
+      projectId={projectId}
+      settings={modelSettings.configure.settings}
+    >
+      {({ openDialog: openConfigure }) => (
+        <AutomaticProcessingDialogController
+          {...modelSettings.automaticProcessing.dialog}
         >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <PopoverButton variant="ghost" size="sm">
-                Run details
-              </PopoverButton>
-            </Trigger>
-          )}
-        </PopoverController>
-      </div>
-      <div
-        className="flex flex-col gap-1"
-        role={busy(execution.status) ? "status" : undefined}
-      >
-        <p className="text-sm">
-          {operationLabel} · {selectionPrefix}
-          {selectionDescription} across {facetCount.toLocaleString()}{" "}
-          {facetCount === 1 ? "facet" : "facets"}.
-        </p>
-        {busy(execution.status) && (
-          <p className="text-muted-foreground text-sm">
-            {executionPhaseLabels[execution.phase] ??
-              execution.phase.replaceAll("_", " ")}
-            . Counts update after each processing batch. You can leave this page
-            and reopen the run.
-          </p>
-        )}
-      </div>
-      {!isUpdate && (
-        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
-          <p className="flex items-center justify-between gap-3">
-            <span className="font-bold">Estimated cost</span>
-            <span className="tabular-nums">
-              {estimatedExecutionCost(execution.estimatedCost)}
-            </span>
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Estimated cost for this run’s currently stored summaries and
-            embeddings. Costs may decrease when summaries are reused,
-            reprocessed, or deleted.
-          </p>
-        </section>
-      )}
-      {execution.error && <ErrorMessage message={execution.error} />}
-      {execution.facets.some((facet) => facet.counts.failed > 0) && (
-        <details
-          className="ph-no-capture text-sm"
-          onToggle={(event) => setTraceErrorsOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer">Trace errors</summary>
-          {traceErrorsOpen && (
-            <div className="flex flex-col gap-2 pt-2">
-              {traceErrors.isPending && <p>Loading trace errors…</p>}
-              {traceErrors.error && (
-                <ErrorMessage message={traceErrors.error.message} />
-              )}
-              {traceErrors.data?.expired && (
-                <p>
-                  Trace error details have expired. The run counts are still
-                  available.
-                </p>
-              )}
-              {traceErrors.data?.errors.map((item) => (
-                <p
-                  key={`${item.traceId}:${item.error}`}
-                  className="break-words"
-                >
-                  <TextLink
-                    path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                    value={item.traceId}
-                  />
-                  : {item.error}
-                </p>
-              ))}
-              {traceErrors.data &&
-                !traceErrors.data.expired &&
-                traceErrors.data.errors.length === 0 && (
-                  <p>No trace-level errors were recorded.</p>
-                )}
-            </div>
-          )}
-        </details>
-      )}
-      {canWrite &&
-        !busy(execution.status) &&
-        (execution.status === "failed" ||
-          (execution.status === "completed_with_errors" &&
-            execution.facets.some(
-              (facet) =>
-                facet.outcome === "pending" || facet.outcome === "failed",
-            ))) && (
-          <div className="self-start">
-            <Button
-              text="Resume interrupted stages"
-              disabled={retry.isPending}
-              onClick={() => retry.mutate({ projectId, executionId })}
+          {({ openDialog: openAutomaticProcessing }) => (
+            <TopicsWorkspaceContent
+              projectId={projectId}
+              facets={facets}
+              canWrite={canWrite}
+              modelSettings={modelSettings}
+              openConfigure={openConfigure}
+              openSetup={openSetup}
+              openAutomaticProcessing={openAutomaticProcessing}
             />
-          </div>
-        )}
-      {retry.error && <ErrorMessage message={retry.error.message} />}
-      {execution.facets.map((progress) => {
-        const facet = facets.find((item) => item.id === progress.facetId);
-        return (
-          <div
-            key={`${progress.facetId}:${progress.facetVersion}`}
-            className="flex flex-col gap-3 border-t pt-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold">{facet?.name ?? "Facet"}</h3>
-              <Badge text={facetOutcomeLabels[progress.outcome]} />
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {[
-                `${progress.counts.complete.toLocaleString()} / ${progress.counts.requested.toLocaleString()} traces have summaries and embeddings ready`,
-                ...(progress.runId
-                  ? [
-                      `${progress.counts.assigned.toLocaleString()} assigned`,
-                      `${progress.counts.outlier.toLocaleString()} outliers`,
-                    ]
-                  : []),
-                ...(progress.counts.nonApplicable
-                  ? [
-                      `${progress.counts.nonApplicable.toLocaleString()} not applicable`,
-                    ]
-                  : []),
-                ...(progress.counts.insufficientInput
-                  ? [
-                      `${progress.counts.insufficientInput.toLocaleString()} insufficient input`,
-                    ]
-                  : []),
-                `${progress.counts.failed.toLocaleString()} failed`,
-              ].join(" · ")}
-            </p>
-            {progress.outcome === "awaiting_topics" && (
-              <p className="text-sm">
-                {progress.counts.complete.toLocaleString()} summaries are ready.
-                Run Update topics to create topics for this facet and embedding
-                configuration.
-              </p>
-            )}
-            {progress.error &&
-              (progress.outcome === "published" ? (
-                <Alert variant="warning">
-                  <Alert.Description>{progress.error}</Alert.Description>
-                </Alert>
-              ) : (
-                <ErrorMessage message={progress.error} />
-              ))}
-            {progress.outcome === "insufficient_data" &&
-              execution.input.operation === "update" && (
-                <p className="text-sm">
-                  Clustering needs at least{" "}
-                  {execution.input.minimumTraceCount ??
-                    (execution.input.exploratory ? 10 : 100)}{" "}
-                  compatible stored summaries for this facet. Process more
-                  traces or lower the minimum when starting a new update.
-                </p>
-              )}
-            {progress.outcome === "no_topics" && (
-              <p className="text-sm">
-                No stable groups found. Inspect the summaries, adjust the facet,
-                or try a larger and more varied batch.
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {!busy(execution.status) && (
-        <div className="self-start">
-          <Button
-            text="Refresh status"
-            variant="ghost"
-            onClick={() => {
-              query.refetch();
-              utils.topics.currentResults.invalidate({ projectId });
-              utils.topics.executions.invalidate({ projectId });
-              utils.topics.summaryCounts.invalidate({ projectId });
-            }}
-          />
-        </div>
+          )}
+        </AutomaticProcessingDialogController>
       )}
-    </section>
+    </ConfigureTopicsDialogController>
   );
 }
 
-function estimatedExecutionCost(cost: number | null) {
-  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
-}
-
-function ErrorMessage({ message }: { message: string }) {
+function TopicsWorkspace({ projectId }: { projectId: string }) {
+  const facets = api.topics.facets.useQuery({ projectId });
+  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
+  });
   return (
-    <Alert variant="destructive">
-      <Alert.Description>
-        <p className="break-words">{message}</p>
-      </Alert.Description>
-    </Alert>
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      <TopicSetupFlowController
+        projectId={projectId}
+        canWrite={canWrite}
+        settings={modelSettings.configure.settings}
+        onSaveSampling={modelSettings.automaticProcessing.save}
+      >
+        {({ openSetup }) => (
+          <TopicsWorkspaceView
+            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+            projectId={projectId}
+            facets={facets}
+            canWrite={canWrite}
+            modelSettings={modelSettings}
+            openSetup={openSetup}
+          />
+        )}
+      </TopicSetupFlowController>
+    </TopicsWorkspaceGate>
   );
 }
 
-function startBlockedReason(running: boolean, automaticOn: boolean) {
-  if (running)
-    return "Analysis is running. Topics appear here when it finishes.";
-  if (automaticOn)
-    return "Automatic processing is on. Topics appear here as traces are summarized.";
-  return null;
+export default function TopicsPage() {
+  const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string" ? router.query.projectId : "";
+  const topicsEnabled = useCanViewTopics(projectId);
+  if (!topicsEnabled) {
+    return (
+      <ErrorPage title="Not found" message="This page is not available." />
+    );
+  }
+  return projectId ? (
+    <TopicsWorkspace key={projectId} projectId={projectId} />
+  ) : (
+    loadingPage
+  );
 }
 
-function detailsRunId(
-  run: {
-    process: { id: string };
-    update: { id: string; facets: Array<{ outcome: string }> } | null;
-  },
-  setup: { stage: string; retryId: string | null },
-) {
-  if (setup.stage === "failed")
-    return setup.retryId ?? run.update?.id ?? run.process.id;
-  return run.update?.facets.some((facet) => facet.outcome === "failed")
-    ? run.update.id
-    : null;
-}
+type TopicsWorkspaceViewProps = {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openSetup: () => void;
+};
+
+type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
+  openConfigure: () => void;
+  openAutomaticProcessing: (initialEnabled: boolean) => void;
+};

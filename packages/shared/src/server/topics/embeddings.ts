@@ -1,21 +1,33 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getLLMErrorInfo } from "../llm/errors";
 import { embedLLMText, type LLMProviderOptions } from "../llm/llmText";
 import { LLMAdapter } from "../llm/types";
 import { topicEmbeddingConfigSchema } from "../../topics";
 import type { TopicsModel } from "./model-config";
 
-/** Embeds summaries through the project's LLM connection in as few requests as the provider allows. */
-export async function generateTopicEmbeddings(params: {
-  model: TopicsModel;
-  summaries: string[];
-  dimensions: number;
-}) {
-  const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
-    embeddingDimensions: params.dimensions,
-  });
-  const result = await embedWithSizeFallback(params, embeddingDimensions);
-  return { embeddings: result.embeddings, tokens: result.usage.tokens };
+function bedrockEmbeddingOptions(modelId: string): Record<string, string> {
+  if (modelId.includes("nova"))
+    return {
+      embeddingPurpose: "CLUSTERING",
+    };
+  if (modelId.includes("cohere"))
+    return {
+      inputType: "clustering",
+      truncate: "NONE",
+    };
+  return {};
+}
+
+/** Keeps discovery and centroid assignment in the same clustering vector space. */
+function embeddingProviderOptions(model: TopicsModel): LLMProviderOptions {
+  if (model.adapter === LLMAdapter.Bedrock)
+    return { amazonBedrock: bedrockEmbeddingOptions(model.model) };
+  const google = {
+    taskType: "CLUSTERING",
+  };
+  return {
+    google,
+    vertex: google,
+  };
 }
 
 async function embedWithSizeFallback(
@@ -44,28 +56,15 @@ async function embedWithSizeFallback(
   }
 }
 
-/** Keeps discovery and centroid assignment in the same clustering vector space. */
-function embeddingProviderOptions(model: TopicsModel): LLMProviderOptions {
-  if (model.adapter === LLMAdapter.Bedrock)
-    return { amazonBedrock: bedrockEmbeddingOptions(model.model) };
-  const google = {
-    taskType: "CLUSTERING",
-  };
-  return {
-    google,
-    vertex: google,
-  };
-}
-
-function bedrockEmbeddingOptions(modelId: string): Record<string, string> {
-  if (modelId.includes("nova"))
-    return {
-      embeddingPurpose: "CLUSTERING",
-    };
-  if (modelId.includes("cohere"))
-    return {
-      inputType: "clustering",
-      truncate: "NONE",
-    };
-  return {};
+/** Embeds summaries through the project's LLM connection in as few requests as the provider allows. */
+export async function generateTopicEmbeddings(params: {
+  model: TopicsModel;
+  summaries: string[];
+  dimensions: number;
+}) {
+  const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
+    embeddingDimensions: params.dimensions,
+  });
+  const result = await embedWithSizeFallback(params, embeddingDimensions);
+  return { embeddings: result.embeddings, tokens: result.usage.tokens };
 }

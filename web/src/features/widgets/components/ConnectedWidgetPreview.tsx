@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, type ComponentProps } from "react";
 import {
   Card,
@@ -44,6 +43,140 @@ type ConnectedWidgetPreviewProps = Pick<
   | "displayName"
   | "displayDescription"
 >;
+
+function useWidgetPreviewData({
+  projectId,
+  query,
+  viewVersion,
+  queryValidation,
+  chartType,
+  values,
+  selectedAggregation,
+  selectedDimension,
+  selectedMeasure,
+  selectedView,
+}: ConnectedWidgetPreviewProps) {
+  const queryResult = api.dashboard.executeQuery.useQuery(
+    {
+      projectId,
+      query,
+      version: viewVersion,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      meta: { silentHttpCodes: [412, 422] },
+      enabled: queryValidation.valid,
+    },
+  );
+
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: queryResult.isPending,
+    isError: queryResult.isError,
+  });
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: null,
+    useBackendProgress: false,
+  });
+
+  const transformedData: DataPoint[] = useMemo(
+    () =>
+      queryResult.data?.map((item) => {
+        const timeDimension =
+          typeof item["time_dimension"] === "string"
+            ? item["time_dimension"]
+            : undefined;
+        if (chartType === "PIVOT_TABLE") {
+          return {
+            ...item,
+            dimension:
+              values.dimensions.length > 0
+                ? values.dimensions[0].field
+                : "dimension",
+            metric: 0,
+            time_dimension: timeDimension,
+          };
+        }
+        const metricField = `${selectedAggregation}_${selectedMeasure}`;
+        const metric = item[metricField];
+        const dimensionField = selectedDimension;
+        const dimensionValue = item[dimensionField];
+        const isTimeSeries = isTimeSeriesChart(chartType);
+
+        const isFillerMetricValue =
+          metric == null ||
+          (getWidgetMissingBucketValue(selectedAggregation) === "zero" &&
+            Number(metric) === 0);
+        if (
+          isTimeSeries &&
+          dimensionField !== "none" &&
+          (dimensionValue === null || dimensionValue === "") &&
+          isFillerMetricValue
+        ) {
+          return {
+            dimension: undefined,
+            metric: null,
+            time_dimension: timeDimension,
+          };
+        }
+
+        return {
+          dimension:
+            dimensionValue !== undefined && dimensionField !== "none"
+              ? (() => {
+                  const val = dimensionValue;
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (typeof val === "string") return val;
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
+              : formatMetricName(metricField),
+          metric: (() => {
+            if (Array.isArray(metric)) {
+              return metric.map((bucket: unknown) =>
+                Array.isArray(bucket) ? bucket.map(Number) : [],
+              );
+            }
+            if (isTimeSeries && metric == null) return null;
+            return Number(metric || 0);
+          })(),
+          time_dimension: timeDimension,
+        };
+      }) ?? [],
+    [
+      queryResult.data,
+      selectedAggregation,
+      selectedDimension,
+      selectedMeasure,
+      chartType,
+      values.dimensions,
+    ],
+  );
+
+  const chartPresentation = useMemo(() => {
+    if (chartType === "PIVOT_TABLE") return undefined;
+    return getWidgetMetricPresentation({
+      metric: { measure: selectedMeasure, agg: selectedAggregation },
+      view: selectedView,
+      version: viewVersion,
+    });
+  }, [
+    selectedAggregation,
+    chartType,
+    selectedMeasure,
+    selectedView,
+    viewVersion,
+  ]);
+
+  return {
+    queryResult,
+    chartLoadingState,
+    loadingProgress,
+    transformedData,
+    chartPresentation,
+  };
+}
 
 export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
   const {
@@ -187,138 +320,4 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
       </Card>
     </div>
   );
-}
-
-function useWidgetPreviewData({
-  projectId,
-  query,
-  viewVersion,
-  queryValidation,
-  chartType,
-  values,
-  selectedAggregation,
-  selectedDimension,
-  selectedMeasure,
-  selectedView,
-}: ConnectedWidgetPreviewProps) {
-  const queryResult = api.dashboard.executeQuery.useQuery(
-    {
-      projectId,
-      query,
-      version: viewVersion,
-    },
-    {
-      trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [412, 422] },
-      enabled: queryValidation.valid,
-    },
-  );
-
-  const chartLoadingState = getChartLoadingStateProps({
-    isPending: queryResult.isPending,
-    isError: queryResult.isError,
-  });
-  const loadingProgress = getChartLoadingProgress({
-    isPending: queryResult.isPending,
-    progress: null,
-    useBackendProgress: false,
-  });
-
-  const transformedData: DataPoint[] = useMemo(
-    () =>
-      queryResult.data?.map((item) => {
-        const timeDimension =
-          typeof item["time_dimension"] === "string"
-            ? item["time_dimension"]
-            : undefined;
-        if (chartType === "PIVOT_TABLE") {
-          return {
-            ...item,
-            dimension:
-              values.dimensions.length > 0
-                ? values.dimensions[0].field
-                : "dimension",
-            metric: 0,
-            time_dimension: timeDimension,
-          };
-        }
-        const metricField = `${selectedAggregation}_${selectedMeasure}`;
-        const metric = item[metricField];
-        const dimensionField = selectedDimension;
-        const dimensionValue = item[dimensionField];
-        const isTimeSeries = isTimeSeriesChart(chartType);
-
-        const isFillerMetricValue =
-          metric == null ||
-          (getWidgetMissingBucketValue(selectedAggregation) === "zero" &&
-            Number(metric) === 0);
-        if (
-          isTimeSeries &&
-          dimensionField !== "none" &&
-          (dimensionValue === null || dimensionValue === "") &&
-          isFillerMetricValue
-        ) {
-          return {
-            dimension: undefined,
-            metric: null,
-            time_dimension: timeDimension,
-          };
-        }
-
-        return {
-          dimension:
-            dimensionValue !== undefined && dimensionField !== "none"
-              ? (() => {
-                  const val = dimensionValue;
-                  if (val === null || val === undefined || val === "")
-                    return "n/a";
-                  if (typeof val === "string") return val;
-                  if (Array.isArray(val)) return val.join(", ");
-                  return String(val);
-                })()
-              : formatMetricName(metricField),
-          metric: (() => {
-            if (Array.isArray(metric)) {
-              return metric.map((bucket: unknown) =>
-                Array.isArray(bucket) ? bucket.map(Number) : [],
-              );
-            }
-            if (isTimeSeries && metric == null) return null;
-            return Number(metric || 0);
-          })(),
-          time_dimension: timeDimension,
-        };
-      }) ?? [],
-    [
-      queryResult.data,
-      selectedAggregation,
-      selectedDimension,
-      selectedMeasure,
-      chartType,
-      values.dimensions,
-    ],
-  );
-
-  const chartPresentation = useMemo(() => {
-    if (chartType === "PIVOT_TABLE") return undefined;
-    return getWidgetMetricPresentation({
-      metric: { measure: selectedMeasure, agg: selectedAggregation },
-      view: selectedView,
-      version: viewVersion,
-    });
-  }, [
-    selectedAggregation,
-    chartType,
-    selectedMeasure,
-    selectedView,
-    viewVersion,
-  ]);
-
-  return {
-    queryResult,
-    chartLoadingState,
-    loadingProgress,
-    transformedData,
-    chartPresentation,
-  };
 }

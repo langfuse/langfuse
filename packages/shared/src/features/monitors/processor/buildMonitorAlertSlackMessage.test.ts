@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { describe, it, expect } from "vitest";
 
 import { type MonitorAlert } from "../types";
@@ -21,6 +20,12 @@ const mockMonitorAlert: MonitorAlert = {
   filters: [],
   window: "5m",
 };
+
+function linkText(
+  attachments: ReturnType<typeof buildMonitorAlertSlackMessage>["attachments"],
+): string {
+  return attachments![0].blocks!.at(-1).text.text;
+}
 
 describe("buildMonitorAlertSlackMessage", () => {
   it("ALERT: red attachment; linked title; body mrkdwn; timestamp; view link", () => {
@@ -164,9 +169,3 @@ describe("buildMonitorAlertSlackMessage", () => {
     },
   );
 });
-
-function linkText(
-  attachments: ReturnType<typeof buildMonitorAlertSlackMessage>["attachments"],
-): string {
-  return attachments![0].blocks!.at(-1).text.text;
-}

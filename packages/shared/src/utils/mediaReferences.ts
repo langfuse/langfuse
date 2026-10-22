@@ -1,7 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JSONPath } from "jsonpath-plus";
 
 import { MediaReferenceStringSchema } from "./IORepresentation/chatML/types";
+
+function parseReference(value: string, jsonPath: string) {
+  const parsed = MediaReferenceStringSchema.safeParse(value);
+
+  return parsed.success ? { ...parsed.data, jsonPath } : null;
+}
 
 /**
  * Scans a JSON value for `@@@langfuseMedia:...@@@` reference strings and
@@ -31,10 +36,4 @@ export function findMediaReferences(value: unknown) {
   return nodes
     .map((node) => parseReference(node.value, node.path))
     .filter((reference) => reference !== null);
-}
-
-function parseReference(value: string, jsonPath: string) {
-  const parsed = MediaReferenceStringSchema.safeParse(value);
-
-  return parsed.success ? { ...parsed.data, jsonPath } : null;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { AgentSubscriber } from "@ag-ui/client";
 
 import {
@@ -115,6 +114,25 @@ type BackgroundExecutionAgentSubscriber = Pick<
   | "onToolCallResultEvent"
   | "onRunErrorEvent"
 >;
+
+function isExecutingRun(
+  run: BackgroundExecutionRunView | null,
+): run is BackgroundExecutionRunView {
+  return (
+    run?.status === InAppAgentRunStatus.QUEUED ||
+    run?.status === InAppAgentRunStatus.RUNNING
+  );
+}
+
+export function isCancellableBackgroundRun(
+  status: InAppAgentRunStatus,
+): boolean {
+  return (
+    status === InAppAgentRunStatus.QUEUED ||
+    status === InAppAgentRunStatus.RUNNING ||
+    status === InAppAgentRunStatus.AWAITING_APPROVAL
+  );
+}
 
 export class BackgroundExecutionSessionController implements BackgroundExecutionSession {
   readonly conversationId: string;
@@ -558,16 +576,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   }
 }
 
-export function isCancellableBackgroundRun(
-  status: InAppAgentRunStatus,
-): boolean {
-  return (
-    status === InAppAgentRunStatus.QUEUED ||
-    status === InAppAgentRunStatus.RUNNING ||
-    status === InAppAgentRunStatus.AWAITING_APPROVAL
-  );
-}
-
 const ASSISTANT_FAILED_CONTINUE =
   "Halo failed. Send another message to continue.";
 const ASSISTANT_FAILED_TRY_AGAIN =
@@ -672,13 +680,4 @@ export function getSettledActivityOutcome(
   }
 
   return "worked";
-}
-
-function isExecutingRun(
-  run: BackgroundExecutionRunView | null,
-): run is BackgroundExecutionRunView {
-  return (
-    run?.status === InAppAgentRunStatus.QUEUED ||
-    run?.status === InAppAgentRunStatus.RUNNING
-  );
 }

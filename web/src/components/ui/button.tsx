@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -63,6 +63,14 @@ export interface ButtonProps
   loadingText?: React.ReactNode;
 }
 
+function Spinner() {
+  return (
+    <div className="flex h-1/2 items-center justify-center">
+      <SpinnerLib size="full" />
+    </div>
+  );
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -107,11 +115,3 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export { Button, buttonVariants };
-
-function Spinner() {
-  return (
-    <div className="flex h-1/2 items-center justify-center">
-      <SpinnerLib size="full" />
-    </div>
-  );
-}

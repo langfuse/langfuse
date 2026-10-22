@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   addSeconds,
   addMinutes,
@@ -16,39 +15,6 @@ import {
   startOfYear,
 } from "date-fns";
 import { type IntervalConfig } from "./date-range-utils";
-
-/**
- * Fills gaps in time series data and aggregates single-unit data into multi-unit buckets.
- *
- * IMPORTANT: Due to ClickHouse's epoch-aligned toStartOfInterval behavior for multi-unit intervals,
- * the backend ALWAYS queries with SINGLE-UNIT intervals (1 second, 1 minute, 1 hour, 1 day, 1 month, 1 year).
- * This function receives single-unit data from ClickHouse and aggregates it into the requested
- * multi-unit buckets, working backwards from toTimestamp to ensure "today's" data appears in the
- * rightmost bucket.
- *
- * For single-unit intervals (count=1), this function just fills gaps in the data.
- * For multi-unit intervals (count>1), it groups single-unit data points into buckets.
- *
- * @param data - Array of SINGLE-UNIT time series data points from ClickHouse
- * @param fromDate - Start of the time range
- * @param toDate - End of the time range
- * @param interval - The REQUESTED interval (may be multi-unit like {count: 2, unit: "day"})
- * @returns Array with data aggregated into requested intervals
- */
-export function fillTimeSeriesGaps<
-  T extends { timestamp: Date; [key: string]: unknown },
->(data: T[], fromDate: Date, toDate: Date, interval: IntervalConfig): T[] {
-  const { count, unit } = interval;
-
-  // If single-unit interval (or 7-day weeks), ClickHouse already returned the correct buckets
-  // Just fill gaps in the data
-  if (count === 1 || (count === 7 && unit === "day")) {
-    return fillGapsInSingleUnitData(data, fromDate, toDate, interval);
-  }
-
-  // For multi-unit intervals, aggregate single-unit data into multi-unit buckets
-  return aggregateIntoMultiUnitBuckets(data, fromDate, toDate, interval);
-}
 
 /**
  * Fill gaps in single-unit data (ClickHouse already returned correct bucket timestamps)
@@ -317,55 +283,36 @@ function aggregateIntoMultiUnitBuckets<
 }
 
 /**
- * Fills gaps in categorical/boolean time series data and aggregates single-unit data into multi-unit buckets.
+ * Fills gaps in time series data and aggregates single-unit data into multi-unit buckets.
  *
- * Handles "long format" categorical data where each row is { timestamp, category, count }.
- * Unlike numeric data which has one row per timestamp, categorical data has multiple rows per timestamp
- * (one for each category).
+ * IMPORTANT: Due to ClickHouse's epoch-aligned toStartOfInterval behavior for multi-unit intervals,
+ * the backend ALWAYS queries with SINGLE-UNIT intervals (1 second, 1 minute, 1 hour, 1 day, 1 month, 1 year).
+ * This function receives single-unit data from ClickHouse and aggregates it into the requested
+ * multi-unit buckets, working backwards from toTimestamp to ensure "today's" data appears in the
+ * rightmost bucket.
  *
- * This function:
- * 1. Extracts unique categories from the data
- * 2. For single-unit intervals: Fills missing timestamps by adding entries with count=0 for all categories
- * 3. For multi-unit intervals: Aggregates single-unit buckets by SUMMING counts (not averaging)
- * 4. Ensures all categories appear at all timestamps (even if count=0)
+ * For single-unit intervals (count=1), this function just fills gaps in the data.
+ * For multi-unit intervals (count>1), it groups single-unit data points into buckets.
  *
- * @param data - Array of categorical data points { timestamp, category, count }
+ * @param data - Array of SINGLE-UNIT time series data points from ClickHouse
  * @param fromDate - Start of the time range
  * @param toDate - End of the time range
- * @param interval - The requested interval (may be multi-unit)
- * @returns Array with all timestamps filled and counts aggregated
+ * @param interval - The REQUESTED interval (may be multi-unit like {count: 2, unit: "day"})
+ * @returns Array with data aggregated into requested intervals
  */
-export function fillCategoricalTimeSeriesGaps<
-  T extends { timestamp: Date; category: string; count: number },
+export function fillTimeSeriesGaps<
+  T extends { timestamp: Date; [key: string]: unknown },
 >(data: T[], fromDate: Date, toDate: Date, interval: IntervalConfig): T[] {
   const { count, unit } = interval;
 
-  // Extract unique categories
-  const categories = Array.from(new Set(data.map((d) => d.category)));
-
-  if (categories.length === 0) {
-    return [];
-  }
-
-  // If single-unit interval (or 7-day weeks), just fill gaps
+  // If single-unit interval (or 7-day weeks), ClickHouse already returned the correct buckets
+  // Just fill gaps in the data
   if (count === 1 || (count === 7 && unit === "day")) {
-    return fillGapsInCategoricalData(
-      data,
-      fromDate,
-      toDate,
-      interval,
-      categories,
-    );
+    return fillGapsInSingleUnitData(data, fromDate, toDate, interval);
   }
 
-  // For multi-unit intervals, aggregate by summing counts
-  return aggregateCategoricalIntoMultiUnitBuckets(
-    data,
-    fromDate,
-    toDate,
-    interval,
-    categories,
-  );
+  // For multi-unit intervals, aggregate single-unit data into multi-unit buckets
+  return aggregateIntoMultiUnitBuckets(data, fromDate, toDate, interval);
 }
 
 /**
@@ -597,4 +544,56 @@ function aggregateCategoricalIntoMultiUnitBuckets<
   }
 
   return aggregatedData;
+}
+
+/**
+ * Fills gaps in categorical/boolean time series data and aggregates single-unit data into multi-unit buckets.
+ *
+ * Handles "long format" categorical data where each row is { timestamp, category, count }.
+ * Unlike numeric data which has one row per timestamp, categorical data has multiple rows per timestamp
+ * (one for each category).
+ *
+ * This function:
+ * 1. Extracts unique categories from the data
+ * 2. For single-unit intervals: Fills missing timestamps by adding entries with count=0 for all categories
+ * 3. For multi-unit intervals: Aggregates single-unit buckets by SUMMING counts (not averaging)
+ * 4. Ensures all categories appear at all timestamps (even if count=0)
+ *
+ * @param data - Array of categorical data points { timestamp, category, count }
+ * @param fromDate - Start of the time range
+ * @param toDate - End of the time range
+ * @param interval - The requested interval (may be multi-unit)
+ * @returns Array with all timestamps filled and counts aggregated
+ */
+export function fillCategoricalTimeSeriesGaps<
+  T extends { timestamp: Date; category: string; count: number },
+>(data: T[], fromDate: Date, toDate: Date, interval: IntervalConfig): T[] {
+  const { count, unit } = interval;
+
+  // Extract unique categories
+  const categories = Array.from(new Set(data.map((d) => d.category)));
+
+  if (categories.length === 0) {
+    return [];
+  }
+
+  // If single-unit interval (or 7-day weeks), just fill gaps
+  if (count === 1 || (count === 7 && unit === "day")) {
+    return fillGapsInCategoricalData(
+      data,
+      fromDate,
+      toDate,
+      interval,
+      categories,
+    );
+  }
+
+  // For multi-unit intervals, aggregate by summing counts
+  return aggregateCategoricalIntoMultiUnitBuckets(
+    data,
+    fromDate,
+    toDate,
+    interval,
+    categories,
+  );
 }

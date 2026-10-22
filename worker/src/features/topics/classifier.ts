@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import type { TopicSummary } from "@langfuse/shared/topics";
@@ -13,10 +12,6 @@ export function topicHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-export function normalizeVector(vector: number[]): number[] {
-  return normalizeInto(vector, []);
-}
-
 function normalizeInto(vector: number[], normalized: number[]): number[] {
   if (!vector.length || vector.some((value) => !Number.isFinite(value))) {
     throw new Error("Invalid topic embedding");
@@ -27,6 +22,10 @@ function normalizeInto(vector: number[], normalized: number[]): number[] {
   for (let index = 0; index < vector.length; index++)
     normalized[index] = vector[index] / norm;
   return normalized;
+}
+
+export function normalizeVector(vector: number[]): number[] {
+  return normalizeInto(vector, []);
 }
 
 /** Keep vector work in bounded batches so queue lock timers can run. */
@@ -158,16 +157,6 @@ export async function buildTopicPrototypes(
   return prototypes;
 }
 
-export function classifyTopic(
-  embedding: number[],
-  prototypes: TopicPrototype[],
-) {
-  const vector = normalizeVector(embedding);
-  return nearestTopic(prototypes, (prototype) =>
-    cosineDistance(vector, prototype.centroid),
-  );
-}
-
 function nearestTopic(
   prototypes: TopicPrototype[],
   distanceAt: (prototype: TopicPrototype, index: number) => number,
@@ -203,6 +192,16 @@ function nearestTopic(
     distance: nearest ? nearestDistance : null,
     runnerUpDistance: runnerUp ? runnerUpDistance : null,
   };
+}
+
+export function classifyTopic(
+  embedding: number[],
+  prototypes: TopicPrototype[],
+) {
+  const vector = normalizeVector(embedding);
+  return nearestTopic(prototypes, (prototype) =>
+    cosineDistance(vector, prototype.centroid),
+  );
 }
 
 async function classifyBulkRow(

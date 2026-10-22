@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -22,18 +22,6 @@ type HeaderProps = {
   actionButtons?: React.ReactNode;
   className?: string;
 };
-
-export default function Header({ ...props }: HeaderProps) {
-  return <BaseHeader {...props} level="h3" />;
-}
-
-export function SubHeader({ ...props }: HeaderProps) {
-  return <BaseHeader {...props} level="h4" />;
-}
-
-export function SubHeaderLabel({ ...props }: HeaderProps) {
-  return <BaseHeader {...props} level="h5" />;
-}
 
 function HeaderTitle({
   level,
@@ -111,4 +99,16 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
       </div>
     </div>
   );
+}
+
+export default function Header({ ...props }: HeaderProps) {
+  return <BaseHeader {...props} level="h3" />;
+}
+
+export function SubHeader({ ...props }: HeaderProps) {
+  return <BaseHeader {...props} level="h4" />;
+}
+
+export function SubHeaderLabel({ ...props }: HeaderProps) {
+  return <BaseHeader {...props} level="h5" />;
 }

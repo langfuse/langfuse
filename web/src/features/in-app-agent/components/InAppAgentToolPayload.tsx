@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 "use client";
 
 import { useMemo, useState } from "react";
@@ -13,79 +13,6 @@ import {
 type ParsedToolPayload =
   | { state: "json"; value: unknown }
   | { state: "raw"; value: string };
-
-export function InAppAgentToolPayload({
-  label,
-  value,
-  variant,
-  toolName,
-  kind,
-}: {
-  label: string;
-  toolName?: string;
-  kind: "arguments" | "result";
-  value: string;
-  variant: "default" | "failed" | "denied";
-}) {
-  const payload = useMemo<ParsedToolPayload>(() => {
-    const trimmedValue = value.trim();
-
-    if (!trimmedValue) {
-      return { state: "json", value: {} };
-    }
-
-    try {
-      const parsedValue = JSON.parse(trimmedValue) as unknown;
-
-      return {
-        state: "json",
-        value: unwrapMcpTextResult(parsedValue),
-      };
-    } catch {
-      return { state: "raw", value };
-    }
-  }, [value]);
-
-  const content =
-    payload.state === "json" ? (
-      <StructuredToolPayload
-        key={toolName}
-        label={label}
-        value={payload.value}
-        toolName={toolName}
-        kind={kind}
-      />
-    ) : (
-      <pre
-        className={cn(
-          "max-h-64 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap",
-          variant === "default" && "bg-muted text-muted-foreground",
-          variant === "failed" && "bg-destructive/10 text-destructive",
-          variant === "denied" && "bg-light-yellow text-dark-yellow",
-        )}
-      >
-        {payload.value}
-      </pre>
-    );
-
-  return (
-    <div className="ph-no-capture space-y-1">
-      {payload.state === "raw" ? (
-        <p
-          className={cn(
-            "text-xs font-bold",
-            variant === "default" && "text-muted-foreground",
-            variant === "failed" && "text-destructive",
-            variant === "denied" && "text-dark-yellow",
-          )}
-        >
-          {label}
-        </p>
-      ) : null}
-      {content}
-    </div>
-  );
-}
 
 function StructuredToolPayload({
   label,
@@ -164,6 +91,79 @@ function StructuredToolPayload({
           <CodeBlock language={code.language} value={code.value} borderless />
         </div>
       </section>
+    </div>
+  );
+}
+
+export function InAppAgentToolPayload({
+  label,
+  value,
+  variant,
+  toolName,
+  kind,
+}: {
+  label: string;
+  toolName?: string;
+  kind: "arguments" | "result";
+  value: string;
+  variant: "default" | "failed" | "denied";
+}) {
+  const payload = useMemo<ParsedToolPayload>(() => {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return { state: "json", value: {} };
+    }
+
+    try {
+      const parsedValue = JSON.parse(trimmedValue) as unknown;
+
+      return {
+        state: "json",
+        value: unwrapMcpTextResult(parsedValue),
+      };
+    } catch {
+      return { state: "raw", value };
+    }
+  }, [value]);
+
+  const content =
+    payload.state === "json" ? (
+      <StructuredToolPayload
+        key={toolName}
+        label={label}
+        value={payload.value}
+        toolName={toolName}
+        kind={kind}
+      />
+    ) : (
+      <pre
+        className={cn(
+          "max-h-64 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap",
+          variant === "default" && "bg-muted text-muted-foreground",
+          variant === "failed" && "bg-destructive/10 text-destructive",
+          variant === "denied" && "bg-light-yellow text-dark-yellow",
+        )}
+      >
+        {payload.value}
+      </pre>
+    );
+
+  return (
+    <div className="ph-no-capture space-y-1">
+      {payload.state === "raw" ? (
+        <p
+          className={cn(
+            "text-xs font-bold",
+            variant === "default" && "text-muted-foreground",
+            variant === "failed" && "text-destructive",
+            variant === "denied" && "text-dark-yellow",
+          )}
+        >
+          {label}
+        </p>
+      ) : null}
+      {content}
     </div>
   );
 }

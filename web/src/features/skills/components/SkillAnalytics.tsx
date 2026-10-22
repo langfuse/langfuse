@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SkillLinkedTraces } from "./SkillLinkedTraces";
@@ -29,16 +28,43 @@ type FileUsage = {
   loads: number;
 };
 
-export function SkillAnalytics(props: SkillAnalyticsProps) {
-  const { timeRange, setTimeRange } = useTableDateRange(props.projectId);
+function prepareFileTableData(
+  loading: boolean,
+  error: { message: string } | null,
+  rows: FileUsage[],
+): AsyncTableData<FileUsage[]> {
+  if (loading) return { status: "loading" };
+  if (error) return { status: "error", error: error.message };
+  return { status: "success", data: rows };
+}
+
+function formatCount(value: number) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function Metric({
+  label,
+  value,
+  description,
+  loading,
+}: {
+  label: string;
+  value: number | null;
+  description: string;
+  loading: boolean;
+}) {
+  const displayValue = value === null ? "—" : formatCount(value);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
-      <SkillAnalyticsDashboard
-        key={`${props.skillId}:${rangeToString(timeRange)}`}
-        {...props}
-        timeRange={timeRange}
-      />
+    <div className="flex flex-col gap-1 rounded-lg border px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm">{label}</p>
+        {loading ? (
+          <Skeleton className="h-6 w-12" />
+        ) : (
+          <p className="text-lg font-bold tabular-nums">{displayValue}</p>
+        )}
+      </div>
+      <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
 }
@@ -183,43 +209,16 @@ function SkillAnalyticsDashboard({
   );
 }
 
-function Metric({
-  label,
-  value,
-  description,
-  loading,
-}: {
-  label: string;
-  value: number | null;
-  description: string;
-  loading: boolean;
-}) {
-  const displayValue = value === null ? "—" : formatCount(value);
+export function SkillAnalytics(props: SkillAnalyticsProps) {
+  const { timeRange, setTimeRange } = useTableDateRange(props.projectId);
   return (
-    <div className="flex flex-col gap-1 rounded-lg border px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm">{label}</p>
-        {loading ? (
-          <Skeleton className="h-6 w-12" />
-        ) : (
-          <p className="text-lg font-bold tabular-nums">{displayValue}</p>
-        )}
-      </div>
-      <p className="text-muted-foreground text-xs">{description}</p>
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
+      <SkillAnalyticsDashboard
+        key={`${props.skillId}:${rangeToString(timeRange)}`}
+        {...props}
+        timeRange={timeRange}
+      />
     </div>
   );
-}
-
-function prepareFileTableData(
-  loading: boolean,
-  error: { message: string } | null,
-  rows: FileUsage[],
-): AsyncTableData<FileUsage[]> {
-  if (loading) return { status: "loading" };
-  if (error) return { status: "error", error: error.message };
-  return { status: "success", data: rows };
-}
-
-function formatCount(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }

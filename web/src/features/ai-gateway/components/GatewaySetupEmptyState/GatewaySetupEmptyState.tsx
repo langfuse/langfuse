@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { IconComponent } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -12,6 +11,34 @@ export type GatewaySetupEmptyStateProps = {
   description: string;
   actions?: ReadonlyArray<GatewaySetupEmptyStateAction>;
 };
+
+function MenuAction({ action }: { action: MenuActionDefinition }) {
+  const isDisabled = action.disabled || action.items.length === 0;
+  return (
+    <DropdownMenu
+      disabled={isDisabled}
+      items={action.items.map((item) => ({
+        type: "item",
+        id: item.id,
+        title: item.title,
+        onClick: () => action.onSelect(item.id),
+      }))}
+    >
+      {({ getTriggerProps }) => (
+        /** The design-system Button does not forward floating-ui trigger handlers. */
+        <MenuTriggerButton
+          variant="outline"
+          className="gap-1.5"
+          disabled={isDisabled}
+          {...getTriggerProps()}
+        >
+          {action.label}
+          <DropdownIndicator nudge />
+        </MenuTriggerButton>
+      )}
+    </DropdownMenu>
+  );
+}
 
 export function GatewaySetupEmptyState({
   icon: Icon,
@@ -45,34 +72,6 @@ export function GatewaySetupEmptyState({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function MenuAction({ action }: { action: MenuActionDefinition }) {
-  const isDisabled = action.disabled || action.items.length === 0;
-  return (
-    <DropdownMenu
-      disabled={isDisabled}
-      items={action.items.map((item) => ({
-        type: "item",
-        id: item.id,
-        title: item.title,
-        onClick: () => action.onSelect(item.id),
-      }))}
-    >
-      {({ getTriggerProps }) => (
-        /** The design-system Button does not forward floating-ui trigger handlers. */
-        <MenuTriggerButton
-          variant="outline"
-          className="gap-1.5"
-          disabled={isDisabled}
-          {...getTriggerProps()}
-        >
-          {action.label}
-          <DropdownIndicator nudge />
-        </MenuTriggerButton>
-      )}
-    </DropdownMenu>
   );
 }
 

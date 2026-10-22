@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   logger,
   queryClickhouse,
@@ -820,60 +819,6 @@ async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
 }
 
 /**
- * Main entry point for experiment backfill.
- * Handles initialization, throttle checking, execution, and timestamp updates.
- */
-export async function runExperimentBackfill(): Promise<void> {
-  logger.info("[EXPERIMENT BACKFILL] Checking if backfill should run");
-
-  try {
-    // Initialize cutoff timestamp (first-run protection)
-    const lastRun = await initializeBackfillCutoff();
-
-    // Track how far behind the backfill cursor is, even if we skip due to throttle
-    const lastRunDelaySeconds = (Date.now() - lastRun.getTime()) / 1000;
-    recordGauge(
-      "langfuse.experiment_backfill.last_run_delay_seconds",
-      lastRunDelaySeconds,
-    );
-
-    // Check 5-minute throttle
-    if (!(await shouldRunBackfill(lastRun))) {
-      logger.debug("[EXPERIMENT BACKFILL] Skipping due to throttle");
-      return;
-    }
-
-    // Calculate upper bound (now - 30s) to avoid race conditions
-    // This ensures we don't process items that might still be receiving data
-    const upperBound = new Date(Date.now() - 30 * 1000);
-
-    // Cap each execution to an 8-hour window. The scheduler runs frequently
-    // enough that consecutive jobs will catch up on any larger gap.
-    const maxChunkMs = 8 * 60 * 60 * 1000;
-    const chunkEnd = new Date(
-      Math.min(lastRun.getTime() + maxChunkMs, upperBound.getTime()),
-    );
-
-    logger.info(
-      `[EXPERIMENT BACKFILL] Processing chunk from ${lastRun.toISOString()} to ${chunkEnd.toISOString()}`,
-    );
-    await processExperimentBackfill(lastRun, chunkEnd);
-
-    // Track remaining delay after processing this chunk
-    const remainingDelaySeconds = (Date.now() - chunkEnd.getTime()) / 1000;
-    recordGauge(
-      "langfuse.experiment_backfill.remaining_delay_seconds",
-      remainingDelaySeconds,
-    );
-
-    logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
-  } catch (error) {
-    logger.error("[EXPERIMENT BACKFILL] Failed to run backfill", error);
-    throw error;
-  }
-}
-
-/**
  * Internal orchestration function to process experiment backfill.
  */
 async function processExperimentBackfill(
@@ -1056,4 +1001,58 @@ async function processExperimentBackfill(
   logger.info(
     `[EXPERIMENT BACKFILL] Completed backfill process for ${datasetRunItems.length} items`,
   );
+}
+
+/**
+ * Main entry point for experiment backfill.
+ * Handles initialization, throttle checking, execution, and timestamp updates.
+ */
+export async function runExperimentBackfill(): Promise<void> {
+  logger.info("[EXPERIMENT BACKFILL] Checking if backfill should run");
+
+  try {
+    // Initialize cutoff timestamp (first-run protection)
+    const lastRun = await initializeBackfillCutoff();
+
+    // Track how far behind the backfill cursor is, even if we skip due to throttle
+    const lastRunDelaySeconds = (Date.now() - lastRun.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.last_run_delay_seconds",
+      lastRunDelaySeconds,
+    );
+
+    // Check 5-minute throttle
+    if (!(await shouldRunBackfill(lastRun))) {
+      logger.debug("[EXPERIMENT BACKFILL] Skipping due to throttle");
+      return;
+    }
+
+    // Calculate upper bound (now - 30s) to avoid race conditions
+    // This ensures we don't process items that might still be receiving data
+    const upperBound = new Date(Date.now() - 30 * 1000);
+
+    // Cap each execution to an 8-hour window. The scheduler runs frequently
+    // enough that consecutive jobs will catch up on any larger gap.
+    const maxChunkMs = 8 * 60 * 60 * 1000;
+    const chunkEnd = new Date(
+      Math.min(lastRun.getTime() + maxChunkMs, upperBound.getTime()),
+    );
+
+    logger.info(
+      `[EXPERIMENT BACKFILL] Processing chunk from ${lastRun.toISOString()} to ${chunkEnd.toISOString()}`,
+    );
+    await processExperimentBackfill(lastRun, chunkEnd);
+
+    // Track remaining delay after processing this chunk
+    const remainingDelaySeconds = (Date.now() - chunkEnd.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.remaining_delay_seconds",
+      remainingDelaySeconds,
+    );
+
+    logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
+  } catch (error) {
+    logger.error("[EXPERIMENT BACKFILL] Failed to run backfill", error);
+    throw error;
+  }
 }

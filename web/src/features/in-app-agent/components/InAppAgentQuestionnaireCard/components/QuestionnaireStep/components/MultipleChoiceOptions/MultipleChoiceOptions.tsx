@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, type Ref } from "react";
 import { PencilLine } from "@langfuse/icons";
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
@@ -22,6 +21,77 @@ export type MultipleChoiceOptionsProps = {
   onToggleOther: () => void;
   onOtherTextChange: (otherText: string) => void;
 };
+
+function CheckboxOptionRow({
+  id,
+  optionIndex,
+  option,
+  isChecked,
+  isDisabled,
+  onToggleOption,
+}: CheckboxOptionRowProps) {
+  return (
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <Checkbox
+            id={id}
+            checked={isChecked}
+            disabled={isDisabled}
+            onCheckedChange={() => {
+              onToggleOption(optionIndex);
+            }}
+          />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="leading-5">
+            {withRecommended(option.label, option.recommended)}
+          </span>
+          <span className="text-muted-foreground">{option.description}</span>
+        </span>
+      </label>
+    </OptionRowFrame>
+  );
+}
+
+function CheckboxOtherAnswerRow({
+  id,
+  isOtherOpen,
+  otherText,
+  isDisabled,
+  otherInputRef,
+  onToggleOther,
+  onOtherTextChange,
+}: CheckboxOtherAnswerRowProps) {
+  return (
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <Checkbox
+            id={id}
+            checked={isOtherOpen || otherText.trim().length > 0}
+            disabled={isDisabled}
+            onCheckedChange={onToggleOther}
+          />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-1.5 leading-5">
+            {OTHER_ANSWER_LABEL}
+            <PencilLine aria-hidden size="sm" color="muted" />
+          </span>
+          {isOtherOpen ? (
+            <OtherAnswerInput
+              ref={otherInputRef}
+              value={otherText}
+              isDisabled={isDisabled}
+              onChange={onOtherTextChange}
+            />
+          ) : null}
+        </span>
+      </label>
+    </OptionRowFrame>
+  );
+}
 
 export function MultipleChoiceOptions({
   question,
@@ -73,38 +143,6 @@ type CheckboxOptionRowProps = Pick<
   isChecked: boolean;
 };
 
-function CheckboxOptionRow({
-  id,
-  optionIndex,
-  option,
-  isChecked,
-  isDisabled,
-  onToggleOption,
-}: CheckboxOptionRowProps) {
-  return (
-    <OptionRowFrame>
-      <label htmlFor={id}>
-        <span className="flex h-5 shrink-0 items-center">
-          <Checkbox
-            id={id}
-            checked={isChecked}
-            disabled={isDisabled}
-            onCheckedChange={() => {
-              onToggleOption(optionIndex);
-            }}
-          />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="leading-5">
-            {withRecommended(option.label, option.recommended)}
-          </span>
-          <span className="text-muted-foreground">{option.description}</span>
-        </span>
-      </label>
-    </OptionRowFrame>
-  );
-}
-
 type CheckboxOtherAnswerRowProps = Pick<
   MultipleChoiceOptionsProps,
   | "isOtherOpen"
@@ -116,42 +154,3 @@ type CheckboxOtherAnswerRowProps = Pick<
   id: string;
   otherText: string;
 };
-
-function CheckboxOtherAnswerRow({
-  id,
-  isOtherOpen,
-  otherText,
-  isDisabled,
-  otherInputRef,
-  onToggleOther,
-  onOtherTextChange,
-}: CheckboxOtherAnswerRowProps) {
-  return (
-    <OptionRowFrame>
-      <label htmlFor={id}>
-        <span className="flex h-5 shrink-0 items-center">
-          <Checkbox
-            id={id}
-            checked={isOtherOpen || otherText.trim().length > 0}
-            disabled={isDisabled}
-            onCheckedChange={onToggleOther}
-          />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="flex items-center gap-1.5 leading-5">
-            {OTHER_ANSWER_LABEL}
-            <PencilLine aria-hidden size="sm" color="muted" />
-          </span>
-          {isOtherOpen ? (
-            <OtherAnswerInput
-              ref={otherInputRef}
-              value={otherText}
-              isDisabled={isDisabled}
-              onChange={onOtherTextChange}
-            />
-          ) : null}
-        </span>
-      </label>
-    </OptionRowFrame>
-  );
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
@@ -145,12 +144,6 @@ async function requireFacetVersions(
   }
 }
 
-async function executionWithRecovery(projectId: string, executionId: string) {
-  const execution = await readTopicExecutionSummary(projectId, executionId);
-  if (!execution) throw new LangfuseNotFoundError("Execution not found.");
-  return recoverExecutionState(execution);
-}
-
 function canResume(execution: TopicExecutionSummary) {
   return (
     execution.status === "failed" ||
@@ -200,6 +193,12 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
     }
   }
   return execution;
+}
+
+async function executionWithRecovery(projectId: string, executionId: string) {
+  const execution = await readTopicExecutionSummary(projectId, executionId);
+  if (!execution) throw new LangfuseNotFoundError("Execution not found.");
+  return recoverExecutionState(execution);
 }
 
 type TopicMap = {

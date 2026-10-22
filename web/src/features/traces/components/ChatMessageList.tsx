@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "@langfuse/icons";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -48,6 +47,32 @@ export interface ChatMessageListProps {
   titleBySide?: boolean;
   /** Header actions for the last output-side message (e.g. Correct output). */
   outputActions?: IOSectionAction[];
+}
+
+/** Collapsed-header lookalike that reveals the folded middle of a long chat. */
+function OtherMessagesRow({
+  count,
+  open,
+  onToggle,
+}: {
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const label = otherMessagesLabel(count);
+  const Caret = open ? ChevronDown : ChevronRight;
+  return (
+    <button
+      type="button"
+      className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+      aria-expanded={open}
+      aria-label={label}
+      onClick={onToggle}
+    >
+      <Caret size="base" color="default" aria-hidden />
+      {label}
+    </button>
+  );
 }
 
 /**
@@ -194,31 +219,5 @@ export function ChatMessageList({
         {remainingMedia.length > 0 && <SectionMedia media={remainingMedia} />}
       </div>
     </div>
-  );
-}
-
-/** Collapsed-header lookalike that reveals the folded middle of a long chat. */
-function OtherMessagesRow({
-  count,
-  open,
-  onToggle,
-}: {
-  count: number;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const label = otherMessagesLabel(count);
-  const Caret = open ? ChevronDown : ChevronRight;
-  return (
-    <button
-      type="button"
-      className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
-      aria-expanded={open}
-      aria-label={label}
-      onClick={onToggle}
-    >
-      <Caret size="base" color="default" aria-hidden />
-      {label}
-    </button>
   );
 }

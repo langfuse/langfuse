@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
@@ -46,6 +45,42 @@ describe("Health endpoints", () => {
     expect(response.status).toBe(200);
   });
 });
+
+async function readCacheValues(keys: string[]): Promise<unknown[]> {
+  const values = await Promise.all(keys.map((k) => redis?.get(k)));
+  return values.flatMap((v) => (v ? [JSON.parse(v)] : []));
+}
+
+function legacyPublicKey(value: unknown, projectId: string): string[] {
+  const apiKey = OrgEnrichedApiKey.safeParse(value);
+  return apiKey.success && apiKey.data.projectId === projectId
+    ? [apiKey.data.publicKey]
+    : [];
+}
+
+function contextPublicKey(value: unknown, projectId: string): string[] {
+  const principal = (value as CachedContext | null)?.context?.principal;
+  return principal?.kind === "apiKey" &&
+    principal.boundResource.projectId === projectId
+    ? [principal.publicKey]
+    : [];
+}
+
+/** findCachedPublicKeys returns the public keys cached for a project by the legacy api-key cache or the authz context cache, whichever the auth migration mode writes. */
+async function findCachedPublicKeys(projectId: string): Promise<string[]> {
+  const [legacyKeys, contextKeys] = await Promise.all([
+    redis?.keys(API_KEY_CACHE_PATTERN) ?? [],
+    redis?.keys(AUTHZ_CONTEXT_CACHE_PATTERN) ?? [],
+  ]);
+  const [legacyValues, contextValues] = await Promise.all([
+    readCacheValues(legacyKeys),
+    readCacheValues(contextKeys),
+  ]);
+  return [
+    ...legacyValues.flatMap((v) => legacyPublicKey(v, projectId)),
+    ...contextValues.flatMap((v) => contextPublicKey(v, projectId)),
+  ];
+}
 
 describe("Ingestion Pipeline", () => {
   beforeEach(async () => {
@@ -315,41 +350,5 @@ describe("Prompts endpoint", () => {
     });
   });
 });
-
-/** findCachedPublicKeys returns the public keys cached for a project by the legacy api-key cache or the authz context cache, whichever the auth migration mode writes. */
-async function findCachedPublicKeys(projectId: string): Promise<string[]> {
-  const [legacyKeys, contextKeys] = await Promise.all([
-    redis?.keys(API_KEY_CACHE_PATTERN) ?? [],
-    redis?.keys(AUTHZ_CONTEXT_CACHE_PATTERN) ?? [],
-  ]);
-  const [legacyValues, contextValues] = await Promise.all([
-    readCacheValues(legacyKeys),
-    readCacheValues(contextKeys),
-  ]);
-  return [
-    ...legacyValues.flatMap((v) => legacyPublicKey(v, projectId)),
-    ...contextValues.flatMap((v) => contextPublicKey(v, projectId)),
-  ];
-}
-
-async function readCacheValues(keys: string[]): Promise<unknown[]> {
-  const values = await Promise.all(keys.map((k) => redis?.get(k)));
-  return values.flatMap((v) => (v ? [JSON.parse(v)] : []));
-}
-
-function legacyPublicKey(value: unknown, projectId: string): string[] {
-  const apiKey = OrgEnrichedApiKey.safeParse(value);
-  return apiKey.success && apiKey.data.projectId === projectId
-    ? [apiKey.data.publicKey]
-    : [];
-}
-
-function contextPublicKey(value: unknown, projectId: string): string[] {
-  const principal = (value as CachedContext | null)?.context?.principal;
-  return principal?.kind === "apiKey" &&
-    principal.boundResource.projectId === projectId
-    ? [principal.publicKey]
-    : [];
-}
 
 type CachedContext = { context?: AuthorizationContext };

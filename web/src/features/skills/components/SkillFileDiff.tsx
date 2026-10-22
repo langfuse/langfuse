@@ -1,9 +1,17 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import DiffViewer from "@/src/components/DiffViewer";
 import { api } from "@/src/utils/api";
 import { SkillComparisonError } from "./SkillComparisonError";
 
 type FileContent = { content: string } | { sha256Hash: string } | null;
+
+function getContent(
+  file: FileContent,
+  loaded: { sha256Hash: string; content: string }[] | undefined,
+) {
+  if (!file) return "";
+  if ("content" in file) return file.content;
+  return loaded?.find((item) => item.sha256Hash === file.sha256Hash)?.content;
+}
 
 export function SkillFileDiff({
   projectId,
@@ -72,13 +80,4 @@ export function SkillFileDiff({
       newLabel={`${newLabel}${newFile ? "" : " · File absent"}`}
     />
   );
-}
-
-function getContent(
-  file: FileContent,
-  loaded: { sha256Hash: string; content: string }[] | undefined,
-) {
-  if (!file) return "";
-  if ("content" in file) return file.content;
-  return loaded?.find((item) => item.sha256Hash === file.sha256Hash)?.content;
 }

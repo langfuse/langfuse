@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -96,27 +95,253 @@ const signupVerifyFormSchema = z.object({
   email: z.email(),
 });
 
-export default function SignUpPage({
-  authProviders = FALLBACK_AUTH_PROVIDERS,
-  runningOnHuggingFaceSpaces,
-  emailVerificationRequired,
-}: PageProps) {
-  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+function SignupPageShell({ children }: { children: React.ReactNode }) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
-  if (emailVerificationRequired) {
-    return (
-      <VerifiedSignupFlow
-        authProviders={authProviders}
-        emailVerificationRequired={emailVerificationRequired}
-      />
+  return (
+    <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mx-auto w-fit">
+          <LangfuseIcon alt="" />
+        </div>
+        <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+          Create new account
+        </h2>
+      </div>
+      {isLangfuseCloud ? (
+        <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
+          No credit card required.
+        </div>
+      ) : null}
+
+      {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
+
+      <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
+        {children}
+      </div>
+      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        <CloudPrivacyNotice action="creating an account" />
+      )}
+    </div>
+  );
+}
+
+function SignupFooter() {
+  const router = useRouter();
+  return (
+    <p className="text-muted-foreground mt-10 text-center text-sm">
+      Already have an account?{" "}
+      <Link
+        href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+        className="text-link hover:text-link-hover font-bold"
+      >
+        Sign in
+      </Link>
+    </p>
+  );
+}
+
+function VerifiedSignupFlow({
+  authProviders,
+}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+  const setupTargetPath = getOnboardingTargetPath({
+    targetPath,
+    isLangfuseCloud,
+  });
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
+    : "/auth/setup-password";
+
+  const [formError, setFormError] = useState<string | null>(null);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation spends a `signup_verify` token. The setup-code email
+  // is a separate siteverify check, so the widget switches to
+  // `password_reset` once the account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    | typeof TURNSTILE_ACTIONS.signupVerify
+    | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.signupVerify);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
+    useLocalStorage<NextAuthProvider | null>(
+      "langfuse_last_used_auth_method",
+      null,
     );
+
+  const form = useForm({
+    resolver: zodResolver(signupVerifyFormSchema),
+    defaultValues: {
+      name: "",
+      email: emailParam ?? "",
+    },
+  });
+
+  async function sendSetupCode(
+    values: z.infer<typeof signupVerifyFormSchema>,
+    passwordResetToken: string | undefined,
+  ) {
+    const signInRes = await signIn("email", {
+      email: values.email,
+      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
+      redirect: false,
+      ...(passwordResetToken ? { turnstileToken: passwordResetToken } : {}),
+    });
+
+    if (signInRes?.error) {
+      turnstileRef.current?.reset();
+      setFormError(verifiedSignupSignInError(signInRes.error));
+      return;
+    }
+
+    capture("sign_up:button_click", { provider: "email_verification" });
+    sessionStorage.setItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+      values.email.toLowerCase(),
+    );
+    await router.push(setupPasswordPath);
+  }
+
+  async function onVerifiedSubmit(
+    values: z.infer<typeof signupVerifyFormSchema>,
+  ) {
+    let created = accountCreated;
+    try {
+      setFormError(null);
+
+      if (created) {
+        await sendSetupCode(values, turnstileToken);
+        return;
+      }
+
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup-verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: values.email,
+            name: values.name,
+            turnstileToken,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        turnstileRef.current?.reset();
+        const payload = (await res.json()) as { message: string };
+        setFormError(payload.message);
+        return;
+      }
+
+      created = true;
+      setAccountCreated(true);
+
+      // The signup request redeemed its token. The setup-code email needs
+      // a fresh token issued for `password_reset`.
+      let passwordResetToken: string | undefined;
+      if (turnstileSiteKey) {
+        const pendingToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.passwordReset);
+        passwordResetToken = await waitForLoginToken(pendingToken);
+      }
+      if (turnstileSiteKey && !passwordResetToken) {
+        setFormError(VERIFICATION_CODE_PENDING_MESSAGE);
+        return;
+      }
+
+      await sendSetupCode(values, passwordResetToken);
+    } catch {
+      turnstileRef.current?.reset();
+      setFormError(
+        created
+          ? VERIFICATION_CODE_PENDING_MESSAGE
+          : "An error occurred. Please try again.",
+      );
+    }
   }
 
   return (
-    <StandardSignupFlow
-      authProviders={authProviders}
-      emailVerificationRequired={emailVerificationRequired}
-    />
+    <SignupPageShell>
+      <Form {...form}>
+        <form
+          className="space-y-6"
+          onSubmit={form.handleSubmit(onVerifiedSubmit)}
+        >
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="Jane Doe" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="jsdoe@example.com"
+                    allowPasswordManager
+                    autoComplete="email"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={turnstileAction}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
+          <Button
+            type="submit"
+            className="w-full"
+            loading={form.formState.isSubmitting}
+            disabled={Boolean(turnstileSiteKey) && !turnstileToken}
+            data-testid="submit-email-password-sign-up-form"
+          >
+            {accountCreated ? "Send verification code" : "Continue"}
+          </Button>
+          {formError ? (
+            <div className="text-destructive text-center text-sm font-bold">
+              {formError}
+            </div>
+          ) : null}
+        </form>
+      </Form>
+      <SSOButtons
+        authProviders={authProviders}
+        action="sign up"
+        callbackUrl={targetPath}
+        lastUsedMethod={lastUsedAuthMethod}
+        onProviderSelect={setLastUsedAuthMethod}
+      />
+      <SignupFooter />
+    </SignupPageShell>
   );
 }
 
@@ -426,252 +651,26 @@ function StandardSignupFlow({
   );
 }
 
-function VerifiedSignupFlow({
-  authProviders,
-}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
-  const emailParam = router.query.email as string | undefined;
-  const queryTargetPath = router.query.targetPath as string | undefined;
-  const targetPath = queryTargetPath
-    ? getSafeRedirectPath(queryTargetPath)
-    : undefined;
-  const setupTargetPath = getOnboardingTargetPath({
-    targetPath,
-    isLangfuseCloud,
-  });
-  const setupPasswordPath = setupTargetPath
-    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
-    : "/auth/setup-password";
+export default function SignUpPage({
+  authProviders = FALLBACK_AUTH_PROVIDERS,
+  runningOnHuggingFaceSpaces,
+  emailVerificationRequired,
+}: PageProps) {
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
-  const [formError, setFormError] = useState<string | null>(null);
-  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-  const [turnstileToken, setTurnstileToken] = useState<string>();
-  // Account creation spends a `signup_verify` token. The setup-code email
-  // is a separate siteverify check, so the widget switches to
-  // `password_reset` once the account exists.
-  const [turnstileAction, setTurnstileAction] = useState<
-    | typeof TURNSTILE_ACTIONS.signupVerify
-    | typeof TURNSTILE_ACTIONS.passwordReset
-  >(TURNSTILE_ACTIONS.signupVerify);
-  const [accountCreated, setAccountCreated] = useState(false);
-  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
-  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
-    useLocalStorage<NextAuthProvider | null>(
-      "langfuse_last_used_auth_method",
-      null,
-    );
-
-  const form = useForm({
-    resolver: zodResolver(signupVerifyFormSchema),
-    defaultValues: {
-      name: "",
-      email: emailParam ?? "",
-    },
-  });
-
-  async function sendSetupCode(
-    values: z.infer<typeof signupVerifyFormSchema>,
-    passwordResetToken: string | undefined,
-  ) {
-    const signInRes = await signIn("email", {
-      email: values.email,
-      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
-      redirect: false,
-      ...(passwordResetToken ? { turnstileToken: passwordResetToken } : {}),
-    });
-
-    if (signInRes?.error) {
-      turnstileRef.current?.reset();
-      setFormError(verifiedSignupSignInError(signInRes.error));
-      return;
-    }
-
-    capture("sign_up:button_click", { provider: "email_verification" });
-    sessionStorage.setItem(
-      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
-      values.email.toLowerCase(),
-    );
-    await router.push(setupPasswordPath);
-  }
-
-  async function onVerifiedSubmit(
-    values: z.infer<typeof signupVerifyFormSchema>,
-  ) {
-    let created = accountCreated;
-    try {
-      setFormError(null);
-
-      if (created) {
-        await sendSetupCode(values, turnstileToken);
-        return;
-      }
-
-      const res = await fetch(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup-verify`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: values.email,
-            name: values.name,
-            turnstileToken,
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        turnstileRef.current?.reset();
-        const payload = (await res.json()) as { message: string };
-        setFormError(payload.message);
-        return;
-      }
-
-      created = true;
-      setAccountCreated(true);
-
-      // The signup request redeemed its token. The setup-code email needs
-      // a fresh token issued for `password_reset`.
-      let passwordResetToken: string | undefined;
-      if (turnstileSiteKey) {
-        const pendingToken = turnstileRef.current?.nextToken();
-        setTurnstileToken(undefined);
-        setTurnstileAction(TURNSTILE_ACTIONS.passwordReset);
-        passwordResetToken = await waitForLoginToken(pendingToken);
-      }
-      if (turnstileSiteKey && !passwordResetToken) {
-        setFormError(VERIFICATION_CODE_PENDING_MESSAGE);
-        return;
-      }
-
-      await sendSetupCode(values, passwordResetToken);
-    } catch {
-      turnstileRef.current?.reset();
-      setFormError(
-        created
-          ? VERIFICATION_CODE_PENDING_MESSAGE
-          : "An error occurred. Please try again.",
-      );
-    }
-  }
-
-  return (
-    <SignupPageShell>
-      <Form {...form}>
-        <form
-          className="space-y-6"
-          onSubmit={form.handleSubmit(onVerifiedSubmit)}
-        >
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Jane Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="jsdoe@example.com"
-                    allowPasswordManager
-                    autoComplete="email"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {turnstileSiteKey && (
-            <TurnstileWidget
-              ref={turnstileRef}
-              siteKey={turnstileSiteKey}
-              action={turnstileAction}
-              onTokenChange={setTurnstileToken}
-            />
-          )}
-          <Button
-            type="submit"
-            className="w-full"
-            loading={form.formState.isSubmitting}
-            disabled={Boolean(turnstileSiteKey) && !turnstileToken}
-            data-testid="submit-email-password-sign-up-form"
-          >
-            {accountCreated ? "Send verification code" : "Continue"}
-          </Button>
-          {formError ? (
-            <div className="text-destructive text-center text-sm font-bold">
-              {formError}
-            </div>
-          ) : null}
-        </form>
-      </Form>
-      <SSOButtons
+  if (emailVerificationRequired) {
+    return (
+      <VerifiedSignupFlow
         authProviders={authProviders}
-        action="sign up"
-        callbackUrl={targetPath}
-        lastUsedMethod={lastUsedAuthMethod}
-        onProviderSelect={setLastUsedAuthMethod}
+        emailVerificationRequired={emailVerificationRequired}
       />
-      <SignupFooter />
-    </SignupPageShell>
-  );
-}
-
-function SignupPageShell({ children }: { children: React.ReactNode }) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
+    );
+  }
 
   return (
-    <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="mx-auto w-fit">
-          <LangfuseIcon alt="" />
-        </div>
-        <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-          Create new account
-        </h2>
-      </div>
-      {isLangfuseCloud ? (
-        <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-          No credit card required.
-        </div>
-      ) : null}
-
-      {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
-
-      <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
-        {children}
-      </div>
-      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
-        <CloudPrivacyNotice action="creating an account" />
-      )}
-    </div>
-  );
-}
-
-function SignupFooter() {
-  const router = useRouter();
-  return (
-    <p className="text-muted-foreground mt-10 text-center text-sm">
-      Already have an account?{" "}
-      <Link
-        href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-link hover:text-link-hover font-bold"
-      >
-        Sign in
-      </Link>
-    </p>
+    <StandardSignupFlow
+      authProviders={authProviders}
+      emailVerificationRequired={emailVerificationRequired}
+    />
   );
 }

@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useState, type ChangeEvent, type ComponentProps } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { env } from "@/src/env.mjs";
@@ -40,6 +40,142 @@ const traceTimeRanges = {
   "30": "last30Days",
   "90": "last90Days",
 } as const;
+
+function TracePreviewTable({
+  projectId,
+  traces,
+  excluded,
+  onExcludedChange,
+}: {
+  projectId: string;
+  traces: TracePreview[];
+  excluded: string[];
+  onExcludedChange: (ids: string[]) => void;
+}) {
+  const openTrace = (traceId: string) => {
+    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
+    window.open(
+      `${basePath}/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+  const [page, setPage] = useState(0);
+  const excludedIds = new Set(excluded);
+  const selectedCount = traces.length - excludedIds.size;
+  const pageCount = Math.max(1, Math.ceil(traces.length / 20));
+  const allChecked: boolean | "indeterminate" = (() => {
+    if (selectedCount === traces.length && traces.length > 0) return true;
+    if (selectedCount > 0) return "indeterminate";
+    return false;
+  })();
+  function handleSelectAll(checked: boolean | "indeterminate") {
+    onExcludedChange(checked === true ? [] : traces.map((trace) => trace.id));
+  }
+  function handleRowClick(trace: TracePreview) {
+    openTrace(trace.id);
+  }
+  function handlePageChange(next: { pageIndex: number }) {
+    setPage(next.pageIndex);
+  }
+  const columns: ColumnDef<TracePreview>[] = [
+    {
+      id: "selected",
+      size: 48,
+      enableResizing: false,
+      header: () => (
+        <Checkbox
+          aria-label="Select all previewed traces"
+          checked={allChecked}
+          disabled={traces.length === 0}
+          onCheckedChange={handleSelectAll}
+        />
+      ),
+      cell: ({ row }) => {
+        function handleCheckedChange(checked: boolean | "indeterminate") {
+          onExcludedChange(
+            checked === true
+              ? excluded.filter((id) => id !== row.original.id)
+              : excluded.concat(row.original.id),
+          );
+        }
+        return (
+          <Checkbox
+            aria-label={`Select trace ${row.original.id}`}
+            checked={!excludedIds.has(row.original.id)}
+            onCheckedChange={handleCheckedChange}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "name",
+      header: "Trace",
+      size: 300,
+      cell: ({ row: { original: trace } }) => {
+        function handleClick() {
+          openTrace(trace.id);
+        }
+        return (
+          <div className="min-w-0">
+            <TextLink
+              path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
+              value={trace.name ?? trace.id}
+              onClick={handleClick}
+            />
+            {trace.name && (
+              <span
+                title={trace.id}
+                className="text-muted-foreground block truncate font-mono text-xs"
+              >
+                {trace.id}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "timestamp",
+      header: "Matching time",
+      size: 176,
+      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      size: 128,
+      cell: ({ row }) => (
+        <span title={row.original.environment} className="block truncate">
+          {row.original.environment}
+        </span>
+      ),
+    },
+  ];
+  return (
+    <div className="flex h-96 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
+      <Table
+        tableName="Topics trace preview"
+        columns={columns}
+        data={{
+          status: "success",
+          data: traces.slice(page * 20, (page + 1) * 20),
+        }}
+        onRowClick={handleRowClick}
+        noResultsMessage="No traces match these filters and time range."
+      />
+      {pageCount > 1 && (
+        <PaginationBar
+          mode="offset"
+          totalCount={traces.length}
+          state={{ pageIndex: page, pageSize: 20 }}
+          onChange={handlePageChange}
+          pageSizeOptions={[20]}
+        />
+      )}
+    </div>
+  );
+}
 
 export function TopicTraceSelectorView({
   projectId,
@@ -302,142 +438,6 @@ export function TopicTraceSelectorView({
             </span>
           )}
         </label>
-      )}
-    </div>
-  );
-}
-
-function TracePreviewTable({
-  projectId,
-  traces,
-  excluded,
-  onExcludedChange,
-}: {
-  projectId: string;
-  traces: TracePreview[];
-  excluded: string[];
-  onExcludedChange: (ids: string[]) => void;
-}) {
-  const openTrace = (traceId: string) => {
-    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
-    window.open(
-      `${basePath}/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-  const [page, setPage] = useState(0);
-  const excludedIds = new Set(excluded);
-  const selectedCount = traces.length - excludedIds.size;
-  const pageCount = Math.max(1, Math.ceil(traces.length / 20));
-  const allChecked: boolean | "indeterminate" = (() => {
-    if (selectedCount === traces.length && traces.length > 0) return true;
-    if (selectedCount > 0) return "indeterminate";
-    return false;
-  })();
-  function handleSelectAll(checked: boolean | "indeterminate") {
-    onExcludedChange(checked === true ? [] : traces.map((trace) => trace.id));
-  }
-  function handleRowClick(trace: TracePreview) {
-    openTrace(trace.id);
-  }
-  function handlePageChange(next: { pageIndex: number }) {
-    setPage(next.pageIndex);
-  }
-  const columns: ColumnDef<TracePreview>[] = [
-    {
-      id: "selected",
-      size: 48,
-      enableResizing: false,
-      header: () => (
-        <Checkbox
-          aria-label="Select all previewed traces"
-          checked={allChecked}
-          disabled={traces.length === 0}
-          onCheckedChange={handleSelectAll}
-        />
-      ),
-      cell: ({ row }) => {
-        function handleCheckedChange(checked: boolean | "indeterminate") {
-          onExcludedChange(
-            checked === true
-              ? excluded.filter((id) => id !== row.original.id)
-              : excluded.concat(row.original.id),
-          );
-        }
-        return (
-          <Checkbox
-            aria-label={`Select trace ${row.original.id}`}
-            checked={!excludedIds.has(row.original.id)}
-            onCheckedChange={handleCheckedChange}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "name",
-      header: "Trace",
-      size: 300,
-      cell: ({ row: { original: trace } }) => {
-        function handleClick() {
-          openTrace(trace.id);
-        }
-        return (
-          <div className="min-w-0">
-            <TextLink
-              path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
-              value={trace.name ?? trace.id}
-              onClick={handleClick}
-            />
-            {trace.name && (
-              <span
-                title={trace.id}
-                className="text-muted-foreground block truncate font-mono text-xs"
-              >
-                {trace.id}
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "timestamp",
-      header: "Matching time",
-      size: 176,
-      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
-    },
-    {
-      accessorKey: "environment",
-      header: "Environment",
-      size: 128,
-      cell: ({ row }) => (
-        <span title={row.original.environment} className="block truncate">
-          {row.original.environment}
-        </span>
-      ),
-    },
-  ];
-  return (
-    <div className="flex h-96 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-      <Table
-        tableName="Topics trace preview"
-        columns={columns}
-        data={{
-          status: "success",
-          data: traces.slice(page * 20, (page + 1) * 20),
-        }}
-        onRowClick={handleRowClick}
-        noResultsMessage="No traces match these filters and time range."
-      />
-      {pageCount > 1 && (
-        <PaginationBar
-          mode="offset"
-          totalCount={traces.length}
-          state={{ pageIndex: page, pageSize: 20 }}
-          onChange={handlePageChange}
-          pageSizeOptions={[20]}
-        />
       )}
     </div>
   );

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toObservedOptions } from "@/src/features/search-bar";
@@ -75,21 +74,88 @@ function previewStatus(
   return null;
 }
 
-export function TopicAutomaticTraceScope({
-  projectId,
-  filters,
-  onFiltersChange,
-}: TopicAutomaticTraceScopeProps) {
-  if (!projectId)
-    return (
-      <SampleTraceScope filters={filters} onFiltersChange={onFiltersChange} />
-    );
+function TraceScopeFrame({
+  countLabel,
+  description,
+  tooltip,
+  rows,
+  status,
+  ...filterProps
+}: Omit<TopicTraceFilterSectionProps, "description"> & {
+  countLabel?: string | null;
+  description?: string;
+  tooltip?: string;
+  rows: Array<{
+    id?: string;
+    start: string;
+    type: string;
+    name: string;
+    input: string;
+  }>;
+  status?: string | null;
+}) {
   return (
-    <ProjectTraceScope
-      projectId={projectId}
-      filters={filters}
-      onFiltersChange={onFiltersChange}
-    />
+    <div className="flex flex-col gap-4">
+      <TopicTraceFilterSection {...filterProps} />
+      <section className="flex flex-col gap-2">
+        <SectionHeader
+          title="Matching traces"
+          meta={
+            countLabel ? (
+              <span className="text-muted-foreground text-sm">
+                {countLabel}
+              </span>
+            ) : null
+          }
+          description={
+            description ?? "A sample of traces this setup would include."
+          }
+          tooltip={
+            tooltip ??
+            "A fixed sample. The filter is applied when traces are processed, not in this table."
+          }
+          trailing={null}
+        />
+        <div className="max-h-72 overflow-auto rounded-md border">
+          <table className="w-full text-left text-sm">
+            <thead className="text-muted-foreground bg-background sticky top-0">
+              <tr className="border-b">
+                <th className="px-3 py-2 font-normal">Start time</th>
+                <th className="px-3 py-2 font-normal">Type</th>
+                <th className="px-3 py-2 font-normal">Name</th>
+                <th className="px-3 py-2 font-normal">Input</th>
+              </tr>
+            </thead>
+            <tbody>
+              {status ? (
+                <tr>
+                  <td className="text-muted-foreground px-3 py-2" colSpan={4}>
+                    {status}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr
+                    key={row.id ?? `${row.start}-${row.name}`}
+                    className="border-b last:border-b-0"
+                  >
+                    <td className="px-3 py-2 whitespace-nowrap">{row.start}</td>
+                    <td className="px-3 py-2">{row.type}</td>
+                    <td className="px-3 py-2">{row.name}</td>
+                    <td
+                      className="text-muted-foreground max-w-48 truncate px-3 py-2"
+                      title={row.input}
+                    >
+                      {row.input}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -256,88 +322,21 @@ function ProjectTraceScope({
   );
 }
 
-function TraceScopeFrame({
-  countLabel,
-  description,
-  tooltip,
-  rows,
-  status,
-  ...filterProps
-}: Omit<TopicTraceFilterSectionProps, "description"> & {
-  countLabel?: string | null;
-  description?: string;
-  tooltip?: string;
-  rows: Array<{
-    id?: string;
-    start: string;
-    type: string;
-    name: string;
-    input: string;
-  }>;
-  status?: string | null;
-}) {
+export function TopicAutomaticTraceScope({
+  projectId,
+  filters,
+  onFiltersChange,
+}: TopicAutomaticTraceScopeProps) {
+  if (!projectId)
+    return (
+      <SampleTraceScope filters={filters} onFiltersChange={onFiltersChange} />
+    );
   return (
-    <div className="flex flex-col gap-4">
-      <TopicTraceFilterSection {...filterProps} />
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Matching traces"
-          meta={
-            countLabel ? (
-              <span className="text-muted-foreground text-sm">
-                {countLabel}
-              </span>
-            ) : null
-          }
-          description={
-            description ?? "A sample of traces this setup would include."
-          }
-          tooltip={
-            tooltip ??
-            "A fixed sample. The filter is applied when traces are processed, not in this table."
-          }
-          trailing={null}
-        />
-        <div className="max-h-72 overflow-auto rounded-md border">
-          <table className="w-full text-left text-sm">
-            <thead className="text-muted-foreground bg-background sticky top-0">
-              <tr className="border-b">
-                <th className="px-3 py-2 font-normal">Start time</th>
-                <th className="px-3 py-2 font-normal">Type</th>
-                <th className="px-3 py-2 font-normal">Name</th>
-                <th className="px-3 py-2 font-normal">Input</th>
-              </tr>
-            </thead>
-            <tbody>
-              {status ? (
-                <tr>
-                  <td className="text-muted-foreground px-3 py-2" colSpan={4}>
-                    {status}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr
-                    key={row.id ?? `${row.start}-${row.name}`}
-                    className="border-b last:border-b-0"
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap">{row.start}</td>
-                    <td className="px-3 py-2">{row.type}</td>
-                    <td className="px-3 py-2">{row.name}</td>
-                    <td
-                      className="text-muted-foreground max-w-48 truncate px-3 py-2"
-                      title={row.input}
-                    >
-                      {row.input}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+    <ProjectTraceScope
+      projectId={projectId}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+    />
   );
 }
 

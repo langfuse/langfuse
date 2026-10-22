@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
@@ -94,26 +93,6 @@ export const toolCallForEvalSchema = z.object({
 export type ToolCallForEval = z.infer<typeof toolCallForEvalSchema>;
 
 /**
- * zipObservationToolCalls for camelCase records with loosely typed arrays
- * (tRPC/domain shapes: events batchIO, legacy observations.byId). Malformed
- * names map to "" instead of being dropped — filtering would shift the zip
- * and misattribute every later call's name.
- */
-export function zipToolCallsFromRecord(record: object): ToolCallForEval[] {
-  const { toolCalls, toolCallNames } = record as {
-    toolCalls?: unknown;
-    toolCallNames?: unknown;
-  };
-
-  return zipObservationToolCalls({
-    tool_calls: Array.isArray(toolCalls) ? toolCalls : [],
-    tool_call_names: Array.isArray(toolCallNames)
-      ? toolCallNames.map((name) => (typeof name === "string" ? name : ""))
-      : [],
-  });
-}
-
-/**
  * Zips the parallel arrays back into named tool call objects.
  * `tool_call_names` is authoritative for count and order: ingestion writes
  * both arrays in lockstep (`convertCallsToArrays`), and stored entries carry
@@ -137,6 +116,26 @@ export function zipObservationToolCalls(
       type: typeof entry.type === "string" ? entry.type : "",
       index: typeof entry.index === "number" ? entry.index : 0,
     };
+  });
+}
+
+/**
+ * zipObservationToolCalls for camelCase records with loosely typed arrays
+ * (tRPC/domain shapes: events batchIO, legacy observations.byId). Malformed
+ * names map to "" instead of being dropped — filtering would shift the zip
+ * and misattribute every later call's name.
+ */
+export function zipToolCallsFromRecord(record: object): ToolCallForEval[] {
+  const { toolCalls, toolCallNames } = record as {
+    toolCalls?: unknown;
+    toolCallNames?: unknown;
+  };
+
+  return zipObservationToolCalls({
+    tool_calls: Array.isArray(toolCalls) ? toolCalls : [],
+    tool_call_names: Array.isArray(toolCallNames)
+      ? toolCallNames.map((name) => (typeof name === "string" ? name : ""))
+      : [],
   });
 }
 

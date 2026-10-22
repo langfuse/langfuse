@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -8,10 +7,43 @@ import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/pu
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
-export default withMiddlewares({
-  GET: handleGetBlobStorageIntegrationStatus,
-  DELETE: handleDeleteBlobStorageIntegration,
-});
+async function handleGetBlobStorageIntegrationStatus(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  const scope = await authorizeBlobStorageRequest(req);
+
+  const { id } = req.query;
+  if (!id || typeof id !== "string") {
+    throw new InvalidRequestError("Invalid integration ID");
+  }
+
+  const integration = await prisma.blobStorageIntegration.findUnique({
+    where: { projectId: id },
+    include: {
+      project: {
+        select: { orgId: true },
+      },
+    },
+  });
+
+  if (!integration || integration.project.orgId !== scope.orgId) {
+    throw new LangfuseNotFoundError("Blob storage integration not found");
+  }
+
+  const responseData: BlobStorageIntegrationStatusResponseType = {
+    id: integration.projectId,
+    projectId: integration.projectId,
+    syncStatus: deriveSyncStatus(integration),
+    enabled: integration.enabled,
+    lastSyncAt: integration.lastSyncAt,
+    nextSyncAt: integration.nextSyncAt,
+    lastError: integration.lastError,
+    lastErrorAt: integration.lastErrorAt,
+  };
+
+  return res.status(200).json(responseData);
+}
 
 async function handleDeleteBlobStorageIntegration(
   req: NextApiRequest,
@@ -58,40 +90,7 @@ async function handleDeleteBlobStorageIntegration(
   });
 }
 
-async function handleGetBlobStorageIntegrationStatus(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  const scope = await authorizeBlobStorageRequest(req);
-
-  const { id } = req.query;
-  if (!id || typeof id !== "string") {
-    throw new InvalidRequestError("Invalid integration ID");
-  }
-
-  const integration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: id },
-    include: {
-      project: {
-        select: { orgId: true },
-      },
-    },
-  });
-
-  if (!integration || integration.project.orgId !== scope.orgId) {
-    throw new LangfuseNotFoundError("Blob storage integration not found");
-  }
-
-  const responseData: BlobStorageIntegrationStatusResponseType = {
-    id: integration.projectId,
-    projectId: integration.projectId,
-    syncStatus: deriveSyncStatus(integration),
-    enabled: integration.enabled,
-    lastSyncAt: integration.lastSyncAt,
-    nextSyncAt: integration.nextSyncAt,
-    lastError: integration.lastError,
-    lastErrorAt: integration.lastErrorAt,
-  };
-
-  return res.status(200).json(responseData);
-}
+export default withMiddlewares({
+  GET: handleGetBlobStorageIntegrationStatus,
+  DELETE: handleDeleteBlobStorageIntegration,
+});

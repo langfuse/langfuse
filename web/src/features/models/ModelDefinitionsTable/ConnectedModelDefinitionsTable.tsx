@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "@langfuse/icons";
 import { useMemo, useRef } from "react";
@@ -24,6 +23,20 @@ import {
   ModelDefinitionsTable,
   type ModelTableRow,
 } from "./ModelDefinitionsTable";
+
+function convertToTableRow(model: GetModelResult): ModelTableRow {
+  const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
+  return {
+    modelId: model.id,
+    maintainer: model.projectId ? "User" : "Langfuse",
+    modelName: model.modelName,
+    matchPattern: model.matchPattern,
+    prices,
+    tokenizerId: model.tokenizerId ?? undefined,
+    config: model.tokenizerConfig,
+    serverResponse: model,
+  };
+}
 
 export function ConnectedModelDefinitionsTable({
   projectId,
@@ -218,18 +231,4 @@ export function ConnectedModelDefinitionsTable({
       )}
     </DialogController>
   );
-}
-
-function convertToTableRow(model: GetModelResult): ModelTableRow {
-  const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
-  return {
-    modelId: model.id,
-    maintainer: model.projectId ? "User" : "Langfuse",
-    modelName: model.modelName,
-    matchPattern: model.matchPattern,
-    prices,
-    tokenizerId: model.tokenizerId ?? undefined,
-    config: model.tokenizerConfig,
-    serverResponse: model,
-  };
 }

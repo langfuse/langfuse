@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -39,6 +38,181 @@ type CodeEvalInputPreviewData = Extract<
   PreviewData,
   { type: typeof EvalTargetObject.EVENT }
 >;
+
+function getCodeEvalErrorCategory(
+  code: string,
+): "resource_limit" | "rate_limit" | "user_input" | "internal" {
+  if (
+    [
+      "PAYLOAD_TOO_LARGE",
+      "RESULT_TOO_LARGE",
+      "SOURCE_TOO_LARGE",
+      "TIMEOUT",
+      "OUT_OF_MEMORY",
+    ].includes(code)
+  ) {
+    return "resource_limit";
+  }
+  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
+  if (
+    [
+      "INVALID_RESULT",
+      "INVALID_SOURCE",
+      "UNSUPPORTED_RUNTIME",
+      "USER_CODE_ERROR",
+    ].includes(code)
+  ) {
+    return "user_input";
+  }
+  return "internal";
+}
+
+function CodeEvalTestRunInputCards({
+  previewData,
+  includeExperimentVariables,
+}: {
+  previewData: CodeEvalInputPreviewData;
+  includeExperimentVariables: boolean;
+}) {
+  // Mirrors the payload shape buildCodeEvalPayload hands to the evaluator,
+  // so the preview shows exactly what the code receives.
+  const inputPreviewJson = useMemo(() => {
+    const data = previewData.data;
+
+    return {
+      observation: {
+        input: deepParseJson(data.input),
+        output: deepParseJson(data.output),
+        metadata: deepParseJson(data.metadata),
+        // No deepParseJson, matching variable extraction: the zipped calls are
+        // fully parsed already, and it would coerce id/name/type strings that
+        // are JSON literals ("true"/"null") into primitives.
+        toolCalls: data.toolCalls,
+      },
+      ...(includeExperimentVariables
+        ? {
+            experiment: {
+              itemExpectedOutput: deepParseJson(
+                data.experimentItemExpectedOutput,
+              ),
+              itemMetadata: deepParseJson(data.experimentItemMetadata),
+            },
+          }
+        : {}),
+    };
+  }, [includeExperimentVariables, previewData.data]);
+
+  return (
+    <div className="bg-muted/20 min-w-0 rounded-md border">
+      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+        <span className="text-muted-foreground text-xs font-bold">
+          Evaluator input
+        </span>
+      </div>
+      <PrettyJsonView
+        json={inputPreviewJson}
+        currentView="pretty"
+        isLoading={false}
+        showNullValues={true}
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+        scrollable={true}
+        className="max-h-[40dvh] [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+      />
+    </div>
+  );
+}
+
+function CodeEvalTestRunInputPreview({
+  previewData,
+  isLoading,
+  includeExperimentVariables,
+}: {
+  previewData: PreviewData | null;
+  isLoading: boolean;
+  includeExperimentVariables: boolean;
+}) {
+  if (isLoading) {
+    const skeletonCount = includeExperimentVariables ? 5 : 3;
+    return (
+      <div className="grid gap-2">
+        {Array.from({ length: skeletonCount }).map((_, index) => (
+          <Skeleton key={index} className="h-24 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!previewData) {
+    return (
+      <div className="text-muted-foreground flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
+        No matching observation
+      </div>
+    );
+  }
+
+  return (
+    <CodeEvalTestRunInputCards
+      previewData={previewData as CodeEvalInputPreviewData}
+      includeExperimentVariables={includeExperimentVariables}
+    />
+  );
+}
+
+function toUserFacingCodeEvalScore(
+  score: CodeEvalTestRunScore,
+): Record<string, unknown> {
+  const { dataType, value, ...scoreFields } = score;
+  const userFacingScore: Record<string, unknown> = {
+    ...scoreFields,
+    dataType,
+    value:
+      dataType === "BOOLEAN" && typeof value === "number" ? value === 1 : value,
+  };
+
+  return userFacingScore;
+}
+
+function CodeEvalTestRunResultView({
+  result,
+  onShowExecutionTrace,
+}: {
+  result: Exclude<CodeEvalTestRunResult, undefined>;
+  onShowExecutionTrace?: (executionTraceId: string) => void;
+}) {
+  const resultJson = result.success
+    ? { scores: result.result.scores.map(toUserFacingCodeEvalScore) }
+    : { error: result.error };
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <Badge variant={result.success ? "success" : "error"} className="w-fit">
+          {result.success ? "Success" : "Failed"}
+        </Badge>
+        {onShowExecutionTrace ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onShowExecutionTrace(result.executionTraceId)}
+          >
+            <ListTree size="base" color="default" __rawClassName="mr-1.5" />
+            Show execution trace
+          </Button>
+        ) : null}
+      </div>
+      <CodeMirrorEditor
+        value={JSON.stringify(resultJson, null, 2)}
+        editable={false}
+        mode="json"
+        minHeight={220}
+        maxHeight="50dvh"
+        className="bg-muted/20 [&_.cm-content]:cursor-default"
+      />
+    </div>
+  );
+}
 
 export function CodeEvalTestRunCard({
   projectId,
@@ -210,179 +384,4 @@ export function CodeEvalTestRunCard({
       ) : null}
     </>
   );
-}
-
-function CodeEvalTestRunInputPreview({
-  previewData,
-  isLoading,
-  includeExperimentVariables,
-}: {
-  previewData: PreviewData | null;
-  isLoading: boolean;
-  includeExperimentVariables: boolean;
-}) {
-  if (isLoading) {
-    const skeletonCount = includeExperimentVariables ? 5 : 3;
-    return (
-      <div className="grid gap-2">
-        {Array.from({ length: skeletonCount }).map((_, index) => (
-          <Skeleton key={index} className="h-24 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!previewData) {
-    return (
-      <div className="text-muted-foreground flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
-        No matching observation
-      </div>
-    );
-  }
-
-  return (
-    <CodeEvalTestRunInputCards
-      previewData={previewData as CodeEvalInputPreviewData}
-      includeExperimentVariables={includeExperimentVariables}
-    />
-  );
-}
-
-function CodeEvalTestRunInputCards({
-  previewData,
-  includeExperimentVariables,
-}: {
-  previewData: CodeEvalInputPreviewData;
-  includeExperimentVariables: boolean;
-}) {
-  // Mirrors the payload shape buildCodeEvalPayload hands to the evaluator,
-  // so the preview shows exactly what the code receives.
-  const inputPreviewJson = useMemo(() => {
-    const data = previewData.data;
-
-    return {
-      observation: {
-        input: deepParseJson(data.input),
-        output: deepParseJson(data.output),
-        metadata: deepParseJson(data.metadata),
-        // No deepParseJson, matching variable extraction: the zipped calls are
-        // fully parsed already, and it would coerce id/name/type strings that
-        // are JSON literals ("true"/"null") into primitives.
-        toolCalls: data.toolCalls,
-      },
-      ...(includeExperimentVariables
-        ? {
-            experiment: {
-              itemExpectedOutput: deepParseJson(
-                data.experimentItemExpectedOutput,
-              ),
-              itemMetadata: deepParseJson(data.experimentItemMetadata),
-            },
-          }
-        : {}),
-    };
-  }, [includeExperimentVariables, previewData.data]);
-
-  return (
-    <div className="bg-muted/20 min-w-0 rounded-md border">
-      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <span className="text-muted-foreground text-xs font-bold">
-          Evaluator input
-        </span>
-      </div>
-      <PrettyJsonView
-        json={inputPreviewJson}
-        currentView="pretty"
-        isLoading={false}
-        showNullValues={true}
-        stickyTopLevelKey={false}
-        showObservationTypeBadge={false}
-        scrollable={true}
-        className="max-h-[40dvh] [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-      />
-    </div>
-  );
-}
-
-function CodeEvalTestRunResultView({
-  result,
-  onShowExecutionTrace,
-}: {
-  result: Exclude<CodeEvalTestRunResult, undefined>;
-  onShowExecutionTrace?: (executionTraceId: string) => void;
-}) {
-  const resultJson = result.success
-    ? { scores: result.result.scores.map(toUserFacingCodeEvalScore) }
-    : { error: result.error };
-
-  return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <Badge variant={result.success ? "success" : "error"} className="w-fit">
-          {result.success ? "Success" : "Failed"}
-        </Badge>
-        {onShowExecutionTrace ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onShowExecutionTrace(result.executionTraceId)}
-          >
-            <ListTree size="base" color="default" __rawClassName="mr-1.5" />
-            Show execution trace
-          </Button>
-        ) : null}
-      </div>
-      <CodeMirrorEditor
-        value={JSON.stringify(resultJson, null, 2)}
-        editable={false}
-        mode="json"
-        minHeight={220}
-        maxHeight="50dvh"
-        className="bg-muted/20 [&_.cm-content]:cursor-default"
-      />
-    </div>
-  );
-}
-
-function toUserFacingCodeEvalScore(
-  score: CodeEvalTestRunScore,
-): Record<string, unknown> {
-  const { dataType, value, ...scoreFields } = score;
-  const userFacingScore: Record<string, unknown> = {
-    ...scoreFields,
-    dataType,
-    value:
-      dataType === "BOOLEAN" && typeof value === "number" ? value === 1 : value,
-  };
-
-  return userFacingScore;
-}
-
-function getCodeEvalErrorCategory(
-  code: string,
-): "resource_limit" | "rate_limit" | "user_input" | "internal" {
-  if (
-    [
-      "PAYLOAD_TOO_LARGE",
-      "RESULT_TOO_LARGE",
-      "SOURCE_TOO_LARGE",
-      "TIMEOUT",
-      "OUT_OF_MEMORY",
-    ].includes(code)
-  ) {
-    return "resource_limit";
-  }
-  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
-  if (
-    [
-      "INVALID_RESULT",
-      "INVALID_SOURCE",
-      "UNSUPPORTED_RUNTIME",
-      "USER_CODE_ERROR",
-    ].includes(code)
-  ) {
-    return "user_input";
-  }
-  return "internal";
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useState } from "react";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 
@@ -13,42 +12,98 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
-export function AnnotationQueueFormDialogController(
-  props: AnnotationQueueFormDialogControllerProps,
-) {
-  const { projectId, onSuccess, mode, children } = props;
-  const hasQueueAccess = useHasProjectAccess({
-    projectId,
-    scope: "annotationQueues:CUD",
-  });
-  const disabled = hasQueueAccess
-    ? undefined
-    : { reason: `You don't have permission to ${mode} annotation queues.` };
-  return (
-    <DialogController
-      renderDialog={({ closeDialog, isOpen }) =>
-        hasQueueAccess ? (
-          <AnnotationQueueDialogData
-            projectId={projectId}
-            queueId={mode === "edit" ? props.queueId : undefined}
-            mode={mode}
-            isOpen={isOpen}
-            onSuccess={onSuccess}
-            closeDialog={closeDialog}
-          />
-        ) : null
-      }
-    >
-      {({ openDialog }) =>
-        children({
-          disabled,
-          openDialog: () => {
-            if (hasQueueAccess) openDialog();
-          },
-        })
-      }
-    </DialogController>
+function useQueueFormData({
+  projectId,
+  queueId,
+  mode,
+  isOpen,
+}: {
+  projectId: string;
+  queueId: string | undefined;
+  mode: "create" | "edit";
+  isOpen: boolean;
+}) {
+  const queueQuery = api.annotationQueues.byId.useQuery(
+    { projectId, queueId: queueId ?? "" },
+    { enabled: mode === "edit" && isOpen },
   );
+  const configsQuery = api.scoreConfigs.all.useQuery(
+    { projectId },
+    { enabled: isOpen && mode === "create" },
+  );
+  const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
+    { projectId },
+    { enabled: isOpen },
+  );
+  return { queueQuery, configsQuery, allQueueNamesAndIds };
+}
+
+async function saveQueueWithAssignments({
+  data,
+  projectId,
+  existingQueueId,
+  includeScoreConfigs,
+  createQueue,
+  updateQueue,
+  assignUsers,
+  onQueueCreated,
+}: {
+  data: CreateQueueWithAssignments;
+  projectId: string;
+  existingQueueId: string | undefined;
+  includeScoreConfigs: boolean;
+  createQueue: (
+    input: RouterInputs["annotationQueues"]["create"],
+  ) => Promise<{ id: string }>;
+  updateQueue: (
+    input: RouterInputs["annotationQueues"]["update"],
+  ) => Promise<unknown>;
+  assignUsers: (
+    input: RouterInputs["annotationQueueAssignments"]["createMany"],
+  ) => Promise<unknown>;
+  onQueueCreated: (queueId: string) => void;
+}) {
+  const queueData = {
+    name: data.name,
+    description: data.description,
+    scoreConfigIds: data.scoreConfigIds,
+    projectId,
+  };
+  let targetQueueId = existingQueueId;
+  if (targetQueueId) {
+    await updateQueue({
+      ...queueData,
+      scoreConfigIds: includeScoreConfigs ? data.scoreConfigIds : undefined,
+      queueId: targetQueueId,
+    });
+  } else {
+    const queue = await createQueue(queueData);
+    targetQueueId = queue.id;
+    onQueueCreated(targetQueueId);
+  }
+  if (data.newAssignmentUserIds.length > 0) {
+    await assignUsers({
+      projectId,
+      queueId: targetQueueId,
+      userIds: data.newAssignmentUserIds,
+    });
+  }
+  return targetQueueId;
+}
+function prepareQueueFormValues(
+  mode: "create" | "edit",
+  queue: RouterOutputs["annotationQueues"]["byId"] | undefined,
+): CreateQueueWithAssignments | undefined {
+  if (mode === "create") {
+    return { name: "", scoreConfigIds: [], newAssignmentUserIds: [] };
+  }
+  if (!queue) return undefined;
+  return {
+    name: queue.name ?? "",
+    description: queue.description || undefined,
+    scoreConfigIds: queue.scoreConfigs.map((config) => config.id),
+    newAssignmentUserIds: [],
+  };
 }
 
 function AnnotationQueueDialogData({
@@ -166,98 +221,42 @@ function AnnotationQueueDialogData({
   );
 }
 
-function useQueueFormData({
-  projectId,
-  queueId,
-  mode,
-  isOpen,
-}: {
-  projectId: string;
-  queueId: string | undefined;
-  mode: "create" | "edit";
-  isOpen: boolean;
-}) {
-  const queueQuery = api.annotationQueues.byId.useQuery(
-    { projectId, queueId: queueId ?? "" },
-    { enabled: mode === "edit" && isOpen },
-  );
-  const configsQuery = api.scoreConfigs.all.useQuery(
-    { projectId },
-    { enabled: isOpen && mode === "create" },
-  );
-  const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
-    { projectId },
-    { enabled: isOpen },
-  );
-  return { queueQuery, configsQuery, allQueueNamesAndIds };
-}
-function prepareQueueFormValues(
-  mode: "create" | "edit",
-  queue: RouterOutputs["annotationQueues"]["byId"] | undefined,
-): CreateQueueWithAssignments | undefined {
-  if (mode === "create") {
-    return { name: "", scoreConfigIds: [], newAssignmentUserIds: [] };
-  }
-  if (!queue) return undefined;
-  return {
-    name: queue.name ?? "",
-    description: queue.description || undefined,
-    scoreConfigIds: queue.scoreConfigs.map((config) => config.id),
-    newAssignmentUserIds: [],
-  };
-}
-
-async function saveQueueWithAssignments({
-  data,
-  projectId,
-  existingQueueId,
-  includeScoreConfigs,
-  createQueue,
-  updateQueue,
-  assignUsers,
-  onQueueCreated,
-}: {
-  data: CreateQueueWithAssignments;
-  projectId: string;
-  existingQueueId: string | undefined;
-  includeScoreConfigs: boolean;
-  createQueue: (
-    input: RouterInputs["annotationQueues"]["create"],
-  ) => Promise<{ id: string }>;
-  updateQueue: (
-    input: RouterInputs["annotationQueues"]["update"],
-  ) => Promise<unknown>;
-  assignUsers: (
-    input: RouterInputs["annotationQueueAssignments"]["createMany"],
-  ) => Promise<unknown>;
-  onQueueCreated: (queueId: string) => void;
-}) {
-  const queueData = {
-    name: data.name,
-    description: data.description,
-    scoreConfigIds: data.scoreConfigIds,
+export function AnnotationQueueFormDialogController(
+  props: AnnotationQueueFormDialogControllerProps,
+) {
+  const { projectId, onSuccess, mode, children } = props;
+  const hasQueueAccess = useHasProjectAccess({
     projectId,
-  };
-  let targetQueueId = existingQueueId;
-  if (targetQueueId) {
-    await updateQueue({
-      ...queueData,
-      scoreConfigIds: includeScoreConfigs ? data.scoreConfigIds : undefined,
-      queueId: targetQueueId,
-    });
-  } else {
-    const queue = await createQueue(queueData);
-    targetQueueId = queue.id;
-    onQueueCreated(targetQueueId);
-  }
-  if (data.newAssignmentUserIds.length > 0) {
-    await assignUsers({
-      projectId,
-      queueId: targetQueueId,
-      userIds: data.newAssignmentUserIds,
-    });
-  }
-  return targetQueueId;
+    scope: "annotationQueues:CUD",
+  });
+  const disabled = hasQueueAccess
+    ? undefined
+    : { reason: `You don't have permission to ${mode} annotation queues.` };
+  return (
+    <DialogController
+      renderDialog={({ closeDialog, isOpen }) =>
+        hasQueueAccess ? (
+          <AnnotationQueueDialogData
+            projectId={projectId}
+            queueId={mode === "edit" ? props.queueId : undefined}
+            mode={mode}
+            isOpen={isOpen}
+            onSuccess={onSuccess}
+            closeDialog={closeDialog}
+          />
+        ) : null
+      }
+    >
+      {({ openDialog }) =>
+        children({
+          disabled,
+          openDialog: () => {
+            if (hasQueueAccess) openDialog();
+          },
+        })
+      }
+    </DialogController>
+  );
 }
 
 type AnnotationQueueFormDialogControllerProps = {

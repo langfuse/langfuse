@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Utility to extract fields from a JSON Schema for pre-populating key-value mapping.
  *
@@ -28,63 +27,6 @@ type JSONSchemaObject = {
   allOf?: JSONSchemaObject[];
   $ref?: string;
 };
-
-/**
- * Extract fields from a JSON Schema for use in key-value mapping.
- *
- * @param schema - The JSON Schema to extract fields from
- * @param maxDepth - Maximum nesting depth to traverse (default: 3)
- * @returns Array of schema fields with paths, types, and required status
- *
- * @example
- * const schema = {
- *   type: "object",
- *   required: ["prompt"],
- *   properties: {
- *     prompt: { type: "string" },
- *     context: {
- *       type: "object",
- *       properties: {
- *         user_id: { type: "string" }
- *       }
- *     }
- *   }
- * };
- *
- * extractSchemaFields(schema);
- * // Returns:
- * // [
- * //   { path: "prompt", type: "string", required: true },
- * //   { path: "context", type: "object", required: false },
- * //   { path: "context.user_id", type: "string", required: false }
- * // ]
- */
-export function extractSchemaFields(
-  schema: unknown,
-  maxDepth = 3,
-): SchemaField[] {
-  if (!isJsonSchemaObject(schema)) {
-    return [];
-  }
-
-  // Only extract from object-type schemas
-  const schemaType = getSchemaType(schema);
-  if (schemaType !== "object") {
-    return [];
-  }
-
-  const fields: SchemaField[] = [];
-  extractFieldsRecursive({
-    schema,
-    prefix: "",
-    requiredSet: new Set(schema.required ?? []),
-    fields,
-    depth: 0,
-    maxDepth,
-  });
-
-  return fields;
-}
 
 // --- Internal helpers ---
 
@@ -155,6 +97,63 @@ function extractFieldsRecursive(params: {
       });
     }
   }
+}
+
+/**
+ * Extract fields from a JSON Schema for use in key-value mapping.
+ *
+ * @param schema - The JSON Schema to extract fields from
+ * @param maxDepth - Maximum nesting depth to traverse (default: 3)
+ * @returns Array of schema fields with paths, types, and required status
+ *
+ * @example
+ * const schema = {
+ *   type: "object",
+ *   required: ["prompt"],
+ *   properties: {
+ *     prompt: { type: "string" },
+ *     context: {
+ *       type: "object",
+ *       properties: {
+ *         user_id: { type: "string" }
+ *       }
+ *     }
+ *   }
+ * };
+ *
+ * extractSchemaFields(schema);
+ * // Returns:
+ * // [
+ * //   { path: "prompt", type: "string", required: true },
+ * //   { path: "context", type: "object", required: false },
+ * //   { path: "context.user_id", type: "string", required: false }
+ * // ]
+ */
+export function extractSchemaFields(
+  schema: unknown,
+  maxDepth = 3,
+): SchemaField[] {
+  if (!isJsonSchemaObject(schema)) {
+    return [];
+  }
+
+  // Only extract from object-type schemas
+  const schemaType = getSchemaType(schema);
+  if (schemaType !== "object") {
+    return [];
+  }
+
+  const fields: SchemaField[] = [];
+  extractFieldsRecursive({
+    schema,
+    prefix: "",
+    requiredSet: new Set(schema.required ?? []),
+    fields,
+    depth: 0,
+    maxDepth,
+  });
+
+  return fields;
 }
 
 /**

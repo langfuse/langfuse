@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   assembleTranscript,
   getObservationByIdFromEventsTable,
@@ -33,6 +32,42 @@ type SessionTranscript = Omit<Transcript, "threads"> & {
     }
   >;
 };
+
+function withToolObservationStatus(
+  transcript: Transcript | null,
+  observationsById: ReadonlyMap<string, Observation>,
+): SessionTranscript | null {
+  if (!transcript) return null;
+  const hasToolStatus = [...observationsById.values()].some(
+    (observation) =>
+      observation.type === "TOOL" &&
+      (observation.level !== undefined ||
+        observation.statusMessage !== undefined),
+  );
+  if (!hasToolStatus) return transcript;
+  return {
+    ...transcript,
+    threads: transcript.threads.map((thread) => ({
+      ...thread,
+      currentTurn: {
+        ...thread.currentTurn,
+        messages: thread.currentTurn.messages.map((message) => {
+          const observation = observationsById.get(message.observationId);
+          if (
+            observation?.type !== "TOOL" ||
+            observation.traceId !== message.traceId
+          )
+            return message;
+          return {
+            ...message,
+            level: observation.level,
+            statusMessage: observation.statusMessage,
+          };
+        }),
+      },
+    })),
+  };
+}
 
 /** Load observations in trace tree order and assemble their transcript. */
 export async function loadTraceTranscript(trace: {
@@ -152,41 +187,5 @@ export async function loadTraceTranscript(trace: {
     cutoff:
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
       content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
-  };
-}
-
-function withToolObservationStatus(
-  transcript: Transcript | null,
-  observationsById: ReadonlyMap<string, Observation>,
-): SessionTranscript | null {
-  if (!transcript) return null;
-  const hasToolStatus = [...observationsById.values()].some(
-    (observation) =>
-      observation.type === "TOOL" &&
-      (observation.level !== undefined ||
-        observation.statusMessage !== undefined),
-  );
-  if (!hasToolStatus) return transcript;
-  return {
-    ...transcript,
-    threads: transcript.threads.map((thread) => ({
-      ...thread,
-      currentTurn: {
-        ...thread.currentTurn,
-        messages: thread.currentTurn.messages.map((message) => {
-          const observation = observationsById.get(message.observationId);
-          if (
-            observation?.type !== "TOOL" ||
-            observation.traceId !== message.traceId
-          )
-            return message;
-          return {
-            ...message,
-            level: observation.level,
-            statusMessage: observation.statusMessage,
-          };
-        }),
-      },
-    })),
   };
 }

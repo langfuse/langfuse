@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
 import { assertUnreachable } from "@/src/utils/types";
 import type { QuestionnaireFormAnswer } from "./createQuestionnaireFormValues";
@@ -8,6 +7,34 @@ type QuestionnaireAnswerAction =
   | { type: "toggleOption"; optionIndex: number }
   | { type: "selectOther" }
   | { type: "setOtherText"; otherText: string };
+
+function toggleOption(
+  answer: QuestionnaireFormAnswer,
+  optionIndex: number,
+): QuestionnaireFormAnswer {
+  const isSelected = answer.selectedOptionIndexes.includes(optionIndex);
+
+  return {
+    ...answer,
+    selectedOptionIndexes: isSelected
+      ? answer.selectedOptionIndexes.filter((index) => index !== optionIndex)
+      : [...answer.selectedOptionIndexes, optionIndex],
+  };
+}
+
+function setOtherText(
+  answer: QuestionnaireFormAnswer,
+  question: InAppAgentQuestionnaireQuestion,
+  otherText: string,
+): QuestionnaireFormAnswer {
+  const clearsSelection =
+    !question.allowMultiple && otherText.trim().length > 0;
+
+  return {
+    selectedOptionIndexes: clearsSelection ? [] : answer.selectedOptionIndexes,
+    otherText,
+  };
+}
 
 /**
  * Single-choice questions hold one answer at a time, so choosing an option
@@ -36,32 +63,4 @@ export function updateQuestionnaireAnswer(
   }
 
   return assertUnreachable(action);
-}
-
-function toggleOption(
-  answer: QuestionnaireFormAnswer,
-  optionIndex: number,
-): QuestionnaireFormAnswer {
-  const isSelected = answer.selectedOptionIndexes.includes(optionIndex);
-
-  return {
-    ...answer,
-    selectedOptionIndexes: isSelected
-      ? answer.selectedOptionIndexes.filter((index) => index !== optionIndex)
-      : [...answer.selectedOptionIndexes, optionIndex],
-  };
-}
-
-function setOtherText(
-  answer: QuestionnaireFormAnswer,
-  question: InAppAgentQuestionnaireQuestion,
-  otherText: string,
-): QuestionnaireFormAnswer {
-  const clearsSelection =
-    !question.allowMultiple && otherText.trim().length > 0;
-
-  return {
-    selectedOptionIndexes: clearsSelection ? [] : answer.selectedOptionIndexes,
-    otherText,
-  };
 }

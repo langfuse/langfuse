@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 
 export type RenderedTable = {
@@ -17,18 +16,16 @@ function normalizeCell(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function cellValue(cell: Element, format: "text" | "markdown") {
-  const clone = cell.cloneNode(true);
-  if (!(clone instanceof HTMLElement)) {
-    const text = normalizeCell(cell.textContent ?? "");
-    return format === "markdown" ? escapeMarkdownCell(text) : text;
-  }
+function escapeMarkdownCell(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
 
-  clone.querySelectorAll(BLOCK_COPY_BUTTON_SELECTOR).forEach((node) => {
-    node.remove();
-  });
+function escapeMarkdownLinkLabel(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/[[\]|]/g, "\\$&");
+}
 
-  return normalizeCell(renderInline(clone, format));
+function escapeMarkdownLinkDestination(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/[()|]/g, "\\$&");
 }
 
 function renderInline(node: Node, format: "text" | "markdown"): string {
@@ -65,12 +62,18 @@ function renderInline(node: Node, format: "text" | "markdown"): string {
   return `[${escapeMarkdownLinkLabel(label)}](${escapeMarkdownLinkDestination(href)})`;
 }
 
-function escapeMarkdownLinkLabel(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/[[\]|]/g, "\\$&");
-}
+function cellValue(cell: Element, format: "text" | "markdown") {
+  const clone = cell.cloneNode(true);
+  if (!(clone instanceof HTMLElement)) {
+    const text = normalizeCell(cell.textContent ?? "");
+    return format === "markdown" ? escapeMarkdownCell(text) : text;
+  }
 
-function escapeMarkdownLinkDestination(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/[()|]/g, "\\$&");
+  clone.querySelectorAll(BLOCK_COPY_BUTTON_SELECTOR).forEach((node) => {
+    node.remove();
+  });
+
+  return normalizeCell(renderInline(clone, format));
 }
 
 function rowCells(row: Element, format: "text" | "markdown") {
@@ -137,10 +140,6 @@ function escapeCsvCell(value: string) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
-}
-
-function escapeMarkdownCell(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 export function tableToCsv(table: RenderedTable) {

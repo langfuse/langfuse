@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   extractOtelMedia,
   hasOtelMediaCandidate,
@@ -28,6 +27,35 @@ type PreparedInput =
       error?: never;
     }
   | { batch?: never; sourceUnchanged?: never; error: string | undefined };
+
+// Measure synchronous result handling; awaited native work stays outside.
+function measureOtelMainThread<T>(phase: string, work: () => T): T {
+  const startedAt = performance.now();
+  try {
+    return work();
+  } finally {
+    recordDistribution(
+      "langfuse.ingestion.otel.main_thread_duration_ms",
+      performance.now() - startedAt,
+      { phase, media_path: "early" },
+    );
+  }
+}
+
+// Match Node's Response.json(): accept up to two leading UTF-8 BOMs and leave
+// a third for the JSON parser to reject.
+function stripResponseJsonBoms(bytes: Buffer): Buffer {
+  let offset = 0;
+  while (
+    offset < 6 &&
+    bytes[offset] === 0xef &&
+    bytes[offset + 1] === 0xbb &&
+    bytes[offset + 2] === 0xbf
+  ) {
+    offset += 3;
+  }
+  return offset === 0 ? bytes : bytes.subarray(offset);
+}
 
 /**
  * Extract media before the ingestion graph is built. Without masking, marker-free
@@ -191,33 +219,4 @@ export async function parsePreparedOtelBatch(
     await batch?.dispose();
     throw error;
   }
-}
-
-// Measure synchronous result handling; awaited native work stays outside.
-function measureOtelMainThread<T>(phase: string, work: () => T): T {
-  const startedAt = performance.now();
-  try {
-    return work();
-  } finally {
-    recordDistribution(
-      "langfuse.ingestion.otel.main_thread_duration_ms",
-      performance.now() - startedAt,
-      { phase, media_path: "early" },
-    );
-  }
-}
-
-// Match Node's Response.json(): accept up to two leading UTF-8 BOMs and leave
-// a third for the JSON parser to reject.
-function stripResponseJsonBoms(bytes: Buffer): Buffer {
-  let offset = 0;
-  while (
-    offset < 6 &&
-    bytes[offset] === 0xef &&
-    bytes[offset + 1] === 0xbb &&
-    bytes[offset + 2] === 0xbf
-  ) {
-    offset += 3;
-  }
-  return offset === 0 ? bytes : bytes.subarray(offset);
 }

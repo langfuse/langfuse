@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type GraphCanvasData,
   type GraphNodeData,
@@ -82,6 +81,38 @@ export function transformLanggraphToGeneralized(
   }
 
   return [...transformedData, ...systemNodes];
+}
+
+function generateEdgesWithParallelBranches(
+  stepToNodesMap: Map<number, Set<string>>,
+) {
+  // generate edges with proper parallel branch handling
+  const sortedSteps = [...stepToNodesMap.entries()].sort(([a], [b]) => a - b);
+  const edges: Array<{ from: string; to: string }> = [];
+
+  sortedSteps.forEach(([, currentNodes], i) => {
+    const isLastStep = i === sortedSteps.length - 1;
+    const targetNodes = isLastStep
+      ? [LANGFUSE_END_NODE_NAME]
+      : Array.from(sortedSteps[i + 1][1]);
+
+    // connect all current nodes to all target nodes
+    Array.from(currentNodes).forEach((currentNode) => {
+      // end nodes should be terminal -> don't draw edges from them
+      if (
+        currentNode === LANGFUSE_END_NODE_NAME ||
+        currentNode === LANGGRAPH_END_NODE_NAME
+      ) {
+        return;
+      }
+
+      targetNodes.forEach((targetNode) => {
+        edges.push({ from: currentNode, to: targetNode });
+      });
+    });
+  });
+
+  return edges;
 }
 
 export function buildGraphFromStepData(
@@ -171,36 +202,4 @@ export function buildGraphFromStepData(
     graph: { nodes, edges },
     nodeToObservationsMap: Object.fromEntries(nodeToObservationsMap.entries()),
   };
-}
-
-function generateEdgesWithParallelBranches(
-  stepToNodesMap: Map<number, Set<string>>,
-) {
-  // generate edges with proper parallel branch handling
-  const sortedSteps = [...stepToNodesMap.entries()].sort(([a], [b]) => a - b);
-  const edges: Array<{ from: string; to: string }> = [];
-
-  sortedSteps.forEach(([, currentNodes], i) => {
-    const isLastStep = i === sortedSteps.length - 1;
-    const targetNodes = isLastStep
-      ? [LANGFUSE_END_NODE_NAME]
-      : Array.from(sortedSteps[i + 1][1]);
-
-    // connect all current nodes to all target nodes
-    Array.from(currentNodes).forEach((currentNode) => {
-      // end nodes should be terminal -> don't draw edges from them
-      if (
-        currentNode === LANGFUSE_END_NODE_NAME ||
-        currentNode === LANGGRAPH_END_NODE_NAME
-      ) {
-        return;
-      }
-
-      targetNodes.forEach((targetNode) => {
-        edges.push({ from: currentNode, to: targetNode });
-      });
-    });
-  });
-
-  return edges;
 }

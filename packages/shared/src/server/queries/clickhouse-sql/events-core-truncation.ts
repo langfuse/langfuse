@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ClickhouseOperator } from "./clickhouse-filter";
 
 // events_core_mv truncates each metadata_values element (and input/output) to
@@ -37,6 +36,12 @@ const EVENTS_CORE_SAFE_METADATA_OPERATORS = new Set<ClickhouseOperator>([
   "is set",
   "is not set",
 ]);
+
+// Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by
+// code point rather than UTF-16 unit or byte.
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
 
 /**
  * Truncation-safety classifier: can a single metadata filter be answered
@@ -81,9 +86,3 @@ export const metadataFilterIsEventsCoreSafe = (
   }
   return true;
 };
-
-// Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by
-// code point rather than UTF-16 unit or byte.
-function codePointLength(value: string): number {
-  return Array.from(value).length;
-}

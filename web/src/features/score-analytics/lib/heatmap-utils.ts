@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Data preprocessing utilities for heatmap visualization
  * Transforms ClickHouse query results into heatmap cell data
@@ -31,6 +30,28 @@ export interface NumericHeatmapInput {
   nBins: number;
   showPercentages?: boolean;
   showCounts?: boolean;
+}
+
+/**
+ * Format a single division point value
+ * @param value - The division point value
+ * @param range - The total range to determine precision
+ * @returns Formatted value string
+ */
+function formatDivisionPoint(value: number, range: number): string {
+  let precision: number;
+
+  if (range >= 10) {
+    precision = 1;
+  } else if (range >= 1) {
+    precision = 2;
+  } else if (range >= 0.1) {
+    precision = 3;
+  } else {
+    precision = 4;
+  }
+
+  return value.toFixed(precision);
 }
 
 /**
@@ -216,28 +237,6 @@ export function generateConfusionMatrixData({
     cols: colCategories.length,
     maxValue: maxCount,
   };
-}
-
-/**
- * Format a single division point value
- * @param value - The division point value
- * @param range - The total range to determine precision
- * @returns Formatted value string
- */
-function formatDivisionPoint(value: number, range: number): string {
-  let precision: number;
-
-  if (range >= 10) {
-    precision = 1;
-  } else if (range >= 1) {
-    precision = 2;
-  } else if (range >= 0.1) {
-    precision = 3;
-  } else {
-    precision = 4;
-  }
-
-  return value.toFixed(precision);
 }
 
 /**

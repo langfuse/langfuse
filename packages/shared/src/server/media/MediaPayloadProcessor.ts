@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 import { defineOwnValue } from "../../utils/objects";
 
@@ -127,118 +126,80 @@ const STRUCTURED_MEDIA_SHAPES = [
   },
 ] as const;
 
-/**
- * Finds embedded media in a normalized input, output, or metadata value and
- * delegates each valid candidate to `processCandidate`.
- *
- * String inputs are immutable and return a replacement string when changed.
- * Object and array inputs are traversed and mutated in place only after a
- * candidate is processed successfully. Unsupported values, invalid media, and
- * candidates for which `processCandidate` returns `undefined` stay unchanged.
- */
-export async function transformMediaPayload(
-  value: unknown,
-  params: TransformParams,
-): Promise<TransformMediaPayloadResult> {
-  if (typeof value !== "string") {
-    if (!isObject(value) && !Array.isArray(value)) {
-      return { value, bytesRemoved: 0 };
-    }
-
-    const state = await transformStructuredValue(value, params, true);
-    return { value, bytesRemoved: state.bytesRemoved };
-  }
-
-  if (isMediaReference(value)) return { value, bytesRemoved: 0 };
-
-  let valueToParse = value;
-  let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
-  // `;base64,` is a substantially narrower and cheaper precondition than
-  // `data:`. Most ordinary strings therefore avoid the full Data URI scan.
-  if (value.includes(BASE64_MARKER)) {
-    dataUriResult = await replaceDataUris(value, params);
-    valueToParse = dataUriResult.value;
-  }
-
-  const strippedValue = valueToParse.trimStart();
-  if (
-    (!strippedValue.startsWith("{") && !strippedValue.startsWith("[")) ||
-    !mayContainSerializedMedia(valueToParse)
-  ) {
-    return dataUriResult ?? { value, bytesRemoved: 0 };
-  }
-
-  params.onDetectionPath(
-    "stringified_json",
-    Buffer.byteLength(valueToParse, "utf8"),
-  );
-  let parsedValue: unknown;
-  try {
-    parsedValue = JSON.parse(valueToParse);
-  } catch {
-    return dataUriResult ?? { value, bytesRemoved: 0 };
-  }
-
-  if (!isObject(parsedValue) && !Array.isArray(parsedValue)) {
-    return dataUriResult ?? { value, bytesRemoved: 0 };
-  }
-
-  const state = await transformStructuredValue(parsedValue, params, false);
-  if (!state.changed) return dataUriResult ?? { value, bytesRemoved: 0 };
-
-  const transformedValue = JSON.stringify(parsedValue);
-  return {
-    value: transformedValue,
-    bytesRemoved: Math.max(
-      0,
-      Buffer.byteLength(value, "utf8") -
-        Buffer.byteLength(transformedValue, "utf8"),
-    ),
-  };
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Replaces every successfully processed Data URI in a string while preserving
- * invalid occurrences and all surrounding text. Does not mutate its input.
- */
-async function replaceDataUris(
-  value: string,
-  params: TransformParams,
-): Promise<{ value: string; bytesRemoved: number }> {
-  params.onDetectionPath("data_uri", Buffer.byteLength(value, "utf8"));
-  const occurrences = findDataUris(value);
-  if (occurrences.length === 0) return { value, bytesRemoved: 0 };
+function hasPlausibleDataUriBoundary(value: string, start: number): boolean {
+  if (start === 0) return true;
+  const previousCode = value.charCodeAt(start - 1);
+  return !(
+    (previousCode >= 48 && previousCode <= 57) ||
+    (previousCode >= 65 && previousCode <= 90) ||
+    (previousCode >= 97 && previousCode <= 122) ||
+    previousCode === 45 ||
+    previousCode === 95
+  );
+}
 
-  let output = "";
-  let cursor = 0;
-  let bytesRemoved = 0;
-
-  for (const occurrence of occurrences) {
-    const original = value.slice(occurrence.start, occurrence.end);
-    output += value.slice(cursor, occurrence.start);
-    if (occurrence.status === "invalid") {
-      params.onInvalidCandidate("data_uri", occurrence.reason);
-      output += original;
-    } else if (occurrence.status === "ignored") {
-      params.onIgnoredCandidate("data_uri", occurrence.reason);
-      output += original;
-    } else {
-      const resolvedReplacement = await params.processCandidate(
-        occurrence.candidate,
-      );
-      output += resolvedReplacement ?? original;
-      if (resolvedReplacement) {
-        bytesRemoved += Math.max(
-          0,
-          Buffer.byteLength(original, "utf8") -
-            Buffer.byteLength(resolvedReplacement, "utf8"),
-        );
-      }
+function getInvalidDataUriHeaderReason(
+  header: string,
+  contentType: string,
+):
+  | {
+      status: "invalid";
+      reason: "malformed_data_uri_header";
     }
-    cursor = occurrence.end;
+  | {
+      status: "ignored";
+      reason: "unsupported_content_type";
+    }
+  | undefined {
+  const parameters = header.slice(contentType.length);
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/.test(
+      contentType,
+    ) ||
+    !/^(?:;[A-Za-z0-9!#$&^_.+-]+=[^;,\s"'<>[\]{}]+)*$/.test(parameters)
+  ) {
+    return { status: "invalid", reason: "malformed_data_uri_header" };
   }
+  if (!isMediaContentType(contentType)) {
+    return { status: "ignored", reason: "unsupported_content_type" };
+  }
+}
 
-  return { value: output + value.slice(cursor), bytesRemoved };
+function isBase64Character(code: number, allowPadding = true): boolean {
+  return (
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122) ||
+    (code >= 48 && code <= 57) ||
+    code === 43 ||
+    code === 47 ||
+    (allowPadding && code === 61)
+  );
+}
+
+function isDataUriTerminator(code: number): boolean {
+  // Embedded Data URIs commonly end immediately before sentence punctuation.
+  return (
+    Number.isNaN(code) ||
+    code === 9 ||
+    code === 10 ||
+    code === 13 ||
+    code === 32 ||
+    code === 33 ||
+    code === 34 ||
+    code === 39 ||
+    code === 41 ||
+    code === 44 ||
+    code === 46 ||
+    code === 59 ||
+    code === 62 ||
+    code === 63 ||
+    code === 93 ||
+    code === 125
+  );
 }
 
 /**
@@ -385,65 +346,238 @@ function findDataUris(value: string): DataUriOccurrence[] {
   return occurrences;
 }
 
-function getInvalidDataUriHeaderReason(
-  header: string,
-  contentType: string,
-):
-  | {
-      status: "invalid";
-      reason: "malformed_data_uri_header";
+/**
+ * Replaces every successfully processed Data URI in a string while preserving
+ * invalid occurrences and all surrounding text. Does not mutate its input.
+ */
+async function replaceDataUris(
+  value: string,
+  params: TransformParams,
+): Promise<{ value: string; bytesRemoved: number }> {
+  params.onDetectionPath("data_uri", Buffer.byteLength(value, "utf8"));
+  const occurrences = findDataUris(value);
+  if (occurrences.length === 0) return { value, bytesRemoved: 0 };
+
+  let output = "";
+  let cursor = 0;
+  let bytesRemoved = 0;
+
+  for (const occurrence of occurrences) {
+    const original = value.slice(occurrence.start, occurrence.end);
+    output += value.slice(cursor, occurrence.start);
+    if (occurrence.status === "invalid") {
+      params.onInvalidCandidate("data_uri", occurrence.reason);
+      output += original;
+    } else if (occurrence.status === "ignored") {
+      params.onIgnoredCandidate("data_uri", occurrence.reason);
+      output += original;
+    } else {
+      const resolvedReplacement = await params.processCandidate(
+        occurrence.candidate,
+      );
+      output += resolvedReplacement ?? original;
+      if (resolvedReplacement) {
+        bytesRemoved += Math.max(
+          0,
+          Buffer.byteLength(original, "utf8") -
+            Buffer.byteLength(resolvedReplacement, "utf8"),
+        );
+      }
     }
-  | {
-      status: "ignored";
-      reason: "unsupported_content_type";
-    }
-  | undefined {
-  const parameters = header.slice(contentType.length);
-  if (
-    !/^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/.test(
-      contentType,
-    ) ||
-    !/^(?:;[A-Za-z0-9!#$&^_.+-]+=[^;,\s"'<>[\]{}]+)*$/.test(parameters)
-  ) {
-    return { status: "invalid", reason: "malformed_data_uri_header" };
+    cursor = occurrence.end;
   }
-  if (!isMediaContentType(contentType)) {
+
+  return { value: output + value.slice(cursor), bytesRemoved };
+}
+
+function setTraversalValue(node: TraversalNode, value: unknown): void {
+  defineOwnValue(node.parent, node.key, value);
+}
+
+function matchStructuredMedia(
+  value: Record<string, unknown>,
+): StructuredMedia | undefined {
+  for (const shape of STRUCTURED_MEDIA_SHAPES) {
+    const contentType = value[shape.contentType];
+    const content = value[shape.property];
+    if (
+      value.type === shape.type &&
+      typeof contentType === "string" &&
+      typeof content === "string"
+    ) {
+      return {
+        target: value,
+        property: shape.property,
+        content,
+        contentType,
+        kind: shape.kind,
+      };
+    }
+  }
+
+  if (value.type === "file" && typeof value.mediaType === "string") {
+    const property = (() => {
+      if (typeof value.data === "string") {
+        return "data";
+      }
+      if (typeof value.image === "string") {
+        return "image";
+      }
+      return undefined;
+    })();
+    if (property) {
+      return {
+        target: value,
+        property,
+        content: value[property] as string,
+        contentType: value.mediaType,
+        kind: "ai_sdk_v6",
+      };
+    }
+  }
+
+  for (const inlineDataKey of ["inline_data", "inlineData"] as const) {
+    const inlineData = value[inlineDataKey];
+    if (!isObject(inlineData) || typeof inlineData.data !== "string") continue;
+    const contentType = inlineData.mime_type ?? inlineData.mimeType;
+    if (typeof contentType === "string") {
+      return {
+        target: inlineData,
+        property: "data",
+        content: inlineData.data,
+        contentType,
+        kind: "gemini",
+      };
+    }
+  }
+}
+
+function isMediaReference(value: string): boolean {
+  return (
+    value.startsWith(MEDIA_REFERENCE_PREFIX) &&
+    value.endsWith(MEDIA_REFERENCE_SUFFIX)
+  );
+}
+
+function isRemoteUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+function isPythonBytesLiteral(value: string): boolean {
+  const quote = value[1];
+  return (
+    value.length >= 3 &&
+    value[0] === "b" &&
+    (quote === "'" || quote === '"') &&
+    value.at(-1) === quote
+  );
+}
+
+function isValidBase64(value: string): boolean {
+  if (value.length === 0 || value.length % 4 === 1) return false;
+
+  let padding = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 61) {
+      padding += 1;
+      if (padding > 2) return false;
+    } else if (padding > 0 || !isBase64Character(code, false)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function parseStructuredMediaCandidate(
+  media: StructuredMedia,
+):
+  | { status: "valid"; candidate: MediaPayloadCandidate }
+  | { status: "invalid"; reason: MediaInvalidReason }
+  | { status: "ignored"; reason: MediaIgnoredReason } {
+  if (!isMediaContentType(media.contentType)) {
     return { status: "ignored", reason: "unsupported_content_type" };
   }
+
+  if (media.content.startsWith(DATA_URI_PREFIX)) {
+    const occurrences = findDataUris(media.content);
+    const occurrence =
+      occurrences.length === 1 &&
+      occurrences[0]?.start === 0 &&
+      occurrences[0]?.end === media.content.length
+        ? occurrences[0]
+        : undefined;
+    if (!occurrence) {
+      return { status: "invalid", reason: "invalid_base64" };
+    }
+    if (occurrence.status !== "valid") return occurrence;
+    return {
+      status: "valid",
+      candidate: {
+        ...occurrence.candidate,
+        contentType: media.contentType,
+        kind: media.kind,
+        source: "bytes",
+      },
+    };
+  }
+
+  if (isPythonBytesLiteral(media.content)) {
+    return {
+      status: "valid",
+      candidate: {
+        encodedData: media.content,
+        encoding: "python_bytes_literal",
+        contentType: media.contentType,
+        kind: media.kind,
+        source: "bytes",
+      },
+    };
+  }
+
+  return isValidBase64(media.content)
+    ? {
+        status: "valid",
+        candidate: {
+          encodedData: media.content,
+          encoding: "base64",
+          contentType: media.contentType,
+          kind: media.kind,
+          source: "bytes",
+        },
+      }
+    : { status: "invalid", reason: "invalid_base64" };
 }
 
-function hasPlausibleDataUriBoundary(value: string, start: number): boolean {
-  if (start === 0) return true;
-  const previousCode = value.charCodeAt(start - 1);
-  return !(
-    (previousCode >= 48 && previousCode <= 57) ||
-    (previousCode >= 65 && previousCode <= 90) ||
-    (previousCode >= 97 && previousCode <= 122) ||
-    previousCode === 45 ||
-    previousCode === 95
-  );
-}
+/**
+ * Processes one recognized provider media object and mutates its media property
+ * in place only when the candidate resolves to a media reference.
+ */
+async function replaceStructuredMedia(
+  media: StructuredMedia,
+  params: TransformParams,
+): Promise<number | undefined> {
+  if (isMediaReference(media.content) || isRemoteUrl(media.content)) return;
 
-function isDataUriTerminator(code: number): boolean {
-  // Embedded Data URIs commonly end immediately before sentence punctuation.
-  return (
-    Number.isNaN(code) ||
-    code === 9 ||
-    code === 10 ||
-    code === 13 ||
-    code === 32 ||
-    code === 33 ||
-    code === 34 ||
-    code === 39 ||
-    code === 41 ||
-    code === 44 ||
-    code === 46 ||
-    code === 59 ||
-    code === 62 ||
-    code === 63 ||
-    code === 93 ||
-    code === 125
-  );
+  const candidate = parseStructuredMediaCandidate(media);
+  if (candidate.status === "ignored") {
+    params.onIgnoredCandidate(media.kind, candidate.reason);
+    return;
+  }
+  if (candidate.status === "invalid") {
+    params.onInvalidCandidate(media.kind, candidate.reason);
+    return;
+  }
+
+  const replacement = await params.processCandidate(candidate.candidate);
+  if (replacement) {
+    defineOwnValue(media.target, media.property, replacement);
+    return Math.max(
+      0,
+      Buffer.byteLength(media.content, "utf8") -
+        Buffer.byteLength(replacement, "utf8"),
+    );
+  }
 }
 
 /**
@@ -541,169 +675,6 @@ async function transformStructuredValue(
   return state;
 }
 
-function setTraversalValue(node: TraversalNode, value: unknown): void {
-  defineOwnValue(node.parent, node.key, value);
-}
-
-function matchStructuredMedia(
-  value: Record<string, unknown>,
-): StructuredMedia | undefined {
-  for (const shape of STRUCTURED_MEDIA_SHAPES) {
-    const contentType = value[shape.contentType];
-    const content = value[shape.property];
-    if (
-      value.type === shape.type &&
-      typeof contentType === "string" &&
-      typeof content === "string"
-    ) {
-      return {
-        target: value,
-        property: shape.property,
-        content,
-        contentType,
-        kind: shape.kind,
-      };
-    }
-  }
-
-  if (value.type === "file" && typeof value.mediaType === "string") {
-    const property = (() => {
-      if (typeof value.data === "string") {
-        return "data";
-      }
-      if (typeof value.image === "string") {
-        return "image";
-      }
-      return undefined;
-    })();
-    if (property) {
-      return {
-        target: value,
-        property,
-        content: value[property] as string,
-        contentType: value.mediaType,
-        kind: "ai_sdk_v6",
-      };
-    }
-  }
-
-  for (const inlineDataKey of ["inline_data", "inlineData"] as const) {
-    const inlineData = value[inlineDataKey];
-    if (!isObject(inlineData) || typeof inlineData.data !== "string") continue;
-    const contentType = inlineData.mime_type ?? inlineData.mimeType;
-    if (typeof contentType === "string") {
-      return {
-        target: inlineData,
-        property: "data",
-        content: inlineData.data,
-        contentType,
-        kind: "gemini",
-      };
-    }
-  }
-}
-
-/**
- * Processes one recognized provider media object and mutates its media property
- * in place only when the candidate resolves to a media reference.
- */
-async function replaceStructuredMedia(
-  media: StructuredMedia,
-  params: TransformParams,
-): Promise<number | undefined> {
-  if (isMediaReference(media.content) || isRemoteUrl(media.content)) return;
-
-  const candidate = parseStructuredMediaCandidate(media);
-  if (candidate.status === "ignored") {
-    params.onIgnoredCandidate(media.kind, candidate.reason);
-    return;
-  }
-  if (candidate.status === "invalid") {
-    params.onInvalidCandidate(media.kind, candidate.reason);
-    return;
-  }
-
-  const replacement = await params.processCandidate(candidate.candidate);
-  if (replacement) {
-    defineOwnValue(media.target, media.property, replacement);
-    return Math.max(
-      0,
-      Buffer.byteLength(media.content, "utf8") -
-        Buffer.byteLength(replacement, "utf8"),
-    );
-  }
-}
-
-function parseStructuredMediaCandidate(
-  media: StructuredMedia,
-):
-  | { status: "valid"; candidate: MediaPayloadCandidate }
-  | { status: "invalid"; reason: MediaInvalidReason }
-  | { status: "ignored"; reason: MediaIgnoredReason } {
-  if (!isMediaContentType(media.contentType)) {
-    return { status: "ignored", reason: "unsupported_content_type" };
-  }
-
-  if (media.content.startsWith(DATA_URI_PREFIX)) {
-    const occurrences = findDataUris(media.content);
-    const occurrence =
-      occurrences.length === 1 &&
-      occurrences[0]?.start === 0 &&
-      occurrences[0]?.end === media.content.length
-        ? occurrences[0]
-        : undefined;
-    if (!occurrence) {
-      return { status: "invalid", reason: "invalid_base64" };
-    }
-    if (occurrence.status !== "valid") return occurrence;
-    return {
-      status: "valid",
-      candidate: {
-        ...occurrence.candidate,
-        contentType: media.contentType,
-        kind: media.kind,
-        source: "bytes",
-      },
-    };
-  }
-
-  if (isPythonBytesLiteral(media.content)) {
-    return {
-      status: "valid",
-      candidate: {
-        encodedData: media.content,
-        encoding: "python_bytes_literal",
-        contentType: media.contentType,
-        kind: media.kind,
-        source: "bytes",
-      },
-    };
-  }
-
-  return isValidBase64(media.content)
-    ? {
-        status: "valid",
-        candidate: {
-          encodedData: media.content,
-          encoding: "base64",
-          contentType: media.contentType,
-          kind: media.kind,
-          source: "bytes",
-        },
-      }
-    : { status: "invalid", reason: "invalid_base64" };
-}
-
-function isPythonBytesLiteral(value: string): boolean {
-  const quote = value[1];
-  return (
-    value.length >= 3 &&
-    value[0] === "b" &&
-    (quote === "'" || quote === '"') &&
-    value.at(-1) === quote
-  );
-}
-
 /**
  * Cheaply requires a complete provider-specific key combination before the
  * more expensive JSON.parse and structured traversal. A common `data` key by
@@ -725,44 +696,72 @@ function mayContainSerializedMedia(value: string): boolean {
   );
 }
 
-function isMediaReference(value: string): boolean {
-  return (
-    value.startsWith(MEDIA_REFERENCE_PREFIX) &&
-    value.endsWith(MEDIA_REFERENCE_SUFFIX)
-  );
-}
-
-function isRemoteUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://");
-}
-
-function isValidBase64(value: string): boolean {
-  if (value.length === 0 || value.length % 4 === 1) return false;
-
-  let padding = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code === 61) {
-      padding += 1;
-      if (padding > 2) return false;
-    } else if (padding > 0 || !isBase64Character(code, false)) {
-      return false;
+/**
+ * Finds embedded media in a normalized input, output, or metadata value and
+ * delegates each valid candidate to `processCandidate`.
+ *
+ * String inputs are immutable and return a replacement string when changed.
+ * Object and array inputs are traversed and mutated in place only after a
+ * candidate is processed successfully. Unsupported values, invalid media, and
+ * candidates for which `processCandidate` returns `undefined` stay unchanged.
+ */
+export async function transformMediaPayload(
+  value: unknown,
+  params: TransformParams,
+): Promise<TransformMediaPayloadResult> {
+  if (typeof value !== "string") {
+    if (!isObject(value) && !Array.isArray(value)) {
+      return { value, bytesRemoved: 0 };
     }
+
+    const state = await transformStructuredValue(value, params, true);
+    return { value, bytesRemoved: state.bytesRemoved };
   }
-  return true;
-}
 
-function isBase64Character(code: number, allowPadding = true): boolean {
-  return (
-    (code >= 65 && code <= 90) ||
-    (code >= 97 && code <= 122) ||
-    (code >= 48 && code <= 57) ||
-    code === 43 ||
-    code === 47 ||
-    (allowPadding && code === 61)
+  if (isMediaReference(value)) return { value, bytesRemoved: 0 };
+
+  let valueToParse = value;
+  let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
+  // `;base64,` is a substantially narrower and cheaper precondition than
+  // `data:`. Most ordinary strings therefore avoid the full Data URI scan.
+  if (value.includes(BASE64_MARKER)) {
+    dataUriResult = await replaceDataUris(value, params);
+    valueToParse = dataUriResult.value;
+  }
+
+  const strippedValue = valueToParse.trimStart();
+  if (
+    (!strippedValue.startsWith("{") && !strippedValue.startsWith("[")) ||
+    !mayContainSerializedMedia(valueToParse)
+  ) {
+    return dataUriResult ?? { value, bytesRemoved: 0 };
+  }
+
+  params.onDetectionPath(
+    "stringified_json",
+    Buffer.byteLength(valueToParse, "utf8"),
   );
-}
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(valueToParse);
+  } catch {
+    return dataUriResult ?? { value, bytesRemoved: 0 };
+  }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (!isObject(parsedValue) && !Array.isArray(parsedValue)) {
+    return dataUriResult ?? { value, bytesRemoved: 0 };
+  }
+
+  const state = await transformStructuredValue(parsedValue, params, false);
+  if (!state.changed) return dataUriResult ?? { value, bytesRemoved: 0 };
+
+  const transformedValue = JSON.stringify(parsedValue);
+  return {
+    value: transformedValue,
+    bytesRemoved: Math.max(
+      0,
+      Buffer.byteLength(value, "utf8") -
+        Buffer.byteLength(transformedValue, "utf8"),
+    ),
+  };
 }

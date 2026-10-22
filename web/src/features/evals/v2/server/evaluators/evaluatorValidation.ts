@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTemplateType,
   extractVariables,
@@ -102,6 +101,55 @@ export function assertCompleteEvaluatorVariableMapping(params: {
       `Missing mappings for evaluator variables: ${missingVariables.join(", ")}`,
     );
   }
+}
+
+export async function getDecisionModelConfigurationError(params: {
+  projectId: string;
+  name: string;
+  definition: Pick<
+    Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+    "provider" | "model" | "questions"
+  >;
+}): Promise<string | null> {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+  }
+  if (
+    !isAllowedDecisionModel(
+      modelConfig.config.apiKey.adapter,
+      modelConfig.config.model,
+    )
+  ) {
+    if (modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI) {
+      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`;
+    }
+    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
+  }
+  return null;
+}
+
+async function assertDecisionModelDefinitionValid(params: {
+  projectId: string;
+  name: string;
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  if (params.definition.vars.length === 0) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators need at least one state field",
+    );
+  }
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: params.definition.vars,
+    variableMapping: params.definition.variableMapping,
+  });
+
+  const error = await getDecisionModelConfigurationError(params);
+  if (error) throw new EvaluatorModelConfigurationError(error);
 }
 
 export async function assertEvaluatorConfigurationValid(params: {
@@ -209,53 +257,4 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
     throw error;
   }
-}
-
-export async function getDecisionModelConfigurationError(params: {
-  projectId: string;
-  name: string;
-  definition: Pick<
-    Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
-    "provider" | "model" | "questions"
-  >;
-}): Promise<string | null> {
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
-    params.projectId,
-    params.definition.provider,
-    params.definition.model,
-  );
-  if (!modelConfig.valid) {
-    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
-  }
-  if (
-    !isAllowedDecisionModel(
-      modelConfig.config.apiKey.adapter,
-      modelConfig.config.model,
-    )
-  ) {
-    if (modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI) {
-      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`;
-    }
-    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
-  }
-  return null;
-}
-
-async function assertDecisionModelDefinitionValid(params: {
-  projectId: string;
-  name: string;
-  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
-}) {
-  if (params.definition.vars.length === 0) {
-    throw new InvalidRequestError(
-      "Decision-model evaluators need at least one state field",
-    );
-  }
-  assertCompleteEvaluatorVariableMapping({
-    promptVariables: params.definition.vars,
-    variableMapping: params.definition.variableMapping,
-  });
-
-  const error = await getDecisionModelConfigurationError(params);
-  if (error) throw new EvaluatorModelConfigurationError(error);
 }

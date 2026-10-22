@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, type ReactNode } from "react";
 import { Highlight, themes, type PrismTheme } from "prism-react-renderer";
 import { useTheme } from "next-themes";
@@ -14,6 +13,10 @@ const JSON_TOKEN_STYLES: PrismTheme["styles"] = [
     style: { color: "var(--json-value-nullish)" },
   },
 ].map((entry) => ({ ...entry, languages: ["json"] }));
+
+function withJsonTokens(theme: PrismTheme): PrismTheme {
+  return { ...theme, styles: [...theme.styles, ...JSON_TOKEN_STYLES] };
+}
 
 const LIGHT_THEME = withJsonTokens(themes.github);
 const DARK_THEME = withJsonTokens(themes.vsDark);
@@ -57,8 +60,4 @@ export function SyntaxHighlight({
       }
     </Highlight>
   );
-}
-
-function withJsonTokens(theme: PrismTheme): PrismTheme {
-  return { ...theme, styles: [...theme.styles, ...JSON_TOKEN_STYLES] };
 }

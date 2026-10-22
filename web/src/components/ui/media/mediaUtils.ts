@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MediaReferenceStringSchema, parseS3Uri } from "@langfuse/shared";
 
 const LANGFUSE_MEDIA_PREFIX = "@@@langfuseMedia:";
@@ -58,6 +57,22 @@ const MAX_DATA_URI_HEADER_SCAN = 256;
 // non-previewable regardless of the flag.
 const DATA_URI_HEADER_PATTERN =
   /^data:([\w.+-]+\/[\w.+-]+)(?:;[\w.+-]+=[^;,]*)*(?:;base64)?,/i;
+
+function mimeFromPath(pathname: string) {
+  const ext = pathname.split(".").pop()?.toLowerCase();
+  if (!ext || ext === pathname) return null;
+  return URL_EXTENSION_TO_MIME[ext] ?? null;
+}
+
+function mimeFromUrl(url: string) {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+  return mimeFromPath(pathname);
+}
 
 /**
  * Classifies a string value as previewable media, or returns null. Pure and
@@ -153,20 +168,4 @@ export function splitStringByMediaReferences(value: string) {
   }
 
   return segments;
-}
-
-function mimeFromUrl(url: string) {
-  let pathname: string;
-  try {
-    pathname = new URL(url).pathname;
-  } catch {
-    return null;
-  }
-  return mimeFromPath(pathname);
-}
-
-function mimeFromPath(pathname: string) {
-  const ext = pathname.split(".").pop()?.toLowerCase();
-  if (!ext || ext === pathname) return null;
-  return URL_EXTENSION_TO_MIME[ext] ?? null;
 }

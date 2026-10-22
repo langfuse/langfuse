@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
@@ -229,30 +228,6 @@ export function validateOtelSpanIds(
   };
 }
 
-/**
- * Flattens a nested JSON object into path-based names and string values.
- * For example: {foo: {bar: "baz", num: 42}} becomes:
- * - names: ["foo.bar", "foo.num"]
- * - values: ["baz", "42"]
- *
- * All values are converted to strings for consistent storage.
- *
- * Each path is emitted once. A literal dotted key and a nested object can
- * produce the same path ({"a.b": 1, a: {b: 2}}); the first value wins, which
- * is the value metadata reads return for a duplicated path.
- */
-export function flattenJsonToPathArrays(
-  obj: Record<string, unknown>,
-  prefix = "",
-): { names: string[]; values: Array<string | null | undefined> } {
-  const flattened = new Map<string, string | null | undefined>();
-  collectJsonPaths(obj, prefix, flattened);
-  return {
-    names: [...flattened.keys()],
-    values: [...flattened.values()],
-  };
-}
-
 function collectJsonPaths(
   obj: Record<string, unknown>,
   prefix: string,
@@ -280,4 +255,28 @@ function collectJsonPaths(
       flattened.set(path, JSON.stringify(value));
     }
   }
+}
+
+/**
+ * Flattens a nested JSON object into path-based names and string values.
+ * For example: {foo: {bar: "baz", num: 42}} becomes:
+ * - names: ["foo.bar", "foo.num"]
+ * - values: ["baz", "42"]
+ *
+ * All values are converted to strings for consistent storage.
+ *
+ * Each path is emitted once. A literal dotted key and a nested object can
+ * produce the same path ({"a.b": 1, a: {b: 2}}); the first value wins, which
+ * is the value metadata reads return for a duplicated path.
+ */
+export function flattenJsonToPathArrays(
+  obj: Record<string, unknown>,
+  prefix = "",
+): { names: string[]; values: Array<string | null | undefined> } {
+  const flattened = new Map<string, string | null | undefined>();
+  collectJsonPaths(obj, prefix, flattened);
+  return {
+    names: [...flattened.keys()],
+    values: [...flattened.values()],
+  };
 }

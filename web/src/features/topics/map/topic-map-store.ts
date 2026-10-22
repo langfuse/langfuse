@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createStore } from "zustand/vanilla";
 import type { Camera, TopicMapNodeFrame } from "./prepare-topic-map";
 
@@ -20,6 +19,24 @@ export function createTopicMapStore() {
     reducedMotion: true,
     fullscreenError: false,
   }));
+}
+
+function sameFrameContext(
+  captured: TopicMapNodeFrame | null,
+  frame: TopicMapNodeFrame | null,
+) {
+  return (
+    captured !== null &&
+    frame !== null &&
+    captured.model === frame.model &&
+    captured.camera.x === frame.camera.x &&
+    captured.camera.y === frame.camera.y &&
+    captured.camera.zoom === frame.camera.zoom &&
+    captured.size.width === frame.size.width &&
+    captured.size.height === frame.size.height &&
+    captured.readingTopic === frame.readingTopic &&
+    captured.matchingTraceIds === frame.matchingTraceIds
+  );
 }
 
 export function publishTopicMapFrame(
@@ -44,10 +61,6 @@ export function publishTopicMapFrame(
       }),
     };
   });
-}
-
-export function clearTopicMapHover(store: TopicMapStore) {
-  setTopicMapHover(store, null, null);
 }
 
 export function setTopicMapHover(
@@ -98,6 +111,10 @@ export function setTopicMapHover(
   });
 }
 
+export function clearTopicMapHover(store: TopicMapStore) {
+  setTopicMapHover(store, null, null);
+}
+
 export function finishTopicMapHover(store: TopicMapStore, token: number) {
   store.setState((state) => {
     if (!state.hoverLabels.some((item) => item.token === token)) return state;
@@ -116,24 +133,6 @@ export function getTopicMapHover(
     hoveredId: valid ? state.hoveredId : null,
     hoveredZoneId: valid ? state.hoveredZoneId : null,
   };
-}
-
-function sameFrameContext(
-  captured: TopicMapNodeFrame | null,
-  frame: TopicMapNodeFrame | null,
-) {
-  return (
-    captured !== null &&
-    frame !== null &&
-    captured.model === frame.model &&
-    captured.camera.x === frame.camera.x &&
-    captured.camera.y === frame.camera.y &&
-    captured.camera.zoom === frame.camera.zoom &&
-    captured.size.width === frame.size.width &&
-    captured.size.height === frame.size.height &&
-    captured.readingTopic === frame.readingTopic &&
-    captured.matchingTraceIds === frame.matchingTraceIds
-  );
 }
 
 export type TopicMapStore = ReturnType<typeof createTopicMapStore>;

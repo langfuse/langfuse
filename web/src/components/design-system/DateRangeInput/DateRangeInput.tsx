@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
@@ -34,6 +33,11 @@ type DateRangeInputProps<V extends string> = {
   "aria-describedby"?: string;
   disabled?: boolean;
 };
+
+function CalendarChevron({ orientation }: ChevronProps) {
+  if (orientation === "right") return <ChevronRight size="base" />;
+  return <ChevronLeft size="base" />;
+}
 
 function DateRangeInput<V extends string>({
   value,
@@ -235,11 +239,6 @@ function DateRangeInput<V extends string>({
       </Popover.Portal>
     </Popover.Root>
   );
-}
-
-function CalendarChevron({ orientation }: ChevronProps) {
-  if (orientation === "right") return <ChevronRight size="base" />;
-  return <ChevronLeft size="base" />;
 }
 
 export { DateRangeInput };

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import { getBaseUrl } from "@/src/utils/base-url";
 import {
@@ -9,17 +8,6 @@ import {
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
-
-/** Validates MCP requests and preserves CORS headers on allowed-origin body errors. */
-export function validateMcpRequestSecurity(
-  req: NextApiRequest,
-  res: NextApiResponse,
-): string | null {
-  const allowedOrigin = validateMcpRequestOrigin(req);
-  applyMcpCorsHeaders(res, allowedOrigin);
-  validateMcpRequestBody(req.body);
-  return allowedOrigin;
-}
 
 function parseAllowedMcpHostEntry(
   entry: string,
@@ -171,4 +159,15 @@ function validateMcpRequestBody(body: unknown): void {
       if (child !== null && typeof child === "object") pending.push(child);
     }
   }
+}
+
+/** Validates MCP requests and preserves CORS headers on allowed-origin body errors. */
+export function validateMcpRequestSecurity(
+  req: NextApiRequest,
+  res: NextApiResponse,
+): string | null {
+  const allowedOrigin = validateMcpRequestOrigin(req);
+  applyMcpCorsHeaders(res, allowedOrigin);
+  validateMcpRequestBody(req.body);
+  return allowedOrigin;
 }

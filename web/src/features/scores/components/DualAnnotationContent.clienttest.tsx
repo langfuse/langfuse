@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   act,
   fireEvent,
@@ -190,6 +189,32 @@ function renderContent(children = content) {
     ...rendered,
     rerenderContent: (next: React.ReactNode) => rendered.rerender(wrap(next)),
   };
+}
+
+function deferred() {
+  let resolve!: (value: unknown) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<unknown>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
+async function renderBothTargets() {
+  renderContent();
+  fireEvent.keyDown(
+    screen.getByRole("button", { name: "Score actions for Quality" }),
+    { key: "ArrowDown" },
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Also score trace" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+  );
+  expect(screen.getAllByRole("group", { name: /Quality/ })).toHaveLength(2);
+  expect(mocks.create).not.toHaveBeenCalled();
 }
 
 describe("unified annotation targets", () => {
@@ -1706,29 +1731,3 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
   });
 });
-
-function deferred() {
-  let resolve!: (value: unknown) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<unknown>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, resolve, reject };
-}
-
-async function renderBothTargets() {
-  renderContent();
-  fireEvent.keyDown(
-    screen.getByRole("button", { name: "Score actions for Quality" }),
-    { key: "ArrowDown" },
-  );
-  fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Also score trace" }),
-  );
-  await waitFor(() =>
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
-  );
-  expect(screen.getAllByRole("group", { name: /Quality/ })).toHaveLength(2);
-  expect(mocks.create).not.toHaveBeenCalled();
-}

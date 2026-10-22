@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "../../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
@@ -40,6 +39,18 @@ export function externalMediaStorageEndpointWhitelistFromEnv(): OutboundUrlValid
       [],
     allowedHosts: env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS,
   };
+}
+
+function getSelfHostedWhitelistGuidance(
+  code: OutboundUrlValidationError["code"],
+) {
+  if (isLangfuseCloud()) return "";
+
+  if (code === "host-not-allowed") {
+    return " Add the host to LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS.";
+  }
+
+  return " For self-hosted deployments with internal external media storage endpoints, configure LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }
 
 export async function validateExternalMediaStorageEndpoint(
@@ -93,16 +104,4 @@ export function externalMediaStorageEndpointConnectionValidationOptions(
     ),
     logContext: EXTERNAL_MEDIA_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
-}
-
-function getSelfHostedWhitelistGuidance(
-  code: OutboundUrlValidationError["code"],
-) {
-  if (isLangfuseCloud()) return "";
-
-  if (code === "host-not-allowed") {
-    return " Add the host to LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS.";
-  }
-
-  return " For self-hosted deployments with internal external media storage endpoints, configure LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

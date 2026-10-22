@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isRootObservation } from "../../eventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {
@@ -46,6 +45,16 @@ type SnapshotRow = {
 
 const utcTimestamp = (value: string) =>
   value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+
+/** ClickHouse stops oversized results before the reader can count them. */
+function isResultOverflow(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  return (
+    ("type" in error && error.type === "TOO_MANY_ROWS_OR_BYTES") ||
+    (error instanceof Error &&
+      error.message.includes("Limit for result exceeded"))
+  );
+}
 
 /** Load a complete project-scoped v4 snapshot and assemble its shared transcript. */
 export async function loadTopicTranscript(params: {
@@ -201,14 +210,4 @@ export async function loadTopicTranscript(params: {
     // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
     transcript: assembleTranscript(orderObservations(observations)),
   };
-}
-
-/** ClickHouse stops oversized results before the reader can count them. */
-function isResultOverflow(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  return (
-    ("type" in error && error.type === "TOO_MANY_ROWS_OR_BYTES") ||
-    (error instanceof Error &&
-      error.message.includes("Limit for result exceeded"))
-  );
 }

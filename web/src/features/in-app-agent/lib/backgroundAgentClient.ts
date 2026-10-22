@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AbstractAgent, type RunAgentInput } from "@ag-ui/client";
 import { EventType, type BaseEvent } from "@ag-ui/core";
 import { Observable } from "rxjs";
@@ -53,6 +52,45 @@ type StartRunFn = (params: {
 type RunFramingState = {
   openRunId: string | null;
 };
+
+function getLastUserMessageContent(
+  messages: readonly AgUiMessage[],
+): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message?.role === "user" && typeof message.content === "string") {
+      return message.content;
+    }
+  }
+
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "Assistant watch connection failed";
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+
+    if (
+      body &&
+      typeof body === "object" &&
+      "error" in body &&
+      typeof body.error === "string"
+    ) {
+      return body.error;
+    }
+  } catch {
+    // Fall through to the generic message below.
+  }
+
+  return "Halo is unavailable right now";
+}
 
 // AG-UI transport backed by a tRPC start mutation and persisted event tail.
 export class InAppAgentBackgroundClient extends AbstractAgent {
@@ -355,43 +393,4 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
     return false;
   }
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Assistant watch connection failed";
-}
-
-function getLastUserMessageContent(
-  messages: readonly AgUiMessage[],
-): string | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (message?.role === "user" && typeof message.content === "string") {
-      return message.content;
-    }
-  }
-
-  return undefined;
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const body: unknown = await response.json();
-
-    if (
-      body &&
-      typeof body === "object" &&
-      "error" in body &&
-      typeof body.error === "string"
-    ) {
-      return body.error;
-    }
-  } catch {
-    // Fall through to the generic message below.
-  }
-
-  return "Halo is unavailable right now";
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
@@ -16,6 +15,14 @@ const DynamicMobileRightDrawer = dynamic(
     ssr: false,
   },
 );
+
+function RightDrawerLoadingFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      <Spinner size="md" variant="muted" />
+    </div>
+  );
+}
 
 const DynamicSupportDrawer = dynamic(
   () =>
@@ -38,14 +45,6 @@ const DynamicV4MigrationPanel = dynamic(
     loading: () => <RightDrawerLoadingFallback />,
   },
 );
-
-function RightDrawerLoadingFallback() {
-  return (
-    <div className="flex h-full w-full items-center justify-center">
-      <Spinner size="md" variant="muted" />
-    </div>
-  );
-}
 
 /**
  * App-shell content wrapper that attaches the support right drawer.

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 // Completion planning — pure functions, zero React/DOM.
 //
 // Given the active input text + caret, produce a CompletionPlan the popover
@@ -364,6 +364,10 @@ const MIN_VALUE_MATCH_LENGTH = 2;
 /** Popover budget: the section competes with fields + full-text, keep it tight. */
 const MAX_VALUE_MATCHES = 3;
 
+function observedValues(observed: ObservedOptions | undefined, column: string) {
+  return observed?.[column] ?? [];
+}
+
 /**
  * Ready-to-run `field:value` rewrites of the free-text run, drawn from loaded
  * observed values. Exact value matches rank above prefix matches above
@@ -531,6 +535,13 @@ function presenceOptions(
   ];
 }
 
+function section(
+  title: string,
+  options: CompletionOption[],
+): CompletionSection[] {
+  return options.length > 0 ? [{ title, options }] : [];
+}
+
 function queryPresetSections(
   presetSections: QueryPresetSection[],
   currentQueryText: string,
@@ -550,13 +561,6 @@ function queryPresetSections(
     }
     return section(presetSection.title, options);
   });
-}
-
-function section(
-  title: string,
-  options: CompletionOption[],
-): CompletionSection[] {
-  return options.length > 0 ? [{ title, options }] : [];
 }
 
 // ---- per-kind operator menus ----
@@ -723,10 +727,6 @@ function pathKindOf(
   return null;
 }
 
-function observedValues(observed: ObservedOptions | undefined, column: string) {
-  return observed?.[column] ?? [];
-}
-
 function keyPathOptions(
   kind: PathKind,
   typedKey: string,
@@ -845,6 +845,77 @@ type ValueStageInput = {
   negated: boolean;
   registry: FieldRegistry;
 };
+
+// Switch options that move a full-text value between scopes, carrying the value
+// and replacing the WHOLE token/run (replaceSpan). Used in both directions:
+// forward (bare text → input:/output:) and back/between (input:/output: → each
+// other or default). `value` is the raw (unquoted) text; it's serialized so a
+// multi-word phrase stays one token.
+//
+// `keepCurrentFirst` keeps the current scope in the list, listed first, instead
+// of excluding it: for bare free text it surfaces the typed text itself as an
+// explicit "this is the default-scope search" option (the anchor) ahead of the
+// input:/output: rewrites. Value-stage switches leave it off, so an `input:`
+// value never offers a no-op switch back to `input:`.
+//
+// The scoped forms are offered only where the registry actually resolves them.
+// Users narrows the events catalog to what its grouped query can answer, and
+// `input:` is not in it — offering the rewrite there would hand the user a
+// token the parser rejects. With nothing left to switch to, the anchor alone is
+// noise, so the section drops out entirely.
+function scopeSwitchOptions(
+  current: FullTextScope,
+  value: string,
+  span: { from: number; to: number },
+  registry: FieldRegistry,
+  opts?: { keepCurrentFirst?: boolean },
+): CompletionOption[] {
+  const v = serializeValue(value);
+  const allDefs: { scope: FullTextScope; insert: string; detail: string }[] = [
+    ...suggestedSearchScopes(registry).map(([scope, definition]) => ({
+      scope,
+      insert: `${scope}:${v}`,
+      detail: definition.description,
+    })),
+    {
+      scope: "input",
+      insert: `input:${v}`,
+      detail: "search only the input payload",
+    },
+    {
+      scope: "output",
+      insert: `output:${v}`,
+      detail: "search only the output payload",
+    },
+    {
+      scope: "default",
+      insert: v,
+      detail: registry.freeTextScopeLabel
+        ? `default: ${registry.freeTextScopeLabel}`
+        : "default full-text search",
+    },
+  ];
+  const defs = allDefs.filter(
+    (d, index) =>
+      allDefs.findIndex((candidate) => candidate.scope === d.scope) === index &&
+      (d.scope === "default" ||
+        registry.resolveField(d.scope)?.type === "field" ||
+        registry.resolveField(d.scope)?.type === "searchScope"),
+  );
+  const alternatives = defs.filter((d) => d.scope !== current);
+  if (alternatives.length === 0) return [];
+  const ordered = opts?.keepCurrentFirst
+    ? [...defs.filter((d) => d.scope === current), ...alternatives]
+    : alternatives;
+  return ordered.map((d) => ({
+    id: `scope:${d.scope}`,
+    kind: "pattern" as const,
+    label: d.insert,
+    detail: d.detail,
+    insert: d.insert,
+    replaceSpan: span,
+  }));
+}
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
 function valueStageSections(input: ValueStageInput): {
@@ -1304,77 +1375,6 @@ function freeTextRun(
 // free text (ids, names, input & output); input:/output: are the scoped forms.
 type FullTextScope = string;
 
-// Switch options that move a full-text value between scopes, carrying the value
-// and replacing the WHOLE token/run (replaceSpan). Used in both directions:
-// forward (bare text → input:/output:) and back/between (input:/output: → each
-// other or default). `value` is the raw (unquoted) text; it's serialized so a
-// multi-word phrase stays one token.
-//
-// `keepCurrentFirst` keeps the current scope in the list, listed first, instead
-// of excluding it: for bare free text it surfaces the typed text itself as an
-// explicit "this is the default-scope search" option (the anchor) ahead of the
-// input:/output: rewrites. Value-stage switches leave it off, so an `input:`
-// value never offers a no-op switch back to `input:`.
-//
-// The scoped forms are offered only where the registry actually resolves them.
-// Users narrows the events catalog to what its grouped query can answer, and
-// `input:` is not in it — offering the rewrite there would hand the user a
-// token the parser rejects. With nothing left to switch to, the anchor alone is
-// noise, so the section drops out entirely.
-function scopeSwitchOptions(
-  current: FullTextScope,
-  value: string,
-  span: { from: number; to: number },
-  registry: FieldRegistry,
-  opts?: { keepCurrentFirst?: boolean },
-): CompletionOption[] {
-  const v = serializeValue(value);
-  const allDefs: { scope: FullTextScope; insert: string; detail: string }[] = [
-    ...suggestedSearchScopes(registry).map(([scope, definition]) => ({
-      scope,
-      insert: `${scope}:${v}`,
-      detail: definition.description,
-    })),
-    {
-      scope: "input",
-      insert: `input:${v}`,
-      detail: "search only the input payload",
-    },
-    {
-      scope: "output",
-      insert: `output:${v}`,
-      detail: "search only the output payload",
-    },
-    {
-      scope: "default",
-      insert: v,
-      detail: registry.freeTextScopeLabel
-        ? `default: ${registry.freeTextScopeLabel}`
-        : "default full-text search",
-    },
-  ];
-  const defs = allDefs.filter(
-    (d, index) =>
-      allDefs.findIndex((candidate) => candidate.scope === d.scope) === index &&
-      (d.scope === "default" ||
-        registry.resolveField(d.scope)?.type === "field" ||
-        registry.resolveField(d.scope)?.type === "searchScope"),
-  );
-  const alternatives = defs.filter((d) => d.scope !== current);
-  if (alternatives.length === 0) return [];
-  const ordered = opts?.keepCurrentFirst
-    ? [...defs.filter((d) => d.scope === current), ...alternatives]
-    : alternatives;
-  return ordered.map((d) => ({
-    id: `scope:${d.scope}`,
-    kind: "pattern" as const,
-    label: d.insert,
-    detail: d.detail,
-    insert: d.insert,
-    replaceSpan: span,
-  }));
-}
-
 function filterAt(node: ASTNode | null, caret: number): FilterNode | null {
   if (!node) return null;
   if (node.kind === "not") return filterAt(node.child, caret);
@@ -1391,168 +1391,6 @@ function filterAt(node: ASTNode | null, caret: number): FilterNode | null {
     caret <= node.span.to
     ? node
     : null;
-}
-
-/** Field picks show the default scope immediately, including unfinished filters. */
-export function planInputCompletions(
-  ctx: InputCompletionContext,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): CompletionPlan | null {
-  const plan = planTargetedInputCompletions(ctx, registry);
-  const capability = registry.targeting;
-  if (!plan || !capability) return plan;
-  const term = termAt(ctx.input, ctx.caret);
-  const raw = term?.raw.replace(/^-/, "") ?? "";
-  if (
-    readTargetPrefix(raw, registry) ||
-    filterAt(parse(ctx.input, registry).ast, ctx.caret)?.target
-  )
-    return plan;
-  const target = capability.targets.find(
-    (entry) => entry.id === capability.defaultTarget,
-  );
-  if (!target) return plan;
-  const prefix = serializeTarget(targetReference(target));
-  return {
-    ...plan,
-    sections: plan.sections.map((section) => ({
-      ...section,
-      options: section.options.map((option) => {
-        if (option.kind !== "field") return option;
-        const ref = registry.resolveField(
-          option.fieldId.endsWith(".")
-            ? `${option.fieldId}key`
-            : option.fieldId,
-        );
-        return ref && capability.supports(ref)
-          ? { ...option, fieldId: `${prefix}${option.fieldId}` }
-          : option;
-      }),
-    })),
-  };
-}
-
-/** Targets augment the existing field/value planner; both edit the same condition. */
-function planTargetedInputCompletions(
-  ctx: InputCompletionContext,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): CompletionPlan | null {
-  const capability = registry.targeting;
-  if (!capability) return planUnscopedInputCompletions(ctx, registry);
-  const term = termAt(ctx.input, ctx.caret);
-  if (!term) return planUnscopedInputCompletions(ctx, registry);
-  const condition = filterAt(parse(ctx.input, registry).ast, ctx.caret);
-  const negated = term.raw.startsWith("-");
-  const bodyFrom = term.from + (negated ? 1 : 0);
-  const prefix = readTargetPrefix(
-    negated ? term.raw.slice(1) : term.raw,
-    registry,
-  );
-  if (!prefix && (!condition || !supportsFilterTarget(condition, registry))) {
-    return planUnscopedInputCompletions(ctx, registry);
-  }
-  const resolved = condition
-    ? resolveFilterTarget(condition, registry)
-    : undefined;
-  const reference = condition?.target ?? prefix?.target;
-  const targetId =
-    resolved && "id" in resolved
-      ? resolved.id
-      : (capability.targets.find(
-          (target) =>
-            reference &&
-            target.label === reference.value &&
-            Boolean(target.keyword) === (reference.kind === "keyword"),
-        )?.id ?? capability.defaultTarget);
-  const insideTarget = prefix && ctx.caret < bodyFrom + prefix.length;
-  let plan: CompletionPlan | null = null;
-  if (!insideTarget && !prefix?.incomplete && !term.raw.startsWith("@")) {
-    const length = prefix?.length ?? 0;
-    const unscoped = {
-      ...ctx,
-      input: ctx.input.slice(0, bodyFrom) + ctx.input.slice(bodyFrom + length),
-      caret: Math.max(bodyFrom, ctx.caret - length),
-    };
-    plan = planUnscopedInputCompletions(unscoped, registry);
-    if (plan && length) {
-      const shift = (position: number) =>
-        position >= bodyFrom ? position + length : position;
-      plan = {
-        ...plan,
-        from: shift(plan.from),
-        to: shift(plan.to),
-        sections: plan.sections.map((section) => ({
-          ...section,
-          options: section.options.map((option) => {
-            if (option.kind !== "pattern" || !option.replaceSpan) return option;
-            const replacesTerm =
-              option.replaceSpan.from === term.from &&
-              option.replaceSpan.to === term.to - length;
-            if (replacesTerm) {
-              const targetText = ctx.input.slice(bodyFrom, bodyFrom + length);
-              const insert = option.insert.startsWith("-")
-                ? `-${targetText}${option.insert.slice(1)}`
-                : `${targetText}${option.insert}`;
-              return {
-                ...option,
-                insert,
-                replaceSpan: { from: term.from, to: term.to },
-              };
-            }
-            return {
-              ...option,
-              replaceSpan: {
-                from: shift(option.replaceSpan.from),
-                to: shift(option.replaceSpan.to),
-              },
-            };
-          }),
-        })),
-      };
-    }
-  }
-  const span = condition?.span ?? { from: bodyFrom, to: term.to };
-  let fieldText = ctx.input.slice(span.from, span.to);
-  if (condition?.target?.span) {
-    const targetSpan = condition.target.span;
-    fieldText = (
-      ctx.input.slice(span.from, targetSpan.from) +
-      ctx.input.slice(targetSpan.to, span.to)
-    ).trimEnd();
-  } else if (prefix) {
-    fieldText = fieldText.slice(prefix.length);
-  }
-  const partialName = prefix?.incomplete
-    ? prefix.target.value.toLowerCase()
-    : "";
-  const options: CompletionOption[] = capability.targets
-    .filter(
-      (target) =>
-        target.keyword || target.label.toLowerCase().includes(partialName),
-    )
-    .map((target) => ({
-      id: `target:${target.id}`,
-      kind: "pattern",
-      label: target.displayLabel ?? target.label,
-      textClassName: target.textClassName,
-      detail: target.id === targetId ? "Current experiment scope" : undefined,
-      insert: `${serializeTarget(targetReference(target))}${fieldText}`,
-      requiresInput: indexOfOutsideQuotes(fieldText, ":") === -1,
-      replaceSpan: span,
-    }));
-  return {
-    ...(plan ?? {
-      stage: "field",
-      from: span.from,
-      to: span.to,
-      sections: [],
-      loading: false,
-    }),
-    sections: plan?.autoHighlight
-      ? [...plan.sections, { title: "Experiment", options }]
-      : [{ title: "Experiment", options }, ...(plan?.sections ?? [])],
-    autoHighlight: plan?.autoHighlight ?? false,
-  };
 }
 
 /**
@@ -1908,6 +1746,168 @@ function planUnscopedInputCompletions(
       !flatValues.some((o) => o.kind === "value" && o.value === typed),
     sections: staged.sections,
     ...groupedPlanAttrs,
+  };
+}
+
+/** Targets augment the existing field/value planner; both edit the same condition. */
+function planTargetedInputCompletions(
+  ctx: InputCompletionContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): CompletionPlan | null {
+  const capability = registry.targeting;
+  if (!capability) return planUnscopedInputCompletions(ctx, registry);
+  const term = termAt(ctx.input, ctx.caret);
+  if (!term) return planUnscopedInputCompletions(ctx, registry);
+  const condition = filterAt(parse(ctx.input, registry).ast, ctx.caret);
+  const negated = term.raw.startsWith("-");
+  const bodyFrom = term.from + (negated ? 1 : 0);
+  const prefix = readTargetPrefix(
+    negated ? term.raw.slice(1) : term.raw,
+    registry,
+  );
+  if (!prefix && (!condition || !supportsFilterTarget(condition, registry))) {
+    return planUnscopedInputCompletions(ctx, registry);
+  }
+  const resolved = condition
+    ? resolveFilterTarget(condition, registry)
+    : undefined;
+  const reference = condition?.target ?? prefix?.target;
+  const targetId =
+    resolved && "id" in resolved
+      ? resolved.id
+      : (capability.targets.find(
+          (target) =>
+            reference &&
+            target.label === reference.value &&
+            Boolean(target.keyword) === (reference.kind === "keyword"),
+        )?.id ?? capability.defaultTarget);
+  const insideTarget = prefix && ctx.caret < bodyFrom + prefix.length;
+  let plan: CompletionPlan | null = null;
+  if (!insideTarget && !prefix?.incomplete && !term.raw.startsWith("@")) {
+    const length = prefix?.length ?? 0;
+    const unscoped = {
+      ...ctx,
+      input: ctx.input.slice(0, bodyFrom) + ctx.input.slice(bodyFrom + length),
+      caret: Math.max(bodyFrom, ctx.caret - length),
+    };
+    plan = planUnscopedInputCompletions(unscoped, registry);
+    if (plan && length) {
+      const shift = (position: number) =>
+        position >= bodyFrom ? position + length : position;
+      plan = {
+        ...plan,
+        from: shift(plan.from),
+        to: shift(plan.to),
+        sections: plan.sections.map((section) => ({
+          ...section,
+          options: section.options.map((option) => {
+            if (option.kind !== "pattern" || !option.replaceSpan) return option;
+            const replacesTerm =
+              option.replaceSpan.from === term.from &&
+              option.replaceSpan.to === term.to - length;
+            if (replacesTerm) {
+              const targetText = ctx.input.slice(bodyFrom, bodyFrom + length);
+              const insert = option.insert.startsWith("-")
+                ? `-${targetText}${option.insert.slice(1)}`
+                : `${targetText}${option.insert}`;
+              return {
+                ...option,
+                insert,
+                replaceSpan: { from: term.from, to: term.to },
+              };
+            }
+            return {
+              ...option,
+              replaceSpan: {
+                from: shift(option.replaceSpan.from),
+                to: shift(option.replaceSpan.to),
+              },
+            };
+          }),
+        })),
+      };
+    }
+  }
+  const span = condition?.span ?? { from: bodyFrom, to: term.to };
+  let fieldText = ctx.input.slice(span.from, span.to);
+  if (condition?.target?.span) {
+    const targetSpan = condition.target.span;
+    fieldText = (
+      ctx.input.slice(span.from, targetSpan.from) +
+      ctx.input.slice(targetSpan.to, span.to)
+    ).trimEnd();
+  } else if (prefix) {
+    fieldText = fieldText.slice(prefix.length);
+  }
+  const partialName = prefix?.incomplete
+    ? prefix.target.value.toLowerCase()
+    : "";
+  const options: CompletionOption[] = capability.targets
+    .filter(
+      (target) =>
+        target.keyword || target.label.toLowerCase().includes(partialName),
+    )
+    .map((target) => ({
+      id: `target:${target.id}`,
+      kind: "pattern",
+      label: target.displayLabel ?? target.label,
+      textClassName: target.textClassName,
+      detail: target.id === targetId ? "Current experiment scope" : undefined,
+      insert: `${serializeTarget(targetReference(target))}${fieldText}`,
+      requiresInput: indexOfOutsideQuotes(fieldText, ":") === -1,
+      replaceSpan: span,
+    }));
+  return {
+    ...(plan ?? {
+      stage: "field",
+      from: span.from,
+      to: span.to,
+      sections: [],
+      loading: false,
+    }),
+    sections: plan?.autoHighlight
+      ? [...plan.sections, { title: "Experiment", options }]
+      : [{ title: "Experiment", options }, ...(plan?.sections ?? [])],
+    autoHighlight: plan?.autoHighlight ?? false,
+  };
+}
+
+/** Field picks show the default scope immediately, including unfinished filters. */
+export function planInputCompletions(
+  ctx: InputCompletionContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): CompletionPlan | null {
+  const plan = planTargetedInputCompletions(ctx, registry);
+  const capability = registry.targeting;
+  if (!plan || !capability) return plan;
+  const term = termAt(ctx.input, ctx.caret);
+  const raw = term?.raw.replace(/^-/, "") ?? "";
+  if (
+    readTargetPrefix(raw, registry) ||
+    filterAt(parse(ctx.input, registry).ast, ctx.caret)?.target
+  )
+    return plan;
+  const target = capability.targets.find(
+    (entry) => entry.id === capability.defaultTarget,
+  );
+  if (!target) return plan;
+  const prefix = serializeTarget(targetReference(target));
+  return {
+    ...plan,
+    sections: plan.sections.map((section) => ({
+      ...section,
+      options: section.options.map((option) => {
+        if (option.kind !== "field") return option;
+        const ref = registry.resolveField(
+          option.fieldId.endsWith(".")
+            ? `${option.fieldId}key`
+            : option.fieldId,
+        );
+        return ref && capability.supports(ref)
+          ? { ...option, fieldId: `${prefix}${option.fieldId}` }
+          : option;
+      }),
+    })),
   };
 }
 

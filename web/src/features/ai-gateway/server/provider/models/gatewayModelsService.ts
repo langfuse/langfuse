@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
@@ -18,6 +17,19 @@ import {
   GatewayModelCatalogService,
 } from "./gatewayModelCatalogService";
 import { GatewayModelsRepository } from "./gatewayModelsRepository";
+
+function compareModels(
+  left: GatewayModelCatalogEntry,
+  right: GatewayModelCatalogEntry,
+) {
+  if (left.id < right.id) {
+    return -1;
+  }
+  if (left.id > right.id) {
+    return 1;
+  }
+  return 0;
+}
 
 export class GatewayModelsService {
   private readonly repository: GatewayModelsRepository;
@@ -92,17 +104,4 @@ export class GatewayModelsService {
         .sort(compareModels),
     };
   }
-}
-
-function compareModels(
-  left: GatewayModelCatalogEntry,
-  right: GatewayModelCatalogEntry,
-) {
-  if (left.id < right.id) {
-    return -1;
-  }
-  if (left.id > right.id) {
-    return 1;
-  }
-  return 0;
 }

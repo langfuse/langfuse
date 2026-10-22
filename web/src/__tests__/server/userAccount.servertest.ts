@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
@@ -17,6 +16,112 @@ import {
 } from "@/src/features/feature-flags/server";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
+
+async function createCaller({
+  admin = false,
+  plan = "cloud:hobby",
+  aiFeaturesEnabled = true,
+  featureFlags = ["templateFlag"],
+  includeProjectInSession = true,
+  emailDomain = "example.com",
+}: {
+  admin?: boolean;
+  plan?: Plan;
+  aiFeaturesEnabled?: boolean;
+  featureFlags?: string[];
+  includeProjectInSession?: boolean;
+  // Domain only — the local part is always unique so reruns against the same
+  // database do not trip the users.email unique constraint.
+  emailDomain?: string;
+} = {}) {
+  const id = randomUUID();
+  const orgId = `org-${id}`;
+  const projectId = `project-${id}`;
+  const userId = `user-${id}`;
+
+  const org = await prisma.organization.create({
+    data: {
+      id: orgId,
+      name: `User Account Test Org ${id}`,
+      aiFeaturesEnabled,
+    },
+  });
+  const project = await prisma.project.create({
+    data: {
+      id: projectId,
+      orgId,
+      name: `User Account Test Project ${id}`,
+    },
+  });
+  const user = await prisma.user.create({
+    data: {
+      id: userId,
+      email: `${userId}@${emailDomain}`,
+      name: "User Account Test User",
+      featureFlags,
+      admin,
+    },
+  });
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      canCreateOrganizations: true,
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: org.aiFeaturesEnabled,
+          aiTelemetryEnabled: true,
+          projects: includeProjectInSession
+            ? [
+                {
+                  id: project.id,
+                  name: project.name,
+                  role: "ADMIN",
+                  deletedAt: null,
+                  retentionDays: null,
+                  hasTraces: false,
+                  metadata: {},
+                  createdAt: project.createdAt.toISOString(),
+                },
+              ]
+            : [],
+        },
+      ],
+      featureFlags: testFeatureFlags({
+        langfuseTopics: featureFlags.includes("langfuseTopics"),
+        sessionViewV2: featureFlags.includes("sessionViewV2"),
+        sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
+        searchBar: featureFlags.includes("searchBar"),
+        templateFlag: featureFlags.includes("templateFlag"),
+      }),
+      admin,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:enterprise",
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+
+  return {
+    orgId,
+    projectId,
+    userId,
+    email: user.email!,
+    session,
+    caller: appRouter.createCaller({ ...ctx, prisma }),
+  };
+}
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -277,109 +382,3 @@ describe("userAccountRouter.delete", () => {
     ).toBe(0);
   });
 });
-
-async function createCaller({
-  admin = false,
-  plan = "cloud:hobby",
-  aiFeaturesEnabled = true,
-  featureFlags = ["templateFlag"],
-  includeProjectInSession = true,
-  emailDomain = "example.com",
-}: {
-  admin?: boolean;
-  plan?: Plan;
-  aiFeaturesEnabled?: boolean;
-  featureFlags?: string[];
-  includeProjectInSession?: boolean;
-  // Domain only — the local part is always unique so reruns against the same
-  // database do not trip the users.email unique constraint.
-  emailDomain?: string;
-} = {}) {
-  const id = randomUUID();
-  const orgId = `org-${id}`;
-  const projectId = `project-${id}`;
-  const userId = `user-${id}`;
-
-  const org = await prisma.organization.create({
-    data: {
-      id: orgId,
-      name: `User Account Test Org ${id}`,
-      aiFeaturesEnabled,
-    },
-  });
-  const project = await prisma.project.create({
-    data: {
-      id: projectId,
-      orgId,
-      name: `User Account Test Project ${id}`,
-    },
-  });
-  const user = await prisma.user.create({
-    data: {
-      id: userId,
-      email: `${userId}@${emailDomain}`,
-      name: "User Account Test User",
-      featureFlags,
-      admin,
-    },
-  });
-
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: org.aiFeaturesEnabled,
-          aiTelemetryEnabled: true,
-          projects: includeProjectInSession
-            ? [
-                {
-                  id: project.id,
-                  name: project.name,
-                  role: "ADMIN",
-                  deletedAt: null,
-                  retentionDays: null,
-                  hasTraces: false,
-                  metadata: {},
-                  createdAt: project.createdAt.toISOString(),
-                },
-              ]
-            : [],
-        },
-      ],
-      featureFlags: testFeatureFlags({
-        langfuseTopics: featureFlags.includes("langfuseTopics"),
-        sessionViewV2: featureFlags.includes("sessionViewV2"),
-        sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
-        searchBar: featureFlags.includes("searchBar"),
-        templateFlag: featureFlags.includes("templateFlag"),
-      }),
-      admin,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
-
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-
-  return {
-    orgId,
-    projectId,
-    userId,
-    email: user.email!,
-    session,
-    caller: appRouter.createCaller({ ...ctx, prisma }),
-  };
-}

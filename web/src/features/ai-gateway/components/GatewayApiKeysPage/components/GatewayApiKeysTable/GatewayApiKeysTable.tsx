@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Plus, Trash } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -27,6 +26,18 @@ type GatewayApiKey = {
     } | null;
   };
 };
+
+function getMetadataEntries(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([key, item]) =>
+    item === null ||
+    typeof item === "string" ||
+    typeof item === "number" ||
+    typeof item === "boolean"
+      ? [`${key}: ${String(item)}`]
+      : [],
+  );
+}
 
 export function GatewayApiKeysTable({
   data,
@@ -121,17 +132,5 @@ export function GatewayApiKeysTable({
           : "No gateway API keys created."
       }
     />
-  );
-}
-
-function getMetadataEntries(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return Object.entries(value).flatMap(([key, item]) =>
-    item === null ||
-    typeof item === "string" ||
-    typeof item === "number" ||
-    typeof item === "boolean"
-      ? [`${key}: ${String(item)}`]
-      : [],
   );
 }

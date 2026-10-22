@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSession } from "next-auth/react";
 import { type ReactNode } from "react";
 
@@ -13,34 +12,6 @@ type TraceTranscriptSource = {
   traceId: string;
   timestamp: Date;
 };
-
-export function TraceTranscriptDialogController({
-  children,
-  ...source
-}: TraceTranscriptSource & {
-  children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
-}) {
-  const { data: session } = useSession();
-  if (session?.user?.admin !== true) {
-    return children({ openDialog: undefined });
-  }
-
-  return (
-    <DialogController<TraceTranscriptSource>
-      renderDialog={({ state }) => (
-        <Dialog title="Trace transcript" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <TraceTranscriptInspector {...state} />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => children({ openDialog: () => openDialog(source) })}
-    </DialogController>
-  );
-}
 
 function TraceTranscriptInspector(source: TraceTranscriptSource) {
   const query = api.events.transcriptByTraceId.useQuery(source);
@@ -78,5 +49,33 @@ function TraceTranscriptInspector(source: TraceTranscriptSource) {
         </p>
       )}
     </>
+  );
+}
+
+export function TraceTranscriptDialogController({
+  children,
+  ...source
+}: TraceTranscriptSource & {
+  children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
+}) {
+  const { data: session } = useSession();
+  if (session?.user?.admin !== true) {
+    return children({ openDialog: undefined });
+  }
+
+  return (
+    <DialogController<TraceTranscriptSource>
+      renderDialog={({ state }) => (
+        <Dialog title="Trace transcript" size="lg" closeOnInteractionOutside>
+          <Dialog.Body>
+            <div className="ph-no-capture flex flex-col gap-4">
+              <TraceTranscriptInspector {...state} />
+            </div>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => children({ openDialog: () => openDialog(source) })}
+    </DialogController>
   );
 }

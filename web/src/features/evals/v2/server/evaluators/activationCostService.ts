@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTargetObject,
   EvalTemplateType,
@@ -22,6 +21,62 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1_000;
 const TEST_COST_RETRY_DELAYS_MS = [
   0, 250, 500, 1_000, 2_000, 4_000, 8_000,
 ] as const;
+
+async function waitForEvaluatorRunCost(projectId: string, evaluatorId: string) {
+  for (const delayMs of TEST_COST_RETRY_DELAYS_MS) {
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    const cost = await getLatestEvaluatorRunCost(projectId, evaluatorId);
+    if (cost !== null) return cost;
+  }
+  return null;
+}
+
+async function runTestAndWaitForCost({
+  params,
+  evaluator,
+  sample,
+}: {
+  params: Parameters<typeof getActivationCostEstimates>[0];
+  evaluator: Awaited<ReturnType<typeof findEvaluatorsByIds>>[number];
+  sample: Awaited<
+    ReturnType<typeof getObservationsWithModelDataFromEventsTable>
+  >[number];
+}) {
+  const latestVersion = evaluator.versions[0];
+  if (!sample.traceId || !latestVersion) return null;
+
+  try {
+    const result = await testEvaluator({
+      orgId: params.orgId,
+      projectId: params.projectId,
+      evaluatorId: evaluator.id,
+      definition: toEvaluatorDefinition(evaluator.type, latestVersion),
+      observationId: sample.id,
+      traceId: sample.traceId,
+      startTime: sample.startTime,
+      shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
+    });
+    if (!("executionTraceId" in result)) return null;
+    if (
+      "estimatedCostUsd" in result &&
+      typeof result.estimatedCostUsd === "number"
+    ) {
+      return result.estimatedCostUsd;
+    }
+
+    return waitForEvaluatorRunCost(params.projectId, evaluator.id);
+  } catch (error) {
+    logger.warn("Automatic evaluator test for cost estimation failed", {
+      projectId: params.projectId,
+      evaluatorId: evaluator.id,
+      error,
+    });
+  }
+
+  return null;
+}
 
 export async function getActivationCostEstimates(params: {
   orgId: string;
@@ -170,60 +225,4 @@ export async function getActivationCostEstimates(params: {
           : matchingObservations * params.sampling * testRunCostUsd,
     };
   });
-}
-
-async function runTestAndWaitForCost({
-  params,
-  evaluator,
-  sample,
-}: {
-  params: Parameters<typeof getActivationCostEstimates>[0];
-  evaluator: Awaited<ReturnType<typeof findEvaluatorsByIds>>[number];
-  sample: Awaited<
-    ReturnType<typeof getObservationsWithModelDataFromEventsTable>
-  >[number];
-}) {
-  const latestVersion = evaluator.versions[0];
-  if (!sample.traceId || !latestVersion) return null;
-
-  try {
-    const result = await testEvaluator({
-      orgId: params.orgId,
-      projectId: params.projectId,
-      evaluatorId: evaluator.id,
-      definition: toEvaluatorDefinition(evaluator.type, latestVersion),
-      observationId: sample.id,
-      traceId: sample.traceId,
-      startTime: sample.startTime,
-      shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
-    });
-    if (!("executionTraceId" in result)) return null;
-    if (
-      "estimatedCostUsd" in result &&
-      typeof result.estimatedCostUsd === "number"
-    ) {
-      return result.estimatedCostUsd;
-    }
-
-    return waitForEvaluatorRunCost(params.projectId, evaluator.id);
-  } catch (error) {
-    logger.warn("Automatic evaluator test for cost estimation failed", {
-      projectId: params.projectId,
-      evaluatorId: evaluator.id,
-      error,
-    });
-  }
-
-  return null;
-}
-
-async function waitForEvaluatorRunCost(projectId: string, evaluatorId: string) {
-  for (const delayMs of TEST_COST_RETRY_DELAYS_MS) {
-    if (delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-    const cost = await getLatestEvaluatorRunCost(projectId, evaluatorId);
-    if (cost !== null) return cost;
-  }
-  return null;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, Plus, Unlink } from "@langfuse/icons";
@@ -39,48 +38,6 @@ function keepSheetOpenForRelationshipOverlay(
   ) {
     event.preventDefault();
   }
-}
-
-export function EvaluatorRuleRelationships({
-  projectId,
-  evaluatorId,
-  evaluatorName,
-  evaluatorType,
-  evaluatorDefaultVariableMapping,
-}: {
-  projectId: string;
-  evaluatorId: string;
-  evaluatorName: string;
-  evaluatorType: EvalTemplateType;
-  evaluatorDefaultVariableMapping: unknown;
-}) {
-  const [open, setOpen] = useState(false);
-  const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery({
-    projectId,
-    evaluatorId,
-  });
-
-  return (
-    <>
-      <RuleRelationshipButton
-        count={assignments.data?.length ?? 0}
-        shouldCallAttention={
-          !assignments.isPending && assignments.data?.length === 0
-        }
-        onClick={() => setOpen(true)}
-      />
-      <EvaluatorRuleRelationshipsSheet
-        projectId={projectId}
-        evaluatorId={evaluatorId}
-        evaluatorName={evaluatorName}
-        evaluatorType={evaluatorType}
-        evaluatorDefaultVariableMapping={evaluatorDefaultVariableMapping}
-        source="evaluator_detail"
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
 }
 
 function EvaluatorRuleRelationshipsSheet({
@@ -392,6 +349,48 @@ function EvaluatorRuleRelationshipsSheet({
         onConfirm={() =>
           activationConfirmation.confirmActivation().catch(() => undefined)
         }
+      />
+    </>
+  );
+}
+
+export function EvaluatorRuleRelationships({
+  projectId,
+  evaluatorId,
+  evaluatorName,
+  evaluatorType,
+  evaluatorDefaultVariableMapping,
+}: {
+  projectId: string;
+  evaluatorId: string;
+  evaluatorName: string;
+  evaluatorType: EvalTemplateType;
+  evaluatorDefaultVariableMapping: unknown;
+}) {
+  const [open, setOpen] = useState(false);
+  const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery({
+    projectId,
+    evaluatorId,
+  });
+
+  return (
+    <>
+      <RuleRelationshipButton
+        count={assignments.data?.length ?? 0}
+        shouldCallAttention={
+          !assignments.isPending && assignments.data?.length === 0
+        }
+        onClick={() => setOpen(true)}
+      />
+      <EvaluatorRuleRelationshipsSheet
+        projectId={projectId}
+        evaluatorId={evaluatorId}
+        evaluatorName={evaluatorName}
+        evaluatorType={evaluatorType}
+        evaluatorDefaultVariableMapping={evaluatorDefaultVariableMapping}
+        source="evaluator_detail"
+        open={open}
+        onOpenChange={setOpen}
       />
     </>
   );

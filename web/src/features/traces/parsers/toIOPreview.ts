@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import type {
   FilePart,
   NormalizedIO,
@@ -93,27 +93,6 @@ function toToolCallPart(
     // Paired by toIOPreview below; null = no result in this observation.
     response: null as ToolCallResponse,
   };
-}
-
-function toToolResultMessage(
-  part: Extract<NormalizedMessagePart, { type: "tool-result" }>,
-): ChatMlMessage {
-  // Deliberately no `name`: the renderer titles messages name-over-role, and
-  // a tool result must render as a tool turn, not as a participant named
-  // after the tool. The tool name stays on the paired tool-call part.
-  const content =
-    part.output.type === "content"
-      ? toChatMessages({
-          role: "tool",
-          source: "output",
-          parts: part.output.value,
-        }).main
-      : { content: part.output.value };
-  return {
-    ...content,
-    role: "tool",
-    ...(part.toolCallId ? { tool_call_id: part.toolCallId } : {}),
-  } as ChatMlMessage;
 }
 
 type ProjectedMessage = {
@@ -235,6 +214,27 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
     toolCallEntries: toolCalls,
     toolResultParts: toolResults,
   };
+}
+
+function toToolResultMessage(
+  part: Extract<NormalizedMessagePart, { type: "tool-result" }>,
+): ChatMlMessage {
+  // Deliberately no `name`: the renderer titles messages name-over-role, and
+  // a tool result must render as a tool turn, not as a participant named
+  // after the tool. The tool name stays on the paired tool-call part.
+  const content =
+    part.output.type === "content"
+      ? toChatMessages({
+          role: "tool",
+          source: "output",
+          parts: part.output.value,
+        }).main
+      : { content: part.output.value };
+  return {
+    ...content,
+    role: "tool",
+    ...(part.toolCallId ? { tool_call_id: part.toolCallId } : {}),
+  } as ChatMlMessage;
 }
 
 /**

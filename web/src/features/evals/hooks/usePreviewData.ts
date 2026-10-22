@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 
 import {
@@ -81,18 +80,14 @@ function getPreviewMode({
   return "none";
 }
 
-/**
- * Memoized on the query result reference: normalization deep-parses full
- * untruncated payloads and zips tool calls, and downstream consumers memoize
- * on the returned object's identity (code-eval-test-run-card).
- */
-function useNormalizedPreviewDataFields(
+function getRecordValue(
   record: Record<string, unknown> | null | undefined,
-): PreviewDataFields | null {
-  return useMemo(
-    () => (record ? normalizePreviewDataFields(record) : null),
-    [record],
-  );
+  selectedColumnId: string,
+) {
+  if (!record) return null;
+
+  const { value } = extractValueFromObject(record, selectedColumnId);
+  return value === undefined ? null : value;
 }
 
 function normalizePreviewDataFields(
@@ -113,14 +108,18 @@ function normalizePreviewDataFields(
   };
 }
 
-function getRecordValue(
+/**
+ * Memoized on the query result reference: normalization deep-parses full
+ * untruncated payloads and zips tool calls, and downstream consumers memoize
+ * on the returned object's identity (code-eval-test-run-card).
+ */
+function useNormalizedPreviewDataFields(
   record: Record<string, unknown> | null | undefined,
-  selectedColumnId: string,
-) {
-  if (!record) return null;
-
-  const { value } = extractValueFromObject(record, selectedColumnId);
-  return value === undefined ? null : value;
+): PreviewDataFields | null {
+  return useMemo(
+    () => (record ? normalizePreviewDataFields(record) : null),
+    [record],
+  );
 }
 
 function useTracePreview({

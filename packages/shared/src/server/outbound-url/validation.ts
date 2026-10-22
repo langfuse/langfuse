@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import dns from "node:dns/promises";
 import { URL } from "node:url";
 import { env } from "../../env";
@@ -97,6 +96,20 @@ export async function resolveHost(hostname: string): Promise<string[]> {
   return [...ips];
 }
 
+function assertValidUrlEncoding(urlString: string): void {
+  // This intentionally checks encoding validity only. Do not parse or validate
+  // the decoded result: decoding the whole URL can turn encoded data into URL
+  // delimiters and make validation inspect a different hostname than fetch.
+  try {
+    decodeURIComponent(urlString);
+  } catch {
+    throw new OutboundUrlValidationError(
+      "invalid-encoding",
+      "Invalid URL encoding",
+    );
+  }
+}
+
 export function parseOutboundUrl(urlString: string): URL {
   const trimmedUrl = urlString.trim();
   assertValidUrlEncoding(trimmedUrl);
@@ -122,6 +135,52 @@ export function parseOutboundUrl(urlString: string): URL {
   }
 
   return url;
+}
+
+/** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
+function enforcePositiveAllowlist(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): "allowed" | "not-configured" {
+  const allowedHosts = whitelist.allowedHosts ?? [];
+  if (allowedHosts.length === 0) return "not-configured";
+  if (allowedHosts.includes(hostname)) return "allowed";
+  throw new OutboundUrlValidationError(
+    "host-not-allowed",
+    HOST_NOT_IN_ALLOWLIST_MESSAGE,
+  );
+}
+
+export function validateOutboundResolvedIp({
+  hostname,
+  ip,
+  whitelist,
+  logContext,
+}: ValidateOutboundResolvedIpOptions): void {
+  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
+    return;
+  }
+
+  if (whitelist.hosts.includes(hostname)) {
+    return;
+  }
+
+  if (
+    isIPBlocked(
+      ip,
+      whitelist.ips,
+      whitelist.ip_ranges,
+      env.LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS ?? [],
+    )
+  ) {
+    logger.warn(
+      `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
+    );
+    throw new OutboundUrlValidationError(
+      "blocked-ip",
+      "Blocked IP address detected",
+    );
+  }
 }
 
 export async function validateOutboundUrlHost({
@@ -173,65 +232,5 @@ export async function validateOutboundUrlHost({
       whitelist,
       logContext,
     });
-  }
-}
-
-export function validateOutboundResolvedIp({
-  hostname,
-  ip,
-  whitelist,
-  logContext,
-}: ValidateOutboundResolvedIpOptions): void {
-  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
-    return;
-  }
-
-  if (whitelist.hosts.includes(hostname)) {
-    return;
-  }
-
-  if (
-    isIPBlocked(
-      ip,
-      whitelist.ips,
-      whitelist.ip_ranges,
-      env.LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS ?? [],
-    )
-  ) {
-    logger.warn(
-      `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
-    );
-    throw new OutboundUrlValidationError(
-      "blocked-ip",
-      "Blocked IP address detected",
-    );
-  }
-}
-
-/** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
-function enforcePositiveAllowlist(
-  hostname: string,
-  whitelist: OutboundUrlValidationWhitelist,
-): "allowed" | "not-configured" {
-  const allowedHosts = whitelist.allowedHosts ?? [];
-  if (allowedHosts.length === 0) return "not-configured";
-  if (allowedHosts.includes(hostname)) return "allowed";
-  throw new OutboundUrlValidationError(
-    "host-not-allowed",
-    HOST_NOT_IN_ALLOWLIST_MESSAGE,
-  );
-}
-
-function assertValidUrlEncoding(urlString: string): void {
-  // This intentionally checks encoding validity only. Do not parse or validate
-  // the decoded result: decoding the whole URL can turn encoded data into URL
-  // delimiters and make validation inspect a different hostname than fetch.
-  try {
-    decodeURIComponent(urlString);
-  } catch {
-    throw new OutboundUrlValidationError(
-      "invalid-encoding",
-      "Invalid URL encoding",
-    );
   }
 }

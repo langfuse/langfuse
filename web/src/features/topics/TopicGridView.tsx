@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type RouterOutputs } from "@/src/utils/api";
 import {
   useMemo,
@@ -39,102 +38,197 @@ const PAD_X = 16;
 const PAD_Y = 16;
 const CARD_OFFSET = 8;
 
-export function TopicGridView({
-  projectId,
-  facet,
-  mapResult,
-  onOpenTrace,
-  peekView,
-  tracePanelRef,
-  onGenerateTopics,
-  canGenerateTopics,
-}: TopicGridViewProps) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
-  const topics = orderedFacetTopics(facet).map((topic, index) => ({
-    ...topic,
-    count: counts.get(topic.id) ?? 0,
-    color: topicColor(index),
-  }));
-  const selectedTopic =
-    topics.find((topic) => topic.id === selectedTopicId) ?? null;
-  const rowsById = useMemo(
-    () => new Map(facet.rows.map((row) => [row.traceId, row])),
-    [facet.rows],
-  );
-  const mapData = mapResult.data;
-  const { points, perDot } = useMemo(() => {
-    if (mapData?.status !== "ready") return { points: [], perDot: 1 };
-    const indexById = new Map(
-      orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
-    );
-    return sampleGridPoints(
-      mapData.points.map(
-        (point): GridPoint => ({
-          id: point.traceId,
-          x: point.x,
-          y: point.y,
-          topicIndex: point.topicId ? (indexById.get(point.topicId) ?? -1) : -1,
-        }),
-      ),
-    );
-  }, [mapData, facet]);
-  if (topics.length === 0) {
+function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
+  if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
+  if (!mapResult.data) return "Loading grid…";
+  if (mapResult.data.status !== "ready") {
     return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
+      mapResult.data.reason ?? "This run has no saved embedding projection."
     );
   }
-  const selectedIndex = selectedTopic
-    ? topics.findIndex((topic) => topic.id === selectedTopic.id)
-    : null;
-  const message = facet.map
-    ? gridMessage(mapResult)
-    : "No map published for this facet.";
-  const listRows = selectedTopic
-    ? facet.rows.filter((row) => row.topicId === selectedTopic.id)
-    : facet.rows;
-
-  return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col lg:flex-row">
-      <section
-        aria-label="Topic grid"
-        className="flex min-h-48 min-w-0 shrink-0 basis-1/2 flex-col overflow-hidden lg:shrink lg:basis-3/5"
-      >
-        {message ? (
-          <GridMessage>{message}</GridMessage>
-        ) : (
-          <TopicGrid
-            points={points}
-            perDot={perDot}
-            topics={topics}
-            rowsById={rowsById}
-            selectedIndex={selectedIndex}
-            onSelectTopic={setSelectedTopicId}
-            onOpenTrace={onOpenTrace}
-          />
-        )}
-      </section>
-      <TopicTraceList
-        projectId={projectId}
-        title={selectedTopic?.name ?? allTopicsLabel(facet.name)}
-        description={selectedTopic?.description}
-        swatchColor={
-          selectedIndex !== null ? topics[selectedIndex]?.color : undefined
-        }
-        rows={listRows}
-        peekView={peekView}
-        tracePanelRef={tracePanelRef}
-        divider="side"
-      />
-    </div>
-  );
+  return null;
 }
 
 function GridMessage({ children }: { children: ReactNode }) {
   return <p className="text-muted-foreground p-4 text-sm">{children}</p>;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function colorAt(topics: GridTopic[], topicIndex: number) {
+  return topics[topicIndex]?.color ?? topicColor(-1);
+}
+
+function squareOpacity(
+  topicIndex: number,
+  selectedIndex: number | null,
+  hoveredIndex: number | null,
+  isHovered: boolean,
+) {
+  if (isHovered) return 1;
+  const hasSelection = selectedIndex !== null;
+  let opacity: number;
+  if (topicIndex < 0) opacity = hasSelection ? 0.1 : 0.2;
+  else if (!hasSelection) opacity = 0.35;
+  else opacity = topicIndex === selectedIndex ? 1 : 0.12;
+  if (topicIndex >= 0 && topicIndex === hoveredIndex) {
+    opacity = Math.max(opacity, 0.7);
+  }
+  return opacity;
+}
+
+function GridHoverCard({
+  cell,
+  topicName,
+  count,
+  row,
+  cellSize,
+  grid,
+  members,
+  color,
+}: GridHoverCardProps) {
+  // Card sits above/below the dot, growing toward the grid center, so it never covers it.
+  const toLeft = cell.col >= grid.cols / 2;
+  const below = cell.row < grid.rows / 2;
+  const left = (cell.col + (toLeft ? 1 : 0)) * cellSize;
+  const top = below
+    ? (cell.row + 1) * cellSize + CARD_OFFSET
+    : cell.row * cellSize - CARD_OFFSET;
+  const shortId = cell.id.length > 8 ? `${cell.id.slice(0, 8)}…` : cell.id;
+  const started = row
+    ? formatCompactRelativeTime(new Date(row.unitStartTime))
+    : null;
+  return (
+    <div
+      role="tooltip"
+      className="bg-popover text-popover-foreground pointer-events-none absolute w-64 rounded-md border p-2 shadow-md"
+      style={{
+        left,
+        top,
+        translate: `${toLeft ? "-100%" : "0"} ${below ? "0" : "-100%"}`,
+      }}
+    >
+      <div className="flex items-center gap-1.5 text-xs">
+        <span
+          aria-hidden
+          className="size-2.5 shrink-0 rounded-xs"
+          style={{ backgroundColor: color }}
+        />
+        <span className="min-w-0 truncate font-bold" title={topicName}>
+          {topicName}
+        </span>
+        <span className="text-muted-foreground text-2xs ml-auto shrink-0 font-mono">
+          {count.toLocaleString()} traces
+        </span>
+      </div>
+      {members.length > 1 ? (
+        <>
+          <ul className="mt-1 flex flex-col gap-0.5 text-xs">
+            {members.slice(0, 3).map((member) => (
+              <li key={member.traceId} className="line-clamp-1">
+                {member.summary || "No applicable summary."}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground text-2xs mt-1 font-mono">
+            {[
+              `${members.length.toLocaleString()} traces in this dot`,
+              members.length > 3
+                ? `+${(members.length - 3).toLocaleString()} more`
+                : null,
+              "click to open the first",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="mt-1 line-clamp-2 text-xs">
+            {row?.summary || "No applicable summary."}
+          </p>
+          <p
+            className="text-muted-foreground text-2xs mt-1 truncate font-mono"
+            title={cell.id}
+          >
+            {[shortId, started, "click to open"].filter(Boolean).join(" · ")}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function GridLegend({
+  topics,
+  selectedIndex,
+  onSelectTopic,
+  onHoverTopic,
+  children,
+}: GridLegendProps) {
+  const entries = topics
+    .map((topic, topicIndex) => ({ topic, topicIndex }))
+    .filter(({ topic }) => topic.count > 0)
+    .sort((a, b) => b.topic.count - a.topic.count);
+  function clearHover() {
+    onHoverTopic(null);
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t">
+      <ul
+        aria-label="Topics"
+        className="grid min-h-0 grid-cols-2 gap-x-4 gap-y-0.5 overflow-y-auto p-2"
+      >
+        {entries.map((entry) => {
+          const { topic } = entry;
+          const isSelected = entry.topicIndex === selectedIndex;
+          function select() {
+            onSelectTopic(isSelected ? null : topic.id);
+          }
+          function hover() {
+            onHoverTopic(entry.topicIndex);
+          }
+          return (
+            <li key={topic.id} className="min-w-0">
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                onClick={select}
+                onPointerEnter={hover}
+                onPointerLeave={clearHover}
+                onFocus={hover}
+                onBlur={clearHover}
+                className={cn(
+                  "hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden",
+                  isSelected && "bg-accent font-bold",
+                  selectedIndex !== null &&
+                    !isSelected &&
+                    "text-muted-foreground",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-xs"
+                  style={{ backgroundColor: colorAt(topics, entry.topicIndex) }}
+                />
+                <span className="min-w-0 flex-1 truncate" title={topic.name}>
+                  {topic.name}
+                </span>
+                <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                  {topic.count.toLocaleString()}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="text-muted-foreground flex shrink-0 items-center gap-2 px-3.5 pb-2 text-xs">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function TopicGrid({
@@ -339,193 +433,98 @@ function TopicGrid({
   );
 }
 
-function GridLegend({
-  topics,
-  selectedIndex,
-  onSelectTopic,
-  onHoverTopic,
-  children,
-}: GridLegendProps) {
-  const entries = topics
-    .map((topic, topicIndex) => ({ topic, topicIndex }))
-    .filter(({ topic }) => topic.count > 0)
-    .sort((a, b) => b.topic.count - a.topic.count);
-  function clearHover() {
-    onHoverTopic(null);
-  }
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t">
-      <ul
-        aria-label="Topics"
-        className="grid min-h-0 grid-cols-2 gap-x-4 gap-y-0.5 overflow-y-auto p-2"
-      >
-        {entries.map((entry) => {
-          const { topic } = entry;
-          const isSelected = entry.topicIndex === selectedIndex;
-          function select() {
-            onSelectTopic(isSelected ? null : topic.id);
-          }
-          function hover() {
-            onHoverTopic(entry.topicIndex);
-          }
-          return (
-            <li key={topic.id} className="min-w-0">
-              <button
-                type="button"
-                aria-pressed={isSelected}
-                onClick={select}
-                onPointerEnter={hover}
-                onPointerLeave={clearHover}
-                onFocus={hover}
-                onBlur={clearHover}
-                className={cn(
-                  "hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden",
-                  isSelected && "bg-accent font-bold",
-                  selectedIndex !== null &&
-                    !isSelected &&
-                    "text-muted-foreground",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-xs"
-                  style={{ backgroundColor: colorAt(topics, entry.topicIndex) }}
-                />
-                <span className="min-w-0 flex-1 truncate" title={topic.name}>
-                  {topic.name}
-                </span>
-                <span className="text-muted-foreground shrink-0 font-mono text-xs">
-                  {topic.count.toLocaleString()}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="text-muted-foreground flex shrink-0 items-center gap-2 px-3.5 pb-2 text-xs">
-        {children}
-      </div>
-    </div>
+export function TopicGridView({
+  projectId,
+  facet,
+  mapResult,
+  onOpenTrace,
+  peekView,
+  tracePanelRef,
+  onGenerateTopics,
+  canGenerateTopics,
+}: TopicGridViewProps) {
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
+  const topics = orderedFacetTopics(facet).map((topic, index) => ({
+    ...topic,
+    count: counts.get(topic.id) ?? 0,
+    color: topicColor(index),
+  }));
+  const selectedTopic =
+    topics.find((topic) => topic.id === selectedTopicId) ?? null;
+  const rowsById = useMemo(
+    () => new Map(facet.rows.map((row) => [row.traceId, row])),
+    [facet.rows],
   );
-}
-
-function GridHoverCard({
-  cell,
-  topicName,
-  count,
-  row,
-  cellSize,
-  grid,
-  members,
-  color,
-}: GridHoverCardProps) {
-  // Card sits above/below the dot, growing toward the grid center, so it never covers it.
-  const toLeft = cell.col >= grid.cols / 2;
-  const below = cell.row < grid.rows / 2;
-  const left = (cell.col + (toLeft ? 1 : 0)) * cellSize;
-  const top = below
-    ? (cell.row + 1) * cellSize + CARD_OFFSET
-    : cell.row * cellSize - CARD_OFFSET;
-  const shortId = cell.id.length > 8 ? `${cell.id.slice(0, 8)}…` : cell.id;
-  const started = row
-    ? formatCompactRelativeTime(new Date(row.unitStartTime))
-    : null;
-  return (
-    <div
-      role="tooltip"
-      className="bg-popover text-popover-foreground pointer-events-none absolute w-64 rounded-md border p-2 shadow-md"
-      style={{
-        left,
-        top,
-        translate: `${toLeft ? "-100%" : "0"} ${below ? "0" : "-100%"}`,
-      }}
-    >
-      <div className="flex items-center gap-1.5 text-xs">
-        <span
-          aria-hidden
-          className="size-2.5 shrink-0 rounded-xs"
-          style={{ backgroundColor: color }}
-        />
-        <span className="min-w-0 truncate font-bold" title={topicName}>
-          {topicName}
-        </span>
-        <span className="text-muted-foreground text-2xs ml-auto shrink-0 font-mono">
-          {count.toLocaleString()} traces
-        </span>
-      </div>
-      {members.length > 1 ? (
-        <>
-          <ul className="mt-1 flex flex-col gap-0.5 text-xs">
-            {members.slice(0, 3).map((member) => (
-              <li key={member.traceId} className="line-clamp-1">
-                {member.summary || "No applicable summary."}
-              </li>
-            ))}
-          </ul>
-          <p className="text-muted-foreground text-2xs mt-1 font-mono">
-            {[
-              `${members.length.toLocaleString()} traces in this dot`,
-              members.length > 3
-                ? `+${(members.length - 3).toLocaleString()} more`
-                : null,
-              "click to open the first",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="mt-1 line-clamp-2 text-xs">
-            {row?.summary || "No applicable summary."}
-          </p>
-          <p
-            className="text-muted-foreground text-2xs mt-1 truncate font-mono"
-            title={cell.id}
-          >
-            {[shortId, started, "click to open"].filter(Boolean).join(" · ")}
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
-
-function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
-  if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
-  if (!mapResult.data) return "Loading grid…";
-  if (mapResult.data.status !== "ready") {
+  const mapData = mapResult.data;
+  const { points, perDot } = useMemo(() => {
+    if (mapData?.status !== "ready") return { points: [], perDot: 1 };
+    const indexById = new Map(
+      orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
+    );
+    return sampleGridPoints(
+      mapData.points.map(
+        (point): GridPoint => ({
+          id: point.traceId,
+          x: point.x,
+          y: point.y,
+          topicIndex: point.topicId ? (indexById.get(point.topicId) ?? -1) : -1,
+        }),
+      ),
+    );
+  }, [mapData, facet]);
+  if (topics.length === 0) {
     return (
-      mapResult.data.reason ?? "This run has no saved embedding projection."
+      <TopicsEmptyState
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+      />
     );
   }
-  return null;
-}
+  const selectedIndex = selectedTopic
+    ? topics.findIndex((topic) => topic.id === selectedTopic.id)
+    : null;
+  const message = facet.map
+    ? gridMessage(mapResult)
+    : "No map published for this facet.";
+  const listRows = selectedTopic
+    ? facet.rows.filter((row) => row.topicId === selectedTopic.id)
+    : facet.rows;
 
-function squareOpacity(
-  topicIndex: number,
-  selectedIndex: number | null,
-  hoveredIndex: number | null,
-  isHovered: boolean,
-) {
-  if (isHovered) return 1;
-  const hasSelection = selectedIndex !== null;
-  let opacity: number;
-  if (topicIndex < 0) opacity = hasSelection ? 0.1 : 0.2;
-  else if (!hasSelection) opacity = 0.35;
-  else opacity = topicIndex === selectedIndex ? 1 : 0.12;
-  if (topicIndex >= 0 && topicIndex === hoveredIndex) {
-    opacity = Math.max(opacity, 0.7);
-  }
-  return opacity;
-}
-
-function colorAt(topics: GridTopic[], topicIndex: number) {
-  return topics[topicIndex]?.color ?? topicColor(-1);
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col lg:flex-row">
+      <section
+        aria-label="Topic grid"
+        className="flex min-h-48 min-w-0 shrink-0 basis-1/2 flex-col overflow-hidden lg:shrink lg:basis-3/5"
+      >
+        {message ? (
+          <GridMessage>{message}</GridMessage>
+        ) : (
+          <TopicGrid
+            points={points}
+            perDot={perDot}
+            topics={topics}
+            rowsById={rowsById}
+            selectedIndex={selectedIndex}
+            onSelectTopic={setSelectedTopicId}
+            onOpenTrace={onOpenTrace}
+          />
+        )}
+      </section>
+      <TopicTraceList
+        projectId={projectId}
+        title={selectedTopic?.name ?? allTopicsLabel(facet.name)}
+        description={selectedTopic?.description}
+        swatchColor={
+          selectedIndex !== null ? topics[selectedIndex]?.color : undefined
+        }
+        rows={listRows}
+        peekView={peekView}
+        tracePanelRef={tracePanelRef}
+        divider="side"
+      />
+    </div>
+  );
 }
 
 type TopicGridViewProps = {

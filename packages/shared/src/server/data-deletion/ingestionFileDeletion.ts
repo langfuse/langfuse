@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Readable } from "stream";
 import {
   getBlobStorageByProjectId,
@@ -40,70 +39,32 @@ type BlobCleanupPipelineOptions = {
   onProgress?: () => Promise<void>;
 };
 
-export const deleteIngestionEventsFromS3AndClickhouseForScores = async (
+async function softDeleteInClickhouse(
+  blobStorageRefs: BlobStorageFileRefRecordReadType[],
   p: {
     projectId: string;
-    scoreIds: string[];
-  } & BlobCleanupPipelineOptions,
-) => {
-  const stream = getBlobStorageByProjectIdAndEntityIds(
-    p.projectId,
-    "score",
-    p.scoreIds,
-  );
+  },
+) {
+  if (blobStorageRefs.length === 0) {
+    return;
+  }
 
-  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
-    projectId: p.projectId,
-    stream,
-    s3ChunkSize: p.s3ChunkSize,
-    s3Concurrency: p.s3Concurrency,
-    tombstoneFlushSize: p.tombstoneFlushSize,
-    onProgress: p.onProgress,
+  await clickhouseClient().insert({
+    table: "blob_storage_file_log",
+    values: blobStorageRefs.map((e) => ({
+      ...e,
+      is_deleted: "1",
+      event_ts: toClickhouseDateTime(),
+      updated_at: toClickhouseDateTime(),
+    })),
+    format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: buildClickHouseLogComment({
+        projectId: p.projectId,
+      }),
+    },
   });
-};
-
-export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
-  async (
-    p: {
-      projectId: string;
-      traceIds: string[];
-      includeEventsTable?: boolean;
-    } & BlobCleanupPipelineOptions,
-  ) => {
-    const stream = getBlobStorageByProjectIdAndTraceIds(
-      p.projectId,
-      p.traceIds,
-      { includeEventsTable: p.includeEventsTable ?? false },
-    );
-
-    return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
-      projectId: p.projectId,
-      stream: stream,
-      s3ChunkSize: p.s3ChunkSize,
-      s3Concurrency: p.s3Concurrency,
-      tombstoneFlushSize: p.tombstoneFlushSize,
-      onProgress: p.onProgress,
-    });
-  };
-
-export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
-  projectId: string,
-  cutOffDate: Date | undefined,
-  options?: BlobCleanupPipelineOptions,
-) => {
-  const stream = cutOffDate
-    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
-    : getBlobStorageByProjectId(projectId);
-
-  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
-    projectId: projectId,
-    stream: stream,
-    s3ChunkSize: options?.s3ChunkSize,
-    s3Concurrency: options?.s3Concurrency,
-    tombstoneFlushSize: options?.tombstoneFlushSize,
-    onProgress: options?.onProgress,
-  });
-};
+}
 
 /**
  * Groups `source` into arrays of at most `size` elements, in order. The final
@@ -211,29 +172,67 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(
   );
 }
 
-async function softDeleteInClickhouse(
-  blobStorageRefs: BlobStorageFileRefRecordReadType[],
+export const deleteIngestionEventsFromS3AndClickhouseForScores = async (
   p: {
     projectId: string;
-  },
-) {
-  if (blobStorageRefs.length === 0) {
-    return;
-  }
+    scoreIds: string[];
+  } & BlobCleanupPipelineOptions,
+) => {
+  const stream = getBlobStorageByProjectIdAndEntityIds(
+    p.projectId,
+    "score",
+    p.scoreIds,
+  );
 
-  await clickhouseClient().insert({
-    table: "blob_storage_file_log",
-    values: blobStorageRefs.map((e) => ({
-      ...e,
-      is_deleted: "1",
-      event_ts: toClickhouseDateTime(),
-      updated_at: toClickhouseDateTime(),
-    })),
-    format: "JSONEachRow",
-    clickhouse_settings: {
-      log_comment: buildClickHouseLogComment({
-        projectId: p.projectId,
-      }),
-    },
+  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
+    projectId: p.projectId,
+    stream,
+    s3ChunkSize: p.s3ChunkSize,
+    s3Concurrency: p.s3Concurrency,
+    tombstoneFlushSize: p.tombstoneFlushSize,
+    onProgress: p.onProgress,
   });
-}
+};
+
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
+  async (
+    p: {
+      projectId: string;
+      traceIds: string[];
+      includeEventsTable?: boolean;
+    } & BlobCleanupPipelineOptions,
+  ) => {
+    const stream = getBlobStorageByProjectIdAndTraceIds(
+      p.projectId,
+      p.traceIds,
+      { includeEventsTable: p.includeEventsTable ?? false },
+    );
+
+    return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
+      projectId: p.projectId,
+      stream: stream,
+      s3ChunkSize: p.s3ChunkSize,
+      s3Concurrency: p.s3Concurrency,
+      tombstoneFlushSize: p.tombstoneFlushSize,
+      onProgress: p.onProgress,
+    });
+  };
+
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
+  projectId: string,
+  cutOffDate: Date | undefined,
+  options?: BlobCleanupPipelineOptions,
+) => {
+  const stream = cutOffDate
+    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
+    : getBlobStorageByProjectId(projectId);
+
+  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
+    projectId: projectId,
+    stream: stream,
+    s3ChunkSize: options?.s3ChunkSize,
+    s3Concurrency: options?.s3Concurrency,
+    tombstoneFlushSize: options?.tombstoneFlushSize,
+    onProgress: options?.onProgress,
+  });
+};

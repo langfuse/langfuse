@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { useStore } from "zustand";
 import { api } from "@/src/utils/api";
@@ -7,6 +6,12 @@ import { type SkillDraftFile, type SkillEditorStore } from "./skillEditorStore";
 import { SkillComparisonError } from "./SkillComparisonError";
 import { SkillFileChanges } from "./SkillFileChanges";
 import { SkillFileDiff } from "./SkillFileDiff";
+
+function getDraftFileContent(draft: SkillDraftFile | undefined) {
+  if (draft?.content !== undefined) return { content: draft.content };
+  if (draft?.sourceSha) return { sha256Hash: draft.sourceSha };
+  return null;
+}
 
 export function SkillDraftChanges({
   projectId,
@@ -80,10 +85,4 @@ export function SkillDraftChanges({
       ) : null}
     </SkillFileChanges>
   );
-}
-
-function getDraftFileContent(draft: SkillDraftFile | undefined) {
-  if (draft?.content !== undefined) return { content: draft.content };
-  if (draft?.sourceSha) return { sha256Hash: draft.sourceSha };
-  return null;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -257,57 +256,6 @@ const toScoreTimestampFilters = (
   });
 };
 
-/**
- * Get paginated list of events
- */
-export async function getEventList(params: GetObservationsListParams) {
-  const queryOpts = {
-    projectId: params.projectId,
-    filter: params.filter,
-    searchQuery: params.searchQuery,
-    searchType: params.searchType,
-    orderBy: params.orderBy,
-    limit: params.limit + 1,
-    offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
-    selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
-    renderingProps: { truncated: true, shouldJsonParse: false },
-  };
-
-  return getEventListPage(params, queryOpts);
-}
-
-export async function getEventListCursor(
-  params: GetObservationsCursorListParams,
-) {
-  const page = await getEventListPage(params, {
-    projectId: params.projectId,
-    filter: params.filter,
-    searchQuery: params.searchQuery,
-    searchType: params.searchType,
-    limit: params.limit + 1,
-    cursorPagination: true,
-    cursor: params.cursor,
-    dedupeBySpanId: true,
-    selectIOAndMetadata: false,
-    renderingProps: { truncated: true, shouldJsonParse: false },
-  });
-  const boundary = page.observations.at(-1);
-
-  return {
-    ...page,
-    nextCursor:
-      page.hasMore && boundary
-        ? {
-            lastStartTimeTo: boundary.startTime,
-            // The ClickHouse column is non-null; the domain adapter represents
-            // its empty-string sentinel as null.
-            lastTraceId: boundary.traceId ?? "",
-            lastId: boundary.id,
-          }
-        : undefined,
-  };
-}
-
 async function getEventListPage(
   params: GetObservationsListBaseParams,
   queryOpts: Parameters<typeof getObservationsWithModelDataFromEventsTable>[0],
@@ -431,6 +379,57 @@ async function getEventListPage(
   });
 
   return { observations: observationsWithScores, hasMore };
+}
+
+/**
+ * Get paginated list of events
+ */
+export async function getEventList(params: GetObservationsListParams) {
+  const queryOpts = {
+    projectId: params.projectId,
+    filter: params.filter,
+    searchQuery: params.searchQuery,
+    searchType: params.searchType,
+    orderBy: params.orderBy,
+    limit: params.limit + 1,
+    offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
+    selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
+    renderingProps: { truncated: true, shouldJsonParse: false },
+  };
+
+  return getEventListPage(params, queryOpts);
+}
+
+export async function getEventListCursor(
+  params: GetObservationsCursorListParams,
+) {
+  const page = await getEventListPage(params, {
+    projectId: params.projectId,
+    filter: params.filter,
+    searchQuery: params.searchQuery,
+    searchType: params.searchType,
+    limit: params.limit + 1,
+    cursorPagination: true,
+    cursor: params.cursor,
+    dedupeBySpanId: true,
+    selectIOAndMetadata: false,
+    renderingProps: { truncated: true, shouldJsonParse: false },
+  });
+  const boundary = page.observations.at(-1);
+
+  return {
+    ...page,
+    nextCursor:
+      page.hasMore && boundary
+        ? {
+            lastStartTimeTo: boundary.startTime,
+            // The ClickHouse column is non-null; the domain adapter represents
+            // its empty-string sentinel as null.
+            lastTraceId: boundary.traceId ?? "",
+            lastId: boundary.id,
+          }
+        : undefined,
+  };
 }
 
 /**

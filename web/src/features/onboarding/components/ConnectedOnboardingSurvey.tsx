@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -27,6 +26,71 @@ import type { SurveyFormData } from "../lib/surveyTypes";
 import { useNewsletterSignup } from "../hooks/useNewsletterSignup";
 import { NewsletterOptIn, type NewsletterOptInValues } from "./NewsletterOptIn";
 import { OnboardingSurvey } from "./OnboardingSurvey";
+
+function NewsletterOptInStep({
+  lists,
+  defaultEmail,
+  isCompleting,
+  onComplete,
+}: {
+  lists: NewsletterList[];
+  defaultEmail: string;
+  isCompleting: boolean;
+  onComplete: (outcome: NewsletterOutcome) => Promise<void>;
+}) {
+  const { reachability, subscribe } = useNewsletterSignup();
+  const [hasSignupFailed, setHasSignupFailed] = useState(false);
+
+  const subscribeWithAddress = async ({ email }: NewsletterOptInValues) => {
+    const outcome = await subscribe({ email, lists });
+    if (outcome === "failed") {
+      setHasSignupFailed(true);
+      return;
+    }
+
+    await onComplete(outcome);
+  };
+
+  const skipSignup = () => onComplete("declined");
+
+  const continueWithoutSignup = () =>
+    onComplete(hasSignupFailed ? "failed" : "unreachable");
+
+  if (hasSignupFailed) {
+    return (
+      <NewsletterOptIn
+        state="failed"
+        lists={lists}
+        isContinuing={isCompleting}
+        onContinue={continueWithoutSignup}
+      />
+    );
+  }
+
+  switch (reachability) {
+    case "checking":
+      return <NewsletterOptIn state="loading" />;
+    case "unreachable":
+      return (
+        <NewsletterOptIn
+          state="unreachable"
+          lists={lists}
+          isContinuing={isCompleting}
+          onContinue={continueWithoutSignup}
+        />
+      );
+    case "reachable":
+      return (
+        <NewsletterOptIn
+          state="form"
+          lists={lists}
+          defaultEmail={defaultEmail}
+          onSubscribe={subscribeWithAddress}
+          onSkip={skipSignup}
+        />
+      );
+  }
+}
 
 export function ConnectedOnboardingSurvey() {
   const router = useRouter();
@@ -319,71 +383,6 @@ export function ConnectedOnboardingSurvey() {
       onSubmit={onSubmit}
     />
   );
-}
-
-function NewsletterOptInStep({
-  lists,
-  defaultEmail,
-  isCompleting,
-  onComplete,
-}: {
-  lists: NewsletterList[];
-  defaultEmail: string;
-  isCompleting: boolean;
-  onComplete: (outcome: NewsletterOutcome) => Promise<void>;
-}) {
-  const { reachability, subscribe } = useNewsletterSignup();
-  const [hasSignupFailed, setHasSignupFailed] = useState(false);
-
-  const subscribeWithAddress = async ({ email }: NewsletterOptInValues) => {
-    const outcome = await subscribe({ email, lists });
-    if (outcome === "failed") {
-      setHasSignupFailed(true);
-      return;
-    }
-
-    await onComplete(outcome);
-  };
-
-  const skipSignup = () => onComplete("declined");
-
-  const continueWithoutSignup = () =>
-    onComplete(hasSignupFailed ? "failed" : "unreachable");
-
-  if (hasSignupFailed) {
-    return (
-      <NewsletterOptIn
-        state="failed"
-        lists={lists}
-        isContinuing={isCompleting}
-        onContinue={continueWithoutSignup}
-      />
-    );
-  }
-
-  switch (reachability) {
-    case "checking":
-      return <NewsletterOptIn state="loading" />;
-    case "unreachable":
-      return (
-        <NewsletterOptIn
-          state="unreachable"
-          lists={lists}
-          isContinuing={isCompleting}
-          onContinue={continueWithoutSignup}
-        />
-      );
-    case "reachable":
-      return (
-        <NewsletterOptIn
-          state="form"
-          lists={lists}
-          defaultEmail={defaultEmail}
-          onSubscribe={subscribeWithAddress}
-          onSkip={skipSignup}
-        />
-      );
-  }
 }
 
 type OnboardingCompletionInput = NonNullable<

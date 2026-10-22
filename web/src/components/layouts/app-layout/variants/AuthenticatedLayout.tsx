@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner
@@ -109,6 +108,139 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
   };
   onSignOut: () => void;
 }>;
+
+/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
+function useProjectCookie(router: NextRouter) {
+  const projectId = router.query.projectId;
+  useEffect(() => {
+    if (typeof projectId !== "string") return;
+    fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
+      method: "POST",
+    }).catch(() => {});
+  }, [projectId]);
+}
+
+function ConnectedAppSidebar({
+  navItems,
+  secondaryNavItems,
+  user,
+  userMenuItems,
+  isLangfuseCloud,
+  routerProjectId,
+}: {
+  navItems: GroupedNavigation;
+  secondaryNavItems: GroupedNavigation;
+  user: ComponentProps<typeof AppSidebar>["user"];
+  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
+  isLangfuseCloud: boolean;
+  routerProjectId?: string;
+}) {
+  const { isMobile } = useSidebar();
+  const uiCustomization = useUiCustomization();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
+  const plan = usePlan();
+  const capture = usePostHogClientCapture();
+  const session = useSession();
+  const { organization, project } = useQueryProjectOrOrganization();
+  const canCreateProjects = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "projects:create",
+  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] =
+    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
+
+  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
+    undefined,
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      enabled: !isLangfuseCloud,
+      throwOnError: false,
+    },
+  );
+
+  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: !isLangfuseCloud,
+    throwOnError: false,
+  });
+
+  const selfHostedPlan =
+    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+      ? plan
+      : "oss";
+
+  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
+    isLangfuseCloud
+      ? { deployment: "cloud" }
+      : {
+          deployment: "self-hosted",
+          plan: selfHostedPlan,
+          release: checkUpdate.data?.updateType
+            ? {
+                status: "update-available",
+                updateType: checkUpdate.data.updateType,
+                latestRelease: checkUpdate.data.latestRelease,
+              }
+            : { status: "current" },
+          migration:
+            backgroundMigrationStatus.data &&
+            backgroundMigrationStatus.data.status !== "FINISHED"
+              ? {
+                  status: "in-progress",
+                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
+                }
+              : { status: "idle" },
+        };
+
+  return (
+    <AppSidebar
+      navItems={navItems}
+      secondaryNavItems={secondaryNavItems}
+      user={user}
+      userMenuItems={userMenuItems}
+      isMobile={isMobile}
+      logo={{
+        lightModeHref: uiCustomization?.logoLightModeHref,
+        darkModeHref: uiCustomization?.logoDarkModeHref,
+      }}
+      versionState={versionState}
+      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
+      notificationState={{
+        dismissedIds: dismissedNotificationIds,
+        onDismiss: (id) => {
+          capture("notification:dismiss_notification", {
+            notification_id: id,
+          });
+          setDismissedNotificationIds((current) => [...current, id]);
+        },
+        onLinkClick: (id) => {
+          capture("notification:click_link", {
+            notification_id: id,
+          });
+        },
+      }}
+      organization={
+        organization ? { id: organization.id, name: organization.name } : null
+      }
+      project={project ? { id: project.id, name: project.name } : null}
+      organizations={session.data?.user?.organizations ?? null}
+      canCreateOrganizations={
+        session.data?.user?.canCreateOrganizations ?? false
+      }
+      canCreateProjects={canCreateProjects}
+      showDemoBadge={Boolean(
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        isLangfuseCloud,
+      )}
+    />
+  );
+}
 
 /**
  * Full authenticated layout with all features:
@@ -367,137 +499,4 @@ export function AuthenticatedLayout({
       </SidebarPresenceProvider>
     </>
   );
-}
-
-function ConnectedAppSidebar({
-  navItems,
-  secondaryNavItems,
-  user,
-  userMenuItems,
-  isLangfuseCloud,
-  routerProjectId,
-}: {
-  navItems: GroupedNavigation;
-  secondaryNavItems: GroupedNavigation;
-  user: ComponentProps<typeof AppSidebar>["user"];
-  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
-  isLangfuseCloud: boolean;
-  routerProjectId?: string;
-}) {
-  const { isMobile } = useSidebar();
-  const uiCustomization = useUiCustomization();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
-  const plan = usePlan();
-  const capture = usePostHogClientCapture();
-  const session = useSession();
-  const { organization, project } = useQueryProjectOrOrganization();
-  const canCreateProjects = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "projects:create",
-  });
-  const [dismissedNotificationIds, setDismissedNotificationIds] =
-    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
-
-  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
-    undefined,
-    {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      enabled: !isLangfuseCloud,
-      throwOnError: false,
-    },
-  );
-
-  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !isLangfuseCloud,
-    throwOnError: false,
-  });
-
-  const selfHostedPlan =
-    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
-      ? plan
-      : "oss";
-
-  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
-    isLangfuseCloud
-      ? { deployment: "cloud" }
-      : {
-          deployment: "self-hosted",
-          plan: selfHostedPlan,
-          release: checkUpdate.data?.updateType
-            ? {
-                status: "update-available",
-                updateType: checkUpdate.data.updateType,
-                latestRelease: checkUpdate.data.latestRelease,
-              }
-            : { status: "current" },
-          migration:
-            backgroundMigrationStatus.data &&
-            backgroundMigrationStatus.data.status !== "FINISHED"
-              ? {
-                  status: "in-progress",
-                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
-                }
-              : { status: "idle" },
-        };
-
-  return (
-    <AppSidebar
-      navItems={navItems}
-      secondaryNavItems={secondaryNavItems}
-      user={user}
-      userMenuItems={userMenuItems}
-      isMobile={isMobile}
-      logo={{
-        lightModeHref: uiCustomization?.logoLightModeHref,
-        darkModeHref: uiCustomization?.logoDarkModeHref,
-      }}
-      versionState={versionState}
-      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
-      notificationState={{
-        dismissedIds: dismissedNotificationIds,
-        onDismiss: (id) => {
-          capture("notification:dismiss_notification", {
-            notification_id: id,
-          });
-          setDismissedNotificationIds((current) => [...current, id]);
-        },
-        onLinkClick: (id) => {
-          capture("notification:click_link", {
-            notification_id: id,
-          });
-        },
-      }}
-      organization={
-        organization ? { id: organization.id, name: organization.name } : null
-      }
-      project={project ? { id: project.id, name: project.name } : null}
-      organizations={session.data?.user?.organizations ?? null}
-      canCreateOrganizations={
-        session.data?.user?.canCreateOrganizations ?? false
-      }
-      canCreateProjects={canCreateProjects}
-      showDemoBadge={Boolean(
-        env.NEXT_PUBLIC_DEMO_ORG_ID &&
-        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        isLangfuseCloud,
-      )}
-    />
-  );
-}
-
-/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
-function useProjectCookie(router: NextRouter) {
-  const projectId = router.query.projectId;
-  useEffect(() => {
-    if (typeof projectId !== "string") return;
-    fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
-      method: "POST",
-    }).catch(() => {});
-  }, [projectId]);
 }

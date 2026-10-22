@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type Prisma,
   type PrismaClient,
@@ -21,6 +20,13 @@ type SummaryPrompt = Pick<
   | "createdBy"
   | "projectId"
 >;
+
+function formatInAppAgentSeedDate(date: Date) {
+  return date
+    .toISOString()
+    .replace("T", " at ")
+    .replace(/\.\d{3}Z$/, " UTC");
+}
 
 export async function seedInAppAgentDemoConversation({
   prisma,
@@ -352,11 +358,4 @@ export async function seedInAppAgentDemoConversation({
       data: eventRows,
     });
   });
-}
-
-function formatInAppAgentSeedDate(date: Date) {
-  return date
-    .toISOString()
-    .replace("T", " at ")
-    .replace(/\.\d{3}Z$/, " UTC");
 }

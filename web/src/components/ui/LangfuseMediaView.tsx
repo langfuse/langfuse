@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 
@@ -19,7 +19,29 @@ import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
-const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024;
+
+function AudioPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <audio controls className="w-full" preload="metadata">
+      <source src={src} />
+      Your browser does not support the audio element.
+    </audio>
+  );
+}
+
+function VideoPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <video controls className="w-full" preload="metadata" playsInline>
+      <source src={src} />
+      Your browser does not support the video element.
+    </video>
+  );
+} // 50 MB
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -153,25 +175,3 @@ export const LangfuseMediaView = ({
   }
   return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
-
-function AudioPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
-  return (
-    <audio controls className="w-full" preload="metadata">
-      <source src={src} />
-      Your browser does not support the audio element.
-    </audio>
-  );
-}
-
-function VideoPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
-  return (
-    <video controls className="w-full" preload="metadata" playsInline>
-      <source src={src} />
-      Your browser does not support the video element.
-    </video>
-  );
-}

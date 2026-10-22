@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Job } from "bullmq";
 import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { getQueue, logger, QueueName } from "@langfuse/shared/src/server";
@@ -9,6 +8,17 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 const IN_APP_AGENT_DLQ_RETRY_LOCK_KEY = "langfuse:in-app-agent-dlq-retry";
 
 const LOCK_TTL_SECONDS = 120;
+
+function isFailedInAppAgentJobReadyToRetry(
+  job: Pick<Job, "finishedOn">,
+  nowMs: number,
+): boolean {
+  if (job.finishedOn == null) {
+    return true;
+  }
+
+  return nowMs - job.finishedOn >= IN_APP_AGENT_HEARTBEAT_STALE_MS;
+}
 
 /**
  * Pokes failed in-app-agent BullMQ jobs so stall corpses can claim-miss,
@@ -78,15 +88,4 @@ export class InAppAgentDlqRetryRunner extends PeriodicExclusiveRunner {
       });
     });
   }
-}
-
-function isFailedInAppAgentJobReadyToRetry(
-  job: Pick<Job, "finishedOn">,
-  nowMs: number,
-): boolean {
-  if (job.finishedOn == null) {
-    return true;
-  }
-
-  return nowMs - job.finishedOn >= IN_APP_AGENT_HEARTBEAT_STALE_MS;
 }

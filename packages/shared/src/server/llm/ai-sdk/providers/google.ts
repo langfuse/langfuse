@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { EmbeddingModel, LanguageModel } from "ai";
 
@@ -47,6 +46,71 @@ export function buildGoogleAIStudioEmbeddingModel(params: {
 }
 
 const GOOGLE_THINKING_LEVELS = new Set(["minimal", "low", "medium", "high"]);
+
+function buildThinkingConfig(params: {
+  model: string;
+  thinkingBudget?: number;
+  thinkingLevel?: string;
+}):
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; unknownKeys: string[] } {
+  const { model } = params;
+  let { thinkingBudget, thinkingLevel } = params;
+
+  if (model.startsWith("gemini-2.5")) {
+    // Budget-family model. A lone thinkingLevel would require a model-specific
+    // conversion table; reject instead of guessing.
+    if (thinkingBudget === undefined) {
+      return { ok: false, unknownKeys: ["thinkingLevel"] };
+    }
+
+    // Preserve the established request shape, quirks included:
+    // `includeThoughts` is computed
+    // BEFORE the 2.5-pro 128-token clamp (an explicit budget of 128 hides
+    // thoughts while 1-127 gets clamped to 128 with thoughts visible), the
+    // `>= 0` bound intentionally exempts negative budgets from clamping, and
+    // negative budgets pass through to surface the same provider error.
+    const includeThoughts = !(
+      thinkingBudget === 0 ||
+      (model.includes("pro") && thinkingBudget === 128)
+    );
+    if (
+      model.startsWith("gemini-2.5-pro") &&
+      thinkingBudget >= 0 &&
+      thinkingBudget < 128
+    ) {
+      thinkingBudget = 128;
+    }
+
+    return {
+      ok: true,
+      value: { thinkingBudget, includeThoughts },
+    };
+  }
+
+  // Level-family model (gemini-3 and newer).
+  if (thinkingLevel === undefined) {
+    return { ok: false, unknownKeys: ["thinkingBudget"] };
+  }
+  if (!GOOGLE_THINKING_LEVELS.has(thinkingLevel)) {
+    return { ok: false, unknownKeys: ["thinkingLevel"] };
+  }
+
+  const includeThoughts = thinkingLevel !== "minimal";
+
+  // Remap unsupported levels for the pro families.
+  if (model.startsWith("gemini-3-pro")) {
+    if (thinkingLevel === "minimal") thinkingLevel = "low";
+    else if (thinkingLevel === "medium") thinkingLevel = "high";
+  } else if (model.startsWith("gemini-3.1-pro")) {
+    if (thinkingLevel === "minimal") thinkingLevel = "low";
+  }
+
+  return {
+    ok: true,
+    value: { thinkingLevel, includeThoughts },
+  };
+}
 
 /**
  * Translation of Langfuse `modelParams.providerOptions` (plus the Vertex-only
@@ -116,70 +180,5 @@ export function translateGoogleProviderOptions(params: {
   return {
     ok: true,
     value: Object.keys(translated).length > 0 ? translated : undefined,
-  };
-}
-
-function buildThinkingConfig(params: {
-  model: string;
-  thinkingBudget?: number;
-  thinkingLevel?: string;
-}):
-  | { ok: true; value: Record<string, unknown> }
-  | { ok: false; unknownKeys: string[] } {
-  const { model } = params;
-  let { thinkingBudget, thinkingLevel } = params;
-
-  if (model.startsWith("gemini-2.5")) {
-    // Budget-family model. A lone thinkingLevel would require a model-specific
-    // conversion table; reject instead of guessing.
-    if (thinkingBudget === undefined) {
-      return { ok: false, unknownKeys: ["thinkingLevel"] };
-    }
-
-    // Preserve the established request shape, quirks included:
-    // `includeThoughts` is computed
-    // BEFORE the 2.5-pro 128-token clamp (an explicit budget of 128 hides
-    // thoughts while 1-127 gets clamped to 128 with thoughts visible), the
-    // `>= 0` bound intentionally exempts negative budgets from clamping, and
-    // negative budgets pass through to surface the same provider error.
-    const includeThoughts = !(
-      thinkingBudget === 0 ||
-      (model.includes("pro") && thinkingBudget === 128)
-    );
-    if (
-      model.startsWith("gemini-2.5-pro") &&
-      thinkingBudget >= 0 &&
-      thinkingBudget < 128
-    ) {
-      thinkingBudget = 128;
-    }
-
-    return {
-      ok: true,
-      value: { thinkingBudget, includeThoughts },
-    };
-  }
-
-  // Level-family model (gemini-3 and newer).
-  if (thinkingLevel === undefined) {
-    return { ok: false, unknownKeys: ["thinkingBudget"] };
-  }
-  if (!GOOGLE_THINKING_LEVELS.has(thinkingLevel)) {
-    return { ok: false, unknownKeys: ["thinkingLevel"] };
-  }
-
-  const includeThoughts = thinkingLevel !== "minimal";
-
-  // Remap unsupported levels for the pro families.
-  if (model.startsWith("gemini-3-pro")) {
-    if (thinkingLevel === "minimal") thinkingLevel = "low";
-    else if (thinkingLevel === "medium") thinkingLevel = "high";
-  } else if (model.startsWith("gemini-3.1-pro")) {
-    if (thinkingLevel === "minimal") thinkingLevel = "low";
-  }
-
-  return {
-    ok: true,
-    value: { thinkingLevel, includeThoughts },
   };
 }

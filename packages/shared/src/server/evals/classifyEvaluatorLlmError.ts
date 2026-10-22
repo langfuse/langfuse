@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvaluatorBlockReason } from "@prisma/client";
 
 import { getLLMErrorInfo, type LLMErrorInfo } from "../llm/errors";
@@ -53,6 +52,85 @@ export type EvaluatorLlmErrorClassification = (
     }
 ) & { blockReason: EvaluatorBlockReason | null };
 
+function getBlockReasonByMessage(message: string): EvaluatorBlockReason | null {
+  return (
+    BLOCK_REASON_PATTERNS.find(({ pattern }) => message.includes(pattern))
+      ?.blockReason ?? null
+  );
+}
+
+function findBlockReasonInCauseChain(
+  error: unknown,
+): { message: string; blockReason: EvaluatorBlockReason } | undefined {
+  const visited = new Set<unknown>();
+  let current = error;
+
+  while (current !== null && current !== undefined && !visited.has(current)) {
+    visited.add(current);
+    if (current instanceof Error) {
+      const blockReason = getBlockReasonByMessage(current.message);
+      if (blockReason) return { message: current.message, blockReason };
+    }
+
+    current =
+      typeof current === "object" && "cause" in current
+        ? current.cause
+        : undefined;
+  }
+
+  return undefined;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getProviderErrorDiscriminators(info: LLMErrorInfo): string[] {
+  const data = toRecord(info.providerError?.data);
+  if (!data) return [];
+
+  const nestedError = toRecord(data.error);
+
+  return [data, nestedError].flatMap((candidate) => {
+    if (!candidate) return [];
+
+    return ["code", "type"]
+      .map((key) => {
+        const value = candidate[key];
+        return typeof value === "string" ? value.toLowerCase() : undefined;
+      })
+      .filter((value): value is string => value !== undefined);
+  });
+}
+
+function inferEvaluatorBlockReason(
+  info: LLMErrorInfo,
+): EvaluatorBlockReason | null {
+  if (info.validationError?.code === "endpoint-unreachable") {
+    return EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE;
+  }
+
+  if (info.statusCode === 401) {
+    return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
+  }
+
+  if (info.statusCode === 402) {
+    return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
+  }
+
+  if (info.statusCode === 404) {
+    return EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE;
+  }
+
+  if (getProviderErrorDiscriminators(info).includes("insufficient_quota")) {
+    return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
+  }
+
+  return getBlockReasonByMessage(info.message);
+}
+
 /**
  * Evaluator policy layered on top of native AI SDK error metadata. Provider
  * retryability remains authoritative unless the evaluator is paused for a
@@ -82,83 +160,4 @@ export function classifyEvaluatorLlmError(
     blockReason,
     isRetryable: blockReason === null && info.isRetryable,
   };
-}
-
-function inferEvaluatorBlockReason(
-  info: LLMErrorInfo,
-): EvaluatorBlockReason | null {
-  if (info.validationError?.code === "endpoint-unreachable") {
-    return EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE;
-  }
-
-  if (info.statusCode === 401) {
-    return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
-  }
-
-  if (info.statusCode === 402) {
-    return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
-  }
-
-  if (info.statusCode === 404) {
-    return EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE;
-  }
-
-  if (getProviderErrorDiscriminators(info).includes("insufficient_quota")) {
-    return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
-  }
-
-  return getBlockReasonByMessage(info.message);
-}
-
-function getProviderErrorDiscriminators(info: LLMErrorInfo): string[] {
-  const data = toRecord(info.providerError?.data);
-  if (!data) return [];
-
-  const nestedError = toRecord(data.error);
-
-  return [data, nestedError].flatMap((candidate) => {
-    if (!candidate) return [];
-
-    return ["code", "type"]
-      .map((key) => {
-        const value = candidate[key];
-        return typeof value === "string" ? value.toLowerCase() : undefined;
-      })
-      .filter((value): value is string => value !== undefined);
-  });
-}
-
-function toRecord(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function findBlockReasonInCauseChain(
-  error: unknown,
-): { message: string; blockReason: EvaluatorBlockReason } | undefined {
-  const visited = new Set<unknown>();
-  let current = error;
-
-  while (current !== null && current !== undefined && !visited.has(current)) {
-    visited.add(current);
-    if (current instanceof Error) {
-      const blockReason = getBlockReasonByMessage(current.message);
-      if (blockReason) return { message: current.message, blockReason };
-    }
-
-    current =
-      typeof current === "object" && "cause" in current
-        ? current.cause
-        : undefined;
-  }
-
-  return undefined;
-}
-
-function getBlockReasonByMessage(message: string): EvaluatorBlockReason | null {
-  return (
-    BLOCK_REASON_PATTERNS.find(({ pattern }) => message.includes(pattern))
-      ?.blockReason ?? null
-  );
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AISDKError, APICallError, RetryError } from "ai";
 
 const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
@@ -51,6 +50,53 @@ export type LLMErrorInfo = {
   retryError?: RetryError;
   validationError?: LLMValidationError;
 };
+
+function unwrapRetryError(error: unknown): {
+  resolvedError: unknown;
+  retryError?: RetryError;
+} {
+  let resolvedError = error;
+  let retryError: RetryError | undefined;
+  const visited = new Set<unknown>();
+
+  while (RetryError.isInstance(resolvedError) && !visited.has(resolvedError)) {
+    visited.add(resolvedError);
+    if (retryError === undefined) {
+      retryError = resolvedError;
+    }
+    resolvedError = resolvedError.lastError;
+  }
+
+  return { resolvedError, retryError };
+}
+
+function findInCauseChain<T>(
+  error: unknown,
+  predicate: (candidate: unknown) => candidate is T,
+): T | undefined {
+  const visited = new Set<unknown>();
+  let current = error;
+
+  while (current !== null && current !== undefined && !visited.has(current)) {
+    visited.add(current);
+    if (predicate(current)) return current;
+
+    current =
+      typeof current === "object" && "cause" in current
+        ? current.cause
+        : undefined;
+  }
+
+  return undefined;
+}
+
+function findErrorByName(error: unknown, name: string): Error | undefined {
+  return findInCauseChain(
+    error,
+    (candidate): candidate is Error =>
+      candidate instanceof Error && candidate.name === name,
+  );
+}
 
 /**
  * Reads native AI SDK and Langfuse validation errors without replacing them.
@@ -135,51 +181,4 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
   }
 
   return null;
-}
-
-function unwrapRetryError(error: unknown): {
-  resolvedError: unknown;
-  retryError?: RetryError;
-} {
-  let resolvedError = error;
-  let retryError: RetryError | undefined;
-  const visited = new Set<unknown>();
-
-  while (RetryError.isInstance(resolvedError) && !visited.has(resolvedError)) {
-    visited.add(resolvedError);
-    if (retryError === undefined) {
-      retryError = resolvedError;
-    }
-    resolvedError = resolvedError.lastError;
-  }
-
-  return { resolvedError, retryError };
-}
-
-function findErrorByName(error: unknown, name: string): Error | undefined {
-  return findInCauseChain(
-    error,
-    (candidate): candidate is Error =>
-      candidate instanceof Error && candidate.name === name,
-  );
-}
-
-function findInCauseChain<T>(
-  error: unknown,
-  predicate: (candidate: unknown) => candidate is T,
-): T | undefined {
-  const visited = new Set<unknown>();
-  let current = error;
-
-  while (current !== null && current !== undefined && !visited.has(current)) {
-    visited.add(current);
-    if (predicate(current)) return current;
-
-    current =
-      typeof current === "object" && "cause" in current
-        ? current.cause
-        : undefined;
-  }
-
-  return undefined;
 }

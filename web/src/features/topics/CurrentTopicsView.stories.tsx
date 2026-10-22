@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
@@ -71,6 +70,41 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
   },
 };
 
+function ControlledTopics(args: ControlledTopicsProps) {
+  const [filters, setFilters] = useState(args.traceFilters.filters);
+  const [searchQuery, setSearchQuery] = useState(args.traceFilters.searchQuery);
+  const [revision, setRevision] = useState(0);
+  function refresh() {
+    setRevision((previous) => previous + 1);
+  }
+  return (
+    <div className="flex h-[800px] flex-col gap-2">
+      <Button
+        text="Refresh unchanged results"
+        variant="secondary"
+        onClick={refresh}
+      />
+      <CurrentTopicsView
+        {...args}
+        facet={{
+          ...args.facet,
+          rows: (revision % 2
+            ? [...args.facet.rows].reverse()
+            : args.facet.rows
+          ).map((row) => ({ ...row })),
+        }}
+        traceFilters={{
+          ...args.traceFilters,
+          filters: filters.map((filter) => ({ ...filter })),
+          setFilters,
+          searchQuery,
+          setSearchQuery,
+        }}
+      />
+    </div>
+  );
+}
+
 const meta = preview.meta({
   component: CurrentTopicsView,
   args: defaultArgs,
@@ -121,6 +155,13 @@ export const LongTopicNames = meta.story({
     },
   },
 });
+
+async function replaceQuery(search: HTMLElement, query: string) {
+  await userEvent.click(search);
+  await userEvent.clear(search);
+  if (query) await userEvent.type(search, query);
+  await userEvent.keyboard("{Enter}");
+}
 
 export const FilteringResetsPagination = meta.story({
   name: "(Test) Filtering Resets Pagination and Shares Map Matches",
@@ -176,6 +217,12 @@ export const FilteringResetsPagination = meta.story({
     ).toBeVisible();
   },
 });
+
+async function afterPaint() {
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+}
 
 export const EquivalentMatchesPreserveHoverAndFocus = meta.story({
   name: "(Test) Equivalent Matches Preserve Hover and Focus",
@@ -257,54 +304,6 @@ export const EquivalentMatchesPreserveHoverAndFocus = meta.story({
   },
 });
 
-function ControlledTopics(args: ControlledTopicsProps) {
-  const [filters, setFilters] = useState(args.traceFilters.filters);
-  const [searchQuery, setSearchQuery] = useState(args.traceFilters.searchQuery);
-  const [revision, setRevision] = useState(0);
-  function refresh() {
-    setRevision((previous) => previous + 1);
-  }
-  return (
-    <div className="flex h-[800px] flex-col gap-2">
-      <Button
-        text="Refresh unchanged results"
-        variant="secondary"
-        onClick={refresh}
-      />
-      <CurrentTopicsView
-        {...args}
-        facet={{
-          ...args.facet,
-          rows: (revision % 2
-            ? [...args.facet.rows].reverse()
-            : args.facet.rows
-          ).map((row) => ({ ...row })),
-        }}
-        traceFilters={{
-          ...args.traceFilters,
-          filters: filters.map((filter) => ({ ...filter })),
-          setFilters,
-          searchQuery,
-          setSearchQuery,
-        }}
-      />
-    </div>
-  );
-}
-
-async function replaceQuery(search: HTMLElement, query: string) {
-  await userEvent.click(search);
-  await userEvent.clear(search);
-  if (query) await userEvent.type(search, query);
-  await userEvent.keyboard("{Enter}");
-}
-
-async function afterPaint() {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-}
-
 type ControlledTopicsProps = ComponentProps<typeof CurrentTopicsView>;
 
 export const SummariesWithoutTopics = meta.story({
@@ -347,6 +346,16 @@ export const ExistingTopicsWithoutAssignments = meta.story({
     ).toBeVisible();
   },
 });
+
+function resetPanelSizes() {
+  const keys = [
+    "react-resizable-panels:topics-workspace-size:overview:traces",
+    "react-resizable-panels:topics-overview-size:map:groups",
+    "react-resizable-panels:topics-overview-size-narrow:map:groups",
+  ];
+  keys.forEach((key) => localStorage.removeItem(key));
+  return () => keys.forEach((key) => localStorage.removeItem(key));
+}
 
 export const PanelSizesPersistAcrossFacetsAndLayouts = meta.story({
   name: "(Test) Panel sizes persist across facets and layouts",
@@ -416,16 +425,6 @@ export const PanelSizesPersistAcrossFacetsAndLayouts = meta.story({
     }
   },
 });
-
-function resetPanelSizes() {
-  const keys = [
-    "react-resizable-panels:topics-workspace-size:overview:traces",
-    "react-resizable-panels:topics-overview-size:map:groups",
-    "react-resizable-panels:topics-overview-size-narrow:map:groups",
-  ];
-  keys.forEach((key) => localStorage.removeItem(key));
-  return () => keys.forEach((key) => localStorage.removeItem(key));
-}
 
 export const TraceSelectionAcrossFacets = meta.story({
   name: "(Test) Map selection follows traces across facets without opening peek",

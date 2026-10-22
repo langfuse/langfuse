@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useRef, type Ref } from "react";
 import { PencilLine } from "@langfuse/icons";
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
@@ -25,6 +24,70 @@ export type SingleChoiceOptionsProps = {
   onOtherTextChange: (otherText: string) => void;
   onAdvance: () => void;
 };
+
+function radioValue(selectedOptionIndexes: number[], isOtherOpen: boolean) {
+  if (isOtherOpen) {
+    return OTHER_VALUE;
+  }
+  const [selected] = selectedOptionIndexes;
+  return selected === undefined ? "" : String(selected);
+}
+
+function RadioOptionRow({
+  id,
+  value,
+  option,
+  isDisabled,
+}: RadioOptionRowProps) {
+  return (
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <RadioGroup.Item id={id} value={value} disabled={isDisabled} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="leading-5">
+            {withRecommended(option.label, option.recommended)}
+          </span>
+          <span className="text-muted-foreground">{option.description}</span>
+        </span>
+      </label>
+    </OptionRowFrame>
+  );
+}
+
+function RadioOtherAnswerRow({
+  id,
+  isOtherOpen,
+  otherText,
+  isDisabled,
+  otherInputRef,
+  onOtherTextChange,
+}: RadioOtherAnswerRowProps) {
+  return (
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <RadioGroup.Item id={id} value={OTHER_VALUE} disabled={isDisabled} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-1.5 leading-5">
+            {OTHER_ANSWER_LABEL}
+            <PencilLine aria-hidden size="sm" color="muted" />
+          </span>
+          {isOtherOpen ? (
+            <OtherAnswerInput
+              ref={otherInputRef}
+              value={otherText}
+              isDisabled={isDisabled}
+              onChange={onOtherTextChange}
+            />
+          ) : null}
+        </span>
+      </label>
+    </OptionRowFrame>
+  );
+}
 
 /**
  * Clicking an option moves on right away; arrow keys only move the
@@ -93,42 +156,11 @@ export function SingleChoiceOptions({
   );
 }
 
-function radioValue(selectedOptionIndexes: number[], isOtherOpen: boolean) {
-  if (isOtherOpen) {
-    return OTHER_VALUE;
-  }
-  const [selected] = selectedOptionIndexes;
-  return selected === undefined ? "" : String(selected);
-}
-
 type RadioOptionRowProps = Pick<SingleChoiceOptionsProps, "isDisabled"> & {
   id: string;
   value: string;
   option: InAppAgentQuestionnaireQuestion["options"][number];
 };
-
-function RadioOptionRow({
-  id,
-  value,
-  option,
-  isDisabled,
-}: RadioOptionRowProps) {
-  return (
-    <OptionRowFrame>
-      <label htmlFor={id}>
-        <span className="flex h-5 shrink-0 items-center">
-          <RadioGroup.Item id={id} value={value} disabled={isDisabled} />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="leading-5">
-            {withRecommended(option.label, option.recommended)}
-          </span>
-          <span className="text-muted-foreground">{option.description}</span>
-        </span>
-      </label>
-    </OptionRowFrame>
-  );
-}
 
 type RadioOtherAnswerRowProps = Pick<
   SingleChoiceOptionsProps,
@@ -137,36 +169,3 @@ type RadioOtherAnswerRowProps = Pick<
   id: string;
   otherText: string;
 };
-
-function RadioOtherAnswerRow({
-  id,
-  isOtherOpen,
-  otherText,
-  isDisabled,
-  otherInputRef,
-  onOtherTextChange,
-}: RadioOtherAnswerRowProps) {
-  return (
-    <OptionRowFrame>
-      <label htmlFor={id}>
-        <span className="flex h-5 shrink-0 items-center">
-          <RadioGroup.Item id={id} value={OTHER_VALUE} disabled={isDisabled} />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="flex items-center gap-1.5 leading-5">
-            {OTHER_ANSWER_LABEL}
-            <PencilLine aria-hidden size="sm" color="muted" />
-          </span>
-          {isOtherOpen ? (
-            <OtherAnswerInput
-              ref={otherInputRef}
-              value={otherText}
-              isDisabled={isDisabled}
-              onChange={onOtherTextChange}
-            />
-          ) : null}
-        </span>
-      </label>
-    </OptionRowFrame>
-  );
-}

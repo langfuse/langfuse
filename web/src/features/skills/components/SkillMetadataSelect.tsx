@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { useId, useMemo, useState } from "react";
 import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "@langfuse/icons";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
@@ -9,6 +9,67 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { PopoverController } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+
+function SelectionRow({
+  value,
+  selected,
+  onSelect,
+}: {
+  value: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "w-full justify-start px-2 py-1 text-sm",
+        selected && "font-bold",
+      )}
+      onClick={onSelect}
+    >
+      {selected ? (
+        <CircleCheckIcon size="base" color="default" __rawClassName="mr-2" />
+      ) : (
+        <CircleIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-2 opacity-20"
+        />
+      )}
+      {value}
+    </Button>
+  );
+}
+
+function CreateRow({
+  value,
+  onCreate,
+}: {
+  value: string;
+  onCreate: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="text-muted-foreground w-full justify-start px-2 font-normal"
+      onClick={onCreate}
+    >
+      <Plus size="base" color="default" __rawClassName="mr-2" />
+      Create new: “{value}”
+    </Button>
+  );
+}
+
+function EmptyOptions({ copy }: { copy: string }) {
+  return (
+    <div className="text-muted-foreground px-2 py-4 text-center text-sm">
+      {copy}
+    </div>
+  );
+}
 
 export function SkillLabelsSelect({
   value,
@@ -341,66 +402,5 @@ export function SkillTagsSelect({
         </Trigger>
       )}
     </PopoverController>
-  );
-}
-
-function SelectionRow({
-  value,
-  selected,
-  onSelect,
-}: {
-  value: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={cn(
-        "w-full justify-start px-2 py-1 text-sm",
-        selected && "font-bold",
-      )}
-      onClick={onSelect}
-    >
-      {selected ? (
-        <CircleCheckIcon size="base" color="default" __rawClassName="mr-2" />
-      ) : (
-        <CircleIcon
-          size="base"
-          color="default"
-          __rawClassName="mr-2 opacity-20"
-        />
-      )}
-      {value}
-    </Button>
-  );
-}
-
-function CreateRow({
-  value,
-  onCreate,
-}: {
-  value: string;
-  onCreate: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="text-muted-foreground w-full justify-start px-2 font-normal"
-      onClick={onCreate}
-    >
-      <Plus size="base" color="default" __rawClassName="mr-2" />
-      Create new: “{value}”
-    </Button>
-  );
-}
-
-function EmptyOptions({ copy }: { copy: string }) {
-  return (
-    <div className="text-muted-foreground px-2 py-4 text-center text-sm">
-      {copy}
-    </div>
   );
 }

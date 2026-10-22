@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireResult,
@@ -53,6 +52,157 @@ type InAppAgentRedirectActionContent = Extract<
   InAppAgentMessageContent,
   { type: "redirectAction" }
 >;
+
+function isQuestionnaireBoundaryTool(tool: InAppAgentToolCallContent) {
+  return (
+    tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME &&
+    (tool.approval !== undefined ||
+      parseQuestionnaireToolResult(tool.result) !== null)
+  );
+}
+
+/**
+ * A tool call awaiting approval is hoisted into its own card above the
+ * composer, so it leaves the transcript. A questionnaire gets a message of its
+ * own, splitting the tools around it into separate groups.
+ */
+function splitToolGroupAtQuestionnaires(
+  message: InAppAgentWindowMessage,
+): InAppAgentWindowMessage[] {
+  if (message.content.type !== "toolGroup") {
+    return [message];
+  }
+
+  const splitMessages: InAppAgentWindowMessage[] = [];
+  let pendingTools: InAppAgentToolCallContent[] = [];
+  const flushPendingTools = () => {
+    if (pendingTools.length === 0) {
+      return;
+    }
+    splitMessages.push({
+      ...message,
+      id:
+        splitMessages.length === 0
+          ? message.id
+          : `${message.id}-tools-${splitMessages.length}`,
+      content: { type: "toolGroup", tools: pendingTools },
+    });
+    pendingTools = [];
+  };
+
+  message.content.tools.forEach((tool, toolIndex) => {
+    if (isQuestionnaireBoundaryTool(tool)) {
+      flushPendingTools();
+      splitMessages.push({
+        ...message,
+        id: `${message.id}-questionnaire-${toolIndex}`,
+        content: { type: "toolGroup", tools: [tool] },
+      });
+    } else if (!tool.approval) {
+      pendingTools.push(tool);
+    }
+  });
+  flushPendingTools();
+
+  return splitMessages;
+}
+
+function getQuestionnaireBoundaryTool(
+  message: InAppAgentWindowMessage | undefined,
+) {
+  if (message?.content.type !== "toolGroup") {
+    return undefined;
+  }
+
+  const [tool, ...otherTools] = message.content.tools;
+  if (!tool || otherTools.length > 0 || !isQuestionnaireBoundaryTool(tool)) {
+    return undefined;
+  }
+
+  return tool;
+}
+
+/** A pending questionnaire is answered in its hoisted card, not here. */
+function toQuestionnaireItem(
+  message: InAppAgentWindowMessage,
+): QuestionnaireDisplayItem | null {
+  const questionnaireResult = parseQuestionnaireToolResult(
+    getQuestionnaireBoundaryTool(message)?.result,
+  );
+
+  return questionnaireResult
+    ? {
+        type: "questionnaire",
+        key: message.id,
+        answers: questionnaireResult.answers,
+      }
+    : null;
+}
+
+function getRedirectAction(
+  message: InAppAgentWindowMessage,
+): InAppAgentRedirectActionContent | undefined {
+  if (message.content.type === "redirectAction") {
+    return message.content;
+  }
+
+  return message.content.type === "text"
+    ? message.content.redirectAction
+    : undefined;
+}
+
+/**
+ * Fold a turn's answer blocks into the single bubble the user reads. Each field
+ * takes the last block that defined it, except `sources`, which arrive already
+ * unioned across the whole turn so a citation earned mid-turn is not lost.
+ */
+function joinAnswerMessages(
+  messages: InAppAgentWindowMessage[],
+  turnSources: InAppAgentMessageSource[],
+  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
+): InAppAgentWindowMessage | null {
+  const textMessages = messages.filter(
+    (message): message is InAppAgentTextMessage =>
+      message.content.type === "text",
+  );
+  const lastText = textMessages.at(-1);
+
+  // A turn can end on a bare redirect with no text to attach it to.
+  if (!lastText) {
+    return messages.at(-1) ?? null;
+  }
+
+  const lastDefined = <T>(
+    pick: (message: InAppAgentTextMessage) => T | undefined,
+  ): T | undefined =>
+    textMessages.reduce<T | undefined>(
+      (found, message) => pick(message) ?? found,
+      undefined,
+    );
+  const runId = lastDefined((message) => message.runId);
+  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
+  const feedback = lastDefined((message) => message.content.feedback);
+
+  return {
+    ...lastText,
+    ...(runId ? { runId } : {}),
+    ...(feedbackMessageId ? { feedbackMessageId } : {}),
+    content: {
+      type: "text",
+      text: textMessages.map((message) => message.content.text).join("\n\n"),
+      ...(textMessages.some((message) => message.content.isStreaming)
+        ? { isStreaming: true }
+        : {}),
+      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
+      ...(feedback ? { feedback } : {}),
+      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
+    },
+  };
+}
+
+function getActivityKey(turnAnchorMessageId: string | undefined) {
+  return `activity-${turnAnchorMessageId ?? "start"}`;
+}
 
 /**
  * Group the transcript into what the window renders: user bubbles, a drawer of
@@ -205,155 +355,4 @@ export function buildConversationDisplayItems(
   }
 
   return items;
-}
-
-/**
- * A tool call awaiting approval is hoisted into its own card above the
- * composer, so it leaves the transcript. A questionnaire gets a message of its
- * own, splitting the tools around it into separate groups.
- */
-function splitToolGroupAtQuestionnaires(
-  message: InAppAgentWindowMessage,
-): InAppAgentWindowMessage[] {
-  if (message.content.type !== "toolGroup") {
-    return [message];
-  }
-
-  const splitMessages: InAppAgentWindowMessage[] = [];
-  let pendingTools: InAppAgentToolCallContent[] = [];
-  const flushPendingTools = () => {
-    if (pendingTools.length === 0) {
-      return;
-    }
-    splitMessages.push({
-      ...message,
-      id:
-        splitMessages.length === 0
-          ? message.id
-          : `${message.id}-tools-${splitMessages.length}`,
-      content: { type: "toolGroup", tools: pendingTools },
-    });
-    pendingTools = [];
-  };
-
-  message.content.tools.forEach((tool, toolIndex) => {
-    if (isQuestionnaireBoundaryTool(tool)) {
-      flushPendingTools();
-      splitMessages.push({
-        ...message,
-        id: `${message.id}-questionnaire-${toolIndex}`,
-        content: { type: "toolGroup", tools: [tool] },
-      });
-    } else if (!tool.approval) {
-      pendingTools.push(tool);
-    }
-  });
-  flushPendingTools();
-
-  return splitMessages;
-}
-
-/** A pending questionnaire is answered in its hoisted card, not here. */
-function toQuestionnaireItem(
-  message: InAppAgentWindowMessage,
-): QuestionnaireDisplayItem | null {
-  const questionnaireResult = parseQuestionnaireToolResult(
-    getQuestionnaireBoundaryTool(message)?.result,
-  );
-
-  return questionnaireResult
-    ? {
-        type: "questionnaire",
-        key: message.id,
-        answers: questionnaireResult.answers,
-      }
-    : null;
-}
-
-function getRedirectAction(
-  message: InAppAgentWindowMessage,
-): InAppAgentRedirectActionContent | undefined {
-  if (message.content.type === "redirectAction") {
-    return message.content;
-  }
-
-  return message.content.type === "text"
-    ? message.content.redirectAction
-    : undefined;
-}
-
-/**
- * Fold a turn's answer blocks into the single bubble the user reads. Each field
- * takes the last block that defined it, except `sources`, which arrive already
- * unioned across the whole turn so a citation earned mid-turn is not lost.
- */
-function joinAnswerMessages(
-  messages: InAppAgentWindowMessage[],
-  turnSources: InAppAgentMessageSource[],
-  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
-): InAppAgentWindowMessage | null {
-  const textMessages = messages.filter(
-    (message): message is InAppAgentTextMessage =>
-      message.content.type === "text",
-  );
-  const lastText = textMessages.at(-1);
-
-  // A turn can end on a bare redirect with no text to attach it to.
-  if (!lastText) {
-    return messages.at(-1) ?? null;
-  }
-
-  const lastDefined = <T>(
-    pick: (message: InAppAgentTextMessage) => T | undefined,
-  ): T | undefined =>
-    textMessages.reduce<T | undefined>(
-      (found, message) => pick(message) ?? found,
-      undefined,
-    );
-  const runId = lastDefined((message) => message.runId);
-  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
-  const feedback = lastDefined((message) => message.content.feedback);
-
-  return {
-    ...lastText,
-    ...(runId ? { runId } : {}),
-    ...(feedbackMessageId ? { feedbackMessageId } : {}),
-    content: {
-      type: "text",
-      text: textMessages.map((message) => message.content.text).join("\n\n"),
-      ...(textMessages.some((message) => message.content.isStreaming)
-        ? { isStreaming: true }
-        : {}),
-      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
-      ...(feedback ? { feedback } : {}),
-      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
-    },
-  };
-}
-
-function isQuestionnaireBoundaryTool(tool: InAppAgentToolCallContent) {
-  return (
-    tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME &&
-    (tool.approval !== undefined ||
-      parseQuestionnaireToolResult(tool.result) !== null)
-  );
-}
-
-function getQuestionnaireBoundaryTool(
-  message: InAppAgentWindowMessage | undefined,
-) {
-  if (message?.content.type !== "toolGroup") {
-    return undefined;
-  }
-
-  const [tool, ...otherTools] = message.content.tools;
-  if (!tool || otherTools.length > 0 || !isQuestionnaireBoundaryTool(tool)) {
-    return undefined;
-  }
-
-  return tool;
-}
-
-function getActivityKey(turnAnchorMessageId: string | undefined) {
-  return `activity-${turnAnchorMessageId ?? "start"}`;
 }

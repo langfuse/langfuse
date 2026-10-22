@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
@@ -20,13 +20,64 @@ import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
-export default function UserDetailPage() {
-  const route = useReadyRouteParams(["projectId", "userId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+type TabProps = {
+  userId: string;
+  projectId: string;
+};
+
+function SessionsTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
   return (
-    <UserDetailView
-      projectId={route.params.projectId}
-      userId={route.params.userId}
+    <SessionsTable
+      projectId={projectId}
+      userId={userId}
+      omittedFilter={["userIds"]}
+      isV4={isV4}
+    />
+  );
+}
+
+function TracesTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
+  if (isV4) {
+    return (
+      <ObservationsEventsTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
+    );
+  }
+
+  return (
+    <TracesTable
+      projectId={projectId}
+      userId={userId}
+      omittedFilter={["userId"]}
+    />
+  );
+}
+
+function ScoresTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
+  return (
+    <ScoresTable
+      projectId={projectId}
+      userId={userId}
+      hiddenColumns={["userId"]}
+      renderTracePeek={({ closePeek, expandPeek }) => (
+        <TablePeekViewTraceDetail
+          projectId={projectId}
+          itemType="TRACE"
+          tableName="scores"
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          isV4={isV4}
+        />
+      )}
     />
   );
 }
@@ -189,64 +240,13 @@ function UserDetailView({
   );
 }
 
-type TabProps = {
-  userId: string;
-  projectId: string;
-};
-
-function ScoresTab({ userId, projectId }: TabProps) {
-  const { isV4 } = useReadPath();
-
+export default function UserDetailPage() {
+  const route = useReadyRouteParams(["projectId", "userId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
   return (
-    <ScoresTable
-      projectId={projectId}
-      userId={userId}
-      hiddenColumns={["userId"]}
-      renderTracePeek={({ closePeek, expandPeek }) => (
-        <TablePeekViewTraceDetail
-          projectId={projectId}
-          itemType="TRACE"
-          tableName="scores"
-          closePeek={closePeek}
-          expandPeek={expandPeek}
-          isV4={isV4}
-        />
-      )}
-    />
-  );
-}
-
-function TracesTab({ userId, projectId }: TabProps) {
-  const { isV4 } = useReadPath();
-
-  if (isV4) {
-    return (
-      <ObservationsEventsTable
-        projectId={projectId}
-        userId={userId}
-        omittedFilter={["userId"]}
-      />
-    );
-  }
-
-  return (
-    <TracesTable
-      projectId={projectId}
-      userId={userId}
-      omittedFilter={["userId"]}
-    />
-  );
-}
-
-function SessionsTab({ userId, projectId }: TabProps) {
-  const { isV4 } = useReadPath();
-
-  return (
-    <SessionsTable
-      projectId={projectId}
-      userId={userId}
-      omittedFilter={["userIds"]}
-      isV4={isV4}
+    <UserDetailView
+      projectId={route.params.projectId}
+      userId={route.params.userId}
     />
   );
 }

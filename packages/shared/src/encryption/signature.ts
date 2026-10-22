@@ -1,5 +1,14 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import crypto from "crypto";
+
+// Create display version of webhook secret
+export function getDisplaySecretKey(secretKey: string): string {
+  if (!secretKey || secretKey.length < 12) {
+    // whsec_ + at least 4 chars
+    return "****";
+  }
+
+  return `lf-whsec_...${secretKey.slice(-4)}`;
+}
 
 // Generate a webhook secret key
 export function generateWebhookSecret(): {
@@ -10,16 +19,6 @@ export function generateWebhookSecret(): {
   const rawSecret = crypto.randomBytes(32).toString("hex");
   const secretKey = `lf-whsec_${rawSecret}`;
   return { secretKey, displaySecretKey: getDisplaySecretKey(secretKey) };
-}
-
-// Create display version of webhook secret
-export function getDisplaySecretKey(secretKey: string): string {
-  if (!secretKey || secretKey.length < 12) {
-    // whsec_ + at least 4 chars
-    return "****";
-  }
-
-  return `lf-whsec_...${secretKey.slice(-4)}`;
 }
 
 // Generate HMAC-SHA256 signature for webhook payload

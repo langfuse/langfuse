@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -55,6 +54,72 @@ export async function handleGetMemberships(
       name: membership.user.name,
     })),
   });
+}
+
+function assertAuthorizeMembershipChange(
+  context: AuthorizationContext,
+  orgId: string,
+) {
+  const organization = OrganizationId(orgId);
+  const membershipAccess = authorize(
+    context,
+    organization,
+    "organizationMembers:CUD",
+    organization,
+  );
+  if (!membershipAccess.success) throw membershipAccess.error;
+}
+
+/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
+function assertAuthorizeOwnershipChange(
+  context: AuthorizationContext | undefined,
+  orgId: string,
+) {
+  if (!context) throw new ForbiddenError();
+  const organization = OrganizationId(orgId);
+  const ownershipAccess = authorize(
+    context,
+    organization,
+    "organizationMembers:manageOwnership",
+    organization,
+  );
+  if (!ownershipAccess.success) throw ownershipAccess.error;
+}
+
+/** assertOtherOwners locks the organization's owner rows and requires another owner before removing ownership. */
+async function assertOtherOwners(tx: Prisma.TransactionClient, orgId: string) {
+  const owners = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM organization_memberships
+    WHERE org_id = ${orgId} AND role = 'OWNER'
+    FOR UPDATE
+  `;
+  if (owners.length < 2) {
+    throw new ForbiddenError(
+      "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+    );
+  }
+}
+
+/** assertValidOwnershipChange checks ownership permission and keeps at least one owner. */
+export async function assertValidOwnershipChange({
+  tx,
+  context,
+  orgId,
+  from,
+  to,
+}: {
+  tx: Prisma.TransactionClient;
+  context: AuthorizationContext | undefined;
+  orgId: string;
+  from: Role | undefined;
+  to?: Role;
+}) {
+  if (from === Role.OWNER || to === Role.OWNER) {
+    assertAuthorizeOwnershipChange(context, orgId);
+  }
+  if (from === Role.OWNER && to !== Role.OWNER) {
+    await assertOtherOwners(tx, orgId);
+  }
 }
 
 /** handleUpdateMembership upserts and audits an authorized organization membership. */
@@ -209,70 +274,4 @@ export async function handleDeleteMembership(
     message: "Membership deleted successfully",
     userId: validatedBody.data.userId,
   });
-}
-
-function assertAuthorizeMembershipChange(
-  context: AuthorizationContext,
-  orgId: string,
-) {
-  const organization = OrganizationId(orgId);
-  const membershipAccess = authorize(
-    context,
-    organization,
-    "organizationMembers:CUD",
-    organization,
-  );
-  if (!membershipAccess.success) throw membershipAccess.error;
-}
-
-/** assertValidOwnershipChange checks ownership permission and keeps at least one owner. */
-export async function assertValidOwnershipChange({
-  tx,
-  context,
-  orgId,
-  from,
-  to,
-}: {
-  tx: Prisma.TransactionClient;
-  context: AuthorizationContext | undefined;
-  orgId: string;
-  from: Role | undefined;
-  to?: Role;
-}) {
-  if (from === Role.OWNER || to === Role.OWNER) {
-    assertAuthorizeOwnershipChange(context, orgId);
-  }
-  if (from === Role.OWNER && to !== Role.OWNER) {
-    await assertOtherOwners(tx, orgId);
-  }
-}
-
-/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
-function assertAuthorizeOwnershipChange(
-  context: AuthorizationContext | undefined,
-  orgId: string,
-) {
-  if (!context) throw new ForbiddenError();
-  const organization = OrganizationId(orgId);
-  const ownershipAccess = authorize(
-    context,
-    organization,
-    "organizationMembers:manageOwnership",
-    organization,
-  );
-  if (!ownershipAccess.success) throw ownershipAccess.error;
-}
-
-/** assertOtherOwners locks the organization's owner rows and requires another owner before removing ownership. */
-async function assertOtherOwners(tx: Prisma.TransactionClient, orgId: string) {
-  const owners = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM organization_memberships
-    WHERE org_id = ${orgId} AND role = 'OWNER'
-    FOR UPDATE
-  `;
-  if (owners.length < 2) {
-    throw new ForbiddenError(
-      "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
-    );
-  }
 }

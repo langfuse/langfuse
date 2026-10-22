@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
 
 /**
@@ -117,6 +116,20 @@ export function baselineChangedProps({
   };
 }
 
+/** `<level>-score-<dataType>:<scoreName>` — the shape, never the name. */
+function scoreMetricShape(metricId: string): {
+  scoreLevel: "observation" | "trace" | "experiment" | "none";
+  dataType: "numeric" | "categorical" | "none";
+} {
+  const match = metricId.match(
+    /^(obs|trace|experiment)-score-(numeric|categorical):/,
+  );
+  if (!match) return { scoreLevel: "none", dataType: "none" };
+  const level =
+    match[1] === "obs" ? "observation" : (match[1] as "trace" | "experiment");
+  return { scoreLevel: level, dataType: match[2] as "numeric" | "categorical" };
+}
+
 /** Metric selection metadata: score names never leave the client. */
 export function chartMetricChangedProps({
   tableName,
@@ -130,20 +143,6 @@ export function chartMetricChangedProps({
     metricGroup: chartMetricGroup(metricId),
     ...scoreMetricShape(metricId),
   };
-}
-
-/** `<level>-score-<dataType>:<scoreName>` — the shape, never the name. */
-function scoreMetricShape(metricId: string): {
-  scoreLevel: "observation" | "trace" | "experiment" | "none";
-  dataType: "numeric" | "categorical" | "none";
-} {
-  const match = metricId.match(
-    /^(obs|trace|experiment)-score-(numeric|categorical):/,
-  );
-  if (!match) return { scoreLevel: "none", dataType: "none" };
-  const level =
-    match[1] === "obs" ? "observation" : (match[1] as "trace" | "experiment");
-  return { scoreLevel: level, dataType: match[2] as "numeric" | "categorical" };
 }
 
 export function scoreColumnScopeToggledProps({

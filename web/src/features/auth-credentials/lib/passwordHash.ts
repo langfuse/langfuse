@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { pbkdf2, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { compare, hash } from "bcryptjs";
@@ -32,6 +31,10 @@ function isFipsModeRequired(): boolean {
   return env.LANGFUSE_REQUIRE_FIPS === "true";
 }
 
+function toBase64(bytes: Buffer): string {
+  return bytes.toString("base64").replace(/=+$/, "");
+}
+
 /** hashPassword hashes a password in the format this host writes. */
 export async function hashPassword(password: string): Promise<string> {
   if (!isFipsModeRequired()) {
@@ -47,6 +50,28 @@ export async function hashPassword(password: string): Promise<string> {
     "sha256",
   );
   return `${PBKDF2_PREFIX}i=${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(key)}`;
+}
+
+function parsePbkdf2Hash(
+  hashedPassword: string,
+): { iterations: number; salt: Buffer; key: Buffer } | null {
+  if (!hashedPassword.startsWith(PBKDF2_PREFIX)) return null;
+
+  const parts = hashedPassword.slice(PBKDF2_PREFIX.length).split("$");
+  if (parts.length !== 3) return null;
+  const [params, salt, key] = parts;
+
+  const iterations = Number(/^i=(\d+)$/.exec(params ?? "")?.[1]);
+  if (!Number.isSafeInteger(iterations)) return null;
+  if (iterations < PBKDF2_MIN_ITERATIONS) return null;
+  if (iterations > PBKDF2_MAX_ITERATIONS) return null;
+
+  const saltBytes = Buffer.from(salt ?? "", "base64");
+  const keyBytes = Buffer.from(key ?? "", "base64");
+  if (saltBytes.length < PBKDF2_MIN_SALT_BYTES) return null;
+  if (keyBytes.length < PBKDF2_MIN_KEY_BYTES) return null;
+
+  return { iterations, salt: saltBytes, key: keyBytes };
 }
 
 /**
@@ -79,30 +104,4 @@ export async function verifyPassword(
 /** passwordRequiresReset is true for a bcrypt hash in FIPS mode, which only a password reset can replace. */
 export function passwordRequiresReset(hashedPassword: string): boolean {
   return isFipsModeRequired() && BCRYPT_HASH_PATTERN.test(hashedPassword);
-}
-
-function parsePbkdf2Hash(
-  hashedPassword: string,
-): { iterations: number; salt: Buffer; key: Buffer } | null {
-  if (!hashedPassword.startsWith(PBKDF2_PREFIX)) return null;
-
-  const parts = hashedPassword.slice(PBKDF2_PREFIX.length).split("$");
-  if (parts.length !== 3) return null;
-  const [params, salt, key] = parts;
-
-  const iterations = Number(/^i=(\d+)$/.exec(params ?? "")?.[1]);
-  if (!Number.isSafeInteger(iterations)) return null;
-  if (iterations < PBKDF2_MIN_ITERATIONS) return null;
-  if (iterations > PBKDF2_MAX_ITERATIONS) return null;
-
-  const saltBytes = Buffer.from(salt ?? "", "base64");
-  const keyBytes = Buffer.from(key ?? "", "base64");
-  if (saltBytes.length < PBKDF2_MIN_SALT_BYTES) return null;
-  if (keyBytes.length < PBKDF2_MIN_KEY_BYTES) return null;
-
-  return { iterations, salt: saltBytes, key: keyBytes };
-}
-
-function toBase64(bytes: Buffer): string {
-  return bytes.toString("base64").replace(/=+$/, "");
 }

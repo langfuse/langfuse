@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 import { Info } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -15,6 +14,60 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+
+function summaryLabel(summaries: number | null) {
+  if (summaries === null) return "Not counted";
+  if (summaries === 0) return "No summaries";
+  const count =
+    summaries > 1_000
+      ? compactNumberFormatter(
+          summaries,
+          summaries < 10_000 ? 1 : 0,
+        ).toLowerCase()
+      : summaries.toLocaleString();
+  return `${count} summaries`;
+}
+
+function FacetToggle({
+  facet,
+  selected,
+  operation,
+  onToggleFacet,
+}: FacetToggleProps) {
+  function handleCheckedChange(checked: boolean | "indeterminate") {
+    onToggleFacet(facet.id, checked === true);
+  }
+  return (
+    <label
+      title={`${facet.description} (${facet.kind}, v${facet.version})`}
+      className={cn(
+        "flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-2 transition-colors",
+        selected
+          ? "border-border-contrast bg-secondary"
+          : "border-input text-muted-foreground hover:bg-accent",
+      )}
+    >
+      <Checkbox
+        aria-label={facet.name}
+        checked={selected}
+        onCheckedChange={handleCheckedChange}
+      />
+      <span className="self-baseline font-bold">{facet.name}</span>
+      {operation === "update" ? (
+        <span
+          className="text-muted-foreground w-25 shrink-0 self-baseline truncate text-right text-xs tabular-nums"
+          title={
+            facet.summaries === null
+              ? undefined
+              : `${facet.summaries.toLocaleString()} summaries`
+          }
+        >
+          {summaryLabel(facet.summaries)}
+        </span>
+      ) : null}
+    </label>
+  );
+}
 
 export function ManualTopicsDialog({
   operation,
@@ -328,60 +381,6 @@ export function ManualTopicsDialog({
       </Dialog.Body>
     </Dialog>
   );
-}
-
-function FacetToggle({
-  facet,
-  selected,
-  operation,
-  onToggleFacet,
-}: FacetToggleProps) {
-  function handleCheckedChange(checked: boolean | "indeterminate") {
-    onToggleFacet(facet.id, checked === true);
-  }
-  return (
-    <label
-      title={`${facet.description} (${facet.kind}, v${facet.version})`}
-      className={cn(
-        "flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-2 transition-colors",
-        selected
-          ? "border-border-contrast bg-secondary"
-          : "border-input text-muted-foreground hover:bg-accent",
-      )}
-    >
-      <Checkbox
-        aria-label={facet.name}
-        checked={selected}
-        onCheckedChange={handleCheckedChange}
-      />
-      <span className="self-baseline font-bold">{facet.name}</span>
-      {operation === "update" ? (
-        <span
-          className="text-muted-foreground w-25 shrink-0 self-baseline truncate text-right text-xs tabular-nums"
-          title={
-            facet.summaries === null
-              ? undefined
-              : `${facet.summaries.toLocaleString()} summaries`
-          }
-        >
-          {summaryLabel(facet.summaries)}
-        </span>
-      ) : null}
-    </label>
-  );
-}
-
-function summaryLabel(summaries: number | null) {
-  if (summaries === null) return "Not counted";
-  if (summaries === 0) return "No summaries";
-  const count =
-    summaries > 1_000
-      ? compactNumberFormatter(
-          summaries,
-          summaries < 10_000 ? 1 : 0,
-        ).toLowerCase()
-      : summaries.toLocaleString();
-  return `${count} summaries`;
 }
 
 type Model = { model: string; connection: string };

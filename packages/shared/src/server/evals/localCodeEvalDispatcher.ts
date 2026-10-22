@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { stripTypeScriptTypes } from "node:module";
 import * as vm from "node:vm";
 import { env } from "../../env";
@@ -13,6 +12,30 @@ import {
 } from "./codeEvalDispatcherTypes";
 
 const SCRIPT_TIMEOUT_MESSAGE = "Script execution timed out";
+
+// Structural checks instead of `instanceof Error`: evaluator errors originate
+// in the vm realm, so they fail host-realm instanceof checks.
+function formatError(error: unknown): string {
+  if (typeof error === "object" && error !== null) {
+    const name =
+      "name" in error && typeof error.name === "string"
+        ? error.name
+        : undefined;
+    const message =
+      "message" in error && typeof error.message === "string"
+        ? error.message
+        : undefined;
+
+    if (message) {
+      // "Error" carries no signal; other names (TypeError, RangeError, custom
+      // classes) tell the evaluator author what went wrong.
+      return name && name !== "Error" ? `${name}: ${message}` : message;
+    }
+    if (name) return name;
+  }
+
+  return String(error);
+}
 
 export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "insecure-local";
@@ -108,28 +131,4 @@ if (typeof evaluate !== "function") {
 
     return parseDispatchResult(result);
   }
-}
-
-// Structural checks instead of `instanceof Error`: evaluator errors originate
-// in the vm realm, so they fail host-realm instanceof checks.
-function formatError(error: unknown): string {
-  if (typeof error === "object" && error !== null) {
-    const name =
-      "name" in error && typeof error.name === "string"
-        ? error.name
-        : undefined;
-    const message =
-      "message" in error && typeof error.message === "string"
-        ? error.message
-        : undefined;
-
-    if (message) {
-      // "Error" carries no signal; other names (TypeError, RangeError, custom
-      // classes) tell the evaluator author what went wrong.
-      return name && name !== "Error" ? `${name}: ${message}` : message;
-    }
-    if (name) return name;
-  }
-
-  return String(error);
 }

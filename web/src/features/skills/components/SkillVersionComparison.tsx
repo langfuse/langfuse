@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { type ReactNode, useState } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -25,44 +25,69 @@ type ComparisonProps = {
   onLoadMore: () => void;
 };
 
-export function SkillVersionComparisonController({
-  children,
-  ...props
-}: ComparisonProps & {
-  children: (control: {
-    openComparison: (version: number, compareDraft?: boolean) => void;
-  }) => ReactNode;
+function SkillVersionFiles({
+  projectId,
+  name,
+  before,
+  after,
+}: {
+  projectId: string;
+  name: string;
+  before: number;
+  after: number;
 }) {
-  const capture = usePostHogClientCapture();
+  const [selectedPath, setSelectedPath] = useState<string>();
+  const oldVersion = api.skills.byName.useQuery(
+    { projectId, name, version: before },
+    { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
+  );
+  const newVersion = api.skills.byName.useQuery(
+    { projectId, name, version: after },
+    { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
+  );
 
+  function retryVersions() {
+    oldVersion.refetch();
+    newVersion.refetch();
+  }
+  if (oldVersion.isError || newVersion.isError) {
+    return <SkillComparisonError retry={retryVersions} />;
+  }
+  if (!oldVersion.data || !newVersion.data) {
+    return (
+      <p role="status" className="text-muted-foreground text-sm">
+        Loading versions…
+      </p>
+    );
+  }
+  const files = compareSkillFiles(oldVersion.data.files, newVersion.data.files);
+  const selectedFile =
+    files.find((file) => file.path === selectedPath) ?? files[0];
   return (
-    <DialogController<{ before: number; after: number | "draft" }>
-      renderDialog={({ state }) => (
-        <SkillVersionComparison {...props} initialVersions={state} />
-      )}
+    <SkillFileChanges
+      files={files}
+      emptyMessage="No file changes between these versions."
+      selectedFile={selectedFile}
+      onSelectFile={setSelectedPath}
     >
-      {({ openDialog }) =>
-        children({
-          openComparison: (version, compareDraft = false) => {
-            if (!compareDraft && version === props.selectedVersion) return;
-            const before = version;
-            const after =
-              compareDraft && props.draftStore
-                ? "draft"
-                : props.selectedVersion;
-            capture("skills:version_compare", {
-              beforeVersion: before,
-              afterVersion:
-                after === "draft"
-                  ? props.draftStore?.getState().baseVersion
-                  : after,
-              isDraftComparison: after === "draft",
-            });
-            openDialog({ before, after });
-          },
-        })
-      }
-    </DialogController>
+      {selectedFile ? (
+        <SkillFileDiff
+          projectId={projectId}
+          oldFile={
+            selectedFile.oldFile?.sha256Hash
+              ? { sha256Hash: selectedFile.oldFile.sha256Hash }
+              : null
+          }
+          newFile={
+            selectedFile.newFile?.sha256Hash
+              ? { sha256Hash: selectedFile.newFile.sha256Hash }
+              : null
+          }
+          oldLabel={`Version ${before}`}
+          newLabel={`Version ${after}`}
+        />
+      ) : null}
+    </SkillFileChanges>
   );
 }
 
@@ -177,68 +202,43 @@ function SkillVersionComparison({
   );
 }
 
-function SkillVersionFiles({
-  projectId,
-  name,
-  before,
-  after,
-}: {
-  projectId: string;
-  name: string;
-  before: number;
-  after: number;
+export function SkillVersionComparisonController({
+  children,
+  ...props
+}: ComparisonProps & {
+  children: (control: {
+    openComparison: (version: number, compareDraft?: boolean) => void;
+  }) => ReactNode;
 }) {
-  const [selectedPath, setSelectedPath] = useState<string>();
-  const oldVersion = api.skills.byName.useQuery(
-    { projectId, name, version: before },
-    { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
-  );
-  const newVersion = api.skills.byName.useQuery(
-    { projectId, name, version: after },
-    { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
-  );
+  const capture = usePostHogClientCapture();
 
-  function retryVersions() {
-    oldVersion.refetch();
-    newVersion.refetch();
-  }
-  if (oldVersion.isError || newVersion.isError) {
-    return <SkillComparisonError retry={retryVersions} />;
-  }
-  if (!oldVersion.data || !newVersion.data) {
-    return (
-      <p role="status" className="text-muted-foreground text-sm">
-        Loading versions…
-      </p>
-    );
-  }
-  const files = compareSkillFiles(oldVersion.data.files, newVersion.data.files);
-  const selectedFile =
-    files.find((file) => file.path === selectedPath) ?? files[0];
   return (
-    <SkillFileChanges
-      files={files}
-      emptyMessage="No file changes between these versions."
-      selectedFile={selectedFile}
-      onSelectFile={setSelectedPath}
+    <DialogController<{ before: number; after: number | "draft" }>
+      renderDialog={({ state }) => (
+        <SkillVersionComparison {...props} initialVersions={state} />
+      )}
     >
-      {selectedFile ? (
-        <SkillFileDiff
-          projectId={projectId}
-          oldFile={
-            selectedFile.oldFile?.sha256Hash
-              ? { sha256Hash: selectedFile.oldFile.sha256Hash }
-              : null
-          }
-          newFile={
-            selectedFile.newFile?.sha256Hash
-              ? { sha256Hash: selectedFile.newFile.sha256Hash }
-              : null
-          }
-          oldLabel={`Version ${before}`}
-          newLabel={`Version ${after}`}
-        />
-      ) : null}
-    </SkillFileChanges>
+      {({ openDialog }) =>
+        children({
+          openComparison: (version, compareDraft = false) => {
+            if (!compareDraft && version === props.selectedVersion) return;
+            const before = version;
+            const after =
+              compareDraft && props.draftStore
+                ? "draft"
+                : props.selectedVersion;
+            capture("skills:version_compare", {
+              beforeVersion: before,
+              afterVersion:
+                after === "draft"
+                  ? props.draftStore?.getState().baseVersion
+                  : after,
+              isDraftComparison: after === "draft",
+            });
+            openDialog({ before, after });
+          },
+        })
+      }
+    </DialogController>
   );
 }

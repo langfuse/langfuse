@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   getCurrentSpan,
@@ -117,69 +116,6 @@ async function saveProgress(
 type TraceResults = Map<TraceFacet, TopicSummary | Error>;
 type TraceInput = Awaited<ReturnType<typeof loadTopicTranscript>>;
 
-/**
- * Summarizes a trace's pending facets with the trace-batch request: one call for
- * every facet that has no accepted or reusable summary. Results follow `facets`;
- * a trace-level failure applies only to unresolved facets, execution-level failures throw.
- */
-async function summarizeTrace(
-  metrics: TopicMetrics,
-  models: TopicsModels,
-  execution: ProcessExecution,
-  facets: TraceFacet[],
-  traceId: string,
-  staged: Map<TopicFacetVersion, TopicSummary[]>,
-  getTranscript: () => Promise<TraceInput>,
-): Promise<(TopicSummary | Error)[]> {
-  const results = acceptedSummaries(metrics, facets, traceId, staged);
-  const unresolved = () => facets.filter((facet) => !results.has(facet));
-  if (unresolved().length > 0) {
-    try {
-      const input = await getTranscript();
-      if (isInternalEvalEnvironment(input.environment))
-        throw new Error("Topics does not process internal Langfuse traces.");
-      const base = (facet: TraceFacet) =>
-        baseTopicSummary({
-          projectId: execution.projectId,
-          traceId,
-          sessionId: input.sessionId,
-          unitStartTime: input.unitStartTime,
-          environment: input.environment,
-          traceName: input.traceName,
-          facet: facet.version,
-          summaryModel: execution.input.processingConfig.summaryModel!,
-          embeddingModel: execution.input.embeddingConfig.embeddingModel!,
-          triggerType: "manual",
-          metadata: { executionId: execution.id },
-        });
-      // Each step records a facet as soon as it is staged, so a later failure keeps it.
-      await reuseSummaries(metrics, execution, unresolved(), base, results);
-      await summarizePending(
-        metrics,
-        models,
-        execution,
-        traceId,
-        unresolved(),
-        base,
-        input,
-        results,
-      );
-    } catch (error) {
-      if (isExecutionFailure(error) && !isTraceModelFailure(error)) throw error;
-      metrics.error("summary", error);
-      logger.warn("Topics summary failed for trace", {
-        "langfuse.trace.id": traceId,
-        "langfuse.topics.execution_id": execution.id,
-        "langfuse.topics.error.reason":
-          error instanceof TopicsProviderUnavailable ? error.reason : "other",
-        error: errorMessage(error),
-      });
-      for (const facet of unresolved()) results.set(facet, error as Error);
-    }
-  }
-  return facets.map((facet) => results.get(facet)!);
-}
-
 /** Summaries an earlier attempt of this execution already staged. */
 function acceptedSummaries(
   metrics: TopicMetrics,
@@ -200,6 +136,38 @@ function acceptedSummaries(
     results.set(facet, accepted);
   }
   return results;
+}
+
+function summaryTimeRange(summaries: TopicSummary[]): TopicTimeRange {
+  let from = Infinity;
+  let to = -Infinity;
+  for (const summary of summaries) {
+    const timestamp = Date.parse(summary.unitStartTime);
+    from = Math.min(from, timestamp);
+    to = Math.max(to, timestamp + 1);
+  }
+  return topicTimeRangeSchema.parse({ from: new Date(from), to: new Date(to) });
+}
+
+async function stageSummary(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  summary: TopicSummary,
+): Promise<TopicSummary> {
+  try {
+    return await metrics.measure(
+      "storage",
+      () =>
+        stageTopicSummary(
+          { projectId: execution.projectId, executionId: execution.id },
+          summary,
+          execution.input.embeddingConfig,
+        ),
+      "storage",
+    );
+  } catch (error) {
+    throw new TopicEmbeddingFailure(errorMessage(error));
+  }
 }
 
 /** Stages compatible stored summaries when the execution opted into reuse. */
@@ -314,25 +282,67 @@ async function summarizePending(
     );
 }
 
-async function stageSummary(
+/**
+ * Summarizes a trace's pending facets with the trace-batch request: one call for
+ * every facet that has no accepted or reusable summary. Results follow `facets`;
+ * a trace-level failure applies only to unresolved facets, execution-level failures throw.
+ */
+async function summarizeTrace(
   metrics: TopicMetrics,
-  execution: TopicExecution,
-  summary: TopicSummary,
-): Promise<TopicSummary> {
-  try {
-    return await metrics.measure(
-      "storage",
-      () =>
-        stageTopicSummary(
-          { projectId: execution.projectId, executionId: execution.id },
-          summary,
-          execution.input.embeddingConfig,
-        ),
-      "storage",
-    );
-  } catch (error) {
-    throw new TopicEmbeddingFailure(errorMessage(error));
+  models: TopicsModels,
+  execution: ProcessExecution,
+  facets: TraceFacet[],
+  traceId: string,
+  staged: Map<TopicFacetVersion, TopicSummary[]>,
+  getTranscript: () => Promise<TraceInput>,
+): Promise<(TopicSummary | Error)[]> {
+  const results = acceptedSummaries(metrics, facets, traceId, staged);
+  const unresolved = () => facets.filter((facet) => !results.has(facet));
+  if (unresolved().length > 0) {
+    try {
+      const input = await getTranscript();
+      if (isInternalEvalEnvironment(input.environment))
+        throw new Error("Topics does not process internal Langfuse traces.");
+      const base = (facet: TraceFacet) =>
+        baseTopicSummary({
+          projectId: execution.projectId,
+          traceId,
+          sessionId: input.sessionId,
+          unitStartTime: input.unitStartTime,
+          environment: input.environment,
+          traceName: input.traceName,
+          facet: facet.version,
+          summaryModel: execution.input.processingConfig.summaryModel!,
+          embeddingModel: execution.input.embeddingConfig.embeddingModel!,
+          triggerType: "manual",
+          metadata: { executionId: execution.id },
+        });
+      // Each step records a facet as soon as it is staged, so a later failure keeps it.
+      await reuseSummaries(metrics, execution, unresolved(), base, results);
+      await summarizePending(
+        metrics,
+        models,
+        execution,
+        traceId,
+        unresolved(),
+        base,
+        input,
+        results,
+      );
+    } catch (error) {
+      if (isExecutionFailure(error) && !isTraceModelFailure(error)) throw error;
+      metrics.error("summary", error);
+      logger.warn("Topics summary failed for trace", {
+        "langfuse.trace.id": traceId,
+        "langfuse.topics.execution_id": execution.id,
+        "langfuse.topics.error.reason":
+          error instanceof TopicsProviderUnavailable ? error.reason : "other",
+        error: errorMessage(error),
+      });
+      for (const facet of unresolved()) results.set(facet, error as Error);
+    }
   }
+  return facets.map((facet) => results.get(facet)!);
 }
 
 /** Frozen references survive payload expiry without silently regenerating paid work. */
@@ -402,17 +412,6 @@ function countSummaries(
   progress.counts.insufficientInput = summaries.filter(
     (row) => row.state === "insufficient_input",
   ).length;
-}
-
-function summaryTimeRange(summaries: TopicSummary[]): TopicTimeRange {
-  let from = Infinity;
-  let to = -Infinity;
-  for (const summary of summaries) {
-    const timestamp = Date.parse(summary.unitStartTime);
-    from = Math.min(from, timestamp);
-    to = Math.max(to, timestamp + 1);
-  }
-  return topicTimeRangeSchema.parse({ from: new Date(from), to: new Date(to) });
 }
 
 async function assignSummaries(
@@ -494,6 +493,60 @@ async function assignSummaries(
       });
     },
   );
+}
+
+function compatibleMap(
+  execution: TopicExecution,
+  facet: TopicFacetVersion,
+  run: TopicRun,
+): boolean {
+  return (
+    run.facetId === facet.facetId &&
+    run.facetVersion === facet.version &&
+    run.config.embeddingModel ===
+      execution.input.embeddingConfig.embeddingModel &&
+    run.config.dimensions ===
+      execution.input.embeddingConfig.embeddingDimensions
+  );
+}
+
+type NamedTopics = Map<
+  string,
+  { name: string; description: string; summaries: string[] }
+>;
+
+/** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
+async function nameGroupAvoidingConflicts(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  named: NamedTopics,
+  group: Parameters<typeof nameTopicGroup>[1],
+  metadata: Record<string, unknown>,
+) {
+  let { output: label } = await nameTopicGroup(models, group, metadata);
+  const conflict = named.get(label.name.toLowerCase());
+  if (conflict) {
+    metrics.result("naming", "name_conflict");
+    // The first name is valid, so a failed rename keeps it.
+    label = await nameTopicGroup(models, group, metadata, conflict).then(
+      ({ output }) => output,
+      (error: unknown) => {
+        metrics.error("naming", error);
+        return label;
+      },
+    );
+  }
+  if (named.has(label.name.toLowerCase()))
+    metrics.result("naming", "duplicate_name");
+  else
+    named.set(label.name.toLowerCase(), {
+      name: label.name,
+      description: label.description,
+      summaries: label.evidenceSummaryIds.map(
+        (id) => group.members.find((member) => member.id === id)!.summary,
+      ),
+    });
+  return label;
 }
 
 async function clusterFacet(
@@ -868,60 +921,6 @@ async function clusterFacet(
   }
 }
 
-type NamedTopics = Map<
-  string,
-  { name: string; description: string; summaries: string[] }
->;
-
-/** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
-async function nameGroupAvoidingConflicts(
-  metrics: TopicMetrics,
-  models: TopicsModels,
-  named: NamedTopics,
-  group: Parameters<typeof nameTopicGroup>[1],
-  metadata: Record<string, unknown>,
-) {
-  let { output: label } = await nameTopicGroup(models, group, metadata);
-  const conflict = named.get(label.name.toLowerCase());
-  if (conflict) {
-    metrics.result("naming", "name_conflict");
-    // The first name is valid, so a failed rename keeps it.
-    label = await nameTopicGroup(models, group, metadata, conflict).then(
-      ({ output }) => output,
-      (error: unknown) => {
-        metrics.error("naming", error);
-        return label;
-      },
-    );
-  }
-  if (named.has(label.name.toLowerCase()))
-    metrics.result("naming", "duplicate_name");
-  else
-    named.set(label.name.toLowerCase(), {
-      name: label.name,
-      description: label.description,
-      summaries: label.evidenceSummaryIds.map(
-        (id) => group.members.find((member) => member.id === id)!.summary,
-      ),
-    });
-  return label;
-}
-
-function compatibleMap(
-  execution: TopicExecution,
-  facet: TopicFacetVersion,
-  run: TopicRun,
-): boolean {
-  return (
-    run.facetId === facet.facetId &&
-    run.facetVersion === facet.version &&
-    run.config.embeddingModel ===
-      execution.input.embeddingConfig.embeddingModel &&
-    run.config.dimensions ===
-      execution.input.embeddingConfig.embeddingDimensions
-  );
-}
-
 type PendingFacet = {
   facet: TopicFacetVersion;
   progress: TopicFacetProgress;
@@ -953,6 +952,55 @@ async function pendingFacets(
     });
   }
   return facets;
+}
+
+function recordTraceFailure(
+  state: TopicProcessBatchState,
+  progress: TopicFacetProgress,
+  { facetId, facetVersion, traceId }: TopicEmbeddingRef,
+  error: unknown,
+) {
+  let failed = state.failedTraceIds.find(
+    (entry) => entry.facetId === facetId && entry.facetVersion === facetVersion,
+  );
+  if (!failed) {
+    failed = { facetId, facetVersion, traceIds: [] };
+    state.failedTraceIds.push(failed);
+  }
+  if (!failed.traceIds.includes(traceId)) failed.traceIds.push(traceId);
+  progress.counts.failed = failed.traceIds.length;
+  const message = errorMessage(error);
+  if (
+    !state.execution.traceErrors.some(
+      (item) => item.traceId === traceId && item.error === message,
+    )
+  )
+    state.execution.traceErrors.push({ traceId, error: message });
+}
+
+/** Provider and configuration failures are the customer's to fix; anything else is ours. */
+function failFacet(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  facet: TopicFacetVersion,
+  progress: TopicFacetProgress,
+  error: unknown,
+) {
+  metrics.error("execution", error);
+  progress.outcome = "failed";
+  progress.error = errorMessage(error);
+  const log =
+    error instanceof TopicsProviderUnavailable ? logger.warn : logger.error;
+  log("Topics facet failed", {
+    "langfuse.topics.execution_id": execution.id,
+    "langfuse.topics.operation": execution.input.operation,
+    "langfuse.topics.facet_id": facet.facetId,
+    "langfuse.topics.facet_version": facet.version,
+    error: progress.error,
+  });
+  if (isExecutionFailure(error)) throw error;
+  // Handled, but still a failed facet for the user; the enclosing span reports it.
+  traceException(error);
 }
 
 /** Processes one bounded queue batch; the job owns retry state until completion. */
@@ -1195,30 +1243,6 @@ async function processTraces(
   }
 }
 
-function recordTraceFailure(
-  state: TopicProcessBatchState,
-  progress: TopicFacetProgress,
-  { facetId, facetVersion, traceId }: TopicEmbeddingRef,
-  error: unknown,
-) {
-  let failed = state.failedTraceIds.find(
-    (entry) => entry.facetId === facetId && entry.facetVersion === facetVersion,
-  );
-  if (!failed) {
-    failed = { facetId, facetVersion, traceIds: [] };
-    state.failedTraceIds.push(failed);
-  }
-  if (!failed.traceIds.includes(traceId)) failed.traceIds.push(traceId);
-  progress.counts.failed = failed.traceIds.length;
-  const message = errorMessage(error);
-  if (
-    !state.execution.traceErrors.some(
-      (item) => item.traceId === traceId && item.error === message,
-    )
-  )
-    state.execution.traceErrors.push({ traceId, error: message });
-}
-
 /** Each unpublished attempt fits the current compatible summaries from scratch. */
 async function updateTopics(
   metrics: TopicMetrics,
@@ -1328,31 +1352,6 @@ async function updateTopics(
       },
     );
   }
-}
-
-/** Provider and configuration failures are the customer's to fix; anything else is ours. */
-function failFacet(
-  metrics: TopicMetrics,
-  execution: TopicExecution,
-  facet: TopicFacetVersion,
-  progress: TopicFacetProgress,
-  error: unknown,
-) {
-  metrics.error("execution", error);
-  progress.outcome = "failed";
-  progress.error = errorMessage(error);
-  const log =
-    error instanceof TopicsProviderUnavailable ? logger.warn : logger.error;
-  log("Topics facet failed", {
-    "langfuse.topics.execution_id": execution.id,
-    "langfuse.topics.operation": execution.input.operation,
-    "langfuse.topics.facet_id": facet.facetId,
-    "langfuse.topics.facet_version": facet.version,
-    error: progress.error,
-  });
-  if (isExecutionFailure(error)) throw error;
-  // Handled, but still a failed facet for the user; the enclosing span reports it.
-  traceException(error);
 }
 
 /** Queue batches own trace retry state; Postgres owns compact update progress. */

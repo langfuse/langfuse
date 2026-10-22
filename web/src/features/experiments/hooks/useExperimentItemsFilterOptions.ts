@@ -1,9 +1,26 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiments/types/charts";
 
 const EXPERIMENT_ITEM_LEVEL_OPTIONS = ["DEBUG", "DEFAULT", "WARNING", "ERROR"];
+
+function toFilterOptions(
+  data: ItemFilterOptions | undefined,
+): ExperimentItemScoreFilterOptions {
+  return {
+    scores_avg: data?.scores_avg,
+    score_categories: data
+      ? Object.fromEntries(
+          data.score_categories.map(({ label, values }) => [label, values]),
+        )
+      : undefined,
+    score_booleans: data?.score_booleans,
+    score_name_levels_numeric: data?.score_name_levels_numeric,
+    score_name_levels_categorical: data?.score_name_levels_categorical,
+    score_name_levels_boolean: data?.score_name_levels_boolean,
+    level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
+  };
+}
 
 /** Fetch the combined score options for the selected experiments. */
 export const useExperimentItemsFilterOptions = ({
@@ -50,24 +67,6 @@ export const useExperimentItemsFilterOptions = ({
     retry,
   };
 };
-
-function toFilterOptions(
-  data: ItemFilterOptions | undefined,
-): ExperimentItemScoreFilterOptions {
-  return {
-    scores_avg: data?.scores_avg,
-    score_categories: data
-      ? Object.fromEntries(
-          data.score_categories.map(({ label, values }) => [label, values]),
-        )
-      : undefined,
-    score_booleans: data?.score_booleans,
-    score_name_levels_numeric: data?.score_name_levels_numeric,
-    score_name_levels_categorical: data?.score_name_levels_categorical,
-    score_name_levels_boolean: data?.score_name_levels_boolean,
-    level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
-  };
-}
 
 type ItemFilterOptions = RouterOutputs["experiments"]["itemsFilterOptions"];
 

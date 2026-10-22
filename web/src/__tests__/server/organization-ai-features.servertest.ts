@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -9,6 +8,81 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+async function createCaller() {
+  const id = randomUUID();
+  const orgId = `org-${id}`;
+  const projectId = `project-${id}`;
+  const userId = `user-${id}`;
+
+  const organization = await prisma.organization.create({
+    data: {
+      id: orgId,
+      name: `Organization AI Features Test ${id}`,
+    },
+  });
+  const project = await prisma.project.create({
+    data: {
+      id: projectId,
+      orgId,
+      name: "Organization AI Features Test Project",
+    },
+  });
+  const user = await prisma.user.create({
+    data: {
+      id: userId,
+      email: `${userId}@example.com`,
+      name: "Organization AI Features Test User",
+    },
+  });
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      canCreateOrganizations: true,
+      organizations: [
+        {
+          id: organization.id,
+          name: organization.name,
+          role: "OWNER",
+          plan: "self-hosted:enterprise",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: project.id,
+              name: project.name,
+              role: "ADMIN",
+              deletedAt: null,
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: project.createdAt.toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      admin: false,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "self-hosted:enterprise",
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+
+  return {
+    orgId,
+    caller: appRouter.createCaller({ ...ctx, prisma }),
+  };
+}
 
 describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -136,78 +210,3 @@ describe("organization AI feature settings", () => {
     ).resolves.toEqual({ aiTelemetryEnabled: false });
   });
 });
-
-async function createCaller() {
-  const id = randomUUID();
-  const orgId = `org-${id}`;
-  const projectId = `project-${id}`;
-  const userId = `user-${id}`;
-
-  const organization = await prisma.organization.create({
-    data: {
-      id: orgId,
-      name: `Organization AI Features Test ${id}`,
-    },
-  });
-  const project = await prisma.project.create({
-    data: {
-      id: projectId,
-      orgId,
-      name: "Organization AI Features Test Project",
-    },
-  });
-  const user = await prisma.user.create({
-    data: {
-      id: userId,
-      email: `${userId}@example.com`,
-      name: "Organization AI Features Test User",
-    },
-  });
-
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: "OWNER",
-          plan: "self-hosted:enterprise",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "self-hosted:enterprise",
-    },
-  };
-
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-
-  return {
-    orgId,
-    caller: appRouter.createCaller({ ...ctx, prisma }),
-  };
-}

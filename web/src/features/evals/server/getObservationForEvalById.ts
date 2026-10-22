@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   getEventsStreamForEval,
@@ -10,59 +9,6 @@ import {
   type ObservationForEval,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-
-export async function getObservationForEvalById(params: {
-  projectId: string;
-  id: string;
-  traceId: string;
-  startTime: Date;
-  shouldReadFromObservationsTable?: boolean;
-}): Promise<ObservationForEval> {
-  if (
-    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ||
-    params.shouldReadFromObservationsTable
-  ) {
-    return getObservationForEvalByIdFromLegacyObservations(params);
-  }
-
-  const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
-  const stream = await getEventsStreamForEval({
-    projectId: params.projectId,
-    filter: [
-      {
-        type: "string",
-        column: "traceId",
-        operator: "=",
-        value: params.traceId,
-      },
-      {
-        type: "datetime",
-        column: "startTime",
-        operator: ">=",
-        value: params.startTime,
-      },
-      {
-        type: "datetime",
-        column: "startTime",
-        operator: "<",
-        value: startTimeUpperBound,
-      },
-      {
-        type: "stringOptions",
-        column: "id",
-        operator: "any of",
-        value: [params.id],
-      },
-    ],
-    rowLimit: 1,
-  });
-
-  for await (const row of stream) {
-    return observationForEvalSchema.parse(row);
-  }
-
-  throw new LangfuseNotFoundError("Observation not found");
-}
 
 async function getObservationForEvalByIdFromLegacyObservations(params: {
   projectId: string;
@@ -128,4 +74,57 @@ async function getObservationForEvalByIdFromLegacyObservations(params: {
     output: observation.output,
     metadata: observation.metadata,
   });
+}
+
+export async function getObservationForEvalById(params: {
+  projectId: string;
+  id: string;
+  traceId: string;
+  startTime: Date;
+  shouldReadFromObservationsTable?: boolean;
+}): Promise<ObservationForEval> {
+  if (
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ||
+    params.shouldReadFromObservationsTable
+  ) {
+    return getObservationForEvalByIdFromLegacyObservations(params);
+  }
+
+  const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
+  const stream = await getEventsStreamForEval({
+    projectId: params.projectId,
+    filter: [
+      {
+        type: "string",
+        column: "traceId",
+        operator: "=",
+        value: params.traceId,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+        value: params.startTime,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: "<",
+        value: startTimeUpperBound,
+      },
+      {
+        type: "stringOptions",
+        column: "id",
+        operator: "any of",
+        value: [params.id],
+      },
+    ],
+    rowLimit: 1,
+  });
+
+  for await (const row of stream) {
+    return observationForEvalSchema.parse(row);
+  }
+
+  throw new LangfuseNotFoundError("Observation not found");
 }

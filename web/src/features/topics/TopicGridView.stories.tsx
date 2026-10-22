@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
@@ -32,7 +31,22 @@ const clusters: { topic: number | null; x: number; y: number; n: number }[] = [
   { topic: null, x: 0, y: -1, n: 30 },
 ];
 
+/** Seeded linear congruential generator so the story renders the same grid every time. */
+function mulberry32(seed: number) {
+  let state = seed;
+  return () => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+}
+
 const random = mulberry32(7);
+
+function gaussian(next: () => number) {
+  const u = 1 - next();
+  const v = next();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
 const points = clusters.flatMap((cluster, clusterIndex) =>
   Array.from({ length: cluster.n }, (_, index) => {
     const spread = cluster.topic === null ? 6 : 1.4;
@@ -105,18 +119,3 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
-
-/** Seeded linear congruential generator so the story renders the same grid every time. */
-function mulberry32(seed: number) {
-  let state = seed;
-  return () => {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
-  };
-}
-
-function gaussian(next: () => number) {
-  const u = 1 - next();
-  const v = next();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}

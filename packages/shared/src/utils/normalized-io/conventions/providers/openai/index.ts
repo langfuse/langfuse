@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
@@ -294,6 +294,29 @@ function isReasoningTextArray(
   });
 }
 
+function openAiReasoningParts(
+  value: Record<string, unknown>,
+  baseParts: readonly NormalizedMessagePart[],
+  context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
+): NormalizedMessagePart[] {
+  const parts: NormalizedMessagePart[] = [];
+  const reasoningValues = (
+    baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
+  )
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .filter((entry) => entry !== undefined && entry !== null);
+  parts.push(...context.normalizePartList(reasoningValues));
+
+  const encryptedContent = optionalString(value.encrypted_content);
+  if (encryptedContent) {
+    parts.push({
+      type: "reasoning",
+      content: { kind: "encrypted", data: encryptedContent },
+    });
+  }
+  return parts;
+}
+
 const normalizeOpenAiReasoning: PartHandler = (value, context) => {
   if (!isReasoningTextArray(value.summary, "summary_text")) {
     return unmatched;
@@ -413,29 +436,6 @@ function openAiCollectSiblingParts(
   return parts.length > 0
     ? [{ sourceKey: "openai.siblings", slot: "after-tool-calls", parts }]
     : [];
-}
-
-function openAiReasoningParts(
-  value: Record<string, unknown>,
-  baseParts: readonly NormalizedMessagePart[],
-  context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
-): NormalizedMessagePart[] {
-  const parts: NormalizedMessagePart[] = [];
-  const reasoningValues = (
-    baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
-  )
-    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
-    .filter((entry) => entry !== undefined && entry !== null);
-  parts.push(...context.normalizePartList(reasoningValues));
-
-  const encryptedContent = optionalString(value.encrypted_content);
-  if (encryptedContent) {
-    parts.push({
-      type: "reasoning",
-      content: { kind: "encrypted", data: encryptedContent },
-    });
-  }
-  return parts;
 }
 
 function isResponsesRequest(root: Record<string, unknown>): boolean {

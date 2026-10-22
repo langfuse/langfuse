@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { Info } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -29,6 +28,36 @@ type AutomaticProcessingDialogProps = {
 
 const COST_NOTE =
   "Each sampled trace makes LLM calls on your connections, so cost depends on your trace volume, the selected models, and the sampling rate.";
+
+function idleTimeLabel(traceIdleMs: number) {
+  const seconds = Math.round(traceIdleMs / 1000);
+  if (seconds % 60 !== 0) return `${seconds} seconds`;
+  const minutes = seconds / 60;
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+function ModelRow({ label, model }: { label: string; model: string | null }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      {model ? (
+        <dd className="truncate" title={model}>
+          {model}
+        </dd>
+      ) : (
+        <dd className="text-destructive">Not set</dd>
+      )}
+    </>
+  );
+}
+
+function modelsHint(paused: boolean, missingModel: boolean) {
+  if (missingModel)
+    return "Choose every model in Configure Topics before turning this on.";
+  return paused
+    ? "Turning this back on tests each model with one call."
+    : "Change models in Configure Topics.";
+}
 
 /** Dialog content; render it from `AutomaticProcessingDialogController`. */
 export function AutomaticProcessingDialog({
@@ -133,34 +162,4 @@ export function AutomaticProcessingDialog({
       </Dialog.Body>
     </Dialog>
   );
-}
-
-function ModelRow({ label, model }: { label: string; model: string | null }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      {model ? (
-        <dd className="truncate" title={model}>
-          {model}
-        </dd>
-      ) : (
-        <dd className="text-destructive">Not set</dd>
-      )}
-    </>
-  );
-}
-
-function modelsHint(paused: boolean, missingModel: boolean) {
-  if (missingModel)
-    return "Choose every model in Configure Topics before turning this on.";
-  return paused
-    ? "Turning this back on tests each model with one call."
-    : "Change models in Configure Topics.";
-}
-
-function idleTimeLabel(traceIdleMs: number) {
-  const seconds = Math.round(traceIdleMs / 1000);
-  if (seconds % 60 !== 0) return `${seconds} seconds`;
-  const minutes = seconds / 60;
-  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }

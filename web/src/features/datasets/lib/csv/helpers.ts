@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parse } from "csv-parse";
 import {
   isJsonNumberLiteral,
@@ -26,6 +25,67 @@ const getParserConfig = (options: ParseOptions) => ({
   quote: '"',
   escape: '"',
 });
+
+// Helper to parse a single value
+export function parseValue(value: string): Prisma.JsonValue {
+  if (value === "" || value.toLowerCase() === "null") return null;
+
+  const parsed = parseJsonPrioritised(value);
+  if (
+    parsed !== undefined &&
+    (parsed !== value || isJsonNumberLiteral(value))
+  ) {
+    return parsed as Prisma.JsonValue;
+  }
+
+  if (value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "false") return false;
+
+  const numericValue = Number(value);
+  if (
+    Number.isFinite(numericValue) &&
+    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
+  ) {
+    return numericValue;
+  }
+
+  return value;
+}
+
+function inferTypeFromValue(value: string): ColumnType {
+  if (!value || value.toLowerCase() === "null") return "null";
+
+  const parsed = parseValue(value);
+  if (Array.isArray(parsed)) return "array";
+  if (typeof parsed === "object" && parsed !== null) return "json";
+  return typeof parsed as ColumnType;
+}
+
+function inferColumnType(samples: string[]): ColumnType {
+  if (samples.length === 0) return "unknown";
+
+  // Try to parse all samples as JSON and get their types
+  const types = new Set(samples.map((value) => inferTypeFromValue(value)));
+
+  // If all values are null, return null type
+  if (types.size === 1 && types.has("null")) {
+    return "null";
+  }
+
+  // If we have nulls and one other type, return that type
+  if (types.size === 2 && types.has("null")) {
+    const nonNullType = Array.from(types).find((t) => t !== "null");
+    return nonNullType as ColumnType;
+  }
+
+  // If all values are the same type (and not null), return that type
+  if (types.size === 1) {
+    return Array.from(types)[0] as ColumnType;
+  }
+
+  // If we have multiple types, return mixed
+  return "mixed";
+}
 
 // Shared parsing logic
 const createParser = async (
@@ -143,67 +203,6 @@ export async function parseCsvClient(
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsText(fileToRead);
   });
-}
-
-function inferColumnType(samples: string[]): ColumnType {
-  if (samples.length === 0) return "unknown";
-
-  // Try to parse all samples as JSON and get their types
-  const types = new Set(samples.map((value) => inferTypeFromValue(value)));
-
-  // If all values are null, return null type
-  if (types.size === 1 && types.has("null")) {
-    return "null";
-  }
-
-  // If we have nulls and one other type, return that type
-  if (types.size === 2 && types.has("null")) {
-    const nonNullType = Array.from(types).find((t) => t !== "null");
-    return nonNullType as ColumnType;
-  }
-
-  // If all values are the same type (and not null), return that type
-  if (types.size === 1) {
-    return Array.from(types)[0] as ColumnType;
-  }
-
-  // If we have multiple types, return mixed
-  return "mixed";
-}
-
-function inferTypeFromValue(value: string): ColumnType {
-  if (!value || value.toLowerCase() === "null") return "null";
-
-  const parsed = parseValue(value);
-  if (Array.isArray(parsed)) return "array";
-  if (typeof parsed === "object" && parsed !== null) return "json";
-  return typeof parsed as ColumnType;
-}
-
-// Helper to parse a single value
-export function parseValue(value: string): Prisma.JsonValue {
-  if (value === "" || value.toLowerCase() === "null") return null;
-
-  const parsed = parseJsonPrioritised(value);
-  if (
-    parsed !== undefined &&
-    (parsed !== value || isJsonNumberLiteral(value))
-  ) {
-    return parsed as Prisma.JsonValue;
-  }
-
-  if (value.toLowerCase() === "true") return true;
-  if (value.toLowerCase() === "false") return false;
-
-  const numericValue = Number(value);
-  if (
-    Number.isFinite(numericValue) &&
-    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
-  ) {
-    return numericValue;
-  }
-
-  return value;
 }
 
 // Helper to parse multiple columns into a record

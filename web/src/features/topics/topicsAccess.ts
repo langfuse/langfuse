@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import {
@@ -9,6 +8,11 @@ import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type TopicsProject = { id: string; topicsEnabled?: boolean };
+
+/** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
+function isTopicsEnabledForProject(project: TopicsProject | null | undefined) {
+  return project?.topicsEnabled === true;
+}
 
 /** Visibility gate for every Topics surface: project gate, internal view or feature preview, and topics:read. */
 export function canViewTopics(
@@ -30,9 +34,4 @@ export function useCanViewTopics(projectId: string) {
   const session = useSession().data;
   const { project } = useProject(projectId);
   return canViewTopics(session, project);
-}
-
-/** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
-function isTopicsEnabledForProject(project: TopicsProject | null | undefined) {
-  return project?.topicsEnabled === true;
 }

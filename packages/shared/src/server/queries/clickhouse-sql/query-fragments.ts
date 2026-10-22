@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Reusable ClickHouse query fragments and CTEs
  */
@@ -500,6 +499,17 @@ export const eventsExperimentTraceIds = (
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
 
+function scoreLevelCondition(level: ScoresCTEParams["level"]): string {
+  switch (level) {
+    case "any":
+      return "";
+    case "trace":
+      return "AND observation_id IS NULL";
+    case "observation":
+      return "AND observation_id IS NOT NULL";
+  }
+}
+
 export const buildScoreRowsCTE = (params: ScoresCTEParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
@@ -606,14 +616,3 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     ],
   };
 };
-
-function scoreLevelCondition(level: ScoresCTEParams["level"]): string {
-  switch (level) {
-    case "any":
-      return "";
-    case "trace":
-      return "AND observation_id IS NULL";
-    case "observation":
-      return "AND observation_id IS NOT NULL";
-  }
-}

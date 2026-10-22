@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -8,6 +7,134 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+async function createProjectFixture() {
+  const id = randomUUID();
+  const orgId = `org-${id}`;
+  const projectId = `project-${id}`;
+  const ownerUserId = `owner-${id}`;
+  const otherUserId = `other-${id}`;
+
+  const org = await prisma.organization.create({
+    data: {
+      id: orgId,
+      name: `In-app Agent Router Test Org ${id}`,
+      aiFeaturesEnabled: true,
+    },
+  });
+  const project = await prisma.project.create({
+    data: {
+      id: projectId,
+      orgId,
+      name: `In-app Agent Router Test Project ${id}`,
+    },
+  });
+
+  await prisma.user.createMany({
+    data: [
+      {
+        id: ownerUserId,
+        email: `${ownerUserId}@example.com`,
+        name: "In-app Agent Router Test Owner",
+      },
+      {
+        id: otherUserId,
+        email: `${otherUserId}@example.com`,
+        name: "In-app Agent Router Test Other User",
+      },
+    ],
+  });
+
+  return {
+    orgId: org.id,
+    orgName: org.name,
+    projectId: project.id,
+    projectName: project.name,
+    ownerUserId,
+    otherUserId,
+  };
+}
+
+function createCallerForFixture(
+  fixture: Awaited<ReturnType<typeof createProjectFixture>>,
+  userId: string,
+  { admin = false }: { admin?: boolean } = {},
+) {
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: userId,
+      email: `${userId}@example.com`,
+      name: "In-app Agent Router Test User",
+      canCreateOrganizations: true,
+      organizations: [
+        {
+          id: fixture.orgId,
+          name: fixture.orgName,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: fixture.projectId,
+              name: fixture.projectName,
+              role: "ADMIN",
+              deletedAt: null,
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+      admin,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:enterprise",
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
+async function createCaller() {
+  const fixture = await createProjectFixture();
+
+  return {
+    ...fixture,
+    userId: fixture.ownerUserId,
+    caller: createCallerForFixture(fixture, fixture.ownerUserId),
+  };
+}
+
+async function createConversation({
+  projectId,
+  userId,
+  title = "Test conversation",
+  providerSessionId,
+}: {
+  projectId: string;
+  userId: string;
+  title?: string;
+  providerSessionId?: string;
+}) {
+  return prisma.inAppAgentConversation.create({
+    data: {
+      id: `conv-${randomUUID()}`,
+      projectId,
+      createdByUserId: userId,
+      title,
+      providerSessionId,
+    },
+  });
+}
 
 describe("in-app agent router", () => {
   it("soft-deletes an owned conversation", async () => {
@@ -125,131 +252,3 @@ describe("in-app agent router", () => {
     }
   });
 });
-
-async function createCaller() {
-  const fixture = await createProjectFixture();
-
-  return {
-    ...fixture,
-    userId: fixture.ownerUserId,
-    caller: createCallerForFixture(fixture, fixture.ownerUserId),
-  };
-}
-
-async function createProjectFixture() {
-  const id = randomUUID();
-  const orgId = `org-${id}`;
-  const projectId = `project-${id}`;
-  const ownerUserId = `owner-${id}`;
-  const otherUserId = `other-${id}`;
-
-  const org = await prisma.organization.create({
-    data: {
-      id: orgId,
-      name: `In-app Agent Router Test Org ${id}`,
-      aiFeaturesEnabled: true,
-    },
-  });
-  const project = await prisma.project.create({
-    data: {
-      id: projectId,
-      orgId,
-      name: `In-app Agent Router Test Project ${id}`,
-    },
-  });
-
-  await prisma.user.createMany({
-    data: [
-      {
-        id: ownerUserId,
-        email: `${ownerUserId}@example.com`,
-        name: "In-app Agent Router Test Owner",
-      },
-      {
-        id: otherUserId,
-        email: `${otherUserId}@example.com`,
-        name: "In-app Agent Router Test Other User",
-      },
-    ],
-  });
-
-  return {
-    orgId: org.id,
-    orgName: org.name,
-    projectId: project.id,
-    projectName: project.name,
-    ownerUserId,
-    otherUserId,
-  };
-}
-
-function createCallerForFixture(
-  fixture: Awaited<ReturnType<typeof createProjectFixture>>,
-  userId: string,
-  { admin = false }: { admin?: boolean } = {},
-) {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      email: `${userId}@example.com`,
-      name: "In-app Agent Router Test User",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: fixture.orgId,
-          name: fixture.orgName,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: fixture.projectId,
-              name: fixture.projectName,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-
-  return appRouter.createCaller({ ...ctx, prisma });
-}
-
-async function createConversation({
-  projectId,
-  userId,
-  title = "Test conversation",
-  providerSessionId,
-}: {
-  projectId: string;
-  userId: string;
-  title?: string;
-  providerSessionId?: string;
-}) {
-  return prisma.inAppAgentConversation.create({
-    data: {
-      id: `conv-${randomUUID()}`,
-      projectId,
-      createdByUserId: userId,
-      title,
-      providerSessionId,
-    },
-  });
-}

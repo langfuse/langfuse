@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import { useLayoutEffect, useMemo, useState } from "react";
@@ -53,16 +52,6 @@ const percentageFormatter = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
 });
-
-export function PieChart({ ...props }: PieChartProps) {
-  return (
-    <ChartContainer>
-      {({ width, height }) => (
-        <PieChartContent {...props} availableSize={Math.min(width, height)} />
-      )}
-    </ChartContainer>
-  );
-}
 
 function PieChartContent({
   data,
@@ -320,5 +309,15 @@ function PieChartContent({
         </>
       )}
     </ChartTooltip>
+  );
+}
+
+export function PieChart({ ...props }: PieChartProps) {
+  return (
+    <ChartContainer>
+      {({ width, height }) => (
+        <PieChartContent {...props} availableSize={Math.min(width, height)} />
+      )}
+    </ChartContainer>
   );
 }

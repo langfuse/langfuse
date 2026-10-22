@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ArrowLeft } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -18,51 +17,6 @@ export type GatewayConnectionModelsPageProps = {
   onDelete: (connection: GatewayConnection) => Promise<void>;
 };
 
-export function GatewayConnectionModelsPage({
-  organizationId,
-  connectionId,
-  isDeleting,
-  onDelete,
-}: GatewayConnectionModelsPageProps) {
-  const {
-    connectionQuery,
-    modelsQuery,
-    isRetrying,
-    isSaving,
-    retryDiscovery,
-    retryQueries,
-    saveAllowedModels,
-  } = useGatewayConnectionModels({
-    organizationId,
-    connectionId,
-  });
-  const connection = connectionQuery.data;
-
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <ProviderCredentialsLink organizationId={organizationId} />
-      <ConnectionSummary
-        connection={connection}
-        isDeleting={isDeleting}
-        isError={connectionQuery.isError}
-        isRetrying={isRetrying}
-        onDelete={onDelete}
-        onRefresh={retryDiscovery}
-        onRetry={retryQueries}
-      />
-      {connection || !connectionQuery.isError ? (
-        <ConnectionModelsBody
-          connection={connection}
-          isSaving={isSaving}
-          modelsQuery={modelsQuery}
-          onRetry={retryQueries}
-          saveAllowedModels={saveAllowedModels}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 function ProviderCredentialsLink({
   organizationId,
 }: {
@@ -76,17 +30,6 @@ function ProviderCredentialsLink({
     />
   );
 }
-
-type ConnectionModelsBodyProps = {
-  connection: GatewayConnection | undefined;
-  isSaving: boolean;
-  modelsQuery: ReturnType<typeof useGatewayConnectionModels>["modelsQuery"];
-  onRetry: () => void;
-  saveAllowedModels: (
-    allowedModels: string[] | null,
-    onSuccess?: () => void,
-  ) => void;
-};
 
 function ConnectionModelsBody({
   connection,
@@ -150,3 +93,59 @@ function ConnectionModelsBody({
     />
   );
 }
+
+export function GatewayConnectionModelsPage({
+  organizationId,
+  connectionId,
+  isDeleting,
+  onDelete,
+}: GatewayConnectionModelsPageProps) {
+  const {
+    connectionQuery,
+    modelsQuery,
+    isRetrying,
+    isSaving,
+    retryDiscovery,
+    retryQueries,
+    saveAllowedModels,
+  } = useGatewayConnectionModels({
+    organizationId,
+    connectionId,
+  });
+  const connection = connectionQuery.data;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <ProviderCredentialsLink organizationId={organizationId} />
+      <ConnectionSummary
+        connection={connection}
+        isDeleting={isDeleting}
+        isError={connectionQuery.isError}
+        isRetrying={isRetrying}
+        onDelete={onDelete}
+        onRefresh={retryDiscovery}
+        onRetry={retryQueries}
+      />
+      {connection || !connectionQuery.isError ? (
+        <ConnectionModelsBody
+          connection={connection}
+          isSaving={isSaving}
+          modelsQuery={modelsQuery}
+          onRetry={retryQueries}
+          saveAllowedModels={saveAllowedModels}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type ConnectionModelsBodyProps = {
+  connection: GatewayConnection | undefined;
+  isSaving: boolean;
+  modelsQuery: ReturnType<typeof useGatewayConnectionModels>["modelsQuery"];
+  onRetry: () => void;
+  saveAllowedModels: (
+    allowedModels: string[] | null,
+    onSuccess?: () => void,
+  ) => void;
+};

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -32,30 +31,9 @@ type EvaluatorGalleryStartRowProps = {
   onCreateFromScratch: (type: EvalTemplateType) => void;
 };
 
-/** The three blank evaluator types, always visible above the templates. */
-export function EvaluatorGalleryStartRow({
-  onCreateFromScratch,
-}: EvaluatorGalleryStartRowProps) {
-  return (
-    <section className="flex flex-col gap-3">
-      <EvaluatorGallerySectionHeader label="Start from scratch" />
-      <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
-        {EVALUATOR_START_OPTIONS.map((option) => (
-          <StartOptionCard
-            key={option.type}
-            option={option}
-            onCreateFromScratch={onCreateFromScratch}
-          />
-        ))}
-      </div>
-    </section>
-  );
+function EvaluatorNewBadge() {
+  return <Badge text="NEW" color="green" font="mono" size="sm" />;
 }
-
-type StartOptionCardProps = {
-  option: (typeof EVALUATOR_START_OPTIONS)[number];
-  onCreateFromScratch: (type: EvalTemplateType) => void;
-};
 
 function StartOptionCard({
   option,
@@ -89,6 +67,27 @@ function StartOptionCard({
   );
 }
 
-function EvaluatorNewBadge() {
-  return <Badge text="NEW" color="green" font="mono" size="sm" />;
+/** The three blank evaluator types, always visible above the templates. */
+export function EvaluatorGalleryStartRow({
+  onCreateFromScratch,
+}: EvaluatorGalleryStartRowProps) {
+  return (
+    <section className="flex flex-col gap-3">
+      <EvaluatorGallerySectionHeader label="Start from scratch" />
+      <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
+        {EVALUATOR_START_OPTIONS.map((option) => (
+          <StartOptionCard
+            key={option.type}
+            option={option}
+            onCreateFromScratch={onCreateFromScratch}
+          />
+        ))}
+      </div>
+    </section>
+  );
 }
+
+type StartOptionCardProps = {
+  option: (typeof EVALUATOR_START_OPTIONS)[number];
+  onCreateFromScratch: (type: EvalTemplateType) => void;
+};

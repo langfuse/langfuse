@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { Download } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
@@ -8,6 +7,18 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 /** How much of the raw payload the preview head shows. Bounded regardless of
  *  payload size — the full value is reachable via download or the other views. */
 const PREVIEW_DISPLAY_CHARS = 4_000;
+
+function downloadTextFile(content: string, fileName: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 /**
  * Fallback for a single JSON-view field (Input / Output / Metadata) whose
@@ -126,16 +137,4 @@ export function LargeJsonFieldFallback({
       </div>
     </div>
   );
-}
-
-function downloadTextFile(content: string, fileName: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }

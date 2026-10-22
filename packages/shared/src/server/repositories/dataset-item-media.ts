@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db";
@@ -192,6 +191,39 @@ export async function declarePendingDatasetItemMedia(props: {
   });
 }
 
+export async function deleteDatasetItemMediaLinks(
+  tx: Prisma.TransactionClient,
+  props: {
+    projectId: string;
+    itemVersions: Pick<
+      DatasetItemMediaSource,
+      "datasetItemId" | "datasetItemValidFrom"
+    >[];
+  },
+) {
+  const { projectId, itemVersions } = props;
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.delete.item_version_count":
+      itemVersions.length,
+  });
+  if (itemVersions.length === 0) return;
+
+  const versionFilters = itemVersions.map((itemVersion) => ({
+    datasetItemId: itemVersion.datasetItemId,
+    datasetItemValidFrom: itemVersion.datasetItemValidFrom,
+  }));
+
+  const deleteResult = await tx.datasetItemMedia.deleteMany({
+    where: {
+      projectId,
+      OR: versionFilters,
+    },
+  });
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.delete.deleted_count": deleteResult.count,
+  });
+}
+
 /**
  * Writes the dataset_item_media rows for an item version (enroll in the item
  * write transaction). Associations are derived from the item JSON; a matching
@@ -261,37 +293,4 @@ export async function linkDatasetItemMedia(
         pendingDeleteResult.count,
     });
   }
-}
-
-export async function deleteDatasetItemMediaLinks(
-  tx: Prisma.TransactionClient,
-  props: {
-    projectId: string;
-    itemVersions: Pick<
-      DatasetItemMediaSource,
-      "datasetItemId" | "datasetItemValidFrom"
-    >[];
-  },
-) {
-  const { projectId, itemVersions } = props;
-  addTagsToCurrentSpan({
-    "langfuse.dataset_item_media.delete.item_version_count":
-      itemVersions.length,
-  });
-  if (itemVersions.length === 0) return;
-
-  const versionFilters = itemVersions.map((itemVersion) => ({
-    datasetItemId: itemVersion.datasetItemId,
-    datasetItemValidFrom: itemVersion.datasetItemValidFrom,
-  }));
-
-  const deleteResult = await tx.datasetItemMedia.deleteMany({
-    where: {
-      projectId,
-      OR: versionFilters,
-    },
-  });
-  addTagsToCurrentSpan({
-    "langfuse.dataset_item_media.delete.deleted_count": deleteResult.count,
-  });
 }

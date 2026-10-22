@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvalTemplateType } from "@langfuse/shared";
 import {
   CodeEvalDispatcherErrorCodes,
@@ -19,6 +18,10 @@ export type EvalExecutionTerminalOutcome =
   | "upstream_error"
   | "customer_error"
   | "cancelled";
+
+type CustomerEvalFailureReason =
+  | typeof EvalFailureReason.InvalidModelConfig
+  | typeof EvalFailureReason.InvalidModelOutput;
 
 const CUSTOMER_EVAL_FAILURE_REASONS: ReadonlySet<EvalFailureReason> =
   new Set<CustomerEvalFailureReason>([
@@ -53,6 +56,14 @@ const CODE_EVAL_CUSTOMER_ERROR_CODES: ReadonlySet<string> = new Set([
   CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
+function getEvaluatorTypeTag(
+  executionType: ObservationEvalExecutionType,
+): "llm_as_judge" | "code_as_judge" {
+  return executionType === EvalTemplateType.LLM_AS_JUDGE
+    ? "llm_as_judge"
+    : "code_as_judge";
+}
+
 export function recordEvalTimeToFirstAttempt(
   executionType: ObservationEvalExecutionType,
   durationMs: number,
@@ -66,6 +77,12 @@ export function recordEvalTimeToFirstAttempt(
     },
   );
 }
+
+type EvalPlatformErrorReason =
+  | Exclude<EvalFailureReason, CustomerEvalFailureReason>
+  | (typeof LLM_ERROR_KIND_REASONS)[keyof typeof LLM_ERROR_KIND_REASONS]
+  | "unrecoverable"
+  | "unexpected";
 
 export function recordEvalTerminalOutcome(
   executionType: ObservationEvalExecutionType,
@@ -81,48 +98,44 @@ export function recordEvalTerminalOutcome(
   });
 }
 
-/**
- * Attributes a terminal LLM evaluator failure. Known failure sites carry an
- * explicit reason; everything else falls back to the LLM classification, then
- * to whether the error was raised as unrecoverable.
- */
-export function getLlmEvalTerminalErrorAttribution(params: {
-  error: unknown;
-  classification: EvaluatorLlmErrorClassification | null;
-  isUnrecoverable: boolean;
-}): LlmEvalTerminalErrorAttribution {
-  const { error, classification, isUnrecoverable } = params;
+type LlmEvalTerminalErrorAttribution =
+  | { outcome: "platform_error"; reason: EvalPlatformErrorReason }
+  | { outcome: "upstream_error" | "customer_error"; reason?: never };
 
-  const failureReason = getEvalFailureReason(error);
-  if (failureReason) {
-    return isCustomerEvalFailureReason(failureReason)
-      ? { outcome: "customer_error" }
-      : { outcome: "platform_error", reason: failureReason };
-  }
-
-  if (classification) {
-    const outcome = getLlmEvalTerminalErrorOutcome(classification);
-    return outcome === "platform_error"
-      ? { outcome, reason: LLM_ERROR_KIND_REASONS[classification.kind] }
-      : { outcome };
-  }
-
-  return {
-    outcome: "platform_error",
-    reason: isUnrecoverable ? "unrecoverable" : "unexpected",
-  };
+function isCustomerEvalFailureReason(
+  reason: EvalFailureReason,
+): reason is CustomerEvalFailureReason {
+  return CUSTOMER_EVAL_FAILURE_REASONS.has(reason);
 }
 
-export function recordEvalScorePersistenceOutcome(
-  executionType: ObservationEvalExecutionType,
-  outcome: "success" | "failure",
-  scoreCount: number,
-): void {
-  recordIncrement("langfuse.evaluation.score_persistence", 1, {
-    evaluator_type: getEvaluatorTypeTag(executionType),
-    outcome,
-    score_count_bucket: getEvalScoreCountBucket(scoreCount),
-  });
+function isLlmEvalCustomerOutputError(error: unknown): boolean {
+  const visited = new Set<unknown>();
+  const pending = [error];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== "object" ||
+      visited.has(current)
+    ) {
+      continue;
+    }
+
+    visited.add(current);
+    const value = current as Record<string, unknown>;
+    if (
+      typeof value.name === "string" &&
+      LLM_EVAL_CUSTOMER_OUTPUT_ERROR_NAMES.has(value.name)
+    ) {
+      return true;
+    }
+
+    pending.push(value.cause, value.lastError);
+  }
+
+  return false;
 }
 
 export function getLlmEvalTerminalErrorOutcome(
@@ -159,52 +172,36 @@ export function getLlmEvalTerminalErrorOutcome(
   return "platform_error";
 }
 
-export function getCodeEvalTerminalErrorOutcome(
-  error: unknown,
-): Extract<EvalExecutionTerminalOutcome, "platform_error" | "customer_error"> {
-  if (!(error instanceof CodeEvalExecutionError)) return "platform_error";
+/**
+ * Attributes a terminal LLM evaluator failure. Known failure sites carry an
+ * explicit reason; everything else falls back to the LLM classification, then
+ * to whether the error was raised as unrecoverable.
+ */
+export function getLlmEvalTerminalErrorAttribution(params: {
+  error: unknown;
+  classification: EvaluatorLlmErrorClassification | null;
+  isUnrecoverable: boolean;
+}): LlmEvalTerminalErrorAttribution {
+  const { error, classification, isUnrecoverable } = params;
 
-  return CODE_EVAL_CUSTOMER_ERROR_CODES.has(error.code)
-    ? "customer_error"
-    : "platform_error";
-}
-
-function isLlmEvalCustomerOutputError(error: unknown): boolean {
-  const visited = new Set<unknown>();
-  const pending = [error];
-
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (
-      current === null ||
-      current === undefined ||
-      typeof current !== "object" ||
-      visited.has(current)
-    ) {
-      continue;
-    }
-
-    visited.add(current);
-    const value = current as Record<string, unknown>;
-    if (
-      typeof value.name === "string" &&
-      LLM_EVAL_CUSTOMER_OUTPUT_ERROR_NAMES.has(value.name)
-    ) {
-      return true;
-    }
-
-    pending.push(value.cause, value.lastError);
+  const failureReason = getEvalFailureReason(error);
+  if (failureReason) {
+    return isCustomerEvalFailureReason(failureReason)
+      ? { outcome: "customer_error" }
+      : { outcome: "platform_error", reason: failureReason };
   }
 
-  return false;
-}
+  if (classification) {
+    const outcome = getLlmEvalTerminalErrorOutcome(classification);
+    return outcome === "platform_error"
+      ? { outcome, reason: LLM_ERROR_KIND_REASONS[classification.kind] }
+      : { outcome };
+  }
 
-function getEvaluatorTypeTag(
-  executionType: ObservationEvalExecutionType,
-): "llm_as_judge" | "code_as_judge" {
-  return executionType === EvalTemplateType.LLM_AS_JUDGE
-    ? "llm_as_judge"
-    : "code_as_judge";
+  return {
+    outcome: "platform_error",
+    reason: isUnrecoverable ? "unrecoverable" : "unexpected",
+  };
 }
 
 function getEvalScoreCountBucket(scoreCount: number): EvalScoreCountBucket {
@@ -216,25 +213,27 @@ function getEvalScoreCountBucket(scoreCount: number): EvalScoreCountBucket {
   return "11+";
 }
 
-function isCustomerEvalFailureReason(
-  reason: EvalFailureReason,
-): reason is CustomerEvalFailureReason {
-  return CUSTOMER_EVAL_FAILURE_REASONS.has(reason);
+export function recordEvalScorePersistenceOutcome(
+  executionType: ObservationEvalExecutionType,
+  outcome: "success" | "failure",
+  scoreCount: number,
+): void {
+  recordIncrement("langfuse.evaluation.score_persistence", 1, {
+    evaluator_type: getEvaluatorTypeTag(executionType),
+    outcome,
+    score_count_bucket: getEvalScoreCountBucket(scoreCount),
+  });
 }
 
-type EvalPlatformErrorReason =
-  | Exclude<EvalFailureReason, CustomerEvalFailureReason>
-  | (typeof LLM_ERROR_KIND_REASONS)[keyof typeof LLM_ERROR_KIND_REASONS]
-  | "unrecoverable"
-  | "unexpected";
+export function getCodeEvalTerminalErrorOutcome(
+  error: unknown,
+): Extract<EvalExecutionTerminalOutcome, "platform_error" | "customer_error"> {
+  if (!(error instanceof CodeEvalExecutionError)) return "platform_error";
 
-type LlmEvalTerminalErrorAttribution =
-  | { outcome: "platform_error"; reason: EvalPlatformErrorReason }
-  | { outcome: "upstream_error" | "customer_error"; reason?: never };
-
-type CustomerEvalFailureReason =
-  | typeof EvalFailureReason.InvalidModelConfig
-  | typeof EvalFailureReason.InvalidModelOutput;
+  return CODE_EVAL_CUSTOMER_ERROR_CODES.has(error.code)
+    ? "customer_error"
+    : "platform_error";
+}
 
 export const __test = {
   getEvalScoreCountBucket,

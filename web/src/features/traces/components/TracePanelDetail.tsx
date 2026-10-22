@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TracePanelDetail - Pure content component for detail panel
  *
@@ -30,18 +29,6 @@ function PanelMessage({ title, body }: { title: string; body: string }) {
     <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-4 text-center">
       <p className="text-sm font-bold">{title}</p>
       <p className="text-muted-foreground max-w-sm text-sm">{body}</p>
-    </div>
-  );
-}
-
-export function TracePanelDetail({
-  isLoading = false,
-}: {
-  isLoading?: boolean;
-}) {
-  return (
-    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
-      {isLoading ? <TraceDetailView isLoading /> : <TracePanelDetailContent />}
     </div>
   );
 }
@@ -111,4 +98,16 @@ function TracePanelDetailContent() {
         );
     }
   }, [selected, trace, observations, scores, corrections]);
+}
+
+export function TracePanelDetail({
+  isLoading = false,
+}: {
+  isLoading?: boolean;
+}) {
+  return (
+    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
+      {isLoading ? <TraceDetailView isLoading /> : <TracePanelDetailContent />}
+    </div>
+  );
 }

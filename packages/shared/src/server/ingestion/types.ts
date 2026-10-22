@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 
@@ -87,32 +86,6 @@ const CostDetails = z
   })
   .nullish();
 
-const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
-  if (!val) return;
-
-  const result = extractUsageCounts(val);
-  return Object.keys(result).length > 0 ? result : undefined;
-});
-
-function extractUsageCounts(val: Record<string, unknown>) {
-  const result: Record<string, number> = {};
-
-  for (const [key, value] of Object.entries(val)) {
-    if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
-      result[key] = value;
-    } else if (typeof value === "string") {
-      const parsed = parseInt(value, 10);
-      if (!isNaN(parsed) && parsed >= 0) {
-        result[key] = parsed;
-      }
-    }
-  }
-
-  splitAnthropicCacheCreation(val.cache_creation, result);
-
-  return result;
-}
-
 /**
  * Native Anthropic usage nests cache writes by TTL under `cache_creation`.
  * The 5-minute and 1-hour writes are priced differently, so they are stored
@@ -150,6 +123,32 @@ function splitAnthropicCacheCreation(
     delete result["cache_creation_input_tokens"];
   }
 }
+
+function extractUsageCounts(val: Record<string, unknown>) {
+  const result: Record<string, number> = {};
+
+  for (const [key, value] of Object.entries(val)) {
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+      result[key] = value;
+    } else if (typeof value === "string") {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        result[key] = parsed;
+      }
+    }
+  }
+
+  splitAnthropicCacheCreation(val.cache_creation, result);
+
+  return result;
+}
+
+const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
+  if (!val) return;
+
+  const result = extractUsageCounts(val);
+  return Object.keys(result).length > 0 ? result : undefined;
+});
 
 // The OpenAI schemas accept unknown top-level keys: OpenAI-compatible providers
 // add fields such as `cost`, and rejecting those would route the payload to

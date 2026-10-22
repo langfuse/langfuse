@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   standardSchemaToJSONSchema,
   toStandardSchema,
@@ -125,6 +124,22 @@ function isWrappableMcpTool(tool: unknown): tool is WrappableMcpTool {
   );
 }
 
+export function getToolCallId(context: unknown) {
+  if (
+    typeof context !== "object" ||
+    context === null ||
+    !("agent" in context) ||
+    typeof context.agent !== "object" ||
+    context.agent === null ||
+    !("toolCallId" in context.agent) ||
+    typeof context.agent.toolCallId !== "string"
+  ) {
+    return undefined;
+  }
+
+  return context.agent.toolCallId;
+}
+
 export function withOptionalSilentMcpOutput(params: {
   tools: Record<string, unknown> | undefined;
   sandbox?: InAppAgentSandbox;
@@ -238,22 +253,6 @@ export function withOptionalSilentMcpOutput(params: {
       return [toolName, tool];
     }),
   ) as Record<string, Tool>;
-}
-
-export function getToolCallId(context: unknown) {
-  if (
-    typeof context !== "object" ||
-    context === null ||
-    !("agent" in context) ||
-    typeof context.agent !== "object" ||
-    context.agent === null ||
-    !("toolCallId" in context.agent) ||
-    typeof context.agent.toolCallId !== "string"
-  ) {
-    return undefined;
-  }
-
-  return context.agent.toolCallId;
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([
@@ -452,96 +451,6 @@ type InAppAgentRedirectToolInput = z.infer<
   typeof InAppAgentRedirectToolInputStrictSchema
 >;
 
-export function createRedirectActionTool({
-  projectId,
-  isV4Enabled,
-}: {
-  projectId: string;
-  isV4Enabled: boolean;
-}) {
-  return createTool({
-    id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-    description:
-      "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically. Always include params; pass {} when the destination takes none.",
-    inputSchema: InAppAgentRedirectToolInputSchema,
-    execute: async (input) => {
-      return getRedirectActionToolResult({
-        input,
-        projectId,
-        isV4Enabled,
-      });
-    },
-  });
-}
-
-// Always gated behind a human decision: the answers arrive as the tool's
-// entry of the approval's tool inputs, so the tool only turns them into a model-facing result.
-export function createQuestionnaireTool() {
-  return createTool({
-    id: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
-    description: [
-      `Ask the user up to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS} short questions in one form when you need decisions you cannot infer from context.`,
-      `Give each question ${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} concrete options and mark the best default as recommended. The user can always type a custom answer instead, so do not add an "Other" option. Ask open-ended questions in plain chat instead.`,
-      "Batch related questions into a single call instead of asking one at a time.",
-      "Before calling, write one short sentence in chat that tells the user why you are asking, so the form does not appear without context.",
-      "The user may skip individual questions or dismiss the form, which skips every question (skipped: true); respect that and do not ask the same questions again.",
-    ].join(" "),
-    inputSchema: InAppAgentQuestionnaireArgsSchema,
-    // Invalid args skip the approval pause so execute's input validation
-    // returns the error to the model instead of showing an unanswerable form.
-    requireApproval: (input) =>
-      InAppAgentQuestionnaireArgsSchema.safeParse(input).success,
-    execute: async (input, context) => {
-      // An approval without answers (e.g. from a client that predates the
-      // questionnaire card) counts as skipping every question, so the model
-      // moves on instead of retrying the tool.
-      const answers =
-        getQuestionnaireResumeAnswers(context?.agent?.resumeData) ??
-        input.questions.map(() => ({
-          selectedOptionIndexes: [],
-          otherText: null,
-        }));
-      const resolved = resolveInAppAgentQuestionnaireAnswers({
-        args: input,
-        answers,
-      });
-
-      if (!resolved.success) {
-        throw new Error(resolved.error);
-      }
-
-      return resolved.result;
-    },
-  });
-}
-
-function getQuestionnaireResumeAnswers(resumeData: unknown) {
-  const parsed =
-    InAppAgentToolInputsSchema.shape[
-      IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME
-    ].safeParse(resumeData);
-  return parsed.success ? parsed.data?.answers : undefined;
-}
-
-function getRedirectActionToolResult({
-  input,
-  projectId,
-  isV4Enabled,
-}: {
-  input: unknown;
-  projectId: string;
-  isV4Enabled: boolean;
-}) {
-  const parsedInput = InAppAgentRedirectToolInputSchema.parse(input);
-  const href = getRedirectHref(parsedInput, projectId, isV4Enabled);
-
-  return {
-    type: "redirectAction" as const,
-    label: parsedInput.label,
-    href,
-  };
-}
-
 function getRedirectHref(
   input: InAppAgentRedirectToolInput,
   projectId: string,
@@ -635,4 +544,94 @@ function getRedirectHref(
   }
 
   return assertUnreachable(input);
+}
+
+function getRedirectActionToolResult({
+  input,
+  projectId,
+  isV4Enabled,
+}: {
+  input: unknown;
+  projectId: string;
+  isV4Enabled: boolean;
+}) {
+  const parsedInput = InAppAgentRedirectToolInputSchema.parse(input);
+  const href = getRedirectHref(parsedInput, projectId, isV4Enabled);
+
+  return {
+    type: "redirectAction" as const,
+    label: parsedInput.label,
+    href,
+  };
+}
+
+export function createRedirectActionTool({
+  projectId,
+  isV4Enabled,
+}: {
+  projectId: string;
+  isV4Enabled: boolean;
+}) {
+  return createTool({
+    id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+    description:
+      "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically. Always include params; pass {} when the destination takes none.",
+    inputSchema: InAppAgentRedirectToolInputSchema,
+    execute: async (input) => {
+      return getRedirectActionToolResult({
+        input,
+        projectId,
+        isV4Enabled,
+      });
+    },
+  });
+}
+
+function getQuestionnaireResumeAnswers(resumeData: unknown) {
+  const parsed =
+    InAppAgentToolInputsSchema.shape[
+      IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME
+    ].safeParse(resumeData);
+  return parsed.success ? parsed.data?.answers : undefined;
+}
+
+// Always gated behind a human decision: the answers arrive as the tool's
+// entry of the approval's tool inputs, so the tool only turns them into a model-facing result.
+export function createQuestionnaireTool() {
+  return createTool({
+    id: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+    description: [
+      `Ask the user up to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS} short questions in one form when you need decisions you cannot infer from context.`,
+      `Give each question ${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} concrete options and mark the best default as recommended. The user can always type a custom answer instead, so do not add an "Other" option. Ask open-ended questions in plain chat instead.`,
+      "Batch related questions into a single call instead of asking one at a time.",
+      "Before calling, write one short sentence in chat that tells the user why you are asking, so the form does not appear without context.",
+      "The user may skip individual questions or dismiss the form, which skips every question (skipped: true); respect that and do not ask the same questions again.",
+    ].join(" "),
+    inputSchema: InAppAgentQuestionnaireArgsSchema,
+    // Invalid args skip the approval pause so execute's input validation
+    // returns the error to the model instead of showing an unanswerable form.
+    requireApproval: (input) =>
+      InAppAgentQuestionnaireArgsSchema.safeParse(input).success,
+    execute: async (input, context) => {
+      // An approval without answers (e.g. from a client that predates the
+      // questionnaire card) counts as skipping every question, so the model
+      // moves on instead of retrying the tool.
+      const answers =
+        getQuestionnaireResumeAnswers(context?.agent?.resumeData) ??
+        input.questions.map(() => ({
+          selectedOptionIndexes: [],
+          otherText: null,
+        }));
+      const resolved = resolveInAppAgentQuestionnaireAnswers({
+        args: input,
+        answers,
+      });
+
+      if (!resolved.success) {
+        throw new Error(resolved.error);
+      }
+
+      return resolved.result;
+    },
+  });
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { logger } from "@langfuse/shared/src/server";
 import {
   isEnterpriseSupportPlan,
@@ -194,6 +193,15 @@ export function mapCaseSeverityToPylonPriority(
   }
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function buildPylonIssueBodyHtml(params: {
   message: string;
   requesterEmail: string;
@@ -297,13 +305,4 @@ export function mapToPylonCaseSeverity(params: {
 export function mapPlanToPylonCustomerTier(plan: string): string {
   if (plan === "oss") return "self_hosted_free";
   return plan.replace(/[:-]/g, "_");
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }

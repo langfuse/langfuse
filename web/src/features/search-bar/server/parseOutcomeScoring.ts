@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Score the PARSE OUTCOME of an Ask AI filter completion onto the
 // generation's trace in the AI-features Langfuse project, so production
 // traffic becomes a queryable, self-harvesting quality signal instead of
@@ -134,32 +133,6 @@ function getParseOutcomeScoreClient(params: {
 // fire-and-forget promise chain stays alive.
 const FLUSH_TIMEOUT_MS = 2_000;
 
-/**
- * Fire-and-forget: attaches `scores` to `traceId` in the AI-features
- * Langfuse project. Never throws and returns no promise for the caller to
- * await — every failure mode (client construction, `.score()`, flushing)
- * resolves to a `logger.warn`, so a slow or unreachable AI-features project
- * can never add latency to, or break, the user's response.
- */
-export function recordParseOutcomeScores(params: {
-  traceId: string;
-  scores: ParseOutcomeScore[];
-  publicKey: string;
-  secretKey: string;
-  baseUrl?: string;
-}): void {
-  // `.catch` (rather than `await`/`void`) is the whole point: the caller
-  // gets a plain `void`-returning function back and never sees a promise to
-  // accidentally await, while this one is still guaranteed "handled" so it
-  // can never surface as an unhandled rejection.
-  runParseOutcomeScoring(params).catch((error) => {
-    logger.warn("Failed to record Ask AI parse-outcome scores", {
-      traceId: params.traceId,
-      error,
-    });
-  });
-}
-
 async function runParseOutcomeScoring(params: {
   traceId: string;
   scores: ParseOutcomeScore[];
@@ -192,4 +165,30 @@ async function runParseOutcomeScoring(params: {
     flushed,
     new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
   ]);
+}
+
+/**
+ * Fire-and-forget: attaches `scores` to `traceId` in the AI-features
+ * Langfuse project. Never throws and returns no promise for the caller to
+ * await — every failure mode (client construction, `.score()`, flushing)
+ * resolves to a `logger.warn`, so a slow or unreachable AI-features project
+ * can never add latency to, or break, the user's response.
+ */
+export function recordParseOutcomeScores(params: {
+  traceId: string;
+  scores: ParseOutcomeScore[];
+  publicKey: string;
+  secretKey: string;
+  baseUrl?: string;
+}): void {
+  // `.catch` (rather than `await`/`void`) is the whole point: the caller
+  // gets a plain `void`-returning function back and never sees a promise to
+  // accidentally await, while this one is still guaranteed "handled" so it
+  // can never surface as an unhandled rejection.
+  runParseOutcomeScoring(params).catch((error) => {
+    logger.warn("Failed to record Ask AI parse-outcome scores", {
+      traceId: params.traceId,
+      error,
+    });
+  });
 }

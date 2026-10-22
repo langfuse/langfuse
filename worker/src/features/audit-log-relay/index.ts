@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -40,6 +39,131 @@ const STAGING_METRICS_STATEMENT_TIMEOUT_MS = 5_000;
 
 const LAST_ERROR_MAX_LENGTH = 1_000;
 const LOGGED_FAILURES_MAX = 10;
+
+export type AuditLogRecordInserter = (
+  records: AuditLogRecordInsertType[],
+  abortSignal: AbortSignal,
+) => Promise<void>;
+
+/**
+ * Writes the batch as one synchronous insert, outside ClickhouseWriter, so a
+ * resolved promise means ClickHouse has stored the rows. The relay already
+ * batches, so an async insert would only hold the claimed rows until the
+ * server-side buffer flushes.
+ */
+export async function insertAuditLogRecords(
+  records: AuditLogRecordInsertType[],
+  abortSignal: AbortSignal,
+): Promise<void> {
+  await clickhouseClient().insert({
+    table: "audit_logs",
+    values: records,
+    format: "JSONEachRow",
+    abort_signal: abortSignal,
+    clickhouse_settings: { async_insert: 0 },
+  });
+}
+
+export type AuditLogRelayBatchResult = {
+  claimed: number;
+  relayed: number;
+  failed: number;
+};
+
+type FailedStagingRow = { id: string; error: string };
+
+type BatchOutcome = {
+  claimed: number;
+  relayed: number;
+  failures: FailedStagingRow[];
+};
+
+type ClaimedStagingRow = {
+  id: string;
+  created_at: Date;
+  payload: Prisma.JsonValue;
+};
+
+/** Locks the oldest due rows; concurrent claims skip each other's rows. */
+function claimStagingRows(
+  tx: Prisma.TransactionClient,
+  batchSize: number,
+): Promise<ClaimedStagingRow[]> {
+  return tx.$queryRaw<ClaimedStagingRow[]>`
+    SELECT id, created_at, payload
+    FROM audit_log_staging
+    WHERE failed_at IS NULL
+      OR failed_at < CURRENT_TIMESTAMP - ${FAILED_ROW_RETRY_DELAY}
+    ORDER BY id
+    LIMIT ${batchSize}
+    FOR UPDATE SKIP LOCKED
+  `;
+}
+
+function describeError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(
+    0,
+    LAST_ERROR_MAX_LENGTH,
+  );
+}
+
+function mapStagingRows(rows: ClaimedStagingRow[]): {
+  records: AuditLogRecordInsertType[];
+  failures: FailedStagingRow[];
+} {
+  const records: AuditLogRecordInsertType[] = [];
+  const failures: FailedStagingRow[] = [];
+  for (const row of rows) {
+    try {
+      records.push(
+        convertAuditLogStagingRowToClickhouse({
+          id: row.id,
+          createdAt: row.created_at,
+          payload: row.payload,
+        }),
+      );
+    } catch (error) {
+      failures.push({ id: row.id, error: describeError(error) });
+    }
+  }
+  return { records, failures };
+}
+
+async function markFailedRows(
+  tx: Prisma.TransactionClient,
+  failures: FailedStagingRow[],
+): Promise<void> {
+  if (failures.length === 0) return;
+  await tx.$executeRaw`
+    UPDATE audit_log_staging AS staging
+    SET failed_at = CURRENT_TIMESTAMP, last_error = failure.error
+    FROM unnest(
+      ${failures.map((failure) => failure.id)}::uuid[],
+      ${failures.map((failure) => failure.error)}::text[]
+    ) AS failure(id, error)
+    WHERE staging.id = failure.id
+  `;
+}
+
+type StagingMetricsRow = {
+  pending: bigint;
+  failed: bigint;
+  oldest_pending: Date | null;
+};
+
+async function readStagingMetrics(): Promise<StagingMetricsRow> {
+  const [, [metrics]] = await prisma.$transaction([
+    prisma.$queryRaw`SELECT set_config('statement_timeout', ${String(STAGING_METRICS_STATEMENT_TIMEOUT_MS)}, true)`,
+    prisma.$queryRaw<StagingMetricsRow[]>`
+      SELECT
+        count(*) FILTER (WHERE failed_at IS NULL) AS pending,
+        count(*) FILTER (WHERE failed_at IS NOT NULL) AS failed,
+        min(created_at) FILTER (WHERE failed_at IS NULL) AS oldest_pending
+      FROM audit_log_staging
+    `,
+  ]);
+  return metrics;
+}
 
 /**
  * Moves rows from the Postgres `audit_log_staging` outbox into the ClickHouse
@@ -294,128 +418,3 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
     }
   }
 }
-
-/**
- * Writes the batch as one synchronous insert, outside ClickhouseWriter, so a
- * resolved promise means ClickHouse has stored the rows. The relay already
- * batches, so an async insert would only hold the claimed rows until the
- * server-side buffer flushes.
- */
-export async function insertAuditLogRecords(
-  records: AuditLogRecordInsertType[],
-  abortSignal: AbortSignal,
-): Promise<void> {
-  await clickhouseClient().insert({
-    table: "audit_logs",
-    values: records,
-    format: "JSONEachRow",
-    abort_signal: abortSignal,
-    clickhouse_settings: { async_insert: 0 },
-  });
-}
-
-/** Locks the oldest due rows; concurrent claims skip each other's rows. */
-function claimStagingRows(
-  tx: Prisma.TransactionClient,
-  batchSize: number,
-): Promise<ClaimedStagingRow[]> {
-  return tx.$queryRaw<ClaimedStagingRow[]>`
-    SELECT id, created_at, payload
-    FROM audit_log_staging
-    WHERE failed_at IS NULL
-      OR failed_at < CURRENT_TIMESTAMP - ${FAILED_ROW_RETRY_DELAY}
-    ORDER BY id
-    LIMIT ${batchSize}
-    FOR UPDATE SKIP LOCKED
-  `;
-}
-
-function mapStagingRows(rows: ClaimedStagingRow[]): {
-  records: AuditLogRecordInsertType[];
-  failures: FailedStagingRow[];
-} {
-  const records: AuditLogRecordInsertType[] = [];
-  const failures: FailedStagingRow[] = [];
-  for (const row of rows) {
-    try {
-      records.push(
-        convertAuditLogStagingRowToClickhouse({
-          id: row.id,
-          createdAt: row.created_at,
-          payload: row.payload,
-        }),
-      );
-    } catch (error) {
-      failures.push({ id: row.id, error: describeError(error) });
-    }
-  }
-  return { records, failures };
-}
-
-async function markFailedRows(
-  tx: Prisma.TransactionClient,
-  failures: FailedStagingRow[],
-): Promise<void> {
-  if (failures.length === 0) return;
-  await tx.$executeRaw`
-    UPDATE audit_log_staging AS staging
-    SET failed_at = CURRENT_TIMESTAMP, last_error = failure.error
-    FROM unnest(
-      ${failures.map((failure) => failure.id)}::uuid[],
-      ${failures.map((failure) => failure.error)}::text[]
-    ) AS failure(id, error)
-    WHERE staging.id = failure.id
-  `;
-}
-
-async function readStagingMetrics(): Promise<StagingMetricsRow> {
-  const [, [metrics]] = await prisma.$transaction([
-    prisma.$queryRaw`SELECT set_config('statement_timeout', ${String(STAGING_METRICS_STATEMENT_TIMEOUT_MS)}, true)`,
-    prisma.$queryRaw<StagingMetricsRow[]>`
-      SELECT
-        count(*) FILTER (WHERE failed_at IS NULL) AS pending,
-        count(*) FILTER (WHERE failed_at IS NOT NULL) AS failed,
-        min(created_at) FILTER (WHERE failed_at IS NULL) AS oldest_pending
-      FROM audit_log_staging
-    `,
-  ]);
-  return metrics;
-}
-
-function describeError(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error)).slice(
-    0,
-    LAST_ERROR_MAX_LENGTH,
-  );
-}
-
-export type AuditLogRecordInserter = (
-  records: AuditLogRecordInsertType[],
-  abortSignal: AbortSignal,
-) => Promise<void>;
-
-export type AuditLogRelayBatchResult = {
-  claimed: number;
-  relayed: number;
-  failed: number;
-};
-
-type ClaimedStagingRow = {
-  id: string;
-  created_at: Date;
-  payload: Prisma.JsonValue;
-};
-
-type FailedStagingRow = { id: string; error: string };
-
-type BatchOutcome = {
-  claimed: number;
-  relayed: number;
-  failures: FailedStagingRow[];
-};
-
-type StagingMetricsRow = {
-  pending: bigint;
-  failed: bigint;
-  oldest_pending: Date | null;
-};

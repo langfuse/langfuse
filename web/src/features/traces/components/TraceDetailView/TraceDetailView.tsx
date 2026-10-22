@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
@@ -74,13 +73,6 @@ export interface TraceDetailViewProps {
 const rootClassName = "flex h-full flex-col overflow-hidden";
 
 const LOADING_SECTIONS = ["input", "output", "metadata"];
-
-export function TraceDetailView(
-  props: TraceDetailViewProps | { isLoading: true },
-) {
-  if (props.isLoading === true) return <TraceDetailViewLoading />;
-  return <LoadedTraceDetailView {...props} />;
-}
 
 /** Header, tab bar and preview sections as placeholders in their own slots. */
 function TraceDetailViewLoading() {
@@ -596,4 +588,11 @@ function LoadedTraceDetailView({
       )}
     </CommentDrawerController>
   );
+}
+
+export function TraceDetailView(
+  props: TraceDetailViewProps | { isLoading: true },
+) {
+  if (props.isLoading === true) return <TraceDetailViewLoading />;
+  return <LoadedTraceDetailView {...props} />;
 }

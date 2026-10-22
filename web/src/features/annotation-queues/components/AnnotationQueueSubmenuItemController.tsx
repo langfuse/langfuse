@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { ListPlus, PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
@@ -45,63 +44,6 @@ function getQueueAnalyticsContext(
     objectType,
     queueCount: 1,
   };
-}
-
-export function AnnotationQueueSubmenuItemController(
-  props: AnnotationQueueSubmenuItemControllerProps,
-) {
-  const { projectId, objectId, objectType, analyticsData } = props;
-  const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
-  const removeFromQueueMutation =
-    api.annotationQueueItems.deleteMany.useMutation();
-
-  return (
-    <AnnotationQueueFormDialogController
-      projectId={projectId}
-      mode="create"
-      onSuccess={() => undefined}
-    >
-      {({ disabled: createQueueDisabled, openDialog: openQueueDialog }) => (
-        <ConfirmationDialogController<QueueRemoval>
-          title="Remove from annotation queue"
-          text={({ queueName }) =>
-            `Are you sure you want to remove this item from the queue "${queueName}"?`
-          }
-          confirmLabel="Remove"
-          variant="destructive"
-          loading={removeFromQueueMutation.isPending}
-          error={removeFromQueueMutation.error?.message}
-          onConfirm={async ({ itemId }) => {
-            const result = await removeFromQueueMutation.mutateAsync({
-              projectId,
-              itemIds: [itemId],
-            });
-            if (result.deletedCount > 0) {
-              capture(
-                "annotation_queues:item_removed",
-                getQueueAnalyticsContext(objectType, analyticsData),
-              );
-            }
-            await utils.annotationQueues.byObjectId.invalidate({
-              projectId,
-              objectId,
-              objectType,
-            });
-          }}
-        >
-          {({ openDialog: openRemoveQueueDialog }) => (
-            <AnnotationQueueSubmenuItemControllerContent
-              {...props}
-              createQueueDisabled={createQueueDisabled}
-              openQueueDialog={openQueueDialog}
-              openRemoveQueueDialog={openRemoveQueueDialog}
-            />
-          )}
-        </ConfirmationDialogController>
-      )}
-    </AnnotationQueueFormDialogController>
-  );
 }
 
 function AnnotationQueueSubmenuItemControllerContent({
@@ -252,4 +194,61 @@ function AnnotationQueueSubmenuItemControllerContent({
   );
 
   return children({ item, totalCount: queues.data?.totalCount ?? 0 });
+}
+
+export function AnnotationQueueSubmenuItemController(
+  props: AnnotationQueueSubmenuItemControllerProps,
+) {
+  const { projectId, objectId, objectType, analyticsData } = props;
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const removeFromQueueMutation =
+    api.annotationQueueItems.deleteMany.useMutation();
+
+  return (
+    <AnnotationQueueFormDialogController
+      projectId={projectId}
+      mode="create"
+      onSuccess={() => undefined}
+    >
+      {({ disabled: createQueueDisabled, openDialog: openQueueDialog }) => (
+        <ConfirmationDialogController<QueueRemoval>
+          title="Remove from annotation queue"
+          text={({ queueName }) =>
+            `Are you sure you want to remove this item from the queue "${queueName}"?`
+          }
+          confirmLabel="Remove"
+          variant="destructive"
+          loading={removeFromQueueMutation.isPending}
+          error={removeFromQueueMutation.error?.message}
+          onConfirm={async ({ itemId }) => {
+            const result = await removeFromQueueMutation.mutateAsync({
+              projectId,
+              itemIds: [itemId],
+            });
+            if (result.deletedCount > 0) {
+              capture(
+                "annotation_queues:item_removed",
+                getQueueAnalyticsContext(objectType, analyticsData),
+              );
+            }
+            await utils.annotationQueues.byObjectId.invalidate({
+              projectId,
+              objectId,
+              objectType,
+            });
+          }}
+        >
+          {({ openDialog: openRemoveQueueDialog }) => (
+            <AnnotationQueueSubmenuItemControllerContent
+              {...props}
+              createQueueDisabled={createQueueDisabled}
+              openQueueDialog={openQueueDialog}
+              openRemoveQueueDialog={openRemoveQueueDialog}
+            />
+          )}
+        </ConfirmationDialogController>
+      )}
+    </AnnotationQueueFormDialogController>
+  );
 }

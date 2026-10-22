@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies, @typescript-eslint/no-use-before-define */
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
@@ -35,6 +35,92 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
       label: string;
       onClick: (context: CellContext<TData, TValue | null | undefined>) => void;
     };
+
+function Text({ value }: { value: string }) {
+  return (
+    <span className="block w-full truncate" title={value}>
+      {value}
+    </span>
+  );
+}
+
+function TextWithAction({
+  action,
+  value,
+}: {
+  action: ReactNode;
+  value?: string;
+}) {
+  return (
+    <div className="flex w-full min-w-0 items-center gap-1">
+      {value ? (
+        <span className="min-w-0 truncate" title={value}>
+          {value}
+        </span>
+      ) : null}
+      <span className="shrink-0 p-1">{action}</span>
+    </div>
+  );
+}
+
+function CopyableText({ value }: { value: string }) {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <TextWithAction
+      value={value}
+      action={
+        <span className="inline-flex translate-y-px">
+          <IconButton
+            icon={isCopied ? Check : Copy}
+            label={isCopied ? "Copied" : "Copy to clipboard"}
+            size="xs"
+            title="Copy to clipboard"
+            onClick={async (event) => {
+              const button = event.currentTarget;
+              try {
+                await copy(value);
+              } catch {
+                // Clipboard failures are intentionally silent.
+              } finally {
+                button.focus();
+              }
+            }}
+          />
+        </span>
+      }
+    />
+  );
+}
+
+function TextWithTrailingAction<TData extends RowData, TValue>({
+  action,
+  context,
+  value,
+}: {
+  action: Extract<
+    TextTableColumnTrailingAction<TData, TValue>,
+    { type: "custom" }
+  >;
+  context: CellContext<TData, TValue | null | undefined>;
+  value?: string;
+}) {
+  return (
+    <TextWithAction
+      value={value}
+      action={
+        <span className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+          <IconButton
+            icon={action.icon}
+            label={action.label}
+            size="xs"
+            onClick={() => action.onClick(context)}
+          />
+        </span>
+      }
+    />
+  );
+}
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
   mapValue,
@@ -122,90 +208,4 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       return <Text value={text} />;
     },
   });
-}
-
-function TextWithTrailingAction<TData extends RowData, TValue>({
-  action,
-  context,
-  value,
-}: {
-  action: Extract<
-    TextTableColumnTrailingAction<TData, TValue>,
-    { type: "custom" }
-  >;
-  context: CellContext<TData, TValue | null | undefined>;
-  value?: string;
-}) {
-  return (
-    <TextWithAction
-      value={value}
-      action={
-        <span className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
-          <IconButton
-            icon={action.icon}
-            label={action.label}
-            size="xs"
-            onClick={() => action.onClick(context)}
-          />
-        </span>
-      }
-    />
-  );
-}
-
-function TextWithAction({
-  action,
-  value,
-}: {
-  action: ReactNode;
-  value?: string;
-}) {
-  return (
-    <div className="flex w-full min-w-0 items-center gap-1">
-      {value ? (
-        <span className="min-w-0 truncate" title={value}>
-          {value}
-        </span>
-      ) : null}
-      <span className="shrink-0 p-1">{action}</span>
-    </div>
-  );
-}
-
-function Text({ value }: { value: string }) {
-  return (
-    <span className="block w-full truncate" title={value}>
-      {value}
-    </span>
-  );
-}
-
-function CopyableText({ value }: { value: string }) {
-  const { copy, isCopied } = useCopyToClipboard();
-
-  return (
-    <TextWithAction
-      value={value}
-      action={
-        <span className="inline-flex translate-y-px">
-          <IconButton
-            icon={isCopied ? Check : Copy}
-            label={isCopied ? "Copied" : "Copy to clipboard"}
-            size="xs"
-            title="Copy to clipboard"
-            onClick={async (event) => {
-              const button = event.currentTarget;
-              try {
-                await copy(value);
-              } catch {
-                // Clipboard failures are intentionally silent.
-              } finally {
-                button.focus();
-              }
-            }}
-          />
-        </span>
-      }
-    />
-  );
 }

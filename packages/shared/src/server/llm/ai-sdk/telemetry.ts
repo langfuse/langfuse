@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomBytes } from "node:crypto";
 
 import type { Telemetry } from "ai";
@@ -65,6 +64,233 @@ export type AiSdkTelemetryCapture = {
    */
   flush: () => Promise<void>;
 };
+/**
+ * Maps the internal experiment context to the `langfuse.experiment.*` span
+ * attributes that `OtelIngestionProcessor.extractExperimentFields` reads to
+ * produce experiment-linked event records.
+ */
+function buildExperimentAttributes(
+  experimentContext: InternalTraceExperimentContext,
+  rootSpanId: string,
+): Record<string, string> {
+  return {
+    [LangfuseOtelSpanAttributes.EXPERIMENT_ID]: experimentContext.id,
+    [LangfuseOtelSpanAttributes.EXPERIMENT_NAME]: experimentContext.name,
+    [LangfuseOtelSpanAttributes.EXPERIMENT_DATASET_ID]:
+      experimentContext.datasetId,
+    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ID]: experimentContext.itemId,
+    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_VERSION]:
+      experimentContext.itemVersion,
+    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ROOT_OBSERVATION_ID]:
+      rootSpanId,
+    ...(experimentContext.description
+      ? {
+          [LangfuseOtelSpanAttributes.EXPERIMENT_DESCRIPTION]:
+            experimentContext.description,
+        }
+      : {}),
+    ...(experimentContext.itemExpectedOutput !== undefined &&
+    experimentContext.itemExpectedOutput !== null
+      ? {
+          [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_EXPECTED_OUTPUT]:
+            stringifyValue(experimentContext.itemExpectedOutput),
+        }
+      : {}),
+    ...(experimentContext.metadata
+      ? {
+          [LangfuseOtelSpanAttributes.EXPERIMENT_METADATA]: JSON.stringify(
+            experimentContext.metadata,
+          ),
+        }
+      : {}),
+    ...(experimentContext.itemMetadata
+      ? {
+          [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA]: JSON.stringify(
+            experimentContext.itemMetadata,
+          ),
+        }
+      : {}),
+  };
+}
+
+function definedNumberAttributes(
+  attributes: Record<string, number | undefined>,
+): Attributes {
+  return Object.fromEntries(
+    Object.entries(attributes).filter(([, value]) => value !== undefined),
+  ) as Attributes;
+}
+
+function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[Unserializable content]";
+  }
+}
+
+function getErrorType(error: unknown): string {
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    typeof error.name === "string" &&
+    error.name.length > 0
+  ) {
+    return error.name;
+  }
+
+  return "_OTHER";
+}
+
+function getTelemetryError(event: unknown): unknown {
+  return event !== null && typeof event === "object" && "error" in event
+    ? event.error
+    : event;
+}
+
+/**
+ * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
+ */
+function createGenerationSpanTelemetry(params: {
+  tracer: Tracer;
+  /**
+   * Extra attributes for every generation span (Langfuse prompt link,
+   * experiment linkage).
+   */
+  attributes?: Attributes;
+  /**
+   * Safe input to record instead of the provider-bound messages. The latter
+   * may contain short-lived signed media URLs that must not enter traces.
+   */
+  recordedInput?: unknown;
+  /**
+   * Evaluator executions write the model call onto the trace root instead of
+   * adding a child span. The caller ends that span.
+   */
+  existingSpan?: Span;
+}): Telemetry {
+  const { tracer, attributes, recordedInput, existingSpan } = params;
+  const openSpans = new Map<string, Span>();
+
+  const generationAttributes = (
+    event: Parameters<NonNullable<Telemetry["onLanguageModelCallStart"]>>[0],
+  ): Attributes => ({
+    "gen_ai.operation.name": "chat",
+    "gen_ai.provider.name": event.provider,
+    "gen_ai.request.model": event.modelId,
+    ...definedNumberAttributes({
+      "gen_ai.request.max_tokens": event.maxOutputTokens,
+      "gen_ai.request.temperature": event.temperature,
+      "gen_ai.request.top_p": event.topP,
+    }),
+    ...(recordedInput !== undefined || event.messages !== undefined
+      ? {
+          "gen_ai.input.messages": safeJsonStringify(
+            recordedInput ?? event.messages,
+          ),
+        }
+      : {}),
+    ...(event.tools && event.tools.length > 0
+      ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
+      : {}),
+    ...attributes,
+  });
+
+  const endAllOpenSpans = (error?: unknown): void => {
+    for (const span of openSpans.values()) {
+      if (span === existingSpan) continue;
+      if (error !== undefined) {
+        span.setAttribute("error.type", getErrorType(error));
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        });
+
+        if (error instanceof Error) span.recordException(error);
+      }
+      span.end();
+    }
+    openSpans.clear();
+  };
+
+  return {
+    onLanguageModelCallStart(event) {
+      if (existingSpan) {
+        existingSpan.setAttributes(generationAttributes(event));
+        openSpans.set(event.callId, existingSpan);
+        return;
+      }
+
+      // Defensive: a lingering span for this call id means its end event never
+      // fired (e.g. a retried attempt) — close it before starting the next.
+      openSpans.get(event.callId)?.end();
+
+      const span = tracer.startSpan(
+        `chat ${event.modelId}`,
+        {
+          kind: SpanKind.CLIENT,
+          attributes: generationAttributes(event),
+        },
+        context.active(),
+      );
+
+      openSpans.set(event.callId, span);
+    },
+
+    onLanguageModelCallEnd(event) {
+      const span = openSpans.get(event.callId);
+
+      if (!span) return;
+
+      if (span !== existingSpan) openSpans.delete(event.callId);
+
+      const outputMessages = safeJsonStringify([
+        { role: "assistant", content: event.content },
+      ]);
+      span.setAttributes({
+        "gen_ai.response.finish_reasons": [event.finishReason],
+        ...(event.responseId ? { "gen_ai.response.id": event.responseId } : {}),
+        ...definedNumberAttributes({
+          "gen_ai.usage.input_tokens": event.usage.inputTokens,
+          "gen_ai.usage.output_tokens": event.usage.outputTokens,
+          "gen_ai.usage.cache_read.input_tokens":
+            event.usage.inputTokenDetails?.cacheReadTokens,
+          "gen_ai.usage.cache_creation.input_tokens":
+            event.usage.inputTokenDetails?.cacheWriteTokens,
+        }),
+        "gen_ai.output.messages": outputMessages,
+        // The root span already has observation input. Without observation
+        // output, ingestion ignores this model response when a later step fails.
+        ...(span === existingSpan
+          ? {
+              [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]: outputMessages,
+            }
+          : {}),
+      });
+      if (span !== existingSpan) span.end();
+    },
+
+    onError(event) {
+      // The root span's error is recorded by setRootError. Marking it here too
+      // would store the same exception twice.
+      endAllOpenSpans(getTelemetryError(event));
+    },
+
+    onAbort() {
+      endAllOpenSpans();
+    },
+
+    // Run the provider call with the generation span active, so any future
+    // nested instrumentation parents correctly.
+    executeLanguageModelCall({ callId, execute }) {
+      const span = openSpans.get(callId);
+      if (!span) return execute();
+
+      return context.with(trace.setSpan(context.active(), span), execute);
+    },
+  };
+}
 
 /**
  * Per-call isolated OTel capture for AI SDK executions.
@@ -330,232 +556,5 @@ export function createAiSdkTelemetryCapture(params: {
     setRootOutput,
     setRootError,
     flush,
-  };
-}
-
-/**
- * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
- */
-function createGenerationSpanTelemetry(params: {
-  tracer: Tracer;
-  /**
-   * Extra attributes for every generation span (Langfuse prompt link,
-   * experiment linkage).
-   */
-  attributes?: Attributes;
-  /**
-   * Safe input to record instead of the provider-bound messages. The latter
-   * may contain short-lived signed media URLs that must not enter traces.
-   */
-  recordedInput?: unknown;
-  /**
-   * Evaluator executions write the model call onto the trace root instead of
-   * adding a child span. The caller ends that span.
-   */
-  existingSpan?: Span;
-}): Telemetry {
-  const { tracer, attributes, recordedInput, existingSpan } = params;
-  const openSpans = new Map<string, Span>();
-
-  const generationAttributes = (
-    event: Parameters<NonNullable<Telemetry["onLanguageModelCallStart"]>>[0],
-  ): Attributes => ({
-    "gen_ai.operation.name": "chat",
-    "gen_ai.provider.name": event.provider,
-    "gen_ai.request.model": event.modelId,
-    ...definedNumberAttributes({
-      "gen_ai.request.max_tokens": event.maxOutputTokens,
-      "gen_ai.request.temperature": event.temperature,
-      "gen_ai.request.top_p": event.topP,
-    }),
-    ...(recordedInput !== undefined || event.messages !== undefined
-      ? {
-          "gen_ai.input.messages": safeJsonStringify(
-            recordedInput ?? event.messages,
-          ),
-        }
-      : {}),
-    ...(event.tools && event.tools.length > 0
-      ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
-      : {}),
-    ...attributes,
-  });
-
-  const endAllOpenSpans = (error?: unknown): void => {
-    for (const span of openSpans.values()) {
-      if (span === existingSpan) continue;
-      if (error !== undefined) {
-        span.setAttribute("error.type", getErrorType(error));
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        });
-
-        if (error instanceof Error) span.recordException(error);
-      }
-      span.end();
-    }
-    openSpans.clear();
-  };
-
-  return {
-    onLanguageModelCallStart(event) {
-      if (existingSpan) {
-        existingSpan.setAttributes(generationAttributes(event));
-        openSpans.set(event.callId, existingSpan);
-        return;
-      }
-
-      // Defensive: a lingering span for this call id means its end event never
-      // fired (e.g. a retried attempt) — close it before starting the next.
-      openSpans.get(event.callId)?.end();
-
-      const span = tracer.startSpan(
-        `chat ${event.modelId}`,
-        {
-          kind: SpanKind.CLIENT,
-          attributes: generationAttributes(event),
-        },
-        context.active(),
-      );
-
-      openSpans.set(event.callId, span);
-    },
-
-    onLanguageModelCallEnd(event) {
-      const span = openSpans.get(event.callId);
-
-      if (!span) return;
-
-      if (span !== existingSpan) openSpans.delete(event.callId);
-
-      const outputMessages = safeJsonStringify([
-        { role: "assistant", content: event.content },
-      ]);
-      span.setAttributes({
-        "gen_ai.response.finish_reasons": [event.finishReason],
-        ...(event.responseId ? { "gen_ai.response.id": event.responseId } : {}),
-        ...definedNumberAttributes({
-          "gen_ai.usage.input_tokens": event.usage.inputTokens,
-          "gen_ai.usage.output_tokens": event.usage.outputTokens,
-          "gen_ai.usage.cache_read.input_tokens":
-            event.usage.inputTokenDetails?.cacheReadTokens,
-          "gen_ai.usage.cache_creation.input_tokens":
-            event.usage.inputTokenDetails?.cacheWriteTokens,
-        }),
-        "gen_ai.output.messages": outputMessages,
-        // The root span already has observation input. Without observation
-        // output, ingestion ignores this model response when a later step fails.
-        ...(span === existingSpan
-          ? {
-              [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]: outputMessages,
-            }
-          : {}),
-      });
-      if (span !== existingSpan) span.end();
-    },
-
-    onError(event) {
-      // The root span's error is recorded by setRootError. Marking it here too
-      // would store the same exception twice.
-      endAllOpenSpans(getTelemetryError(event));
-    },
-
-    onAbort() {
-      endAllOpenSpans();
-    },
-
-    // Run the provider call with the generation span active, so any future
-    // nested instrumentation parents correctly.
-    executeLanguageModelCall({ callId, execute }) {
-      const span = openSpans.get(callId);
-      if (!span) return execute();
-
-      return context.with(trace.setSpan(context.active(), span), execute);
-    },
-  };
-}
-
-function definedNumberAttributes(
-  attributes: Record<string, number | undefined>,
-): Attributes {
-  return Object.fromEntries(
-    Object.entries(attributes).filter(([, value]) => value !== undefined),
-  ) as Attributes;
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return "[Unserializable content]";
-  }
-}
-
-function getErrorType(error: unknown): string {
-  if (
-    error !== null &&
-    typeof error === "object" &&
-    "name" in error &&
-    typeof error.name === "string" &&
-    error.name.length > 0
-  ) {
-    return error.name;
-  }
-
-  return "_OTHER";
-}
-
-function getTelemetryError(event: unknown): unknown {
-  return event !== null && typeof event === "object" && "error" in event
-    ? event.error
-    : event;
-}
-/**
- * Maps the internal experiment context to the `langfuse.experiment.*` span
- * attributes that `OtelIngestionProcessor.extractExperimentFields` reads to
- * produce experiment-linked event records.
- */
-function buildExperimentAttributes(
-  experimentContext: InternalTraceExperimentContext,
-  rootSpanId: string,
-): Record<string, string> {
-  return {
-    [LangfuseOtelSpanAttributes.EXPERIMENT_ID]: experimentContext.id,
-    [LangfuseOtelSpanAttributes.EXPERIMENT_NAME]: experimentContext.name,
-    [LangfuseOtelSpanAttributes.EXPERIMENT_DATASET_ID]:
-      experimentContext.datasetId,
-    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ID]: experimentContext.itemId,
-    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_VERSION]:
-      experimentContext.itemVersion,
-    [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ROOT_OBSERVATION_ID]:
-      rootSpanId,
-    ...(experimentContext.description
-      ? {
-          [LangfuseOtelSpanAttributes.EXPERIMENT_DESCRIPTION]:
-            experimentContext.description,
-        }
-      : {}),
-    ...(experimentContext.itemExpectedOutput !== undefined &&
-    experimentContext.itemExpectedOutput !== null
-      ? {
-          [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_EXPECTED_OUTPUT]:
-            stringifyValue(experimentContext.itemExpectedOutput),
-        }
-      : {}),
-    ...(experimentContext.metadata
-      ? {
-          [LangfuseOtelSpanAttributes.EXPERIMENT_METADATA]: JSON.stringify(
-            experimentContext.metadata,
-          ),
-        }
-      : {}),
-    ...(experimentContext.itemMetadata
-      ? {
-          [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA]: JSON.stringify(
-            experimentContext.itemMetadata,
-          ),
-        }
-      : {}),
   };
 }

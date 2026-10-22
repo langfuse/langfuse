@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /** isValidQuery.ts checks that a Monitor's (view, metric, filters) tuple
  * resolves against the v2 view declaration in the query package. Consumed as
  * a zod `superRefine` from the Monitor input schemas in `./types`. */
@@ -30,51 +29,6 @@ export const getValidMonitorAggregationsForMeasure = (
   }
   return aggs;
 };
-
-/**
- * isValidQuery partitions a monitor's metrics against the view's v2
- * declaration. A bad filter is a whole-query failure (every metric rejected);
- * otherwise each metric is partitioned by the measure-exists + aggregation
- * checks, `reason` carrying the first rejection. Filter-column-vs-view
- * alignment is intentionally NOT checked here (see LF-2181) — dimensions are
- * the group-by surface, not the filter surface, so the dimension map is the
- * wrong proxy.
- */
-export function isValidQuery(input: {
-  view: z.infer<typeof viewsV2>;
-  metrics: z.infer<typeof metric>[];
-  filters: z.infer<typeof singleFilter>[];
-}): QueryValidation {
-  const declaration = getViewDeclaration(input.view, "v2");
-
-  const filterReason = invalidFilterReason(declaration, input.filters);
-  if (filterReason) {
-    return {
-      valid: false,
-      reason: filterReason,
-      accepted: [],
-      rejected: input.metrics,
-    };
-  }
-
-  const accepted: z.infer<typeof metric>[] = [];
-  const rejected: z.infer<typeof metric>[] = [];
-  let reason: string | undefined;
-  for (const m of input.metrics) {
-    const metricReason = invalidMetricReason(declaration, input.view, m);
-    if (metricReason) {
-      rejected.push(m);
-      if (reason === undefined) {
-        reason = metricReason;
-      }
-    } else {
-      accepted.push(m);
-    }
-  }
-
-  if (reason) return { valid: false, reason, accepted, rejected };
-  return { valid: true, accepted, rejected: [] };
-}
 
 /** invalidFilterReason returns why a filter makes the whole query invalid, or undefined when all filters pass. */
 function invalidFilterReason(
@@ -136,6 +90,51 @@ function invalidMetricReason(
     );
   }
   return undefined;
+}
+
+/**
+ * isValidQuery partitions a monitor's metrics against the view's v2
+ * declaration. A bad filter is a whole-query failure (every metric rejected);
+ * otherwise each metric is partitioned by the measure-exists + aggregation
+ * checks, `reason` carrying the first rejection. Filter-column-vs-view
+ * alignment is intentionally NOT checked here (see LF-2181) — dimensions are
+ * the group-by surface, not the filter surface, so the dimension map is the
+ * wrong proxy.
+ */
+export function isValidQuery(input: {
+  view: z.infer<typeof viewsV2>;
+  metrics: z.infer<typeof metric>[];
+  filters: z.infer<typeof singleFilter>[];
+}): QueryValidation {
+  const declaration = getViewDeclaration(input.view, "v2");
+
+  const filterReason = invalidFilterReason(declaration, input.filters);
+  if (filterReason) {
+    return {
+      valid: false,
+      reason: filterReason,
+      accepted: [],
+      rejected: input.metrics,
+    };
+  }
+
+  const accepted: z.infer<typeof metric>[] = [];
+  const rejected: z.infer<typeof metric>[] = [];
+  let reason: string | undefined;
+  for (const m of input.metrics) {
+    const metricReason = invalidMetricReason(declaration, input.view, m);
+    if (metricReason) {
+      rejected.push(m);
+      if (reason === undefined) {
+        reason = metricReason;
+      }
+    } else {
+      accepted.push(m);
+    }
+  }
+
+  if (reason) return { valid: false, reason, accepted, rejected };
+  return { valid: true, accepted, rejected: [] };
 }
 
 /** QueryValidation is the partition isValidQuery returns: accepted/rejected metrics plus a rejection reason when invalid. */

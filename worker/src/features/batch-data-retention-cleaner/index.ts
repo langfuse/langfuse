@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "crypto";
 import pLimit from "p-limit";
 
@@ -137,6 +136,39 @@ function buildRetentionConditions(
   }
 
   return { conditions, params };
+}
+
+interface ProjectRetentionChunk {
+  cutoff: string;
+  projects: ProjectRetention[];
+}
+
+/** Keep discovery chunks bounded and tied to one exact serialized cutoff. */
+function chunkProjectsByCutoff(
+  projects: ProjectRetention[],
+  chunkSize: number,
+): ProjectRetentionChunk[] {
+  const projectsByCutoff = new Map<string, ProjectRetention[]>();
+  for (const project of projects) {
+    const cutoff = convertDateToClickhouseDateTime(project.cutoffDate);
+    const group = projectsByCutoff.get(cutoff);
+    if (group) {
+      group.push(project);
+    } else {
+      projectsByCutoff.set(cutoff, [project]);
+    }
+  }
+
+  const chunks: ProjectRetentionChunk[] = [];
+  for (const [cutoff, group] of projectsByCutoff) {
+    for (let offset = 0; offset < group.length; offset += chunkSize) {
+      chunks.push({
+        cutoff,
+        projects: group.slice(offset, offset + chunkSize),
+      });
+    }
+  }
+  return chunks;
 }
 
 /**
@@ -762,37 +794,4 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       },
     });
   }
-}
-
-/** Keep discovery chunks bounded and tied to one exact serialized cutoff. */
-function chunkProjectsByCutoff(
-  projects: ProjectRetention[],
-  chunkSize: number,
-): ProjectRetentionChunk[] {
-  const projectsByCutoff = new Map<string, ProjectRetention[]>();
-  for (const project of projects) {
-    const cutoff = convertDateToClickhouseDateTime(project.cutoffDate);
-    const group = projectsByCutoff.get(cutoff);
-    if (group) {
-      group.push(project);
-    } else {
-      projectsByCutoff.set(cutoff, [project]);
-    }
-  }
-
-  const chunks: ProjectRetentionChunk[] = [];
-  for (const [cutoff, group] of projectsByCutoff) {
-    for (let offset = 0; offset < group.length; offset += chunkSize) {
-      chunks.push({
-        cutoff,
-        projects: group.slice(offset, offset + chunkSize),
-      });
-    }
-  }
-  return chunks;
-}
-
-interface ProjectRetentionChunk {
-  cutoff: string;
-  projects: ProjectRetention[];
 }

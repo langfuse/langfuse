@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -44,6 +43,88 @@ vi.mock(
 
 const OLD_PASSWORD = "Oldpass1!";
 const NEW_PASSWORD = "Newpass1!";
+
+async function createUser({ password }: { password: string | null }) {
+  const id = randomUUID();
+  const email = `user-${id}@example.com`;
+  const user = await prisma.user.create({
+    data: {
+      id: `user-${id}`,
+      email,
+      name: "Email Callback Test User",
+      password: password === null ? null : await hashPassword(password),
+    },
+  });
+  return { userId: user.id, email };
+}
+
+function uniqueOtp() {
+  return randomInt(100000, 1000000).toString();
+}
+
+function hashEmailOtpToken(token: string) {
+  return createHash("sha256")
+    .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
+    .digest("hex");
+}
+
+async function insertOtp({
+  email,
+  token,
+  expires = new Date(Date.now() + 3 * 60 * 1000),
+}: {
+  email: string;
+  token: string;
+  expires?: Date;
+}) {
+  await prisma.verificationToken.create({
+    data: {
+      identifier: email,
+      token: hashEmailOtpToken(token),
+      expires,
+    },
+  });
+}
+
+async function callEmailCallback({
+  email,
+  token,
+}: {
+  email: string;
+  token: string;
+}) {
+  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+    method: "GET",
+    headers: { host: "localhost:3000" },
+    query: { nextauth: ["callback", "email"], token, email },
+  });
+  req.cookies = {};
+
+  await auth(req, res);
+
+  return res;
+}
+
+function getHeaderText(res: NextApiResponse, name: string) {
+  const value = res.getHeader(name);
+  return Array.isArray(value) ? value.join("\n") : String(value ?? "");
+}
+
+function findOtp({ email, token }: { email: string; token: string }) {
+  return prisma.verificationToken.findUnique({
+    where: {
+      identifier_token: { identifier: email, token: hashEmailOtpToken(token) },
+    },
+  });
+}
+
+async function expectPassword(userId: string, password: string) {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { password: true },
+  });
+  expect(await verifyPassword(password, user.password!)).toBe(true);
+}
 
 describe("GET /api/auth/callback/email", () => {
   it("does not create a session or consume the code; the code still resets the password", async () => {
@@ -188,6 +269,14 @@ describe("NextAuth signIn callback for the email provider", () => {
   });
 });
 
+function csrfPair() {
+  const csrfToken = randomBytes(32).toString("hex");
+  const csrfTokenHash = createHash("sha256")
+    .update(`${csrfToken}${process.env.NEXTAUTH_SECRET ?? ""}`)
+    .digest("hex");
+  return { csrfToken, cookie: `${csrfToken}|${csrfTokenHash}` };
+}
+
 describe("POST /api/auth/signin/email captcha", () => {
   it("passes the posted token to Turnstile and does not store a code when it fails", async () => {
     const { email } = await createUser({ password: OLD_PASSWORD });
@@ -230,93 +319,3 @@ describe("POST /api/auth/signin/email captcha", () => {
     ).resolves.toBeNull();
   });
 });
-
-function csrfPair() {
-  const csrfToken = randomBytes(32).toString("hex");
-  const csrfTokenHash = createHash("sha256")
-    .update(`${csrfToken}${process.env.NEXTAUTH_SECRET ?? ""}`)
-    .digest("hex");
-  return { csrfToken, cookie: `${csrfToken}|${csrfTokenHash}` };
-}
-
-function uniqueOtp() {
-  return randomInt(100000, 1000000).toString();
-}
-
-function hashEmailOtpToken(token: string) {
-  return createHash("sha256")
-    .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
-    .digest("hex");
-}
-
-async function callEmailCallback({
-  email,
-  token,
-}: {
-  email: string;
-  token: string;
-}) {
-  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-    method: "GET",
-    headers: { host: "localhost:3000" },
-    query: { nextauth: ["callback", "email"], token, email },
-  });
-  req.cookies = {};
-
-  await auth(req, res);
-
-  return res;
-}
-
-function getHeaderText(res: NextApiResponse, name: string) {
-  const value = res.getHeader(name);
-  return Array.isArray(value) ? value.join("\n") : String(value ?? "");
-}
-
-async function insertOtp({
-  email,
-  token,
-  expires = new Date(Date.now() + 3 * 60 * 1000),
-}: {
-  email: string;
-  token: string;
-  expires?: Date;
-}) {
-  await prisma.verificationToken.create({
-    data: {
-      identifier: email,
-      token: hashEmailOtpToken(token),
-      expires,
-    },
-  });
-}
-
-function findOtp({ email, token }: { email: string; token: string }) {
-  return prisma.verificationToken.findUnique({
-    where: {
-      identifier_token: { identifier: email, token: hashEmailOtpToken(token) },
-    },
-  });
-}
-
-async function expectPassword(userId: string, password: string) {
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { password: true },
-  });
-  expect(await verifyPassword(password, user.password!)).toBe(true);
-}
-
-async function createUser({ password }: { password: string | null }) {
-  const id = randomUUID();
-  const email = `user-${id}@example.com`;
-  const user = await prisma.user.create({
-    data: {
-      id: `user-${id}`,
-      email,
-      name: "Email Callback Test User",
-      password: password === null ? null : await hashPassword(password),
-    },
-  });
-  return { userId: user.id, email };
-}

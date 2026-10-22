@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type ActionCreate,
   type ActionDomain,
@@ -14,6 +13,13 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
+
+function throwChannelNotFound(): never {
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+  });
+}
 
 /**
  * processSlackActionConfig resolves the target channel to an id and records
@@ -118,11 +124,4 @@ export async function maskActionForViewer<T extends { config: unknown }>({
       actions: [action],
     }),
   );
-}
-
-function throwChannelNotFound(): never {
-  throw new TRPCError({
-    code: "BAD_REQUEST",
-    message: SLACK_CHANNEL_NOT_FOUND_MESSAGE,
-  });
 }

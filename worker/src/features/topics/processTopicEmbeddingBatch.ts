@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { UnrecoverableError } from "bullmq";
 import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import pLimit from "p-limit";
@@ -21,6 +20,19 @@ import {
   topicProviderError,
   TopicsProviderUnavailable,
 } from "./provider-error";
+
+function isPermanentFailure(error: unknown): boolean {
+  return (
+    error instanceof UnrecoverableError ||
+    (error instanceof TopicsProviderUnavailable &&
+      [
+        "authentication",
+        "configuration",
+        "invalid_input",
+        "invalid_output",
+      ].includes(error.reason))
+  );
+}
 
 /** Acknowledging a batch means every eligible result is durably stored in ClickHouse. */
 export async function processTopicEmbeddingBatch(
@@ -131,17 +143,4 @@ export async function processTopicEmbeddingBatch(
     // The processing job retains Redis results until assignment is acknowledged.
     // Retrying a partial insert reuses these vectors and their processing time.
   }
-}
-
-function isPermanentFailure(error: unknown): boolean {
-  return (
-    error instanceof UnrecoverableError ||
-    (error instanceof TopicsProviderUnavailable &&
-      [
-        "authentication",
-        "configuration",
-        "invalid_input",
-        "invalid_output",
-      ].includes(error.reason))
-  );
 }

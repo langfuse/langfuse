@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import { ActionExecutionStatus, JobConfigState, prisma } from "../../db";
@@ -22,38 +21,6 @@ type ProjectNotificationEmailEnv = {
   NEXTAUTH_URL: string;
   CLOUD_CRM_EMAIL: string | undefined;
 };
-
-/**
- * dispatchProjectNotification is the single entry point for routing a platform
- * "something went wrong" event to a project's notification channels AND its
- * admin emails — producers make this one call and nothing else. It (1) creates
- * a PENDING AutomationExecution and enqueues one webhook job per active
- * `project-notification` automation that has the event type enabled in its
- * trigger.eventActions, and (2) resolves project admin recipients and sends
- * the event's email template (guarding the SMTP env centrally). Producers own
- * their own dedup (e.g. the blob-storage cooldown claim); this service is
- * stateless and does not add a second dedup layer.
- */
-export async function dispatchProjectNotification({
-  projectId,
-  event,
-}: {
-  projectId: string;
-  event: ProjectNotificationEvent;
-}): Promise<void> {
-  // Channel dispatch must never suppress the admin email — the email is the
-  // always-on floor (worst case for blob-export, whose 24h cooldown claim is
-  // already committed by the time we get here). Isolate channel failures.
-  try {
-    await dispatchToChannels({ projectId, event });
-  } catch (error) {
-    logger.error(
-      `dispatchProjectNotification: channel dispatch failed for ${event.eventType} in project ${projectId}; continuing to admin emails`,
-      error,
-    );
-  }
-  await dispatchAdminEmails({ projectId, event });
-}
 
 async function dispatchToChannels({
   projectId,
@@ -122,41 +89,6 @@ async function dispatchToChannels({
   }
 }
 
-async function dispatchAdminEmails({
-  projectId,
-  event,
-}: {
-  projectId: string;
-  event: ProjectNotificationEvent;
-}): Promise<void> {
-  if (
-    !env.EMAIL_FROM_ADDRESS ||
-    !env.SMTP_CONNECTION_URL ||
-    !env.NEXTAUTH_URL
-  ) {
-    logger.warn(
-      `dispatchProjectNotification: missing email env vars; skipping admin emails for ${event.eventType} in project ${projectId}`,
-    );
-    return;
-  }
-  const emailEnv: ProjectNotificationEmailEnv = {
-    EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
-    SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
-    NEXTAUTH_URL: env.NEXTAUTH_URL,
-    CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
-  };
-
-  const receiverEmails = await getProjectAdminEmails(projectId);
-  if (receiverEmails.length === 0) {
-    logger.warn(
-      `dispatchProjectNotification: no project admins found for project ${projectId}; skipping admin emails for ${event.eventType}`,
-    );
-    return;
-  }
-
-  await sendEventAdminEmails({ event, receiverEmails, emailEnv });
-}
-
 /** sendEventAdminEmails renders and sends the event's email template to all recipients. */
 async function sendEventAdminEmails({
   event,
@@ -219,4 +151,71 @@ async function sendEventAdminEmails({
       );
     }
   }
+}
+
+async function dispatchAdminEmails({
+  projectId,
+  event,
+}: {
+  projectId: string;
+  event: ProjectNotificationEvent;
+}): Promise<void> {
+  if (
+    !env.EMAIL_FROM_ADDRESS ||
+    !env.SMTP_CONNECTION_URL ||
+    !env.NEXTAUTH_URL
+  ) {
+    logger.warn(
+      `dispatchProjectNotification: missing email env vars; skipping admin emails for ${event.eventType} in project ${projectId}`,
+    );
+    return;
+  }
+  const emailEnv: ProjectNotificationEmailEnv = {
+    EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
+    SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
+    NEXTAUTH_URL: env.NEXTAUTH_URL,
+    CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
+  };
+
+  const receiverEmails = await getProjectAdminEmails(projectId);
+  if (receiverEmails.length === 0) {
+    logger.warn(
+      `dispatchProjectNotification: no project admins found for project ${projectId}; skipping admin emails for ${event.eventType}`,
+    );
+    return;
+  }
+
+  await sendEventAdminEmails({ event, receiverEmails, emailEnv });
+}
+
+/**
+ * dispatchProjectNotification is the single entry point for routing a platform
+ * "something went wrong" event to a project's notification channels AND its
+ * admin emails — producers make this one call and nothing else. It (1) creates
+ * a PENDING AutomationExecution and enqueues one webhook job per active
+ * `project-notification` automation that has the event type enabled in its
+ * trigger.eventActions, and (2) resolves project admin recipients and sends
+ * the event's email template (guarding the SMTP env centrally). Producers own
+ * their own dedup (e.g. the blob-storage cooldown claim); this service is
+ * stateless and does not add a second dedup layer.
+ */
+export async function dispatchProjectNotification({
+  projectId,
+  event,
+}: {
+  projectId: string;
+  event: ProjectNotificationEvent;
+}): Promise<void> {
+  // Channel dispatch must never suppress the admin email — the email is the
+  // always-on floor (worst case for blob-export, whose 24h cooldown claim is
+  // already committed by the time we get here). Isolate channel failures.
+  try {
+    await dispatchToChannels({ projectId, event });
+  } catch (error) {
+    logger.error(
+      `dispatchProjectNotification: channel dispatch failed for ${event.eventType} in project ${projectId}; continuing to admin emails`,
+      error,
+    );
+  }
+  await dispatchAdminEmails({ projectId, event });
 }

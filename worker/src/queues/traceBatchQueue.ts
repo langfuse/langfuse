@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { backOff } from "exponential-backoff";
@@ -64,6 +63,21 @@ type TraceOutcome = (
 const traceKey = (projectId: string, traceId: string) =>
   JSON.stringify([projectId, traceId]);
 
+/** The saved rule's facets and sampling; without a rule, every facet runs. */
+async function loadProjectRule(projectId: string) {
+  const [facets, rules] = await Promise.all([
+    listTopicFacets(projectId),
+    listTopicRules(projectId),
+  ]);
+  const rule = rules[0];
+  if (!rule) return { facets, sampling: 1 };
+  const selected = new Set(rule.facetIds);
+  return {
+    facets: facets.filter((facet) => selected.has(facet.id)),
+    sampling: rule.sampling,
+  };
+}
+
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
  * A project paused mid-batch is skipped for the rest of the batch.
@@ -103,21 +117,6 @@ class TopicsBatchProjects {
     this.paused.add(projectId);
     await pauseForRejectedConnection(projectId, error);
   }
-}
-
-/** The saved rule's facets and sampling; without a rule, every facet runs. */
-async function loadProjectRule(projectId: string) {
-  const [facets, rules] = await Promise.all([
-    listTopicFacets(projectId),
-    listTopicRules(projectId),
-  ]);
-  const rule = rules[0];
-  if (!rule) return { facets, sampling: 1 };
-  const selected = new Set(rule.facetIds);
-  return {
-    facets: facets.filter((facet) => selected.has(facet.id)),
-    sampling: rule.sampling,
-  };
 }
 
 /** Orders events like manual processing: event_ts, then span ID, then environment. */

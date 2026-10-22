@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTargetObject,
   EvalTemplateType,
@@ -60,6 +59,44 @@ export type RuleAuditEvent = {
 type RuleServiceUpdateInput = UpdateRuleInput & {
   targetObject?: EvalTargetObject;
 };
+
+function toRuleResponse(rule: StoredRule) {
+  const { status, assignments, filter, sampling, ...rest } = rule;
+  const normalized = normalizeEvaluationRuleTarget({
+    targetObject: rest.targetObject as EvalTargetObject,
+    filter: filter as FilterState,
+  });
+  return {
+    ...rest,
+    targetObject: normalized.targetObject,
+    enabled: status === JobConfigState.ACTIVE,
+    filter: normalized.filter,
+    sampling: sampling.toNumber(),
+    assignments: assignments.map(
+      ({ evaluator, variableMapping, ...assignment }) => {
+        const { versions, ...evaluatorMetadata } = evaluator;
+        const latestVersion = versions[0];
+        return {
+          ...assignment,
+          variableMapping: variableMapping as
+            | ObservationVariableMapping[]
+            | null,
+          evaluator: {
+            ...evaluatorMetadata,
+            latestVersion: latestVersion
+              ? {
+                  ...latestVersion,
+                  variableMapping: latestVersion.variableMapping as
+                    | ObservationVariableMapping[]
+                    | null,
+                }
+              : null,
+          },
+        };
+      },
+    ),
+  };
+}
 
 export class RuleService {
   constructor(
@@ -800,41 +837,3 @@ export class RuleService {
 }
 
 type StoredRule = NonNullable<Awaited<ReturnType<typeof repository.findRule>>>;
-
-function toRuleResponse(rule: StoredRule) {
-  const { status, assignments, filter, sampling, ...rest } = rule;
-  const normalized = normalizeEvaluationRuleTarget({
-    targetObject: rest.targetObject as EvalTargetObject,
-    filter: filter as FilterState,
-  });
-  return {
-    ...rest,
-    targetObject: normalized.targetObject,
-    enabled: status === JobConfigState.ACTIVE,
-    filter: normalized.filter,
-    sampling: sampling.toNumber(),
-    assignments: assignments.map(
-      ({ evaluator, variableMapping, ...assignment }) => {
-        const { versions, ...evaluatorMetadata } = evaluator;
-        const latestVersion = versions[0];
-        return {
-          ...assignment,
-          variableMapping: variableMapping as
-            | ObservationVariableMapping[]
-            | null,
-          evaluator: {
-            ...evaluatorMetadata,
-            latestVersion: latestVersion
-              ? {
-                  ...latestVersion,
-                  variableMapping: latestVersion.variableMapping as
-                    | ObservationVariableMapping[]
-                    | null,
-                }
-              : null,
-          },
-        };
-      },
-    ),
-  };
-}

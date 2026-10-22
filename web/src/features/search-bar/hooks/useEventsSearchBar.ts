@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Container hook: wires the draft-only search-bar store to the table's filter
 // state with a single, one-way data direction.
 //
@@ -131,6 +130,25 @@ function isPartialCommitEcho(
  */
 function restingDraft(text: string): string {
   return text.length === 0 ? text : `${text} `;
+}
+
+function filterIdentity(filter: FilterState[number]): string {
+  return JSON.stringify([
+    filter.target ?? null,
+    filter.column,
+    "key" in filter ? filter.key : null,
+  ]);
+}
+
+function mergeSkippedFilters(
+  filters: FilterState,
+  skippedFilters: FilterState,
+): FilterState {
+  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
+  const preserved = skippedFilters.filter(
+    (f) => !producedKeys.has(filterIdentity(f)),
+  );
+  return preserved.length > 0 ? [...filters, ...preserved] : filters;
 }
 
 export function useEventsSearchBar({
@@ -467,23 +485,4 @@ export function useEventsSearchBar({
   );
 
   return { store, commit, applyFilters, resetDraft };
-}
-
-function mergeSkippedFilters(
-  filters: FilterState,
-  skippedFilters: FilterState,
-): FilterState {
-  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-  const preserved = skippedFilters.filter(
-    (f) => !producedKeys.has(filterIdentity(f)),
-  );
-  return preserved.length > 0 ? [...filters, ...preserved] : filters;
-}
-
-function filterIdentity(filter: FilterState[number]): string {
-  return JSON.stringify([
-    filter.target ?? null,
-    filter.column,
-    "key" in filter ? filter.key : null,
-  ]);
 }

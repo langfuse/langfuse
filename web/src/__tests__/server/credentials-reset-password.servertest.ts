@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomInt, randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -14,6 +13,83 @@ import { prisma } from "@langfuse/shared/src/db";
 
 const OLD_PASSWORD = "Oldpass1!";
 const NEW_PASSWORD = "Newpass1!";
+
+async function createPasswordUser({
+  emailVerified = null,
+}: {
+  emailVerified?: Date | null;
+} = {}) {
+  const id = randomUUID();
+  const email = `user-${id}@example.com`;
+  const user = await prisma.user.create({
+    data: {
+      id: `user-${id}`,
+      email,
+      name: "Password Reset Test User",
+      password: await hashPassword(OLD_PASSWORD),
+      emailVerified,
+    },
+  });
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      canCreateOrganizations: true,
+      organizations: [],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      admin: false,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:enterprise",
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+
+  return {
+    userId: user.id,
+    email,
+    caller: appRouter.createCaller({ ...ctx, prisma }),
+  };
+}
+
+function uniqueOtp() {
+  return randomInt(100000, 1000000).toString();
+}
+
+async function expectPassword(userId: string, password: string) {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { password: true },
+  });
+  expect(await verifyPassword(password, user.password!)).toBe(true);
+}
+
+function hashEmailOtpToken(token: string) {
+  return createHash("sha256")
+    .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
+    .digest("hex");
+}
+
+async function insertOtp({
+  email,
+  token,
+  expires = new Date(Date.now() + 3 * 60 * 1000),
+}: {
+  email: string;
+  token: string;
+  expires?: Date;
+}) {
+  await prisma.verificationToken.create({
+    data: {
+      identifier: email,
+      token: hashEmailOtpToken(token),
+      expires,
+    },
+  });
+}
 
 describe("credentials.resetPassword", () => {
   it("rejects a password overwrite authorized only by a fresh email verification timestamp", async () => {
@@ -149,80 +225,3 @@ describe("credentials.resetPassword", () => {
     await expectPassword(userId, OLD_PASSWORD);
   });
 });
-
-function uniqueOtp() {
-  return randomInt(100000, 1000000).toString();
-}
-
-function hashEmailOtpToken(token: string) {
-  return createHash("sha256")
-    .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
-    .digest("hex");
-}
-
-async function insertOtp({
-  email,
-  token,
-  expires = new Date(Date.now() + 3 * 60 * 1000),
-}: {
-  email: string;
-  token: string;
-  expires?: Date;
-}) {
-  await prisma.verificationToken.create({
-    data: {
-      identifier: email,
-      token: hashEmailOtpToken(token),
-      expires,
-    },
-  });
-}
-
-async function expectPassword(userId: string, password: string) {
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { password: true },
-  });
-  expect(await verifyPassword(password, user.password!)).toBe(true);
-}
-
-async function createPasswordUser({
-  emailVerified = null,
-}: {
-  emailVerified?: Date | null;
-} = {}) {
-  const id = randomUUID();
-  const email = `user-${id}@example.com`;
-  const user = await prisma.user.create({
-    data: {
-      id: `user-${id}`,
-      email,
-      name: "Password Reset Test User",
-      password: await hashPassword(OLD_PASSWORD),
-      emailVerified,
-    },
-  });
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      canCreateOrganizations: true,
-      organizations: [],
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-
-  return {
-    userId: user.id,
-    email,
-    caller: appRouter.createCaller({ ...ctx, prisma }),
-  };
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { X } from "@langfuse/icons";
@@ -8,6 +7,46 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
+
+function buildSkillUsageFilters({
+  name,
+  version,
+  usage,
+  fileFilter,
+}: {
+  name: string;
+  version: number | undefined;
+  usage: SkillUsage;
+  fileFilter: { skillId: string; path: string } | undefined;
+}): FilterState {
+  const column = {
+    both: version === undefined ? "skillNames" : "skillVersions",
+    available:
+      version === undefined ? "skillNamesAvailable" : "skillVersionsAvailable",
+    loaded:
+      version === undefined ? "skillsNamesLoaded" : "skillsVersionsLoaded",
+  }[usage];
+  const skillFilters: FilterState = [
+    {
+      column,
+      type: "arrayOptions",
+      operator: "any of",
+      value: [version === undefined ? name : `${name}@${version}`],
+    },
+  ];
+
+  return fileFilter
+    ? [
+        ...skillFilters,
+        {
+          column: "skillFilesLoaded",
+          type: "arrayOptions",
+          operator: "any of",
+          value: [`${fileFilter.skillId}/${fileFilter.path}`],
+        },
+      ]
+    : skillFilters;
+}
 
 export function SkillLinkedTraces({
   projectId,
@@ -115,46 +154,6 @@ export function SkillLinkedTraces({
       </Tabs>
     </section>
   );
-}
-
-function buildSkillUsageFilters({
-  name,
-  version,
-  usage,
-  fileFilter,
-}: {
-  name: string;
-  version: number | undefined;
-  usage: SkillUsage;
-  fileFilter: { skillId: string; path: string } | undefined;
-}): FilterState {
-  const column = {
-    both: version === undefined ? "skillNames" : "skillVersions",
-    available:
-      version === undefined ? "skillNamesAvailable" : "skillVersionsAvailable",
-    loaded:
-      version === undefined ? "skillsNamesLoaded" : "skillsVersionsLoaded",
-  }[usage];
-  const skillFilters: FilterState = [
-    {
-      column,
-      type: "arrayOptions",
-      operator: "any of",
-      value: [version === undefined ? name : `${name}@${version}`],
-    },
-  ];
-
-  return fileFilter
-    ? [
-        ...skillFilters,
-        {
-          column: "skillFilesLoaded",
-          type: "arrayOptions",
-          operator: "any of",
-          value: [`${fileFilter.skillId}/${fileFilter.path}`],
-        },
-      ]
-    : skillFilters;
 }
 
 type SkillUsage = "both" | "available" | "loaded";

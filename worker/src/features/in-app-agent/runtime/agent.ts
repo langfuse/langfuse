@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -272,6 +271,705 @@ type CreateAgUiStreamOptions = {
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
   sandboxWorkspaceWasReset?: boolean;
 };
+
+function compileLocalPrompt(
+  promptTemplate: string,
+  variables: Record<string, string>,
+) {
+  return promptTemplate.replace(/{{\s*(\w+)\s*}}/g, (match, variable) => {
+    return variables[variable] ?? match;
+  });
+}
+
+async function getSystemPromptInstructions(params: {
+  langfuseClient?: Langfuse;
+  useLocalPrompt: boolean;
+  variables: {
+    currentDate: string;
+    redirectToolName: string;
+    sandboxFilesystem: string;
+    screenContext: string;
+    userContext: string;
+    sidebarHiddenEnvironments: string;
+  };
+}): Promise<{ instructions: string; prompt: InAppAgentPromptMetadata }> {
+  if (params.useLocalPrompt) {
+    return {
+      instructions: compileLocalPrompt(
+        IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
+        params.variables,
+      ),
+      prompt: {
+        name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+        version: 1,
+      },
+    };
+  }
+
+  if (!params.langfuseClient) {
+    throw new Error("Managed in-app agent prompt client is not configured");
+  }
+
+  const prompt = await params.langfuseClient.getPrompt(
+    IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+    undefined,
+    { type: "text" },
+  );
+
+  return {
+    instructions: prompt.compile(params.variables),
+    prompt: {
+      name: prompt.name,
+      version: prompt.version,
+    },
+  };
+}
+
+function toLoggableError(error: unknown): {
+  name?: string;
+  message: string;
+  stack?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return { message: String(error) };
+}
+
+function withToolExecutionTiming<TTool>(params: {
+  tools: Record<string, TTool>;
+  onStart?: (toolCallId: string) => void;
+  onEnd?: (toolCallId: string) => void;
+}): Record<string, TTool> {
+  if (!params.onStart && !params.onEnd) {
+    return params.tools;
+  }
+
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: async (inputData: unknown, context: unknown) => {
+            const toolCallId = getToolCallId(context);
+            if (!toolCallId) {
+              return execute(inputData, context);
+            }
+
+            params.onStart?.(toolCallId);
+            try {
+              return await execute(inputData, context);
+            } finally {
+              params.onEnd?.(toolCallId);
+            }
+          },
+        } as TTool,
+      ];
+    }),
+  );
+}
+
+function withLangfuseMcpRateLimitWait<TTool>(params: {
+  tools: Record<string, TTool>;
+  signal: AbortSignal;
+  runId: string;
+  threadId: string;
+}): Record<string, TTool> {
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: (inputData: unknown, context: unknown) =>
+            withMcpRateLimitWait({
+              signal: params.signal,
+              logContext: {
+                operation: "tools/call",
+                toolName,
+                runId: params.runId,
+                threadId: params.threadId,
+              },
+              fn: () => execute(inputData, context),
+            }),
+        } as TTool,
+      ];
+    }),
+  );
+}
+
+function prefixToolsetTools<TTool>(
+  serverName: string,
+  toolset: Record<string, TTool> | undefined,
+) {
+  return Object.fromEntries(
+    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
+      `${serverName}_${toolName}`,
+      tool,
+    ]),
+  );
+}
+
+function withModelTracing(
+  model: InAppAgentLanguageModel,
+  callbacks: {
+    onStart?: (options: unknown) => void;
+    onStreamPart?: (part: unknown) => void;
+  },
+): InAppAgentLanguageModel {
+  // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
+  // them as prototype getters, and object spread only copies own enumerable
+  // properties. Mastra then does `model.provider.includes(...)` on every turn.
+  // Always wrap so prompt-cache checkpoints are applied even without
+  // tracing callbacks.
+  return {
+    ...model,
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    supportedUrls: model.supportedUrls,
+    doGenerate: (options) =>
+      model.doGenerate(
+        applyPromptCacheToCall({
+          provider: String(model.provider ?? ""),
+          modelId: model.modelId,
+          options,
+        }),
+      ),
+    doStream: async (options) => {
+      const nextOptions = applyPromptCacheToCall({
+        provider: String(model.provider ?? ""),
+        modelId: model.modelId,
+        options,
+      });
+      callbacks.onStart?.(nextOptions);
+      const result = await model.doStream(nextOptions);
+
+      return {
+        ...result,
+        stream: result.stream.pipeThrough(
+          new TransformStream({
+            transform(part, controller) {
+              callbacks.onStreamPart?.(part);
+              controller.enqueue(part);
+            },
+          }),
+        ),
+      };
+    },
+  };
+}
+
+type MastraStreamCallbacks = {
+  onError: (error: Error) => void;
+};
+
+type MastraChunkProcessor = {
+  handleChunk: (chunk: unknown) => boolean;
+  flush: () => void;
+};
+
+type PatchableMastraAgent = {
+  createChunkProcessor?: (
+    callbacks: MastraStreamCallbacks,
+    ...rest: unknown[]
+  ) => MastraChunkProcessor;
+};
+
+type MastraApprovalStreamChunk = {
+  type?: string;
+  runId?: string;
+  payload?: {
+    toolCallId?: string;
+    toolName?: string;
+    args?: unknown;
+    error?: {
+      message?: string;
+      cause?: {
+        message?: string;
+      };
+      details?: {
+        errorMessage?: string;
+      };
+    };
+  };
+};
+
+function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
+  const error = chunk.payload?.error;
+
+  if (typeof error?.details?.errorMessage === "string") {
+    return error.details.errorMessage;
+  }
+
+  if (typeof error?.cause?.message === "string") {
+    return error.cause.message;
+  }
+
+  if (typeof error?.message === "string") {
+    return error.message;
+  }
+
+  return "Unknown tool error";
+}
+
+// @ag-ui/mastra handles Mastra's suspend()-based interrupts natively
+// (tool-call-suspended), but not the requireApproval flow used by
+// withInAppAgentToolApproval: Mastra emits a tool-call-approval chunk for
+// those tools and the bridge has no case for it, so approvals would never
+// surface as on_interrupt events. Map approvals onto the suspend protocol.
+// Non-background tool-error chunks are likewise swallowed by the bridge, so
+// convert them to tool results carrying a structured failure payload. The
+// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
+// normalizeAdapterEvent stamps that field from the structured payload so
+// instrumentation and persistence see an explicit failure.
+export function patchMastraApprovalChunks(adapter: MastraAgent) {
+  const patchableAdapter = adapter as unknown as PatchableMastraAgent;
+  const createChunkProcessor = patchableAdapter.createChunkProcessor;
+
+  if (typeof createChunkProcessor !== "function") {
+    return;
+  }
+
+  patchableAdapter.createChunkProcessor = function patchedCreateChunkProcessor(
+    this: PatchableMastraAgent,
+    callbacks: MastraStreamCallbacks,
+    ...rest: unknown[]
+  ) {
+    const processor = createChunkProcessor.call(this, callbacks, ...rest);
+
+    return {
+      handleChunk(chunk: unknown) {
+        const mastraChunk = chunk as MastraApprovalStreamChunk;
+
+        if (mastraChunk?.type === "tool-call-approval") {
+          const {
+            toolCallId,
+            toolName,
+            args: toolArgs,
+          } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-approval: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          return processor.handleChunk({
+            ...mastraChunk,
+            type: "tool-call-suspended",
+            payload: {
+              ...mastraChunk.payload,
+              suspendPayload: {
+                type: "approval",
+                toolCallId,
+                toolName,
+                args: toolArgs,
+              },
+            },
+          });
+        }
+
+        if (mastraChunk?.type === "tool-error") {
+          const {
+            toolCallId,
+            toolName,
+            args: toolArgs,
+          } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-error: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          return processor.handleChunk({
+            ...mastraChunk,
+            type: "tool-result",
+            payload: {
+              toolCallId,
+              toolName,
+              args: toolArgs,
+              isError: true,
+              // Raw object, not pre-stringified: the bridge JSON-stringifies
+              // payload.result into the event content, so a string here would
+              // double-encode. Keep the same {error:true,message} shape used
+              // by schema-validation failures so detection stays structured.
+              result: {
+                error: true,
+                message: getToolErrorMessage(mastraChunk),
+              },
+            },
+          });
+        }
+
+        return processor.handleChunk(chunk);
+      },
+      flush() {
+        processor.flush();
+      },
+    };
+  };
+}
+
+type ExecutableInAppAgentTool = {
+  execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
+  toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
+};
+
+async function createMastraAdapter(params: {
+  input: AgUiRunAgentInput;
+  runContext: ReturnType<typeof formatRunContext>;
+  signal: AbortSignal;
+  langfuseMcpAuthHeader: string;
+  options: CreateAgUiStreamOptions;
+  awsProfile?: string;
+  instructions: string;
+  skills: InlineSkill[];
+  onToolsAvailable?: (tools: Record<string, unknown>) => void;
+  onModelCallStart?: (options: unknown) => void;
+  onModelStreamPart?: (part: unknown) => void;
+  onToolExecutionStart?: (toolCallId: string) => void;
+  onToolExecutionEnd?: (toolCallId: string) => void;
+  stepLimitState: StepLimitState;
+}) {
+  const languageModel = await createInAppAgentLanguageModel({
+    config: params.options.model,
+    awsProfile: params.awsProfile,
+  });
+
+  const mcpClient = new MCPClient({
+    id: `in-app-agent-${params.input.runId}`,
+    servers: {
+      langfuse: {
+        url: new URL(params.options.langfuseMcp.url),
+        requestInit: {
+          headers: {
+            Authorization: params.langfuseMcpAuthHeader,
+            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
+            ...(params.options.langfuseMcp.runOverride
+              ? {
+                  [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]:
+                    params.options.langfuseMcp.runOverride,
+                }
+              : {}),
+          },
+        },
+      },
+      langfuseDocs: {
+        url: new URL(LANGFUSE_DOCS_MCP_URL),
+        requestInit: {
+          headers: {
+            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    // Discovery costs one `public-api` rate limit point like any other MCP
+    // request, so a busy org can be rate limited before the run has a chance to
+    // call a single tool.
+    const { toolsets, errors } = await withMcpRateLimitWait({
+      signal: params.signal,
+      logContext: {
+        operation: "listToolsets",
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      },
+      fn: async () => {
+        const result = await mcpClient.listToolsetsWithErrors();
+
+        if (
+          result.errors.langfuse &&
+          parseMcpRateLimitError(result.errors.langfuse)
+        ) {
+          throw new Error(
+            `Failed to initialize Langfuse MCP: ${result.errors.langfuse}`,
+          );
+        }
+
+        return result;
+      },
+    });
+
+    if (errors.langfuse) {
+      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
+    }
+
+    if (errors.langfuseDocs) {
+      logger.warn("Failed to initialize Langfuse docs MCP", {
+        error: errors.langfuseDocs,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+
+    // @ag-ui/mastra drives execution via adapter.run(input), not a direct
+    // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
+    // discovery, then prefix tool names for constructor-based tools so the
+    // model sees the same names that later appear in AG-UI tool-call events.
+    const tools = withToolExecutionTiming({
+      tools: {
+        ...withInAppAgentToolApproval(
+          {
+            ...withOptionalSilentMcpOutput({
+              tools: withLangfuseMcpRateLimitWait({
+                tools: prefixToolsetTools(
+                  "langfuse",
+                  filterInAppAgentAvailableLangfuseMcpTools({
+                    tools: toolsets.langfuse,
+                    policy: params.options.langfuseMcp.toolPolicy,
+                  }),
+                ),
+                signal: params.signal,
+                runId: params.input.runId,
+                threadId: params.input.threadId,
+              }),
+              sandbox: params.options.sandbox,
+              onToolCallCompleted: params.options.onMcpToolCallCompleted,
+            }),
+            ...withOptionalSilentMcpOutput({
+              tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+              sandbox: params.options.sandbox,
+              onToolCallCompleted: params.options.onMcpToolCallCompleted,
+            }),
+            [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+              projectId: params.options.redirectAction.projectId,
+              isV4Enabled: params.options.redirectAction.isV4Enabled,
+            }),
+            [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: createQuestionnaireTool(),
+            ...(params.options.sandbox
+              ? createSandboxTools(params.options.sandbox)
+              : {}),
+          },
+          params.options.langfuseMcp.toolPolicy,
+        ),
+        getRequestContext: createTool({
+          id: "getRequestContext",
+          description:
+            "Get the current page, selected resource, filters, request-start time, and timezone. Use when the request depends on what the user is viewing or on relative dates. Earlier results describe earlier requests.",
+          inputSchema: z.object({}),
+          execute: async (_input, context) => {
+            const snapshot = context?.requestContext?.get(RUN_CONTEXT_KEY);
+            if (typeof snapshot !== "string") {
+              throw new Error("Current turn context is unavailable");
+            }
+            return JSON.parse(snapshot) as RequestSnapshot;
+          },
+        }),
+      },
+      onStart: params.onToolExecutionStart,
+      onEnd: params.onToolExecutionEnd,
+    });
+    params.onToolsAvailable?.(tools);
+
+    const reasoningProviderOptions = getInAppAgentReasoningProviderOptions(
+      params.options.model,
+    );
+
+    // @ag-ui/mastra currently forwards only assistant, user, and tool
+    // messages. Keep approval outcomes as developer messages in the AG-UI
+    // transcript, while mirroring them through Mastra's model-facing
+    // instruction channel so the model receives the same higher-priority
+    // guidance on resumed runs.
+    let developerGuidance: string | undefined;
+    const model = withModelTracing(languageModel, {
+      onStart: params.onModelCallStart,
+      onStreamPart: params.onModelStreamPart,
+    });
+    const agent = new Agent({
+      id: "langfuse-in-app-assistant",
+      name: ASSISTANT_TITLE,
+      instructions: () =>
+        [params.instructions, CONTEXT_TOOL_INSTRUCTION, developerGuidance]
+          .filter(Boolean)
+          .join("\n\n"),
+      model,
+      skills: params.skills,
+      tools,
+      maxRetries: 2,
+      inputProcessors: [
+        new UserContextProcessor(params.runContext.userContext),
+        new EnsureFinalResponseProcessor(IN_APP_AGENT_MAX_STEPS, () => {
+          params.stepLimitState.wrapUp = true;
+          logger.info("In-app agent step-limit wrap-up injected", {
+            runId: params.input.runId,
+            threadId: params.input.threadId,
+            maxSteps: IN_APP_AGENT_MAX_STEPS,
+          });
+        }),
+      ],
+      defaultOptions: {
+        abortSignal: params.signal,
+        maxSteps: IN_APP_AGENT_MAX_STEPS,
+        // Mastra's logical step counter — not provider doStream/finish parts,
+        // which retry and inflate independently of maxSteps.
+        onIterationComplete: ({ iteration, finishReason }) => {
+          params.stepLimitState.iteration = iteration;
+          params.stepLimitState.lastFinishReason = finishReason;
+        },
+        ...(params.options.sandboxWorkspaceWasReset
+          ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
+          : {}),
+        ...(reasoningProviderOptions
+          ? { providerOptions: reasoningProviderOptions }
+          : {}),
+      },
+    });
+
+    const adapter = new MastraAgent({
+      agent,
+      resourceId: params.input.threadId,
+      requestContext: new RequestContext([
+        [RUN_CONTEXT_KEY, JSON.stringify(params.runContext.requestContext)],
+      ]),
+      // The structured RUN_FINISHED interrupt outcome targets CopilotKit
+      // >= 1.61.2 clients; ours consumes the legacy on_interrupt CUSTOM
+      // events, so keep the pre-flag behavior.
+      emitInterruptOutcome: false,
+    });
+    patchMastraApprovalChunks(adapter);
+
+    return {
+      adapter,
+      setDeveloperGuidance: (guidance: string | undefined) => {
+        developerGuidance = guidance;
+      },
+      executeToolCall: async (
+        approvalRequest: InAppAgentToolApprovalRequest,
+        resumeData: ManualToolApprovalResumeData,
+      ) => {
+        const tool = tools[approvalRequest.toolName] as
+          | ExecutableInAppAgentTool
+          | undefined;
+
+        if (!tool?.execute) {
+          throw new Error(
+            `Approved in-app agent tool is not executable: ${approvalRequest.toolName}`,
+          );
+        }
+
+        const result = await tool.execute(approvalRequest.args ?? {}, {
+          abortSignal: params.signal,
+          observe: {
+            span: async <T>(_: string, fn: () => Promise<T> | T) => fn(),
+            log: () => undefined,
+          },
+          agent: {
+            agentId: "langfuse-in-app-assistant",
+            toolCallId: approvalRequest.toolCallId,
+            messages: params.input.messages,
+            threadId: params.input.threadId,
+            resourceId: params.input.threadId,
+            suspend: async () => undefined,
+            resumeData,
+          },
+        });
+
+        return {
+          result,
+          modelResult: tool.toModelOutput
+            ? await tool.toModelOutput(result)
+            : result,
+        };
+      },
+      interrupt: () => agent.abortRunStream(params.input.runId),
+      cleanup: () => mcpClient.disconnect(),
+    };
+  } catch (error: unknown) {
+    await mcpClient.disconnect().catch((disconnectError: unknown) => {
+      logger.error("Error cleaning up failed agent initialization", {
+        error: disconnectError,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    });
+    throw error;
+  }
+}
+
+function normalizeAdapterEvent(
+  event: AgUiEvent,
+  input: AgUiRunAgentInput,
+): AgUiEvent[] {
+  if (event.type === EventType.RUN_STARTED) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+
+    return [
+      {
+        ...publicEvent,
+        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      },
+    ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
+    // rejections). Only stamp when the bridge omitted the field entirely.
+    if (typeof event.error === "string" && event.error.trim()) {
+      return [event];
+    }
+
+    const failureMessage = getToolFailureMessage(undefined, event.content);
+    if (failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
+  }
+
+  return [event];
+}
+
+function getRunErrorMessage(event: AgUiEvent) {
+  return typeof event.message === "string" && event.message.trim()
+    ? event.message
+    : "Unknown in-app agent error";
+}
+
+function createRunErrorEvent(
+  input: AgUiRunAgentInput,
+  error: unknown,
+): AgUiEvent {
+  const message =
+    error instanceof Error ? error.message : "Unknown in-app agent error";
+
+  return {
+    type: EventType.RUN_ERROR,
+    threadId: input.threadId,
+    runId: input.runId,
+    message,
+  };
+}
 
 export async function createAgUiStream(params: {
   input: AgUiRunAgentInput;
@@ -980,703 +1678,4 @@ export async function createAgUiStream(params: {
         .finally(finish);
     },
   });
-}
-
-type ExecutableInAppAgentTool = {
-  execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
-  toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
-};
-
-function withModelTracing(
-  model: InAppAgentLanguageModel,
-  callbacks: {
-    onStart?: (options: unknown) => void;
-    onStreamPart?: (part: unknown) => void;
-  },
-): InAppAgentLanguageModel {
-  // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
-  // them as prototype getters, and object spread only copies own enumerable
-  // properties. Mastra then does `model.provider.includes(...)` on every turn.
-  // Always wrap so prompt-cache checkpoints are applied even without
-  // tracing callbacks.
-  return {
-    ...model,
-    specificationVersion: model.specificationVersion,
-    provider: model.provider,
-    modelId: model.modelId,
-    supportedUrls: model.supportedUrls,
-    doGenerate: (options) =>
-      model.doGenerate(
-        applyPromptCacheToCall({
-          provider: String(model.provider ?? ""),
-          modelId: model.modelId,
-          options,
-        }),
-      ),
-    doStream: async (options) => {
-      const nextOptions = applyPromptCacheToCall({
-        provider: String(model.provider ?? ""),
-        modelId: model.modelId,
-        options,
-      });
-      callbacks.onStart?.(nextOptions);
-      const result = await model.doStream(nextOptions);
-
-      return {
-        ...result,
-        stream: result.stream.pipeThrough(
-          new TransformStream({
-            transform(part, controller) {
-              callbacks.onStreamPart?.(part);
-              controller.enqueue(part);
-            },
-          }),
-        ),
-      };
-    },
-  };
-}
-
-function withToolExecutionTiming<TTool>(params: {
-  tools: Record<string, TTool>;
-  onStart?: (toolCallId: string) => void;
-  onEnd?: (toolCallId: string) => void;
-}): Record<string, TTool> {
-  if (!params.onStart && !params.onEnd) {
-    return params.tools;
-  }
-
-  return Object.fromEntries(
-    Object.entries(params.tools).map(([toolName, tool]) => {
-      if (!hasCallableExecute(tool)) {
-        return [toolName, tool];
-      }
-
-      const execute = tool.execute.bind(tool) as (
-        inputData: unknown,
-        context: unknown,
-      ) => Promise<unknown>;
-
-      return [
-        toolName,
-        {
-          ...tool,
-          execute: async (inputData: unknown, context: unknown) => {
-            const toolCallId = getToolCallId(context);
-            if (!toolCallId) {
-              return execute(inputData, context);
-            }
-
-            params.onStart?.(toolCallId);
-            try {
-              return await execute(inputData, context);
-            } finally {
-              params.onEnd?.(toolCallId);
-            }
-          },
-        } as TTool,
-      ];
-    }),
-  );
-}
-
-async function createMastraAdapter(params: {
-  input: AgUiRunAgentInput;
-  runContext: ReturnType<typeof formatRunContext>;
-  signal: AbortSignal;
-  langfuseMcpAuthHeader: string;
-  options: CreateAgUiStreamOptions;
-  awsProfile?: string;
-  instructions: string;
-  skills: InlineSkill[];
-  onToolsAvailable?: (tools: Record<string, unknown>) => void;
-  onModelCallStart?: (options: unknown) => void;
-  onModelStreamPart?: (part: unknown) => void;
-  onToolExecutionStart?: (toolCallId: string) => void;
-  onToolExecutionEnd?: (toolCallId: string) => void;
-  stepLimitState: StepLimitState;
-}) {
-  const languageModel = await createInAppAgentLanguageModel({
-    config: params.options.model,
-    awsProfile: params.awsProfile,
-  });
-
-  const mcpClient = new MCPClient({
-    id: `in-app-agent-${params.input.runId}`,
-    servers: {
-      langfuse: {
-        url: new URL(params.options.langfuseMcp.url),
-        requestInit: {
-          headers: {
-            Authorization: params.langfuseMcpAuthHeader,
-            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
-            ...(params.options.langfuseMcp.runOverride
-              ? {
-                  [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]:
-                    params.options.langfuseMcp.runOverride,
-                }
-              : {}),
-          },
-        },
-      },
-      langfuseDocs: {
-        url: new URL(LANGFUSE_DOCS_MCP_URL),
-        requestInit: {
-          headers: {
-            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
-          },
-        },
-      },
-    },
-  });
-
-  try {
-    // Discovery costs one `public-api` rate limit point like any other MCP
-    // request, so a busy org can be rate limited before the run has a chance to
-    // call a single tool.
-    const { toolsets, errors } = await withMcpRateLimitWait({
-      signal: params.signal,
-      logContext: {
-        operation: "listToolsets",
-        runId: params.input.runId,
-        threadId: params.input.threadId,
-      },
-      fn: async () => {
-        const result = await mcpClient.listToolsetsWithErrors();
-
-        if (
-          result.errors.langfuse &&
-          parseMcpRateLimitError(result.errors.langfuse)
-        ) {
-          throw new Error(
-            `Failed to initialize Langfuse MCP: ${result.errors.langfuse}`,
-          );
-        }
-
-        return result;
-      },
-    });
-
-    if (errors.langfuse) {
-      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
-    }
-
-    if (errors.langfuseDocs) {
-      logger.warn("Failed to initialize Langfuse docs MCP", {
-        error: errors.langfuseDocs,
-        runId: params.input.runId,
-        threadId: params.input.threadId,
-      });
-    }
-
-    // @ag-ui/mastra drives execution via adapter.run(input), not a direct
-    // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
-    // discovery, then prefix tool names for constructor-based tools so the
-    // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withToolExecutionTiming({
-      tools: {
-        ...withInAppAgentToolApproval(
-          {
-            ...withOptionalSilentMcpOutput({
-              tools: withLangfuseMcpRateLimitWait({
-                tools: prefixToolsetTools(
-                  "langfuse",
-                  filterInAppAgentAvailableLangfuseMcpTools({
-                    tools: toolsets.langfuse,
-                    policy: params.options.langfuseMcp.toolPolicy,
-                  }),
-                ),
-                signal: params.signal,
-                runId: params.input.runId,
-                threadId: params.input.threadId,
-              }),
-              sandbox: params.options.sandbox,
-              onToolCallCompleted: params.options.onMcpToolCallCompleted,
-            }),
-            ...withOptionalSilentMcpOutput({
-              tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-              sandbox: params.options.sandbox,
-              onToolCallCompleted: params.options.onMcpToolCallCompleted,
-            }),
-            [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-              projectId: params.options.redirectAction.projectId,
-              isV4Enabled: params.options.redirectAction.isV4Enabled,
-            }),
-            [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: createQuestionnaireTool(),
-            ...(params.options.sandbox
-              ? createSandboxTools(params.options.sandbox)
-              : {}),
-          },
-          params.options.langfuseMcp.toolPolicy,
-        ),
-        getRequestContext: createTool({
-          id: "getRequestContext",
-          description:
-            "Get the current page, selected resource, filters, request-start time, and timezone. Use when the request depends on what the user is viewing or on relative dates. Earlier results describe earlier requests.",
-          inputSchema: z.object({}),
-          execute: async (_input, context) => {
-            const snapshot = context?.requestContext?.get(RUN_CONTEXT_KEY);
-            if (typeof snapshot !== "string") {
-              throw new Error("Current turn context is unavailable");
-            }
-            return JSON.parse(snapshot) as RequestSnapshot;
-          },
-        }),
-      },
-      onStart: params.onToolExecutionStart,
-      onEnd: params.onToolExecutionEnd,
-    });
-    params.onToolsAvailable?.(tools);
-
-    const reasoningProviderOptions = getInAppAgentReasoningProviderOptions(
-      params.options.model,
-    );
-
-    // @ag-ui/mastra currently forwards only assistant, user, and tool
-    // messages. Keep approval outcomes as developer messages in the AG-UI
-    // transcript, while mirroring them through Mastra's model-facing
-    // instruction channel so the model receives the same higher-priority
-    // guidance on resumed runs.
-    let developerGuidance: string | undefined;
-    const model = withModelTracing(languageModel, {
-      onStart: params.onModelCallStart,
-      onStreamPart: params.onModelStreamPart,
-    });
-    const agent = new Agent({
-      id: "langfuse-in-app-assistant",
-      name: ASSISTANT_TITLE,
-      instructions: () =>
-        [params.instructions, CONTEXT_TOOL_INSTRUCTION, developerGuidance]
-          .filter(Boolean)
-          .join("\n\n"),
-      model,
-      skills: params.skills,
-      tools,
-      maxRetries: 2,
-      inputProcessors: [
-        new UserContextProcessor(params.runContext.userContext),
-        new EnsureFinalResponseProcessor(IN_APP_AGENT_MAX_STEPS, () => {
-          params.stepLimitState.wrapUp = true;
-          logger.info("In-app agent step-limit wrap-up injected", {
-            runId: params.input.runId,
-            threadId: params.input.threadId,
-            maxSteps: IN_APP_AGENT_MAX_STEPS,
-          });
-        }),
-      ],
-      defaultOptions: {
-        abortSignal: params.signal,
-        maxSteps: IN_APP_AGENT_MAX_STEPS,
-        // Mastra's logical step counter — not provider doStream/finish parts,
-        // which retry and inflate independently of maxSteps.
-        onIterationComplete: ({ iteration, finishReason }) => {
-          params.stepLimitState.iteration = iteration;
-          params.stepLimitState.lastFinishReason = finishReason;
-        },
-        ...(params.options.sandboxWorkspaceWasReset
-          ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
-          : {}),
-        ...(reasoningProviderOptions
-          ? { providerOptions: reasoningProviderOptions }
-          : {}),
-      },
-    });
-
-    const adapter = new MastraAgent({
-      agent,
-      resourceId: params.input.threadId,
-      requestContext: new RequestContext([
-        [RUN_CONTEXT_KEY, JSON.stringify(params.runContext.requestContext)],
-      ]),
-      // The structured RUN_FINISHED interrupt outcome targets CopilotKit
-      // >= 1.61.2 clients; ours consumes the legacy on_interrupt CUSTOM
-      // events, so keep the pre-flag behavior.
-      emitInterruptOutcome: false,
-    });
-    patchMastraApprovalChunks(adapter);
-
-    return {
-      adapter,
-      setDeveloperGuidance: (guidance: string | undefined) => {
-        developerGuidance = guidance;
-      },
-      executeToolCall: async (
-        approvalRequest: InAppAgentToolApprovalRequest,
-        resumeData: ManualToolApprovalResumeData,
-      ) => {
-        const tool = tools[approvalRequest.toolName] as
-          | ExecutableInAppAgentTool
-          | undefined;
-
-        if (!tool?.execute) {
-          throw new Error(
-            `Approved in-app agent tool is not executable: ${approvalRequest.toolName}`,
-          );
-        }
-
-        const result = await tool.execute(approvalRequest.args ?? {}, {
-          abortSignal: params.signal,
-          observe: {
-            span: async <T>(_: string, fn: () => Promise<T> | T) => fn(),
-            log: () => undefined,
-          },
-          agent: {
-            agentId: "langfuse-in-app-assistant",
-            toolCallId: approvalRequest.toolCallId,
-            messages: params.input.messages,
-            threadId: params.input.threadId,
-            resourceId: params.input.threadId,
-            suspend: async () => undefined,
-            resumeData,
-          },
-        });
-
-        return {
-          result,
-          modelResult: tool.toModelOutput
-            ? await tool.toModelOutput(result)
-            : result,
-        };
-      },
-      interrupt: () => agent.abortRunStream(params.input.runId),
-      cleanup: () => mcpClient.disconnect(),
-    };
-  } catch (error: unknown) {
-    await mcpClient.disconnect().catch((disconnectError: unknown) => {
-      logger.error("Error cleaning up failed agent initialization", {
-        error: disconnectError,
-        runId: params.input.runId,
-        threadId: params.input.threadId,
-      });
-    });
-    throw error;
-  }
-}
-
-function prefixToolsetTools<TTool>(
-  serverName: string,
-  toolset: Record<string, TTool> | undefined,
-) {
-  return Object.fromEntries(
-    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
-      `${serverName}_${toolName}`,
-      tool,
-    ]),
-  );
-}
-
-function withLangfuseMcpRateLimitWait<TTool>(params: {
-  tools: Record<string, TTool>;
-  signal: AbortSignal;
-  runId: string;
-  threadId: string;
-}): Record<string, TTool> {
-  return Object.fromEntries(
-    Object.entries(params.tools).map(([toolName, tool]) => {
-      if (!hasCallableExecute(tool)) {
-        return [toolName, tool];
-      }
-
-      const execute = tool.execute.bind(tool) as (
-        inputData: unknown,
-        context: unknown,
-      ) => Promise<unknown>;
-
-      return [
-        toolName,
-        {
-          ...tool,
-          execute: (inputData: unknown, context: unknown) =>
-            withMcpRateLimitWait({
-              signal: params.signal,
-              logContext: {
-                operation: "tools/call",
-                toolName,
-                runId: params.runId,
-                threadId: params.threadId,
-              },
-              fn: () => execute(inputData, context),
-            }),
-        } as TTool,
-      ];
-    }),
-  );
-}
-
-type MastraChunkProcessor = {
-  handleChunk: (chunk: unknown) => boolean;
-  flush: () => void;
-};
-
-type MastraStreamCallbacks = {
-  onError: (error: Error) => void;
-};
-
-type PatchableMastraAgent = {
-  createChunkProcessor?: (
-    callbacks: MastraStreamCallbacks,
-    ...rest: unknown[]
-  ) => MastraChunkProcessor;
-};
-
-type MastraApprovalStreamChunk = {
-  type?: string;
-  runId?: string;
-  payload?: {
-    toolCallId?: string;
-    toolName?: string;
-    args?: unknown;
-    error?: {
-      message?: string;
-      cause?: {
-        message?: string;
-      };
-      details?: {
-        errorMessage?: string;
-      };
-    };
-  };
-};
-
-// @ag-ui/mastra handles Mastra's suspend()-based interrupts natively
-// (tool-call-suspended), but not the requireApproval flow used by
-// withInAppAgentToolApproval: Mastra emits a tool-call-approval chunk for
-// those tools and the bridge has no case for it, so approvals would never
-// surface as on_interrupt events. Map approvals onto the suspend protocol.
-// Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying a structured failure payload. The
-// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
-// normalizeAdapterEvent stamps that field from the structured payload so
-// instrumentation and persistence see an explicit failure.
-export function patchMastraApprovalChunks(adapter: MastraAgent) {
-  const patchableAdapter = adapter as unknown as PatchableMastraAgent;
-  const createChunkProcessor = patchableAdapter.createChunkProcessor;
-
-  if (typeof createChunkProcessor !== "function") {
-    return;
-  }
-
-  patchableAdapter.createChunkProcessor = function patchedCreateChunkProcessor(
-    this: PatchableMastraAgent,
-    callbacks: MastraStreamCallbacks,
-    ...rest: unknown[]
-  ) {
-    const processor = createChunkProcessor.call(this, callbacks, ...rest);
-
-    return {
-      handleChunk(chunk: unknown) {
-        const mastraChunk = chunk as MastraApprovalStreamChunk;
-
-        if (mastraChunk?.type === "tool-call-approval") {
-          const {
-            toolCallId,
-            toolName,
-            args: toolArgs,
-          } = mastraChunk.payload ?? {};
-          if (!toolCallId || !toolName) {
-            callbacks.onError(
-              new Error(
-                "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-              ),
-            );
-            return true;
-          }
-
-          return processor.handleChunk({
-            ...mastraChunk,
-            type: "tool-call-suspended",
-            payload: {
-              ...mastraChunk.payload,
-              suspendPayload: {
-                type: "approval",
-                toolCallId,
-                toolName,
-                args: toolArgs,
-              },
-            },
-          });
-        }
-
-        if (mastraChunk?.type === "tool-error") {
-          const {
-            toolCallId,
-            toolName,
-            args: toolArgs,
-          } = mastraChunk.payload ?? {};
-          if (!toolCallId || !toolName) {
-            callbacks.onError(
-              new Error(
-                "Malformed tool-error: missing toolCallId or toolName in payload",
-              ),
-            );
-            return true;
-          }
-
-          return processor.handleChunk({
-            ...mastraChunk,
-            type: "tool-result",
-            payload: {
-              toolCallId,
-              toolName,
-              args: toolArgs,
-              isError: true,
-              // Raw object, not pre-stringified: the bridge JSON-stringifies
-              // payload.result into the event content, so a string here would
-              // double-encode. Keep the same {error:true,message} shape used
-              // by schema-validation failures so detection stays structured.
-              result: {
-                error: true,
-                message: getToolErrorMessage(mastraChunk),
-              },
-            },
-          });
-        }
-
-        return processor.handleChunk(chunk);
-      },
-      flush() {
-        processor.flush();
-      },
-    };
-  };
-}
-
-function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
-  const error = chunk.payload?.error;
-
-  if (typeof error?.details?.errorMessage === "string") {
-    return error.details.errorMessage;
-  }
-
-  if (typeof error?.cause?.message === "string") {
-    return error.cause.message;
-  }
-
-  if (typeof error?.message === "string") {
-    return error.message;
-  }
-
-  return "Unknown tool error";
-}
-
-async function getSystemPromptInstructions(params: {
-  langfuseClient?: Langfuse;
-  useLocalPrompt: boolean;
-  variables: {
-    currentDate: string;
-    redirectToolName: string;
-    sandboxFilesystem: string;
-    screenContext: string;
-    userContext: string;
-    sidebarHiddenEnvironments: string;
-  };
-}): Promise<{ instructions: string; prompt: InAppAgentPromptMetadata }> {
-  if (params.useLocalPrompt) {
-    return {
-      instructions: compileLocalPrompt(
-        IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
-        params.variables,
-      ),
-      prompt: {
-        name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
-        version: 1,
-      },
-    };
-  }
-
-  if (!params.langfuseClient) {
-    throw new Error("Managed in-app agent prompt client is not configured");
-  }
-
-  const prompt = await params.langfuseClient.getPrompt(
-    IN_APP_AGENT_SYSTEM_PROMPT_NAME,
-    undefined,
-    { type: "text" },
-  );
-
-  return {
-    instructions: prompt.compile(params.variables),
-    prompt: {
-      name: prompt.name,
-      version: prompt.version,
-    },
-  };
-}
-
-function compileLocalPrompt(
-  promptTemplate: string,
-  variables: Record<string, string>,
-) {
-  return promptTemplate.replace(/{{\s*(\w+)\s*}}/g, (match, variable) => {
-    return variables[variable] ?? match;
-  });
-}
-
-function normalizeAdapterEvent(
-  event: AgUiEvent,
-  input: AgUiRunAgentInput,
-): AgUiEvent[] {
-  if (event.type === EventType.RUN_STARTED) {
-    const publicEvent = { ...event };
-    delete publicEvent.input;
-
-    return [
-      {
-        ...publicEvent,
-        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
-      },
-    ];
-  }
-
-  if (event.type === EventType.TOOL_CALL_RESULT) {
-    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
-    // rejections). Only stamp when the bridge omitted the field entirely.
-    if (typeof event.error === "string" && event.error.trim()) {
-      return [event];
-    }
-
-    const failureMessage = getToolFailureMessage(undefined, event.content);
-    if (failureMessage) {
-      return [{ ...event, error: failureMessage }];
-    }
-  }
-
-  return [event];
-}
-
-function createRunErrorEvent(
-  input: AgUiRunAgentInput,
-  error: unknown,
-): AgUiEvent {
-  const message =
-    error instanceof Error ? error.message : "Unknown in-app agent error";
-
-  return {
-    type: EventType.RUN_ERROR,
-    threadId: input.threadId,
-    runId: input.runId,
-    message,
-  };
-}
-
-function toLoggableError(error: unknown): {
-  name?: string;
-  message: string;
-  stack?: string;
-} {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
-  }
-
-  return { message: String(error) };
-}
-
-function getRunErrorMessage(event: AgUiEvent) {
-  return typeof event.message === "string" && event.message.trim()
-    ? event.message
-    : "Unknown in-app agent error";
 }

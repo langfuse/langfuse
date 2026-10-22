@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 import {
@@ -115,18 +114,6 @@ export function serializeInAppAgentDisplayState(
   return { ...state, seenMessageIds: Object.keys(state.messageTimestamps) };
 }
 
-export function deserializeInAppAgentDisplayState(
-  serialized: unknown,
-): InAppAgentDisplayState {
-  const parsed = SerializedInAppAgentDisplayStateSchema.safeParse(serialized);
-  if (!parsed.success) {
-    return createInAppAgentDisplayState();
-  }
-
-  const { seenMessageIds: _legacySeenMessageIds, ...state } = parsed.data;
-  return state;
-}
-
 export function createInAppAgentDisplayState(): InAppAgentDisplayState {
   return {
     latestPlacement: null,
@@ -137,6 +124,18 @@ export function createInAppAgentDisplayState(): InAppAgentDisplayState {
     textByMessageId: {},
     toolCallPlacements: {},
   };
+}
+
+export function deserializeInAppAgentDisplayState(
+  serialized: unknown,
+): InAppAgentDisplayState {
+  const parsed = SerializedInAppAgentDisplayStateSchema.safeParse(serialized);
+  if (!parsed.success) {
+    return createInAppAgentDisplayState();
+  }
+
+  const { seenMessageIds: _legacySeenMessageIds, ...state } = parsed.data;
+  return state;
 }
 
 export function recordInAppAgentMessagesForDisplay(

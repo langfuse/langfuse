@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
@@ -18,6 +17,152 @@ import {
 } from "./ApiKeySettingsTable";
 
 type ApiKeyScope = "project" | "organization";
+
+function useApiKeySettingsTableData({
+  entityId,
+  scope,
+  includeGatewayKeys,
+  searchQuery,
+}: {
+  entityId: string;
+  scope: ApiKeyScope;
+  includeGatewayKeys: boolean;
+  searchQuery: string;
+}) {
+  const projectApiKeys = api.projectApiKeys.byProjectId.useQuery(
+    { projectId: entityId },
+    { enabled: scope === "project" },
+  );
+  // keepPreviousData keeps the current rows visible while the gateway filter refetches.
+  const organizationApiKeys = api.organizationApiKeys.byOrganizationId.useQuery(
+    { orgId: entityId, includeGatewayKeys },
+    { enabled: scope === "organization", placeholderData: keepPreviousData },
+  );
+  const apiKeys = scope === "project" ? projectApiKeys : organizationApiKeys;
+
+  return useMemo<AsyncTableData<ApiKeySettingsTableRow[]>>(() => {
+    if (apiKeys.isLoading) return { status: "loading" };
+    if (apiKeys.isError) {
+      return { status: "error", error: "Failed to load API keys" };
+    }
+    return {
+      status: "success",
+      data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
+    };
+  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
+}
+
+function ApiKeyNameDialog({
+  apiKey,
+  error,
+  isPending,
+  onSave,
+}: {
+  apiKey: ApiKeySettingsTableRow;
+  error?: string;
+  isPending: boolean;
+  onSave: (name: string) => Promise<void>;
+}) {
+  const inputId = useId();
+  const [name, setName] = useState(apiKey.note ?? "");
+
+  return (
+    <Dialog
+      title="Edit API key name"
+      actions={[
+        {
+          label: "Save",
+          loading: isPending,
+          disabled: name === (apiKey.note ?? ""),
+          onClick: () => onSave(name),
+        },
+      ]}
+    >
+      <Dialog.Body>
+        <div className="grid gap-2">
+          <label htmlFor={inputId} className="text-sm leading-none font-bold">
+            Name
+          </label>
+          <Input
+            id={inputId}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={isPending}
+            error={Boolean(error)}
+            autoFocus
+          />
+        </div>
+        {error ? <p className="text-destructive">{error}</p> : null}
+      </Dialog.Body>
+    </Dialog>
+  );
+}
+
+function ConnectedApiKeyNameDialogController({
+  children,
+  entityId,
+  scope,
+}: {
+  children: (control: {
+    openDialog: (apiKey: ApiKeySettingsTableRow) => void;
+  }) => ReactNode;
+  entityId: string;
+  scope: ApiKeyScope;
+}) {
+  const utils = api.useUtils();
+  const instance = useRef(0);
+  const updateProjectApiKey = api.projectApiKeys.updateName.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
+  });
+  const updateOrganizationApiKey =
+    api.organizationApiKeys.updateName.useMutation({
+      onSuccess: () => utils.organizationApiKeys.invalidate(),
+    });
+  const updateApiKey =
+    scope === "project" ? updateProjectApiKey : updateOrganizationApiKey;
+
+  return (
+    <DialogController<ApiKeySettingsTableRow & { instance: number }>
+      onBeforeClose={() => !updateApiKey.isPending}
+      onDismiss={updateApiKey.reset}
+      renderDialog={({ state, closeDialog }) => (
+        <ApiKeyNameDialog
+          key={state.instance}
+          apiKey={state}
+          error={updateApiKey.error?.message}
+          isPending={updateApiKey.isPending}
+          onSave={async (name) => {
+            try {
+              if (scope === "project") {
+                await updateProjectApiKey.mutateAsync({
+                  projectId: entityId,
+                  keyId: state.id,
+                  name,
+                });
+              } else {
+                await updateOrganizationApiKey.mutateAsync({
+                  orgId: entityId,
+                  keyId: state.id,
+                  name,
+                });
+              }
+              closeDialog();
+            } catch (error) {
+              reportNonTrpcError(error, "api-keys");
+            }
+          }}
+        />
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          openDialog: (apiKey) =>
+            openDialog({ ...apiKey, instance: ++instance.current }),
+        })
+      }
+    </DialogController>
+  );
+}
 
 export function ConnectedApiKeySettingsTable({
   entityId,
@@ -116,150 +261,4 @@ export function ConnectedApiKeySettingsTable({
       )}
     </ConnectedApiKeyNameDialogController>
   );
-}
-
-function ConnectedApiKeyNameDialogController({
-  children,
-  entityId,
-  scope,
-}: {
-  children: (control: {
-    openDialog: (apiKey: ApiKeySettingsTableRow) => void;
-  }) => ReactNode;
-  entityId: string;
-  scope: ApiKeyScope;
-}) {
-  const utils = api.useUtils();
-  const instance = useRef(0);
-  const updateProjectApiKey = api.projectApiKeys.updateName.useMutation({
-    onSuccess: () => utils.projectApiKeys.invalidate(),
-  });
-  const updateOrganizationApiKey =
-    api.organizationApiKeys.updateName.useMutation({
-      onSuccess: () => utils.organizationApiKeys.invalidate(),
-    });
-  const updateApiKey =
-    scope === "project" ? updateProjectApiKey : updateOrganizationApiKey;
-
-  return (
-    <DialogController<ApiKeySettingsTableRow & { instance: number }>
-      onBeforeClose={() => !updateApiKey.isPending}
-      onDismiss={updateApiKey.reset}
-      renderDialog={({ state, closeDialog }) => (
-        <ApiKeyNameDialog
-          key={state.instance}
-          apiKey={state}
-          error={updateApiKey.error?.message}
-          isPending={updateApiKey.isPending}
-          onSave={async (name) => {
-            try {
-              if (scope === "project") {
-                await updateProjectApiKey.mutateAsync({
-                  projectId: entityId,
-                  keyId: state.id,
-                  name,
-                });
-              } else {
-                await updateOrganizationApiKey.mutateAsync({
-                  orgId: entityId,
-                  keyId: state.id,
-                  name,
-                });
-              }
-              closeDialog();
-            } catch (error) {
-              reportNonTrpcError(error, "api-keys");
-            }
-          }}
-        />
-      )}
-    >
-      {({ openDialog }) =>
-        children({
-          openDialog: (apiKey) =>
-            openDialog({ ...apiKey, instance: ++instance.current }),
-        })
-      }
-    </DialogController>
-  );
-}
-
-function ApiKeyNameDialog({
-  apiKey,
-  error,
-  isPending,
-  onSave,
-}: {
-  apiKey: ApiKeySettingsTableRow;
-  error?: string;
-  isPending: boolean;
-  onSave: (name: string) => Promise<void>;
-}) {
-  const inputId = useId();
-  const [name, setName] = useState(apiKey.note ?? "");
-
-  return (
-    <Dialog
-      title="Edit API key name"
-      actions={[
-        {
-          label: "Save",
-          loading: isPending,
-          disabled: name === (apiKey.note ?? ""),
-          onClick: () => onSave(name),
-        },
-      ]}
-    >
-      <Dialog.Body>
-        <div className="grid gap-2">
-          <label htmlFor={inputId} className="text-sm leading-none font-bold">
-            Name
-          </label>
-          <Input
-            id={inputId}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            disabled={isPending}
-            error={Boolean(error)}
-            autoFocus
-          />
-        </div>
-        {error ? <p className="text-destructive">{error}</p> : null}
-      </Dialog.Body>
-    </Dialog>
-  );
-}
-
-function useApiKeySettingsTableData({
-  entityId,
-  scope,
-  includeGatewayKeys,
-  searchQuery,
-}: {
-  entityId: string;
-  scope: ApiKeyScope;
-  includeGatewayKeys: boolean;
-  searchQuery: string;
-}) {
-  const projectApiKeys = api.projectApiKeys.byProjectId.useQuery(
-    { projectId: entityId },
-    { enabled: scope === "project" },
-  );
-  // keepPreviousData keeps the current rows visible while the gateway filter refetches.
-  const organizationApiKeys = api.organizationApiKeys.byOrganizationId.useQuery(
-    { orgId: entityId, includeGatewayKeys },
-    { enabled: scope === "organization", placeholderData: keepPreviousData },
-  );
-  const apiKeys = scope === "project" ? projectApiKeys : organizationApiKeys;
-
-  return useMemo<AsyncTableData<ApiKeySettingsTableRow[]>>(() => {
-    if (apiKeys.isLoading) return { status: "loading" };
-    if (apiKeys.isError) {
-      return { status: "error", error: "Failed to load API keys" };
-    }
-    return {
-      status: "success",
-      data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
-    };
-  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
 }

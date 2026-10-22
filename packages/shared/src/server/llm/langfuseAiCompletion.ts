@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -50,35 +49,12 @@ export function getLangfuseAITraceSinkParams(params: {
   };
 }
 
-export async function generateLangfuseAIText(params: {
-  messages: ChatMessage[];
-  model?: string;
-  maxTokens?: number;
-  traceSinkParams?: TraceSinkParams;
-  timeout?: number;
-}): Promise<string> {
-  const modelConfig = getInAppAgentModelConfig({ modelId: params.model });
-
-  if (!modelConfig) {
-    throw new Error("Langfuse AI completion model is not configured.");
-  }
-
-  const maxTokens: { max_tokens?: number } =
-    params.maxTokens !== undefined ? { max_tokens: params.maxTokens } : {};
-
-  const result = await generateLLMText({
-    ...mapLegacyLLMCompletionParams(
-      toLangfuseAICompletionParams({
-        modelConfig,
-        messages: params.messages,
-        maxTokens,
-      }),
-    ),
-    trace: params.traceSinkParams,
-    timeout: params.timeout,
-  });
-
-  return result.text;
+function encryptedExtraHeaders(
+  extraHeaders: Record<string, string> | undefined,
+): { extraHeaders: string } | Record<string, never> {
+  return extraHeaders
+    ? { extraHeaders: encrypt(JSON.stringify(extraHeaders)) }
+    : {};
 }
 
 function toLangfuseAICompletionParams(params: {
@@ -171,10 +147,33 @@ function toLangfuseAICompletionParams(params: {
   }
 }
 
-function encryptedExtraHeaders(
-  extraHeaders: Record<string, string> | undefined,
-): { extraHeaders: string } | Record<string, never> {
-  return extraHeaders
-    ? { extraHeaders: encrypt(JSON.stringify(extraHeaders)) }
-    : {};
+export async function generateLangfuseAIText(params: {
+  messages: ChatMessage[];
+  model?: string;
+  maxTokens?: number;
+  traceSinkParams?: TraceSinkParams;
+  timeout?: number;
+}): Promise<string> {
+  const modelConfig = getInAppAgentModelConfig({ modelId: params.model });
+
+  if (!modelConfig) {
+    throw new Error("Langfuse AI completion model is not configured.");
+  }
+
+  const maxTokens: { max_tokens?: number } =
+    params.maxTokens !== undefined ? { max_tokens: params.maxTokens } : {};
+
+  const result = await generateLLMText({
+    ...mapLegacyLLMCompletionParams(
+      toLangfuseAICompletionParams({
+        modelConfig,
+        messages: params.messages,
+        maxTokens,
+      }),
+    ),
+    trace: params.traceSinkParams,
+    timeout: params.timeout,
+  });
+
+  return result.text;
 }

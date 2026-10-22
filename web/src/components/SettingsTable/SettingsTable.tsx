@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActionButton,
@@ -82,6 +81,62 @@ export type SettingsTableProps<TData extends object> = Omit<
   };
   pagination?: PaginationBarProps;
 };
+
+function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
+  const ariaLabel = `Filter by ${filter.label.toLowerCase()}`;
+
+  if (filter.type === "select") {
+    return (
+      <div className="grid shrink-0">
+        {/* The open menu is as wide as the trigger, so the trigger is sized to
+            its longest option rather than to the current selection. */}
+        {filter.options.map((option) => (
+          <div
+            key={option.value}
+            inert
+            aria-hidden="true"
+            className="invisible col-start-1 row-start-1"
+          >
+            <SelectInput
+              value={option.value}
+              options={filter.options}
+              onValueChange={filter.onChange}
+              placeholder={filter.placeholder}
+            />
+          </div>
+        ))}
+        <div className="col-start-1 row-start-1">
+          <SelectInput
+            aria-label={ariaLabel}
+            value={filter.value}
+            options={filter.options}
+            onValueChange={filter.onChange}
+            placeholder={filter.placeholder}
+            muted={filter.muted}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-44 shrink-0">
+      <MultiSelectInput
+        aria-label={ariaLabel}
+        value={filter.value}
+        options={filter.options}
+        onValueChange={filter.onChange}
+        placeholder={filter.placeholder}
+        selectedLabel={filter.options
+          .filter((option) => filter.value.includes(option.value))
+          .map((option) => option.label)
+          .join(", ")}
+        searchPlaceholder="Search..."
+        emptyMessage="No options found."
+      />
+    </div>
+  );
+}
 
 export function SettingsTable<TData extends object>({
   columns,
@@ -253,62 +308,6 @@ export function SettingsTable<TData extends object>({
           {pagination && <PaginationBar {...pagination} />}
         </SettingsTableCard>
       )}
-    </div>
-  );
-}
-
-function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
-  const ariaLabel = `Filter by ${filter.label.toLowerCase()}`;
-
-  if (filter.type === "select") {
-    return (
-      <div className="grid shrink-0">
-        {/* The open menu is as wide as the trigger, so the trigger is sized to
-            its longest option rather than to the current selection. */}
-        {filter.options.map((option) => (
-          <div
-            key={option.value}
-            inert
-            aria-hidden="true"
-            className="invisible col-start-1 row-start-1"
-          >
-            <SelectInput
-              value={option.value}
-              options={filter.options}
-              onValueChange={filter.onChange}
-              placeholder={filter.placeholder}
-            />
-          </div>
-        ))}
-        <div className="col-start-1 row-start-1">
-          <SelectInput
-            aria-label={ariaLabel}
-            value={filter.value}
-            options={filter.options}
-            onValueChange={filter.onChange}
-            placeholder={filter.placeholder}
-            muted={filter.muted}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-44 shrink-0">
-      <MultiSelectInput
-        aria-label={ariaLabel}
-        value={filter.value}
-        options={filter.options}
-        onValueChange={filter.onChange}
-        placeholder={filter.placeholder}
-        selectedLabel={filter.options
-          .filter((option) => filter.value.includes(option.value))
-          .map((option) => option.label)
-          .join(", ")}
-        searchPlaceholder="Search..."
-        emptyMessage="No options found."
-      />
     </div>
   );
 }

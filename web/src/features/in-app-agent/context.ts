@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
@@ -154,6 +153,68 @@ export function createInAppAgentScreenContext(params: {
   ];
 }
 
+function sanitizeCurrentUrlContext(value: string, projectId: string) {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(value);
+  } catch {
+    return undefined;
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    return undefined;
+  }
+
+  const projectPathPrefix = `/project/${projectId}`;
+
+  if (
+    parsedUrl.pathname !== projectPathPrefix &&
+    !parsedUrl.pathname.startsWith(`${projectPathPrefix}/`)
+  ) {
+    return undefined;
+  }
+
+  if (parsedUrl.pathname.length > MAX_SCREEN_CONTEXT_PATH_LENGTH) {
+    return undefined;
+  }
+
+  const searchParams = Array.from(parsedUrl.searchParams.entries())
+    .slice(0, MAX_SCREEN_CONTEXT_SEARCH_PARAMS)
+    .flatMap(([key, paramValue]) => {
+      if (
+        key.length > MAX_CONTEXT_KEY_LENGTH ||
+        paramValue.length > MAX_CONTEXT_VALUE_LENGTH
+      ) {
+        return [];
+      }
+
+      return [{ key, value: paramValue }];
+    });
+
+  return {
+    pathname: parsedUrl.pathname,
+    searchParams,
+    hash: parsedUrl.hash.slice(0, MAX_SCREEN_CONTEXT_HASH_LENGTH),
+  };
+}
+
+function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {
+  return context.flatMap((item) => {
+    if (!USER_CONTEXT_DESCRIPTIONS.has(item.description)) {
+      return [];
+    }
+
+    const value = item.value.trim();
+
+    if (!value || value.length > MAX_CONTEXT_VALUE_LENGTH) {
+      return [];
+    }
+
+    return [{ description: item.description, value }];
+  });
+}
+
 export function sanitizeInAppAgentContext(
   context: InAppAgentContext,
   projectId: string,
@@ -199,68 +260,6 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
-}
-
-function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {
-  return context.flatMap((item) => {
-    if (!USER_CONTEXT_DESCRIPTIONS.has(item.description)) {
-      return [];
-    }
-
-    const value = item.value.trim();
-
-    if (!value || value.length > MAX_CONTEXT_VALUE_LENGTH) {
-      return [];
-    }
-
-    return [{ description: item.description, value }];
-  });
-}
-
-function sanitizeCurrentUrlContext(value: string, projectId: string) {
-  let parsedUrl: URL;
-
-  try {
-    parsedUrl = new URL(value);
-  } catch {
-    return undefined;
-  }
-
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    return undefined;
-  }
-
-  const projectPathPrefix = `/project/${projectId}`;
-
-  if (
-    parsedUrl.pathname !== projectPathPrefix &&
-    !parsedUrl.pathname.startsWith(`${projectPathPrefix}/`)
-  ) {
-    return undefined;
-  }
-
-  if (parsedUrl.pathname.length > MAX_SCREEN_CONTEXT_PATH_LENGTH) {
-    return undefined;
-  }
-
-  const searchParams = Array.from(parsedUrl.searchParams.entries())
-    .slice(0, MAX_SCREEN_CONTEXT_SEARCH_PARAMS)
-    .flatMap(([key, paramValue]) => {
-      if (
-        key.length > MAX_CONTEXT_KEY_LENGTH ||
-        paramValue.length > MAX_CONTEXT_VALUE_LENGTH
-      ) {
-        return [];
-      }
-
-      return [{ key, value: paramValue }];
-    });
-
-  return {
-    pathname: parsedUrl.pathname,
-    searchParams,
-    hash: parsedUrl.hash.slice(0, MAX_SCREEN_CONTEXT_HASH_LENGTH),
-  };
 }
 
 export function createInAppAgentUserContext(params: {

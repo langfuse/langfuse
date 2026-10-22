@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AnnotationQueueObjectType, type Prisma } from "@langfuse/shared";
 import { Database, PlusIcon, Terminal } from "@langfuse/icons";
 import { type ComponentProps, type ReactNode, useMemo } from "react";
@@ -56,52 +55,6 @@ type ConnectedTraceObservationAddToDropdownMenuControllerProps =
           generation?: PlaygroundGeneration;
         }
     );
-
-export function ConnectedTraceObservationAddToDropdownMenuController(
-  props: ConnectedTraceObservationAddToDropdownMenuControllerProps,
-) {
-  const objectId =
-    props.variant === "observation" ? props.observationId : props.traceId;
-  const objectType =
-    props.variant === "observation"
-      ? AnnotationQueueObjectType.OBSERVATION
-      : AnnotationQueueObjectType.TRACE;
-
-  return (
-    <NewDatasetItemFromExistingObjectDialogController
-      projectId={props.projectId}
-    >
-      {({ openDialog: openDatasetItemDialog }) => (
-        <CreateDatasetDialogController
-          projectId={props.projectId}
-          target={{ type: "root" }}
-        >
-          {({
-            disabled: createDatasetDisabled,
-            openDialog: openDatasetDialog,
-          }) => (
-            <AnnotationQueueSubmenuItemController
-              projectId={props.projectId}
-              objectId={objectId}
-              objectType={objectType}
-              analyticsData={props.analyticsData}
-            >
-              {({ item: annotationQueueItem }) => (
-                <ConnectedTraceObservationAddToDropdownMenuControllerContent
-                  {...props}
-                  annotationQueueItem={annotationQueueItem}
-                  createDatasetDisabled={createDatasetDisabled}
-                  openDatasetDialog={openDatasetDialog}
-                  openDatasetItemDialog={openDatasetItemDialog}
-                />
-              )}
-            </AnnotationQueueSubmenuItemController>
-          )}
-        </CreateDatasetDialogController>
-      )}
-    </NewDatasetItemFromExistingObjectDialogController>
-  );
-}
 
 function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   projectId,
@@ -278,5 +231,51 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">
       {children}
     </DropdownMenu>
+  );
+}
+
+export function ConnectedTraceObservationAddToDropdownMenuController(
+  props: ConnectedTraceObservationAddToDropdownMenuControllerProps,
+) {
+  const objectId =
+    props.variant === "observation" ? props.observationId : props.traceId;
+  const objectType =
+    props.variant === "observation"
+      ? AnnotationQueueObjectType.OBSERVATION
+      : AnnotationQueueObjectType.TRACE;
+
+  return (
+    <NewDatasetItemFromExistingObjectDialogController
+      projectId={props.projectId}
+    >
+      {({ openDialog: openDatasetItemDialog }) => (
+        <CreateDatasetDialogController
+          projectId={props.projectId}
+          target={{ type: "root" }}
+        >
+          {({
+            disabled: createDatasetDisabled,
+            openDialog: openDatasetDialog,
+          }) => (
+            <AnnotationQueueSubmenuItemController
+              projectId={props.projectId}
+              objectId={objectId}
+              objectType={objectType}
+              analyticsData={props.analyticsData}
+            >
+              {({ item: annotationQueueItem }) => (
+                <ConnectedTraceObservationAddToDropdownMenuControllerContent
+                  {...props}
+                  annotationQueueItem={annotationQueueItem}
+                  createDatasetDisabled={createDatasetDisabled}
+                  openDatasetDialog={openDatasetDialog}
+                  openDatasetItemDialog={openDatasetItemDialog}
+                />
+              )}
+            </AnnotationQueueSubmenuItemController>
+          )}
+        </CreateDatasetDialogController>
+      )}
+    </NewDatasetItemFromExistingObjectDialogController>
   );
 }

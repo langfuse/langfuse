@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BatchTableNames,
   FilterCondition,
@@ -210,6 +209,45 @@ const getScoresWithTraceMetadataFromEvents = async (props: {
     };
   });
 };
+
+export function prepareScoresForOutput(
+  scores: {
+    name: string;
+    stringValue?: string | null;
+    dataType: ScoreDataTypeType;
+    value: number;
+  }[],
+): Record<string, string[] | number[]> {
+  return scores.reduce(
+    (acc, score) => {
+      // If this score name already exists in acc, use its existing type
+      const existingValues = acc[score.name];
+      const newValue =
+        score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
+          ? score.value
+          : score.stringValue;
+      if (!isPresent(newValue)) return acc;
+
+      if (!existingValues) {
+        // First value determines the type
+        if (typeof newValue === "number") {
+          acc[score.name] = [newValue] as number[];
+        } else {
+          acc[score.name] = [String(newValue)] as string[];
+        }
+      } else if (typeof newValue === typeof existingValues[0]) {
+        // Only add if same type as existing values
+        if (typeof newValue === "number") {
+          acc[score.name] = [...existingValues, newValue] as number[];
+        } else {
+          acc[score.name] = [...existingValues, String(newValue)] as string[];
+        }
+      }
+      return acc;
+    },
+    {} as Record<string, string[] | number[]>,
+  );
+}
 
 export const getDatabaseReadStreamPaginated = async ({
   projectId,
@@ -773,45 +811,6 @@ export const getDatabaseReadStreamPaginated = async ({
       throw new Error(`Unhandled table case: ${tableName}`);
   }
 };
-
-export function prepareScoresForOutput(
-  scores: {
-    name: string;
-    stringValue?: string | null;
-    dataType: ScoreDataTypeType;
-    value: number;
-  }[],
-): Record<string, string[] | number[]> {
-  return scores.reduce(
-    (acc, score) => {
-      // If this score name already exists in acc, use its existing type
-      const existingValues = acc[score.name];
-      const newValue =
-        score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
-          ? score.value
-          : score.stringValue;
-      if (!isPresent(newValue)) return acc;
-
-      if (!existingValues) {
-        // First value determines the type
-        if (typeof newValue === "number") {
-          acc[score.name] = [newValue] as number[];
-        } else {
-          acc[score.name] = [String(newValue)] as string[];
-        }
-      } else if (typeof newValue === typeof existingValues[0]) {
-        // Only add if same type as existing values
-        if (typeof newValue === "number") {
-          acc[score.name] = [...existingValues, newValue] as number[];
-        } else {
-          acc[score.name] = [...existingValues, String(newValue)] as string[];
-        }
-      }
-      return acc;
-    },
-    {} as Record<string, string[] | number[]>,
-  );
-}
 
 export type TraceIdentifiers = {
   id: string;

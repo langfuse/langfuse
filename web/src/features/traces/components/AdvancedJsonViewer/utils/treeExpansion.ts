@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Tree expansion utilities for efficient expand/collapse
  *
@@ -13,44 +12,6 @@
 import type { TreeNode, TreeState } from "./treeStructure";
 import type { ExpansionState } from "../types";
 import { debugTime, debugTimeEnd } from "./debug";
-
-/**
- * Toggle expansion state of a node
- *
- * This is the KEY operation that must be fast.
- * Only updates the toggled node and its ancestors (O(log n)).
- *
- * @param tree - Current tree state
- * @param nodeId - ID of node to toggle
- * @returns Updated tree state (mutates in place for performance)
- */
-export function toggleNodeExpansion(
-  tree: TreeState,
-  nodeId: string,
-): TreeState {
-  const node = tree.nodeMap.get(nodeId);
-  if (!node || !node.isExpandable) {
-    return tree; // Can't toggle non-expandable nodes
-  }
-
-  // Toggle the node
-  const newExpanded = !node.isExpanded;
-  node.isExpanded = newExpanded;
-  node.userExpand = newExpanded;
-
-  // Recompute childOffsets for this node
-  if (newExpanded) {
-    recomputeNodeOffsets(node);
-  } else {
-    node.childOffsets = [];
-    node.visibleDescendantCount = 0;
-  }
-
-  // Propagate changes up the tree (recompute all ancestors)
-  propagateOffsetsUpward(node.parentNode);
-
-  return tree;
-}
 
 /**
  * Recompute childOffsets and visibleDescendantCount for a single node
@@ -93,6 +54,44 @@ function propagateOffsetsUpward(node: TreeNode | null): void {
     recomputeNodeOffsets(current);
     current = current.parentNode;
   }
+}
+
+/**
+ * Toggle expansion state of a node
+ *
+ * This is the KEY operation that must be fast.
+ * Only updates the toggled node and its ancestors (O(log n)).
+ *
+ * @param tree - Current tree state
+ * @param nodeId - ID of node to toggle
+ * @returns Updated tree state (mutates in place for performance)
+ */
+export function toggleNodeExpansion(
+  tree: TreeState,
+  nodeId: string,
+): TreeState {
+  const node = tree.nodeMap.get(nodeId);
+  if (!node || !node.isExpandable) {
+    return tree; // Can't toggle non-expandable nodes
+  }
+
+  // Toggle the node
+  const newExpanded = !node.isExpanded;
+  node.isExpanded = newExpanded;
+  node.userExpand = newExpanded;
+
+  // Recompute childOffsets for this node
+  if (newExpanded) {
+    recomputeNodeOffsets(node);
+  } else {
+    node.childOffsets = [];
+    node.visibleDescendantCount = 0;
+  }
+
+  // Propagate changes up the tree (recompute all ancestors)
+  propagateOffsetsUpward(node.parentNode);
+
+  return tree;
 }
 
 /**

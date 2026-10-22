@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type TopicRule } from "@langfuse/shared/topics";
@@ -23,29 +22,6 @@ type AutomaticProcessingDialogControllerProps = AutomaticProcessingSettings & {
     openDialog: (initialEnabled: boolean) => void;
   }) => ReactNode;
 };
-
-/**
- * Owns the automatic processing dialog. Wrap the shared parent and pass
- * `openDialog` to every opener, e.g. the header control and the paused notice.
- */
-export function AutomaticProcessingDialogController({
-  children,
-  ...settings
-}: AutomaticProcessingDialogControllerProps) {
-  return (
-    <DialogController<boolean>
-      renderDialog={({ state, closeDialog }) => (
-        <AutomaticProcessingDialogContent
-          {...settings}
-          initialEnabled={state}
-          closeDialog={closeDialog}
-        />
-      )}
-    >
-      {({ openDialog }) => children({ openDialog })}
-    </DialogController>
-  );
-}
 
 function AutomaticProcessingDialogContent({
   closeDialog,
@@ -95,5 +71,28 @@ function AutomaticProcessingDialogContent({
       error={error}
       onSave={submit}
     />
+  );
+}
+
+/**
+ * Owns the automatic processing dialog. Wrap the shared parent and pass
+ * `openDialog` to every opener, e.g. the header control and the paused notice.
+ */
+export function AutomaticProcessingDialogController({
+  children,
+  ...settings
+}: AutomaticProcessingDialogControllerProps) {
+  return (
+    <DialogController<boolean>
+      renderDialog={({ state, closeDialog }) => (
+        <AutomaticProcessingDialogContent
+          {...settings}
+          initialEnabled={state}
+          closeDialog={closeDialog}
+        />
+      )}
+    >
+      {({ openDialog }) => children({ openDialog })}
+    </DialogController>
   );
 }

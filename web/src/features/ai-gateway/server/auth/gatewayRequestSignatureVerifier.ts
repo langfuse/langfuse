@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 
 import { context, propagation, trace, type Context } from "@opentelemetry/api";
@@ -53,6 +52,43 @@ type GatewayModelsHandler = (
   },
 ) => Promise<unknown>;
 
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function verifyGatewayRequestSignature(
+  input: {
+    credential: string;
+    gatewayAuthorization: string | undefined;
+  },
+  serviceKeys: string[],
+): boolean {
+  const match = gatewayAuthorizationSchema.exec(
+    input.gatewayAuthorization ?? "",
+  );
+  if (!match) return false;
+
+  const [, timestampValue, signature] = match;
+  const timestamp = Number(timestampValue);
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    !Number.isSafeInteger(timestamp) ||
+    Math.abs(now - timestamp) > SIGNATURE_MAX_AGE_SECONDS
+  ) {
+    return false;
+  }
+
+  return verifyHmacSha256({
+    message: [
+      SIGNATURE_DOMAIN,
+      timestamp.toString(),
+      sha256(input.credential),
+    ].join("\n"),
+    signature,
+    secrets: serviceKeys,
+  });
+}
+
 function verifyGatewayRequestSignatureAndHashApiKey(input: {
   virtualSecretKey: string;
   gatewayAuthorization: string | undefined;
@@ -90,6 +126,12 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
   return createShaHash(input.virtualSecretKey, env.SALT);
 }
 
+function singleHeader(
+  value: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(value) ? undefined : value;
+}
+
 /**
  * Adds the gateway's request ID to the active span and to the baggage the logger
  * copies onto every line, so Web resolution logs join the gateway's. Call it
@@ -111,65 +153,42 @@ export function contextWithGatewayRequestId(
   return propagation.setBaggage(parent, baggage);
 }
 
-export function withGatewayResolveSignatureVerification(
-  handler: GatewayResolveHandler,
-) {
-  return withGatewayControlPlaneAuth(
-    ({ body, ...params }) =>
-      handler({
-        ...params,
-        apiFormat: body.apiFormat,
-        model: body.model,
-      }),
-    resolveBodySchema,
-  );
+function setNoStoreHeaders(res: NextApiResponse) {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
 }
 
-export function withGatewayModelsSignatureVerification(
-  handler: GatewayModelsHandler,
-) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
-    setNoStoreHeaders(res);
+function getBearerToken(req: NextApiRequest): string | undefined {
+  const [scheme, token, ...additionalParts] = (req.headers.authorization ?? "")
+    .trim()
+    .split(/\s+/);
+  return scheme === "Bearer" && token && additionalParts.length === 0
+    ? token
+    : undefined;
+}
 
-    if (req.method !== MODELS_METHOD) {
-      res.setHeader("Allow", MODELS_METHOD);
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+async function readRequestBody(req: NextApiRequest): Promise<string> {
+  if (typeof req.body === "string") return req.body;
+  if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
+  if (req.body !== undefined) throw new Error("Expected an unparsed body");
 
-    const token = getBearerToken(req);
-    if (!token) {
-      return res.status(401).json({ error: "Invalid Bearer token" });
-    }
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > 1024) throw new Error("Gateway request body is too large");
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
-    const query = modelsQuerySchema.safeParse(req.query);
-    if (!query.success) {
-      return res.status(400).json({ error: "Invalid request" });
-    }
-
-    try {
-      const fastHashedSecretKey = verifyGatewayRequestSignatureAndHashApiKey({
-        virtualSecretKey: token,
-        gatewayAuthorization: singleHeader(
-          req.headers["langfuse-gateway-authorization"],
-        ),
-      });
-
-      return await handler({
-        req,
-        res,
-        fastHashedSecretKey,
-        apiFormat: query.data.api_format,
-      });
-    } catch (error) {
-      if (error instanceof GatewayControlPlaneError) {
-        if (error.code) {
-          res.setHeader("langfuse-gateway-error-code", error.code);
-        }
-        return res.status(error.status).json({ error: error.message });
-      }
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  };
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function withGatewayControlPlaneAuth<
@@ -233,83 +252,63 @@ function withGatewayControlPlaneAuth<
   };
 }
 
-function setNoStoreHeaders(res: NextApiResponse) {
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Pragma", "no-cache");
-}
-
-function getBearerToken(req: NextApiRequest): string | undefined {
-  const [scheme, token, ...additionalParts] = (req.headers.authorization ?? "")
-    .trim()
-    .split(/\s+/);
-  return scheme === "Bearer" && token && additionalParts.length === 0
-    ? token
-    : undefined;
-}
-
-export function verifyGatewayRequestSignature(
-  input: {
-    credential: string;
-    gatewayAuthorization: string | undefined;
-  },
-  serviceKeys: string[],
-): boolean {
-  const match = gatewayAuthorizationSchema.exec(
-    input.gatewayAuthorization ?? "",
+export function withGatewayResolveSignatureVerification(
+  handler: GatewayResolveHandler,
+) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) =>
+      handler({
+        ...params,
+        apiFormat: body.apiFormat,
+        model: body.model,
+      }),
+    resolveBodySchema,
   );
-  if (!match) return false;
-
-  const [, timestampValue, signature] = match;
-  const timestamp = Number(timestampValue);
-  const now = Math.floor(Date.now() / 1000);
-  if (
-    !Number.isSafeInteger(timestamp) ||
-    Math.abs(now - timestamp) > SIGNATURE_MAX_AGE_SECONDS
-  ) {
-    return false;
-  }
-
-  return verifyHmacSha256({
-    message: [
-      SIGNATURE_DOMAIN,
-      timestamp.toString(),
-      sha256(input.credential),
-    ].join("\n"),
-    signature,
-    secrets: serviceKeys,
-  });
 }
 
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
+export function withGatewayModelsSignatureVerification(
+  handler: GatewayModelsHandler,
+) {
+  return async (req: NextApiRequest, res: NextApiResponse) => {
+    setNoStoreHeaders(res);
 
-async function readRequestBody(req: NextApiRequest): Promise<string> {
-  if (typeof req.body === "string") return req.body;
-  if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
-  if (req.body !== undefined) throw new Error("Expected an unparsed body");
+    if (req.method !== MODELS_METHOD) {
+      res.setHeader("Allow", MODELS_METHOD);
+      return res.status(405).json({ error: "Method not allowed" });
+    }
 
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += buffer.length;
-    if (size > 1024) throw new Error("Gateway request body is too large");
-    chunks.push(buffer);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
+    const token = getBearerToken(req);
+    if (!token) {
+      return res.status(401).json({ error: "Invalid Bearer token" });
+    }
 
-function singleHeader(
-  value: string | string[] | undefined,
-): string | undefined {
-  return Array.isArray(value) ? undefined : value;
-}
+    const query = modelsQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
 
-function sha256(value: string): string {
-  return createHash("sha256").update(value, "utf8").digest("hex");
+    try {
+      const fastHashedSecretKey = verifyGatewayRequestSignatureAndHashApiKey({
+        virtualSecretKey: token,
+        gatewayAuthorization: singleHeader(
+          req.headers["langfuse-gateway-authorization"],
+        ),
+      });
+
+      return await handler({
+        req,
+        res,
+        fastHashedSecretKey,
+        apiFormat: query.data.api_format,
+      });
+    } catch (error) {
+      if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
+        return res.status(error.status).json({ error: error.message });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  };
 }

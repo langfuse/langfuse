@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   EvalTargetObject,
@@ -29,26 +28,6 @@ export class CodeEvalJobConfigError extends Error {
     this.name = "CodeEvalJobConfigError";
     Object.setPrototypeOf(this, CodeEvalJobConfigError.prototype);
   }
-}
-
-export async function assertCodeEvalJobConfigCanRun(params: {
-  prisma: PrismaClient;
-  orgId: string;
-  projectId: string;
-  evalTemplateId: string;
-  target: EvalTargetObjectType;
-  mapping: unknown;
-  scoreName: string;
-  filter: FilterCondition[] | null;
-}): Promise<void> {
-  return assertCodeEvalCanRun({
-    ...params,
-    run: (mapping) =>
-      runCodeEvalTestForJobConfig({
-        ...params,
-        mapping,
-      }),
-  });
 }
 
 async function assertCodeEvalCanRun(params: {
@@ -108,4 +87,24 @@ async function assertCodeEvalCanRun(params: {
       );
     }
   }
+}
+
+export async function assertCodeEvalJobConfigCanRun(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObjectType;
+  mapping: unknown;
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<void> {
+  return assertCodeEvalCanRun({
+    ...params,
+    run: (mapping) =>
+      runCodeEvalTestForJobConfig({
+        ...params,
+        mapping,
+      }),
+  });
 }

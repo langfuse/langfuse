@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createHash,
   createPrivateKey,
@@ -83,6 +82,38 @@ function parsePublicKey(value: string): KeyObject {
   return key;
 }
 
+function signEs256Jwt<TClaims extends Record<string, unknown>>(input: {
+  privateKey: KeyObject;
+  keyId: string;
+  issuer: string;
+  audience: string;
+  expiresInSeconds: number;
+  claims: TClaims;
+  now?: Date;
+}): string {
+  const issuedAt = Math.floor((input.now ?? new Date()).getTime() / 1000);
+  const header = encodeJson({
+    alg: "ES256",
+    typ: "JWT",
+    kid: input.keyId,
+  });
+  const payload = encodeJson({
+    ...input.claims,
+    iat: issuedAt,
+    exp: issuedAt + input.expiresInSeconds,
+    iss: input.issuer,
+    aud: input.audience,
+    jti: randomUUID(),
+  });
+  const signingInput = `${header}.${payload}`;
+  const signature = sign("sha256", Buffer.from(signingInput, "utf8"), {
+    key: input.privateKey,
+    dsaEncoding: "ieee-p1363",
+  }).toString("base64url");
+
+  return `${signingInput}.${signature}`;
+}
+
 export function createEs256JwtSigner(input: {
   privateKey: string;
   keyId: string;
@@ -101,6 +132,44 @@ export function createEs256JwtSigner(input: {
         audience: input.audience,
       }),
   };
+}
+
+function verifyEs256Jwt<TClaims extends JwtRegisteredClaims>(input: {
+  token: string;
+  issuer: string;
+  audience: string;
+  publicKeys: Es256JwtPublicKey[];
+  claimsSchema: z.ZodType<TClaims>;
+  now?: Date;
+}): TClaims {
+  const parts = input.token.split(".");
+  if (parts.length !== 3) throw new Error("Invalid JWT");
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
+  const header = Es256JwtHeaderSchema.parse(decodeJson(encodedHeader));
+  const key = input.publicKeys.find((candidate) => candidate.id === header.kid);
+  if (!key) throw new Error("Unknown JWT signing key");
+
+  const validSignature = verify(
+    "sha256",
+    Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
+    { key: key.publicKey, dsaEncoding: "ieee-p1363" },
+    Buffer.from(encodedSignature, "base64url"),
+  );
+  if (!validSignature) throw new Error("Invalid JWT signature");
+
+  const decodedClaims = decodeJson(encodedPayload);
+  const registeredClaims = JwtRegisteredClaimsSchema.parse(decodedClaims);
+  const now = Math.floor((input.now ?? new Date()).getTime() / 1000);
+  if (
+    registeredClaims.iss !== input.issuer ||
+    registeredClaims.aud !== input.audience ||
+    registeredClaims.exp <= now
+  ) {
+    throw new Error("Invalid JWT claims");
+  }
+
+  return input.claimsSchema.parse(decodedClaims);
 }
 
 export function createEs256JwtVerifier<
@@ -148,74 +217,4 @@ export function deriveEs256KeyId(publicKey: string): string {
     y: jwk.y,
   });
   return createHash("sha256").update(canonical).digest("base64url");
-}
-
-function signEs256Jwt<TClaims extends Record<string, unknown>>(input: {
-  privateKey: KeyObject;
-  keyId: string;
-  issuer: string;
-  audience: string;
-  expiresInSeconds: number;
-  claims: TClaims;
-  now?: Date;
-}): string {
-  const issuedAt = Math.floor((input.now ?? new Date()).getTime() / 1000);
-  const header = encodeJson({
-    alg: "ES256",
-    typ: "JWT",
-    kid: input.keyId,
-  });
-  const payload = encodeJson({
-    ...input.claims,
-    iat: issuedAt,
-    exp: issuedAt + input.expiresInSeconds,
-    iss: input.issuer,
-    aud: input.audience,
-    jti: randomUUID(),
-  });
-  const signingInput = `${header}.${payload}`;
-  const signature = sign("sha256", Buffer.from(signingInput, "utf8"), {
-    key: input.privateKey,
-    dsaEncoding: "ieee-p1363",
-  }).toString("base64url");
-
-  return `${signingInput}.${signature}`;
-}
-
-function verifyEs256Jwt<TClaims extends JwtRegisteredClaims>(input: {
-  token: string;
-  issuer: string;
-  audience: string;
-  publicKeys: Es256JwtPublicKey[];
-  claimsSchema: z.ZodType<TClaims>;
-  now?: Date;
-}): TClaims {
-  const parts = input.token.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWT");
-  const [encodedHeader, encodedPayload, encodedSignature] = parts;
-
-  const header = Es256JwtHeaderSchema.parse(decodeJson(encodedHeader));
-  const key = input.publicKeys.find((candidate) => candidate.id === header.kid);
-  if (!key) throw new Error("Unknown JWT signing key");
-
-  const validSignature = verify(
-    "sha256",
-    Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
-    { key: key.publicKey, dsaEncoding: "ieee-p1363" },
-    Buffer.from(encodedSignature, "base64url"),
-  );
-  if (!validSignature) throw new Error("Invalid JWT signature");
-
-  const decodedClaims = decodeJson(encodedPayload);
-  const registeredClaims = JwtRegisteredClaimsSchema.parse(decodedClaims);
-  const now = Math.floor((input.now ?? new Date()).getTime() / 1000);
-  if (
-    registeredClaims.iss !== input.issuer ||
-    registeredClaims.aud !== input.audience ||
-    registeredClaims.exp <= now
-  ) {
-    throw new Error("Invalid JWT claims");
-  }
-
-  return input.claimsSchema.parse(decodedClaims);
 }

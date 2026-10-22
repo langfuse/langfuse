@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 /**
  * TraceSettingsDropdown - View preferences dropdown component
  *
@@ -30,29 +30,6 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-
-export function TraceSettingsDropdown() {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          title="View Options"
-          className="h-7 w-7"
-        >
-          <Settings2 size="base" color="default" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="center"
-        className="w-64 space-y-0 space-x-0 p-0 px-0"
-      >
-        <TraceViewOptionsMenuItems />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 /**
  * The view-option menu items (toggles + min-level submenu) without the
@@ -203,5 +180,28 @@ export function TraceViewOptionsMenuItems() {
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     </>
+  );
+}
+
+export function TraceSettingsDropdown() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="View Options"
+          className="h-7 w-7"
+        >
+          <Settings2 size="base" color="default" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="center"
+        className="w-64 space-y-0 space-x-0 p-0 px-0"
+      >
+        <TraceViewOptionsMenuItems />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

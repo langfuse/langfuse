@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { get_encoding } from "tiktoken";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -156,6 +155,45 @@ const summarySchema = z.object({
 });
 type ModelResult<T> = TopicModelUsage & { output: T };
 
+async function topicTraceSink(
+  traceName: string,
+  projectId: string,
+  metadata?: Record<string, unknown>,
+) {
+  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
+    return undefined;
+  const trace = getLangfuseAITraceSinkParams({
+    feature: "topics",
+    projectId,
+    traceName,
+    metadata,
+  });
+  if (!trace) return undefined;
+  const project = await prisma.project
+    .findFirst({
+      where: { id: projectId, deletedAt: null },
+      select: {
+        organization: {
+          select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+        },
+      },
+    })
+    .catch((error: unknown) => {
+      logger.warn("Failed to check Topics tracing consent", { error });
+      return null;
+    });
+  if (
+    !project?.organization.aiFeaturesEnabled ||
+    !project.organization.aiTelemetryEnabled
+  )
+    return undefined;
+  return {
+    ...trace,
+    environment: LangfuseInternalTraceEnvironment.Topics,
+    aiFeatureOtelIngestion: false,
+  };
+}
+
 async function structuredCall<T>(
   system: TopicPromptPart[],
   input: string,
@@ -244,45 +282,6 @@ async function structuredCall<T>(
         : {},
   };
   return accepted;
-}
-
-async function topicTraceSink(
-  traceName: string,
-  projectId: string,
-  metadata?: Record<string, unknown>,
-) {
-  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
-    return undefined;
-  const trace = getLangfuseAITraceSinkParams({
-    feature: "topics",
-    projectId,
-    traceName,
-    metadata,
-  });
-  if (!trace) return undefined;
-  const project = await prisma.project
-    .findFirst({
-      where: { id: projectId, deletedAt: null },
-      select: {
-        organization: {
-          select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
-        },
-      },
-    })
-    .catch((error: unknown) => {
-      logger.warn("Failed to check Topics tracing consent", { error });
-      return null;
-    });
-  if (
-    !project?.organization.aiFeaturesEnabled ||
-    !project.organization.aiTelemetryEnabled
-  )
-    return undefined;
-  return {
-    ...trace,
-    environment: LangfuseInternalTraceEnvironment.Topics,
-    aiFeatureOtelIngestion: false,
-  };
 }
 
 const SUMMARY_SYSTEM_PROMPT = `You describe one facet of a recorded run of an LLM application. Your description is embedded and clustered together with descriptions of many other runs. Runs that share a pattern should get similar descriptions; runs that differ in a way that matters should not.

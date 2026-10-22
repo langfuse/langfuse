@@ -1,8 +1,11 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type MediaTagStatus } from "../../MediaTag/MediaTag";
 import { type MediaDescriptor } from "./mediaUtils";
+
+function isExpired(expiresAt?: Date) {
+  return expiresAt !== undefined && expiresAt.getTime() <= Date.now();
+}
 
 export function useResolvedExternalMedia(
   descriptor: S3MediaDescriptor,
@@ -52,10 +55,6 @@ export function useResolvedExternalMedia(
     };
   }
   return { status: "loading", refreshIfNeeded };
-}
-
-function isExpired(expiresAt?: Date) {
-  return expiresAt !== undefined && expiresAt.getTime() <= Date.now();
 }
 
 type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;

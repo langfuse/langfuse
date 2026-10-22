@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -13,6 +12,48 @@ import {
 } from "./AnnotationQueueSetupForm";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { UserAssignmentSection } from "./UserAssignmentSection";
+
+async function saveQueueSetup({
+  projectId,
+  queueId,
+  values,
+  dirty,
+  updateQueue,
+  assignUsers,
+  onSaved,
+}: {
+  projectId: string;
+  queueId: string;
+  values: AnnotationQueueSetupValues;
+  dirty: AnnotationQueueSetupDirtyFields;
+  updateQueue: (
+    input: RouterInputs["annotationQueues"]["update"],
+  ) => Promise<unknown>;
+  assignUsers: (
+    input: RouterInputs["annotationQueueAssignments"]["createMany"],
+  ) => Promise<unknown>;
+  onSaved: () => Promise<void>;
+}) {
+  if (dirty.name || dirty.description || dirty.scoreConfigIds) {
+    await updateQueue({
+      projectId,
+      queueId,
+      ...(dirty.name ? { name: values.name } : {}),
+      ...(dirty.description ? { description: values.description } : {}),
+      ...(dirty.scoreConfigIds
+        ? { scoreConfigIds: values.scoreConfigIds }
+        : {}),
+    });
+  }
+  if (values.newAssignmentUserIds.length > 0) {
+    await assignUsers({
+      projectId,
+      queueId,
+      userIds: values.newAssignmentUserIds,
+    });
+  }
+  await onSaved();
+}
 
 export function AnnotationQueueSetupController({
   projectId,
@@ -148,46 +189,4 @@ export function AnnotationQueueSetupController({
       )}
     </AnnotationQueueSetupForm>
   );
-}
-
-async function saveQueueSetup({
-  projectId,
-  queueId,
-  values,
-  dirty,
-  updateQueue,
-  assignUsers,
-  onSaved,
-}: {
-  projectId: string;
-  queueId: string;
-  values: AnnotationQueueSetupValues;
-  dirty: AnnotationQueueSetupDirtyFields;
-  updateQueue: (
-    input: RouterInputs["annotationQueues"]["update"],
-  ) => Promise<unknown>;
-  assignUsers: (
-    input: RouterInputs["annotationQueueAssignments"]["createMany"],
-  ) => Promise<unknown>;
-  onSaved: () => Promise<void>;
-}) {
-  if (dirty.name || dirty.description || dirty.scoreConfigIds) {
-    await updateQueue({
-      projectId,
-      queueId,
-      ...(dirty.name ? { name: values.name } : {}),
-      ...(dirty.description ? { description: values.description } : {}),
-      ...(dirty.scoreConfigIds
-        ? { scoreConfigIds: values.scoreConfigIds }
-        : {}),
-    });
-  }
-  if (values.newAssignmentUserIds.length > 0) {
-    await assignUsers({
-      projectId,
-      queueId,
-      userIds: values.newAssignmentUserIds,
-    });
-  }
-  await onSaved();
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 
@@ -18,6 +17,33 @@ const GATEWAY_API_KEY_SELECT = {
     },
   },
 } as const;
+
+/** gatewayApiKeyWhere scopes gateway keys to the organization and, when set, to the user the keys are bound to. */
+function gatewayApiKeyWhere(params: {
+  organizationId: string;
+  ownerUserId?: string;
+}) {
+  return {
+    orgId: params.organizationId,
+    scope: "ORGANIZATION",
+    ...(params.ownerUserId !== undefined && { userId: params.ownerUserId }),
+  } as const;
+}
+
+/** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
+function gatewayApiKeySearch(searchQuery: string) {
+  const contains = {
+    contains: escapeSqlLikePattern(searchQuery),
+    mode: "insensitive",
+  } as const;
+  return {
+    OR: [
+      { note: contains },
+      { user: { name: contains } },
+      { user: { email: contains } },
+    ],
+  };
+}
 
 export class GatewayApiKeyRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -59,31 +85,4 @@ export class GatewayApiKeyRepository {
       select: GATEWAY_API_KEY_SELECT,
     });
   }
-}
-
-/** gatewayApiKeyWhere scopes gateway keys to the organization and, when set, to the user the keys are bound to. */
-function gatewayApiKeyWhere(params: {
-  organizationId: string;
-  ownerUserId?: string;
-}) {
-  return {
-    orgId: params.organizationId,
-    scope: "ORGANIZATION",
-    ...(params.ownerUserId !== undefined && { userId: params.ownerUserId }),
-  } as const;
-}
-
-/** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
-function gatewayApiKeySearch(searchQuery: string) {
-  const contains = {
-    contains: escapeSqlLikePattern(searchQuery),
-    mode: "insensitive",
-  } as const;
-  return {
-    OR: [
-      { note: contains },
-      { user: { name: contains } },
-      { user: { email: contains } },
-    ],
-  };
 }

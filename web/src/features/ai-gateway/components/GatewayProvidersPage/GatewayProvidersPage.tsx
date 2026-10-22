@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
@@ -16,6 +15,18 @@ import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayMo
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+
+function ProvidersSkeleton() {
+  return (
+    <div
+      className="flex flex-col gap-4"
+      data-testid="gateway-providers-loading"
+    >
+      <Skeleton className="h-7 w-56" />
+      <Skeleton className="h-48 w-full" />
+    </div>
+  );
+}
 
 export function GatewayProvidersPage({
   organizationId,
@@ -220,18 +231,6 @@ export function GatewayProvidersPage({
           Load more
         </Button>
       ) : null}
-    </div>
-  );
-}
-
-function ProvidersSkeleton() {
-  return (
-    <div
-      className="flex flex-col gap-4"
-      data-testid="gateway-providers-loading"
-    >
-      <Skeleton className="h-7 w-56" />
-      <Skeleton className="h-48 w-full" />
     </div>
   );
 }

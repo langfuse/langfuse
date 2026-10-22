@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ObservationVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,
@@ -82,6 +81,198 @@ export function isObservationAllowedForQueuedObservationEvals(
     observation.experiment_item_root_span_id != null &&
     observation.span_id === observation.experiment_item_root_span_id
   );
+}
+
+/**
+ * Evaluate filter conditions against observation.
+ * Returns true if observation matches all filter conditions (or filter is empty).
+ */
+function evaluateFilter(
+  observation: ObservationForEval,
+  config: ObservationEvalRule,
+): boolean {
+  const filterConditions = coerceLegacyEmptyMetadataFilters(
+    config.filter,
+  ) as FilterState;
+
+  // Empty filter matches all (for filter purposes)
+  const isEmptyFilter =
+    !filterConditions ||
+    !Array.isArray(filterConditions) ||
+    filterConditions.length === 0;
+
+  // Map filter column IDs to observation field values for in-memory filtering
+  const fieldMapper = (obs: ObservationForEval, column: string) =>
+    mapEventEvalFilterColumnIdToField(obs, column);
+
+  // Use InMemoryFilterService to evaluate filter if there are conditions
+  const isFilterMatch = isEmptyFilter
+    ? true
+    : InMemoryFilterService.evaluateFilter(
+        observation,
+        filterConditions,
+        fieldMapper,
+        {
+          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
+        },
+      );
+
+  return isFilterMatch;
+}
+
+type ScheduledObservationEvalAssignment = {
+  id: string;
+  /** Set for evaluator v2; null when scheduling a legacy config. */
+  evaluatorId: string | null;
+  evaluationRuleId: string | null;
+  /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
+  evalTemplateId: string | null;
+  evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
+  /**
+   * Mapping override for a ruleless batch run. Omitted when the run should
+   * inherit the evaluator version mapping, and never set for rule-backed jobs
+   * (those load the assignment row at pickup).
+   */
+  variableMapping?: ObservationVariableMapping[];
+};
+
+function getExecutableAssignments(
+  rule: ObservationEvalRule,
+): ScheduledObservationEvalAssignment[] {
+  if (!("assignments" in rule)) {
+    if (
+      !rule.evalTemplateId ||
+      rule.evalTemplate.type === EvalTemplateType.FACET
+    )
+      return [];
+    return [
+      {
+        id: rule.id,
+        evaluatorId: null,
+        evaluationRuleId: null,
+        evalTemplateId: rule.evalTemplateId,
+        evaluatorType: rule.evalTemplate.type,
+      },
+    ];
+  }
+
+  return rule.assignments.flatMap((assignment) => {
+    if (assignment.evaluator.type === EvalTemplateType.FACET) return [];
+    // Blocked evaluators are already excluded by the query; this guards the
+    // tenant boundary for callers that build assignments by hand.
+    if (assignment.evaluator.projectId !== rule.projectId) {
+      logger.warn("Skipping cross-project observation eval assignment", {
+        ruleId: rule.id,
+        assignmentId: assignment.id,
+        evaluatorId: assignment.evaluatorId,
+      });
+      return [];
+    }
+
+    const parsedMapping = observationVariableMappingList.safeParse(
+      assignment.variableMapping,
+    );
+
+    return [
+      {
+        id: assignment.id,
+        evaluatorId: assignment.evaluator.id,
+        evaluationRuleId: rule.ruleId,
+        // Ruleless batch runs use the evaluator as the legacy template anchor.
+        evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
+        evaluatorType: assignment.evaluator.type,
+        ...(rule.ruleId === null && parsedMapping.success
+          ? { variableMapping: parsedMapping.data }
+          : {}),
+      },
+    ];
+  });
+}
+
+interface ProcessConfigParams {
+  observation: ObservationForEval;
+  matchingConfig: ObservationEvalRule;
+  assignment: ScheduledObservationEvalAssignment;
+  observationS3Path: string;
+  schedulerDeps: ObservationEvalSchedulerDeps;
+  executionMode?: EvalExecutionMode;
+  executionScopeId?: string;
+}
+
+async function processMatchingConfig(
+  params: ProcessConfigParams,
+): Promise<void> {
+  const {
+    observation,
+    matchingConfig,
+    assignment,
+    observationS3Path,
+    schedulerDeps,
+    executionMode,
+    executionScopeId,
+  } = params;
+
+  const jobIdentity: string[] =
+    "assignments" in matchingConfig
+      ? [
+          "observation-eval",
+          matchingConfig.id,
+          assignment.id,
+          observation.trace_id,
+          observation.span_id,
+        ]
+      : [
+          "observation-eval",
+          matchingConfig.id,
+          observation.trace_id,
+          observation.span_id,
+        ];
+  if (executionScopeId) {
+    jobIdentity.push(executionScopeId);
+  }
+  const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
+
+  // Create job execution
+  await schedulerDeps.upsertJobExecution({
+    id: jobExecutionId,
+    projectId: observation.project_id,
+    jobConfigurationId: matchingConfig.id,
+    jobInputTraceId: observation.trace_id,
+    jobInputObservationId: observation.span_id,
+    // Legacy configs pin their `eval_templates` row here. Evaluator v2 jobs
+    // resolve the definition at pickup, and record the version that actually
+    // ran in the execution metadata instead.
+    jobTemplateId: assignment.evalTemplateId,
+    status: JobExecutionStatus.PENDING,
+  });
+
+  // Enqueue eval job. The evaluator identity travels with the payload so the
+  // executor never has to re-derive it from ids the legacy backfill reuses.
+  await schedulerDeps.enqueueEvalJob({
+    jobExecutionId,
+    projectId: observation.project_id,
+    observationS3Path,
+    delay: 0,
+    evalTemplateType: assignment.evaluatorType,
+    ...(executionMode ? { executionMode } : {}),
+    ...(assignment.evaluatorId
+      ? {
+          evaluatorId: assignment.evaluatorId,
+          ...(assignment.evaluationRuleId
+            ? { evaluationRuleId: assignment.evaluationRuleId }
+            : {}),
+        }
+      : {}),
+    ...(assignment.variableMapping != null
+      ? { variableMapping: assignment.variableMapping }
+      : {}),
+  });
+
+  logger.debug("Scheduled observation eval job", {
+    configId: matchingConfig.id,
+    observationId: observation.span_id,
+    jobExecutionId,
+  });
 }
 
 /**
@@ -225,196 +416,4 @@ export async function scheduleObservationEvals(
       `Failed to schedule ${failures.length} of ${assignmentAttempts.length} observation eval assignment(s): ${firstFailureMessage}${remainingFailureCount > 0 ? ` (${remainingFailureCount} more failure(s))` : ""}`,
     );
   }
-}
-
-interface ProcessConfigParams {
-  observation: ObservationForEval;
-  matchingConfig: ObservationEvalRule;
-  assignment: ScheduledObservationEvalAssignment;
-  observationS3Path: string;
-  schedulerDeps: ObservationEvalSchedulerDeps;
-  executionMode?: EvalExecutionMode;
-  executionScopeId?: string;
-}
-
-async function processMatchingConfig(
-  params: ProcessConfigParams,
-): Promise<void> {
-  const {
-    observation,
-    matchingConfig,
-    assignment,
-    observationS3Path,
-    schedulerDeps,
-    executionMode,
-    executionScopeId,
-  } = params;
-
-  const jobIdentity: string[] =
-    "assignments" in matchingConfig
-      ? [
-          "observation-eval",
-          matchingConfig.id,
-          assignment.id,
-          observation.trace_id,
-          observation.span_id,
-        ]
-      : [
-          "observation-eval",
-          matchingConfig.id,
-          observation.trace_id,
-          observation.span_id,
-        ];
-  if (executionScopeId) {
-    jobIdentity.push(executionScopeId);
-  }
-  const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
-
-  // Create job execution
-  await schedulerDeps.upsertJobExecution({
-    id: jobExecutionId,
-    projectId: observation.project_id,
-    jobConfigurationId: matchingConfig.id,
-    jobInputTraceId: observation.trace_id,
-    jobInputObservationId: observation.span_id,
-    // Legacy configs pin their `eval_templates` row here. Evaluator v2 jobs
-    // resolve the definition at pickup, and record the version that actually
-    // ran in the execution metadata instead.
-    jobTemplateId: assignment.evalTemplateId,
-    status: JobExecutionStatus.PENDING,
-  });
-
-  // Enqueue eval job. The evaluator identity travels with the payload so the
-  // executor never has to re-derive it from ids the legacy backfill reuses.
-  await schedulerDeps.enqueueEvalJob({
-    jobExecutionId,
-    projectId: observation.project_id,
-    observationS3Path,
-    delay: 0,
-    evalTemplateType: assignment.evaluatorType,
-    ...(executionMode ? { executionMode } : {}),
-    ...(assignment.evaluatorId
-      ? {
-          evaluatorId: assignment.evaluatorId,
-          ...(assignment.evaluationRuleId
-            ? { evaluationRuleId: assignment.evaluationRuleId }
-            : {}),
-        }
-      : {}),
-    ...(assignment.variableMapping != null
-      ? { variableMapping: assignment.variableMapping }
-      : {}),
-  });
-
-  logger.debug("Scheduled observation eval job", {
-    configId: matchingConfig.id,
-    observationId: observation.span_id,
-    jobExecutionId,
-  });
-}
-
-type ScheduledObservationEvalAssignment = {
-  id: string;
-  /** Set for evaluator v2; null when scheduling a legacy config. */
-  evaluatorId: string | null;
-  evaluationRuleId: string | null;
-  /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
-  evalTemplateId: string | null;
-  evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
-  /**
-   * Mapping override for a ruleless batch run. Omitted when the run should
-   * inherit the evaluator version mapping, and never set for rule-backed jobs
-   * (those load the assignment row at pickup).
-   */
-  variableMapping?: ObservationVariableMapping[];
-};
-
-function getExecutableAssignments(
-  rule: ObservationEvalRule,
-): ScheduledObservationEvalAssignment[] {
-  if (!("assignments" in rule)) {
-    if (
-      !rule.evalTemplateId ||
-      rule.evalTemplate.type === EvalTemplateType.FACET
-    )
-      return [];
-    return [
-      {
-        id: rule.id,
-        evaluatorId: null,
-        evaluationRuleId: null,
-        evalTemplateId: rule.evalTemplateId,
-        evaluatorType: rule.evalTemplate.type,
-      },
-    ];
-  }
-
-  return rule.assignments.flatMap((assignment) => {
-    if (assignment.evaluator.type === EvalTemplateType.FACET) return [];
-    // Blocked evaluators are already excluded by the query; this guards the
-    // tenant boundary for callers that build assignments by hand.
-    if (assignment.evaluator.projectId !== rule.projectId) {
-      logger.warn("Skipping cross-project observation eval assignment", {
-        ruleId: rule.id,
-        assignmentId: assignment.id,
-        evaluatorId: assignment.evaluatorId,
-      });
-      return [];
-    }
-
-    const parsedMapping = observationVariableMappingList.safeParse(
-      assignment.variableMapping,
-    );
-
-    return [
-      {
-        id: assignment.id,
-        evaluatorId: assignment.evaluator.id,
-        evaluationRuleId: rule.ruleId,
-        // Ruleless batch runs use the evaluator as the legacy template anchor.
-        evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
-        evaluatorType: assignment.evaluator.type,
-        ...(rule.ruleId === null && parsedMapping.success
-          ? { variableMapping: parsedMapping.data }
-          : {}),
-      },
-    ];
-  });
-}
-
-/**
- * Evaluate filter conditions against observation.
- * Returns true if observation matches all filter conditions (or filter is empty).
- */
-function evaluateFilter(
-  observation: ObservationForEval,
-  config: ObservationEvalRule,
-): boolean {
-  const filterConditions = coerceLegacyEmptyMetadataFilters(
-    config.filter,
-  ) as FilterState;
-
-  // Empty filter matches all (for filter purposes)
-  const isEmptyFilter =
-    !filterConditions ||
-    !Array.isArray(filterConditions) ||
-    filterConditions.length === 0;
-
-  // Map filter column IDs to observation field values for in-memory filtering
-  const fieldMapper = (obs: ObservationForEval, column: string) =>
-    mapEventEvalFilterColumnIdToField(obs, column);
-
-  // Use InMemoryFilterService to evaluate filter if there are conditions
-  const isFilterMatch = isEmptyFilter
-    ? true
-    : InMemoryFilterService.evaluateFilter(
-        observation,
-        filterConditions,
-        fieldMapper,
-        {
-          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
-        },
-      );
-
-  return isFilterMatch;
 }

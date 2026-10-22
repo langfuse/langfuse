@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type IncomingHttpHeaders } from "http";
 
 import {
@@ -24,6 +23,33 @@ import {
   type Principal,
   type Success,
 } from "@/src/features/auth/policy/types";
+
+/** enforceRouteSettings rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
+function enforceRouteSettings(
+  principal: Principal,
+  params: ApiKeyAuthParams,
+): ErrorResult<UnauthorizedError | ForbiddenError> | null {
+  if (principal.kind === "admin") {
+    if (!params.isAdminApiKeyAuthAllowed) {
+      return unauthorizedError("Admin API key auth is not allowed here");
+    }
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return forbiddenError(
+        "Admin API key auth is not available on Langfuse Cloud",
+      );
+    }
+  }
+  if (
+    principal.kind === "apiKey" &&
+    principal.isInAppAgentKey &&
+    !params.allowInAppAgentKey
+  ) {
+    return unauthorizedError(
+      "Access denied - in-app agent keys are not allowed for this endpoint",
+    );
+  }
+  return null;
+}
 
 /** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → resolve → enforce route settings. */
 export class Authenticator {
@@ -79,33 +105,6 @@ export class Authenticator {
 
 /** authenticator is the Authenticator on its default prisma/redis collaborators. */
 export const authenticator = new Authenticator();
-
-/** enforceRouteSettings rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
-function enforceRouteSettings(
-  principal: Principal,
-  params: ApiKeyAuthParams,
-): ErrorResult<UnauthorizedError | ForbiddenError> | null {
-  if (principal.kind === "admin") {
-    if (!params.isAdminApiKeyAuthAllowed) {
-      return unauthorizedError("Admin API key auth is not allowed here");
-    }
-    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-      return forbiddenError(
-        "Admin API key auth is not available on Langfuse Cloud",
-      );
-    }
-  }
-  if (
-    principal.kind === "apiKey" &&
-    principal.isInAppAgentKey &&
-    !params.allowInAppAgentKey
-  ) {
-    return unauthorizedError(
-      "Access denied - in-app agent keys are not allowed for this endpoint",
-    );
-  }
-  return null;
-}
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
 export type ApiKeyAuthParams = {

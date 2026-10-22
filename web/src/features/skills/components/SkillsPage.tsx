@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -66,76 +66,6 @@ import {
 } from "../constants/skillsSorting";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
-
-export function SkillsPage() {
-  const projectId = useProjectIdFromURL() ?? "";
-  const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
-  const { query: filterOptions } = useSkillInstallOptions(projectId, "");
-
-  return (
-    <DialogController
-      renderDialog={() => (
-        <InstallSkillDialog
-          projectId={projectId}
-          initialValues={{
-            by: "all",
-            name: "",
-            version: null,
-            label: "production",
-            tag: filterOptions.data?.tags[0]?.value ?? "my-tag",
-          }}
-          labels={["production", "latest"]}
-          tags={filterOptions.data?.tags.map((tag) => tag.value) ?? []}
-        />
-      )}
-    >
-      {({ openDialog }) => (
-        <Page
-          headerProps={{
-            title: "Skills",
-            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
-            help: {
-              description:
-                "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
-            },
-            actionButtonsRight: (
-              <SkillsHeaderActions
-                projectId={projectId}
-                canCreate={canCreate}
-                installDisabled={filterOptions.isPending}
-                onInstall={openDialog}
-              />
-            ),
-            actionButtonsMenu: ({ closeMenu }) => (
-              <SkillsHeaderActions
-                projectId={projectId}
-                canCreate={canCreate}
-                installDisabled={filterOptions.isPending}
-                onInstall={openDialog}
-                closeMenu={() => closeMenu({ handoffFocus: true })}
-              />
-            ),
-          }}
-        >
-          <SkillsList
-            key={projectId}
-            projectId={projectId}
-            canDelete={canCreate}
-          />
-        </Page>
-      )}
-    </DialogController>
-  );
-}
-
-type SkillsHeaderActionsProps = {
-  projectId: string;
-  canCreate: boolean;
-  installDisabled: boolean;
-  onInstall: () => void;
-  closeMenu?: () => void;
-};
 
 function SkillsHeaderActions({
   projectId,
@@ -223,6 +153,105 @@ function SkillsHeaderActions({
         )}
       </ImportSkillsDialog>
     </div>
+  );
+}
+
+function NewSkillButton({
+  canCreate,
+  href,
+  onOpen,
+}: {
+  canCreate: boolean;
+  href: string;
+  onOpen: () => void;
+}) {
+  if (!canCreate) {
+    return (
+      <Button disabled title="You do not have write access">
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
+      </Button>
+    );
+  }
+  return (
+    <Button asChild>
+      <Link href={href} onClick={onOpen}>
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
+      </Link>
+    </Button>
+  );
+}
+
+function EmptySkills({
+  projectId,
+  canCreate,
+  onOpen,
+  onImport,
+}: {
+  projectId: string;
+  canCreate: boolean;
+  onOpen: () => void;
+  onImport: () => void;
+}) {
+  return (
+    <SplashScreen
+      title="Get Started with Skills"
+      description="Create, version, and distribute reusable agent skills from one place. Start with a new skill or import the skills your team already uses."
+      primaryAction={{
+        label: "New skill",
+        component: (
+          <NewSkillButton
+            canCreate={canCreate}
+            href={`/project/${projectId}/skills/new`}
+            onOpen={onOpen}
+          />
+        ),
+      }}
+      secondaryAction={{
+        label: "Import skills",
+        component: (
+          <DesignSystemButton
+            text="Import skills"
+            icon={Download}
+            variant="secondary"
+            disabled={!canCreate}
+            onClick={onImport}
+          />
+        ),
+      }}
+      valuePropositions={[
+        {
+          title: "Manage Skills",
+          description:
+            "Create a new skill directly in the Langfuse UI, upload existing skill files, or push skills from your repository with the CLI.",
+          icon: FileCode2,
+        },
+        {
+          title: "Track skill usage",
+          description:
+            "See which skills your agents actually load and explore the traces where they are used.",
+          icon: BarChart4,
+        },
+        {
+          title: "Version and iterate",
+          description:
+            "Save changes as immutable versions and use labels to control which version your agents receive.",
+          icon: GitBranch,
+        },
+        {
+          title: "Use via CLI or SDK",
+          description:
+            "Install skills into your agent's skills directory with the CLI or fetch them with the Langfuse SDK.",
+          icon: Terminal,
+        },
+      ]}
+    >
+      {!canCreate ? (
+        <p className="text-muted-foreground text-center text-sm">
+          Ask a project member with write access to create or import your first
+          skill.
+        </p>
+      ) : null}
+    </SplashScreen>
   );
 }
 
@@ -502,101 +531,72 @@ function SkillsList({
   );
 }
 
-function NewSkillButton({
-  canCreate,
-  href,
-  onOpen,
-}: {
-  canCreate: boolean;
-  href: string;
-  onOpen: () => void;
-}) {
-  if (!canCreate) {
-    return (
-      <Button disabled title="You do not have write access">
-        <Plus size="base" __rawClassName="mr-1.5" /> New skill
-      </Button>
-    );
-  }
+export function SkillsPage() {
+  const projectId = useProjectIdFromURL() ?? "";
+  const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
+  const { query: filterOptions } = useSkillInstallOptions(projectId, "");
+
   return (
-    <Button asChild>
-      <Link href={href} onClick={onOpen}>
-        <Plus size="base" __rawClassName="mr-1.5" /> New skill
-      </Link>
-    </Button>
+    <DialogController
+      renderDialog={() => (
+        <InstallSkillDialog
+          projectId={projectId}
+          initialValues={{
+            by: "all",
+            name: "",
+            version: null,
+            label: "production",
+            tag: filterOptions.data?.tags[0]?.value ?? "my-tag",
+          }}
+          labels={["production", "latest"]}
+          tags={filterOptions.data?.tags.map((tag) => tag.value) ?? []}
+        />
+      )}
+    >
+      {({ openDialog }) => (
+        <Page
+          headerProps={{
+            title: "Skills",
+            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
+            help: {
+              description:
+                "Create, version, and distribute reusable agent skills from one place.",
+              href: "https://langfuse.com/docs",
+            },
+            actionButtonsRight: (
+              <SkillsHeaderActions
+                projectId={projectId}
+                canCreate={canCreate}
+                installDisabled={filterOptions.isPending}
+                onInstall={openDialog}
+              />
+            ),
+            actionButtonsMenu: ({ closeMenu }) => (
+              <SkillsHeaderActions
+                projectId={projectId}
+                canCreate={canCreate}
+                installDisabled={filterOptions.isPending}
+                onInstall={openDialog}
+                closeMenu={() => closeMenu({ handoffFocus: true })}
+              />
+            ),
+          }}
+        >
+          <SkillsList
+            key={projectId}
+            projectId={projectId}
+            canDelete={canCreate}
+          />
+        </Page>
+      )}
+    </DialogController>
   );
 }
 
-function EmptySkills({
-  projectId,
-  canCreate,
-  onOpen,
-  onImport,
-}: {
+type SkillsHeaderActionsProps = {
   projectId: string;
   canCreate: boolean;
-  onOpen: () => void;
-  onImport: () => void;
-}) {
-  return (
-    <SplashScreen
-      title="Get Started with Skills"
-      description="Create, version, and distribute reusable agent skills from one place. Start with a new skill or import the skills your team already uses."
-      primaryAction={{
-        label: "New skill",
-        component: (
-          <NewSkillButton
-            canCreate={canCreate}
-            href={`/project/${projectId}/skills/new`}
-            onOpen={onOpen}
-          />
-        ),
-      }}
-      secondaryAction={{
-        label: "Import skills",
-        component: (
-          <DesignSystemButton
-            text="Import skills"
-            icon={Download}
-            variant="secondary"
-            disabled={!canCreate}
-            onClick={onImport}
-          />
-        ),
-      }}
-      valuePropositions={[
-        {
-          title: "Manage Skills",
-          description:
-            "Create a new skill directly in the Langfuse UI, upload existing skill files, or push skills from your repository with the CLI.",
-          icon: FileCode2,
-        },
-        {
-          title: "Track skill usage",
-          description:
-            "See which skills your agents actually load and explore the traces where they are used.",
-          icon: BarChart4,
-        },
-        {
-          title: "Version and iterate",
-          description:
-            "Save changes as immutable versions and use labels to control which version your agents receive.",
-          icon: GitBranch,
-        },
-        {
-          title: "Use via CLI or SDK",
-          description:
-            "Install skills into your agent's skills directory with the CLI or fetch them with the Langfuse SDK.",
-          icon: Terminal,
-        },
-      ]}
-    >
-      {!canCreate ? (
-        <p className="text-muted-foreground text-center text-sm">
-          Ask a project member with write access to create or import your first
-          skill.
-        </p>
-      ) : null}
-    </SplashScreen>
-  );
-}
+  installDisabled: boolean;
+  onInstall: () => void;
+  closeMenu?: () => void;
+};

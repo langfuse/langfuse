@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * MCP (Model Context Protocol) Server API Endpoint
  *
@@ -45,6 +44,32 @@ import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/se
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
+
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  if (isInAppAgentKey !== true) {
+    return undefined;
+  }
+
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+
+  if (typeof headerValue !== "string") {
+    return { permissions: "read" };
+  }
+
+  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+    safeJsonParse(headerValue),
+  );
+
+  return parsedOverride.success
+    ? {
+        permissions: "tool-allowlist",
+        allowedToolNames: parsedOverride.data.toolNames,
+      }
+    : { permissions: "read" };
+}
 
 /**
  * MCP API Route Handler
@@ -195,32 +220,6 @@ export default async function handler(
       });
     }
   }
-}
-
-export function getInAppAgentContext(
-  req: NextApiRequest,
-  isInAppAgentKey: boolean | undefined,
-): ServerContext["inAppAgent"] {
-  if (isInAppAgentKey !== true) {
-    return undefined;
-  }
-
-  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
-
-  if (typeof headerValue !== "string") {
-    return { permissions: "read" };
-  }
-
-  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
-    safeJsonParse(headerValue),
-  );
-
-  return parsedOverride.success
-    ? {
-        permissions: "tool-allowlist",
-        allowedToolNames: parsedOverride.data.toolNames,
-      }
-    : { permissions: "read" };
 }
 
 /**

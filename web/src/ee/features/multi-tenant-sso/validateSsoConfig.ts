@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -23,27 +22,6 @@ const DiscoveryDocSchema = z.object({
   issuer: z.string(),
   userinfo_endpoint: z.string().optional(),
 });
-
-/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
-export async function validateSsoConfig(
-  payload: SsoProviderSchema,
-): Promise<void> {
-  const issuer = getDiscoveryIssuer(payload);
-  if (!issuer) return;
-
-  const discoveryUrl = getDiscoveryUrl(issuer);
-
-  try {
-    const resp = await fetchWithSsrfDefense(discoveryUrl);
-    const doc = parseDiscoveryDoc(await parseJson(resp));
-    await validateUrls(doc);
-    validateDiscoveryIssuer(doc, payload, issuer);
-  } catch (error) {
-    if (error instanceof TRPCError)
-      throw prefixError(`OIDC discovery at ${discoveryUrl}: `, error);
-    throw error;
-  }
-}
 
 /** getDiscoveryIssuer returns the provider's OIDC issuer URL (for OneLogin, resolved the same way as at sign-in), or null when the provider has no OIDC discovery (GitHub family is OAuth2-only). */
 function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
@@ -74,6 +52,15 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
   }
 }
 
+/** discoveryWhitelistFromEnv builds the operator exemptions from the internal-address block. */
+function discoveryWhitelistFromEnv() {
+  return {
+    hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],
+    ips: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS || [],
+    ip_ranges: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS || [],
+  };
+}
+
 /** fetchWithSsrfDefense fetches url with internal-address blocking and the operator whitelist applied. */
 async function fetchWithSsrfDefense(url: string): Promise<Response> {
   try {
@@ -101,13 +88,17 @@ async function fetchWithSsrfDefense(url: string): Promise<Response> {
   }
 }
 
-/** discoveryWhitelistFromEnv builds the operator exemptions from the internal-address block. */
-function discoveryWhitelistFromEnv() {
-  return {
-    hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],
-    ips: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS || [],
-    ip_ranges: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS || [],
-  };
+/** parseDiscoveryDoc validates body against the discovery-doc schema, throwing when required fields are missing. */
+function parseDiscoveryDoc(body: unknown): DiscoveryDoc {
+  const parsed = DiscoveryDocSchema.safeParse(body);
+  if (!parsed.success) {
+    const missing = parsed.error.issues.map((i) => i.path.join("."));
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `missing required field(s): ${missing.join(", ")}.`,
+    });
+  }
+  return parsed.data;
 }
 
 /** parseJson parses a 2xx response body as JSON, throwing on non-2xx status or invalid JSON. */
@@ -126,19 +117,6 @@ async function parseJson<T = unknown>(response: Response): Promise<T> {
       message: "did not return valid JSON.",
     });
   }
-}
-
-/** parseDiscoveryDoc validates body against the discovery-doc schema, throwing when required fields are missing. */
-function parseDiscoveryDoc(body: unknown): DiscoveryDoc {
-  const parsed = DiscoveryDocSchema.safeParse(body);
-  if (!parsed.success) {
-    const missing = parsed.error.issues.map((i) => i.path.join("."));
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `missing required field(s): ${missing.join(", ")}.`,
-    });
-  }
-  return parsed.data;
 }
 
 /** validateUrls checks the endpoints NextAuth fetches server-side at sign-in don't target internal addresses. */
@@ -203,6 +181,27 @@ function prefixError(prefix: string, error: TRPCError): TRPCError {
     code: error.code,
     message: `${prefix}${error.message}`,
   });
+}
+
+/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
+export async function validateSsoConfig(
+  payload: SsoProviderSchema,
+): Promise<void> {
+  const issuer = getDiscoveryIssuer(payload);
+  if (!issuer) return;
+
+  const discoveryUrl = getDiscoveryUrl(issuer);
+
+  try {
+    const resp = await fetchWithSsrfDefense(discoveryUrl);
+    const doc = parseDiscoveryDoc(await parseJson(resp));
+    await validateUrls(doc);
+    validateDiscoveryIssuer(doc, payload, issuer);
+  } catch (error) {
+    if (error instanceof TRPCError)
+      throw prefixError(`OIDC discovery at ${discoveryUrl}: `, error);
+    throw error;
+  }
 }
 
 /** DiscoveryDoc is the slice of the OIDC discovery document the validators inspect. */

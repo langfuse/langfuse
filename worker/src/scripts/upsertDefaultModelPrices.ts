@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma, PrismaClient } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
@@ -57,6 +56,260 @@ const ExistingModelTierSchema = z.object({
   tierPriority: z.number(),
   tierIsDefault: z.boolean(),
 });
+
+/**
+ * Checks if a model is up-to-date by comparing updated_at and tiers
+ */
+function isModelUpToDate(
+  defaultModelPrice: DefaultModelPrice,
+  existingModel: {
+    updatedAt: Date;
+    tiers: Array<{
+      id: string;
+      name: string;
+      priority: number;
+      isDefault: boolean;
+    }>;
+  },
+): boolean {
+  // Check if updated_at matches
+  const isUpdatedAtSame =
+    existingModel.updatedAt.getTime() === defaultModelPrice.updatedAt.getTime();
+
+  if (!isUpdatedAtSame) {
+    return false;
+  }
+
+  // Check if tiers match (same count and same IDs)
+  const jsonTierIds = new Set(defaultModelPrice.pricingTiers.map((t) => t.id));
+  const dbTierIds = new Set(existingModel.tiers.map((t) => t.id));
+
+  if (jsonTierIds.size !== dbTierIds.size) {
+    return false;
+  }
+
+  for (const id of jsonTierIds) {
+    if (!dbTierIds.has(id)) {
+      return false;
+    }
+  }
+
+  // Check if tier properties match
+  for (const jsonTier of defaultModelPrice.pricingTiers) {
+    const dbTier = existingModel.tiers.find((t) => t.id === jsonTier.id);
+    if (!dbTier) {
+      return false;
+    }
+
+    if (
+      dbTier.name !== jsonTier.name ||
+      dbTier.priority !== jsonTier.priority ||
+      dbTier.isDefault !== jsonTier.isDefault
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Upserts a single pricing tier with its prices
+ */
+async function upsertTierWithPrices(
+  tx: Omit<
+    PrismaClient,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+  >,
+  modelId: string,
+  createdAt: Date,
+  updatedAt: Date,
+  tier: PricingTier,
+) {
+  // Upsert tier
+  await tx.pricingTier.upsert({
+    where: { id: tier.id },
+    update: {
+      name: tier.name,
+      isDefault: tier.isDefault,
+      priority: tier.priority,
+      conditions: tier.conditions,
+      updatedAt,
+    },
+    create: {
+      id: tier.id,
+      modelId,
+      name: tier.name,
+      isDefault: tier.isDefault,
+      priority: tier.priority,
+      conditions: tier.conditions,
+      createdAt,
+      updatedAt,
+    },
+  });
+
+  // Get existing prices for this tier
+  const existingPrices = await tx.price.findMany({
+    where: {
+      modelId,
+      pricingTierId: tier.id,
+    },
+    select: { usageType: true },
+  });
+
+  const existingUsageTypes = new Set(existingPrices.map((p) => p.usageType));
+  const jsonUsageTypes = new Set(Object.keys(tier.prices));
+
+  // Delete prices that exist in DB but not in JSON
+  const usageTypesToDelete = Array.from(existingUsageTypes).filter(
+    (ut) => !jsonUsageTypes.has(ut),
+  );
+
+  if (usageTypesToDelete.length > 0) {
+    await tx.price.deleteMany({
+      where: {
+        modelId,
+        pricingTierId: tier.id,
+        usageType: { in: usageTypesToDelete },
+      },
+    });
+  }
+
+  // Upsert each price
+  const priceUpserts = [];
+  for (const [usageType, price] of Object.entries(tier.prices)) {
+    priceUpserts.push(
+      tx.price.upsert({
+        where: {
+          modelId_usageType_pricingTierId: {
+            modelId,
+            usageType,
+            pricingTierId: tier.id,
+          },
+        },
+        update: {
+          price,
+          updatedAt,
+        },
+        create: {
+          modelId,
+          projectId: null,
+          pricingTierId: tier.id,
+          usageType,
+          price,
+          createdAt,
+          updatedAt,
+        },
+      }),
+    );
+  }
+
+  await Promise.all(priceUpserts);
+}
+
+/**
+ * Upserts a model with its pricing tiers in a transaction
+ */
+export async function upsertModelWithTiers(
+  defaultModelPrice: DefaultModelPrice,
+  existingModel:
+    | {
+        updatedAt: Date;
+        tiers: Array<{
+          id: string;
+          name: string;
+          priority: number;
+          isDefault: boolean;
+        }>;
+      }
+    | undefined,
+) {
+  await prisma.$transaction(async (tx) => {
+    // 1. Upsert model
+    await tx.model.upsert({
+      where: {
+        projectId: null,
+        id: defaultModelPrice.id,
+      },
+      update: {
+        modelName: defaultModelPrice.modelName,
+        matchPattern: defaultModelPrice.matchPattern,
+        updatedAt: defaultModelPrice.updatedAt,
+        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
+        tokenizerId: defaultModelPrice.tokenizerId,
+      },
+      create: {
+        projectId: null,
+        id: defaultModelPrice.id,
+        modelName: defaultModelPrice.modelName,
+        matchPattern: defaultModelPrice.matchPattern,
+        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
+        tokenizerId: defaultModelPrice.tokenizerId,
+        createdAt: defaultModelPrice.createdAt,
+        updatedAt: defaultModelPrice.updatedAt,
+      },
+    });
+
+    // 2. Get tier IDs from JSON
+    const jsonTierIds = new Set(
+      defaultModelPrice.pricingTiers.map((t) => t.id),
+    );
+
+    // 3. Delete tiers that exist in DB but not in JSON (source of truth)
+    if (existingModel) {
+      const tiersToDelete = existingModel.tiers
+        .filter((t) => !jsonTierIds.has(t.id))
+        .map((t) => t.id);
+
+      if (tiersToDelete.length > 0) {
+        await tx.pricingTier.deleteMany({
+          where: {
+            id: { in: tiersToDelete },
+            modelId: defaultModelPrice.id,
+          },
+        });
+        logger.debug(
+          `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.modelName}`,
+        );
+      }
+
+      // Vacate all persisted priorities before applying the desired layout.
+      // This avoids unique constraint conflicts when an existing tier moves to
+      // a priority that a newly inserted tier should take over.
+      const temporaryPriorityStart =
+        Math.max(
+          ...existingModel.tiers.map((tier) => tier.priority),
+          ...defaultModelPrice.pricingTiers.map((tier) => tier.priority),
+        ) + 1;
+
+      const retainedTiers = existingModel.tiers.filter((tier) =>
+        jsonTierIds.has(tier.id),
+      );
+
+      for (const [index, tier] of retainedTiers.entries()) {
+        await tx.pricingTier.update({
+          where: { id: tier.id },
+          data: { priority: temporaryPriorityStart + index },
+        });
+      }
+    }
+
+    // 4. Upsert each tier and its prices
+    for (const tier of defaultModelPrice.pricingTiers) {
+      await upsertTierWithPrices(
+        tx,
+        defaultModelPrice.id,
+        defaultModelPrice.createdAt,
+        defaultModelPrice.updatedAt,
+        tier,
+      );
+    }
+
+    logger.info(
+      `Upserted default model ${defaultModelPrice.modelName} (${defaultModelPrice.id}) with ${defaultModelPrice.pricingTiers.length} tiers`,
+    );
+  });
+}
 
 /**
  * Upserts default model prices into the database with pricing tiers.
@@ -215,257 +468,3 @@ export const upsertDefaultModelPrices = async (force = false) => {
     );
   }
 };
-
-/**
- * Upserts a model with its pricing tiers in a transaction
- */
-export async function upsertModelWithTiers(
-  defaultModelPrice: DefaultModelPrice,
-  existingModel:
-    | {
-        updatedAt: Date;
-        tiers: Array<{
-          id: string;
-          name: string;
-          priority: number;
-          isDefault: boolean;
-        }>;
-      }
-    | undefined,
-) {
-  await prisma.$transaction(async (tx) => {
-    // 1. Upsert model
-    await tx.model.upsert({
-      where: {
-        projectId: null,
-        id: defaultModelPrice.id,
-      },
-      update: {
-        modelName: defaultModelPrice.modelName,
-        matchPattern: defaultModelPrice.matchPattern,
-        updatedAt: defaultModelPrice.updatedAt,
-        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
-        tokenizerId: defaultModelPrice.tokenizerId,
-      },
-      create: {
-        projectId: null,
-        id: defaultModelPrice.id,
-        modelName: defaultModelPrice.modelName,
-        matchPattern: defaultModelPrice.matchPattern,
-        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
-        tokenizerId: defaultModelPrice.tokenizerId,
-        createdAt: defaultModelPrice.createdAt,
-        updatedAt: defaultModelPrice.updatedAt,
-      },
-    });
-
-    // 2. Get tier IDs from JSON
-    const jsonTierIds = new Set(
-      defaultModelPrice.pricingTiers.map((t) => t.id),
-    );
-
-    // 3. Delete tiers that exist in DB but not in JSON (source of truth)
-    if (existingModel) {
-      const tiersToDelete = existingModel.tiers
-        .filter((t) => !jsonTierIds.has(t.id))
-        .map((t) => t.id);
-
-      if (tiersToDelete.length > 0) {
-        await tx.pricingTier.deleteMany({
-          where: {
-            id: { in: tiersToDelete },
-            modelId: defaultModelPrice.id,
-          },
-        });
-        logger.debug(
-          `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.modelName}`,
-        );
-      }
-
-      // Vacate all persisted priorities before applying the desired layout.
-      // This avoids unique constraint conflicts when an existing tier moves to
-      // a priority that a newly inserted tier should take over.
-      const temporaryPriorityStart =
-        Math.max(
-          ...existingModel.tiers.map((tier) => tier.priority),
-          ...defaultModelPrice.pricingTiers.map((tier) => tier.priority),
-        ) + 1;
-
-      const retainedTiers = existingModel.tiers.filter((tier) =>
-        jsonTierIds.has(tier.id),
-      );
-
-      for (const [index, tier] of retainedTiers.entries()) {
-        await tx.pricingTier.update({
-          where: { id: tier.id },
-          data: { priority: temporaryPriorityStart + index },
-        });
-      }
-    }
-
-    // 4. Upsert each tier and its prices
-    for (const tier of defaultModelPrice.pricingTiers) {
-      await upsertTierWithPrices(
-        tx,
-        defaultModelPrice.id,
-        defaultModelPrice.createdAt,
-        defaultModelPrice.updatedAt,
-        tier,
-      );
-    }
-
-    logger.info(
-      `Upserted default model ${defaultModelPrice.modelName} (${defaultModelPrice.id}) with ${defaultModelPrice.pricingTiers.length} tiers`,
-    );
-  });
-}
-
-/**
- * Upserts a single pricing tier with its prices
- */
-async function upsertTierWithPrices(
-  tx: Omit<
-    PrismaClient,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
-  >,
-  modelId: string,
-  createdAt: Date,
-  updatedAt: Date,
-  tier: PricingTier,
-) {
-  // Upsert tier
-  await tx.pricingTier.upsert({
-    where: { id: tier.id },
-    update: {
-      name: tier.name,
-      isDefault: tier.isDefault,
-      priority: tier.priority,
-      conditions: tier.conditions,
-      updatedAt,
-    },
-    create: {
-      id: tier.id,
-      modelId,
-      name: tier.name,
-      isDefault: tier.isDefault,
-      priority: tier.priority,
-      conditions: tier.conditions,
-      createdAt,
-      updatedAt,
-    },
-  });
-
-  // Get existing prices for this tier
-  const existingPrices = await tx.price.findMany({
-    where: {
-      modelId,
-      pricingTierId: tier.id,
-    },
-    select: { usageType: true },
-  });
-
-  const existingUsageTypes = new Set(existingPrices.map((p) => p.usageType));
-  const jsonUsageTypes = new Set(Object.keys(tier.prices));
-
-  // Delete prices that exist in DB but not in JSON
-  const usageTypesToDelete = Array.from(existingUsageTypes).filter(
-    (ut) => !jsonUsageTypes.has(ut),
-  );
-
-  if (usageTypesToDelete.length > 0) {
-    await tx.price.deleteMany({
-      where: {
-        modelId,
-        pricingTierId: tier.id,
-        usageType: { in: usageTypesToDelete },
-      },
-    });
-  }
-
-  // Upsert each price
-  const priceUpserts = [];
-  for (const [usageType, price] of Object.entries(tier.prices)) {
-    priceUpserts.push(
-      tx.price.upsert({
-        where: {
-          modelId_usageType_pricingTierId: {
-            modelId,
-            usageType,
-            pricingTierId: tier.id,
-          },
-        },
-        update: {
-          price,
-          updatedAt,
-        },
-        create: {
-          modelId,
-          projectId: null,
-          pricingTierId: tier.id,
-          usageType,
-          price,
-          createdAt,
-          updatedAt,
-        },
-      }),
-    );
-  }
-
-  await Promise.all(priceUpserts);
-}
-
-/**
- * Checks if a model is up-to-date by comparing updated_at and tiers
- */
-function isModelUpToDate(
-  defaultModelPrice: DefaultModelPrice,
-  existingModel: {
-    updatedAt: Date;
-    tiers: Array<{
-      id: string;
-      name: string;
-      priority: number;
-      isDefault: boolean;
-    }>;
-  },
-): boolean {
-  // Check if updated_at matches
-  const isUpdatedAtSame =
-    existingModel.updatedAt.getTime() === defaultModelPrice.updatedAt.getTime();
-
-  if (!isUpdatedAtSame) {
-    return false;
-  }
-
-  // Check if tiers match (same count and same IDs)
-  const jsonTierIds = new Set(defaultModelPrice.pricingTiers.map((t) => t.id));
-  const dbTierIds = new Set(existingModel.tiers.map((t) => t.id));
-
-  if (jsonTierIds.size !== dbTierIds.size) {
-    return false;
-  }
-
-  for (const id of jsonTierIds) {
-    if (!dbTierIds.has(id)) {
-      return false;
-    }
-  }
-
-  // Check if tier properties match
-  for (const jsonTier of defaultModelPrice.pricingTiers) {
-    const dbTier = existingModel.tiers.find((t) => t.id === jsonTier.id);
-    if (!dbTier) {
-      return false;
-    }
-
-    if (
-      dbTier.name !== jsonTier.name ||
-      dbTier.priority !== jsonTier.priority ||
-      dbTier.isDefault !== jsonTier.isDefault
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}

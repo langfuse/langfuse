@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 import { env } from "../../env";
@@ -48,6 +47,93 @@ export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
   "Langfuse AI is not configured. Set LANGFUSE_AI_PROVIDER and LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER is anthropic or openai.";
 
 const extraHeadersRecordSchema = z.record(z.string(), z.string());
+
+function parseLangfuseAIExtraHeaders(): Record<string, string> | undefined {
+  const raw = env.LANGFUSE_AI_EXTRA_HEADERS;
+  if (!raw || raw.trim() === "") {
+    return undefined;
+  }
+
+  const headers = extraHeadersRecordSchema.parse(JSON.parse(raw));
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function resolveHttpProviderConfig(params: {
+  provider: "anthropic" | "openai";
+  modelId?: string | null;
+}): InAppAgentModelConfig | undefined {
+  const modelId = params.modelId ?? env.LANGFUSE_AI_MODEL;
+  const apiKey = env.LANGFUSE_AI_API_KEY;
+
+  if (!modelId || !apiKey) {
+    return undefined;
+  }
+
+  const extraHeaders = parseLangfuseAIExtraHeaders();
+  const titleModelId = env.LANGFUSE_AI_SMALL_MODEL ?? modelId;
+
+  if (params.provider === "anthropic") {
+    return {
+      provider: "anthropic",
+      modelId,
+      titleModelId,
+      apiKey,
+      baseURL: toAnthropicBaseURL(env.LANGFUSE_AI_BASE_URL),
+      ...(extraHeaders ? { extraHeaders } : {}),
+    };
+  }
+
+  return {
+    provider: "openai",
+    modelId,
+    titleModelId,
+    apiKey,
+    baseURL:
+      processOpenAIBaseURL({
+        url: env.LANGFUSE_AI_BASE_URL,
+        modelName: modelId,
+      }) ?? undefined,
+    ...(extraHeaders ? { extraHeaders } : {}),
+  };
+}
+
+/**
+ * Bedrock and Vertex authenticate through the instance credential chain, so the
+ * key-bearing environment variables silently do nothing under them.
+ */
+function warnIfInstanceCredentialsIgnoreKeyEnv(provider: "bedrock" | "vertex") {
+  const ignored: string[] = [];
+  if (env.LANGFUSE_AI_API_KEY) {
+    ignored.push("LANGFUSE_AI_API_KEY");
+  }
+  if (env.LANGFUSE_AI_BASE_URL) {
+    ignored.push("LANGFUSE_AI_BASE_URL");
+  }
+  if (env.LANGFUSE_AI_EXTRA_HEADERS) {
+    ignored.push("LANGFUSE_AI_EXTRA_HEADERS");
+  }
+  if (env.LANGFUSE_AI_USE_RESPONSES_API) {
+    ignored.push("LANGFUSE_AI_USE_RESPONSES_API");
+  }
+  if (ignored.length === 0) {
+    return;
+  }
+
+  const { label, credentialChain } =
+    provider === "bedrock"
+      ? {
+          label: "Bedrock",
+          credentialChain: "the instance AWS credential chain",
+        }
+      : {
+          label: "Vertex AI",
+          credentialChain: "GCP application default credentials",
+        };
+
+  logger.warn(
+    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is ${provider}. ${label} uses ${credentialChain}, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.`,
+  );
+}
 
 /**
  * Resolves the instance-wide Langfuse-operated AI model (Assistant + Ask AI).
@@ -124,93 +210,6 @@ export function getInAppAgentModelConfig(params?: {
     titleModelId: env.LANGFUSE_AI_SMALL_MODEL ?? modelId,
     region,
   };
-}
-
-function resolveHttpProviderConfig(params: {
-  provider: "anthropic" | "openai";
-  modelId?: string | null;
-}): InAppAgentModelConfig | undefined {
-  const modelId = params.modelId ?? env.LANGFUSE_AI_MODEL;
-  const apiKey = env.LANGFUSE_AI_API_KEY;
-
-  if (!modelId || !apiKey) {
-    return undefined;
-  }
-
-  const extraHeaders = parseLangfuseAIExtraHeaders();
-  const titleModelId = env.LANGFUSE_AI_SMALL_MODEL ?? modelId;
-
-  if (params.provider === "anthropic") {
-    return {
-      provider: "anthropic",
-      modelId,
-      titleModelId,
-      apiKey,
-      baseURL: toAnthropicBaseURL(env.LANGFUSE_AI_BASE_URL),
-      ...(extraHeaders ? { extraHeaders } : {}),
-    };
-  }
-
-  return {
-    provider: "openai",
-    modelId,
-    titleModelId,
-    apiKey,
-    baseURL:
-      processOpenAIBaseURL({
-        url: env.LANGFUSE_AI_BASE_URL,
-        modelName: modelId,
-      }) ?? undefined,
-    ...(extraHeaders ? { extraHeaders } : {}),
-  };
-}
-
-function parseLangfuseAIExtraHeaders(): Record<string, string> | undefined {
-  const raw = env.LANGFUSE_AI_EXTRA_HEADERS;
-  if (!raw || raw.trim() === "") {
-    return undefined;
-  }
-
-  const headers = extraHeadersRecordSchema.parse(JSON.parse(raw));
-  return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-/**
- * Bedrock and Vertex authenticate through the instance credential chain, so the
- * key-bearing environment variables silently do nothing under them.
- */
-function warnIfInstanceCredentialsIgnoreKeyEnv(provider: "bedrock" | "vertex") {
-  const ignored: string[] = [];
-  if (env.LANGFUSE_AI_API_KEY) {
-    ignored.push("LANGFUSE_AI_API_KEY");
-  }
-  if (env.LANGFUSE_AI_BASE_URL) {
-    ignored.push("LANGFUSE_AI_BASE_URL");
-  }
-  if (env.LANGFUSE_AI_EXTRA_HEADERS) {
-    ignored.push("LANGFUSE_AI_EXTRA_HEADERS");
-  }
-  if (env.LANGFUSE_AI_USE_RESPONSES_API) {
-    ignored.push("LANGFUSE_AI_USE_RESPONSES_API");
-  }
-  if (ignored.length === 0) {
-    return;
-  }
-
-  const { label, credentialChain } =
-    provider === "bedrock"
-      ? {
-          label: "Bedrock",
-          credentialChain: "the instance AWS credential chain",
-        }
-      : {
-          label: "Vertex AI",
-          credentialChain: "GCP application default credentials",
-        };
-
-  logger.warn(
-    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is ${provider}. ${label} uses ${credentialChain}, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.`,
-  );
 }
 
 /**

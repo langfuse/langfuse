@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -13,11 +12,6 @@ import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integra
 import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
-
-export default withMiddlewares({
-  GET: handleGetBlobStorageIntegrations,
-  PUT: handleUpsertBlobStorageIntegration,
-});
 
 async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
@@ -179,3 +173,8 @@ async function handleUpsertBlobStorageIntegration(
 
   return res.status(200).json(responseData);
 }
+
+export default withMiddlewares({
+  GET: handleGetBlobStorageIntegrations,
+  PUT: handleUpsertBlobStorageIntegration,
+});

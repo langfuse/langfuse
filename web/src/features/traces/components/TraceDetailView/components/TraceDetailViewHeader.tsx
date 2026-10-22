@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
@@ -78,13 +77,6 @@ const actionsClassName =
   "flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end";
 
 const LOADING_BADGE_WIDTHS = ["w-36", "w-24", "w-32", "w-32"];
-
-export const TraceDetailViewHeader = memo(function TraceDetailViewHeader(
-  props: TraceDetailViewHeaderProps | { isLoading: true },
-) {
-  if (props.isLoading === true) return <TraceDetailViewHeaderLoading />;
-  return <LoadedTraceDetailViewHeader {...props} />;
-});
 
 function TraceDetailViewHeaderLoading() {
   const isMobile = useIsMobile();
@@ -393,3 +385,10 @@ function LoadedTraceDetailViewHeader({
     </DetailViewHeaderShell>
   );
 }
+
+export const TraceDetailViewHeader = memo(function TraceDetailViewHeader(
+  props: TraceDetailViewHeaderProps | { isLoading: true },
+) {
+  if (props.isLoading === true) return <TraceDetailViewHeaderLoading />;
+  return <LoadedTraceDetailViewHeader {...props} />;
+});

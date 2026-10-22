@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ExperimentFilterOptions } from "./experimentFilterTypes";
 import {
   completeExperimentFilter,
@@ -6,25 +5,6 @@ import {
   newExperimentFilterDraft,
   type ExperimentFilterDraft,
 } from "./experimentFilterEditing";
-
-export function experimentFilterCreationChoices(
-  options: ExperimentFilterOptions | undefined,
-  optionsError: string | null,
-) {
-  return EXPERIMENT_FILTER_KINDS.map(function prepareChoice(kind) {
-    const draft = prepareDefaultDraft(kind.column, options);
-    const metadataColumn = kind.type === "stringObject" ? kind.column : null;
-    const filter = completeExperimentFilter(draft);
-    return {
-      ...kind,
-      filter,
-      metadataColumn,
-      description: describeDefault(draft, options, optionsError),
-      levels: defaultScoreLevels(draft, options),
-      isDisabled: !metadataColumn && !filter,
-    };
-  });
-}
 
 function prepareDefaultDraft(
   column: (typeof EXPERIMENT_FILTER_KINDS)[number]["column"],
@@ -95,6 +75,25 @@ function defaultScoreLevels(
   if (draft.type === "booleanObject")
     return options?.score_name_levels_boolean?.[draft.key] ?? [];
   return [];
+}
+
+export function experimentFilterCreationChoices(
+  options: ExperimentFilterOptions | undefined,
+  optionsError: string | null,
+) {
+  return EXPERIMENT_FILTER_KINDS.map(function prepareChoice(kind) {
+    const draft = prepareDefaultDraft(kind.column, options);
+    const metadataColumn = kind.type === "stringObject" ? kind.column : null;
+    const filter = completeExperimentFilter(draft);
+    return {
+      ...kind,
+      filter,
+      metadataColumn,
+      description: describeDefault(draft, options, optionsError),
+      levels: defaultScoreLevels(draft, options),
+      isDisabled: !metadataColumn && !filter,
+    };
+  });
 }
 
 export type ExperimentFilterCreationChoice = ReturnType<

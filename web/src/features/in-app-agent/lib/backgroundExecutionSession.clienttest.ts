@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -858,6 +857,10 @@ describe("BackgroundExecutionSessionController", () => {
   });
 });
 
+function sseFrame(frame: Record<string, unknown>): string {
+  return `event: ${String(frame.type)}\ndata: ${JSON.stringify(frame)}\n\n`;
+}
+
 describe("BackgroundExecutionSessionController hydration", () => {
   it("keeps a live tool call on its newly created assistant parent", async () => {
     const question = {
@@ -1443,7 +1446,3 @@ describe("getBackgroundRunNotice", () => {
     expect(getSettledActivityOutcome(run)).toBe("worked");
   });
 });
-
-function sseFrame(frame: Record<string, unknown>): string {
-  return `event: ${String(frame.type)}\ndata: ${JSON.stringify(frame)}\n\n`;
-}

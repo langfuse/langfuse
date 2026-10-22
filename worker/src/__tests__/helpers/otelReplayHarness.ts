@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 
 import { expect, vi } from "vitest";
@@ -22,6 +21,13 @@ import { configureOtelReplayEnvironment } from "./otelReplaySetup";
 
 type OtelReplayStoredRow = Record<string, unknown>;
 
+type OtelRawReplayMode = "original-ts" | "early-ts";
+
+type LegacyReplayTable =
+  | TableName.Traces
+  | TableName.Observations
+  | TableName.ObservationsBatchStaging;
+
 export type OtelReplayResult = {
   mode: OtelRawReplayMode;
   storedRows: OtelReplayStoredRow[];
@@ -33,11 +39,6 @@ export type OtelRawReplayComparison = {
   originalTs: OtelReplayResult;
   earlyTs: OtelReplayResult;
 };
-
-type LegacyReplayTable =
-  | TableName.Traces
-  | TableName.Observations
-  | TableName.ObservationsBatchStaging;
 
 type IngestionQueueJob = Job<TQueueJobTypes[QueueName.IngestionQueue]>;
 
@@ -62,8 +63,6 @@ type RunOtelReplayParams = {
   failLegacyQueueProcessing?: boolean;
   captureSideEffects?: () => unknown;
 };
-
-type OtelRawReplayMode = "original-ts" | "early-ts";
 
 // The legacy processor caches its storage client. Keep this fake's identity stable
 // across sequential replays, but release all file contents after each run.
@@ -133,25 +132,8 @@ export function expectRawOtelReplayParity(
   );
 }
 
-/** Replay identical unparsed bytes through the original and early-media TS paths. */
-export async function runOtelReplayComparison(
-  params: RunOtelReplayParams,
-): Promise<OtelRawReplayComparison> {
-  const { captureSideEffects, ...replayParams } = params;
-  const originalTs = await runOneOtelReplay({
-    ...replayParams,
-    captureSideEffects,
-    mode: "original-ts",
-    bytes: Buffer.from(params.bytes),
-  });
-  const earlyTs = await runOneOtelReplay({
-    ...replayParams,
-    captureSideEffects,
-    mode: "early-ts",
-    bytes: Buffer.from(params.bytes),
-  });
-
-  return { originalTs, earlyTs };
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -418,6 +400,23 @@ export async function runOneOtelReplay(
   return replayResult;
 }
 
-function formatUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** Replay identical unparsed bytes through the original and early-media TS paths. */
+export async function runOtelReplayComparison(
+  params: RunOtelReplayParams,
+): Promise<OtelRawReplayComparison> {
+  const { captureSideEffects, ...replayParams } = params;
+  const originalTs = await runOneOtelReplay({
+    ...replayParams,
+    captureSideEffects,
+    mode: "original-ts",
+    bytes: Buffer.from(params.bytes),
+  });
+  const earlyTs = await runOneOtelReplay({
+    ...replayParams,
+    captureSideEffects,
+    mode: "early-ts",
+    bytes: Buffer.from(params.bytes),
+  });
+
+  return { originalTs, earlyTs };
 }

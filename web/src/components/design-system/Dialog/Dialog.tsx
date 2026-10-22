@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -52,6 +51,22 @@ type DialogProps = {
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
 );
+
+function DialogBody({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
+      {children}
+    </div>
+  );
+}
+
+function DialogFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
+      {children}
+    </div>
+  );
+}
 
 function DialogRoot({
   actions,
@@ -177,22 +192,6 @@ function DialogRoot({
         />
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
-  );
-}
-
-function DialogBody({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
-      {children}
-    </div>
-  );
-}
-
-function DialogFooter({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
-      {children}
-    </div>
   );
 }
 
