@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import ipaddr from "ipaddr.js";
 import { parseBlockedCidr } from "./parseBlockedCidr";
 
@@ -46,6 +45,24 @@ const blockedNetworks = BLOCKED_CIDRS.map((cidr) => {
     mask: parseInt(bits, 10),
   };
 });
+
+function normalizeIPAddress(ipString: string): string {
+  return ipString
+    .toLowerCase()
+    .trim()
+    .replace(/^\[|\]$/g, "");
+}
+
+function ipMatchesCidr(
+  ip: ReturnType<typeof ipaddr.parse>,
+  cidr: string,
+): boolean {
+  // A malformed operator CIDR must not fail the whole check closed: that
+  // would block every public address. Startup validation uses this parser.
+  const parsed = parseBlockedCidr(cidr);
+  if (!parsed || ip.kind() !== parsed.network.kind()) return false;
+  return ip.match(parsed.network, parsed.prefix);
+}
 
 /**
  * Check if an IP address is blocked based on CIDR ranges
@@ -148,22 +165,4 @@ export function isHostnameBlocked(hostname: string): boolean {
   }
 
   return false;
-}
-
-function ipMatchesCidr(
-  ip: ReturnType<typeof ipaddr.parse>,
-  cidr: string,
-): boolean {
-  // A malformed operator CIDR must not fail the whole check closed: that
-  // would block every public address. Startup validation uses this parser.
-  const parsed = parseBlockedCidr(cidr);
-  if (!parsed || ip.kind() !== parsed.network.kind()) return false;
-  return ip.match(parsed.network, parsed.prefix);
-}
-
-function normalizeIPAddress(ipString: string): string {
-  return ipString
-    .toLowerCase()
-    .trim()
-    .replace(/^\[|\]$/g, "");
 }

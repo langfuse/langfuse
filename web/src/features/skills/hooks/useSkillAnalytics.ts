@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { api, type RouterInputs } from "@/src/utils/api";
 import {
@@ -10,6 +9,38 @@ type MetricsInput = RouterInputs["dashboard"]["executeQuery"];
 type MetricsWindow = { fromTimestamp: string; toTimestamp: string };
 
 const queryOptions = { refetchOnWindowFocus: false, staleTime: 60_000 };
+
+function getMetricsWindow(timeRange: TimeRange): MetricsWindow {
+  const range = toAbsoluteTimeRange(timeRange);
+  return {
+    fromTimestamp: (range?.from ?? new Date(0)).toISOString(),
+    toTimestamp: (range?.to ?? new Date()).toISOString(),
+  };
+}
+
+function createMetricsQuery(
+  projectId: string,
+  skillId: string,
+  window: MetricsWindow,
+  column: "skillIdsAvailable" | "skillIdsLoaded",
+  dimensions: MetricsInput["query"]["dimensions"] = [],
+): MetricsInput {
+  return {
+    projectId,
+    version: "v2",
+    query: {
+      view: "observations",
+      dimensions,
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        { type: "arrayOptions", column, operator: "any of", value: [skillId] },
+      ],
+      timeDimension: null,
+      ...window,
+      orderBy: null,
+    },
+  };
+}
 
 export function useSkillAnalytics({
   projectId,
@@ -50,36 +81,4 @@ export function useSkillAnalytics({
   }
 
   return { available, loaded, files, handleRefresh };
-}
-
-function createMetricsQuery(
-  projectId: string,
-  skillId: string,
-  window: MetricsWindow,
-  column: "skillIdsAvailable" | "skillIdsLoaded",
-  dimensions: MetricsInput["query"]["dimensions"] = [],
-): MetricsInput {
-  return {
-    projectId,
-    version: "v2",
-    query: {
-      view: "observations",
-      dimensions,
-      metrics: [{ measure: "count", aggregation: "count" }],
-      filters: [
-        { type: "arrayOptions", column, operator: "any of", value: [skillId] },
-      ],
-      timeDimension: null,
-      ...window,
-      orderBy: null,
-    },
-  };
-}
-
-function getMetricsWindow(timeRange: TimeRange): MetricsWindow {
-  const range = toAbsoluteTimeRange(timeRange);
-  return {
-    fromTimestamp: (range?.from ?? new Date(0)).toISOString(),
-    toTimestamp: (range?.to ?? new Date()).toISOString(),
-  };
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
@@ -19,18 +18,6 @@ import { History, PanelRightOpen } from "@langfuse/icons";
 import { useState } from "react";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
-
-export default function DatasetItemPage() {
-  const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
-  return (
-    <DatasetItemContent
-      projectId={route.params.projectId}
-      datasetId={route.params.datasetId}
-      itemId={route.params.itemId}
-    />
-  );
-}
 
 function DatasetItemContent({
   projectId,
@@ -236,5 +223,17 @@ function DatasetItemContent({
         )}
       </div>
     </DatasetItemDetailPage>
+  );
+}
+
+export default function DatasetItemPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemContent
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+      itemId={route.params.itemId}
+    />
   );
 }

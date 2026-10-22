@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -52,22 +52,6 @@ import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { setupTracingRoute } from "@/src/features/setup";
-
-// Controller: no widget query may fire before the session resolves the v3/v4
-// read path — an unresolved session used to read as v3, fire a full wave of
-// legacy-table queries, then re-run the whole dashboard on v4 once the
-// session landed (via the scheduler reset key below).
-export default function ProjectHomePage() {
-  const { readPath } = useReadPath();
-  if (readPath === "unknown") {
-    return (
-      <Page withPadding scrollable headerProps={{ title: "Home" }}>
-        <NoDataOrLoading isLoading />
-      </Page>
-    );
-  }
-  return <HomeDashboard readPath={readPath} />;
-}
 
 function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
@@ -564,4 +548,20 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       </Page>
     </DashboardQuerySchedulerProvider>
   );
+}
+
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3, fire a full wave of
+// legacy-table queries, then re-run the whole dashboard on v4 once the
+// session landed (via the scheduler reset key below).
+export default function ProjectHomePage() {
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page withPadding scrollable headerProps={{ title: "Home" }}>
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <HomeDashboard readPath={readPath} />;
 }

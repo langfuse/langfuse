@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
@@ -9,57 +8,15 @@ import {
   type Monitor,
 } from "../types";
 
-/** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
-export function applyStateMachine(args: {
-  prev: Monitor;
-  next: { severity: MonitorSeverity };
-  now: Date;
-  publishedAt: Date;
-}): StateMachineDecision {
-  const { prev, next, now, publishedAt } = args;
-
-  // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
-  if (prev.severity === MonitorSeveritySchema.enum.PAUSED) {
-    return {
-      emit: false,
-      completion: {
-        monitorId: prev.id,
-        lastClaimedAt: now,
-        lastCompletedAt: now,
-        publishedAt,
-        status: prev.status,
-        severity: MonitorSeveritySchema.enum.PAUSED,
-        severityChangedAt: prev.severityChangedAt,
-        alertedAt: prev.alertedAt,
-      },
-    };
-  }
-
-  const severityChanged = prev.severity !== next.severity;
-
-  const emit = shouldEmit({
-    prev: prev.severity,
-    next: next.severity,
-    prevAlertedAt: prev.alertedAt,
-    prevSeverityChangedAt: prev.severityChangedAt,
-    now,
-    noData: prev.noData,
-    renotify: prev.renotify,
-  });
-
-  return {
-    emit,
-    completion: {
-      monitorId: prev.id,
-      lastClaimedAt: now,
-      lastCompletedAt: now,
-      publishedAt,
-      status: prev.status,
-      severity: next.severity,
-      severityChangedAt: severityChanged ? now : prev.severityChangedAt,
-      alertedAt: emit ? now : prev.alertedAt,
-    },
-  };
+/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
+function passedDelay(
+  prevAlertedAt: Date | null,
+  intervalMinutes: number,
+  now: Date,
+): boolean {
+  if (prevAlertedAt === null) return true;
+  const intervalMs = intervalMinutes * 60_000;
+  return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
 }
 
 /** shouldEmit applies the RFC transition-table row matching (prev, next). */
@@ -154,15 +111,57 @@ function shouldEmit(args: {
   return true;
 }
 
-/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
-function passedDelay(
-  prevAlertedAt: Date | null,
-  intervalMinutes: number,
-  now: Date,
-): boolean {
-  if (prevAlertedAt === null) return true;
-  const intervalMs = intervalMinutes * 60_000;
-  return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
+/** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
+export function applyStateMachine(args: {
+  prev: Monitor;
+  next: { severity: MonitorSeverity };
+  now: Date;
+  publishedAt: Date;
+}): StateMachineDecision {
+  const { prev, next, now, publishedAt } = args;
+
+  // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
+  if (prev.severity === MonitorSeveritySchema.enum.PAUSED) {
+    return {
+      emit: false,
+      completion: {
+        monitorId: prev.id,
+        lastClaimedAt: now,
+        lastCompletedAt: now,
+        publishedAt,
+        status: prev.status,
+        severity: MonitorSeveritySchema.enum.PAUSED,
+        severityChangedAt: prev.severityChangedAt,
+        alertedAt: prev.alertedAt,
+      },
+    };
+  }
+
+  const severityChanged = prev.severity !== next.severity;
+
+  const emit = shouldEmit({
+    prev: prev.severity,
+    next: next.severity,
+    prevAlertedAt: prev.alertedAt,
+    prevSeverityChangedAt: prev.severityChangedAt,
+    now,
+    noData: prev.noData,
+    renotify: prev.renotify,
+  });
+
+  return {
+    emit,
+    completion: {
+      monitorId: prev.id,
+      lastClaimedAt: now,
+      lastCompletedAt: now,
+      publishedAt,
+      status: prev.status,
+      severity: next.severity,
+      severityChangedAt: severityChanged ? now : prev.severityChangedAt,
+      alertedAt: emit ? now : prev.alertedAt,
+    },
+  };
 }
 
 /** MonitorCompletion is one row of the bulk update the state machine emits for a single monitor. */

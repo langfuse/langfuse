@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -110,6 +109,24 @@ type TestLlmConnectionParams = Omit<
   validateSecretBeforeTest?: boolean;
 };
 
+function getBedrockAuthMethod(
+  secretKey: string,
+): BedrockAuthMethod | undefined {
+  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
+    return AuthMethod.DefaultCredentials;
+  }
+
+  try {
+    const parsed = BedrockCredentialSchema.parse(JSON.parse(secretKey));
+    return "apiKey" in parsed ? AuthMethod.ApiKey : AuthMethod.AccessKeys;
+  } catch (error) {
+    logger.warn("Failed to derive Bedrock auth method from stored secret", {
+      error,
+    });
+    return undefined;
+  }
+}
+
 const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
   const common = {
     id: connection.id,
@@ -170,24 +187,6 @@ function validateBedrockSecretKey(secretKey: string): void {
     throw new InvalidRequestError(
       "Invalid Bedrock credentials. Expected a JSON object with either {accessKeyId, secretAccessKey} or {apiKey}.",
     );
-  }
-}
-
-function getBedrockAuthMethod(
-  secretKey: string,
-): BedrockAuthMethod | undefined {
-  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-    return AuthMethod.DefaultCredentials;
-  }
-
-  try {
-    const parsed = BedrockCredentialSchema.parse(JSON.parse(secretKey));
-    return "apiKey" in parsed ? AuthMethod.ApiKey : AuthMethod.AccessKeys;
-  } catch (error) {
-    logger.warn("Failed to derive Bedrock auth method from stored secret", {
-      error,
-    });
-    return undefined;
   }
 }
 

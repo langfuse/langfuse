@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
 import {
@@ -25,6 +25,21 @@ import {
   ChartTypePicker,
   MetricSelect,
 } from "./ConfigControls";
+
+function PanelField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-muted-foreground text-xs font-bold">{label}</span>
+      {children}
+    </div>
+  );
+}
 
 /**
  * The "Take B" chart-view layout (the direction Nikita picked): a maximized
@@ -173,18 +188,3 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
     </div>
   );
 });
-
-function PanelField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs font-bold">{label}</span>
-      {children}
-    </div>
-  );
-}

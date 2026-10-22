@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseS3Uri } from "@langfuse/shared";
 import Image from "next/image";
 import { useId, useState, type SyntheticEvent } from "react";
@@ -8,72 +7,6 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-
-export function TestMediaObjectDialog({
-  isPending,
-  onTest,
-}: {
-  isPending: boolean;
-  onTest: (uri: string) => Promise<string | null>;
-}) {
-  const [uri, setUri] = useState("");
-  const [preview, setPreview] = useState<{
-    signedUrl: string;
-    uri: string;
-  } | null>(null);
-  const formId = useId();
-  const inputId = useId();
-
-  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const submittedUri = uri.trim();
-    setPreview(null);
-    const signedUrl = await onTest(submittedUri);
-    setPreview(signedUrl ? { signedUrl, uri: submittedUri } : null);
-  };
-
-  return (
-    <Dialog
-      closeOnInteractionOutside
-      title="Test external media object"
-      actions={[
-        {
-          disabled: !uri.trim(),
-          form: formId,
-          label: "Test",
-          loading: isPending,
-          type: "submit",
-        },
-      ]}
-    >
-      <Dialog.Body>
-        <p className="text-muted-foreground text-sm">
-          Enter an s3:// URI to check object access and browser CORS.
-        </p>
-        <form id={formId} className="grid gap-2" onSubmit={handleSubmit}>
-          <Label htmlFor={inputId}>S3 URI</Label>
-          <Input
-            id={inputId}
-            value={uri}
-            placeholder="s3://bucket/media/image.png"
-            disabled={isPending}
-            onChange={(event) => {
-              setUri(event.target.value);
-              setPreview(null);
-            }}
-          />
-        </form>
-        {preview ? (
-          <MediaObjectPreview
-            key={preview.signedUrl}
-            signedUrl={preview.signedUrl}
-            uri={preview.uri}
-          />
-        ) : null}
-      </Dialog.Body>
-    </Dialog>
-  );
-}
 
 function MediaObjectPreview({
   signedUrl,
@@ -149,5 +82,71 @@ function MediaObjectPreview({
         </p>
       ) : null}
     </div>
+  );
+}
+
+export function TestMediaObjectDialog({
+  isPending,
+  onTest,
+}: {
+  isPending: boolean;
+  onTest: (uri: string) => Promise<string | null>;
+}) {
+  const [uri, setUri] = useState("");
+  const [preview, setPreview] = useState<{
+    signedUrl: string;
+    uri: string;
+  } | null>(null);
+  const formId = useId();
+  const inputId = useId();
+
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const submittedUri = uri.trim();
+    setPreview(null);
+    const signedUrl = await onTest(submittedUri);
+    setPreview(signedUrl ? { signedUrl, uri: submittedUri } : null);
+  };
+
+  return (
+    <Dialog
+      closeOnInteractionOutside
+      title="Test external media object"
+      actions={[
+        {
+          disabled: !uri.trim(),
+          form: formId,
+          label: "Test",
+          loading: isPending,
+          type: "submit",
+        },
+      ]}
+    >
+      <Dialog.Body>
+        <p className="text-muted-foreground text-sm">
+          Enter an s3:// URI to check object access and browser CORS.
+        </p>
+        <form id={formId} className="grid gap-2" onSubmit={handleSubmit}>
+          <Label htmlFor={inputId}>S3 URI</Label>
+          <Input
+            id={inputId}
+            value={uri}
+            placeholder="s3://bucket/media/image.png"
+            disabled={isPending}
+            onChange={(event) => {
+              setUri(event.target.value);
+              setPreview(null);
+            }}
+          />
+        </form>
+        {preview ? (
+          <MediaObjectPreview
+            key={preview.signedUrl}
+            signedUrl={preview.signedUrl}
+            uri={preview.uri}
+          />
+        ) : null}
+      </Dialog.Body>
+    </Dialog>
   );
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
@@ -151,6 +150,346 @@ const TabsListContext = React.createContext<{
   look: TabsVariant;
   size?: TabsInsetSize;
 } | null>(null);
+
+function labelText(label: string | undefined, count: number | undefined) {
+  if (label === undefined || count === undefined) return label;
+  return `${label} ${count}`;
+}
+
+function TabsTriggerLabel({
+  label,
+  count,
+  tooltip,
+}: Pick<TabsTriggerProps, "count" | "tooltip"> & { label: string }) {
+  const text = (
+    <>
+      {label}
+      {count !== undefined ? (
+        <span className="font-normal tabular-nums"> {count}</span>
+      ) : null}
+    </>
+  );
+
+  if (!tooltip) {
+    return (
+      <span
+        className={tabsTriggerLabelClassName}
+        title={labelText(label, count)}
+      >
+        {text}
+      </span>
+    );
+  }
+
+  return (
+    <Tooltip label={tooltip}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className={tabsTriggerLabelClassName}>
+          {text}
+        </span>
+      )}
+    </Tooltip>
+  );
+}
+
+function TabsInternalBadge() {
+  return <Badge text="Internal" color="yellow" size="sm" />;
+}
+
+function TabsTriggerContent({
+  children,
+  count,
+  icon: Icon,
+  internal,
+  label,
+  tooltip,
+}: Pick<
+  TabsTriggerProps,
+  "children" | "count" | "icon" | "internal" | "label" | "tooltip"
+>) {
+  return (
+    <>
+      {Icon ? <Icon aria-hidden="true" size="base" /> : null}
+      {label === undefined ? (
+        children
+      ) : (
+        <TabsTriggerLabel label={label} count={count} tooltip={tooltip} />
+      )}
+      {/* In a tight row the badge gives way before the label. */}
+      {internal ? (
+        <span className="flex min-w-0 shrink-100 overflow-hidden">
+          <TabsInternalBadge />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+function TabsTrigger(props: TabsTriggerProps) {
+  // Outside a Tabs.List, fall back to the underline look instead of crashing.
+  const list = React.use(TabsListContext) ?? { look: "underline" as const };
+  const { children, count, disabled, icon, internal, label, title, tooltip } =
+    props;
+  const className = tabsTriggerVariants({ look: list.look, size: list.size });
+  const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
+  const content = (
+    <TabsTriggerContent
+      icon={icon}
+      internal={internal}
+      label={label}
+      count={count}
+      tooltip={tooltip}
+    >
+      {children}
+    </TabsTriggerContent>
+  );
+
+  if (props.href !== undefined) {
+    return (
+      <Link
+        href={props.href}
+        onClick={props.onClick}
+        aria-current={props.active ? "page" : undefined}
+        aria-disabled={disabled || undefined}
+        tabIndex={disabled ? -1 : undefined}
+        data-state={props.active ? "active" : "inactive"}
+        title={nativeTitle}
+        className={className}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <TabsPrimitive.Trigger
+      value={props.value}
+      disabled={disabled}
+      title={nativeTitle}
+      className={className}
+    >
+      {content}
+    </TabsPrimitive.Trigger>
+  );
+}
+
+function isTabsTriggerElement(
+  child: React.ReactNode,
+): child is TabsTriggerElement {
+  return (
+    React.isValidElement(child) &&
+    child.type === TabsTrigger &&
+    typeof (child.props as TabsTriggerProps).value === "string"
+  );
+}
+
+/**
+ * Measures every tab from a hidden replica row and reports which ones fit next
+ * to the overflow trigger inside the list on `availableRef`.
+ *
+ * The replica row on `measureRef` holds one child per tab, in order, followed
+ * by a replica of the overflow trigger. It stays mounted and sized to its
+ * content, so hidden tabs remain measurable and the row can bring them back.
+ *
+ * `measureKey` must change whenever the tabs' identity, order or labels change,
+ * so the widths are read again in the new order. Size changes inside a replica,
+ * such as a badge appearing, are picked up by observing each replica.
+ *
+ * `visibleIndices` is null until the first measurement, so callers can hold
+ * the row back instead of painting the wrong set. Every later change is
+ * committed before the browser paints, so the swap never flashes.
+ *
+ * The list must not derive its width from the visible tabs, otherwise the two
+ * measurements feed back into each other. A flex item with a zero flex basis
+ * satisfies this.
+ */
+function useTabsOverflow<
+  TAvailable extends HTMLElement,
+  TMeasure extends HTMLElement,
+>(measureKey: string, activeIndex: number) {
+  const availableRef = React.useRef<TAvailable>(null);
+  const measureRef = React.useRef<TMeasure>(null);
+  const [metrics, setMetrics] = React.useState<{
+    availableWidth: number;
+    overflowWidth: number;
+    widths: number[];
+  }>();
+
+  React.useLayoutEffect(() => {
+    const available = availableRef.current;
+    const measure = measureRef.current;
+    if (!available || !measure) return;
+
+    const read = () => {
+      const widths = Array.from(
+        measure.children,
+        (child) => child.getBoundingClientRect().width,
+      );
+      const overflowWidth = widths.pop() ?? 0;
+      return {
+        availableWidth: available.getBoundingClientRect().width,
+        overflowWidth,
+        widths,
+      };
+    };
+
+    setMetrics(read());
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    // Resize callbacks run before paint; a synchronous commit keeps it that way.
+    const resizeObserver = new ResizeObserver(() => {
+      flushSync(() => setMetrics(read()));
+    });
+    resizeObserver.observe(available);
+    for (const replica of measure.children) {
+      resizeObserver.observe(replica);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [measureKey]);
+
+  const visibleIndices = React.useMemo(
+    () =>
+      metrics
+        ? getVisibleRowItemIndices({ ...metrics, pinnedIndex: activeIndex })
+        : null,
+    [activeIndex, metrics],
+  );
+
+  return { availableRef, measureRef, visibleIndices };
+}
+
+function TabsOverflowTrigger(
+  props: Omit<
+    React.ComponentProps<typeof IconButton>,
+    "icon" | "label" | "size" | "variant"
+  >,
+) {
+  return (
+    <IconButton
+      {...props}
+      icon={EllipsisVertical}
+      label={overflowTriggerLabel}
+      size="md"
+      variant="ghost"
+    />
+  );
+}
+
+/** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */
+function TabsOverflowList({
+  "aria-label": ariaLabel,
+  children,
+}: Pick<TabsListProps, "aria-label" | "children">) {
+  const root = React.use(TabsRootContext);
+  const triggers =
+    React.Children.toArray(children).filter(isTabsTriggerElement);
+  const activeIndex = triggers.findIndex(
+    (trigger) => trigger.props.value === root?.value,
+  );
+  const measureKey = JSON.stringify(
+    triggers.map((trigger) => [
+      trigger.props.value,
+      labelText(trigger.props.label, trigger.props.count) ??
+        trigger.props.title ??
+        null,
+    ]),
+  );
+  const { availableRef, measureRef, visibleIndices } = useTabsOverflow<
+    HTMLDivElement,
+    HTMLDivElement
+  >(measureKey, activeIndex);
+  const visible = new Set(visibleIndices ?? triggers.map((_, index) => index));
+  const hiddenTriggers = triggers.filter((_, index) => !visible.has(index));
+  const replicaClassName = tabsTriggerVariants({ look: "underline" });
+  const rowRef = React.useRef<HTMLDivElement>(null);
+
+  const selectFromMenu = (value: string) => {
+    root?.onValueChange?.(value);
+    // The menu hands focus back to its trigger in a microtask, and that
+    // trigger is gone once every tab fits; the selected tab takes focus after.
+    requestAnimationFrame(() => {
+      rowRef.current
+        ?.querySelector<HTMLElement>('[role="tab"][data-state="active"]')
+        ?.focus();
+    });
+  };
+
+  return (
+    <TabsListContext value={{ look: "underline" }}>
+      {/* A zero flex basis makes the list the space left over by the caller's
+          controls, so the triggers never feed back into the width they are
+          compared against. */}
+      <TabsPrimitive.List
+        ref={availableRef}
+        aria-label={ariaLabel}
+        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-x-clip"
+      >
+        {/* Non-interactive replicas keep every trigger measurable, including
+            the hidden ones, without duplicating tab semantics. */}
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          className="invisible absolute flex h-full w-max items-center"
+        >
+          {triggers.map((trigger) => (
+            <span key={trigger.props.value} className={replicaClassName}>
+              <TabsTriggerContent
+                icon={trigger.props.icon}
+                internal={trigger.props.internal}
+                label={trigger.props.label}
+                count={trigger.props.count}
+              >
+                {trigger.props.children}
+              </TabsTriggerContent>
+            </span>
+          ))}
+          <TabsOverflowTrigger tabIndex={-1} />
+        </div>
+        <div
+          ref={rowRef}
+          className={cn(
+            // A tab wider than the row truncates; the overflow trigger never clips.
+            "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
+            visibleIndices === null && "invisible",
+          )}
+        >
+          {triggers.map((trigger, index) =>
+            visible.has(index) ? trigger : null,
+          )}
+          {hiddenTriggers.length > 0 ? (
+            <span className="flex shrink-0">
+              <DropdownMenu
+                ariaLabel={overflowTriggerLabel}
+                items={hiddenTriggers.map((trigger) => ({
+                  badge: trigger.props.internal ? (
+                    <TabsInternalBadge />
+                  ) : undefined,
+                  disabled: trigger.props.disabled
+                    ? { reason: trigger.props.tooltip ?? "Not available" }
+                    : undefined,
+                  id: trigger.props.value,
+                  onClick: () => selectFromMenu(trigger.props.value),
+                  title:
+                    labelText(trigger.props.label, trigger.props.count) ??
+                    trigger.props.title ??
+                    trigger.props.value,
+                  tooltip: trigger.props.tooltip,
+                  type: "item" as const,
+                }))}
+              >
+                {({ getTriggerProps }) => (
+                  <TabsOverflowTrigger {...getTriggerProps()} />
+                )}
+              </DropdownMenu>
+            </span>
+          ) : null}
+        </div>
+      </TabsPrimitive.List>
+    </TabsListContext>
+  );
+}
 
 /** Outside a `Tabs` root the list is page navigation: a `<nav>` of link triggers, not a tablist. */
 function TabsList({
@@ -330,346 +669,6 @@ type TabsTriggerProps = {
         value?: never;
       }
   );
-
-function TabsTrigger(props: TabsTriggerProps) {
-  // Outside a Tabs.List, fall back to the underline look instead of crashing.
-  const list = React.use(TabsListContext) ?? { look: "underline" as const };
-  const { children, count, disabled, icon, internal, label, title, tooltip } =
-    props;
-  const className = tabsTriggerVariants({ look: list.look, size: list.size });
-  const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
-  const content = (
-    <TabsTriggerContent
-      icon={icon}
-      internal={internal}
-      label={label}
-      count={count}
-      tooltip={tooltip}
-    >
-      {children}
-    </TabsTriggerContent>
-  );
-
-  if (props.href !== undefined) {
-    return (
-      <Link
-        href={props.href}
-        onClick={props.onClick}
-        aria-current={props.active ? "page" : undefined}
-        aria-disabled={disabled || undefined}
-        tabIndex={disabled ? -1 : undefined}
-        data-state={props.active ? "active" : "inactive"}
-        title={nativeTitle}
-        className={className}
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <TabsPrimitive.Trigger
-      value={props.value}
-      disabled={disabled}
-      title={nativeTitle}
-      className={className}
-    >
-      {content}
-    </TabsPrimitive.Trigger>
-  );
-}
-
-function TabsTriggerContent({
-  children,
-  count,
-  icon: Icon,
-  internal,
-  label,
-  tooltip,
-}: Pick<
-  TabsTriggerProps,
-  "children" | "count" | "icon" | "internal" | "label" | "tooltip"
->) {
-  return (
-    <>
-      {Icon ? <Icon aria-hidden="true" size="base" /> : null}
-      {label === undefined ? (
-        children
-      ) : (
-        <TabsTriggerLabel label={label} count={count} tooltip={tooltip} />
-      )}
-      {/* In a tight row the badge gives way before the label. */}
-      {internal ? (
-        <span className="flex min-w-0 shrink-100 overflow-hidden">
-          <TabsInternalBadge />
-        </span>
-      ) : null}
-    </>
-  );
-}
-
-function TabsTriggerLabel({
-  label,
-  count,
-  tooltip,
-}: Pick<TabsTriggerProps, "count" | "tooltip"> & { label: string }) {
-  const text = (
-    <>
-      {label}
-      {count !== undefined ? (
-        <span className="font-normal tabular-nums"> {count}</span>
-      ) : null}
-    </>
-  );
-
-  if (!tooltip) {
-    return (
-      <span
-        className={tabsTriggerLabelClassName}
-        title={labelText(label, count)}
-      >
-        {text}
-      </span>
-    );
-  }
-
-  return (
-    <Tooltip label={tooltip}>
-      {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} className={tabsTriggerLabelClassName}>
-          {text}
-        </span>
-      )}
-    </Tooltip>
-  );
-}
-
-function labelText(label: string | undefined, count: number | undefined) {
-  if (label === undefined || count === undefined) return label;
-  return `${label} ${count}`;
-}
-
-function TabsInternalBadge() {
-  return <Badge text="Internal" color="yellow" size="sm" />;
-}
-
-/** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */
-function TabsOverflowList({
-  "aria-label": ariaLabel,
-  children,
-}: Pick<TabsListProps, "aria-label" | "children">) {
-  const root = React.use(TabsRootContext);
-  const triggers =
-    React.Children.toArray(children).filter(isTabsTriggerElement);
-  const activeIndex = triggers.findIndex(
-    (trigger) => trigger.props.value === root?.value,
-  );
-  const measureKey = JSON.stringify(
-    triggers.map((trigger) => [
-      trigger.props.value,
-      labelText(trigger.props.label, trigger.props.count) ??
-        trigger.props.title ??
-        null,
-    ]),
-  );
-  const { availableRef, measureRef, visibleIndices } = useTabsOverflow<
-    HTMLDivElement,
-    HTMLDivElement
-  >(measureKey, activeIndex);
-  const visible = new Set(visibleIndices ?? triggers.map((_, index) => index));
-  const hiddenTriggers = triggers.filter((_, index) => !visible.has(index));
-  const replicaClassName = tabsTriggerVariants({ look: "underline" });
-  const rowRef = React.useRef<HTMLDivElement>(null);
-
-  const selectFromMenu = (value: string) => {
-    root?.onValueChange?.(value);
-    // The menu hands focus back to its trigger in a microtask, and that
-    // trigger is gone once every tab fits; the selected tab takes focus after.
-    requestAnimationFrame(() => {
-      rowRef.current
-        ?.querySelector<HTMLElement>('[role="tab"][data-state="active"]')
-        ?.focus();
-    });
-  };
-
-  return (
-    <TabsListContext value={{ look: "underline" }}>
-      {/* A zero flex basis makes the list the space left over by the caller's
-          controls, so the triggers never feed back into the width they are
-          compared against. */}
-      <TabsPrimitive.List
-        ref={availableRef}
-        aria-label={ariaLabel}
-        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-x-clip"
-      >
-        {/* Non-interactive replicas keep every trigger measurable, including
-            the hidden ones, without duplicating tab semantics. */}
-        <div
-          ref={measureRef}
-          aria-hidden="true"
-          className="invisible absolute flex h-full w-max items-center"
-        >
-          {triggers.map((trigger) => (
-            <span key={trigger.props.value} className={replicaClassName}>
-              <TabsTriggerContent
-                icon={trigger.props.icon}
-                internal={trigger.props.internal}
-                label={trigger.props.label}
-                count={trigger.props.count}
-              >
-                {trigger.props.children}
-              </TabsTriggerContent>
-            </span>
-          ))}
-          <TabsOverflowTrigger tabIndex={-1} />
-        </div>
-        <div
-          ref={rowRef}
-          className={cn(
-            // A tab wider than the row truncates; the overflow trigger never clips.
-            "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
-            visibleIndices === null && "invisible",
-          )}
-        >
-          {triggers.map((trigger, index) =>
-            visible.has(index) ? trigger : null,
-          )}
-          {hiddenTriggers.length > 0 ? (
-            <span className="flex shrink-0">
-              <DropdownMenu
-                ariaLabel={overflowTriggerLabel}
-                items={hiddenTriggers.map((trigger) => ({
-                  badge: trigger.props.internal ? (
-                    <TabsInternalBadge />
-                  ) : undefined,
-                  disabled: trigger.props.disabled
-                    ? { reason: trigger.props.tooltip ?? "Not available" }
-                    : undefined,
-                  id: trigger.props.value,
-                  onClick: () => selectFromMenu(trigger.props.value),
-                  title:
-                    labelText(trigger.props.label, trigger.props.count) ??
-                    trigger.props.title ??
-                    trigger.props.value,
-                  tooltip: trigger.props.tooltip,
-                  type: "item" as const,
-                }))}
-              >
-                {({ getTriggerProps }) => (
-                  <TabsOverflowTrigger {...getTriggerProps()} />
-                )}
-              </DropdownMenu>
-            </span>
-          ) : null}
-        </div>
-      </TabsPrimitive.List>
-    </TabsListContext>
-  );
-}
-
-function TabsOverflowTrigger(
-  props: Omit<
-    React.ComponentProps<typeof IconButton>,
-    "icon" | "label" | "size" | "variant"
-  >,
-) {
-  return (
-    <IconButton
-      {...props}
-      icon={EllipsisVertical}
-      label={overflowTriggerLabel}
-      size="md"
-      variant="ghost"
-    />
-  );
-}
-
-/**
- * Measures every tab from a hidden replica row and reports which ones fit next
- * to the overflow trigger inside the list on `availableRef`.
- *
- * The replica row on `measureRef` holds one child per tab, in order, followed
- * by a replica of the overflow trigger. It stays mounted and sized to its
- * content, so hidden tabs remain measurable and the row can bring them back.
- *
- * `measureKey` must change whenever the tabs' identity, order or labels change,
- * so the widths are read again in the new order. Size changes inside a replica,
- * such as a badge appearing, are picked up by observing each replica.
- *
- * `visibleIndices` is null until the first measurement, so callers can hold
- * the row back instead of painting the wrong set. Every later change is
- * committed before the browser paints, so the swap never flashes.
- *
- * The list must not derive its width from the visible tabs, otherwise the two
- * measurements feed back into each other. A flex item with a zero flex basis
- * satisfies this.
- */
-function useTabsOverflow<
-  TAvailable extends HTMLElement,
-  TMeasure extends HTMLElement,
->(measureKey: string, activeIndex: number) {
-  const availableRef = React.useRef<TAvailable>(null);
-  const measureRef = React.useRef<TMeasure>(null);
-  const [metrics, setMetrics] = React.useState<{
-    availableWidth: number;
-    overflowWidth: number;
-    widths: number[];
-  }>();
-
-  React.useLayoutEffect(() => {
-    const available = availableRef.current;
-    const measure = measureRef.current;
-    if (!available || !measure) return;
-
-    const read = () => {
-      const widths = Array.from(
-        measure.children,
-        (child) => child.getBoundingClientRect().width,
-      );
-      const overflowWidth = widths.pop() ?? 0;
-      return {
-        availableWidth: available.getBoundingClientRect().width,
-        overflowWidth,
-        widths,
-      };
-    };
-
-    setMetrics(read());
-
-    if (typeof ResizeObserver === "undefined") return;
-
-    // Resize callbacks run before paint; a synchronous commit keeps it that way.
-    const resizeObserver = new ResizeObserver(() => {
-      flushSync(() => setMetrics(read()));
-    });
-    resizeObserver.observe(available);
-    for (const replica of measure.children) {
-      resizeObserver.observe(replica);
-    }
-
-    return () => resizeObserver.disconnect();
-  }, [measureKey]);
-
-  const visibleIndices = React.useMemo(
-    () =>
-      metrics
-        ? getVisibleRowItemIndices({ ...metrics, pinnedIndex: activeIndex })
-        : null,
-    [activeIndex, metrics],
-  );
-
-  return { availableRef, measureRef, visibleIndices };
-}
-
-function isTabsTriggerElement(
-  child: React.ReactNode,
-): child is TabsTriggerElement {
-  return (
-    React.isValidElement(child) &&
-    child.type === TabsTrigger &&
-    typeof (child.props as TabsTriggerProps).value === "string"
-  );
-}
 
 type TabsTriggerElement = React.ReactElement<
   Extract<TabsTriggerProps, { value: string }>

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonList — the virtualized body of the lazy JSON viewer. It positions row
  * shells and keeps the store's loaded window in sync with the visible range; it
@@ -19,6 +19,18 @@ const ROW_HEIGHT = 20;
 // above the engine's preview-sized default, so a large string (e.g. a base64
 // image) copies WHOLE; a value beyond even this is too large for the clipboard.
 const COPY_MAX_BYTES = 64 * 1024 * 1024;
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(
+      value,
+      (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+      2,
+    );
+  } catch {
+    return String(value);
+  }
+}
 
 async function copyFullValue(store: RowModelStore, nodeId: number) {
   await store.getState().materialize(nodeId, COPY_MAX_BYTES);
@@ -46,18 +58,6 @@ async function copyFullValue(store: RowModelStore, nodeId: number) {
   } catch {
     // Clipboard denied (permissions / insecure context) — nothing to do here;
     // a production caller would surface a toast.
-  }
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(
-      value,
-      (_k, v) => (typeof v === "bigint" ? v.toString() : v),
-      2,
-    );
-  } catch {
-    return String(value);
   }
 }
 

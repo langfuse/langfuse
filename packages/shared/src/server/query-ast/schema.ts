@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Single source of truth for the physical ClickHouse relations the Kysely
  * compiler targets. One table declaration drives the downstream views:
@@ -374,6 +373,17 @@ export type ClickHouseDatabase = {
 };
 
 /**
+ * `Object.fromEntries` without `Object.prototype`, so a lookup by a name such
+ * as `constructor` or `toString` finds nothing instead of an inherited
+ * function: `lookupTable([["traces", 1]]).constructor` → undefined.
+ */
+export function lookupTable<V>(
+  entries: Iterable<readonly [string, V]>,
+): Record<string, V> {
+  return Object.assign(Object.create(null), Object.fromEntries(entries));
+}
+
+/**
  * Declared ClickHouse type per column, per physical registry table. A
  * servertest checks it against `system.columns` of the migrated database. The
  * logical events relations have no table of their own; their columns are
@@ -472,14 +482,3 @@ export const TABLE_BIND_TYPES: Record<
     ),
   ]),
 );
-
-/**
- * `Object.fromEntries` without `Object.prototype`, so a lookup by a name such
- * as `constructor` or `toString` finds nothing instead of an inherited
- * function: `lookupTable([["traces", 1]]).constructor` → undefined.
- */
-export function lookupTable<V>(
-  entries: Iterable<readonly [string, V]>,
-): Record<string, V> {
-  return Object.assign(Object.create(null), Object.fromEntries(entries));
-}

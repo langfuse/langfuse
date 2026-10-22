@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import langfuseDashboards from "../constants/langfuse-dashboards.json";
@@ -52,40 +51,6 @@ const FileSchema = z.object({
 
 type ParsedWidgets = z.infer<typeof WidgetDomainSchema>[];
 type ParsedDashboards = z.infer<typeof DashboardDomainSchema>[];
-
-export const upsertLangfuseDashboards = async (force = false) => {
-  const startTime = Date.now();
-  try {
-    logger.debug(`Starting upsert of Langfuse dashboards (force = ${force})`);
-
-    const parsed = FileSchema.parse(langfuseDashboards);
-
-    // The curated Home dashboard lives in @langfuse/shared (the web app falls
-    // back to the same constant when this row does not exist yet). Its
-    // placements are presets, so it brings no widgets of its own.
-    const homeDashboard = RawDashboardSchema.parse({
-      ...LANGFUSE_HOME_DASHBOARD,
-      projectId: null,
-      createdBy: null,
-      updatedBy: null,
-      owner: "LANGFUSE",
-    });
-
-    await upsertWidgets(parsed.widgets, force);
-    await upsertDashboards([...parsed.dashboards, homeDashboard], force);
-
-    logger.info(
-      `Finished upserting Langfuse dashboards and widgets in ${Date.now() - startTime}ms`,
-    );
-  } catch (error) {
-    logger.error(
-      `Error upserting Langfuse dashboards after ${Date.now() - startTime}ms: ${
-        error instanceof Error ? error.message : ""
-      }`,
-      { error },
-    );
-  }
-};
 
 async function upsertWidgets(widgets: ParsedWidgets, force: boolean) {
   // Build map of existing widgets by id (only projectId null)
@@ -206,3 +171,37 @@ async function upsertDashboards(dashboards: ParsedDashboards, force: boolean) {
 
   await Promise.all(promises);
 }
+
+export const upsertLangfuseDashboards = async (force = false) => {
+  const startTime = Date.now();
+  try {
+    logger.debug(`Starting upsert of Langfuse dashboards (force = ${force})`);
+
+    const parsed = FileSchema.parse(langfuseDashboards);
+
+    // The curated Home dashboard lives in @langfuse/shared (the web app falls
+    // back to the same constant when this row does not exist yet). Its
+    // placements are presets, so it brings no widgets of its own.
+    const homeDashboard = RawDashboardSchema.parse({
+      ...LANGFUSE_HOME_DASHBOARD,
+      projectId: null,
+      createdBy: null,
+      updatedBy: null,
+      owner: "LANGFUSE",
+    });
+
+    await upsertWidgets(parsed.widgets, force);
+    await upsertDashboards([...parsed.dashboards, homeDashboard], force);
+
+    logger.info(
+      `Finished upserting Langfuse dashboards and widgets in ${Date.now() - startTime}ms`,
+    );
+  } catch (error) {
+    logger.error(
+      `Error upserting Langfuse dashboards after ${Date.now() - startTime}ms: ${
+        error instanceof Error ? error.message : ""
+      }`,
+      { error },
+    );
+  }
+};

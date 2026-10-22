@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, afterAll, vi } from "vitest";
@@ -94,6 +93,32 @@ async function prepare() {
   orgIds.push(org.id);
 
   return { project, caller };
+}
+
+async function createCodeTemplate(
+  projectId: string,
+  sourceCode?: string,
+  sourceCodeLanguage: EvaluatorSourceCodeLanguage = EvaluatorSourceCodeLanguage.TYPESCRIPT,
+) {
+  const evaluator = await prisma.evaluator.create({
+    data: {
+      projectId,
+      name: `Saved code evaluator ${randomUUID()}`,
+      type: EvalTemplateType.CODE,
+      versions: {
+        create: {
+          version: 1,
+          sourceCode:
+            sourceCode ??
+            'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
+          sourceCodeLanguage,
+        },
+      },
+    },
+    include: { versions: true },
+  });
+
+  return evaluator.versions[0]!;
 }
 
 maybe("evals.testRunCodeEval", () => {
@@ -658,29 +683,3 @@ maybe("evals.testRunCodeEval", () => {
     );
   });
 });
-
-async function createCodeTemplate(
-  projectId: string,
-  sourceCode?: string,
-  sourceCodeLanguage: EvaluatorSourceCodeLanguage = EvaluatorSourceCodeLanguage.TYPESCRIPT,
-) {
-  const evaluator = await prisma.evaluator.create({
-    data: {
-      projectId,
-      name: `Saved code evaluator ${randomUUID()}`,
-      type: EvalTemplateType.CODE,
-      versions: {
-        create: {
-          version: 1,
-          sourceCode:
-            sourceCode ??
-            'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
-          sourceCodeLanguage,
-        },
-      },
-    },
-    include: { versions: true },
-  });
-
-  return evaluator.versions[0]!;
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma } from "../../../src/db";
 import {
   createObservation,
@@ -174,6 +173,66 @@ const ANSWERS = [
 
 const annotationQueueLink = (ctx: ScenarioContext, queueId: string): string =>
   `${ctx.baseUrl}/project/${ctx.projectId}/annotation-queues/${encodeURIComponent(queueId)}/items`;
+
+function createExtraConfigDefinitions(count: number): ConfigDef[] {
+  const names = [
+    "Response clarity",
+    "Source relevance",
+    "Policy compliance",
+    "Review notes",
+    "Answer completeness",
+    "Citation quality",
+    "Sensitive content",
+    "Improvement suggestions",
+    "Instruction following",
+    "Reasoning quality",
+    "Escalation needed",
+    "Reviewer rationale",
+  ];
+
+  return Array.from({ length: count }, (_, index) => {
+    const key = `additional-${index + 1}`;
+    const name = `${names[index % names.length]} ${index + 1}`;
+    const description =
+      "Synthetic score config for testing long queue field lists.";
+    switch (index % 4) {
+      case 0:
+        return {
+          key,
+          name,
+          description,
+          dataType: "NUMERIC",
+          minValue: 0,
+          maxValue: index % 8 === 0 ? 5 : 100,
+        };
+      case 1:
+        return {
+          key,
+          name,
+          description,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "Meets expectations", value: 2 },
+            { label: "Needs improvement", value: 1 },
+            { label: "Does not meet expectations", value: 0 },
+          ],
+        };
+      case 2:
+        return {
+          key,
+          name,
+          description,
+          dataType: "BOOLEAN",
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        };
+      default:
+        return { key, name, description, dataType: "TEXT" };
+    }
+  });
+}
 
 const run = async (
   ctx: ScenarioContext,
@@ -793,63 +852,3 @@ export const annotationQueueScenario: ScenarioDefinition = {
   ],
   run,
 };
-
-function createExtraConfigDefinitions(count: number): ConfigDef[] {
-  const names = [
-    "Response clarity",
-    "Source relevance",
-    "Policy compliance",
-    "Review notes",
-    "Answer completeness",
-    "Citation quality",
-    "Sensitive content",
-    "Improvement suggestions",
-    "Instruction following",
-    "Reasoning quality",
-    "Escalation needed",
-    "Reviewer rationale",
-  ];
-
-  return Array.from({ length: count }, (_, index) => {
-    const key = `additional-${index + 1}`;
-    const name = `${names[index % names.length]} ${index + 1}`;
-    const description =
-      "Synthetic score config for testing long queue field lists.";
-    switch (index % 4) {
-      case 0:
-        return {
-          key,
-          name,
-          description,
-          dataType: "NUMERIC",
-          minValue: 0,
-          maxValue: index % 8 === 0 ? 5 : 100,
-        };
-      case 1:
-        return {
-          key,
-          name,
-          description,
-          dataType: "CATEGORICAL",
-          categories: [
-            { label: "Meets expectations", value: 2 },
-            { label: "Needs improvement", value: 1 },
-            { label: "Does not meet expectations", value: 0 },
-          ],
-        };
-      case 2:
-        return {
-          key,
-          name,
-          description,
-          dataType: "BOOLEAN",
-          categories: [
-            { label: "True", value: 1 },
-            { label: "False", value: 0 },
-          ],
-        };
-      default:
-        return { key, name, description, dataType: "TEXT" };
-    }
-  });
-}

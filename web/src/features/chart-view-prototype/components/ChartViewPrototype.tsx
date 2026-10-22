@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
 import { SlidersHorizontal } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -44,73 +44,6 @@ export interface ChartViewPrototypeProps {
   affordance?: ChartViewAffordance;
   initialMode?: ViewMode;
   initialConfig?: Partial<ChartViewConfig>;
-}
-
-/**
- * Storybook design harness for "any view is a chart". Owns the table↔chart
- * `mode` and the `config` (production uses URL state instead), derives chart
- * data from mock events via the pure aggregator, and renders one of the two UX
- * takes. Take B — the docked panel Nikita picked — is the shared, production
- * `ChartViewPanel`; Take A (inline bar) is kept here as the design record.
- */
-export function ChartViewPrototype({
-  events,
-  affordance = "inline",
-  initialMode = "chart",
-  initialConfig,
-}: ChartViewPrototypeProps) {
-  const [mode, setMode] = useState<ViewMode>(initialMode);
-  const [config, setConfig] = useState<ChartViewConfig>(() =>
-    coerceConfig({ ...DEFAULT_CONFIG, ...initialConfig }),
-  );
-
-  const patchConfig = useCallback(
-    (patch: Partial<ChartViewConfig>) =>
-      setConfig((prev) => coerceConfig({ ...prev, ...patch })),
-    [],
-  );
-
-  const data = useMemo(() => aggregateEvents(events, config), [events, config]);
-  const isTimeSeries = isTimeSeriesChartType(config.chartType);
-
-  return (
-    <div className="bg-background flex h-full flex-col overflow-hidden rounded-lg border">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-        <div className="text-muted-foreground flex items-center gap-2 text-xs">
-          <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
-            <SlidersHorizontal size="base" color="default" />
-            Filters
-          </Button>
-          <span>{events.length.toLocaleString()} events · last 24h</span>
-        </div>
-        <ViewModeToggle mode={mode} onModeChange={setMode} />
-      </div>
-
-      {mode === "table" ? (
-        <MockEventsTable events={events} />
-      ) : affordance === "inline" ? (
-        <InlineTake
-          data={data}
-          config={config}
-          isTimeSeries={isTimeSeries}
-          patchConfig={patchConfig}
-        />
-      ) : (
-        <ChartViewPanel
-          config={config}
-          onConfigChange={patchConfig}
-          data={data}
-          granularitySlot={
-            <GranularitySelect
-              value={config.timeGranularity}
-              onChange={(timeGranularity) => patchConfig({ timeGranularity })}
-              disabled={!isTimeSeries}
-            />
-          }
-        />
-      )}
-    </div>
-  );
 }
 
 function InlineField({
@@ -203,6 +136,73 @@ function InlineTake({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Storybook design harness for "any view is a chart". Owns the table↔chart
+ * `mode` and the `config` (production uses URL state instead), derives chart
+ * data from mock events via the pure aggregator, and renders one of the two UX
+ * takes. Take B — the docked panel Nikita picked — is the shared, production
+ * `ChartViewPanel`; Take A (inline bar) is kept here as the design record.
+ */
+export function ChartViewPrototype({
+  events,
+  affordance = "inline",
+  initialMode = "chart",
+  initialConfig,
+}: ChartViewPrototypeProps) {
+  const [mode, setMode] = useState<ViewMode>(initialMode);
+  const [config, setConfig] = useState<ChartViewConfig>(() =>
+    coerceConfig({ ...DEFAULT_CONFIG, ...initialConfig }),
+  );
+
+  const patchConfig = useCallback(
+    (patch: Partial<ChartViewConfig>) =>
+      setConfig((prev) => coerceConfig({ ...prev, ...patch })),
+    [],
+  );
+
+  const data = useMemo(() => aggregateEvents(events, config), [events, config]);
+  const isTimeSeries = isTimeSeriesChartType(config.chartType);
+
+  return (
+    <div className="bg-background flex h-full flex-col overflow-hidden rounded-lg border">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
+            <SlidersHorizontal size="base" color="default" />
+            Filters
+          </Button>
+          <span>{events.length.toLocaleString()} events · last 24h</span>
+        </div>
+        <ViewModeToggle mode={mode} onModeChange={setMode} />
+      </div>
+
+      {mode === "table" ? (
+        <MockEventsTable events={events} />
+      ) : affordance === "inline" ? (
+        <InlineTake
+          data={data}
+          config={config}
+          isTimeSeries={isTimeSeries}
+          patchConfig={patchConfig}
+        />
+      ) : (
+        <ChartViewPanel
+          config={config}
+          onConfigChange={patchConfig}
+          data={data}
+          granularitySlot={
+            <GranularitySelect
+              value={config.timeGranularity}
+              onChange={(timeGranularity) => patchConfig({ timeGranularity })}
+              disabled={!isTimeSeries}
+            />
+          }
+        />
+      )}
     </div>
   );
 }

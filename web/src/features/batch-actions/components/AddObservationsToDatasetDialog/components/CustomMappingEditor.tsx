@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -23,6 +22,112 @@ type CustomMappingEditorProps = {
   defaultSourceField: SourceField;
   observationData: ObservationPreviewData | null;
 };
+
+function KeyValueEntryRow({
+  entry,
+  onKeyChange,
+  onSourceFieldChange,
+  onValueChange,
+  onRemove,
+  canRemove,
+  sourceData,
+}: KeyValueEntryRowProps) {
+  const isPath = isJsonPath(entry.value);
+  const isSchemaField = entry.fromSchema === true;
+  const isRequired = entry.isRequired === true;
+
+  return (
+    <div
+      className={`bg-background space-y-2 rounded-md border p-3 ${
+        isSchemaField ? "border-primary/30" : ""
+      }`}
+    >
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div>
+          <Label className="text-muted-foreground text-xs">
+            Key
+            {isRequired && <span className="text-destructive ml-1">*</span>}
+            {isSchemaField && (
+              <span className="text-primary ml-2">(from schema)</span>
+            )}
+          </Label>
+          <Input
+            value={entry.key}
+            onChange={(e) => onKeyChange(e.target.value)}
+            placeholder="field_name"
+            className="mt-1 h-8"
+            readOnly={isSchemaField}
+            disabled={isSchemaField}
+          />
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            disabled={!canRemove}
+            className="h-8 w-8 p-0"
+            title={
+              isSchemaField && isRequired
+                ? "Required schema field cannot be removed"
+                : "Remove field"
+            }
+          >
+            <Trash2
+              size="base"
+              __rawClassName={cn(
+                canRemove
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/30",
+              )}
+            />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[38fr_62fr] gap-2">
+        <div>
+          <Label className="text-muted-foreground text-xs">Source</Label>
+          <div className="mt-1">
+            <SourceFieldSelector
+              value={entry.sourceField}
+              onChange={onSourceFieldChange}
+              disabled={!isPath}
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-muted-foreground text-xs">
+            Value {!isPath && "(literal)"}
+          </Label>
+          <div className="mt-1">
+            {isPath ? (
+              <JsonPathInput
+                value={entry.value}
+                onChange={onValueChange}
+                sourceData={sourceData}
+                placeholder="$.path"
+                className="h-9"
+              />
+            ) : (
+              <Input
+                value={entry.value}
+                onChange={(e) => onValueChange(e.target.value)}
+                placeholder="literal value"
+                className="h-9"
+              />
+            )}
+
+            <p className="text-muted-foreground pt-1 text-xs">
+              Start with $. to use a JSONPath (e.g., $.field)
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function CustomMappingEditor({
   config,
@@ -250,109 +355,3 @@ type KeyValueEntryRowProps = {
   canRemove: boolean;
   sourceData: unknown;
 };
-
-function KeyValueEntryRow({
-  entry,
-  onKeyChange,
-  onSourceFieldChange,
-  onValueChange,
-  onRemove,
-  canRemove,
-  sourceData,
-}: KeyValueEntryRowProps) {
-  const isPath = isJsonPath(entry.value);
-  const isSchemaField = entry.fromSchema === true;
-  const isRequired = entry.isRequired === true;
-
-  return (
-    <div
-      className={`bg-background space-y-2 rounded-md border p-3 ${
-        isSchemaField ? "border-primary/30" : ""
-      }`}
-    >
-      <div className="grid grid-cols-[1fr_auto] gap-2">
-        <div>
-          <Label className="text-muted-foreground text-xs">
-            Key
-            {isRequired && <span className="text-destructive ml-1">*</span>}
-            {isSchemaField && (
-              <span className="text-primary ml-2">(from schema)</span>
-            )}
-          </Label>
-          <Input
-            value={entry.key}
-            onChange={(e) => onKeyChange(e.target.value)}
-            placeholder="field_name"
-            className="mt-1 h-8"
-            readOnly={isSchemaField}
-            disabled={isSchemaField}
-          />
-        </div>
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            disabled={!canRemove}
-            className="h-8 w-8 p-0"
-            title={
-              isSchemaField && isRequired
-                ? "Required schema field cannot be removed"
-                : "Remove field"
-            }
-          >
-            <Trash2
-              size="base"
-              __rawClassName={cn(
-                canRemove
-                  ? "text-muted-foreground"
-                  : "text-muted-foreground/30",
-              )}
-            />
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[38fr_62fr] gap-2">
-        <div>
-          <Label className="text-muted-foreground text-xs">Source</Label>
-          <div className="mt-1">
-            <SourceFieldSelector
-              value={entry.sourceField}
-              onChange={onSourceFieldChange}
-              disabled={!isPath}
-            />
-          </div>
-        </div>
-        <div>
-          <Label className="text-muted-foreground text-xs">
-            Value {!isPath && "(literal)"}
-          </Label>
-          <div className="mt-1">
-            {isPath ? (
-              <JsonPathInput
-                value={entry.value}
-                onChange={onValueChange}
-                sourceData={sourceData}
-                placeholder="$.path"
-                className="h-9"
-              />
-            ) : (
-              <Input
-                value={entry.value}
-                onChange={(e) => onValueChange(e.target.value)}
-                placeholder="literal value"
-                className="h-9"
-              />
-            )}
-
-            <p className="text-muted-foreground pt-1 text-xs">
-              Start with $. to use a JSONPath (e.g., $.field)
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const LOCAL_GATEWAY_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** Matches numbered preview hosts that use the certificate-covered gateway hostname. */
@@ -6,6 +5,15 @@ const PREVIEW_HOST = /^pr-(\d+)\.preview\.langfuse\.com$/;
 
 /** Staging serves the gateway on the product host under `/openai/v1` and `/anthropic`. */
 const STAGING_ORIGIN = "https://staging.langfuse.com";
+
+function toGatewayHostname(hostname: string) {
+  const previewNumber = PREVIEW_HOST.exec(hostname)?.[1];
+  if (previewNumber) {
+    return `gateway-pr-${previewNumber}.preview.langfuse.com`;
+  }
+
+  return `gateway.${hostname}`;
+}
 
 export function getGatewayBaseUrl(productBaseUrl: URL) {
   if (productBaseUrl.origin === STAGING_ORIGIN) {
@@ -25,13 +33,4 @@ export function getGatewayBaseUrl(productBaseUrl: URL) {
   gatewayBaseUrl.search = "";
   gatewayBaseUrl.hash = "";
   return gatewayBaseUrl.toString();
-}
-
-function toGatewayHostname(hostname: string) {
-  const previewNumber = PREVIEW_HOST.exec(hostname)?.[1];
-  if (previewNumber) {
-    return `gateway-pr-${previewNumber}.preview.langfuse.com`;
-  }
-
-  return `gateway.${hostname}`;
 }

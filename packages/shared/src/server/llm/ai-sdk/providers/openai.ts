@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { EmbeddingModel, LanguageModel } from "ai";
@@ -9,6 +8,24 @@ import type { TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";
 
 export type OpenAIApiMode = "responses" | "chat-completions";
+
+/** Preserves custom-URL routing and raw provider options for saved connections. */
+export function isOpenAICompatibleEndpoint(
+  baseURL: string | null | undefined,
+): baseURL is string {
+  if (!baseURL) return false;
+
+  try {
+    const url = new URL(baseURL.replace("{model}", "model"));
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) {
+      return false;
+    }
+
+    return url.hostname !== "api.openai.com";
+  } catch {
+    return false;
+  }
+}
 
 export function buildOpenAIModel(params: {
   modelId: string;
@@ -86,24 +103,6 @@ export function buildOpenAIEmbeddingModel(params: {
     headers: extraHeaders,
     fetch: params.fetch,
   }).embedding(modelId);
-}
-
-/** Preserves custom-URL routing and raw provider options for saved connections. */
-export function isOpenAICompatibleEndpoint(
-  baseURL: string | null | undefined,
-): baseURL is string {
-  if (!baseURL) return false;
-
-  try {
-    const url = new URL(baseURL.replace("{model}", "model"));
-    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) {
-      return false;
-    }
-
-    return url.hostname !== "api.openai.com";
-  } catch {
-    return false;
-  }
 }
 
 export function isOpenRouterEndpoint(

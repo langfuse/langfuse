@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useState, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -24,52 +23,49 @@ import {
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
 
-export function TopicSetupFlowController({
-  canWrite,
-  children,
-  onSaveSampling,
-  projectId,
-  settings,
-}: {
-  projectId: string;
-  canWrite: boolean;
-  settings: ConfigureTopicsSettingsInput | null;
-  onSaveSampling: (input: {
-    enabled: boolean;
-    sampling: number;
-  }) => Promise<unknown>;
-  children: (control: { openSetup: () => void }) => ReactNode;
-}) {
-  // Opens only from Start analyzing, never on its own, so the landing shows first.
-  const [open, setOpen] = useState(false);
-  function openSetup() {
-    setOpen(true);
+function pastTraceCount(
+  counts: { finished1d: number; finished7d: number } | undefined,
+  samplePercent: number,
+  error: string | null,
+  fetching: boolean,
+): TopicSetupPastCount {
+  if (counts) {
+    // Mirrors the server: 1 day when it fills the batch, else 7 days.
+    const rate = samplePercent / 100;
+    const window =
+      counts.finished1d * rate >= TOPIC_SETUP_BACKFILL_LIMIT
+        ? { days: 1, count: counts.finished1d }
+        : { days: TOPIC_SETUP_BACKFILL_DAYS, count: counts.finished7d };
+    return {
+      status: "ready",
+      days: window.days,
+      matched: Math.min(
+        TOPIC_SETUP_BACKFILL_LIMIT,
+        Math.round(window.count * rate),
+      ),
+      dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
+    };
   }
-  function closeSetup() {
-    setOpen(false);
-  }
-  return (
-    <>
-      {children({ openSetup })}
-      {open && settings ? (
-        <DialogController<null>
-          initialState={() => null}
-          onDismiss={closeSetup}
-          renderDialog={({ closeDialog }) => (
-            <TopicSetupSession
-              projectId={projectId}
-              canWrite={canWrite}
-              settings={settings}
-              onSaveSampling={onSaveSampling}
-              closeDialog={closeDialog}
-            />
-          )}
-        >
-          {() => null}
-        </DialogController>
-      ) : null}
-    </>
+  if (error && !fetching) return { status: "error", message: error };
+  return { status: "loading" };
+}
+
+function setQuestionEnabled(
+  questions: TopicSetupQuestion[],
+  name: TopicSetupQuestion["name"],
+  enabled: boolean,
+) {
+  return questions.map((question) =>
+    question.name === name ? { ...question, enabled } : question,
   );
+}
+
+function updateModel(
+  setDraft: (update: (current: TopicSetupDraft) => TopicSetupDraft) => void,
+  slot: "summary" | "embedding" | "clustering",
+  model: JudgeModel,
+) {
+  setDraft((current) => ({ ...current, [slot]: model }));
 }
 
 function TopicSetupSession({
@@ -317,47 +313,50 @@ function TopicSetupSession({
   );
 }
 
-function pastTraceCount(
-  counts: { finished1d: number; finished7d: number } | undefined,
-  samplePercent: number,
-  error: string | null,
-  fetching: boolean,
-): TopicSetupPastCount {
-  if (counts) {
-    // Mirrors the server: 1 day when it fills the batch, else 7 days.
-    const rate = samplePercent / 100;
-    const window =
-      counts.finished1d * rate >= TOPIC_SETUP_BACKFILL_LIMIT
-        ? { days: 1, count: counts.finished1d }
-        : { days: TOPIC_SETUP_BACKFILL_DAYS, count: counts.finished7d };
-    return {
-      status: "ready",
-      days: window.days,
-      matched: Math.min(
-        TOPIC_SETUP_BACKFILL_LIMIT,
-        Math.round(window.count * rate),
-      ),
-      dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
-    };
+export function TopicSetupFlowController({
+  canWrite,
+  children,
+  onSaveSampling,
+  projectId,
+  settings,
+}: {
+  projectId: string;
+  canWrite: boolean;
+  settings: ConfigureTopicsSettingsInput | null;
+  onSaveSampling: (input: {
+    enabled: boolean;
+    sampling: number;
+  }) => Promise<unknown>;
+  children: (control: { openSetup: () => void }) => ReactNode;
+}) {
+  // Opens only from Start analyzing, never on its own, so the landing shows first.
+  const [open, setOpen] = useState(false);
+  function openSetup() {
+    setOpen(true);
   }
-  if (error && !fetching) return { status: "error", message: error };
-  return { status: "loading" };
-}
-
-function setQuestionEnabled(
-  questions: TopicSetupQuestion[],
-  name: TopicSetupQuestion["name"],
-  enabled: boolean,
-) {
-  return questions.map((question) =>
-    question.name === name ? { ...question, enabled } : question,
+  function closeSetup() {
+    setOpen(false);
+  }
+  return (
+    <>
+      {children({ openSetup })}
+      {open && settings ? (
+        <DialogController<null>
+          initialState={() => null}
+          onDismiss={closeSetup}
+          renderDialog={({ closeDialog }) => (
+            <TopicSetupSession
+              projectId={projectId}
+              canWrite={canWrite}
+              settings={settings}
+              onSaveSampling={onSaveSampling}
+              closeDialog={closeDialog}
+            />
+          )}
+        >
+          {() => null}
+        </DialogController>
+      ) : null}
+    </>
   );
-}
-
-function updateModel(
-  setDraft: (update: (current: TopicSetupDraft) => TopicSetupDraft) => void,
-  slot: "summary" | "embedding" | "clustering",
-  model: JudgeModel,
-) {
-  setDraft((current) => ({ ...current, [slot]: model }));
 }

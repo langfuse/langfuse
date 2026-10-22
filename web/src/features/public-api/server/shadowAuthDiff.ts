@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   getCurrentSpan,
   logger,
@@ -14,51 +13,6 @@ const defaultTelemetry: Telemetry = {
   increment: (stat, tags) => recordIncrement(stat, 1, tags),
   span: () => getCurrentSpan(),
 };
-
-/** shadowAuthDiff records non-matching parity and logs every mismatch independently of trace sampling. */
-export function shadowAuthDiff(
-  newDecision: NewDecision,
-  legacyDecision: LegacyDecision,
-  action: string,
-  metadata: AuthDiffMetadata,
-  telemetry: Telemetry = defaultTelemetry,
-): ParityResult {
-  const n = newVerdict(newDecision);
-  const l = legacyVerdict(legacyDecision);
-  const result = classify(l.verdict, n.verdict);
-  if (result === "match") return result;
-
-  const tags = {
-    action,
-    access_level: l.accessLevel,
-    result,
-    legacy_code: l.code,
-    new_code: n.code,
-  };
-  emitAuthDiff(tags, metadata, telemetry);
-  return result;
-}
-
-/** emitAuthDiff writes the mismatch to logs, metrics, and the active span. */
-function emitAuthDiff(
-  tags: Record<string, string | number>,
-  metadata: AuthDiffMetadata,
-  telemetry: Telemetry,
-): void {
-  logger.info("Public API authorization mismatch", {
-    event: "authz_parity",
-    ...tags,
-    api_key_id: metadata.apiKeyId,
-    public_key: metadata.publicKey,
-    resource: metadata.resource,
-  });
-  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
-  const span = telemetry.span();
-  if (!span) return;
-  for (const [key, value] of Object.entries(tags)) {
-    span.setAttribute(`${parityStat}.${key}`, value);
-  }
-}
 
 /** newVerdict reads the new decision: success allows (200), else denies with its http code. */
 function newVerdict(decision: NewDecision): { verdict: Verdict; code: number } {
@@ -86,6 +40,51 @@ function legacyVerdict(decision: LegacyDecision): {
 function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
   if (legacyVerdict === newVerdict) return "match";
   return newVerdict === "deny" ? "new_denies" : "new_allows";
+}
+
+/** emitAuthDiff writes the mismatch to logs, metrics, and the active span. */
+function emitAuthDiff(
+  tags: Record<string, string | number>,
+  metadata: AuthDiffMetadata,
+  telemetry: Telemetry,
+): void {
+  logger.info("Public API authorization mismatch", {
+    event: "authz_parity",
+    ...tags,
+    api_key_id: metadata.apiKeyId,
+    public_key: metadata.publicKey,
+    resource: metadata.resource,
+  });
+  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
+  const span = telemetry.span();
+  if (!span) return;
+  for (const [key, value] of Object.entries(tags)) {
+    span.setAttribute(`${parityStat}.${key}`, value);
+  }
+}
+
+/** shadowAuthDiff records non-matching parity and logs every mismatch independently of trace sampling. */
+export function shadowAuthDiff(
+  newDecision: NewDecision,
+  legacyDecision: LegacyDecision,
+  action: string,
+  metadata: AuthDiffMetadata,
+  telemetry: Telemetry = defaultTelemetry,
+): ParityResult {
+  const n = newVerdict(newDecision);
+  const l = legacyVerdict(legacyDecision);
+  const result = classify(l.verdict, n.verdict);
+  if (result === "match") return result;
+
+  const tags = {
+    action,
+    access_level: l.accessLevel,
+    result,
+    legacy_code: l.code,
+    new_code: n.code,
+  };
+  emitAuthDiff(tags, metadata, telemetry);
+  return result;
 }
 
 /** Verdict is one path's decision at one enforcement point. */

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 import { EvalTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
@@ -41,24 +40,6 @@ beforeAll(async () => {
   orgIds.push(first.org.id, second.org.id);
 });
 
-beforeEach(async () => {
-  telemetryMocks.getTotalCostByRule.mockReset();
-  defaultEvaluatorId = (await createEvaluator()).id;
-});
-
-afterEach(async () => {
-  await prisma.evaluationRule.deleteMany({
-    where: { projectId: { in: [projectId, otherProjectId] } },
-  });
-  await prisma.evaluator.deleteMany({
-    where: { projectId: { in: [projectId, otherProjectId] } },
-  });
-});
-
-afterAll(async () => {
-  await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
-});
-
 function createEvaluator(
   targetProjectId = projectId,
   name = `evaluator-${randomUUID()}`,
@@ -82,6 +63,24 @@ function createEvaluator(
     },
   });
 }
+
+beforeEach(async () => {
+  telemetryMocks.getTotalCostByRule.mockReset();
+  defaultEvaluatorId = (await createEvaluator()).id;
+});
+
+afterEach(async () => {
+  await prisma.evaluationRule.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+  await prisma.evaluator.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+});
+
+afterAll(async () => {
+  await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+});
 
 function createLegacyRule(
   evaluatorId: string,

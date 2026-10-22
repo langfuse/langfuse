@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import {
   Check,
@@ -63,6 +62,29 @@ const ingestionModes: Array<{
     icon: ScanText,
   },
 ];
+
+function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
+  const { copy, isCopied } = useCopyToClipboard();
+  return (
+    <div className="bg-muted flex w-fit max-w-full items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <code className="truncate text-sm" title={gatewayBaseUrl}>
+        {gatewayBaseUrl}
+      </code>
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label="Copy gateway base URL"
+        onClick={() => copy(gatewayBaseUrl)}
+      >
+        {isCopied ? (
+          <Check size="sm" color="default" />
+        ) : (
+          <Copy size="sm" color="default" />
+        )}
+      </Button>
+    </div>
+  );
+}
 
 export function GatewayConfigurationView({
   projects,
@@ -253,29 +275,6 @@ export function GatewayConfigurationView({
           Save
         </Button>
       </div>
-    </div>
-  );
-}
-
-function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
-  const { copy, isCopied } = useCopyToClipboard();
-  return (
-    <div className="bg-muted flex w-fit max-w-full items-center justify-between gap-3 rounded-md border px-3 py-2">
-      <code className="truncate text-sm" title={gatewayBaseUrl}>
-        {gatewayBaseUrl}
-      </code>
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        aria-label="Copy gateway base URL"
-        onClick={() => copy(gatewayBaseUrl)}
-      >
-        {isCopied ? (
-          <Check size="sm" color="default" />
-        ) : (
-          <Copy size="sm" color="default" />
-        )}
-      </Button>
     </div>
   );
 }

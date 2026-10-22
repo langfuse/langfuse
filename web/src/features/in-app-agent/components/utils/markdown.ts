@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export type ProjectedMarkdownText = ReturnType<
   typeof projectMarkdownToRenderedText
 >;
@@ -27,6 +26,30 @@ function getMarkdownBlockPrefixLength(markdown: string) {
       /^(?: {0,3}(?:#{1,6}[ \t]+|[-+*][ \t]+|\d{1,9}[.)][ \t]+|>[ \t]?))/,
     )?.[0].length ?? 0
   );
+}
+
+function findClosingMarkdownLinkDestination(markdown: string, start: number) {
+  let depth = 1;
+
+  for (let index = start; index < markdown.length; index++) {
+    const character = markdown[index];
+
+    if (character === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (character !== ")") {
+      continue;
+    }
+
+    depth -= 1;
+    if (depth === 0) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function getMarkdownLinkAtStart(markdown: string, start: number) {
@@ -59,28 +82,8 @@ function getMarkdownLinkAtStart(markdown: string, start: number) {
   };
 }
 
-function findClosingMarkdownLinkDestination(markdown: string, start: number) {
-  let depth = 1;
-
-  for (let index = start; index < markdown.length; index++) {
-    const character = markdown[index];
-
-    if (character === "(") {
-      depth += 1;
-      continue;
-    }
-
-    if (character !== ")") {
-      continue;
-    }
-
-    depth -= 1;
-    if (depth === 0) {
-      return index;
-    }
-  }
-
-  return -1;
+function hasClosingMarkdownFence(markdown: string, start: number) {
+  return /(?:^|\n)```[^\n]*(?:\n|$)/.test(markdown.slice(start));
 }
 
 export function projectMarkdownToRenderedText(markdown: string) {
@@ -161,24 +164,6 @@ export function projectMarkdownToRenderedText(markdown: string) {
   return { plain, sourceByPlainIndex };
 }
 
-function hasClosingMarkdownFence(markdown: string, start: number) {
-  return /(?:^|\n)```[^\n]*(?:\n|$)/.test(markdown.slice(start));
-}
-
-export function expandMarkdownSelection(
-  markdown: string,
-  initialStart: number,
-  initialEnd: number,
-) {
-  return (
-    expandLinkSelection(markdown, initialStart, initialEnd) ??
-    expandBlockPrefixSelection(markdown, initialStart, initialEnd) ?? {
-      start: initialStart,
-      end: initialEnd,
-    }
-  );
-}
-
 function expandLinkSelection(markdown: string, start: number, end: number) {
   const openBracket = markdown.lastIndexOf("[", start);
   if (openBracket === -1 || openBracket + 1 !== start) {
@@ -214,4 +199,18 @@ function expandBlockPrefixSelection(
   }
 
   return { start: lineStart, end };
+}
+
+export function expandMarkdownSelection(
+  markdown: string,
+  initialStart: number,
+  initialEnd: number,
+) {
+  return (
+    expandLinkSelection(markdown, initialStart, initialEnd) ??
+    expandBlockPrefixSelection(markdown, initialStart, initialEnd) ?? {
+      start: initialStart,
+      end: initialEnd,
+    }
+  );
 }

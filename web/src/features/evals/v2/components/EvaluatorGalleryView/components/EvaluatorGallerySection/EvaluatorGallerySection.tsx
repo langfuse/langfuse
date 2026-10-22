@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/design-system/Button/Button";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
@@ -27,6 +26,66 @@ type EvaluatorGallerySectionProps = {
 };
 
 type ManagedGalleryTemplate = Extract<GalleryTemplate, { source: "managed" }>;
+
+/** A non-recommended section: project templates as rows, catalog ones as cards. */
+function GalleryCategoryBlock({
+  section,
+  templates,
+  managedTemplates,
+  onSelectTemplate,
+}: GalleryCategoryBlockProps) {
+  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
+  const isProject = section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY;
+
+  return (
+    <>
+      <EvaluatorGallerySectionHeader label={section.label}>
+        {isSafety ? (
+          <InfoTooltip label={`About ${section.label}`}>
+            {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+          </InfoTooltip>
+        ) : null}
+      </EvaluatorGallerySectionHeader>
+      {isProject ? (
+        <div className="flex flex-col">
+          {templates.map((template) => (
+            <EvaluatorTemplateRow
+              key={getGalleryTemplateId(template)}
+              template={template}
+              onSelect={onSelectTemplate}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
+          {managedTemplates.map((template) => (
+            <EvaluatorRecommendedCard
+              key={template.key}
+              template={template}
+              onSelect={onSelectTemplate}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Text link under a section; under project rows it cancels the gap, since rows end in their own padding. */
+function GalleryShowAllToggle({
+  expanded,
+  totalCount,
+  isProjectRows,
+  onToggle,
+}: GalleryShowAllToggleProps) {
+  const label = expanded ? "Show fewer" : `Show all ${totalCount} templates`;
+
+  return (
+    <div className={isProjectRows ? "-mt-3" : undefined}>
+      <Button variant="text" size="sm" text={label} onClick={onToggle} />
+    </div>
+  );
+}
 
 export function EvaluatorGallerySection({
   section,
@@ -90,69 +149,9 @@ type GalleryShowAllToggleProps = {
   onToggle: () => void;
 };
 
-/** Text link under a section; under project rows it cancels the gap, since rows end in their own padding. */
-function GalleryShowAllToggle({
-  expanded,
-  totalCount,
-  isProjectRows,
-  onToggle,
-}: GalleryShowAllToggleProps) {
-  const label = expanded ? "Show fewer" : `Show all ${totalCount} templates`;
-
-  return (
-    <div className={isProjectRows ? "-mt-3" : undefined}>
-      <Button variant="text" size="sm" text={label} onClick={onToggle} />
-    </div>
-  );
-}
-
 type GalleryCategoryBlockProps = {
   section: GallerySection;
   templates: GalleryTemplate[];
   managedTemplates: ManagedGalleryTemplate[];
   onSelectTemplate: (template: GalleryTemplate) => void;
 };
-
-/** A non-recommended section: project templates as rows, catalog ones as cards. */
-function GalleryCategoryBlock({
-  section,
-  templates,
-  managedTemplates,
-  onSelectTemplate,
-}: GalleryCategoryBlockProps) {
-  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
-  const isProject = section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY;
-
-  return (
-    <>
-      <EvaluatorGallerySectionHeader label={section.label}>
-        {isSafety ? (
-          <InfoTooltip label={`About ${section.label}`}>
-            {EVALUATOR_GALLERY_SAFETY_CALLOUT}
-          </InfoTooltip>
-        ) : null}
-      </EvaluatorGallerySectionHeader>
-      {isProject ? (
-        <div className="flex flex-col">
-          {templates.map((template) => (
-            <EvaluatorTemplateRow
-              key={getGalleryTemplateId(template)}
-              template={template}
-              onSelect={onSelectTemplate}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
-          {managedTemplates.map((template) => (
-            <EvaluatorRecommendedCard
-              key={template.key}
-              template={template}
-              onSelect={onSelectTemplate}
-            />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}

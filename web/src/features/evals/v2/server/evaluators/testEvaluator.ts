@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   getCodeEvalVariableMapping,
   observationVariableMappingList,
@@ -32,73 +31,11 @@ import {
   extractEvaluatorPromptVariables,
 } from "./evaluatorValidation";
 
-export async function testEvaluator(params: {
+async function testCodeEvaluator(params: {
   orgId: string;
   projectId: string;
   evaluatorId: string;
-  includeEvaluatorLink?: boolean;
-  definition: NormalizedEvaluatorDefinition;
-  observationId: string;
-  traceId: string;
-  startTime: Date;
-  shouldReadFromObservationsTable?: boolean;
-}) {
-  const startedAt = Date.now();
-  const observation = await getObservationForEvalById({
-    projectId: params.projectId,
-    id: params.observationId,
-    traceId: params.traceId,
-    startTime: params.startTime,
-    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
-  });
-  let variableMapping;
-  if (params.definition.type === "CODE") {
-    variableMapping = getCodeEvalVariableMapping();
-  } else if (params.definition.type === "DECISION_MODEL") {
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: params.definition.vars,
-      variableMapping: params.definition.variableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(
-      params.definition.variableMapping,
-    );
-  } else {
-    const llmVariableMapping = params.definition.variableMapping ?? [];
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: extractEvaluatorPromptVariables(
-        params.definition.promptMessages,
-      ),
-      variableMapping: llmVariableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
-  }
-  const variables = extractObservationVariables({
-    observation,
-    variableMapping,
-  });
-  const executionData = buildEvalExecutionData({
-    type: "TEST",
-    evaluatorId:
-      params.includeEvaluatorLink === false ? null : params.evaluatorId,
-    targetTraceId: params.traceId,
-    targetObservationId: params.observationId,
-  });
-
-  const result = await runEvaluatorTest({
-    ...params,
-    variables,
-    hasExperimentContext: Boolean(observation.experiment_id),
-    ...executionData,
-  });
-
-  return { ...result, durationMs: Date.now() - startedAt };
-}
-
-async function runEvaluatorTest(params: {
-  orgId: string;
-  projectId: string;
-  evaluatorId: string;
-  definition: NormalizedEvaluatorDefinition;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
@@ -106,18 +43,57 @@ async function runEvaluatorTest(params: {
     typeof buildEvalExecutionData
   >["evaluationContext"];
 }) {
-  switch (params.definition.type) {
-    case "CODE":
-      return testCodeEvaluator({ ...params, definition: params.definition });
-    case "DECISION_MODEL":
-      return testDecisionModelEvaluator({
-        projectId: params.projectId,
-        definition: params.definition,
-        variables: params.variables,
-      });
-    case "LLM_AS_JUDGE":
-      return testLlmEvaluator({ ...params, definition: params.definition });
+  const dispatcher = resolveConfiguredCodeEvalDispatcher();
+  if (!dispatcher) {
+    return {
+      success: false as const,
+      error: "Code eval dispatcher is not configured",
+    };
   }
+
+  const executionTraceId = createW3CTraceId();
+  return runCodeBasedEvaluationDispatch({
+    dispatcher,
+    organizationId: params.orgId,
+    projectId: params.projectId,
+    executionTraceId,
+    jobExecutionId: executionTraceId,
+    evaluator: { id: params.evaluatorId },
+    version: params.definition,
+    extractedVariables: params.variables,
+    hasExperimentContext: params.hasExperimentContext,
+    traceName: "Test evaluator",
+    metadata: params.executionMetadata,
+    evaluationContext: params.evaluationContext,
+  });
+}
+
+async function calculateTestRunCost({
+  projectId,
+  model,
+  usage,
+}: {
+  projectId: string;
+  model: string;
+  usage: Record<string, number>;
+}) {
+  const { pricingTiers } = await findModel({ projectId, model });
+  const pricing = matchPricingTier(pricingTiers, usage);
+  if (!pricing) return null;
+
+  const costs = Object.fromEntries(
+    Object.entries(usage).flatMap(([usageType, units]) => {
+      const price = pricing.prices[usageType];
+      return price ? [[usageType, price.mul(units).toNumber()]] : [];
+    }),
+  );
+  if (costs.total !== undefined) return costs.total;
+  const itemizedCosts = Object.entries(costs).filter(
+    ([usageType]) => usageType !== "total",
+  );
+  return itemizedCosts.length > 0
+    ? itemizedCosts.reduce((total, [, cost]) => total + cost, 0)
+    : null;
 }
 
 async function testDecisionModelEvaluator(params: {
@@ -295,39 +271,11 @@ async function testLlmEvaluator(params: {
   }
 }
 
-async function calculateTestRunCost({
-  projectId,
-  model,
-  usage,
-}: {
-  projectId: string;
-  model: string;
-  usage: Record<string, number>;
-}) {
-  const { pricingTiers } = await findModel({ projectId, model });
-  const pricing = matchPricingTier(pricingTiers, usage);
-  if (!pricing) return null;
-
-  const costs = Object.fromEntries(
-    Object.entries(usage).flatMap(([usageType, units]) => {
-      const price = pricing.prices[usageType];
-      return price ? [[usageType, price.mul(units).toNumber()]] : [];
-    }),
-  );
-  if (costs.total !== undefined) return costs.total;
-  const itemizedCosts = Object.entries(costs).filter(
-    ([usageType]) => usageType !== "total",
-  );
-  return itemizedCosts.length > 0
-    ? itemizedCosts.reduce((total, [, cost]) => total + cost, 0)
-    : null;
-}
-
-async function testCodeEvaluator(params: {
+async function runEvaluatorTest(params: {
   orgId: string;
   projectId: string;
   evaluatorId: string;
-  definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
+  definition: NormalizedEvaluatorDefinition;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
@@ -335,27 +283,78 @@ async function testCodeEvaluator(params: {
     typeof buildEvalExecutionData
   >["evaluationContext"];
 }) {
-  const dispatcher = resolveConfiguredCodeEvalDispatcher();
-  if (!dispatcher) {
-    return {
-      success: false as const,
-      error: "Code eval dispatcher is not configured",
-    };
+  switch (params.definition.type) {
+    case "CODE":
+      return testCodeEvaluator({ ...params, definition: params.definition });
+    case "DECISION_MODEL":
+      return testDecisionModelEvaluator({
+        projectId: params.projectId,
+        definition: params.definition,
+        variables: params.variables,
+      });
+    case "LLM_AS_JUDGE":
+      return testLlmEvaluator({ ...params, definition: params.definition });
   }
+}
 
-  const executionTraceId = createW3CTraceId();
-  return runCodeBasedEvaluationDispatch({
-    dispatcher,
-    organizationId: params.orgId,
+export async function testEvaluator(params: {
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  includeEvaluatorLink?: boolean;
+  definition: NormalizedEvaluatorDefinition;
+  observationId: string;
+  traceId: string;
+  startTime: Date;
+  shouldReadFromObservationsTable?: boolean;
+}) {
+  const startedAt = Date.now();
+  const observation = await getObservationForEvalById({
     projectId: params.projectId,
-    executionTraceId,
-    jobExecutionId: executionTraceId,
-    evaluator: { id: params.evaluatorId },
-    version: params.definition,
-    extractedVariables: params.variables,
-    hasExperimentContext: params.hasExperimentContext,
-    traceName: "Test evaluator",
-    metadata: params.executionMetadata,
-    evaluationContext: params.evaluationContext,
+    id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
+    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
+  let variableMapping;
+  if (params.definition.type === "CODE") {
+    variableMapping = getCodeEvalVariableMapping();
+  } else if (params.definition.type === "DECISION_MODEL") {
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: params.definition.vars,
+      variableMapping: params.definition.variableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(
+      params.definition.variableMapping,
+    );
+  } else {
+    const llmVariableMapping = params.definition.variableMapping ?? [];
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: extractEvaluatorPromptVariables(
+        params.definition.promptMessages,
+      ),
+      variableMapping: llmVariableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
+  }
+  const variables = extractObservationVariables({
+    observation,
+    variableMapping,
+  });
+  const executionData = buildEvalExecutionData({
+    type: "TEST",
+    evaluatorId:
+      params.includeEvaluatorLink === false ? null : params.evaluatorId,
+    targetTraceId: params.traceId,
+    targetObservationId: params.observationId,
+  });
+
+  const result = await runEvaluatorTest({
+    ...params,
+    variables,
+    hasExperimentContext: Boolean(observation.experiment_id),
+    ...executionData,
+  });
+
+  return { ...result, durationMs: Date.now() - startedAt };
 }

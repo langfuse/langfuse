@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { DataPoint } from "@/src/features/widgets";
 import {
   type AggregationFn,
@@ -13,43 +12,64 @@ import {
   METRIC_EXTRACTORS,
 } from "../vocab";
 
-/**
- * The harness's mock data layer: turns raw mock events into `chart-library`
- * `DataPoint[]` for a config, client-side and PURE. It mirrors the shape the
- * production `dashboard.executeQuery` returns for the observations view, so the
- * Storybook stories exercise the exact same view components as the real
- * `EventsChartView` — only the data source differs.
- */
-export function aggregateEvents(
-  events: PrototypeEvent[],
-  config: ChartViewConfig,
-): DataPoint[] {
-  if (events.length === 0) return [];
-
-  const metric = getMetric(config.metric);
-  const extractor = METRIC_EXTRACTORS[config.metric];
-  const dimExtractor = DIMENSION_EXTRACTORS[config.breakdown];
-  const seriesOf = (e: PrototypeEvent): string =>
-    dimExtractor ? dimExtractor(e) : metric.label;
-
-  if (config.chartType === "NUMBER") {
-    return [
-      {
-        time_dimension: undefined,
-        dimension: undefined,
-        metric: aggregate(events, extractor, config.aggregation),
-      },
-    ];
-  }
-
-  if (isTimeSeriesChartType(config.chartType)) {
-    return aggregateTimeSeries(events, config, extractor, seriesOf);
-  }
-
-  return aggregateCategorical(events, config, extractor, seriesOf);
+/** Linear-interpolated percentile over an unsorted numeric array. */
+function percentile(values: number[], p: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  if (sorted.length === 1) return sorted[0];
+  const rank = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return sorted[lo];
+  const weight = rank - lo;
+  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
 }
 
-type Extractor = ((e: PrototypeEvent) => number) | null;
+/** Aggregate one group of events into a single number. */
+function aggregate(
+  events: PrototypeEvent[],
+  extractor: Extractor,
+  agg: AggregationFn,
+): number {
+  if (agg === "count" || extractor === null) {
+    return events.length;
+  }
+  const values = events.map(extractor).filter((v) => Number.isFinite(v));
+  if (values.length === 0) return 0;
+
+  switch (agg) {
+    case "sum":
+      return values.reduce((acc, v) => acc + v, 0);
+    case "avg":
+      return values.reduce((acc, v) => acc + v, 0) / values.length;
+    case "min":
+      return Math.min(...values);
+    case "max":
+      return Math.max(...values);
+    case "p50":
+      return percentile(values, 50);
+    case "p95":
+      return percentile(values, 95);
+    case "p99":
+      return percentile(values, 99);
+    default:
+      return values.length;
+  }
+}
+
+/** Floors an ISO timestamp to the start of its minute/hour/day bucket (UTC). */
+export function floorToGranularity(
+  iso: string,
+  granularity: TimeGranularity,
+): string {
+  const d = new Date(iso);
+  d.setUTCMilliseconds(0);
+  d.setUTCSeconds(0);
+  if (granularity === "minute") return d.toISOString();
+  d.setUTCMinutes(0);
+  if (granularity === "hour") return d.toISOString();
+  d.setUTCHours(0);
+  return d.toISOString();
+}
 
 /** Time-series: bucket by time, then per series, in chronological order. */
 function aggregateTimeSeries(
@@ -110,61 +130,40 @@ function aggregateCategorical(
     .sort((a, b) => (b.metric as number) - (a.metric as number));
 }
 
-/** Aggregate one group of events into a single number. */
-function aggregate(
+/**
+ * The harness's mock data layer: turns raw mock events into `chart-library`
+ * `DataPoint[]` for a config, client-side and PURE. It mirrors the shape the
+ * production `dashboard.executeQuery` returns for the observations view, so the
+ * Storybook stories exercise the exact same view components as the real
+ * `EventsChartView` — only the data source differs.
+ */
+export function aggregateEvents(
   events: PrototypeEvent[],
-  extractor: Extractor,
-  agg: AggregationFn,
-): number {
-  if (agg === "count" || extractor === null) {
-    return events.length;
+  config: ChartViewConfig,
+): DataPoint[] {
+  if (events.length === 0) return [];
+
+  const metric = getMetric(config.metric);
+  const extractor = METRIC_EXTRACTORS[config.metric];
+  const dimExtractor = DIMENSION_EXTRACTORS[config.breakdown];
+  const seriesOf = (e: PrototypeEvent): string =>
+    dimExtractor ? dimExtractor(e) : metric.label;
+
+  if (config.chartType === "NUMBER") {
+    return [
+      {
+        time_dimension: undefined,
+        dimension: undefined,
+        metric: aggregate(events, extractor, config.aggregation),
+      },
+    ];
   }
-  const values = events.map(extractor).filter((v) => Number.isFinite(v));
-  if (values.length === 0) return 0;
 
-  switch (agg) {
-    case "sum":
-      return values.reduce((acc, v) => acc + v, 0);
-    case "avg":
-      return values.reduce((acc, v) => acc + v, 0) / values.length;
-    case "min":
-      return Math.min(...values);
-    case "max":
-      return Math.max(...values);
-    case "p50":
-      return percentile(values, 50);
-    case "p95":
-      return percentile(values, 95);
-    case "p99":
-      return percentile(values, 99);
-    default:
-      return values.length;
+  if (isTimeSeriesChartType(config.chartType)) {
+    return aggregateTimeSeries(events, config, extractor, seriesOf);
   }
+
+  return aggregateCategorical(events, config, extractor, seriesOf);
 }
 
-/** Linear-interpolated percentile over an unsorted numeric array. */
-function percentile(values: number[], p: number): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  if (sorted.length === 1) return sorted[0];
-  const rank = (p / 100) * (sorted.length - 1);
-  const lo = Math.floor(rank);
-  const hi = Math.ceil(rank);
-  if (lo === hi) return sorted[lo];
-  const weight = rank - lo;
-  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
-}
-
-/** Floors an ISO timestamp to the start of its minute/hour/day bucket (UTC). */
-export function floorToGranularity(
-  iso: string,
-  granularity: TimeGranularity,
-): string {
-  const d = new Date(iso);
-  d.setUTCMilliseconds(0);
-  d.setUTCSeconds(0);
-  if (granularity === "minute") return d.toISOString();
-  d.setUTCMinutes(0);
-  if (granularity === "hour") return d.toISOString();
-  d.setUTCHours(0);
-  return d.toISOString();
-}
+type Extractor = ((e: PrototypeEvent) => number) | null;

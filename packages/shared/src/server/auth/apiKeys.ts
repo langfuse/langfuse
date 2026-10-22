@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
@@ -94,6 +93,125 @@ export function createShaHash(privateKey: string, salt: string): string {
   return hash;
 }
 
+/** noteColumn provides the note column for api key creation */
+function noteColumn({
+  name,
+  note,
+}: {
+  name?: string;
+  note?: string;
+}): Pick<Prisma.ApiKeyUncheckedCreateInput, "note"> {
+  if (name !== undefined && note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
+  return { note: name ?? note };
+}
+
+/** hasUserScope narrows an api key's scope to a user. */
+function hasUserScope(
+  scope: OrganizationId | ProjectId | UserId,
+): scope is UserId {
+  return scope.startsWith("user/");
+}
+
+/** scopeColumns provides scope columns for api key creation */
+function scopeColumns(
+  tenant: TenantId,
+  scope: OrganizationId | ProjectId | UserId,
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "orgId" | "projectId" | "userId" | "scope"
+> {
+  if (hasUserScope(scope)) {
+    return {
+      orgId: untag(tenant),
+      userId: untag(scope),
+      scope: "ORGANIZATION",
+    };
+  }
+  if (hasProjectKind(scope)) {
+    return { projectId: untag(scope), scope: "PROJECT" };
+  }
+  return { orgId: untag(scope), scope: "ORGANIZATION" };
+}
+
+/** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
+function creatorColumns(
+  createdBy: ApiKeyId | UserId | "system",
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "createdByApiKeyId" | "createdByUserId"
+> {
+  if (createdBy === "system") return {};
+  return hasApiKeyKind(createdBy)
+    ? { createdByApiKeyId: untag(createdBy) }
+    : { createdByUserId: untag(createdBy) };
+}
+
+/** validateApiKeyParams provides the validated non-secret columns for api key creation */
+function validateApiKeyParams(opts: {
+  tenant: TenantId;
+  scope: OrganizationId | ProjectId | UserId;
+  createdBy: ApiKeyId | UserId | "system";
+  name?: string;
+  note?: string;
+  expiresAt?: Date | null;
+  isInAppAgentKey?: boolean;
+}): Omit<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
+> {
+  return {
+    ...noteColumn(opts),
+    ...scopeColumns(opts.tenant, opts.scope),
+    ...creatorColumns(opts.createdBy),
+    expiresAt: opts.expiresAt ?? null,
+    isInAppAgentKey: opts.isInAppAgentKey ?? false,
+  };
+}
+
+/** generateKeyMaterial provides the key columns and plaintext secret for api key creation */
+async function generateKeyMaterial({
+  predefinedKeys,
+}: {
+  predefinedKeys?: { secretKey: string; publicKey: string };
+}): Promise<
+  Pick<
+    Prisma.ApiKeyUncheckedCreateInput,
+    "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
+  > & { secretKey: string }
+> {
+  const salt = env.SALT;
+  if (!salt) {
+    throw new Error("SALT is not set");
+  }
+
+  let keys = predefinedKeys;
+  if (!keys) {
+    const { pk, sk } = await generateKeySet();
+    keys = { publicKey: pk, secretKey: sk };
+  }
+  return {
+    publicKey: keys.publicKey,
+    hashedSecretKey: createLegacySecretKeyPlaceholder(),
+    fastHashedSecretKey: createShaHash(keys.secretKey, salt),
+    displaySecretKey: getDisplaySecretKey(keys.secretKey),
+    secretKey: keys.secretKey,
+  };
+}
+
+/** toOwnerId provides the role assignment owner for an api key's scope */
+function toOwnerId({
+  tenant,
+  scope,
+}: {
+  tenant: TenantId;
+  scope: OrganizationId | ProjectId | UserId;
+}): OwnerId {
+  if (hasUserScope(scope)) return tenant;
+  return scope;
+}
+
 /** createApiKey creates a new api key */
 export async function createApiKey(
   prisma: PrismaClient | Prisma.TransactionClient,
@@ -141,125 +259,6 @@ export async function createApiKey(
     displaySecretKey: apiKey.displaySecretKey,
     secretKey,
   };
-}
-
-/** validateApiKeyParams provides the validated non-secret columns for api key creation */
-function validateApiKeyParams(opts: {
-  tenant: TenantId;
-  scope: OrganizationId | ProjectId | UserId;
-  createdBy: ApiKeyId | UserId | "system";
-  name?: string;
-  note?: string;
-  expiresAt?: Date | null;
-  isInAppAgentKey?: boolean;
-}): Omit<
-  Prisma.ApiKeyUncheckedCreateInput,
-  "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
-> {
-  return {
-    ...noteColumn(opts),
-    ...scopeColumns(opts.tenant, opts.scope),
-    ...creatorColumns(opts.createdBy),
-    expiresAt: opts.expiresAt ?? null,
-    isInAppAgentKey: opts.isInAppAgentKey ?? false,
-  };
-}
-
-/** noteColumn provides the note column for api key creation */
-function noteColumn({
-  name,
-  note,
-}: {
-  name?: string;
-  note?: string;
-}): Pick<Prisma.ApiKeyUncheckedCreateInput, "note"> {
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
-  return { note: name ?? note };
-}
-
-/** scopeColumns provides scope columns for api key creation */
-function scopeColumns(
-  tenant: TenantId,
-  scope: OrganizationId | ProjectId | UserId,
-): Pick<
-  Prisma.ApiKeyUncheckedCreateInput,
-  "orgId" | "projectId" | "userId" | "scope"
-> {
-  if (hasUserScope(scope)) {
-    return {
-      orgId: untag(tenant),
-      userId: untag(scope),
-      scope: "ORGANIZATION",
-    };
-  }
-  if (hasProjectKind(scope)) {
-    return { projectId: untag(scope), scope: "PROJECT" };
-  }
-  return { orgId: untag(scope), scope: "ORGANIZATION" };
-}
-
-/** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
-function creatorColumns(
-  createdBy: ApiKeyId | UserId | "system",
-): Pick<
-  Prisma.ApiKeyUncheckedCreateInput,
-  "createdByApiKeyId" | "createdByUserId"
-> {
-  if (createdBy === "system") return {};
-  return hasApiKeyKind(createdBy)
-    ? { createdByApiKeyId: untag(createdBy) }
-    : { createdByUserId: untag(createdBy) };
-}
-
-/** generateKeyMaterial provides the key columns and plaintext secret for api key creation */
-async function generateKeyMaterial({
-  predefinedKeys,
-}: {
-  predefinedKeys?: { secretKey: string; publicKey: string };
-}): Promise<
-  Pick<
-    Prisma.ApiKeyUncheckedCreateInput,
-    "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
-  > & { secretKey: string }
-> {
-  const salt = env.SALT;
-  if (!salt) {
-    throw new Error("SALT is not set");
-  }
-
-  let keys = predefinedKeys;
-  if (!keys) {
-    const { pk, sk } = await generateKeySet();
-    keys = { publicKey: pk, secretKey: sk };
-  }
-  return {
-    publicKey: keys.publicKey,
-    hashedSecretKey: createLegacySecretKeyPlaceholder(),
-    fastHashedSecretKey: createShaHash(keys.secretKey, salt),
-    displaySecretKey: getDisplaySecretKey(keys.secretKey),
-    secretKey: keys.secretKey,
-  };
-}
-
-/** toOwnerId provides the role assignment owner for an api key's scope */
-function toOwnerId({
-  tenant,
-  scope,
-}: {
-  tenant: TenantId;
-  scope: OrganizationId | ProjectId | UserId;
-}): OwnerId {
-  if (hasUserScope(scope)) return tenant;
-  return scope;
-}
-
-/** hasUserScope narrows an api key's scope to a user. */
-function hasUserScope(
-  scope: OrganizationId | ProjectId | UserId,
-): scope is UserId {
-  return scope.startsWith("user/");
 }
 
 export async function deleteApiKeyFromDb(p: {

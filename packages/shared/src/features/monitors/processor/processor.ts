@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
@@ -51,6 +50,387 @@ export { monitorEvaluationOffsetMs } from "../types";
 
 /** ErrorBadQuery sentinels a metric rejected by monitor query validation. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
+
+/** metricKey is the `${aggregation}_${measure}` column name a metric resolves to in the query result row. */
+function metricKey(metric: { measure: string; aggregation: string }): string {
+  return `${metric.aggregation}_${metric.measure}`;
+}
+
+/** getMetricValue reads a monitor's scalar result from the metrics map, returning the ErrorBadQuery sentinel before the zero-count NO_DATA gate so a rejected metric flips rather than reads NO_DATA. */
+function getMetricValue(
+  metrics: MetricMap,
+  metric: Monitor["metric"],
+): MetricValue {
+  const value = metrics[metricKey(metric)];
+  if (value === ErrorBadQuery) return ErrorBadQuery;
+  if (metrics["count_count"] === 0) return null;
+  return value ?? null;
+}
+
+/** getAutomations returns the automations under every trigger that consumes this alert. */
+function getAutomations(args: {
+  monitor: Monitor;
+  completion: MonitorCompletion;
+  triggers: TriggerDomainWithActions[];
+}): TriggerDomainWithActions["automations"] {
+  const filterData = {
+    severity: args.completion.severity,
+    triggerIds: args.monitor.triggerIds,
+  };
+  return args.triggers
+    .filter((trigger) => matchesTriggerFilter(filterData, trigger))
+    .flatMap((trigger) => trigger.automations);
+}
+
+/** evaluationWindow returns the `[runAt - window, runAt]` edges, both shifted back by monitorEvaluationOffsetMs. */
+function evaluationWindow(
+  window: MonitorWindow,
+  runAt: Date,
+): {
+  fromTimestamp: Date;
+  toTimestamp: Date;
+} {
+  const windowMs = Number(windowToMs(window));
+  const toTimestamp = new Date(runAt.getTime() - monitorEvaluationOffsetMs);
+  const fromTimestamp = new Date(toTimestamp.getTime() - windowMs);
+  return { fromTimestamp, toTimestamp };
+}
+
+/** buildPermalink composes the absolute Langfuse URL for a monitor, or undefined when NEXTAUTH_URL is unset. */
+export function buildPermalink(
+  projectId: string,
+  monitorId: string,
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
+  return `${base}/project/${projectId}/alerts/${monitorId}`;
+}
+
+/** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
+export function isBreaching(severity: MonitorSeverity): boolean {
+  return (
+    severity === MonitorSeveritySchema.enum.ALERT ||
+    severity === MonitorSeveritySchema.enum.WARNING
+  );
+}
+
+/**
+ * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
+ * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
+ *
+ * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
+ * param (absolute epoch-ms range; the client date-range parser accepts custom
+ * ranges directly, bypassing the preset gating). Score views carry their
+ * input predicates and implicit data-type restrictions to the scores table.
+ * A score link is omitted when the destination cannot preserve every filter.
+ */
+export function buildDataWindowPermalink(
+  projectId: string,
+  view: MonitorView,
+  fromTimestamp: Date,
+  toTimestamp: Date,
+  filters: FilterState = [],
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
+  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
+  if (view === "observations") {
+    return `${base}/project/${projectId}/observations?dateRange=${dateRange}`;
+  }
+
+  const tableFilters: FilterState = [];
+  const segments = getViewDeclaration(view, "v2").segments.map((filter) => ({
+    ...filter,
+    column: filter.column === "data_type" ? "dataType" : filter.column,
+  }));
+  for (const filter of [...filters, ...segments]) {
+    // Monitor booleans use the numeric 0/1 value. The table's Boolean Value
+    // facet uses string_value, which may be absent on existing boolean scores.
+    if (filter.column === "booleanValue" && filter.type === "boolean") {
+      const value = filter.operator === "=" ? filter.value : !filter.value;
+      tableFilters.push({
+        column: "value",
+        type: "number",
+        operator: "=",
+        value: Number(value),
+      });
+      continue;
+    }
+
+    // Trace-derived dimensions use different joins in the monitor and the
+    // legacy/events-backed scores readers. Only score-owned fields are portable.
+    const mapping = scoresTableUiColumnDefinitions.find(
+      (column) =>
+        column.uiTableId === filter.column &&
+        column.clickhouseTableName === "scores",
+    );
+    const definition = scoresTableCols.find(
+      (column) => column.id === filter.column,
+    );
+    if (
+      !mapping ||
+      mapping.emptyEqualsNull ||
+      !definition ||
+      (filter.type !== "null" &&
+        !COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type))
+    ) {
+      return undefined;
+    }
+
+    if (filter.type === "boolean") {
+      tableFilters.push({
+        ...filter,
+        operator: "=",
+        value: filter.operator === "=" ? filter.value : !filter.value,
+      });
+    } else {
+      tableFilters.push(filter);
+    }
+  }
+
+  let encodedFilters: string;
+  try {
+    encodedFilters = encodeFiltersGeneric(tableFilters);
+    // The table canonicalizes its URL after decoding. Keys containing legacy
+    // delimiters or percent escapes must survive that round-trip unchanged.
+    if (
+      encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
+      encodedFilters
+    ) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  const query = new URLSearchParams({
+    dateRange,
+    filter: encodedFilters,
+    // Alert filters own the environment scope, including an unrestricted one.
+    showAllEnvironments: "true",
+  });
+  const href = `${base}/project/${projectId}/scores?${query.toString()}`;
+  // Slack section text is limited to 3000 characters. Dropping predicates to
+  // shorten a link would show scores outside the evaluated query.
+  return href.length <= 3000 ? href : undefined;
+}
+
+/** buildAlert assembles the MonitorAlert payload from the monitor row and state-machine completion. */
+function buildAlert(args: {
+  prev: Monitor;
+  next: MonitorCompletion;
+  runAt: Date;
+}): MonitorAlert {
+  const { prev, next, runAt } = args;
+  const { fromTimestamp, toTimestamp } = evaluationWindow(prev.window, runAt);
+  return {
+    monitorId: prev.id,
+    projectId: prev.projectId,
+    severity: next.severity,
+    timestamp: runAt,
+    fromTimestamp,
+    toTimestamp,
+    permalink: buildPermalink(prev.projectId, prev.id),
+    // Only a threshold-cross (ALERT/WARNING) links to the breaching data window;
+    // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
+    // a recovered/empty window, so they carry no data link.
+    dataPermalink: isBreaching(next.severity)
+      ? buildDataWindowPermalink(
+          prev.projectId,
+          prev.view,
+          fromTimestamp,
+          toTimestamp,
+          prev.filters,
+        )
+      : undefined,
+    message: renderAlertMessage({ monitor: prev, completion: next }),
+    view: prev.view,
+    filters: prev.filters,
+    window: prev.window,
+  };
+}
+
+/** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
+function toMonitorWebhookInputs(args: {
+  alert: MonitorAlert;
+  automations: TriggerDomainWithActions["automations"];
+  now: Date;
+}): MonitorWebhookInput[] {
+  return args.automations.map((automation) => {
+    const executionId = randomUUID();
+    return {
+      projectId: args.alert.projectId,
+      automationId: automation.id,
+      executionId,
+      payload: {
+        id: executionId,
+        timestamp: args.now,
+        type: "monitor-alert",
+        apiVersion: "v1",
+        payload: args.alert,
+      },
+    };
+  });
+}
+
+/** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish; a bad-query metric short-circuits to an ERROR_BAD_QUERY completion with no alert. */
+function processMonitor(args: {
+  monitor: Monitor;
+  metrics: MetricMap;
+  triggers: TriggerDomainWithActions[];
+  now: Date;
+  runAt: Date;
+  publishedAt: Date;
+}): [MonitorCompletion, MonitorWebhookInput[]] {
+  const { monitor, metrics, triggers, now, runAt, publishedAt } = args;
+  const value = getMetricValue(metrics, monitor.metric);
+  if (value === ErrorBadQuery) {
+    return [
+      {
+        monitorId: monitor.id,
+        lastClaimedAt: now,
+        lastCompletedAt: now,
+        publishedAt,
+        status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+        severity: MonitorSeveritySchema.enum.PAUSED,
+        severityChangedAt: now,
+        alertedAt: monitor.alertedAt,
+      },
+      [],
+    ];
+  }
+
+  const severity = computeSeverity({
+    value,
+    noData: monitor.noData,
+    prevSeverity: monitor.severity,
+    operator: monitor.thresholdOperator,
+    alertThreshold: monitor.alertThreshold,
+    warningThreshold: monitor.warningThreshold ?? null,
+  });
+
+  const { completion, emit } = applyStateMachine({
+    prev: monitor,
+    next: { severity },
+    now,
+    publishedAt,
+  });
+  if (!emit) return [completion, []];
+
+  const automations = getAutomations({ monitor, completion, triggers });
+  if (automations.length === 0) return [completion, []];
+
+  const alert = buildAlert({ prev: monitor, next: completion, runAt });
+  return [completion, toMonitorWebhookInputs({ alert, automations, now })];
+}
+
+/** processMonitors evaluates every claimed monitor, collecting the completions to persist and the webhook inputs to publish. */
+function processMonitors(args: {
+  monitors: Monitor[];
+  metrics: MetricMap;
+  triggers: TriggerDomainWithActions[];
+  now: Date;
+  runAt: Date;
+  publishedAt: Date;
+}): [MonitorCompletion[], MonitorWebhookInput[]] {
+  const completions: MonitorCompletion[] = [];
+  const monitorWebhookInputs: MonitorWebhookInput[] = [];
+  for (const monitor of args.monitors) {
+    const [completion, inputs] = processMonitor({
+      monitor,
+      metrics: args.metrics,
+      triggers: args.triggers,
+      now: args.now,
+      runAt: args.runAt,
+      publishedAt: args.publishedAt,
+    });
+    completions.push(completion);
+    monitorWebhookInputs.push(...inputs);
+  }
+  return [completions, monitorWebhookInputs];
+}
+
+/** dedupeMetrics drops duplicate metrics keyed by `${aggregation}_${measure}` so the appended row-count metric never collides with an existing count metric. */
+function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
+  const seen = new Set<string>();
+  return metrics.filter((m) => {
+    const key = metricKey(m);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** buildMonitorQuery converts the accepted metrics of a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
+function buildMonitorQuery(
+  acceptedMetrics: QueryType["metrics"],
+  event: MonitorQueueEvent,
+): QueryType {
+  const { fromTimestamp, toTimestamp } = evaluationWindow(
+    event.window,
+    event.runAt,
+  );
+  const metrics = dedupeMetrics([
+    ...acceptedMetrics,
+    { measure: "count", aggregation: "count" as const },
+  ]);
+  return {
+    view: event.view,
+    dimensions: [],
+    metrics,
+    filters: event.filters,
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+}
+
+/** parseNumericValue coerces a ClickHouse cell to number | null, mapping missing or non-finite values to null. */
+function parseNumericValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** buildCompleteQuery builds the bulk UPDATE that lands every monitor's post-evaluation stamps. */
+function buildCompleteQuery(args: {
+  projectId: string;
+  completions: MonitorCompletion[];
+}): Prisma.Sql {
+  const valueRows = Prisma.join(
+    args.completions.map(
+      (c) =>
+        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.publishedAt}::timestamptz, ${c.status}::"MonitorStatus", ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
+    ),
+    ", ",
+  );
+  return Prisma.sql`
+    UPDATE monitors AS m
+    SET
+      last_completed_at = data.last_completed_at,
+      status = data.status,
+      severity = data.severity,
+      severity_changed_at = data.severity_changed_at,
+      alerted_at = data.alerted_at
+    FROM (VALUES ${valueRows}) AS data(
+      id,
+      last_claimed_at,
+      last_completed_at,
+      published_at,
+      status,
+      severity,
+      severity_changed_at,
+      alerted_at
+    )
+    WHERE m.id = data.id
+      AND m.project_id = ${args.projectId}
+      AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
+      AND m.status = 'ACTIVE' -- no-op if the user paused since claim
+      AND m.last_published_at = data.published_at -- no-op if the scheduler rescued/republished since claim
+  `;
+}
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
 export class MonitorProcessor {
@@ -208,387 +588,6 @@ export class MonitorProcessor {
       ),
     ]);
   }
-}
-
-/** buildMonitorQuery converts the accepted metrics of a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
-function buildMonitorQuery(
-  acceptedMetrics: QueryType["metrics"],
-  event: MonitorQueueEvent,
-): QueryType {
-  const { fromTimestamp, toTimestamp } = evaluationWindow(
-    event.window,
-    event.runAt,
-  );
-  const metrics = dedupeMetrics([
-    ...acceptedMetrics,
-    { measure: "count", aggregation: "count" as const },
-  ]);
-  return {
-    view: event.view,
-    dimensions: [],
-    metrics,
-    filters: event.filters,
-    timeDimension: null,
-    fromTimestamp: fromTimestamp.toISOString(),
-    toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
-  };
-}
-
-/** dedupeMetrics drops duplicate metrics keyed by `${aggregation}_${measure}` so the appended row-count metric never collides with an existing count metric. */
-function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
-  const seen = new Set<string>();
-  return metrics.filter((m) => {
-    const key = metricKey(m);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/** metricKey is the `${aggregation}_${measure}` column name a metric resolves to in the query result row. */
-function metricKey(metric: { measure: string; aggregation: string }): string {
-  return `${metric.aggregation}_${metric.measure}`;
-}
-
-/** evaluationWindow returns the `[runAt - window, runAt]` edges, both shifted back by monitorEvaluationOffsetMs. */
-function evaluationWindow(
-  window: MonitorWindow,
-  runAt: Date,
-): {
-  fromTimestamp: Date;
-  toTimestamp: Date;
-} {
-  const windowMs = Number(windowToMs(window));
-  const toTimestamp = new Date(runAt.getTime() - monitorEvaluationOffsetMs);
-  const fromTimestamp = new Date(toTimestamp.getTime() - windowMs);
-  return { fromTimestamp, toTimestamp };
-}
-
-/** parseNumericValue coerces a ClickHouse cell to number | null, mapping missing or non-finite values to null. */
-function parseNumericValue(raw: unknown): number | null {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** processMonitors evaluates every claimed monitor, collecting the completions to persist and the webhook inputs to publish. */
-function processMonitors(args: {
-  monitors: Monitor[];
-  metrics: MetricMap;
-  triggers: TriggerDomainWithActions[];
-  now: Date;
-  runAt: Date;
-  publishedAt: Date;
-}): [MonitorCompletion[], MonitorWebhookInput[]] {
-  const completions: MonitorCompletion[] = [];
-  const monitorWebhookInputs: MonitorWebhookInput[] = [];
-  for (const monitor of args.monitors) {
-    const [completion, inputs] = processMonitor({
-      monitor,
-      metrics: args.metrics,
-      triggers: args.triggers,
-      now: args.now,
-      runAt: args.runAt,
-      publishedAt: args.publishedAt,
-    });
-    completions.push(completion);
-    monitorWebhookInputs.push(...inputs);
-  }
-  return [completions, monitorWebhookInputs];
-}
-
-/** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish; a bad-query metric short-circuits to an ERROR_BAD_QUERY completion with no alert. */
-function processMonitor(args: {
-  monitor: Monitor;
-  metrics: MetricMap;
-  triggers: TriggerDomainWithActions[];
-  now: Date;
-  runAt: Date;
-  publishedAt: Date;
-}): [MonitorCompletion, MonitorWebhookInput[]] {
-  const { monitor, metrics, triggers, now, runAt, publishedAt } = args;
-  const value = getMetricValue(metrics, monitor.metric);
-  if (value === ErrorBadQuery) {
-    return [
-      {
-        monitorId: monitor.id,
-        lastClaimedAt: now,
-        lastCompletedAt: now,
-        publishedAt,
-        status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
-        severity: MonitorSeveritySchema.enum.PAUSED,
-        severityChangedAt: now,
-        alertedAt: monitor.alertedAt,
-      },
-      [],
-    ];
-  }
-
-  const severity = computeSeverity({
-    value,
-    noData: monitor.noData,
-    prevSeverity: monitor.severity,
-    operator: monitor.thresholdOperator,
-    alertThreshold: monitor.alertThreshold,
-    warningThreshold: monitor.warningThreshold ?? null,
-  });
-
-  const { completion, emit } = applyStateMachine({
-    prev: monitor,
-    next: { severity },
-    now,
-    publishedAt,
-  });
-  if (!emit) return [completion, []];
-
-  const automations = getAutomations({ monitor, completion, triggers });
-  if (automations.length === 0) return [completion, []];
-
-  const alert = buildAlert({ prev: monitor, next: completion, runAt });
-  return [completion, toMonitorWebhookInputs({ alert, automations, now })];
-}
-
-/** getMetricValue reads a monitor's scalar result from the metrics map, returning the ErrorBadQuery sentinel before the zero-count NO_DATA gate so a rejected metric flips rather than reads NO_DATA. */
-function getMetricValue(
-  metrics: MetricMap,
-  metric: Monitor["metric"],
-): MetricValue {
-  const value = metrics[metricKey(metric)];
-  if (value === ErrorBadQuery) return ErrorBadQuery;
-  if (metrics["count_count"] === 0) return null;
-  return value ?? null;
-}
-
-/** getAutomations returns the automations under every trigger that consumes this alert. */
-function getAutomations(args: {
-  monitor: Monitor;
-  completion: MonitorCompletion;
-  triggers: TriggerDomainWithActions[];
-}): TriggerDomainWithActions["automations"] {
-  const filterData = {
-    severity: args.completion.severity,
-    triggerIds: args.monitor.triggerIds,
-  };
-  return args.triggers
-    .filter((trigger) => matchesTriggerFilter(filterData, trigger))
-    .flatMap((trigger) => trigger.automations);
-}
-
-/** buildAlert assembles the MonitorAlert payload from the monitor row and state-machine completion. */
-function buildAlert(args: {
-  prev: Monitor;
-  next: MonitorCompletion;
-  runAt: Date;
-}): MonitorAlert {
-  const { prev, next, runAt } = args;
-  const { fromTimestamp, toTimestamp } = evaluationWindow(prev.window, runAt);
-  return {
-    monitorId: prev.id,
-    projectId: prev.projectId,
-    severity: next.severity,
-    timestamp: runAt,
-    fromTimestamp,
-    toTimestamp,
-    permalink: buildPermalink(prev.projectId, prev.id),
-    // Only a threshold-cross (ALERT/WARNING) links to the breaching data window;
-    // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
-    // a recovered/empty window, so they carry no data link.
-    dataPermalink: isBreaching(next.severity)
-      ? buildDataWindowPermalink(
-          prev.projectId,
-          prev.view,
-          fromTimestamp,
-          toTimestamp,
-          prev.filters,
-        )
-      : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next }),
-    view: prev.view,
-    filters: prev.filters,
-    window: prev.window,
-  };
-}
-
-/** buildPermalink composes the absolute Langfuse URL for a monitor, or undefined when NEXTAUTH_URL is unset. */
-export function buildPermalink(
-  projectId: string,
-  monitorId: string,
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  return `${base}/project/${projectId}/alerts/${monitorId}`;
-}
-
-/** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
-export function isBreaching(severity: MonitorSeverity): boolean {
-  return (
-    severity === MonitorSeveritySchema.enum.ALERT ||
-    severity === MonitorSeveritySchema.enum.WARNING
-  );
-}
-
-/**
- * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
- * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
- *
- * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
- * param (absolute epoch-ms range; the client date-range parser accepts custom
- * ranges directly, bypassing the preset gating). Score views carry their
- * input predicates and implicit data-type restrictions to the scores table.
- * A score link is omitted when the destination cannot preserve every filter.
- */
-export function buildDataWindowPermalink(
-  projectId: string,
-  view: MonitorView,
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  filters: FilterState = [],
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
-  if (view === "observations") {
-    return `${base}/project/${projectId}/observations?dateRange=${dateRange}`;
-  }
-
-  const tableFilters: FilterState = [];
-  const segments = getViewDeclaration(view, "v2").segments.map((filter) => ({
-    ...filter,
-    column: filter.column === "data_type" ? "dataType" : filter.column,
-  }));
-  for (const filter of [...filters, ...segments]) {
-    // Monitor booleans use the numeric 0/1 value. The table's Boolean Value
-    // facet uses string_value, which may be absent on existing boolean scores.
-    if (filter.column === "booleanValue" && filter.type === "boolean") {
-      const value = filter.operator === "=" ? filter.value : !filter.value;
-      tableFilters.push({
-        column: "value",
-        type: "number",
-        operator: "=",
-        value: Number(value),
-      });
-      continue;
-    }
-
-    // Trace-derived dimensions use different joins in the monitor and the
-    // legacy/events-backed scores readers. Only score-owned fields are portable.
-    const mapping = scoresTableUiColumnDefinitions.find(
-      (column) =>
-        column.uiTableId === filter.column &&
-        column.clickhouseTableName === "scores",
-    );
-    const definition = scoresTableCols.find(
-      (column) => column.id === filter.column,
-    );
-    if (
-      !mapping ||
-      mapping.emptyEqualsNull ||
-      !definition ||
-      (filter.type !== "null" &&
-        !COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type))
-    ) {
-      return undefined;
-    }
-
-    if (filter.type === "boolean") {
-      tableFilters.push({
-        ...filter,
-        operator: "=",
-        value: filter.operator === "=" ? filter.value : !filter.value,
-      });
-    } else {
-      tableFilters.push(filter);
-    }
-  }
-
-  let encodedFilters: string;
-  try {
-    encodedFilters = encodeFiltersGeneric(tableFilters);
-    // The table canonicalizes its URL after decoding. Keys containing legacy
-    // delimiters or percent escapes must survive that round-trip unchanged.
-    if (
-      encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
-      encodedFilters
-    ) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  const query = new URLSearchParams({
-    dateRange,
-    filter: encodedFilters,
-    // Alert filters own the environment scope, including an unrestricted one.
-    showAllEnvironments: "true",
-  });
-  const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack section text is limited to 3000 characters. Dropping predicates to
-  // shorten a link would show scores outside the evaluated query.
-  return href.length <= 3000 ? href : undefined;
-}
-
-/** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
-function toMonitorWebhookInputs(args: {
-  alert: MonitorAlert;
-  automations: TriggerDomainWithActions["automations"];
-  now: Date;
-}): MonitorWebhookInput[] {
-  return args.automations.map((automation) => {
-    const executionId = randomUUID();
-    return {
-      projectId: args.alert.projectId,
-      automationId: automation.id,
-      executionId,
-      payload: {
-        id: executionId,
-        timestamp: args.now,
-        type: "monitor-alert",
-        apiVersion: "v1",
-        payload: args.alert,
-      },
-    };
-  });
-}
-
-/** buildCompleteQuery builds the bulk UPDATE that lands every monitor's post-evaluation stamps. */
-function buildCompleteQuery(args: {
-  projectId: string;
-  completions: MonitorCompletion[];
-}): Prisma.Sql {
-  const valueRows = Prisma.join(
-    args.completions.map(
-      (c) =>
-        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.publishedAt}::timestamptz, ${c.status}::"MonitorStatus", ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
-    ),
-    ", ",
-  );
-  return Prisma.sql`
-    UPDATE monitors AS m
-    SET
-      last_completed_at = data.last_completed_at,
-      status = data.status,
-      severity = data.severity,
-      severity_changed_at = data.severity_changed_at,
-      alerted_at = data.alerted_at
-    FROM (VALUES ${valueRows}) AS data(
-      id,
-      last_claimed_at,
-      last_completed_at,
-      published_at,
-      status,
-      severity,
-      severity_changed_at,
-      alerted_at
-    )
-    WHERE m.id = data.id
-      AND m.project_id = ${args.projectId}
-      AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
-      AND m.status = 'ACTIVE' -- no-op if the user paused since claim
-      AND m.last_published_at = data.published_at -- no-op if the scheduler rescued/republished since claim
-  `;
 }
 
 /** MetricValue is one metric's evaluated result: a number, null (missing/non-finite), or the ErrorBadQuery sentinel. */

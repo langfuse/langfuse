@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -13,51 +12,14 @@ import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
-export function CurrentTopics({
-  projectId,
-  timeRange,
-  result,
-  selectedFacetId,
-  view,
-  tracePanelRef,
-  traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
-}: CurrentTopicsProps) {
-  const selectedFacet = result.data?.facets.find(
-    (facet) => facet.facetId === selectedFacetId,
-  );
-  const empty =
-    !result.isLoading && !result.error && result.data?.facets.length === 0;
-  return (
-    <section
-      className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden",
-        empty && "hidden",
-      )}
-    >
-      {result.error && (
-        <Alert variant="destructive" size="sm">
-          <Alert.Description>
-            <p className="break-words">{result.error.message}</p>
-          </Alert.Description>
-        </Alert>
-      )}
-      {result.isLoading && <p className="text-sm">Loading topics…</p>}
-      {selectedFacet && (
-        <CurrentFacet
-          key={JSON.stringify([projectId, selectedFacet.facetId])}
-          projectId={projectId}
-          facet={selectedFacet}
-          timeRange={timeRange}
-          view={view}
-          tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
-        />
-      )}
-    </section>
+function useCurrentTopicMap(
+  projectId: string,
+  runId: string | undefined,
+  timeRange: TopicTimeRange,
+) {
+  return api.topics.map.useQuery(
+    { projectId, runId: runId ?? "", timeRange },
+    { enabled: Boolean(runId) },
   );
 }
 
@@ -120,6 +82,54 @@ function CurrentFacet({
   );
 }
 
+export function CurrentTopics({
+  projectId,
+  timeRange,
+  result,
+  selectedFacetId,
+  view,
+  tracePanelRef,
+  traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
+}: CurrentTopicsProps) {
+  const selectedFacet = result.data?.facets.find(
+    (facet) => facet.facetId === selectedFacetId,
+  );
+  const empty =
+    !result.isLoading && !result.error && result.data?.facets.length === 0;
+  return (
+    <section
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden",
+        empty && "hidden",
+      )}
+    >
+      {result.error && (
+        <Alert variant="destructive" size="sm">
+          <Alert.Description>
+            <p className="break-words">{result.error.message}</p>
+          </Alert.Description>
+        </Alert>
+      )}
+      {result.isLoading && <p className="text-sm">Loading topics…</p>}
+      {selectedFacet && (
+        <CurrentFacet
+          key={JSON.stringify([projectId, selectedFacet.facetId])}
+          projectId={projectId}
+          facet={selectedFacet}
+          timeRange={timeRange}
+          view={view}
+          tracePanelRef={tracePanelRef}
+          traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
+        />
+      )}
+    </section>
+  );
+}
+
 export function useCurrentTopics({
   projectId,
   running,
@@ -156,17 +166,6 @@ export function useCurrentTopics({
     enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
-}
-
-function useCurrentTopicMap(
-  projectId: string,
-  runId: string | undefined,
-  timeRange: TopicTimeRange,
-) {
-  return api.topics.map.useQuery(
-    { projectId, runId: runId ?? "", timeRange },
-    { enabled: Boolean(runId) },
-  );
 }
 
 type CurrentTopicsProps = {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
   resolveExtractedMedia,
@@ -22,6 +21,39 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 export type OtelMediaPresence = "present" | "absent" | "unknown";
+
+function recordMediaStageMetrics(params: {
+  durationMs: number;
+  writePath: OtelMediaWritePath;
+  mediaPath: "early" | "reference";
+  mediaPresence: "present" | "absent" | "unknown";
+  inputByteLength?: number;
+}): void {
+  const tags = {
+    write_path: params.writePath,
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence,
+  };
+  recordDistribution(
+    "langfuse.ingestion.otel.media.processing_duration_ms",
+    params.durationMs,
+    tags,
+  );
+  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.media.processing_duration_total_ms",
+    params.durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    // Dual writes contribute both their input bytes and stage time.
+    recordIncrement(
+      "langfuse.ingestion.otel.media.input_bytes_total",
+      params.inputByteLength,
+      tags,
+    );
+  }
+}
 
 /**
  * Worker integration point for media in normalized OTEL payloads selected for
@@ -194,37 +226,15 @@ export async function processOtelEventMedia(params: {
   }
 }
 
-function recordMediaStageMetrics(params: {
-  durationMs: number;
-  writePath: OtelMediaWritePath;
-  mediaPath: "early" | "reference";
-  mediaPresence: "present" | "absent" | "unknown";
-  inputByteLength?: number;
-}): void {
-  const tags = {
-    write_path: params.writePath,
-    media_path: params.mediaPath,
-    media_presence: params.mediaPresence,
-  };
-  recordDistribution(
-    "langfuse.ingestion.otel.media.processing_duration_ms",
-    params.durationMs,
-    tags,
-  );
-  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
-  recordIncrement(
-    "langfuse.ingestion.otel.media.processing_duration_total_ms",
-    params.durationMs,
-    tags,
-  );
-  if (params.inputByteLength && params.inputByteLength > 0) {
-    // Dual writes contribute both their input bytes and stage time.
-    recordIncrement(
-      "langfuse.ingestion.otel.media.input_bytes_total",
-      params.inputByteLength,
-      tags,
-    );
+function isRecordWithMediaFields(
+  value: unknown,
+): value is Record<string, unknown> & OtelMediaPayload {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
   }
+
+  const record = value as Record<string, unknown>;
+  return MEDIA_FIELDS.some((field) => record[field] != null);
 }
 
 /**
@@ -282,15 +292,4 @@ export function createLegacyOtelMediaTargets(
     }
   }
   return targets;
-}
-
-function isRecordWithMediaFields(
-  value: unknown,
-): value is Record<string, unknown> & OtelMediaPayload {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-  return MEDIA_FIELDS.some((field) => record[field] != null);
 }

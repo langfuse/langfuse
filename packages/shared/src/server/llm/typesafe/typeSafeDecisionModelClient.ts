@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import {
   experimental_decide as decide,
@@ -47,6 +46,24 @@ function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
           : {}),
       };
   }
+}
+
+function readConfidence(providerMetadata: unknown): Record<string, number> {
+  if (typeof providerMetadata !== "object" || providerMetadata === null) {
+    return {};
+  }
+  const typesafe = (providerMetadata as Record<string, unknown>).typesafe;
+  if (typeof typesafe !== "object" || typesafe === null) return {};
+  const confidence = (typesafe as Record<string, unknown>).confidence;
+  if (typeof confidence !== "object" || confidence === null) return {};
+  return Object.fromEntries(
+    Object.entries(confidence as Record<string, unknown>).flatMap(
+      ([id, value]) =>
+        typeof value === "number" && value >= 0 && value <= 1
+          ? [[id, value]]
+          : [],
+    ),
+  );
 }
 
 export function createTypeSafeDecisionModelClient(params: {
@@ -122,22 +139,4 @@ export function createTypeSafeDecisionModelClient(params: {
       return evaluation;
     },
   };
-}
-
-function readConfidence(providerMetadata: unknown): Record<string, number> {
-  if (typeof providerMetadata !== "object" || providerMetadata === null) {
-    return {};
-  }
-  const typesafe = (providerMetadata as Record<string, unknown>).typesafe;
-  if (typeof typesafe !== "object" || typesafe === null) return {};
-  const confidence = (typesafe as Record<string, unknown>).confidence;
-  if (typeof confidence !== "object" || confidence === null) return {};
-  return Object.fromEntries(
-    Object.entries(confidence as Record<string, unknown>).flatMap(
-      ([id, value]) =>
-        typeof value === "number" && value >= 0 && value <= 1
-          ? [[id, value]]
-          : [],
-    ),
-  );
 }

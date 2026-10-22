@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Idle-gap time compression — ported from Sentry's
  * `traceRenderers/traceTimeCompression.tsx`.
@@ -61,45 +60,66 @@ export function identityCompression(durationMs: number): TimeCompression {
   };
 }
 
-/**
- * @param spans ms offsets of every span that should keep its real width.
- *   Roots must be excluded: a root covers the whole trace by definition, so
- *   including it means no gap is ever idle.
- */
-export function buildTimeCompression(options: {
-  spans: readonly Interval[];
-  durationMs: number;
-  physicalWidth: number;
-  enabled: boolean;
-}): TimeCompression {
-  const { spans, durationMs, physicalWidth } = options;
+function mergeIntervals(intervals: Interval[]): Interval[] {
+  const sorted = intervals
+    .filter(([start, end]) => end >= start)
+    .sort((a, b) => a[0] - b[0]);
 
-  if (
-    !options.enabled ||
-    !Number.isFinite(durationMs) ||
-    durationMs <= 0 ||
-    !Number.isFinite(physicalWidth) ||
-    physicalWidth <= 0
-  ) {
-    return identityCompression(durationMs);
+  const merged: Interval[] = [];
+  for (const current of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && current[0] <= last[1]) {
+      last[1] = Math.max(last[1], current[1]);
+    } else {
+      merged.push([current[0], current[1]]);
+    }
+  }
+  return merged;
+}
+
+function padIntervals(
+  spans: readonly Interval[],
+  durationMs: number,
+  labelBufferMs: number,
+): Interval[] {
+  const markerPadding = Math.max(
+    Math.min(durationMs * MARKER_PADDING_RATIO, MARKER_PADDING_MAX_MS),
+    labelBufferMs,
+  );
+  const labelBuffer = labelBufferMs;
+  const clampMs = (ms: number) => Math.min(Math.max(ms, 0), durationMs);
+
+  return spans.flatMap(([start, end]) => {
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+    const from = clampMs(start);
+    const to = clampMs(end);
+    return to > from
+      ? ([
+          [clampMs(from - labelBuffer), clampMs(to + labelBuffer)],
+        ] as Interval[])
+      : ([
+          [clampMs(from - markerPadding), clampMs(from + markerPadding)],
+        ] as Interval[]);
+  });
+}
+
+function collectCollapsibleGaps(
+  intervals: readonly Interval[],
+  durationMs: number,
+): Interval[] {
+  const threshold = durationMs * COLLAPSE_THRESHOLD_RATIO;
+  const gaps: Interval[] = [];
+  let previousEnd = 0;
+
+  for (const [start, end] of intervals) {
+    if (start - previousEnd >= threshold) gaps.push([previousEnd, start]);
+    previousEnd = Math.max(previousEnd, end);
+  }
+  if (durationMs - previousEnd >= threshold) {
+    gaps.push([previousEnd, durationMs]);
   }
 
-  // The label buffer is px, so converting it to ms needs a px-per-ms — and
-  // that is what compression is about to change, by up to 100×. Sentry
-  // converts at the UNCOMPRESSED scale, which in a 320px lane reserves ~5.4s
-  // around each span of a 36s trace and makes compression a no-op exactly
-  // where it is needed most. One fixed-point step fixes it: compress with no
-  // buffer, then re-compress with the buffer priced at the resulting scale.
-  const unbuffered = compressOnce(spans, durationMs, physicalWidth, 0);
-  if (!unbuffered) return identityCompression(durationMs);
-
-  const labelBufferMs =
-    (unbuffered.compressedDurationMs / physicalWidth) *
-    DURATION_LABEL_BUFFER_PX;
-
-  return (
-    compressOnce(spans, durationMs, physicalWidth, labelBufferMs) ?? unbuffered
-  );
+  return gaps;
 }
 
 function compressOnce(
@@ -178,64 +198,43 @@ function compressOnce(
   };
 }
 
-function padIntervals(
-  spans: readonly Interval[],
-  durationMs: number,
-  labelBufferMs: number,
-): Interval[] {
-  const markerPadding = Math.max(
-    Math.min(durationMs * MARKER_PADDING_RATIO, MARKER_PADDING_MAX_MS),
-    labelBufferMs,
+/**
+ * @param spans ms offsets of every span that should keep its real width.
+ *   Roots must be excluded: a root covers the whole trace by definition, so
+ *   including it means no gap is ever idle.
+ */
+export function buildTimeCompression(options: {
+  spans: readonly Interval[];
+  durationMs: number;
+  physicalWidth: number;
+  enabled: boolean;
+}): TimeCompression {
+  const { spans, durationMs, physicalWidth } = options;
+
+  if (
+    !options.enabled ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0 ||
+    !Number.isFinite(physicalWidth) ||
+    physicalWidth <= 0
+  ) {
+    return identityCompression(durationMs);
+  }
+
+  // The label buffer is px, so converting it to ms needs a px-per-ms — and
+  // that is what compression is about to change, by up to 100×. Sentry
+  // converts at the UNCOMPRESSED scale, which in a 320px lane reserves ~5.4s
+  // around each span of a 36s trace and makes compression a no-op exactly
+  // where it is needed most. One fixed-point step fixes it: compress with no
+  // buffer, then re-compress with the buffer priced at the resulting scale.
+  const unbuffered = compressOnce(spans, durationMs, physicalWidth, 0);
+  if (!unbuffered) return identityCompression(durationMs);
+
+  const labelBufferMs =
+    (unbuffered.compressedDurationMs / physicalWidth) *
+    DURATION_LABEL_BUFFER_PX;
+
+  return (
+    compressOnce(spans, durationMs, physicalWidth, labelBufferMs) ?? unbuffered
   );
-  const labelBuffer = labelBufferMs;
-  const clampMs = (ms: number) => Math.min(Math.max(ms, 0), durationMs);
-
-  return spans.flatMap(([start, end]) => {
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
-    const from = clampMs(start);
-    const to = clampMs(end);
-    return to > from
-      ? ([
-          [clampMs(from - labelBuffer), clampMs(to + labelBuffer)],
-        ] as Interval[])
-      : ([
-          [clampMs(from - markerPadding), clampMs(from + markerPadding)],
-        ] as Interval[]);
-  });
-}
-
-function mergeIntervals(intervals: Interval[]): Interval[] {
-  const sorted = intervals
-    .filter(([start, end]) => end >= start)
-    .sort((a, b) => a[0] - b[0]);
-
-  const merged: Interval[] = [];
-  for (const current of sorted) {
-    const last = merged[merged.length - 1];
-    if (last && current[0] <= last[1]) {
-      last[1] = Math.max(last[1], current[1]);
-    } else {
-      merged.push([current[0], current[1]]);
-    }
-  }
-  return merged;
-}
-
-function collectCollapsibleGaps(
-  intervals: readonly Interval[],
-  durationMs: number,
-): Interval[] {
-  const threshold = durationMs * COLLAPSE_THRESHOLD_RATIO;
-  const gaps: Interval[] = [];
-  let previousEnd = 0;
-
-  for (const [start, end] of intervals) {
-    if (start - previousEnd >= threshold) gaps.push([previousEnd, start]);
-    previousEnd = Math.max(previousEnd, end);
-  }
-  if (durationMs - previousEnd >= threshold) {
-    gaps.push([previousEnd, durationMs]);
-  }
-
-  return gaps;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // trpc/supportRouter.ts
 import {
   createTRPCRouter,
@@ -75,6 +74,24 @@ function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
     if (org.projects?.some((p) => p.id === projectId)) return org;
   }
   return undefined;
+}
+
+function getFullName(user: {
+  name?: string | null;
+  email?: string | null;
+  id: string;
+}): string {
+  const { name, email } = user ?? {};
+
+  if (name?.trim()) return name;
+
+  if (email) {
+    const emailUserName = email.split("@")[0];
+
+    if (emailUserName) return emailUserName;
+  }
+
+  return user?.id.slice(0, 8) ?? "Anonymous";
 }
 
 // =========================
@@ -263,21 +280,3 @@ export const supportRouter = createTRPCRouter({
       };
     }),
 });
-
-function getFullName(user: {
-  name?: string | null;
-  email?: string | null;
-  id: string;
-}): string {
-  const { name, email } = user ?? {};
-
-  if (name?.trim()) return name;
-
-  if (email) {
-    const emailUserName = email.split("@")[0];
-
-    if (emailUserName) return emailUserName;
-  }
-
-  return user?.id.slice(0, 8) ?? "Anonymous";
-}

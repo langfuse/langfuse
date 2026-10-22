@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JobConfigState, prisma, type Prisma } from "../../db";
 import {
   EvalTargetObject,
@@ -34,44 +33,6 @@ export function topicRuleWhere(
   };
 }
 
-/**
- * Whether new traces of the project enter trace-batch processing for Topics:
- * the project is allowlisted, Topics is on with all three models configured,
- * and an active rule runs at least one facet that is not blocked. Both answers
- * are cached in Redis. A failed or timed-out lookup caches the allowlist answer
- * briefly and propagates.
- */
-export async function isTopicsProcessingActive(
-  projectId: string,
-): Promise<boolean> {
-  if (!isTopicsProjectEnabled(projectId)) return false;
-  const cached = await readCache(projectId);
-  if (cached !== null) return cached;
-  let active: boolean;
-  try {
-    active = await withTimeout(lookupProcessingActive(projectId));
-  } catch (error) {
-    await writeCache(projectId, true, FAILURE_TTL_SECONDS);
-    throw error;
-  }
-  await writeCache(projectId, active, CACHE_TTL_SECONDS);
-  return active;
-}
-
-/** Call after a committed change to the project's Topics config or rule. */
-export async function invalidateTopicsProcessingActive(
-  projectId: string,
-): Promise<void> {
-  try {
-    await redis?.del(cacheKey(projectId));
-  } catch (error) {
-    logger.warn("Failed to invalidate Topics processing state", {
-      projectId,
-      error,
-    });
-  }
-}
-
 async function readCache(projectId: string): Promise<boolean | null> {
   try {
     const cached = await redis?.get(cacheKey(projectId));
@@ -87,12 +48,19 @@ async function readCache(projectId: string): Promise<boolean | null> {
   }
 }
 
-async function lookupProcessingActive(projectId: string): Promise<boolean> {
-  const [config, rule] = await Promise.all([
-    findActiveTopicsConfig(projectId),
-    findActiveTopicRule(projectId),
-  ]);
-  return Boolean(config && rule);
+async function withTimeout<T>(lookup: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Topics processing state lookup timed out")),
+      LOOKUP_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([lookup, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function findActiveTopicsConfig(projectId: string) {
@@ -128,19 +96,12 @@ function findActiveTopicRule(projectId: string) {
   });
 }
 
-async function withTimeout<T>(lookup: Promise<T>): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error("Topics processing state lookup timed out")),
-      LOOKUP_TIMEOUT_MS,
-    );
-  });
-  try {
-    return await Promise.race([lookup, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
+async function lookupProcessingActive(projectId: string): Promise<boolean> {
+  const [config, rule] = await Promise.all([
+    findActiveTopicsConfig(projectId),
+    findActiveTopicRule(projectId),
+  ]);
+  return Boolean(config && rule);
 }
 
 async function writeCache(
@@ -152,6 +113,44 @@ async function writeCache(
     await redis?.set(cacheKey(projectId), active ? "1" : "0", "EX", ttlSeconds);
   } catch (error) {
     logger.warn("Failed to cache Topics processing state", {
+      projectId,
+      error,
+    });
+  }
+}
+
+/**
+ * Whether new traces of the project enter trace-batch processing for Topics:
+ * the project is allowlisted, Topics is on with all three models configured,
+ * and an active rule runs at least one facet that is not blocked. Both answers
+ * are cached in Redis. A failed or timed-out lookup caches the allowlist answer
+ * briefly and propagates.
+ */
+export async function isTopicsProcessingActive(
+  projectId: string,
+): Promise<boolean> {
+  if (!isTopicsProjectEnabled(projectId)) return false;
+  const cached = await readCache(projectId);
+  if (cached !== null) return cached;
+  let active: boolean;
+  try {
+    active = await withTimeout(lookupProcessingActive(projectId));
+  } catch (error) {
+    await writeCache(projectId, true, FAILURE_TTL_SECONDS);
+    throw error;
+  }
+  await writeCache(projectId, active, CACHE_TTL_SECONDS);
+  return active;
+}
+
+/** Call after a committed change to the project's Topics config or rule. */
+export async function invalidateTopicsProcessingActive(
+  projectId: string,
+): Promise<void> {
+  try {
+    await redis?.del(cacheKey(projectId));
+  } catch (error) {
+    logger.warn("Failed to invalidate Topics processing state", {
       projectId,
       error,
     });

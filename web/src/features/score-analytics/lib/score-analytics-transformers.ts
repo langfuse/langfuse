@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Pure transformation functions for score analytics data
  * Extracted from analytics.tsx, SingleScoreAnalytics, TwoScoreAnalytics
@@ -265,6 +264,31 @@ export function transformHeatmapData(params: {
 }
 
 /**
+ * Format a bin label for display
+ * Private helper function
+ *
+ * @param start - Start of the range
+ * @param end - End of the range
+ * @returns Formatted label string
+ *
+ * @internal
+ */
+function formatBinLabel(start: number, end: number): string {
+  const range = Math.abs(end - start);
+  let precision: number;
+
+  if (range >= 1) {
+    precision = 1;
+  } else if (range >= 0.1) {
+    precision = 2;
+  } else {
+    precision = 3;
+  }
+
+  return `${start.toFixed(precision)} - ${end.toFixed(precision)}`;
+}
+
+/**
  * Generate bin labels for numeric scores
  *
  * Creates formatted bin labels for histogram display.
@@ -295,29 +319,4 @@ export function generateBinLabels(params: {
     const end = min + (i + 1) * binWidth;
     return formatBinLabel(start, end);
   });
-}
-
-/**
- * Format a bin label for display
- * Private helper function
- *
- * @param start - Start of the range
- * @param end - End of the range
- * @returns Formatted label string
- *
- * @internal
- */
-function formatBinLabel(start: number, end: number): string {
-  const range = Math.abs(end - start);
-  let precision: number;
-
-  if (range >= 1) {
-    precision = 1;
-  } else if (range >= 0.1) {
-    precision = 2;
-  } else {
-    precision = 3;
-  }
-
-  return `${start.toFixed(precision)} - ${end.toFixed(precision)}`;
 }

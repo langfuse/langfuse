@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { logger, recordGauge, redis } from "@langfuse/shared/src/server";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -36,6 +35,40 @@ const REPORTED_FINDINGS = [
   InAppAgentRunErrorCode.RUN_TIMEOUT,
   InAppAgentRunErrorCode.APPROVAL_EXPIRED,
 ];
+
+function staleRunWhere(now: number): Prisma.InAppAgentRunWhereInput {
+  const queueCutoff = new Date(now - IN_APP_AGENT_QUEUE_TIMEOUT_MS);
+  const durationCutoff = new Date(now - IN_APP_AGENT_RUN_MAX_DURATION_MS);
+  const heartbeatCutoff = new Date(now - IN_APP_AGENT_HEARTBEAT_STALE_MS);
+  const approvalCutoff = new Date(now - IN_APP_AGENT_APPROVAL_TTL_MS);
+
+  return {
+    OR: [
+      {
+        status: InAppAgentRunStatus.QUEUED,
+        createdAt: { lt: queueCutoff },
+      },
+      {
+        status: InAppAgentRunStatus.RUNNING,
+        OR: [
+          { claimedAt: { lt: durationCutoff } },
+          { claimedAt: null, createdAt: { lt: durationCutoff } },
+          { heartbeatAt: { lt: heartbeatCutoff } },
+          { heartbeatAt: null, claimedAt: { lt: heartbeatCutoff } },
+          {
+            heartbeatAt: null,
+            claimedAt: null,
+            createdAt: { lt: heartbeatCutoff },
+          },
+        ],
+      },
+      {
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        finishedAt: { lt: approvalCutoff },
+      },
+    ],
+  };
+}
 
 /**
  * Reconciles stale in-app agent runs that nobody reopened, then reports what
@@ -235,38 +268,4 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
       { kind: "stuck_pointer" },
     );
   }
-}
-
-function staleRunWhere(now: number): Prisma.InAppAgentRunWhereInput {
-  const queueCutoff = new Date(now - IN_APP_AGENT_QUEUE_TIMEOUT_MS);
-  const durationCutoff = new Date(now - IN_APP_AGENT_RUN_MAX_DURATION_MS);
-  const heartbeatCutoff = new Date(now - IN_APP_AGENT_HEARTBEAT_STALE_MS);
-  const approvalCutoff = new Date(now - IN_APP_AGENT_APPROVAL_TTL_MS);
-
-  return {
-    OR: [
-      {
-        status: InAppAgentRunStatus.QUEUED,
-        createdAt: { lt: queueCutoff },
-      },
-      {
-        status: InAppAgentRunStatus.RUNNING,
-        OR: [
-          { claimedAt: { lt: durationCutoff } },
-          { claimedAt: null, createdAt: { lt: durationCutoff } },
-          { heartbeatAt: { lt: heartbeatCutoff } },
-          { heartbeatAt: null, claimedAt: { lt: heartbeatCutoff } },
-          {
-            heartbeatAt: null,
-            claimedAt: null,
-            createdAt: { lt: heartbeatCutoff },
-          },
-        ],
-      },
-      {
-        status: InAppAgentRunStatus.AWAITING_APPROVAL,
-        finishedAt: { lt: approvalCutoff },
-      },
-    ],
-  };
 }

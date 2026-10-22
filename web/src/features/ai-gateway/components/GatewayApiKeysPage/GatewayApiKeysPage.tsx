@@ -1,10 +1,18 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { ConnectedGatewayApiKeysTable } from "./components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
+
+function ApiKeysSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-48 w-full" />
+    </div>
+  );
+}
 
 export function GatewayApiKeysPage({
   organizationId,
@@ -35,15 +43,6 @@ export function GatewayApiKeysPage({
         key={organizationId}
         organizationId={organizationId}
       />
-    </div>
-  );
-}
-
-function ApiKeysSkeleton() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Skeleton className="h-7 w-48" />
-      <Skeleton className="h-48 w-full" />
     </div>
   );
 }

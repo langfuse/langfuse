@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EditorState, Transaction } from "@codemirror/state";
 import { acceptCompletion, CompletionContext } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
@@ -33,20 +32,6 @@ function languageExtensionFor(sourceCodeLanguage: CodeEvalSourceCodeLanguage) {
     : javascript({ typescript: true });
 }
 
-function getCompletions(
-  doc: string,
-  sourceCodeLanguage: CodeEvalSourceCodeLanguage,
-) {
-  const result = runCompletionSource(doc, sourceCodeLanguage);
-
-  return {
-    from: result?.from,
-    labels: result?.options.map((option) => option.label),
-    acceptsEmptyPrefix:
-      result?.validFor instanceof RegExp ? result.validFor.test("") : false,
-  };
-}
-
 function runCompletionSource(
   doc: string,
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
@@ -62,6 +47,20 @@ function runCompletionSource(
     throw new Error("code eval completion source must resolve synchronously");
   }
   return result;
+}
+
+function getCompletions(
+  doc: string,
+  sourceCodeLanguage: CodeEvalSourceCodeLanguage,
+) {
+  const result = runCompletionSource(doc, sourceCodeLanguage);
+
+  return {
+    from: result?.from,
+    labels: result?.options.map((option) => option.label),
+    acceptsEmptyPrefix:
+      result?.validFor instanceof RegExp ? result.validFor.test("") : false,
+  };
 }
 
 function mountEditor(

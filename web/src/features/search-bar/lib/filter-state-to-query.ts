@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 // Reverse adapter: flat Langfuse `FilterState` (+ full-text searchQuery and
 // searchType scopes) → query text.
 //
@@ -367,6 +367,120 @@ export function filterStateToQueryText(
   return { text: serialize(ast, registry), skipped, skippedFilters };
 }
 
+// `f` arrives value-normalized (foldDerivedNegation normalizes the NOT's child
+// before this runs), so only the op/boolean is inverted here.
+function foldNegatedFilter(
+  f: FilterNode,
+  registry: FieldRegistry,
+): FilterNode | null {
+  // Comparison: NOT (key op v) === key INVERT(op) v. Comparisons only validly
+  // appear on numeric/datetime fields, so no field-kind check is needed.
+  if (f.op in INVERTED_COMPARISON) {
+    return {
+      ...f,
+      op: INVERTED_COMPARISON[f.op as keyof typeof INVERTED_COMPARISON],
+    };
+  }
+  // Boolean equality: NOT (key = true) === key = false — but ONLY for a boolean
+  // field. On an option field a "true" value lowers to a none-of, not a flip,
+  // so it must keep its NOT (which round-trips with the dash anyway).
+  if ((f.op === "=" || f.op === "exact") && f.values.length === 1) {
+    const ref = registry.resolveField(f.key);
+    if (ref?.type === "field" && ref.field.kind === "boolean") {
+      const v = f.values[0]!;
+      if (v === "true" || v === "false") {
+        return { ...f, op: "=", values: [v === "true" ? "false" : "true"] };
+      }
+    }
+  }
+  return null;
+}
+
+// Fields where `key:=value` and `key:value` lower to the identical filter (so
+// the reverse adapter always emits the bare `=`). textSearch is excluded — there
+// `:` is contains and `:=` is exact, two different ops — as is datetime, which
+// has only comparison forms.
+function exactEqualsBareForm(ref: FieldRef): boolean {
+  if (ref.type === "metadata" || ref.type === "scores") return true;
+  if (ref.type === "field") {
+    const k = ref.field.kind;
+    return (
+      k === "number" ||
+      k === "boolean" ||
+      (k === "text" && ref.field.syncMode !== "textSearch")
+    );
+  }
+  return false;
+}
+
+function normalizeNumberString(v: string): string {
+  const n = Number(v);
+  return v.trim().length > 0 && Number.isFinite(n) ? String(n) : v;
+}
+
+function normalizeIsoString(v: string): string {
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? v : new Date(ms).toISOString();
+}
+
+function normalizeValuesFor(
+  ref: FieldRef,
+  values: string[],
+  scoreTypes?: ScoreTypeContext,
+): string[] {
+  if (ref.type === "field") {
+    const k = ref.field.kind;
+    if (k === "boolean") return values.map((v) => v.toLowerCase());
+    if (k === "number") return values.map(normalizeNumberString);
+    if (k === "datetime") return values.map(normalizeIsoString);
+    return values; // text — verbatim
+  }
+  if (ref.type === "scores") {
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "boolean")
+      return values.map((v) => v.toLowerCase());
+    // Numeric / unknown scores get Number-canonicalized by lowerNumeric; a
+    // known-CATEGORICAL score keeps its label verbatim (a numeric-looking label
+    // like "2.0" must NOT be rewritten to "2"). normalizeNumberString only
+    // touches finite-number strings, but gate on type so a decimal category is
+    // never folded.
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
+      return values;
+    return values.map(normalizeNumberString);
+  }
+  return values; // metadata text / pseudo — verbatim
+}
+
+// Canonicalize a positive filter's op + values the same way the lowering + reverse
+// derive do, so the typed form compares equal to the re-derived committed form.
+function normalizeFilterValues(
+  f: FilterNode,
+  scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): FilterNode {
+  const ref = registry.resolveField(f.key);
+  if (ref === null) return f;
+  // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
+  let op: FilterNode["op"] =
+    f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;
+  // On a textSearch text field, the explicit contains glob `*v*` (op `~`) and
+  // the bare form `v` (op `=`) lower to the IDENTICAL contains filter, and the
+  // reverse adapter emits the bare form — so fold a single-value `~` to `=` too.
+  // Otherwise typing/picking `input:*foo*` (or `id:*foo*`, `name:*foo*`) is
+  // silently rewritten to `input:foo` on the commit echo. Inverse condition to
+  // the `exact` fold above (which excludes textSearch).
+  if (
+    op === "~" &&
+    f.values.length === 1 &&
+    ref.type === "field" &&
+    ref.field.kind === "text" &&
+    ref.field.syncMode === "textSearch"
+  ) {
+    op = "=";
+  }
+  const values = normalizeValuesFor(ref, f.values, scoreTypes);
+  return { ...f, op, values };
+}
+
 // Normalize an editor AST so a typed draft compares equal (via astEquals) to the
 // canonical text the reverse adapter above re-derives, letting the typed form
 // stand instead of being clobbered on the commit echo. Three equivalences the
@@ -417,118 +531,4 @@ export function foldDerivedNegation(
     default:
       return node;
   }
-}
-
-// Canonicalize a positive filter's op + values the same way the lowering + reverse
-// derive do, so the typed form compares equal to the re-derived committed form.
-function normalizeFilterValues(
-  f: FilterNode,
-  scoreTypes?: ScoreTypeContext,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): FilterNode {
-  const ref = registry.resolveField(f.key);
-  if (ref === null) return f;
-  // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
-  let op: FilterNode["op"] =
-    f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;
-  // On a textSearch text field, the explicit contains glob `*v*` (op `~`) and
-  // the bare form `v` (op `=`) lower to the IDENTICAL contains filter, and the
-  // reverse adapter emits the bare form — so fold a single-value `~` to `=` too.
-  // Otherwise typing/picking `input:*foo*` (or `id:*foo*`, `name:*foo*`) is
-  // silently rewritten to `input:foo` on the commit echo. Inverse condition to
-  // the `exact` fold above (which excludes textSearch).
-  if (
-    op === "~" &&
-    f.values.length === 1 &&
-    ref.type === "field" &&
-    ref.field.kind === "text" &&
-    ref.field.syncMode === "textSearch"
-  ) {
-    op = "=";
-  }
-  const values = normalizeValuesFor(ref, f.values, scoreTypes);
-  return { ...f, op, values };
-}
-
-// Fields where `key:=value` and `key:value` lower to the identical filter (so
-// the reverse adapter always emits the bare `=`). textSearch is excluded — there
-// `:` is contains and `:=` is exact, two different ops — as is datetime, which
-// has only comparison forms.
-function exactEqualsBareForm(ref: FieldRef): boolean {
-  if (ref.type === "metadata" || ref.type === "scores") return true;
-  if (ref.type === "field") {
-    const k = ref.field.kind;
-    return (
-      k === "number" ||
-      k === "boolean" ||
-      (k === "text" && ref.field.syncMode !== "textSearch")
-    );
-  }
-  return false;
-}
-
-function normalizeValuesFor(
-  ref: FieldRef,
-  values: string[],
-  scoreTypes?: ScoreTypeContext,
-): string[] {
-  if (ref.type === "field") {
-    const k = ref.field.kind;
-    if (k === "boolean") return values.map((v) => v.toLowerCase());
-    if (k === "number") return values.map(normalizeNumberString);
-    if (k === "datetime") return values.map(normalizeIsoString);
-    return values; // text — verbatim
-  }
-  if (ref.type === "scores") {
-    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "boolean")
-      return values.map((v) => v.toLowerCase());
-    // Numeric / unknown scores get Number-canonicalized by lowerNumeric; a
-    // known-CATEGORICAL score keeps its label verbatim (a numeric-looking label
-    // like "2.0" must NOT be rewritten to "2"). normalizeNumberString only
-    // touches finite-number strings, but gate on type so a decimal category is
-    // never folded.
-    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
-      return values;
-    return values.map(normalizeNumberString);
-  }
-  return values; // metadata text / pseudo — verbatim
-}
-
-function normalizeNumberString(v: string): string {
-  const n = Number(v);
-  return v.trim().length > 0 && Number.isFinite(n) ? String(n) : v;
-}
-
-function normalizeIsoString(v: string): string {
-  const ms = Date.parse(v);
-  return Number.isNaN(ms) ? v : new Date(ms).toISOString();
-}
-
-// `f` arrives value-normalized (foldDerivedNegation normalizes the NOT's child
-// before this runs), so only the op/boolean is inverted here.
-function foldNegatedFilter(
-  f: FilterNode,
-  registry: FieldRegistry,
-): FilterNode | null {
-  // Comparison: NOT (key op v) === key INVERT(op) v. Comparisons only validly
-  // appear on numeric/datetime fields, so no field-kind check is needed.
-  if (f.op in INVERTED_COMPARISON) {
-    return {
-      ...f,
-      op: INVERTED_COMPARISON[f.op as keyof typeof INVERTED_COMPARISON],
-    };
-  }
-  // Boolean equality: NOT (key = true) === key = false — but ONLY for a boolean
-  // field. On an option field a "true" value lowers to a none-of, not a flip,
-  // so it must keep its NOT (which round-trips with the dash anyway).
-  if ((f.op === "=" || f.op === "exact") && f.values.length === 1) {
-    const ref = registry.resolveField(f.key);
-    if (ref?.type === "field" && ref.field.kind === "boolean") {
-      const v = f.values[0]!;
-      if (v === "true" || v === "false") {
-        return { ...f, op: "=", values: [v === "true" ? "false" : "true"] };
-      }
-    }
-  }
-  return null;
 }

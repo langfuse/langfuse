@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -266,6 +265,667 @@ const apiKeyIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+
+function assertLocalTestTarget() {
+  const allowedHosts = new Set([
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "postgres",
+    "host.docker.internal",
+  ]);
+  const apiHost = new URL(BASE_URL).hostname;
+  const databaseHost = new URL(env.DATABASE_URL).hostname;
+  if (!allowedHosts.has(apiHost) || !allowedHosts.has(databaseHost)) {
+    throw new Error(
+      "Gateway E2E changes provider connection state and may only run against a local API and database.",
+    );
+  }
+}
+
+async function createGatewayAdmin() {
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { orgId: ORGANIZATION_ID, role: Role.OWNER },
+    select: { userId: true },
+  });
+  if (!membership) {
+    throw new Error(
+      `Organization ${ORGANIZATION_ID} needs an owner before running this suite.`,
+    );
+  }
+  const [organization, user] = await Promise.all([
+    prisma.organization.findUniqueOrThrow({
+      where: { id: ORGANIZATION_ID },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: membership.userId },
+      select: { id: true, name: true },
+    }),
+  ]);
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: user.id,
+      name: user.name,
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      organizations: [
+        {
+          id: organization.id,
+          name: organization.name,
+          role: Role.OWNER,
+          cloudConfig: undefined,
+          plan: "oss",
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [],
+        },
+      ],
+    },
+    environment: {} as Session["environment"],
+  };
+  const context = createInnerTRPCContext({ session, headers: {} });
+  return { caller: appRouter.createCaller({ ...context, prisma }) };
+}
+
+function resolveGatewayBinary() {
+  const override = process.env.LANGFUSE_AI_GATEWAY_BIN;
+  if (override) {
+    if (!existsSync(override)) {
+      throw new Error(`LANGFUSE_AI_GATEWAY_BIN does not exist: ${override}`);
+    }
+    return override;
+  }
+  const root = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../..",
+  );
+  const binaryName =
+    process.platform === "win32" ? "ai-gateway.exe" : "ai-gateway";
+  for (const profile of ["release", "debug"]) {
+    const candidate = path.join(
+      root,
+      "ai-gateway",
+      "target",
+      profile,
+      binaryName,
+    );
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    "Build the AI gateway before this suite (`pnpm --filter ai-gateway build`) or set LANGFUSE_AI_GATEWAY_BIN.",
+  );
+}
+
+function reserveLoopbackPort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not reserve a gateway port"));
+        return;
+      }
+      const { port } = address;
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve(port);
+      });
+    });
+  });
+}
+
+async function waitForGatewayReady(
+  child: ChildProcess,
+  url: string,
+  logs: string[],
+  startupError: () => Error | undefined,
+) {
+  const deadline = Date.now() + 20_000;
+  let lastError = "gateway did not become ready";
+  while (Date.now() < deadline) {
+    const error = startupError();
+    if (error) {
+      throw new Error(
+        `AI gateway failed to start: ${error.message}\n${logs.join("")}`,
+      );
+    }
+    if (child.exitCode != null || child.signalCode != null) {
+      throw new Error(
+        `AI gateway exited ${child.exitCode ?? child.signalCode} before ready.\n${logs.join("")}`,
+      );
+    }
+    try {
+      const response = await fetch(`${url}/ready`, {
+        signal: AbortSignal.timeout(500),
+      });
+      if (response.ok) return;
+      lastError = `ready returned ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "connection failed";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`${lastError}\n${logs.join("")}`);
+}
+
+function stopGatewayProcess(child: ChildProcess) {
+  if (child.exitCode != null || child.signalCode != null) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+    }, 15_000);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    child.kill("SIGTERM");
+  });
+}
+
+async function startGatewayProcess() {
+  if (!env.LANGFUSE_AI_GATEWAY_SERVICE_KEY) {
+    throw new Error(
+      "Set LANGFUSE_AI_GATEWAY_SERVICE_KEY before starting the gateway process.",
+    );
+  }
+  const binary = resolveGatewayBinary();
+  const port = await reserveLoopbackPort();
+  const logs: string[] = [];
+  const appendLog = (chunk: string) => {
+    logs.push(chunk);
+    const joined = logs.join("");
+    if (joined.length > 16_000) {
+      logs.splice(0, logs.length, joined.slice(-12_000));
+    }
+  };
+  const child = spawn(binary, [], {
+    env: {
+      ...process.env,
+      LANGFUSE_AI_GATEWAY_WEB_URL: BASE_URL,
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
+      LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
+      LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
+      LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_LOG_FORMAT: "json",
+      LANGFUSE_LOG_LEVEL: "info",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", appendLog);
+  child.stderr?.on("data", appendLog);
+  const url = `http://127.0.0.1:${port}`;
+  let startupError: Error | undefined;
+  child.once("error", (error) => {
+    startupError = error;
+  });
+  try {
+    await waitForGatewayReady(child, url, logs, () => startupError);
+  } catch (error) {
+    await stopGatewayProcess(child);
+    throw error;
+  }
+  return {
+    url,
+    stop: () => stopGatewayProcess(child),
+  };
+}
+
+async function cleanUpTestArtifacts() {
+  if (apiKeyIds.size > 0) {
+    await prisma.apiKey.deleteMany({
+      where: { id: { in: [...apiKeyIds] } },
+    });
+  }
+}
+
+async function clearModelCaches(connectionIds: string[]) {
+  if (!redis || connectionIds.length === 0) return;
+  await redis.del(
+    ...connectionIds.map(
+      (connectionId) => `ai-gateway:models:${ORGANIZATION_ID}:${connectionId}`,
+    ),
+  );
+}
+
+async function restoreProviderConnections() {
+  if (createdConnectionIds.size > 0) {
+    await prisma.gatewayAiConnection.deleteMany({
+      where: { id: { in: [...createdConnectionIds] } },
+    });
+  }
+  if (connectionSnapshots.length === 0) return;
+
+  await prisma.$transaction(
+    connectionSnapshots.map((connection) =>
+      prisma.gatewayAiConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: connection.status,
+          encryptedCredential: connection.encryptedCredential,
+          displaySecret: connection.displaySecret,
+          updatedAt: connection.updatedAt,
+        },
+      }),
+    ),
+  );
+  await clearModelCaches([
+    ...connectionSnapshots.map(({ id }) => id),
+    ...createdConnectionIds,
+  ]);
+}
+
+async function restoreGatewayConfig() {
+  if (!gatewayConfigPrepared) return;
+
+  if (gatewayConfigSnapshot) {
+    await prisma.gatewayConfig.update({
+      where: { organizationId: ORGANIZATION_ID },
+      data: gatewayConfigSnapshot,
+    });
+  } else {
+    await prisma.gatewayConfig.deleteMany({
+      where: { organizationId: ORGANIZATION_ID },
+    });
+  }
+}
+
+async function selectOnlyConnection(targetConnectionId: string) {
+  await prisma.$transaction([
+    prisma.gatewayAiConnection.updateMany({
+      where: {
+        organizationId: ORGANIZATION_ID,
+        id: { not: targetConnectionId },
+      },
+      data: { status: GatewayConnectionStatus.DISABLED },
+    }),
+    prisma.gatewayAiConnection.update({
+      where: { id: targetConnectionId },
+      data: { status: GatewayConnectionStatus.ENABLED },
+    }),
+  ]);
+  await clearModelCaches(connectionSnapshots.map(({ id }) => id));
+}
+
+async function withGatewayApiKey(
+  input: {
+    provider: GatewayProviderName;
+    apiFormat: GatewayApiFormat;
+  },
+  run: (key: {
+    secretKey: string;
+    id: string;
+    providerConnectionId: string;
+    providerConnectionName: string;
+  }) => Promise<void>,
+) {
+  const targetConnectionId = connectionIdsByProvider.get(input.provider);
+  if (!targetConnectionId) {
+    throw new Error(
+      `Add and enable a valid ${input.provider} connection for organization ${ORGANIZATION_ID} before running this test.`,
+    );
+  }
+  await selectOnlyConnection(targetConnectionId);
+  const targetConnection = await prisma.gatewayAiConnection.findUniqueOrThrow({
+    where: { id: targetConnectionId },
+    select: { name: true },
+  });
+
+  const gatewayKey = await admin.caller.aiGateway.createApiKey({
+    orgId: ORGANIZATION_ID,
+    name: `Gateway E2E ${input.provider} ${input.apiFormat}`,
+    metadata: {
+      test: true,
+      provider: input.provider,
+      apiFormat: input.apiFormat,
+    },
+  });
+  apiKeyIds.add(gatewayKey.id);
+
+  try {
+    const listedKeys = await admin.caller.aiGateway.listApiKeys({
+      orgId: ORGANIZATION_ID,
+    });
+    expect(
+      listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
+    ).toBe(true);
+
+    await run({
+      secretKey: gatewayKey.secretKey,
+      id: gatewayKey.id,
+      providerConnectionId: targetConnectionId,
+      providerConnectionName: targetConnection.name,
+    });
+  } finally {
+    await admin.caller.aiGateway.revokeApiKey({
+      orgId: ORGANIZATION_ID,
+      id: gatewayKey.id,
+    });
+    apiKeyIds.delete(gatewayKey.id);
+  }
+}
+
+async function readJsonResponse<T = unknown>(
+  response: Response,
+  expectedStatus: number,
+  label: string,
+): Promise<T> {
+  const text = await response.text();
+  if (response.status !== expectedStatus) {
+    throw new Error(
+      `${label} returned ${response.status}; expected ${expectedStatus}. Response: ${text}`,
+    );
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`${label} returned invalid JSON`);
+  }
+}
+
+async function expectGatewayError(
+  response: Response,
+  expectedStatus: number,
+  error: object,
+) {
+  const text = await response.text();
+  expect(response.status, text).toBe(expectedStatus);
+  expect(JSON.parse(text)).toMatchObject({
+    ...error,
+    request_id: expect.stringMatching(/\S/),
+  });
+}
+
+async function withAllModelsAllowed(
+  connectionId: string,
+  run: () => Promise<void>,
+) {
+  const existing = await prisma.gatewayAiConnection.findUniqueOrThrow({
+    where: { id: connectionId },
+    select: { allowedModels: true, updatedAt: true },
+  });
+  const previous = Array.isArray(existing.allowedModels)
+    ? existing.allowedModels.filter(
+        (model): model is string => typeof model === "string",
+      )
+    : null;
+  const opened = await admin.caller.aiGateway.updateConnectionModels({
+    orgId: ORGANIZATION_ID,
+    id: connectionId,
+    allowedModels: null,
+    expectedUpdatedAt: existing.updatedAt,
+  });
+  try {
+    await run();
+  } finally {
+    await admin.caller.aiGateway.updateConnectionModels({
+      orgId: ORGANIZATION_ID,
+      id: connectionId,
+      allowedModels: previous,
+      expectedUpdatedAt: opened.updatedAt,
+    });
+  }
+}
+
+function expectRequestedProviderModel(actual: unknown, requested: string) {
+  const value = typeof actual === "string" ? actual : "";
+  const matches =
+    value === requested ||
+    value.startsWith(`${requested}-`) ||
+    value.startsWith(`${requested}.`);
+  expect(
+    matches,
+    `expected ${JSON.stringify(actual)} to equal ${requested} or a dated snapshot of it`,
+  ).toBe(true);
+}
+
+function isCountedToken(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function projectOpenAiUsage(
+  usage: Record<string, unknown>,
+  counters: readonly [string, string, string],
+  details: readonly [string, string],
+) {
+  const projected: Record<string, unknown> = {};
+  for (const key of counters) {
+    const value = usage[key];
+    if (!isCountedToken(value)) return null;
+    projected[key] = value;
+  }
+  for (const key of details) {
+    const value = usage[key];
+    if (value === null) {
+      projected[key] = null;
+      continue;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const kept: Record<string, number | null> = {};
+    for (const [detailKey, detailValue] of Object.entries(value)) {
+      if (detailValue === null || isCountedToken(detailValue)) {
+        kept[detailKey] = detailValue;
+      }
+    }
+    projected[key] = kept;
+  }
+  return projected;
+}
+
+function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const record = usage as Record<string, unknown>;
+  if (apiFormat === "anthropic.messages") return record;
+  if (apiFormat === "openai.responses") {
+    return projectOpenAiUsage(
+      record,
+      ["input_tokens", "output_tokens", "total_tokens"],
+      ["input_tokens_details", "output_tokens_details"],
+    );
+  }
+  return projectOpenAiUsage(
+    record,
+    ["prompt_tokens", "completion_tokens", "total_tokens"],
+    ["prompt_tokens_details", "completion_tokens_details"],
+  );
+}
+
+function expectedProvidedUsage(
+  apiFormat: GatewayApiFormat,
+  usage: unknown,
+): Record<string, number> {
+  const projected = projectGatewayUsage(apiFormat, usage);
+  const parsed = projected ? UsageDetails.safeParse(projected) : null;
+  if (!parsed?.success || !parsed.data) {
+    throw new Error(
+      `Provider usage for ${apiFormat} did not convert: ${JSON.stringify(usage)}`,
+    );
+  }
+  if (!Object.values(parsed.data).some((value) => value > 0)) {
+    throw new Error(
+      `Provider usage for ${apiFormat} has no positive counters: ${JSON.stringify(usage)}`,
+    );
+  }
+  return parsed.data;
+}
+
+async function expectStoredInOneProject(input: {
+  observationId: string;
+  traceId: string;
+}) {
+  const projects = await queryClickhouse<{ project_id: string }>({
+    query: `SELECT DISTINCT project_id FROM events_core
+      WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+    params: input,
+  });
+  expect(projects.map(({ project_id }) => project_id)).toEqual([
+    defaultProjectId,
+  ]);
+}
+
+function sha256Hex(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+async function gatewayControlPlaneRequest(input: {
+  apiFormat: GatewayApiFormat;
+  virtualSecretKey: string;
+  model: string;
+}): Promise<unknown> {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const canonicalMessage = [
+    "gateway-web-v1",
+    timestamp.toString(),
+    sha256Hex(input.virtualSecretKey),
+  ].join("\n");
+  const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${signHmacSha256(
+    canonicalMessage,
+    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
+  )}`;
+
+  const response = await fetch(`${BASE_URL}${RESOLVE_PATH}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.virtualSecretKey}`,
+      "Content-Type": "application/json",
+      "Langfuse-Gateway-Authorization": gatewayAuthorization,
+    },
+    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+  });
+  return readJsonResponse(response, 200, RESOLVE_PATH);
+}
+
+function gatewayIngestionAuthorization(token: string) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const canonicalMessage = [
+    "gateway-web-v1",
+    timestamp.toString(),
+    sha256Hex(token),
+  ].join("\n");
+  return `HMAC timestamp=${timestamp},signature=${signHmacSha256(
+    canonicalMessage,
+    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
+  )}`;
+}
+
+async function expectResponseStatus(
+  response: Response,
+  expectedStatus: number,
+  label: string,
+) {
+  if (response.status === expectedStatus) return;
+  throw new Error(
+    `${label} returned ${response.status}; expected ${expectedStatus}. Response: ${await response.text()}`,
+  );
+}
+
+async function ingestTrace(
+  ingestionToken: string,
+  source: { provider: GatewayProviderName; apiFormat: GatewayApiFormat },
+) {
+  const traceIdBytes = randomBytes(16);
+  const observationIdBytes = randomBytes(8);
+  const traceId = traceIdBytes.toString("hex");
+  const observationId = observationIdBytes.toString("hex");
+  const startTimeUnixNano = BigInt(Date.now()) * 1_000_000n;
+  // The payload claims another project everywhere a span can; ingestion must still
+  // write only into the project named by the gateway token.
+  const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
+  const spoofedProject = {
+    key: "langfuse.project.id",
+    value: { stringValue: spoofedProjectId },
+  };
+  const ExportTraceServiceRequest =
+    $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+  const requestBody = ExportTraceServiceRequest.encode(
+    ExportTraceServiceRequest.fromObject({
+      resourceSpans: [
+        {
+          resource: { attributes: [spoofedProject] },
+          scopeSpans: [
+            {
+              scope: { name: "langfuse-ai-gateway-e2e", version: "1.0.0" },
+              spans: [
+                {
+                  traceId: traceIdBytes,
+                  spanId: observationIdBytes,
+                  name: `Gateway E2E ${source.provider} ${source.apiFormat}`,
+                  kind: 1,
+                  startTimeUnixNano: startTimeUnixNano.toString(),
+                  endTimeUnixNano: (startTimeUnixNano + 1_000_000n).toString(),
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "generation" },
+                    },
+                    {
+                      key: "gen_ai.request.model",
+                      value: { stringValue: "ai-gateway-e2e" },
+                    },
+                    spoofedProject,
+                    {
+                      key: "langfuse.observation.metadata",
+                      value: {
+                        stringValue: JSON.stringify({
+                          "langfuse.gateway.project.id": spoofedProjectId,
+                        }),
+                      },
+                    },
+                  ],
+                  status: { code: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  ).finish();
+  const response = await fetch(`${BASE_URL}/api/public/otel/v1/traces`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ingestionToken}`,
+      "Langfuse-Gateway-Authorization":
+        gatewayIngestionAuthorization(ingestionToken),
+      "Content-Type": "application/x-protobuf",
+      "x-langfuse-ingestion-version": "4",
+      "x-langfuse-sdk-name": "ai-gateway-e2e",
+      "x-langfuse-sdk-version": "1.0.0",
+    },
+    body: requestBody,
+  });
+  await expectResponseStatus(response, 200, "/api/public/otel/v1/traces");
+
+  await waitForExpect(
+    async () => {
+      const [trace, observation] = await Promise.all([
+        getTraceByIdFromEventsTable({
+          traceId,
+          projectId: defaultProjectId,
+        }),
+        getObservationByIdFromEventsTable({
+          id: observationId,
+          projectId: defaultProjectId,
+        }),
+      ]);
+      expect(trace?.id).toBe(traceId);
+      expect(observation?.id).toBe(observationId);
+      await expectStoredInOneProject({ observationId, traceId });
+    },
+    40_000,
+    1_000,
+  );
+
+  return { traceId, observationId };
+}
 
 describe("AI gateway live end-to-end", () => {
   beforeAll(async () => {
@@ -631,664 +1291,3 @@ describe("AI gateway live end-to-end", () => {
     );
   });
 });
-
-async function withGatewayApiKey(
-  input: {
-    provider: GatewayProviderName;
-    apiFormat: GatewayApiFormat;
-  },
-  run: (key: {
-    secretKey: string;
-    id: string;
-    providerConnectionId: string;
-    providerConnectionName: string;
-  }) => Promise<void>,
-) {
-  const targetConnectionId = connectionIdsByProvider.get(input.provider);
-  if (!targetConnectionId) {
-    throw new Error(
-      `Add and enable a valid ${input.provider} connection for organization ${ORGANIZATION_ID} before running this test.`,
-    );
-  }
-  await selectOnlyConnection(targetConnectionId);
-  const targetConnection = await prisma.gatewayAiConnection.findUniqueOrThrow({
-    where: { id: targetConnectionId },
-    select: { name: true },
-  });
-
-  const gatewayKey = await admin.caller.aiGateway.createApiKey({
-    orgId: ORGANIZATION_ID,
-    name: `Gateway E2E ${input.provider} ${input.apiFormat}`,
-    metadata: {
-      test: true,
-      provider: input.provider,
-      apiFormat: input.apiFormat,
-    },
-  });
-  apiKeyIds.add(gatewayKey.id);
-
-  try {
-    const listedKeys = await admin.caller.aiGateway.listApiKeys({
-      orgId: ORGANIZATION_ID,
-    });
-    expect(
-      listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
-    ).toBe(true);
-
-    await run({
-      secretKey: gatewayKey.secretKey,
-      id: gatewayKey.id,
-      providerConnectionId: targetConnectionId,
-      providerConnectionName: targetConnection.name,
-    });
-  } finally {
-    await admin.caller.aiGateway.revokeApiKey({
-      orgId: ORGANIZATION_ID,
-      id: gatewayKey.id,
-    });
-    apiKeyIds.delete(gatewayKey.id);
-  }
-}
-
-async function cleanUpTestArtifacts() {
-  if (apiKeyIds.size > 0) {
-    await prisma.apiKey.deleteMany({
-      where: { id: { in: [...apiKeyIds] } },
-    });
-  }
-}
-
-async function restoreProviderConnections() {
-  if (createdConnectionIds.size > 0) {
-    await prisma.gatewayAiConnection.deleteMany({
-      where: { id: { in: [...createdConnectionIds] } },
-    });
-  }
-  if (connectionSnapshots.length === 0) return;
-
-  await prisma.$transaction(
-    connectionSnapshots.map((connection) =>
-      prisma.gatewayAiConnection.update({
-        where: { id: connection.id },
-        data: {
-          status: connection.status,
-          encryptedCredential: connection.encryptedCredential,
-          displaySecret: connection.displaySecret,
-          updatedAt: connection.updatedAt,
-        },
-      }),
-    ),
-  );
-  await clearModelCaches([
-    ...connectionSnapshots.map(({ id }) => id),
-    ...createdConnectionIds,
-  ]);
-}
-
-async function restoreGatewayConfig() {
-  if (!gatewayConfigPrepared) return;
-
-  if (gatewayConfigSnapshot) {
-    await prisma.gatewayConfig.update({
-      where: { organizationId: ORGANIZATION_ID },
-      data: gatewayConfigSnapshot,
-    });
-  } else {
-    await prisma.gatewayConfig.deleteMany({
-      where: { organizationId: ORGANIZATION_ID },
-    });
-  }
-}
-
-async function createGatewayAdmin() {
-  const membership = await prisma.organizationMembership.findFirst({
-    where: { orgId: ORGANIZATION_ID, role: Role.OWNER },
-    select: { userId: true },
-  });
-  if (!membership) {
-    throw new Error(
-      `Organization ${ORGANIZATION_ID} needs an owner before running this suite.`,
-    );
-  }
-  const [organization, user] = await Promise.all([
-    prisma.organization.findUniqueOrThrow({
-      where: { id: ORGANIZATION_ID },
-      select: { id: true, name: true },
-    }),
-    prisma.user.findUniqueOrThrow({
-      where: { id: membership.userId },
-      select: { id: true, name: true },
-    }),
-  ]);
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      name: user.name,
-      canCreateOrganizations: true,
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: Role.OWNER,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-    },
-    environment: {} as Session["environment"],
-  };
-  const context = createInnerTRPCContext({ session, headers: {} });
-  return { caller: appRouter.createCaller({ ...context, prisma }) };
-}
-
-async function selectOnlyConnection(targetConnectionId: string) {
-  await prisma.$transaction([
-    prisma.gatewayAiConnection.updateMany({
-      where: {
-        organizationId: ORGANIZATION_ID,
-        id: { not: targetConnectionId },
-      },
-      data: { status: GatewayConnectionStatus.DISABLED },
-    }),
-    prisma.gatewayAiConnection.update({
-      where: { id: targetConnectionId },
-      data: { status: GatewayConnectionStatus.ENABLED },
-    }),
-  ]);
-  await clearModelCaches(connectionSnapshots.map(({ id }) => id));
-}
-
-async function clearModelCaches(connectionIds: string[]) {
-  if (!redis || connectionIds.length === 0) return;
-  await redis.del(
-    ...connectionIds.map(
-      (connectionId) => `ai-gateway:models:${ORGANIZATION_ID}:${connectionId}`,
-    ),
-  );
-}
-
-async function gatewayControlPlaneRequest(input: {
-  apiFormat: GatewayApiFormat;
-  virtualSecretKey: string;
-  model: string;
-}): Promise<unknown> {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const canonicalMessage = [
-    "gateway-web-v1",
-    timestamp.toString(),
-    sha256Hex(input.virtualSecretKey),
-  ].join("\n");
-  const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${signHmacSha256(
-    canonicalMessage,
-    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
-  )}`;
-
-  const response = await fetch(`${BASE_URL}${RESOLVE_PATH}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.virtualSecretKey}`,
-      "Content-Type": "application/json",
-      "Langfuse-Gateway-Authorization": gatewayAuthorization,
-    },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
-  });
-  return readJsonResponse(response, 200, RESOLVE_PATH);
-}
-
-async function expectGatewayError(
-  response: Response,
-  expectedStatus: number,
-  error: object,
-) {
-  const text = await response.text();
-  expect(response.status, text).toBe(expectedStatus);
-  expect(JSON.parse(text)).toMatchObject({
-    ...error,
-    request_id: expect.stringMatching(/\S/),
-  });
-}
-
-async function expectStoredInOneProject(input: {
-  observationId: string;
-  traceId: string;
-}) {
-  const projects = await queryClickhouse<{ project_id: string }>({
-    query: `SELECT DISTINCT project_id FROM events_core
-      WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
-    params: input,
-  });
-  expect(projects.map(({ project_id }) => project_id)).toEqual([
-    defaultProjectId,
-  ]);
-}
-
-async function ingestTrace(
-  ingestionToken: string,
-  source: { provider: GatewayProviderName; apiFormat: GatewayApiFormat },
-) {
-  const traceIdBytes = randomBytes(16);
-  const observationIdBytes = randomBytes(8);
-  const traceId = traceIdBytes.toString("hex");
-  const observationId = observationIdBytes.toString("hex");
-  const startTimeUnixNano = BigInt(Date.now()) * 1_000_000n;
-  // The payload claims another project everywhere a span can; ingestion must still
-  // write only into the project named by the gateway token.
-  const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
-  const spoofedProject = {
-    key: "langfuse.project.id",
-    value: { stringValue: spoofedProjectId },
-  };
-  const ExportTraceServiceRequest =
-    $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
-  const requestBody = ExportTraceServiceRequest.encode(
-    ExportTraceServiceRequest.fromObject({
-      resourceSpans: [
-        {
-          resource: { attributes: [spoofedProject] },
-          scopeSpans: [
-            {
-              scope: { name: "langfuse-ai-gateway-e2e", version: "1.0.0" },
-              spans: [
-                {
-                  traceId: traceIdBytes,
-                  spanId: observationIdBytes,
-                  name: `Gateway E2E ${source.provider} ${source.apiFormat}`,
-                  kind: 1,
-                  startTimeUnixNano: startTimeUnixNano.toString(),
-                  endTimeUnixNano: (startTimeUnixNano + 1_000_000n).toString(),
-                  attributes: [
-                    {
-                      key: "langfuse.observation.type",
-                      value: { stringValue: "generation" },
-                    },
-                    {
-                      key: "gen_ai.request.model",
-                      value: { stringValue: "ai-gateway-e2e" },
-                    },
-                    spoofedProject,
-                    {
-                      key: "langfuse.observation.metadata",
-                      value: {
-                        stringValue: JSON.stringify({
-                          "langfuse.gateway.project.id": spoofedProjectId,
-                        }),
-                      },
-                    },
-                  ],
-                  status: { code: 1 },
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    }),
-  ).finish();
-  const response = await fetch(`${BASE_URL}/api/public/otel/v1/traces`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${ingestionToken}`,
-      "Langfuse-Gateway-Authorization":
-        gatewayIngestionAuthorization(ingestionToken),
-      "Content-Type": "application/x-protobuf",
-      "x-langfuse-ingestion-version": "4",
-      "x-langfuse-sdk-name": "ai-gateway-e2e",
-      "x-langfuse-sdk-version": "1.0.0",
-    },
-    body: requestBody,
-  });
-  await expectResponseStatus(response, 200, "/api/public/otel/v1/traces");
-
-  await waitForExpect(
-    async () => {
-      const [trace, observation] = await Promise.all([
-        getTraceByIdFromEventsTable({
-          traceId,
-          projectId: defaultProjectId,
-        }),
-        getObservationByIdFromEventsTable({
-          id: observationId,
-          projectId: defaultProjectId,
-        }),
-      ]);
-      expect(trace?.id).toBe(traceId);
-      expect(observation?.id).toBe(observationId);
-      await expectStoredInOneProject({ observationId, traceId });
-    },
-    40_000,
-    1_000,
-  );
-
-  return { traceId, observationId };
-}
-
-function gatewayIngestionAuthorization(token: string) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const canonicalMessage = [
-    "gateway-web-v1",
-    timestamp.toString(),
-    sha256Hex(token),
-  ].join("\n");
-  return `HMAC timestamp=${timestamp},signature=${signHmacSha256(
-    canonicalMessage,
-    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
-  )}`;
-}
-
-async function readJsonResponse<T = unknown>(
-  response: Response,
-  expectedStatus: number,
-  label: string,
-): Promise<T> {
-  const text = await response.text();
-  if (response.status !== expectedStatus) {
-    throw new Error(
-      `${label} returned ${response.status}; expected ${expectedStatus}. Response: ${text}`,
-    );
-  }
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`${label} returned invalid JSON`);
-  }
-}
-
-async function expectResponseStatus(
-  response: Response,
-  expectedStatus: number,
-  label: string,
-) {
-  if (response.status === expectedStatus) return;
-  throw new Error(
-    `${label} returned ${response.status}; expected ${expectedStatus}. Response: ${await response.text()}`,
-  );
-}
-
-function sha256Hex(value: string) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-function expectRequestedProviderModel(actual: unknown, requested: string) {
-  const value = typeof actual === "string" ? actual : "";
-  const matches =
-    value === requested ||
-    value.startsWith(`${requested}-`) ||
-    value.startsWith(`${requested}.`);
-  expect(
-    matches,
-    `expected ${JSON.stringify(actual)} to equal ${requested} or a dated snapshot of it`,
-  ).toBe(true);
-}
-
-function expectedProvidedUsage(
-  apiFormat: GatewayApiFormat,
-  usage: unknown,
-): Record<string, number> {
-  const projected = projectGatewayUsage(apiFormat, usage);
-  const parsed = projected ? UsageDetails.safeParse(projected) : null;
-  if (!parsed?.success || !parsed.data) {
-    throw new Error(
-      `Provider usage for ${apiFormat} did not convert: ${JSON.stringify(usage)}`,
-    );
-  }
-  if (!Object.values(parsed.data).some((value) => value > 0)) {
-    throw new Error(
-      `Provider usage for ${apiFormat} has no positive counters: ${JSON.stringify(usage)}`,
-    );
-  }
-  return parsed.data;
-}
-
-function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
-  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
-  const record = usage as Record<string, unknown>;
-  if (apiFormat === "anthropic.messages") return record;
-  if (apiFormat === "openai.responses") {
-    return projectOpenAiUsage(
-      record,
-      ["input_tokens", "output_tokens", "total_tokens"],
-      ["input_tokens_details", "output_tokens_details"],
-    );
-  }
-  return projectOpenAiUsage(
-    record,
-    ["prompt_tokens", "completion_tokens", "total_tokens"],
-    ["prompt_tokens_details", "completion_tokens_details"],
-  );
-}
-
-function projectOpenAiUsage(
-  usage: Record<string, unknown>,
-  counters: readonly [string, string, string],
-  details: readonly [string, string],
-) {
-  const projected: Record<string, unknown> = {};
-  for (const key of counters) {
-    const value = usage[key];
-    if (!isCountedToken(value)) return null;
-    projected[key] = value;
-  }
-  for (const key of details) {
-    const value = usage[key];
-    if (value === null) {
-      projected[key] = null;
-      continue;
-    }
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const kept: Record<string, number | null> = {};
-    for (const [detailKey, detailValue] of Object.entries(value)) {
-      if (detailValue === null || isCountedToken(detailValue)) {
-        kept[detailKey] = detailValue;
-      }
-    }
-    projected[key] = kept;
-  }
-  return projected;
-}
-
-function isCountedToken(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-async function withAllModelsAllowed(
-  connectionId: string,
-  run: () => Promise<void>,
-) {
-  const existing = await prisma.gatewayAiConnection.findUniqueOrThrow({
-    where: { id: connectionId },
-    select: { allowedModels: true, updatedAt: true },
-  });
-  const previous = Array.isArray(existing.allowedModels)
-    ? existing.allowedModels.filter(
-        (model): model is string => typeof model === "string",
-      )
-    : null;
-  const opened = await admin.caller.aiGateway.updateConnectionModels({
-    orgId: ORGANIZATION_ID,
-    id: connectionId,
-    allowedModels: null,
-    expectedUpdatedAt: existing.updatedAt,
-  });
-  try {
-    await run();
-  } finally {
-    await admin.caller.aiGateway.updateConnectionModels({
-      orgId: ORGANIZATION_ID,
-      id: connectionId,
-      allowedModels: previous,
-      expectedUpdatedAt: opened.updatedAt,
-    });
-  }
-}
-
-function resolveGatewayBinary() {
-  const override = process.env.LANGFUSE_AI_GATEWAY_BIN;
-  if (override) {
-    if (!existsSync(override)) {
-      throw new Error(`LANGFUSE_AI_GATEWAY_BIN does not exist: ${override}`);
-    }
-    return override;
-  }
-  const root = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../../..",
-  );
-  const binaryName =
-    process.platform === "win32" ? "ai-gateway.exe" : "ai-gateway";
-  for (const profile of ["release", "debug"]) {
-    const candidate = path.join(
-      root,
-      "ai-gateway",
-      "target",
-      profile,
-      binaryName,
-    );
-    if (existsSync(candidate)) return candidate;
-  }
-  throw new Error(
-    "Build the AI gateway before this suite (`pnpm --filter ai-gateway build`) or set LANGFUSE_AI_GATEWAY_BIN.",
-  );
-}
-
-function reserveLoopbackPort() {
-  return new Promise<number>((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") {
-        server.close();
-        reject(new Error("Could not reserve a gateway port"));
-        return;
-      }
-      const { port } = address;
-      server.close((error) => {
-        if (error) reject(error);
-        else resolve(port);
-      });
-    });
-  });
-}
-
-async function startGatewayProcess() {
-  if (!env.LANGFUSE_AI_GATEWAY_SERVICE_KEY) {
-    throw new Error(
-      "Set LANGFUSE_AI_GATEWAY_SERVICE_KEY before starting the gateway process.",
-    );
-  }
-  const binary = resolveGatewayBinary();
-  const port = await reserveLoopbackPort();
-  const logs: string[] = [];
-  const appendLog = (chunk: string) => {
-    logs.push(chunk);
-    const joined = logs.join("");
-    if (joined.length > 16_000) {
-      logs.splice(0, logs.length, joined.slice(-12_000));
-    }
-  };
-  const child = spawn(binary, [], {
-    env: {
-      ...process.env,
-      LANGFUSE_AI_GATEWAY_WEB_URL: BASE_URL,
-      LANGFUSE_AI_GATEWAY_SERVICE_KEY: env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
-      LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
-      LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
-      LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: "5",
-      LANGFUSE_LOG_FORMAT: "json",
-      LANGFUSE_LOG_LEVEL: "info",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  child.stdout?.setEncoding("utf8");
-  child.stderr?.setEncoding("utf8");
-  child.stdout?.on("data", appendLog);
-  child.stderr?.on("data", appendLog);
-  const url = `http://127.0.0.1:${port}`;
-  let startupError: Error | undefined;
-  child.once("error", (error) => {
-    startupError = error;
-  });
-  try {
-    await waitForGatewayReady(child, url, logs, () => startupError);
-  } catch (error) {
-    await stopGatewayProcess(child);
-    throw error;
-  }
-  return {
-    url,
-    stop: () => stopGatewayProcess(child),
-  };
-}
-
-async function waitForGatewayReady(
-  child: ChildProcess,
-  url: string,
-  logs: string[],
-  startupError: () => Error | undefined,
-) {
-  const deadline = Date.now() + 20_000;
-  let lastError = "gateway did not become ready";
-  while (Date.now() < deadline) {
-    const error = startupError();
-    if (error) {
-      throw new Error(
-        `AI gateway failed to start: ${error.message}\n${logs.join("")}`,
-      );
-    }
-    if (child.exitCode != null || child.signalCode != null) {
-      throw new Error(
-        `AI gateway exited ${child.exitCode ?? child.signalCode} before ready.\n${logs.join("")}`,
-      );
-    }
-    try {
-      const response = await fetch(`${url}/ready`, {
-        signal: AbortSignal.timeout(500),
-      });
-      if (response.ok) return;
-      lastError = `ready returned ${response.status}`;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : "connection failed";
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-  throw new Error(`${lastError}\n${logs.join("")}`);
-}
-
-function stopGatewayProcess(child: ChildProcess) {
-  if (child.exitCode != null || child.signalCode != null) {
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-    }, 15_000);
-    child.once("exit", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-    child.kill("SIGTERM");
-  });
-}
-
-function assertLocalTestTarget() {
-  const allowedHosts = new Set([
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "postgres",
-    "host.docker.internal",
-  ]);
-  const apiHost = new URL(BASE_URL).hostname;
-  const databaseHost = new URL(env.DATABASE_URL).hostname;
-  if (!allowedHosts.has(apiHost) || !allowedHosts.has(databaseHost)) {
-    throw new Error(
-      "Gateway E2E changes provider connection state and may only run against a local API and database.",
-    );
-  }
-}

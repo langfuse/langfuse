@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
@@ -28,11 +27,6 @@ import { cn } from "@/src/utils/tailwind";
 const MAX_VISIBLE_TAGS = 3;
 
 const LOADING_BADGE_WIDTHS = ["w-16", "w-14", "w-24", "w-20", "w-40"];
-
-export function TraceHeader({ isLoading = false }: { isLoading?: boolean }) {
-  if (isLoading) return <TraceHeaderLoading />;
-  return <LoadedTraceHeader />;
-}
 
 function TraceHeaderFrame({ children }: { children: ReactNode }) {
   const { traceContext } = useViewPreferences();
@@ -144,4 +138,9 @@ function LoadedTraceHeader() {
       </CollapsibleBadgeRow>
     </TraceHeaderFrame>
   );
+}
+
+export function TraceHeader({ isLoading = false }: { isLoading?: boolean }) {
+  if (isLoading) return <TraceHeaderLoading />;
+  return <LoadedTraceHeader />;
 }

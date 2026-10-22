@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { ExternalLink } from "@langfuse/icons";
 
@@ -16,6 +15,54 @@ export type MediaFileViewProps = {
   contentType: MediaContentType;
   defaultExpanded?: boolean;
 };
+
+function AudioPlayer({ src }: { src: string }) {
+  return (
+    <audio controls className="w-full" preload="metadata">
+      <source src={src} />
+      Your browser does not support the audio element.
+    </audio>
+  );
+}
+
+function VideoPlayer({ src }: { src: string }) {
+  return (
+    <video controls className="w-full" preload="metadata" playsInline>
+      <source src={src} />
+      Your browser does not support the video element.
+    </video>
+  );
+}
+
+function MediaFilePreview({
+  src,
+  fileName,
+  fileType,
+  compactImageWidth,
+}: MediaFilePreviewProps) {
+  if (fileType === "image") {
+    return (
+      <ResizableImage
+        src={src}
+        alt={fileName}
+        isDefaultVisible={true}
+        shouldValidateImageSource={false}
+        fitContent
+        compactWidth={compactImageWidth}
+      />
+    );
+  }
+
+  if (fileType === "audio") {
+    return (
+      <div className="max-w-xl min-w-72">
+        <AudioPlayer src={src} />
+      </div>
+    );
+  }
+
+  return <VideoPlayer src={src} />;
+}
 
 export function MediaFileView({
   src,
@@ -101,54 +148,6 @@ export function MediaFileView({
         />
       )}
     </div>
-  );
-}
-
-function MediaFilePreview({
-  src,
-  fileName,
-  fileType,
-  compactImageWidth,
-}: MediaFilePreviewProps) {
-  if (fileType === "image") {
-    return (
-      <ResizableImage
-        src={src}
-        alt={fileName}
-        isDefaultVisible={true}
-        shouldValidateImageSource={false}
-        fitContent
-        compactWidth={compactImageWidth}
-      />
-    );
-  }
-
-  if (fileType === "audio") {
-    return (
-      <div className="max-w-xl min-w-72">
-        <AudioPlayer src={src} />
-      </div>
-    );
-  }
-
-  return <VideoPlayer src={src} />;
-}
-
-function AudioPlayer({ src }: { src: string }) {
-  return (
-    <audio controls className="w-full" preload="metadata">
-      <source src={src} />
-      Your browser does not support the audio element.
-    </audio>
-  );
-}
-
-function VideoPlayer({ src }: { src: string }) {
-  return (
-    <video controls className="w-full" preload="metadata" playsInline>
-      <source src={src} />
-      Your browser does not support the video element.
-    </video>
   );
 }
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   ChatMessageType,
@@ -9,6 +8,16 @@ import {
   COMMIT_MESSAGE_MAX_LENGTH,
   PromptType,
 } from "@langfuse/shared";
+
+function validateJson(content: string): boolean {
+  try {
+    JSON.parse(content);
+
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
 
 const NewPromptBaseSchema = z.object({
   name: PromptNameSchema,
@@ -73,13 +82,3 @@ export const PromptVariantSchema = z.union([
   }),
 ]);
 export type PromptVariant = z.infer<typeof PromptVariantSchema>;
-
-function validateJson(content: string): boolean {
-  try {
-    JSON.parse(content);
-
-    return true;
-  } catch (_e) {
-    return false;
-  }
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * ConnectedObservationDetailView - Connects observation details to application data.
  *
@@ -80,6 +79,22 @@ export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
   traceId: string;
+}
+
+function getPreviewSkills({
+  skillManagementEnabled,
+  observationType,
+  skillsAvailable,
+  skillsResourceLoaded,
+}: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
+  if (!skillManagementEnabled) return undefined;
+  if (observationType === "GENERATION") {
+    return { kind: "available", items: skillsAvailable ?? [] };
+  }
+  if (observationType === "TOOL") {
+    return { kind: "loaded", items: skillsResourceLoaded ?? [] };
+  }
+  return undefined;
 }
 
 export function ConnectedObservationDetailView({
@@ -610,22 +625,6 @@ export function ConnectedObservationDetailView({
       )}
     </CommentDrawerController>
   );
-}
-
-function getPreviewSkills({
-  skillManagementEnabled,
-  observationType,
-  skillsAvailable,
-  skillsResourceLoaded,
-}: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
-  if (!skillManagementEnabled) return undefined;
-  if (observationType === "GENERATION") {
-    return { kind: "available", items: skillsAvailable ?? [] };
-  }
-  if (observationType === "TOOL") {
-    return { kind: "loaded", items: skillsResourceLoaded ?? [] };
-  }
-  return undefined;
 }
 
 type PreviewSkillsInput = {

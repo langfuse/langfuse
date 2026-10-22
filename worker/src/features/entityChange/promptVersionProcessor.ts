@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type TriggerEventAction,
   jsonSchemaNullable,
@@ -20,6 +19,86 @@ import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
+
+/**
+ * Enqueue an automation action for a prompt version change.
+ * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
+ */
+async function enqueueAutomationAction({
+  promptData,
+  action,
+  triggerId,
+  actionId,
+  projectId,
+  user,
+}: {
+  promptData: PromptResult;
+  action: string;
+  triggerId: string;
+  actionId: string;
+  projectId: string;
+  user?: { id: string; name: string | null; email: string | null };
+}): Promise<void> {
+  // Get automations for this action
+  const automations = await getAutomations({
+    projectId,
+    actionId,
+  });
+
+  if (automations.length !== 1) {
+    throw new InternalServerError(
+      `Expected 1 automation for action ${actionId}, got ${automations.length}`,
+    );
+  }
+
+  const executionId = v4();
+
+  // Create execution record
+  await prisma.automationExecution.create({
+    data: {
+      id: executionId,
+      projectId,
+      automationId: automations[0].id,
+      triggerId,
+      actionId,
+      status: ActionExecutionStatus.PENDING,
+      sourceId: promptData.id,
+      input: {
+        promptName: promptData.name,
+        promptVersion: promptData.version,
+        promptId: promptData.id,
+        automationId: automations[0].id,
+        type: "prompt-version",
+      },
+    },
+  });
+
+  logger.debug(
+    `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
+  );
+
+  // Queue to webhook processor (handles both webhook and Slack actions)
+  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
+    timestamp: new Date(),
+    id: v4(),
+    payload: {
+      projectId,
+      automationId: automations[0].id,
+      executionId,
+      payload: {
+        action: action as TriggerEventAction,
+        type: "prompt-version",
+        prompt: {
+          ...promptData,
+          prompt: jsonSchemaNullable.parse(promptData.prompt),
+          config: jsonSchemaNullable.parse(promptData.config),
+        },
+        ...(user ? { user } : {}),
+      },
+    },
+    name: QueueJobs.WebhookJob,
+  });
+}
 
 /**
  * Process prompt change events with in-memory filtering
@@ -124,83 +203,3 @@ export const promptVersionProcessor = async (
     throw error; // Re-throw to trigger retry mechanism
   }
 };
-
-/**
- * Enqueue an automation action for a prompt version change.
- * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
- */
-async function enqueueAutomationAction({
-  promptData,
-  action,
-  triggerId,
-  actionId,
-  projectId,
-  user,
-}: {
-  promptData: PromptResult;
-  action: string;
-  triggerId: string;
-  actionId: string;
-  projectId: string;
-  user?: { id: string; name: string | null; email: string | null };
-}): Promise<void> {
-  // Get automations for this action
-  const automations = await getAutomations({
-    projectId,
-    actionId,
-  });
-
-  if (automations.length !== 1) {
-    throw new InternalServerError(
-      `Expected 1 automation for action ${actionId}, got ${automations.length}`,
-    );
-  }
-
-  const executionId = v4();
-
-  // Create execution record
-  await prisma.automationExecution.create({
-    data: {
-      id: executionId,
-      projectId,
-      automationId: automations[0].id,
-      triggerId,
-      actionId,
-      status: ActionExecutionStatus.PENDING,
-      sourceId: promptData.id,
-      input: {
-        promptName: promptData.name,
-        promptVersion: promptData.version,
-        promptId: promptData.id,
-        automationId: automations[0].id,
-        type: "prompt-version",
-      },
-    },
-  });
-
-  logger.debug(
-    `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
-  );
-
-  // Queue to webhook processor (handles both webhook and Slack actions)
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
-      executionId,
-      payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
-        },
-        ...(user ? { user } : {}),
-      },
-    },
-    name: QueueJobs.WebhookJob,
-  });
-}

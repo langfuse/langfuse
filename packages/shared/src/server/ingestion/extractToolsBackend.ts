@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
@@ -302,6 +301,33 @@ function extractToolsFromRawInput(
 }
 
 /**
+ * Extract tool calls from a single message object.
+ */
+function extractToolCallsFromMessage(
+  msg: Record<string, unknown>,
+  args: ClickhouseToolArgument[],
+): void {
+  const messageToolCalls =
+    parseArrayIfString(msg.tool_calls) ?? parseArrayIfString(msg.toolCalls);
+  addToolArguments(args, messageToolCalls);
+
+  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
+  if (Array.isArray(msg.content)) {
+    for (const part of msg.content) {
+      if (
+        part &&
+        typeof part === "object" &&
+        ["tool_use", "tool-call"].includes(
+          (part as Record<string, unknown>).type as string,
+        )
+      ) {
+        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
+      }
+    }
+  }
+}
+
+/**
  * Extract tool calls from raw output data.
  */
 function extractToolCallsFromRawOutput(
@@ -373,33 +399,6 @@ function extractToolCallsFromRawOutput(
     | undefined;
   const additionalToolCalls = parseArrayIfString(additionalKwargs?.tool_calls);
   addToolArguments(args, additionalToolCalls);
-}
-
-/**
- * Extract tool calls from a single message object.
- */
-function extractToolCallsFromMessage(
-  msg: Record<string, unknown>,
-  args: ClickhouseToolArgument[],
-): void {
-  const messageToolCalls =
-    parseArrayIfString(msg.tool_calls) ?? parseArrayIfString(msg.toolCalls);
-  addToolArguments(args, messageToolCalls);
-
-  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
-  if (Array.isArray(msg.content)) {
-    for (const part of msg.content) {
-      if (
-        part &&
-        typeof part === "object" &&
-        ["tool_use", "tool-call"].includes(
-          (part as Record<string, unknown>).type as string,
-        )
-      ) {
-        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
-      }
-    }
-  }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -741,6 +740,31 @@ export function normalizeToolMetadataForObservation(
   };
 }
 
+function extractToolsFromParsedObservation(
+  parsedInput: unknown,
+  parsedOutput: unknown,
+): {
+  toolDefinitions: ClickhouseToolDefinition[];
+  toolArguments: ClickhouseToolArgument[];
+} {
+  const toolDefinitions: ClickhouseToolDefinition[] = [];
+  const toolArguments: ClickhouseToolArgument[] = [];
+
+  extractToolsFromRawInput(parsedInput, toolDefinitions);
+  extractToolCallsFromRawOutput(parsedOutput, toolArguments);
+
+  // Deduplicate tool arguments by id
+  const seenIds = new Set<string>();
+  const uniqueArgs = toolArguments.filter((arg) => {
+    const key = arg.id || `${arg.name}-${arg.arguments}`;
+    if (seenIds.has(key)) return false;
+    seenIds.add(key);
+    return true;
+  });
+
+  return { toolDefinitions, toolArguments: uniqueArgs };
+}
+
 /**
  * Extract tool definitions and arguments from observation input/output.
  * Extracts directly from raw input/output formats.
@@ -767,29 +791,54 @@ export function extractToolsFromObservation(
   }
 }
 
-function extractToolsFromParsedObservation(
-  parsedInput: unknown,
-  parsedOutput: unknown,
-): {
-  toolDefinitions: ClickhouseToolDefinition[];
-  toolArguments: ClickhouseToolArgument[];
+/**
+ * Convert array of tool calls to parallel arrays for ClickHouse.
+ *
+ * Returns:
+ * - tool_calls: Array of JSON strings containing {id, arguments, type, index} (NO name)
+ * - tool_call_names: Array of names in the same order as tool_calls
+ *
+ * This structure enables efficient filtering by name using has(tool_call_names, 'name')
+ * without needing to parse JSON.
+ */
+export function convertCallsToArrays(args: ClickhouseToolArgument[]): {
+  tool_calls: string[];
+  tool_call_names: string[];
 } {
-  const toolDefinitions: ClickhouseToolDefinition[] = [];
-  const toolArguments: ClickhouseToolArgument[] = [];
+  const tool_calls: string[] = [];
+  const tool_call_names: string[] = [];
 
-  extractToolsFromRawInput(parsedInput, toolDefinitions);
-  extractToolCallsFromRawOutput(parsedOutput, toolArguments);
+  for (const arg of args) {
+    tool_call_names.push(arg.name);
+    tool_calls.push(
+      JSON.stringify({
+        id: arg.id,
+        arguments: arg.arguments ?? "{}",
+        type: arg.type ?? "",
+        index: arg.index ?? 0,
+      }),
+    );
+  }
 
-  // Deduplicate tool arguments by id
-  const seenIds = new Set<string>();
-  const uniqueArgs = toolArguments.filter((arg) => {
-    const key = arg.id || `${arg.name}-${arg.arguments}`;
-    if (seenIds.has(key)) return false;
-    seenIds.add(key);
-    return true;
-  });
+  return { tool_calls, tool_call_names };
+}
 
-  return { toolDefinitions, toolArguments: uniqueArgs };
+/**
+ * Convert array of tool definitions to Map format for ClickHouse.
+ * Key: tool name, Value: JSON string of {description, parameters}
+ */
+export function convertDefinitionsToMap(
+  definitions: ClickhouseToolDefinition[],
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const def of definitions) {
+    // Last definition wins if duplicate names (shouldn't happen after dedup)
+    map[def.name] = JSON.stringify({
+      description: def.description ?? "",
+      parameters: def.parameters ?? "",
+    });
+  }
+  return map;
 }
 
 export function normalizeToolsForObservation(
@@ -837,54 +886,4 @@ export function normalizeToolsForObservation(
       toolCallNames: [],
     };
   }
-}
-
-/**
- * Convert array of tool definitions to Map format for ClickHouse.
- * Key: tool name, Value: JSON string of {description, parameters}
- */
-export function convertDefinitionsToMap(
-  definitions: ClickhouseToolDefinition[],
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const def of definitions) {
-    // Last definition wins if duplicate names (shouldn't happen after dedup)
-    map[def.name] = JSON.stringify({
-      description: def.description ?? "",
-      parameters: def.parameters ?? "",
-    });
-  }
-  return map;
-}
-
-/**
- * Convert array of tool calls to parallel arrays for ClickHouse.
- *
- * Returns:
- * - tool_calls: Array of JSON strings containing {id, arguments, type, index} (NO name)
- * - tool_call_names: Array of names in the same order as tool_calls
- *
- * This structure enables efficient filtering by name using has(tool_call_names, 'name')
- * without needing to parse JSON.
- */
-export function convertCallsToArrays(args: ClickhouseToolArgument[]): {
-  tool_calls: string[];
-  tool_call_names: string[];
-} {
-  const tool_calls: string[] = [];
-  const tool_call_names: string[] = [];
-
-  for (const arg of args) {
-    tool_call_names.push(arg.name);
-    tool_calls.push(
-      JSON.stringify({
-        id: arg.id,
-        arguments: arg.arguments ?? "{}",
-        type: arg.type ?? "",
-        index: arg.index ?? 0,
-      }),
-    );
-  }
-
-  return { tool_calls, tool_call_names };
 }

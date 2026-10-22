@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
@@ -18,6 +17,17 @@ type EvaluatorGallerySidebarProps = {
   search: string;
   onSearchChange: (search: string) => void;
 };
+
+function GallerySearch({ search, onSearchChange }: GallerySearchProps) {
+  return (
+    <SearchInput
+      value={search}
+      onChange={onSearchChange}
+      onSubmit={onSearchChange}
+      placeholder="Search templates"
+    />
+  );
+}
 
 export function EvaluatorGallerySidebar({
   items,
@@ -111,14 +121,3 @@ type GallerySearchProps = {
   search: string;
   onSearchChange: (search: string) => void;
 };
-
-function GallerySearch({ search, onSearchChange }: GallerySearchProps) {
-  return (
-    <SearchInput
-      value={search}
-      onChange={onSearchChange}
-      onSubmit={onSearchChange}
-      placeholder="Search templates"
-    />
-  );
-}

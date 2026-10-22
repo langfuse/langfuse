@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type {
   EarlyOtelBatch,
   ExtractedOtelMedia,
@@ -64,6 +63,94 @@ function parseSerializedJson(value: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Find the stringified-document depth for each reference in one source string.
+ *
+ * This is used only on a restoration path. Successful replacement remains
+ * a source-text pass and does not parse the surrounding
+ * document. Parsing here is for depth inspection only; the original source is
+ * still rebuilt by replacing the known reference ranges in the current text.
+ */
+function serializedReferenceLayers(
+  value: string,
+  media: MediaRegistry,
+): Map<number, number> {
+  const matches = [...knownMediaReferenceMatches(value, media)];
+  const layers = new Map<number, number>();
+  if (matches.length === 0) return layers;
+
+  const root = parseSerializedJson(value);
+  if (root === undefined) {
+    for (const match of matches) layers.set(match.index, 0);
+    return layers;
+  }
+
+  const pendingByReference = new Map<string, number[]>();
+  const pendingCursor = new Map<string, number>();
+  for (const [matchIndex, match] of matches.entries()) {
+    const pending = pendingByReference.get(match.reference) ?? [];
+    pending.push(matchIndex);
+    pendingByReference.set(match.reference, pending);
+  }
+
+  const assign = (text: string, depth: number): void => {
+    for (const match of knownMediaReferenceMatches(text, media)) {
+      const pending = pendingByReference.get(match.reference);
+      const cursor = pendingCursor.get(match.reference) ?? 0;
+      const matchIndex = pending?.[cursor];
+      if (matchIndex === undefined) continue;
+      pendingCursor.set(match.reference, cursor + 1);
+      layers.set(matches[matchIndex]!.index, depth);
+    }
+  };
+
+  const stack: Array<{ value: unknown; depth: number }> = [
+    { value: root, depth: 1 },
+  ];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (typeof current.value === "string") {
+      if (knownMediaReferenceMatches(current.value, media).next().done)
+        continue;
+      if (current.depth >= MAX_SERIALIZED_REFERENCE_LAYERS) {
+        assign(current.value, current.depth);
+        continue;
+      }
+      // A nested JSON string owns the references represented inside it. Do not
+      // assign the same textual markers once at the outer string layer and
+      // again after decoding the nested document.
+      const nested = parseSerializedJson(current.value);
+      if (nested !== undefined) {
+        stack.push({ value: nested, depth: current.depth + 1 });
+      } else {
+        assign(current.value, current.depth);
+      }
+      continue;
+    }
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index--)
+        stack.push({ value: current.value[index], depth: current.depth });
+      continue;
+    }
+    const record = asRecord(current.value);
+    if (record) {
+      const entries = Object.entries(record);
+      for (let index = entries.length - 1; index >= 0; index--)
+        stack.push({ value: entries[index]![1], depth: current.depth });
+    }
+  }
+
+  // Duplicate JSON keys can be discarded by JSON.parse. Preserve the depth
+  // recorded by native for a source occurrence that the inspection walk cannot
+  // associate with a surviving parsed value.
+  for (const match of matches) {
+    if (!layers.has(match.index)) {
+      layers.set(match.index, Math.max(1, match.entry.originalJsonDepth));
+    }
+  }
+  return layers;
 }
 
 /**
@@ -233,92 +320,4 @@ export async function rewriteMediaValues(
   if (concurrent) await forEachMedia(strings(), replace);
   else for (const entry of strings()) await replace(entry);
   return value;
-}
-
-/**
- * Find the stringified-document depth for each reference in one source string.
- *
- * This is used only on a restoration path. Successful replacement remains
- * a source-text pass and does not parse the surrounding
- * document. Parsing here is for depth inspection only; the original source is
- * still rebuilt by replacing the known reference ranges in the current text.
- */
-function serializedReferenceLayers(
-  value: string,
-  media: MediaRegistry,
-): Map<number, number> {
-  const matches = [...knownMediaReferenceMatches(value, media)];
-  const layers = new Map<number, number>();
-  if (matches.length === 0) return layers;
-
-  const root = parseSerializedJson(value);
-  if (root === undefined) {
-    for (const match of matches) layers.set(match.index, 0);
-    return layers;
-  }
-
-  const pendingByReference = new Map<string, number[]>();
-  const pendingCursor = new Map<string, number>();
-  for (const [matchIndex, match] of matches.entries()) {
-    const pending = pendingByReference.get(match.reference) ?? [];
-    pending.push(matchIndex);
-    pendingByReference.set(match.reference, pending);
-  }
-
-  const assign = (text: string, depth: number): void => {
-    for (const match of knownMediaReferenceMatches(text, media)) {
-      const pending = pendingByReference.get(match.reference);
-      const cursor = pendingCursor.get(match.reference) ?? 0;
-      const matchIndex = pending?.[cursor];
-      if (matchIndex === undefined) continue;
-      pendingCursor.set(match.reference, cursor + 1);
-      layers.set(matches[matchIndex]!.index, depth);
-    }
-  };
-
-  const stack: Array<{ value: unknown; depth: number }> = [
-    { value: root, depth: 1 },
-  ];
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (typeof current.value === "string") {
-      if (knownMediaReferenceMatches(current.value, media).next().done)
-        continue;
-      if (current.depth >= MAX_SERIALIZED_REFERENCE_LAYERS) {
-        assign(current.value, current.depth);
-        continue;
-      }
-      // A nested JSON string owns the references represented inside it. Do not
-      // assign the same textual markers once at the outer string layer and
-      // again after decoding the nested document.
-      const nested = parseSerializedJson(current.value);
-      if (nested !== undefined) {
-        stack.push({ value: nested, depth: current.depth + 1 });
-      } else {
-        assign(current.value, current.depth);
-      }
-      continue;
-    }
-    if (Array.isArray(current.value)) {
-      for (let index = current.value.length - 1; index >= 0; index--)
-        stack.push({ value: current.value[index], depth: current.depth });
-      continue;
-    }
-    const record = asRecord(current.value);
-    if (record) {
-      const entries = Object.entries(record);
-      for (let index = entries.length - 1; index >= 0; index--)
-        stack.push({ value: entries[index]![1], depth: current.depth });
-    }
-  }
-
-  // Duplicate JSON keys can be discarded by JSON.parse. Preserve the depth
-  // recorded by native for a source occurrence that the inspection walk cannot
-  // associate with a surviving parsed value.
-  for (const match of matches) {
-    if (!layers.has(match.index)) {
-      layers.set(match.index, Math.max(1, match.entry.originalJsonDepth));
-    }
-  }
-  return layers;
 }

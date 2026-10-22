@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Dataset, DatasetItem, DatasetStatus, prisma, Prisma } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
@@ -214,369 +213,6 @@ function mergeItemData(
     status:
       newData.status === undefined ? existingItem?.status : newData.status,
   };
-}
-
-/**
- * Creates a single dataset item with validation.
- * Validates input/expectedOutput against dataset schemas before insertion.
- *
- * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
- *
- * @returns Success with created item, or validation error with details
- */
-export async function createDatasetItem(props: {
-  projectId: string;
-  datasetId: string;
-  input?: string | unknown | null;
-  expectedOutput?: string | unknown | null;
-  metadata?: string | unknown | null;
-  sourceTraceId?: string;
-  sourceObservationId?: string;
-  normalizeOpts?: {
-    sanitizeControlChars?: boolean;
-  };
-  validateOpts?: {
-    normalizeUndefinedToNull?: boolean;
-  };
-}): Promise<{ success: true; datasetItem: DatasetItemDomain } | PayloadError> {
-  // Delegate to createManyDatasetItems with single item
-  const result = await createManyDatasetItems({
-    projectId: props.projectId,
-    items: [
-      {
-        datasetId: props.datasetId,
-        input: props.input,
-        expectedOutput: props.expectedOutput,
-        metadata: props.metadata,
-        sourceTraceId: props.sourceTraceId,
-        sourceObservationId: props.sourceObservationId,
-      },
-    ],
-    normalizeOpts: props.normalizeOpts,
-    validateOpts: props.validateOpts,
-  });
-
-  if (!result.success) {
-    // Transform validation errors to PayloadError format
-    const error = result.validationErrors[0];
-    return {
-      success: false,
-      message: error.errors.map((e) => e.message).join(", "),
-    };
-  }
-
-  const datasetItem = {
-    ...result.datasetItems[0],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as DatasetItemDomain;
-
-  return { success: true, datasetItem };
-}
-
-/**
- * Upserts a dataset item (create if not exists, update if exists).
- * Validates against dataset schemas before persisting.
- *
- * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
- *
- * @param props - Can identify dataset by ID or name
- * @returns Success with upserted item, or validation error with details
- */
-export async function upsertDatasetItem(
-  props: {
-    projectId: string;
-    datasetItemId?: string;
-    input?: string | unknown | null;
-    expectedOutput?: string | unknown | null;
-    metadata?: string | unknown | null;
-    sourceTraceId?: string;
-    sourceObservationId?: string;
-    status?: DatasetStatus;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
-    validateOpts: { normalizeUndefinedToNull?: boolean };
-  } & IdOrName,
-): Promise<DatasetItemDomain & { datasetName: string }> {
-  // 1. Get dataset
-  const dataset =
-    "datasetId" in props
-      ? await getDatasetById({
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-        })
-      : await getDatasetByName({
-          projectId: props.projectId,
-          datasetName: props.datasetName,
-        });
-
-  const itemId = props.datasetItemId ?? v4();
-
-  // 2. Fetch existing item if updating (itemId provided)
-  // This ensures we validate and write the complete merged state
-  let existingItem: DatasetItemDomain | null = null;
-  if (props.datasetItemId) {
-    existingItem = await getDatasetItemById({
-      projectId: props.projectId,
-      datasetItemId: props.datasetItemId,
-    });
-    if (!!existingItem && existingItem.datasetId !== dataset.id) {
-      throw new LangfuseConflictError(
-        `Dataset item id ${props.datasetItemId} already exists in another dataset (id ${existingItem.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${existingItem.datasetId}.`,
-      );
-    }
-  }
-  addTagsToCurrentSpan({
-    "langfuse.dataset_item.upsert.existing_item_count": existingItem ? 1 : 0,
-  });
-
-  // 3. Merge incoming data with existing data
-  // For fields where props value is undefined, use existing value
-  const mergedItemData = existingItem
-    ? mergeItemData(existingItem, props)
-    : props;
-
-  // 4. Validate merged payload
-  const validator = new DatasetItemValidator({
-    inputSchema: dataset.inputSchema as Record<string, unknown> | null,
-    expectedOutputSchema: dataset.expectedOutputSchema as Record<
-      string,
-      unknown
-    > | null,
-  });
-
-  const itemPayload = validator.validateAndNormalize({
-    input: mergedItemData.input,
-    expectedOutput: mergedItemData.expectedOutput,
-    metadata: mergedItemData.metadata,
-    normalizeOpts: props.normalizeOpts,
-    validateOpts: props.validateOpts,
-  });
-
-  if (!itemPayload.success) {
-    throw new InvalidRequestError(
-      `Dataset item validation failed: ${itemPayload.message}`,
-    );
-  }
-
-  // 5. Prepare full item data for writing
-  const itemData = {
-    id: itemId,
-    input: itemPayload.input,
-    expectedOutput: itemPayload.expectedOutput,
-    metadata: itemPayload.metadata,
-    sourceTraceId: mergedItemData.sourceTraceId,
-    sourceObservationId: mergedItemData.sourceObservationId,
-    status: mergedItemData.status,
-  };
-
-  await validateDatasetItemMediaReferences({
-    projectId: props.projectId,
-    items: [itemData],
-  });
-
-  let item: DatasetItem | null = null;
-
-  const linkWrittenItemMedia = (
-    tx: Prisma.TransactionClient,
-    written: DatasetItem,
-  ) =>
-    linkDatasetItemMedia(tx, {
-      projectId: props.projectId,
-      items: [
-        {
-          datasetId: dataset.id,
-          datasetItemId: written.id,
-          datasetItemValidFrom: written.validFrom,
-          input: written.input,
-          expectedOutput: written.expectedOutput,
-          metadata: written.metadata,
-        },
-      ],
-      replaceExisting: true,
-    });
-
-  // 6. Update item
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.$transaction(async (tx) => {
-        const res = existingItem
-          ? await tx.datasetItem.update({
-              where: {
-                id_projectId_validFrom: {
-                  id: existingItem.id,
-                  projectId: props.projectId,
-                  validFrom: existingItem.validFrom,
-                },
-                datasetId: dataset.id,
-              },
-              data: {
-                ...itemData,
-              },
-            })
-          : await tx.datasetItem.create({
-              data: {
-                ...itemData,
-                datasetId: dataset.id,
-                projectId: props.projectId,
-              },
-            });
-        addTagsToCurrentSpan({
-          "langfuse.dataset_item.upsert.updated_count": existingItem ? 1 : 0,
-          "langfuse.dataset_item.upsert.created_count": existingItem ? 0 : 1,
-        });
-        item = res;
-        await linkWrittenItemMedia(tx, res);
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Invalidate old row by setting valid_to, then create new row
-      await prisma.$transaction(async (tx) => {
-        // 0. Re-read if there is an existing item to get the validFrom timestamp
-        const current = await tx.datasetItem.findFirst({
-          where: {
-            id: itemId,
-            projectId: props.projectId,
-            validTo: null,
-          },
-          orderBy: {
-            validFrom: "desc",
-          },
-        });
-
-        if (current && current.datasetId !== dataset.id) {
-          throw new LangfuseConflictError(
-            `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
-          );
-        }
-
-        const baseTs = current?.validFrom.getTime() ?? 0;
-        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
-
-        // 1. If updating existing item, invalidate the current version
-        if (current) {
-          await tx.datasetItem.update({
-            where: {
-              id_projectId_validFrom: {
-                id: current.id,
-                projectId: props.projectId,
-                validFrom: current.validFrom,
-              },
-            },
-            data: {
-              validTo: newValidFrom,
-            },
-          });
-        }
-        addTagsToCurrentSpan({
-          "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
-          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
-        });
-
-        // 2. Create new version
-        const res = await tx.datasetItem.create({
-          data: {
-            ...itemData,
-            projectId: props.projectId,
-            datasetId: dataset.id,
-            validFrom: newValidFrom,
-          },
-        });
-        item = res;
-        await linkWrittenItemMedia(tx, res);
-      });
-    },
-  });
-
-  if (!item) {
-    throw new InternalServerError("Failed to upsert dataset item");
-  }
-
-  return { ...toDomainType(item), datasetName: dataset.name };
-}
-
-/**
- * Deletes a dataset item by ID.
- *
- * @throws LangfuseNotFoundError if item doesn't exist
- */
-export async function deleteDatasetItem(props: {
-  projectId: string;
-  datasetItemId: string;
-  datasetId?: string;
-}): Promise<{ success: true; deletedItem: DatasetItemDomain }> {
-  const item = await getDatasetItemById({
-    projectId: props.projectId,
-    datasetItemId: props.datasetItemId,
-    datasetId: props.datasetId,
-  });
-
-  if (!item) {
-    throw new LangfuseNotFoundError(
-      `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
-    );
-  }
-
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.$transaction(async (tx) => {
-        await tx.datasetItem.delete({
-          where: {
-            id_projectId_validFrom: {
-              id: item.id,
-              validFrom: item.validFrom,
-              projectId: props.projectId,
-            },
-          },
-        });
-        await deleteDatasetItemMediaLinks(tx, {
-          projectId: props.projectId,
-          itemVersions: [
-            {
-              datasetItemId: item.id,
-              datasetItemValidFrom: item.validFrom,
-            },
-          ],
-        });
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Invalidate old row, then create delete marker
-      await prisma.$transaction(async (tx) => {
-        const newValidFrom = new Date();
-
-        // 1. Invalidate the current version
-        await tx.datasetItem.update({
-          where: {
-            id_projectId_validFrom: {
-              id: props.datasetItemId,
-              projectId: props.projectId,
-              validFrom: item.validFrom,
-            },
-          },
-          data: {
-            validTo: newValidFrom,
-          },
-        });
-
-        // 2. Create delete marker
-        await tx.datasetItem.create({
-          data: {
-            projectId: props.projectId,
-            id: props.datasetItemId,
-            isDeleted: true,
-            datasetId: item.datasetId,
-            validFrom: newValidFrom,
-          },
-        });
-
-        // Versioning preserves history: keep the invalidated version's
-        // dataset_item_media rows so the historical view still resolves its
-        // media. They are dropped when the dataset itself is deleted.
-      });
-    },
-  });
-
-  return { success: true, deletedItem: item };
 }
 
 /**
@@ -915,6 +551,466 @@ export async function createManyDatasetItems(props: {
     successCount,
     failedCount,
   };
+}
+
+/**
+ * Creates a single dataset item with validation.
+ * Validates input/expectedOutput against dataset schemas before insertion.
+ *
+ * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
+ *
+ * @returns Success with created item, or validation error with details
+ */
+export async function createDatasetItem(props: {
+  projectId: string;
+  datasetId: string;
+  input?: string | unknown | null;
+  expectedOutput?: string | unknown | null;
+  metadata?: string | unknown | null;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+  normalizeOpts?: {
+    sanitizeControlChars?: boolean;
+  };
+  validateOpts?: {
+    normalizeUndefinedToNull?: boolean;
+  };
+}): Promise<{ success: true; datasetItem: DatasetItemDomain } | PayloadError> {
+  // Delegate to createManyDatasetItems with single item
+  const result = await createManyDatasetItems({
+    projectId: props.projectId,
+    items: [
+      {
+        datasetId: props.datasetId,
+        input: props.input,
+        expectedOutput: props.expectedOutput,
+        metadata: props.metadata,
+        sourceTraceId: props.sourceTraceId,
+        sourceObservationId: props.sourceObservationId,
+      },
+    ],
+    normalizeOpts: props.normalizeOpts,
+    validateOpts: props.validateOpts,
+  });
+
+  if (!result.success) {
+    // Transform validation errors to PayloadError format
+    const error = result.validationErrors[0];
+    return {
+      success: false,
+      message: error.errors.map((e) => e.message).join(", "),
+    };
+  }
+
+  const datasetItem = {
+    ...result.datasetItems[0],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as DatasetItemDomain;
+
+  return { success: true, datasetItem };
+}
+
+/**
+ * Retrieves a single dataset item by ID.
+ * Always returns the latest version of the item.
+ * Used by API layers to fetch current state before merging partial updates.
+ *
+ * @param props.datasetId - Optional to ensure item belongs to correct dataset
+ * @param props.status - Optional status filter: 'ACTIVE' for active items only, undefined (default) for all statuses
+ * @returns The dataset item or null if not found/deleted
+ */
+export async function getDatasetItemById<
+  IncludeIO extends boolean = true,
+>(props: {
+  projectId: string;
+  datasetItemId: string;
+  status?: "ACTIVE";
+  datasetId?: string;
+  version?: Date;
+  includeIO?: IncludeIO;
+}): Promise<
+  | (IncludeIO extends true ? DatasetItemDomain : DatasetItemDomainWithoutIO)
+  | null
+> {
+  const status = props.status;
+  const includeIO = (props.includeIO ?? true) as IncludeIO;
+
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      // OLD: Simple lookup in dataset_items
+      const item = await prisma.datasetItem.findFirst({
+        select: includeIO
+          ? undefined
+          : {
+              id: true,
+              projectId: true,
+              datasetId: true,
+              sourceTraceId: true,
+              sourceObservationId: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+              validFrom: true,
+              isDeleted: true,
+            },
+        where: {
+          id: props.datasetItemId,
+          projectId: props.projectId,
+          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+        },
+        orderBy: {
+          validFrom: "desc",
+        },
+      });
+      if (item?.isDeleted) return null;
+      return item ? toDomainType(item, includeIO) : null;
+    },
+    [Implementation.VERSIONED]: async () => {
+      // VERSIONED: Get version at or before specified timestamp, returns null if doesn't exist
+      const selectFields = includeIO
+        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"'
+        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"';
+
+      const datasetFilter = props.datasetId
+        ? Prisma.sql`AND dataset_id = ${props.datasetId}`
+        : Prisma.empty;
+
+      const statusFilter =
+        status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
+
+      // Temporal filter using valid_from and valid_to
+      const versionFilter = props.version
+        ? Prisma.sql`
+            AND valid_from <= ${props.version}
+            AND (valid_to IS NULL OR valid_to > ${props.version})
+          `
+        : Prisma.sql`AND valid_to IS NULL`;
+
+      const result = await prisma.$queryRaw<DatasetItem[]>(
+        Prisma.sql`
+          SELECT ${Prisma.raw(selectFields)}
+          FROM dataset_items
+          WHERE project_id = ${props.projectId}
+            AND id = ${props.datasetItemId}
+            AND is_deleted = false
+            ${datasetFilter}
+            ${statusFilter}
+            ${versionFilter}
+          LIMIT 1
+        `,
+      );
+
+      const item = result[0];
+      return item ? toDomainType(item, includeIO) : null;
+    },
+  });
+}
+
+/**
+ * Upserts a dataset item (create if not exists, update if exists).
+ * Validates against dataset schemas before persisting.
+ *
+ * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
+ *
+ * @param props - Can identify dataset by ID or name
+ * @returns Success with upserted item, or validation error with details
+ */
+export async function upsertDatasetItem(
+  props: {
+    projectId: string;
+    datasetItemId?: string;
+    input?: string | unknown | null;
+    expectedOutput?: string | unknown | null;
+    metadata?: string | unknown | null;
+    sourceTraceId?: string;
+    sourceObservationId?: string;
+    status?: DatasetStatus;
+    normalizeOpts?: { sanitizeControlChars?: boolean };
+    validateOpts: { normalizeUndefinedToNull?: boolean };
+  } & IdOrName,
+): Promise<DatasetItemDomain & { datasetName: string }> {
+  // 1. Get dataset
+  const dataset =
+    "datasetId" in props
+      ? await getDatasetById({
+          projectId: props.projectId,
+          datasetId: props.datasetId,
+        })
+      : await getDatasetByName({
+          projectId: props.projectId,
+          datasetName: props.datasetName,
+        });
+
+  const itemId = props.datasetItemId ?? v4();
+
+  // 2. Fetch existing item if updating (itemId provided)
+  // This ensures we validate and write the complete merged state
+  let existingItem: DatasetItemDomain | null = null;
+  if (props.datasetItemId) {
+    existingItem = await getDatasetItemById({
+      projectId: props.projectId,
+      datasetItemId: props.datasetItemId,
+    });
+    if (!!existingItem && existingItem.datasetId !== dataset.id) {
+      throw new LangfuseConflictError(
+        `Dataset item id ${props.datasetItemId} already exists in another dataset (id ${existingItem.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${existingItem.datasetId}.`,
+      );
+    }
+  }
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item.upsert.existing_item_count": existingItem ? 1 : 0,
+  });
+
+  // 3. Merge incoming data with existing data
+  // For fields where props value is undefined, use existing value
+  const mergedItemData = existingItem
+    ? mergeItemData(existingItem, props)
+    : props;
+
+  // 4. Validate merged payload
+  const validator = new DatasetItemValidator({
+    inputSchema: dataset.inputSchema as Record<string, unknown> | null,
+    expectedOutputSchema: dataset.expectedOutputSchema as Record<
+      string,
+      unknown
+    > | null,
+  });
+
+  const itemPayload = validator.validateAndNormalize({
+    input: mergedItemData.input,
+    expectedOutput: mergedItemData.expectedOutput,
+    metadata: mergedItemData.metadata,
+    normalizeOpts: props.normalizeOpts,
+    validateOpts: props.validateOpts,
+  });
+
+  if (!itemPayload.success) {
+    throw new InvalidRequestError(
+      `Dataset item validation failed: ${itemPayload.message}`,
+    );
+  }
+
+  // 5. Prepare full item data for writing
+  const itemData = {
+    id: itemId,
+    input: itemPayload.input,
+    expectedOutput: itemPayload.expectedOutput,
+    metadata: itemPayload.metadata,
+    sourceTraceId: mergedItemData.sourceTraceId,
+    sourceObservationId: mergedItemData.sourceObservationId,
+    status: mergedItemData.status,
+  };
+
+  await validateDatasetItemMediaReferences({
+    projectId: props.projectId,
+    items: [itemData],
+  });
+
+  let item: DatasetItem | null = null;
+
+  const linkWrittenItemMedia = (
+    tx: Prisma.TransactionClient,
+    written: DatasetItem,
+  ) =>
+    linkDatasetItemMedia(tx, {
+      projectId: props.projectId,
+      items: [
+        {
+          datasetId: dataset.id,
+          datasetItemId: written.id,
+          datasetItemValidFrom: written.validFrom,
+          input: written.input,
+          expectedOutput: written.expectedOutput,
+          metadata: written.metadata,
+        },
+      ],
+      replaceExisting: true,
+    });
+
+  // 6. Update item
+  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+    [Implementation.STATEFUL]: async () => {
+      await prisma.$transaction(async (tx) => {
+        const res = existingItem
+          ? await tx.datasetItem.update({
+              where: {
+                id_projectId_validFrom: {
+                  id: existingItem.id,
+                  projectId: props.projectId,
+                  validFrom: existingItem.validFrom,
+                },
+                datasetId: dataset.id,
+              },
+              data: {
+                ...itemData,
+              },
+            })
+          : await tx.datasetItem.create({
+              data: {
+                ...itemData,
+                datasetId: dataset.id,
+                projectId: props.projectId,
+              },
+            });
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": existingItem ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": existingItem ? 0 : 1,
+        });
+        item = res;
+        await linkWrittenItemMedia(tx, res);
+      });
+    },
+    [Implementation.VERSIONED]: async () => {
+      // VERSIONED: Invalidate old row by setting valid_to, then create new row
+      await prisma.$transaction(async (tx) => {
+        // 0. Re-read if there is an existing item to get the validFrom timestamp
+        const current = await tx.datasetItem.findFirst({
+          where: {
+            id: itemId,
+            projectId: props.projectId,
+            validTo: null,
+          },
+          orderBy: {
+            validFrom: "desc",
+          },
+        });
+
+        if (current && current.datasetId !== dataset.id) {
+          throw new LangfuseConflictError(
+            `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
+          );
+        }
+
+        const baseTs = current?.validFrom.getTime() ?? 0;
+        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
+
+        // 1. If updating existing item, invalidate the current version
+        if (current) {
+          await tx.datasetItem.update({
+            where: {
+              id_projectId_validFrom: {
+                id: current.id,
+                projectId: props.projectId,
+                validFrom: current.validFrom,
+              },
+            },
+            data: {
+              validTo: newValidFrom,
+            },
+          });
+        }
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
+        });
+
+        // 2. Create new version
+        const res = await tx.datasetItem.create({
+          data: {
+            ...itemData,
+            projectId: props.projectId,
+            datasetId: dataset.id,
+            validFrom: newValidFrom,
+          },
+        });
+        item = res;
+        await linkWrittenItemMedia(tx, res);
+      });
+    },
+  });
+
+  if (!item) {
+    throw new InternalServerError("Failed to upsert dataset item");
+  }
+
+  return { ...toDomainType(item), datasetName: dataset.name };
+}
+
+/**
+ * Deletes a dataset item by ID.
+ *
+ * @throws LangfuseNotFoundError if item doesn't exist
+ */
+export async function deleteDatasetItem(props: {
+  projectId: string;
+  datasetItemId: string;
+  datasetId?: string;
+}): Promise<{ success: true; deletedItem: DatasetItemDomain }> {
+  const item = await getDatasetItemById({
+    projectId: props.projectId,
+    datasetItemId: props.datasetItemId,
+    datasetId: props.datasetId,
+  });
+
+  if (!item) {
+    throw new LangfuseNotFoundError(
+      `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+    );
+  }
+
+  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+    [Implementation.STATEFUL]: async () => {
+      await prisma.$transaction(async (tx) => {
+        await tx.datasetItem.delete({
+          where: {
+            id_projectId_validFrom: {
+              id: item.id,
+              validFrom: item.validFrom,
+              projectId: props.projectId,
+            },
+          },
+        });
+        await deleteDatasetItemMediaLinks(tx, {
+          projectId: props.projectId,
+          itemVersions: [
+            {
+              datasetItemId: item.id,
+              datasetItemValidFrom: item.validFrom,
+            },
+          ],
+        });
+      });
+    },
+    [Implementation.VERSIONED]: async () => {
+      // VERSIONED: Invalidate old row, then create delete marker
+      await prisma.$transaction(async (tx) => {
+        const newValidFrom = new Date();
+
+        // 1. Invalidate the current version
+        await tx.datasetItem.update({
+          where: {
+            id_projectId_validFrom: {
+              id: props.datasetItemId,
+              projectId: props.projectId,
+              validFrom: item.validFrom,
+            },
+          },
+          data: {
+            validTo: newValidFrom,
+          },
+        });
+
+        // 2. Create delete marker
+        await tx.datasetItem.create({
+          data: {
+            projectId: props.projectId,
+            id: props.datasetItemId,
+            isDeleted: true,
+            datasetId: item.datasetId,
+            validFrom: newValidFrom,
+          },
+        });
+
+        // Versioning preserves history: keep the invalidated version's
+        // dataset_item_media rows so the historical view still resolves its
+        // media. They are dropped when the dataset itself is deleted.
+      });
+    },
+  });
+
+  return { success: true, deletedItem: item };
 }
 
 type IdOrName = { datasetId: string } | { datasetName: string };
@@ -1538,103 +1634,6 @@ async function getDatasetItemsCountAtVersionInternal(params: {
 }
 
 /**
- * Retrieves a single dataset item by ID.
- * Always returns the latest version of the item.
- * Used by API layers to fetch current state before merging partial updates.
- *
- * @param props.datasetId - Optional to ensure item belongs to correct dataset
- * @param props.status - Optional status filter: 'ACTIVE' for active items only, undefined (default) for all statuses
- * @returns The dataset item or null if not found/deleted
- */
-export async function getDatasetItemById<
-  IncludeIO extends boolean = true,
->(props: {
-  projectId: string;
-  datasetItemId: string;
-  status?: "ACTIVE";
-  datasetId?: string;
-  version?: Date;
-  includeIO?: IncludeIO;
-}): Promise<
-  | (IncludeIO extends true ? DatasetItemDomain : DatasetItemDomainWithoutIO)
-  | null
-> {
-  const status = props.status;
-  const includeIO = (props.includeIO ?? true) as IncludeIO;
-
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // OLD: Simple lookup in dataset_items
-      const item = await prisma.datasetItem.findFirst({
-        select: includeIO
-          ? undefined
-          : {
-              id: true,
-              projectId: true,
-              datasetId: true,
-              sourceTraceId: true,
-              sourceObservationId: true,
-              status: true,
-              createdAt: true,
-              updatedAt: true,
-              validFrom: true,
-              isDeleted: true,
-            },
-        where: {
-          id: props.datasetItemId,
-          projectId: props.projectId,
-          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
-        },
-        orderBy: {
-          validFrom: "desc",
-        },
-      });
-      if (item?.isDeleted) return null;
-      return item ? toDomainType(item, includeIO) : null;
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Get version at or before specified timestamp, returns null if doesn't exist
-      const selectFields = includeIO
-        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"'
-        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"';
-
-      const datasetFilter = props.datasetId
-        ? Prisma.sql`AND dataset_id = ${props.datasetId}`
-        : Prisma.empty;
-
-      const statusFilter =
-        status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
-
-      // Temporal filter using valid_from and valid_to
-      const versionFilter = props.version
-        ? Prisma.sql`
-            AND valid_from <= ${props.version}
-            AND (valid_to IS NULL OR valid_to > ${props.version})
-          `
-        : Prisma.sql`AND valid_to IS NULL`;
-
-      const result = await prisma.$queryRaw<DatasetItem[]>(
-        Prisma.sql`
-          SELECT ${Prisma.raw(selectFields)}
-          FROM dataset_items
-          WHERE project_id = ${props.projectId}
-            AND id = ${props.datasetItemId}
-            AND is_deleted = false
-            ${datasetFilter}
-            ${statusFilter}
-            ${versionFilter}
-          LIMIT 1
-        `,
-      );
-
-      const item = result[0];
-      return item ? toDomainType(item, includeIO) : null;
-    },
-  });
-}
-
-/**
  * Retrieves the requested version of dataset items.
  * For each unique item ID, returns the latest non-deleted version.
  *
@@ -1815,40 +1814,6 @@ export async function getDatasetItemsCount(props: {
   });
 }
 
-/**
- * Counts dataset items whose input contains each prompt variable, without
- * transferring item IO to the Node process.
- *
- * Must stay aligned with `validateDatasetItem` in
- * `packages/shared/src/features/experiments/utils.ts`:
- * - object inputs: top-level key presence (`variable in input`)
- * - string inputs: counted only when there is exactly one variable
- * - arrays, null, empty string: not counted
- *
- * Used by `experiments.validateConfig`, which previously loaded every item's
- * input/output/metadata into memory and 500'd on large datasets.
- */
-export async function countDatasetItemVariableMatches(props: {
-  projectId: string;
-  filterState: FilterState;
-  variables: string[];
-  version?: Date;
-}): Promise<Record<string, number>> {
-  if (props.variables.length === 0) {
-    return {};
-  }
-
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () =>
-      countDatasetItemVariableMatchesInternal({
-        ...props,
-        version: undefined,
-      }),
-    [Implementation.VERSIONED]: async () =>
-      countDatasetItemVariableMatchesInternal(props),
-  });
-}
-
 async function countDatasetItemVariableMatchesInternal(params: {
   projectId: string;
   filterState: FilterState;
@@ -1916,6 +1881,40 @@ async function countDatasetItemVariableMatchesInternal(params: {
   }
 
   return variablesMap;
+}
+
+/**
+ * Counts dataset items whose input contains each prompt variable, without
+ * transferring item IO to the Node process.
+ *
+ * Must stay aligned with `validateDatasetItem` in
+ * `packages/shared/src/features/experiments/utils.ts`:
+ * - object inputs: top-level key presence (`variable in input`)
+ * - string inputs: counted only when there is exactly one variable
+ * - arrays, null, empty string: not counted
+ *
+ * Used by `experiments.validateConfig`, which previously loaded every item's
+ * input/output/metadata into memory and 500'd on large datasets.
+ */
+export async function countDatasetItemVariableMatches(props: {
+  projectId: string;
+  filterState: FilterState;
+  variables: string[];
+  version?: Date;
+}): Promise<Record<string, number>> {
+  if (props.variables.length === 0) {
+    return {};
+  }
+
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () =>
+      countDatasetItemVariableMatchesInternal({
+        ...props,
+        version: undefined,
+      }),
+    [Implementation.VERSIONED]: async () =>
+      countDatasetItemVariableMatchesInternal(props),
+  });
 }
 
 export async function getDatasetItemsCountGrouped(props: {

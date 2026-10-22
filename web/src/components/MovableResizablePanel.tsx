@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props */
 "use client";
 import {
   type CSSProperties,
@@ -106,6 +106,131 @@ type MovableResizablePanelProps = {
 const DEFAULT_BOUNDS_PADDING = 8;
 const DRAG_HANDLE_DOUBLE_CLICK_MAX_DELAY_MS = 500;
 const DRAG_HANDLE_DOUBLE_CLICK_MAX_DISTANCE_PX = 4;
+
+// The OS reserves the safe-area edges (home indicator, notch), and
+// `viewport-fit=cover` means innerWidth/innerHeight now span them, so bounds
+// have to subtract them or the panel places and clamps under system UI.
+// globals.css mirrors each `env()` inset into a var for this; 0 without a notch.
+function getSafeAreaInset(edge: "top" | "right" | "bottom" | "left"): number {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(
+    `--safe-area-inset-${edge}`,
+  );
+
+  return Number.parseFloat(value) || 0;
+}
+
+function getViewportBounds(
+  boundsPadding: number,
+): MovableResizablePanelViewportBounds {
+  if (typeof window === "undefined") {
+    return {
+      minLeft: boundsPadding,
+      minTop: boundsPadding,
+      maxRight: Number.POSITIVE_INFINITY,
+      maxBottom: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  return {
+    minLeft: boundsPadding + getSafeAreaInset("left"),
+    minTop: boundsPadding + getSafeAreaInset("top"),
+    maxRight: window.innerWidth - boundsPadding - getSafeAreaInset("right"),
+    maxBottom: window.innerHeight - boundsPadding - getSafeAreaInset("bottom"),
+  };
+}
+
+function getPanelSizeConstraints({
+  boundsPadding,
+  maxSize,
+  minSize,
+}: {
+  boundsPadding: number;
+  maxSize?: MovableResizablePanelSize;
+  minSize: MovableResizablePanelSize;
+}): MovableResizablePanelSizeConstraints {
+  const bounds = getViewportBounds(boundsPadding);
+  const viewportMaxWidth = bounds.maxRight - bounds.minLeft;
+  const viewportMaxHeight = bounds.maxBottom - bounds.minTop;
+
+  return {
+    maxHeight: Math.max(
+      minSize.height,
+      Math.min(maxSize?.height ?? viewportMaxHeight, viewportMaxHeight),
+    ),
+    maxWidth: Math.max(
+      minSize.width,
+      Math.min(maxSize?.width ?? viewportMaxWidth, viewportMaxWidth),
+    ),
+    minHeight: minSize.height,
+    minWidth: minSize.width,
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (max < min) {
+    return min;
+  }
+
+  return Math.min(Math.max(value, min), max);
+}
+
+function clampPanelBounds({
+  boundsPadding,
+  maxSize,
+  minSize,
+  position,
+  size,
+}: {
+  boundsPadding: number;
+  maxSize?: MovableResizablePanelSize;
+  minSize: MovableResizablePanelSize;
+  position: MovableResizablePanelPosition;
+  size: MovableResizablePanelSize;
+}) {
+  const bounds = getViewportBounds(boundsPadding);
+  const constraints = getPanelSizeConstraints({
+    boundsPadding,
+    maxSize,
+    minSize,
+  });
+  const width = clamp(size.width, constraints.minWidth, constraints.maxWidth);
+  const height = clamp(
+    size.height,
+    constraints.minHeight,
+    constraints.maxHeight,
+  );
+  const left = clamp(position.left, bounds.minLeft, bounds.maxRight - width);
+  const top = clamp(position.top, bounds.minTop, bounds.maxBottom - height);
+
+  return {
+    position: { left, top },
+    size: { width, height },
+  };
+}
+
+function arePositionsEqual(
+  first: MovableResizablePanelPosition,
+  second: MovableResizablePanelPosition,
+) {
+  return first.left === second.left && first.top === second.top;
+}
+
+function areSizesEqual(
+  first: MovableResizablePanelSize,
+  second: MovableResizablePanelSize,
+) {
+  return first.width === second.width && first.height === second.height;
+}
+
+function arePanelsEqual(
+  first: MovableResizablePanelGeometry,
+  second: MovableResizablePanelGeometry,
+) {
+  return (
+    arePositionsEqual(first.position, second.position) &&
+    areSizesEqual(first.size, second.size)
+  );
+}
 
 export function useMovableResizablePanelControl({
   boundsPadding = DEFAULT_BOUNDS_PADDING,
@@ -230,131 +355,6 @@ const resizeDirections: ResizeDirection[] = [
   "bottom-left",
   "bottom-right",
 ];
-
-function clamp(value: number, min: number, max: number) {
-  if (max < min) {
-    return min;
-  }
-
-  return Math.min(Math.max(value, min), max);
-}
-
-// The OS reserves the safe-area edges (home indicator, notch), and
-// `viewport-fit=cover` means innerWidth/innerHeight now span them, so bounds
-// have to subtract them or the panel places and clamps under system UI.
-// globals.css mirrors each `env()` inset into a var for this; 0 without a notch.
-function getSafeAreaInset(edge: "top" | "right" | "bottom" | "left"): number {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(
-    `--safe-area-inset-${edge}`,
-  );
-
-  return Number.parseFloat(value) || 0;
-}
-
-function getViewportBounds(
-  boundsPadding: number,
-): MovableResizablePanelViewportBounds {
-  if (typeof window === "undefined") {
-    return {
-      minLeft: boundsPadding,
-      minTop: boundsPadding,
-      maxRight: Number.POSITIVE_INFINITY,
-      maxBottom: Number.POSITIVE_INFINITY,
-    };
-  }
-
-  return {
-    minLeft: boundsPadding + getSafeAreaInset("left"),
-    minTop: boundsPadding + getSafeAreaInset("top"),
-    maxRight: window.innerWidth - boundsPadding - getSafeAreaInset("right"),
-    maxBottom: window.innerHeight - boundsPadding - getSafeAreaInset("bottom"),
-  };
-}
-
-function getPanelSizeConstraints({
-  boundsPadding,
-  maxSize,
-  minSize,
-}: {
-  boundsPadding: number;
-  maxSize?: MovableResizablePanelSize;
-  minSize: MovableResizablePanelSize;
-}): MovableResizablePanelSizeConstraints {
-  const bounds = getViewportBounds(boundsPadding);
-  const viewportMaxWidth = bounds.maxRight - bounds.minLeft;
-  const viewportMaxHeight = bounds.maxBottom - bounds.minTop;
-
-  return {
-    maxHeight: Math.max(
-      minSize.height,
-      Math.min(maxSize?.height ?? viewportMaxHeight, viewportMaxHeight),
-    ),
-    maxWidth: Math.max(
-      minSize.width,
-      Math.min(maxSize?.width ?? viewportMaxWidth, viewportMaxWidth),
-    ),
-    minHeight: minSize.height,
-    minWidth: minSize.width,
-  };
-}
-
-function clampPanelBounds({
-  boundsPadding,
-  maxSize,
-  minSize,
-  position,
-  size,
-}: {
-  boundsPadding: number;
-  maxSize?: MovableResizablePanelSize;
-  minSize: MovableResizablePanelSize;
-  position: MovableResizablePanelPosition;
-  size: MovableResizablePanelSize;
-}) {
-  const bounds = getViewportBounds(boundsPadding);
-  const constraints = getPanelSizeConstraints({
-    boundsPadding,
-    maxSize,
-    minSize,
-  });
-  const width = clamp(size.width, constraints.minWidth, constraints.maxWidth);
-  const height = clamp(
-    size.height,
-    constraints.minHeight,
-    constraints.maxHeight,
-  );
-  const left = clamp(position.left, bounds.minLeft, bounds.maxRight - width);
-  const top = clamp(position.top, bounds.minTop, bounds.maxBottom - height);
-
-  return {
-    position: { left, top },
-    size: { width, height },
-  };
-}
-
-function arePositionsEqual(
-  first: MovableResizablePanelPosition,
-  second: MovableResizablePanelPosition,
-) {
-  return first.left === second.left && first.top === second.top;
-}
-
-function areSizesEqual(
-  first: MovableResizablePanelSize,
-  second: MovableResizablePanelSize,
-) {
-  return first.width === second.width && first.height === second.height;
-}
-
-function arePanelsEqual(
-  first: MovableResizablePanelGeometry,
-  second: MovableResizablePanelGeometry,
-) {
-  return (
-    arePositionsEqual(first.position, second.position) &&
-    areSizesEqual(first.size, second.size)
-  );
-}
 
 function getMovedPanel(
   interaction: Extract<Interaction, { type: "move" }>,

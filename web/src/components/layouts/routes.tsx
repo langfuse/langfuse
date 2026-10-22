@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Flag } from "@/src/features/feature-flags/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
@@ -88,6 +87,34 @@ export type Route = {
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
+
+function CommandMenuTrigger() {
+  const { setOpen } = useCommandMenu();
+  const capture = usePostHogClientCapture();
+
+  return (
+    <SidebarMenuButton
+      onClick={() => {
+        capture("cmd_k_menu:opened", {
+          source: "main_navigation",
+        });
+        setOpen(true);
+      }}
+      className="whitespace-nowrap"
+    >
+      <Search size="base" />
+      Go to...
+      <span className="-mr-px ml-auto hidden md:inline-flex">
+        <KeyboardShortcut keys={["Mod", "K"]} />
+      </span>
+    </SidebarMenuButton>
+  );
+}
+
+function TopicsInternalBadge() {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+}
 
 export const ROUTES: Route[] = [
   {
@@ -321,31 +348,3 @@ export const ROUTES: Route[] = [
     menuNode: <SupportButton />,
   },
 ];
-
-function TopicsInternalBadge() {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
-}
-
-function CommandMenuTrigger() {
-  const { setOpen } = useCommandMenu();
-  const capture = usePostHogClientCapture();
-
-  return (
-    <SidebarMenuButton
-      onClick={() => {
-        capture("cmd_k_menu:opened", {
-          source: "main_navigation",
-        });
-        setOpen(true);
-      }}
-      className="whitespace-nowrap"
-    >
-      <Search size="base" />
-      Go to...
-      <span className="-mr-px ml-auto hidden md:inline-flex">
-        <KeyboardShortcut keys={["Mod", "K"]} />
-      </span>
-    </SidebarMenuButton>
-  );
-}

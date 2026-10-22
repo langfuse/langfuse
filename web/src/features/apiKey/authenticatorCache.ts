@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
 
 import {
@@ -16,6 +15,23 @@ import {
 } from "@/src/features/apiKey/authenticator";
 import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+/** cacheEnabled is the shared on/off switch for the context cache, reusing the legacy api-key cache flag. */
+function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
+  return Boolean(redis) && env.LANGFUSE_CACHE_API_KEY_ENABLED === "true";
+}
+
+function deserialize(entry: CachedEntry): Authenticated | null {
+  if (!entry?.context) return null;
+  return { success: true, context: entry.context };
+}
+
+/** ttlFor is the cache TTL in seconds, floored to the key's remaining lifetime so an entry never outlives its key. */
+function ttlFor(expiresAt: Date | null): number {
+  const ttl = env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS;
+  if (!expiresAt) return ttl;
+  return Math.min(ttl, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+}
 
 /** AuthenticatorCache stores authorization contexts by credential. */
 export class AuthenticatorCache {
@@ -86,23 +102,6 @@ export class AuthenticatorCache {
     }
     return null;
   }
-}
-
-/** cacheEnabled is the shared on/off switch for the context cache, reusing the legacy api-key cache flag. */
-function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
-  return Boolean(redis) && env.LANGFUSE_CACHE_API_KEY_ENABLED === "true";
-}
-
-/** ttlFor is the cache TTL in seconds, floored to the key's remaining lifetime so an entry never outlives its key. */
-function ttlFor(expiresAt: Date | null): number {
-  const ttl = env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS;
-  if (!expiresAt) return ttl;
-  return Math.min(ttl, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
-}
-
-function deserialize(entry: CachedEntry): Authenticated | null {
-  if (!entry?.context) return null;
-  return { success: true, context: entry.context };
 }
 
 type CachedEntry = { context: AuthorizationContext };

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 
 import Header from "@/src/components/layouts/header";
@@ -15,6 +14,29 @@ import {
 import { GatewayModelsTable } from "./components/GatewayModelsTable/GatewayModelsTable";
 
 const ALL_PROVIDERS = "all";
+
+function uniqueSorted<T extends string>(values: T[]) {
+  return [...new Set(values)].toSorted((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+function getEmptyMessage({
+  hasProviders,
+  hasSynced,
+  hasActiveFilters,
+}: {
+  hasProviders: boolean;
+  hasSynced: boolean;
+  hasActiveFilters: boolean;
+}) {
+  if (hasActiveFilters)
+    return "No models match the current search and filters.";
+  if (!hasProviders)
+    return "Add a provider credential before discovering models.";
+  if (hasSynced) return "No models were returned by the configured providers.";
+  return "Models will appear here after provider discovery completes.";
+}
 
 export function ConnectedGatewayModelsTable({
   models,
@@ -160,27 +182,4 @@ export function ConnectedGatewayModelsTable({
       </div>
     </div>
   );
-}
-
-function uniqueSorted<T extends string>(values: T[]) {
-  return [...new Set(values)].toSorted((left, right) =>
-    left.localeCompare(right),
-  );
-}
-
-function getEmptyMessage({
-  hasProviders,
-  hasSynced,
-  hasActiveFilters,
-}: {
-  hasProviders: boolean;
-  hasSynced: boolean;
-  hasActiveFilters: boolean;
-}) {
-  if (hasActiveFilters)
-    return "No models match the current search and filters.";
-  if (!hasProviders)
-    return "Add a provider credential before discovering models.";
-  if (hasSynced) return "No models were returned by the configured providers.";
-  return "Models will appear here after provider discovery completes.";
 }

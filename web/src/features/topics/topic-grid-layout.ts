@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export type GridPoint = {
   id: string;
   x: number;
@@ -59,6 +58,42 @@ export function sampleGridPoints(
 
 /** Cells per point; the slack keeps cluster shapes readable after snapping. */
 const CELL_DENSITY = 2.5;
+
+function compareIds(a: string, b: string) {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function nearestFreeCell(
+  targetCol: number,
+  targetRow: number,
+  cols: number,
+  rows: number,
+  taken: Uint8Array,
+) {
+  const startCol = clamp(Math.round(targetCol), 0, cols - 1);
+  const startRow = clamp(Math.round(targetRow), 0, rows - 1);
+  const maxRadius = Math.max(cols, rows);
+  for (let radius = 0; radius <= maxRadius; radius++) {
+    let best: { col: number; row: number; distance: number } | null = null;
+    for (let row = startRow - radius; row <= startRow + radius; row++) {
+      if (row < 0 || row >= rows) continue;
+      const onEdge = Math.abs(row - startRow) === radius;
+      const step = onEdge || radius === 0 ? 1 : radius * 2;
+      for (let col = startCol - radius; col <= startCol + radius; col += step) {
+        if (col < 0 || col >= cols || taken[row * cols + col]) continue;
+        const distance = Math.hypot(col - targetCol, row - targetRow);
+        if (!best || distance < best.distance) best = { col, row, distance };
+      }
+    }
+    if (best) return best;
+  }
+  throw new Error("Grid has fewer cells than points");
+}
 
 export function layoutTopicGrid(
   points: GridPoint[],
@@ -121,40 +156,4 @@ export function layoutTopicGrid(
   cells.sort((a, b) => compareIds(a.id, b.id));
 
   return { cols, rows, cells };
-}
-
-function nearestFreeCell(
-  targetCol: number,
-  targetRow: number,
-  cols: number,
-  rows: number,
-  taken: Uint8Array,
-) {
-  const startCol = clamp(Math.round(targetCol), 0, cols - 1);
-  const startRow = clamp(Math.round(targetRow), 0, rows - 1);
-  const maxRadius = Math.max(cols, rows);
-  for (let radius = 0; radius <= maxRadius; radius++) {
-    let best: { col: number; row: number; distance: number } | null = null;
-    for (let row = startRow - radius; row <= startRow + radius; row++) {
-      if (row < 0 || row >= rows) continue;
-      const onEdge = Math.abs(row - startRow) === radius;
-      const step = onEdge || radius === 0 ? 1 : radius * 2;
-      for (let col = startCol - radius; col <= startCol + radius; col += step) {
-        if (col < 0 || col >= cols || taken[row * cols + col]) continue;
-        const distance = Math.hypot(col - targetCol, row - targetRow);
-        if (!best || distance < best.distance) best = { col, row, distance };
-      }
-    }
-    if (best) return best;
-  }
-  throw new Error("Grid has fewer cells than points");
-}
-
-function compareIds(a: string, b: string) {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
 }

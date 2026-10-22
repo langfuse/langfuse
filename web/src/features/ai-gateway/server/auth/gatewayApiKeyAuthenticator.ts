@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
@@ -34,6 +33,55 @@ export type GatewayApiKeyAuthContext = Omit<
 type GatewayApiKeyAuthenticatorConfig = {
   resolveCache?: GatewayResolveCache;
 };
+
+function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {
+  return gatewayProviders.filter((provider) =>
+    providerSupportsApiFormat(provider, apiFormat),
+  ) as GatewayProvider[];
+}
+
+// The column is JSON, so a key written before validation existed can hold a
+// scalar, an array, or nested objects. Only a flat object of scalars can be
+// attributed per event.
+function toKeyMetadata(value: unknown): GatewayMetadata {
+  const parsed = GatewayMetadataSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+async function assertCanInvokeGateway(
+  prisma: PrismaClient,
+  apiKeyId: string,
+  organizationId: string,
+) {
+  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  const tenant = OrganizationId(organizationId);
+  const allowed = authorize(
+    {
+      principal: {
+        kind: "apiKey",
+        apiKeyId,
+        userId: null,
+        isInAppAgentKey: false,
+        publicKey: "",
+        scope: "ORGANIZATION",
+        presentation: "privateKey",
+        organizations: [],
+        boundResource: { orgId: organizationId },
+      },
+      policies: roles.flatMap((role) => role.policies),
+    },
+    tenant,
+    "gateway:invoke",
+    tenant,
+  ).success;
+  if (!allowed) {
+    throw new GatewayControlPlaneError(
+      "API key is not allowed to invoke the gateway",
+      403,
+    );
+  }
+}
 
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
@@ -173,53 +221,4 @@ export class GatewayApiKeyAuthenticator {
     });
     return context;
   }
-}
-
-/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
-async function assertCanInvokeGateway(
-  prisma: PrismaClient,
-  apiKeyId: string,
-  organizationId: string,
-) {
-  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
-  const tenant = OrganizationId(organizationId);
-  const allowed = authorize(
-    {
-      principal: {
-        kind: "apiKey",
-        apiKeyId,
-        userId: null,
-        isInAppAgentKey: false,
-        publicKey: "",
-        scope: "ORGANIZATION",
-        presentation: "privateKey",
-        organizations: [],
-        boundResource: { orgId: organizationId },
-      },
-      policies: roles.flatMap((role) => role.policies),
-    },
-    tenant,
-    "gateway:invoke",
-    tenant,
-  ).success;
-  if (!allowed) {
-    throw new GatewayControlPlaneError(
-      "API key is not allowed to invoke the gateway",
-      403,
-    );
-  }
-}
-
-function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {
-  return gatewayProviders.filter((provider) =>
-    providerSupportsApiFormat(provider, apiFormat),
-  ) as GatewayProvider[];
-}
-
-// The column is JSON, so a key written before validation existed can hold a
-// scalar, an array, or nested objects. Only a flat object of scalars can be
-// attributed per event.
-function toKeyMetadata(value: unknown): GatewayMetadata {
-  const parsed = GatewayMetadataSchema.safeParse(value);
-  return parsed.success ? parsed.data : {};
 }

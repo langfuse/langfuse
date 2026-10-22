@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 // Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns
@@ -315,6 +315,44 @@ function useLatest<T>(value: T) {
     ref.current = value;
   });
   return ref;
+}
+
+/**
+ * Remove control rendered OUTSIDE the contenteditable text flow: it is an
+ * absolutely positioned sibling anchored to the token's measured pixels, so
+ * hover/remove can never reflow text, join a selection range, or trap the
+ * caret.
+ */
+function RemoveTokenButton({
+  segment,
+  position,
+  onRemove,
+}: {
+  segment: ComposerSegment;
+  position: { left: number; top: number };
+  onRemove: (segment: ComposerSegment) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-overlay-remove
+      aria-label={`Remove ${segment.raw}`}
+      title={`Remove ${segment.raw}`}
+      style={{ left: position.left, top: position.top }}
+      className={cn(
+        "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",
+        "border-border bg-background text-muted-foreground border shadow-sm",
+        "hover:bg-accent hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
+      )}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onRemove(segment);
+      }}
+    >
+      <X size="sm" aria-hidden="true" />
+    </button>
+  );
 }
 
 export function SearchComposer({
@@ -1639,43 +1677,5 @@ export function SearchComposer({
           </Layer>
         )}
     </div>
-  );
-}
-
-/**
- * Remove control rendered OUTSIDE the contenteditable text flow: it is an
- * absolutely positioned sibling anchored to the token's measured pixels, so
- * hover/remove can never reflow text, join a selection range, or trap the
- * caret.
- */
-function RemoveTokenButton({
-  segment,
-  position,
-  onRemove,
-}: {
-  segment: ComposerSegment;
-  position: { left: number; top: number };
-  onRemove: (segment: ComposerSegment) => void;
-}) {
-  return (
-    <button
-      type="button"
-      data-overlay-remove
-      aria-label={`Remove ${segment.raw}`}
-      title={`Remove ${segment.raw}`}
-      style={{ left: position.left, top: position.top }}
-      className={cn(
-        "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",
-        "border-border bg-background text-muted-foreground border shadow-sm",
-        "hover:bg-accent hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
-      )}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={(event) => {
-        event.stopPropagation();
-        onRemove(segment);
-      }}
-    >
-      <X size="sm" aria-hidden="true" />
-    </button>
   );
 }

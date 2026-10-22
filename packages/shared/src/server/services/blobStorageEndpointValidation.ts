@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
@@ -34,6 +33,37 @@ export function blobStorageEndpointWhitelistFromEnv(): OutboundUrlValidationWhit
     ips: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS || [],
   };
+}
+
+function getEffectiveWhitelist(
+  whitelist: OutboundUrlValidationWhitelist,
+): OutboundUrlValidationWhitelist {
+  return isLangfuseCloudEndpointValidationEnabled()
+    ? STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST
+    : whitelist;
+}
+
+function isBlobStorageEndpointValidationEnabled(
+  whitelist: OutboundUrlValidationWhitelist,
+): boolean {
+  if (isLangfuseCloudEndpointValidationEnabled()) return true;
+
+  // Compatibility rollout: self-hosted deployments may already point blob
+  // exports at private MinIO/Azure endpoints. Keep the stricter SSRF/rebind
+  // validation opt-in until operators configure the dedicated allowlist envs.
+  // TODO(next major): enforce blob storage endpoint validation for self-hosted
+  // deployments even when no allowlist env is configured.
+  return (
+    whitelist.hosts.length > 0 ||
+    whitelist.ips.length > 0 ||
+    whitelist.ip_ranges.length > 0
+  );
+}
+
+function getSelfHostedWhitelistGuidance(): string {
+  if (isLangfuseCloudEndpointValidationEnabled()) return "";
+
+  return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }
 
 export async function validateBlobStorageEndpoint(
@@ -141,35 +171,4 @@ export function blobStorageEndpointConnectionValidationOptions(
     whitelist: effectiveWhitelist,
     logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
-}
-
-function getEffectiveWhitelist(
-  whitelist: OutboundUrlValidationWhitelist,
-): OutboundUrlValidationWhitelist {
-  return isLangfuseCloudEndpointValidationEnabled()
-    ? STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST
-    : whitelist;
-}
-
-function isBlobStorageEndpointValidationEnabled(
-  whitelist: OutboundUrlValidationWhitelist,
-): boolean {
-  if (isLangfuseCloudEndpointValidationEnabled()) return true;
-
-  // Compatibility rollout: self-hosted deployments may already point blob
-  // exports at private MinIO/Azure endpoints. Keep the stricter SSRF/rebind
-  // validation opt-in until operators configure the dedicated allowlist envs.
-  // TODO(next major): enforce blob storage endpoint validation for self-hosted
-  // deployments even when no allowlist env is configured.
-  return (
-    whitelist.hosts.length > 0 ||
-    whitelist.ips.length > 0 ||
-    whitelist.ip_ranges.length > 0
-  );
-}
-
-function getSelfHostedWhitelistGuidance(): string {
-  if (isLangfuseCloudEndpointValidationEnabled()) return "";
-
-  return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

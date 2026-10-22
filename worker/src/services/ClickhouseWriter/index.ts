@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   clickhouseClient,
   ClickhouseClientType,
@@ -40,6 +39,34 @@ export function isRetryableClickhouseInsertError(error: unknown): boolean {
     errorMessage.includes("socket hang up") ||
     errorMessage.includes("timeout error")
   );
+}
+
+type WriterPayloadMap = { [T in TableName]: object };
+
+type JsonWriterPayloadMap = {
+  [T in TableName]: RecordInsertType<T>;
+};
+
+type NativeWriterPayloadMap = {
+  [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
+};
+
+type ClickhouseWriterQueueItem<Payload> = {
+  /** When the item last entered the in-memory queue, including requeues. */
+  enqueuedAt: number;
+  requeued: boolean;
+  attempts: number;
+  data: Payload;
+};
+
+type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
+  [T in TableName]: ClickhouseWriterQueueItem<PayloadMap[T]>[];
+};
+
+/** 1-based row from ClickHouse parse errors, e.g. "Cannot parse input: ... (at row 11)"; NaN if absent. */
+function failedRowNumber(err: unknown): number {
+  const message = err instanceof Error ? err.message : "";
+  return Number(/\(at row (\d+)\)/.exec(message)?.[1]);
 }
 
 export class ClickhouseWriter<
@@ -611,31 +638,3 @@ export class ClickhouseWriter<
     });
   }
 }
-
-/** 1-based row from ClickHouse parse errors, e.g. "Cannot parse input: ... (at row 11)"; NaN if absent. */
-function failedRowNumber(err: unknown): number {
-  const message = err instanceof Error ? err.message : "";
-  return Number(/\(at row (\d+)\)/.exec(message)?.[1]);
-}
-
-type WriterPayloadMap = { [T in TableName]: object };
-
-type JsonWriterPayloadMap = {
-  [T in TableName]: RecordInsertType<T>;
-};
-
-type NativeWriterPayloadMap = {
-  [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
-};
-
-type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
-  [T in TableName]: ClickhouseWriterQueueItem<PayloadMap[T]>[];
-};
-
-type ClickhouseWriterQueueItem<Payload> = {
-  /** When the item last entered the in-memory queue, including requeues. */
-  enqueuedAt: number;
-  requeued: boolean;
-  attempts: number;
-  data: Payload;
-};

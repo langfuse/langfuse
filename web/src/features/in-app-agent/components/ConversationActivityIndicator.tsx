@@ -1,9 +1,30 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { CircleAlert, Loader2 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+
+/**
+ * Fixed-size box: the dot is half the width of the icons, so without it the
+ * column zig-zags. Named here because a bare span cannot carry a label.
+ */
+function ConversationActivityIndicatorSlot({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="flex size-3 shrink-0 items-center justify-center"
+    >
+      {children}
+    </span>
+  );
+}
 
 /**
  * Trailing state for one recent-conversation row. Exactly one can show, so the
@@ -41,27 +62,5 @@ export function ConversationActivityIndicator({
         )}
       />
     </ConversationActivityIndicatorSlot>
-  );
-}
-
-/**
- * Fixed-size box: the dot is half the width of the icons, so without it the
- * column zig-zags. Named here because a bare span cannot carry a label.
- */
-function ConversationActivityIndicatorSlot({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <span
-      role="img"
-      aria-label={label}
-      className="flex size-3 shrink-0 items-center justify-center"
-    >
-      {children}
-    </span>
   );
 }

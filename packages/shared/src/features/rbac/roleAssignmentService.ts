@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   SystemRole,
   type Prisma,
@@ -27,6 +26,56 @@ export async function getRoleAssignmentsForPrincipal(
   return await tx.roleAssignment.findMany({
     where: { principalId },
   });
+}
+
+/** validateRole rejects unsupported roles and returns their storage fields. */
+function validateRole(roleId: RoleId) {
+  if (!hasSystemRoleKind(roleId)) {
+    throw new NotImplementedError("custom roles not yet supported");
+  }
+  const systemRole = Object.values(SystemRole).find(
+    (role) => role === untag(roleId),
+  );
+  if (systemRole === undefined) {
+    throw new InvalidRequestError("Unknown system role");
+  }
+  return { roleId, systemRole };
+}
+
+/** validateTenancy holds project ownership stable until the transaction ends. */
+async function validateTenancy(
+  tx: Prisma.TransactionClient,
+  tenantId: TenantId,
+  ownerId: OwnerId,
+) {
+  const orgId = untag(tenantId);
+  if (hasOrganizationKind(ownerId)) {
+    if (ownerId !== tenantId) {
+      throw new InvalidRequestError(
+        "Role assignment owner must belong to its tenant",
+      );
+    }
+    return { orgId, ownerId, projectId: null };
+  }
+  const projectId = untag(ownerId);
+  const projects = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM projects
+    WHERE id = ${projectId} AND org_id = ${orgId}
+    FOR SHARE
+  `;
+  if (projects.length === 0) {
+    throw new InvalidRequestError(
+      "Role assignment owner must belong to its tenant",
+    );
+  }
+  return { orgId, ownerId, projectId };
+}
+
+/** principalFields pairs a tagged principal with its foreign key. */
+function principalFields(principalId: PrincipalId) {
+  return hasApiKeyKind(principalId)
+    ? { principalId, apiKeyId: untag(principalId) }
+    : { principalId, userId: untag(principalId) };
 }
 
 /** assignRole persists a system-role assignment in the supplied tenant. */
@@ -66,54 +115,4 @@ export async function transferRoleAssignments(
       where: { projectId, userId: { not: null } },
     });
   });
-}
-
-/** validateTenancy holds project ownership stable until the transaction ends. */
-async function validateTenancy(
-  tx: Prisma.TransactionClient,
-  tenantId: TenantId,
-  ownerId: OwnerId,
-) {
-  const orgId = untag(tenantId);
-  if (hasOrganizationKind(ownerId)) {
-    if (ownerId !== tenantId) {
-      throw new InvalidRequestError(
-        "Role assignment owner must belong to its tenant",
-      );
-    }
-    return { orgId, ownerId, projectId: null };
-  }
-  const projectId = untag(ownerId);
-  const projects = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM projects
-    WHERE id = ${projectId} AND org_id = ${orgId}
-    FOR SHARE
-  `;
-  if (projects.length === 0) {
-    throw new InvalidRequestError(
-      "Role assignment owner must belong to its tenant",
-    );
-  }
-  return { orgId, ownerId, projectId };
-}
-
-/** principalFields pairs a tagged principal with its foreign key. */
-function principalFields(principalId: PrincipalId) {
-  return hasApiKeyKind(principalId)
-    ? { principalId, apiKeyId: untag(principalId) }
-    : { principalId, userId: untag(principalId) };
-}
-
-/** validateRole rejects unsupported roles and returns their storage fields. */
-function validateRole(roleId: RoleId) {
-  if (!hasSystemRoleKind(roleId)) {
-    throw new NotImplementedError("custom roles not yet supported");
-  }
-  const systemRole = Object.values(SystemRole).find(
-    (role) => role === untag(roleId),
-  );
-  if (systemRole === undefined) {
-    throw new InvalidRequestError("Unknown system role");
-  }
-  return { roleId, systemRole };
 }

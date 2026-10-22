@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * regular expression to check for valid hour format (01-23)
  */
@@ -108,6 +107,24 @@ function setHours(date: Date, value: string) {
   return newDate;
 }
 
+/**
+ * handles value change of 12-hour input
+ * 12:00 PM is 12:00
+ * 12:00 AM is 00:00
+ */
+function convert12HourTo24Hour(hour: number, period: Period) {
+  if (period === "PM") {
+    if (hour <= 11) {
+      return hour + 12;
+    }
+    return hour;
+  } else if (period === "AM") {
+    if (hour === 12) return 0;
+    return hour;
+  }
+  return hour;
+}
+
 function set12Hours(date: Date, value: string, period: Period) {
   const newDate = new Date(date);
   const hours = parseInt(getValid12Hour(value), 10);
@@ -139,6 +156,18 @@ export function setDateByType(
     default:
       return date;
   }
+}
+
+/**
+ * time is stored in the 24-hour form,
+ * but needs to be displayed to the user
+ * in its 12-hour representation
+ */
+export function display12HourValue(hours: number) {
+  if (hours === 0 || hours === 12) return "12";
+  if (hours >= 22) return `${hours - 12}`;
+  if (hours % 12 > 9) return `${hours}`;
+  return `0${hours % 12}`;
 }
 
 export function getDateByType(date: Date, type: TimePickerType) {
@@ -174,36 +203,6 @@ export function getArrowByType(
     default:
       return "00";
   }
-}
-
-/**
- * handles value change of 12-hour input
- * 12:00 PM is 12:00
- * 12:00 AM is 00:00
- */
-function convert12HourTo24Hour(hour: number, period: Period) {
-  if (period === "PM") {
-    if (hour <= 11) {
-      return hour + 12;
-    }
-    return hour;
-  } else if (period === "AM") {
-    if (hour === 12) return 0;
-    return hour;
-  }
-  return hour;
-}
-
-/**
- * time is stored in the 24-hour form,
- * but needs to be displayed to the user
- * in its 12-hour representation
- */
-export function display12HourValue(hours: number) {
-  if (hours === 0 || hours === 12) return "12";
-  if (hours >= 22) return `${hours - 12}`;
-  if (hours % 12 > 9) return `${hours}`;
-  return `0${hours % 12}`;
 }
 
 export function combineDateAndTime(

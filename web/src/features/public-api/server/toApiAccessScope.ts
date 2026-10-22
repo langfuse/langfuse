@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InternalServerError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
@@ -6,21 +5,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { type Principal } from "@/src/features/auth/policy/types";
-
-/** toApiAccessScope maps an authenticated principal and its resolved target onto the legacy ApiAccessScope. */
-// Legacy compatibility; delete once the migration retires ApiAccessScope.
-export function toApiAccessScope(
-  principal: Principal,
-  target: TargetResource,
-): ApiAccessScope {
-  if (principal.kind === "admin") return adminScope(target);
-  if (principal.kind !== "apiKey") {
-    throw new InternalServerError(
-      `unexpected principal on the public-API seam: ${principal.kind}`,
-    );
-  }
-  return apiKeyScope(principal, target);
-}
 
 /** adminScope is the legacy self-host admin scope for a resolved target. */
 function adminScope(target: TargetResource): ApiAccessScope {
@@ -35,6 +19,20 @@ function adminScope(target: TargetResource): ApiAccessScope {
     isIngestionSuspended: false,
     isInAppAgentKey: false,
   };
+}
+
+/** apiKeyAccessLevel is the access level a key's presentation grants on the target. */
+function apiKeyAccessLevel(
+  principal: ApiKeyPrincipal,
+  projectId: string | null,
+): ApiAccessLevel {
+  if (projectId === null) {
+    return "organization";
+  }
+  if (principal.presentation === "publicKey") {
+    return "scores";
+  }
+  return "project";
 }
 
 /** apiKeyScope maps an api-key principal and its resolved target onto the ApiAccessScope. */
@@ -57,18 +55,19 @@ function apiKeyScope(
   };
 }
 
-/** apiKeyAccessLevel is the access level a key's presentation grants on the target. */
-function apiKeyAccessLevel(
-  principal: ApiKeyPrincipal,
-  projectId: string | null,
-): ApiAccessLevel {
-  if (projectId === null) {
-    return "organization";
+/** toApiAccessScope maps an authenticated principal and its resolved target onto the legacy ApiAccessScope. */
+// Legacy compatibility; delete once the migration retires ApiAccessScope.
+export function toApiAccessScope(
+  principal: Principal,
+  target: TargetResource,
+): ApiAccessScope {
+  if (principal.kind === "admin") return adminScope(target);
+  if (principal.kind !== "apiKey") {
+    throw new InternalServerError(
+      `unexpected principal on the public-API seam: ${principal.kind}`,
+    );
   }
-  if (principal.presentation === "publicKey") {
-    return "scores";
-  }
-  return "project";
+  return apiKeyScope(principal, target);
 }
 
 /** TargetResource is the resolved org and optional project a seam maps the principal onto. */

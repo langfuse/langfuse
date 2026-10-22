@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -112,6 +111,187 @@ async function deleteInAppAgentMcpApiKey(params: {
     if (!isMissingInAppAgentMcpApiKeyError(error)) {
       throw error;
     }
+  }
+}
+
+async function resolveUserProjectAccess(params: {
+  userId: string;
+  projectId: string;
+  orgId: string;
+}): Promise<{
+  projectRole?: Role;
+  isAdmin: boolean;
+  email: string | null;
+  v4BetaEnabled: boolean;
+} | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: params.userId },
+    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+  });
+
+  if (!user) return null;
+
+  if (user.admin) {
+    return {
+      isAdmin: true,
+      email: user.email,
+      v4BetaEnabled: user.v4BetaEnabled,
+    };
+  }
+
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: { userId: params.userId, orgId: params.orgId },
+  });
+
+  if (!orgMembership) return null;
+
+  const projectMembership = await prisma.projectMembership.findFirst({
+    where: {
+      userId: params.userId,
+      projectId: params.projectId,
+      orgMembershipId: orgMembership.id,
+    },
+  });
+
+  const projectRole = projectMembership?.role ?? orgMembership.role;
+
+  if (projectRole === Role.NONE) return null;
+
+  return {
+    projectRole,
+    isAdmin: false,
+    email: user.email,
+    v4BetaEnabled: user.v4BetaEnabled,
+  };
+}
+
+function findPersistedApprovalRequest(
+  events: readonly PersistedConversationEvent[],
+  request: Extract<InAppAgentRunRequest, { kind: "approvalDecision" }>,
+): InAppAgentToolApprovalRequest | undefined {
+  // Zero-trust: the decision mutation stores only IDs; tool name and args are
+  // read back from the interrupt event the parent run persisted.
+  for (const { event, runId } of events) {
+    if (runId !== request.parentRunId) continue;
+
+    const approvalRequest = parseInAppAgentInterruptEvent(event);
+
+    if (approvalRequest?.toolCallId === request.toolCallId) {
+      return approvalRequest;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveCompletedRunFinish(outcome?: {
+  truncatedByStepLimit: boolean;
+  truncatedByOutputLimit: boolean;
+}): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
+  if (outcome?.truncatedByOutputLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      errorMessage:
+        "The response hit the model's output-token limit before a final answer",
+    };
+  }
+  if (outcome?.truncatedByStepLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+      errorMessage: "The run reached the step limit before a final answer",
+    };
+  }
+  return { status: InAppAgentRunStatus.SUCCEEDED };
+}
+
+function getLangfuseMcpUrl(): string {
+  const url = resolveLangfuseMcpUrl({
+    mcpBaseUrl: env.LANGFUSE_MCP_BASE_URL,
+    nextAuthUrl: env.NEXTAUTH_URL,
+  });
+
+  if (!url) {
+    throw new InAppAgentRunInitError(
+      "LANGFUSE_MCP_BASE_URL or NEXTAUTH_URL must be configured to derive the MCP endpoint",
+    );
+  }
+
+  return url;
+}
+
+async function loadSkills(signal: AbortSignal) {
+  return loadInAppAgentSkills({
+    tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+    baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+    publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    signal,
+  });
+}
+
+function buildTracingConfig(params: {
+  aiTelemetryEnabled: boolean;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  runStartedAt: Date;
+  user: {
+    id: string;
+    email: string | null;
+    projectRole?: Role;
+    isAdmin: boolean;
+  };
+}) {
+  if (!params.aiTelemetryEnabled) {
+    return undefined;
+  }
+
+  const traceSinkParams = getLangfuseAITraceSinkParams({
+    feature: "in-app-agent",
+    projectId: params.projectId,
+    traceId: getInAppAgentInstrumentationTraceId(params.runId),
+    traceName: "agent-turn",
+    userId: params.user.id,
+    metadata: {
+      langfuse_ai_feature: "in-app-agent",
+      langfuse_user_id: params.user.id,
+      langfuse_project_id: params.projectId,
+      conversation_id: params.conversationId,
+      run_id: params.runId,
+      cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      execution_runtime: "worker",
+    },
+  });
+
+  return traceSinkParams
+    ? {
+        targetProjectId: traceSinkParams.targetProjectId,
+        environment: traceSinkParams.environment,
+        runId: params.runId,
+        runStartedAt: params.runStartedAt,
+        user: {
+          id: params.user.id,
+          email: params.user.email,
+          projectRole: params.user.projectRole,
+          isAdmin: params.user.isAdmin,
+        },
+        metadata: traceSinkParams.metadata ?? {},
+      }
+    : undefined;
+}
+
+async function drainStream(stream: {
+  getReader: () => { read: () => Promise<{ done: boolean }> };
+}): Promise<void> {
+  const reader = stream.getReader();
+
+  // The SSE frames have no consumer on the background path; reading drives
+  // the loop to completion and the onEvent callbacks persist everything.
+  for (;;) {
+    const { done } = await reader.read();
+    if (done) return;
   }
 }
 
@@ -682,186 +862,5 @@ export async function executeInAppAgentRun(params: {
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     activeRunAborts.delete(abortController);
-  }
-}
-
-async function loadSkills(signal: AbortSignal) {
-  return loadInAppAgentSkills({
-    tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
-    baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
-    publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-    secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
-    signal,
-  });
-}
-
-async function resolveUserProjectAccess(params: {
-  userId: string;
-  projectId: string;
-  orgId: string;
-}): Promise<{
-  projectRole?: Role;
-  isAdmin: boolean;
-  email: string | null;
-  v4BetaEnabled: boolean;
-} | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
-  });
-
-  if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
-
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: { userId: params.userId, orgId: params.orgId },
-  });
-
-  if (!orgMembership) return null;
-
-  const projectMembership = await prisma.projectMembership.findFirst({
-    where: {
-      userId: params.userId,
-      projectId: params.projectId,
-      orgMembershipId: orgMembership.id,
-    },
-  });
-
-  const projectRole = projectMembership?.role ?? orgMembership.role;
-
-  if (projectRole === Role.NONE) return null;
-
-  return {
-    projectRole,
-    isAdmin: false,
-    email: user.email,
-    v4BetaEnabled: user.v4BetaEnabled,
-  };
-}
-
-function resolveCompletedRunFinish(outcome?: {
-  truncatedByStepLimit: boolean;
-  truncatedByOutputLimit: boolean;
-}): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
-  if (outcome?.truncatedByOutputLimit) {
-    return {
-      status: InAppAgentRunStatus.SUCCEEDED,
-      errorCode: InAppAgentRunErrorCode.OUTPUT_LIMIT,
-      errorMessage:
-        "The response hit the model's output-token limit before a final answer",
-    };
-  }
-  if (outcome?.truncatedByStepLimit) {
-    return {
-      status: InAppAgentRunStatus.SUCCEEDED,
-      errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
-      errorMessage: "The run reached the step limit before a final answer",
-    };
-  }
-  return { status: InAppAgentRunStatus.SUCCEEDED };
-}
-
-function findPersistedApprovalRequest(
-  events: readonly PersistedConversationEvent[],
-  request: Extract<InAppAgentRunRequest, { kind: "approvalDecision" }>,
-): InAppAgentToolApprovalRequest | undefined {
-  // Zero-trust: the decision mutation stores only IDs; tool name and args are
-  // read back from the interrupt event the parent run persisted.
-  for (const { event, runId } of events) {
-    if (runId !== request.parentRunId) continue;
-
-    const approvalRequest = parseInAppAgentInterruptEvent(event);
-
-    if (approvalRequest?.toolCallId === request.toolCallId) {
-      return approvalRequest;
-    }
-  }
-
-  return undefined;
-}
-
-function getLangfuseMcpUrl(): string {
-  const url = resolveLangfuseMcpUrl({
-    mcpBaseUrl: env.LANGFUSE_MCP_BASE_URL,
-    nextAuthUrl: env.NEXTAUTH_URL,
-  });
-
-  if (!url) {
-    throw new InAppAgentRunInitError(
-      "LANGFUSE_MCP_BASE_URL or NEXTAUTH_URL must be configured to derive the MCP endpoint",
-    );
-  }
-
-  return url;
-}
-
-function buildTracingConfig(params: {
-  aiTelemetryEnabled: boolean;
-  projectId: string;
-  conversationId: string;
-  runId: string;
-  runStartedAt: Date;
-  user: {
-    id: string;
-    email: string | null;
-    projectRole?: Role;
-    isAdmin: boolean;
-  };
-}) {
-  if (!params.aiTelemetryEnabled) {
-    return undefined;
-  }
-
-  const traceSinkParams = getLangfuseAITraceSinkParams({
-    feature: "in-app-agent",
-    projectId: params.projectId,
-    traceId: getInAppAgentInstrumentationTraceId(params.runId),
-    traceName: "agent-turn",
-    userId: params.user.id,
-    metadata: {
-      langfuse_ai_feature: "in-app-agent",
-      langfuse_user_id: params.user.id,
-      langfuse_project_id: params.projectId,
-      conversation_id: params.conversationId,
-      run_id: params.runId,
-      cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      execution_runtime: "worker",
-    },
-  });
-
-  return traceSinkParams
-    ? {
-        targetProjectId: traceSinkParams.targetProjectId,
-        environment: traceSinkParams.environment,
-        runId: params.runId,
-        runStartedAt: params.runStartedAt,
-        user: {
-          id: params.user.id,
-          email: params.user.email,
-          projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
-        },
-        metadata: traceSinkParams.metadata ?? {},
-      }
-    : undefined;
-}
-
-async function drainStream(stream: {
-  getReader: () => { read: () => Promise<{ done: boolean }> };
-}): Promise<void> {
-  const reader = stream.getReader();
-
-  // The SSE frames have no consumer on the background path; reading drives
-  // the loop to completion and the onEvent callbacks persist everything.
-  for (;;) {
-    const { done } = await reader.read();
-    if (done) return;
   }
 }

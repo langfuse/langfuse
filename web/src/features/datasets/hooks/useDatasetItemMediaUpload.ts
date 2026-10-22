@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
 
@@ -34,6 +33,28 @@ async function sha256Base64(buffer: ArrayBuffer): Promise<string> {
     binary += String.fromCharCode(byte);
   }
   return btoa(binary);
+}
+
+function getMediaUploadFailureAnalytics(
+  phase: MediaUploadFailurePhase,
+  error: unknown,
+): ToastErrorAnalytics {
+  switch (phase) {
+    case "trpc":
+      return classifyTrpcToastError(error, "dataset_item_media.upload");
+    case "network":
+      return {
+        operation: "dataset_item_media.upload",
+        errorOrigin: "network",
+        errorCategory: "transient",
+      };
+    case "frontend":
+      return {
+        operation: "dataset_item_media.upload",
+        errorOrigin: "frontend",
+        errorCategory: "internal",
+      };
+  }
 }
 
 /**
@@ -169,28 +190,6 @@ export function useDatasetItemMediaUpload({
   );
 
   return { uploadFile, pendingUploads, resetPendingUploads };
-}
-
-function getMediaUploadFailureAnalytics(
-  phase: MediaUploadFailurePhase,
-  error: unknown,
-): ToastErrorAnalytics {
-  switch (phase) {
-    case "trpc":
-      return classifyTrpcToastError(error, "dataset_item_media.upload");
-    case "network":
-      return {
-        operation: "dataset_item_media.upload",
-        errorOrigin: "network",
-        errorCategory: "transient",
-      };
-    case "frontend":
-      return {
-        operation: "dataset_item_media.upload",
-        errorOrigin: "frontend",
-        errorCategory: "internal",
-      };
-  }
 }
 
 type MediaUploadFailurePhase = "frontend" | "trpc" | "network";

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Readable } from "node:stream";
 import { env } from "../../env";
 import { createEventUploadStorageService } from "../s3";
@@ -56,6 +55,35 @@ export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
 let storage: StorageService | undefined;
 
+/** Each S3 request is bounded so a stalled upload cannot hold a Topics slot indefinitely. */
+function getStorage(): StorageService {
+  if (!storage)
+    storage = createEventUploadStorageService(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      {
+        // This timeout applies only to S3; Azure, GCS, and OCI retain their provider defaults.
+        s3RequestTimeoutMs:
+          env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS,
+      },
+    );
+  return storage;
+}
+
+function getTraceBatchInputsKey({
+  projectId,
+  traceId,
+  revision,
+}: TraceBatchInputReference): string {
+  const safeProjectId = safeBlobKeySegment(projectId);
+  const safeTraceId = safeBlobKeySegment(traceId);
+  const safeRevision = safeBlobFilenameStem(revision, ".json");
+  const hash = createW3CTraceId(JSON.stringify([projectId, traceId])).slice(
+    0,
+    3,
+  );
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
+}
+
 /** Storage dependencies share one lazily initialized provider client. */
 export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   return {
@@ -99,33 +127,4 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       };
     },
   };
-}
-
-/** Each S3 request is bounded so a stalled upload cannot hold a Topics slot indefinitely. */
-function getStorage(): StorageService {
-  if (!storage)
-    storage = createEventUploadStorageService(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      {
-        // This timeout applies only to S3; Azure, GCS, and OCI retain their provider defaults.
-        s3RequestTimeoutMs:
-          env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS,
-      },
-    );
-  return storage;
-}
-
-function getTraceBatchInputsKey({
-  projectId,
-  traceId,
-  revision,
-}: TraceBatchInputReference): string {
-  const safeProjectId = safeBlobKeySegment(projectId);
-  const safeTraceId = safeBlobKeySegment(traceId);
-  const safeRevision = safeBlobFilenameStem(revision, ".json");
-  const hash = createW3CTraceId(JSON.stringify([projectId, traceId])).slice(
-    0,
-    3,
-  );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
 }

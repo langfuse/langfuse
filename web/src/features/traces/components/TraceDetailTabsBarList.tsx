@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -23,19 +22,6 @@ type TraceDetailTabsBarListProps = {
   logViewDescription: string;
   trailingControls: ReactNode;
 };
-
-/**
- * Tab bar for the trace and observation detail panels. Which tabs a panel
- * shows depends on the trace, the project role, and the enabled features, so
- * the row is anywhere between two and five tabs wide; the ones that do not fit
- * next to the trailing controls move behind an overflow menu.
- */
-export function TraceDetailTabsBarList(
-  props: TraceDetailTabsBarListProps | { isLoading: true },
-) {
-  if ("isLoading" in props) return <TraceDetailTabsBarListLoading />;
-  return <LoadedTraceDetailTabsBarList {...props} />;
-}
 
 /** Label bars in trigger-sized slots, no menu; the view toggle as one block. */
 function TraceDetailTabsBarListLoading() {
@@ -75,4 +61,17 @@ function LoadedTraceDetailTabsBarList({
       {trailingControls}
     </div>
   );
+}
+
+/**
+ * Tab bar for the trace and observation detail panels. Which tabs a panel
+ * shows depends on the trace, the project role, and the enabled features, so
+ * the row is anywhere between two and five tabs wide; the ones that do not fit
+ * next to the trailing controls move behind an overflow menu.
+ */
+export function TraceDetailTabsBarList(
+  props: TraceDetailTabsBarListProps | { isLoading: true },
+) {
+  if ("isLoading" in props) return <TraceDetailTabsBarListLoading />;
+  return <LoadedTraceDetailTabsBarList {...props} />;
 }

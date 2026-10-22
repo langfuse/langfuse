@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
@@ -25,6 +24,14 @@ export type QuestionnaireStepProps = {
   onAdvance: () => void;
   onSkip: () => void;
 };
+
+// Single choice shows Skip until a custom answer is typed, then Submit.
+function getFooterActions(allowMultiple: boolean, hasOtherText: boolean) {
+  if (allowMultiple) {
+    return "skipAndSubmit";
+  }
+  return hasOtherText ? "submit" : "skip";
+}
 
 /**
  * Options and the custom answer form one divided list, picked with a radio or
@@ -148,12 +155,4 @@ export function QuestionnaireStep({
       />
     </div>
   );
-}
-
-// Single choice shows Skip until a custom answer is typed, then Submit.
-function getFooterActions(allowMultiple: boolean, hasOtherText: boolean) {
-  if (allowMultiple) {
-    return "skipAndSubmit";
-  }
-  return hasOtherText ? "submit" : "skip";
 }

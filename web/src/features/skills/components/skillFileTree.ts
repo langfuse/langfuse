@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export type SkillFileTreeNode =
   | {
       kind: "folder";
@@ -28,33 +27,6 @@ export function getParentFolderPaths(filePaths: string[]): string[] {
     }
   }
   return [...folders].toSorted((left, right) => left.localeCompare(right));
-}
-
-export function buildSkillFileTree(
-  filePaths: string[],
-  folderPaths: string[],
-): SkillFileTreeNode[] {
-  const root: MutableFolder = {
-    kind: "folder",
-    name: "",
-    path: "",
-    children: new Map(),
-  };
-
-  for (const folderPath of [
-    ...new Set([...folderPaths, ...getParentFolderPaths(filePaths)]),
-  ].toSorted()) {
-    ensureFolder(root, folderPath);
-  }
-
-  for (const filePath of filePaths) {
-    const segments = filePath.split("/");
-    const name = segments.pop()!;
-    const parent = ensureFolder(root, segments.join("/"));
-    parent.children.set(name, { kind: "file", name, path: filePath });
-  }
-
-  return serializeChildren(root.children);
 }
 
 function ensureFolder(root: MutableFolder, path: string): MutableFolder {
@@ -95,4 +67,31 @@ function serializeChildren(
         ? { ...node, children: serializeChildren(node.children) }
         : node,
     );
+}
+
+export function buildSkillFileTree(
+  filePaths: string[],
+  folderPaths: string[],
+): SkillFileTreeNode[] {
+  const root: MutableFolder = {
+    kind: "folder",
+    name: "",
+    path: "",
+    children: new Map(),
+  };
+
+  for (const folderPath of [
+    ...new Set([...folderPaths, ...getParentFolderPaths(filePaths)]),
+  ].toSorted()) {
+    ensureFolder(root, folderPath);
+  }
+
+  for (const filePath of filePaths) {
+    const segments = filePath.split("/");
+    const name = segments.pop()!;
+    const parent = ensureFolder(root, segments.join("/"));
+    parent.children.set(name, { kind: "file", name, path: filePath });
+  }
+
+  return serializeChildren(root.children);
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, type ReactNode } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -24,32 +23,6 @@ export type CreateIngestionProjectDialogControllerProps = {
   }) => void | Promise<void>;
   children: (control: { openDialog: () => void }) => ReactNode;
 };
-
-export function CreateIngestionProjectDialogController({
-  ingestionMode,
-  isSaving,
-  onCreate,
-  children,
-}: CreateIngestionProjectDialogControllerProps) {
-  function handleBeforeClose() {
-    return !isSaving;
-  }
-
-  return (
-    <DialogController
-      onBeforeClose={handleBeforeClose}
-      renderDialog={() => (
-        <CreateIngestionProjectDialog
-          ingestionMode={ingestionMode}
-          isSaving={isSaving}
-          onCreate={onCreate}
-        />
-      )}
-    >
-      {children}
-    </DialogController>
-  );
-}
 
 function CreateIngestionProjectDialog({
   ingestionMode,
@@ -105,6 +78,32 @@ function CreateIngestionProjectDialog({
         </Dialog.Body>
       </form>
     </Dialog>
+  );
+}
+
+export function CreateIngestionProjectDialogController({
+  ingestionMode,
+  isSaving,
+  onCreate,
+  children,
+}: CreateIngestionProjectDialogControllerProps) {
+  function handleBeforeClose() {
+    return !isSaving;
+  }
+
+  return (
+    <DialogController
+      onBeforeClose={handleBeforeClose}
+      renderDialog={() => (
+        <CreateIngestionProjectDialog
+          ingestionMode={ingestionMode}
+          isSaving={isSaving}
+          onCreate={onCreate}
+        />
+      )}
+    >
+      {children}
+    </DialogController>
   );
 }
 

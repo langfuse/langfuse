@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
@@ -13,6 +12,77 @@ import { canCreateOrganizations } from "@/src/features/organizations/server";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+
+async function processMembershipInvitations(email: string, userId: string) {
+  const invitationsForUser = await prisma.membershipInvitation.findMany({
+    where: {
+      email: email.toLowerCase(),
+    },
+  });
+  if (invitationsForUser.length === 0) return false;
+
+  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+    (invitation) => {
+      if (
+        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
+        !invitation.projectId
+      ) {
+        return false;
+      }
+
+      const projectRole = invitation.projectRole ?? invitation.orgRole;
+      return projectRoleAccessRights[projectRole].includes("project:read");
+    },
+  );
+
+  // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
+  const createOrgMembershipData = invitationsForUser.map((invitation) => ({
+    userId: userId,
+    orgId: invitation.orgId,
+    role: invitation.orgRole,
+    ...(invitation.projectId && invitation.projectRole
+      ? {
+          ProjectMemberships: {
+            create: {
+              userId: userId,
+              projectId: invitation.projectId,
+              role: invitation.projectRole,
+            },
+          },
+        }
+      : {}),
+  }));
+
+  const createOrgMembershipsPromises = createOrgMembershipData.map(
+    (inviteData) => prisma.organizationMembership.create({ data: inviteData }),
+  );
+
+  await prisma.$transaction([
+    ...createOrgMembershipsPromises,
+    prisma.membershipInvitation.deleteMany({
+      where: {
+        id: {
+          in: invitationsForUser.map((invitation) => invitation.id),
+        },
+        email: email.toLowerCase(),
+      },
+    }),
+  ]);
+
+  // SFDC: link the freshly-created lead to each org as an org-member.
+  await Promise.all(
+    invitationsForUser.map((invitation) =>
+      getSfdcService()?.setUserRole({
+        orgId: invitation.orgId,
+        userId,
+        email,
+        role: invitation.orgRole,
+      }),
+    ),
+  );
+
+  return joinedReadableRealProjectViaInvitation;
+}
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -319,75 +389,4 @@ export async function createProjectMembershipsOnSignup(
   } catch (e) {
     logger.error("Error assigning project access to new user", e);
   }
-}
-
-async function processMembershipInvitations(email: string, userId: string) {
-  const invitationsForUser = await prisma.membershipInvitation.findMany({
-    where: {
-      email: email.toLowerCase(),
-    },
-  });
-  if (invitationsForUser.length === 0) return false;
-
-  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
-    (invitation) => {
-      if (
-        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
-        !invitation.projectId
-      ) {
-        return false;
-      }
-
-      const projectRole = invitation.projectRole ?? invitation.orgRole;
-      return projectRoleAccessRights[projectRole].includes("project:read");
-    },
-  );
-
-  // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
-  const createOrgMembershipData = invitationsForUser.map((invitation) => ({
-    userId: userId,
-    orgId: invitation.orgId,
-    role: invitation.orgRole,
-    ...(invitation.projectId && invitation.projectRole
-      ? {
-          ProjectMemberships: {
-            create: {
-              userId: userId,
-              projectId: invitation.projectId,
-              role: invitation.projectRole,
-            },
-          },
-        }
-      : {}),
-  }));
-
-  const createOrgMembershipsPromises = createOrgMembershipData.map(
-    (inviteData) => prisma.organizationMembership.create({ data: inviteData }),
-  );
-
-  await prisma.$transaction([
-    ...createOrgMembershipsPromises,
-    prisma.membershipInvitation.deleteMany({
-      where: {
-        id: {
-          in: invitationsForUser.map((invitation) => invitation.id),
-        },
-        email: email.toLowerCase(),
-      },
-    }),
-  ]);
-
-  // SFDC: link the freshly-created lead to each org as an org-member.
-  await Promise.all(
-    invitationsForUser.map((invitation) =>
-      getSfdcService()?.setUserRole({
-        orgId: invitation.orgId,
-        userId,
-        email,
-        role: invitation.orgRole,
-      }),
-    ),
-  );
-
-  return joinedReadableRealProjectViaInvitation;
 }

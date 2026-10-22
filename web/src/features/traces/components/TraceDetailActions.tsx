@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Download,
   FileText,
@@ -44,51 +43,6 @@ type TraceDetailActionsProps = {
   /** `trace` is the previous trace, kept while the next one loads. */
   isPlaceholderData?: boolean;
 };
-
-/**
- * Trace-level header actions shared by the peek and the standalone trace page.
- *
- * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
- * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
- * renders the same actions as full-width labeled rows for the mobile header
- * menu.
- *
- * Delete always targets the whole trace. Behavior differs only by surface:
- * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
- * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
- *   receives the deleted trace id so the peek can stay open if K/J-navigation
- *   already moved on to another trace. We invalidate broadly because the peek
- *   is hosted over many different lists, each backed by a different query.
- */
-export function TraceDetailActions({
-  trace,
-  layout = "toolbar",
-  isPlaceholderData = false,
-  ...props
-}: TraceDetailActionsProps) {
-  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
-  const { key, ...stale } = staleProps(isPlaceholderData, {
-    remountOnStale: true,
-  });
-  return (
-    <TraceTranscriptDialogController
-      key={key}
-      projectId={trace.projectId}
-      traceId={trace.id}
-      timestamp={trace.timestamp}
-    >
-      {({ openDialog }) => (
-        <LoadedTraceDetailActions
-          trace={trace}
-          layout={layout}
-          stale={stale}
-          onShowTranscript={openDialog}
-          {...props}
-        />
-      )}
-    </TraceTranscriptDialogController>
-  );
-}
 
 function DisabledTraceDetailActions({
   layout,
@@ -251,5 +205,50 @@ function LoadedTraceDetailActions({
         />
       )}
     </DeleteTraceDialogController>
+  );
+}
+
+/**
+ * Trace-level header actions shared by the peek and the standalone trace page.
+ *
+ * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
+ * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * renders the same actions as full-width labeled rows for the mobile header
+ * menu.
+ *
+ * Delete always targets the whole trace. Behavior differs only by surface:
+ * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
+ * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
+ *   receives the deleted trace id so the peek can stay open if K/J-navigation
+ *   already moved on to another trace. We invalidate broadly because the peek
+ *   is hosted over many different lists, each backed by a different query.
+ */
+export function TraceDetailActions({
+  trace,
+  layout = "toolbar",
+  isPlaceholderData = false,
+  ...props
+}: TraceDetailActionsProps) {
+  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
+  const { key, ...stale } = staleProps(isPlaceholderData, {
+    remountOnStale: true,
+  });
+  return (
+    <TraceTranscriptDialogController
+      key={key}
+      projectId={trace.projectId}
+      traceId={trace.id}
+      timestamp={trace.timestamp}
+    >
+      {({ openDialog }) => (
+        <LoadedTraceDetailActions
+          trace={trace}
+          layout={layout}
+          stale={stale}
+          onShowTranscript={openDialog}
+          {...props}
+        />
+      )}
+    </TraceTranscriptDialogController>
   );
 }

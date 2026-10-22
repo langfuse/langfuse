@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import pLimit from "p-limit";
 import {
@@ -189,6 +188,35 @@ export async function restoreInlineMedia(
   }
 }
 
+/** Record outcomes for media discovered by the native extractor. */
+function recordExtractedMediaUpload(
+  outcome: "uploaded" | "reused" | "failed",
+  kind: string,
+  writePath: OtelMediaWritePath,
+  byteLength?: number,
+  bytesRemoved = 0,
+): void {
+  const tags = {
+    outcome,
+    media_kind: kind,
+    write_path: writePath,
+    media_path: "early",
+  };
+  recordIncrement("langfuse.ingestion.otel.media", 1, tags);
+  if (byteLength !== undefined)
+    recordDistribution(
+      "langfuse.ingestion.otel.media.byte_length",
+      byteLength,
+      tags,
+    );
+  if (bytesRemoved > 0)
+    recordDistribution(
+      "langfuse.ingestion.otel.media.bytes_removed",
+      bytesRemoved,
+      { write_path: writePath, media_path: "early" },
+    );
+}
+
 /**
  * Upload native candidates surviving in input/output/metadata. Discovery has
  * already checked media syntax and provider shapes; TS scan-cost limits do not
@@ -291,33 +319,4 @@ export async function resolveExtractedMedia(params: {
     }
   }
   return stats;
-}
-
-/** Record outcomes for media discovered by the native extractor. */
-function recordExtractedMediaUpload(
-  outcome: "uploaded" | "reused" | "failed",
-  kind: string,
-  writePath: OtelMediaWritePath,
-  byteLength?: number,
-  bytesRemoved = 0,
-): void {
-  const tags = {
-    outcome,
-    media_kind: kind,
-    write_path: writePath,
-    media_path: "early",
-  };
-  recordIncrement("langfuse.ingestion.otel.media", 1, tags);
-  if (byteLength !== undefined)
-    recordDistribution(
-      "langfuse.ingestion.otel.media.byte_length",
-      byteLength,
-      tags,
-    );
-  if (bytesRemoved > 0)
-    recordDistribution(
-      "langfuse.ingestion.otel.media.bytes_removed",
-      bytesRemoved,
-      { write_path: writePath, media_path: "early" },
-    );
 }

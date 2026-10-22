@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Filter, PanelLeftClose } from "@langfuse/icons";
@@ -15,6 +14,16 @@ import {
   type ExperimentFilterOptions,
   type ExperimentFilterTarget,
 } from "./experimentFilterTypes";
+
+function prepareFilterBlocks(filters: FilterState) {
+  const occurrences = new Map<string, number>();
+  return filters.map((filter, index) => {
+    const identity = JSON.stringify(filter);
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    return { filter, index, key: `${identity}:${occurrence}` };
+  });
+}
 
 export function ExperimentFilterSidebarView({
   filters,
@@ -163,16 +172,6 @@ export function ExperimentFilterSidebarView({
       )}
     </>
   );
-}
-
-function prepareFilterBlocks(filters: FilterState) {
-  const occurrences = new Map<string, number>();
-  return filters.map((filter, index) => {
-    const identity = JSON.stringify(filter);
-    const occurrence = occurrences.get(identity) ?? 0;
-    occurrences.set(identity, occurrence + 1);
-    return { filter, index, key: `${identity}:${occurrence}` };
-  });
 }
 
 type ExperimentFilterSidebarViewProps = {

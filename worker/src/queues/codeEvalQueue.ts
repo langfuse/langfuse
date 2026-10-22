@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
@@ -19,6 +18,13 @@ import {
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "../features/evaluation/evalExecutionMetrics";
+
+function getJobExecutionErrorMessage(e: unknown): string {
+  if (isUnrecoverableError(e)) return e.message;
+  if (e instanceof CodeEvalExecutionError) return e.message;
+
+  return getCodeEvalUserVisibleError(e).message;
+}
 
 export const codeEvalExecutionQueueProcessorBuilder = (
   _queueName: string,
@@ -104,10 +110,3 @@ export const codeEvalExecutionQueueProcessorBuilder = (
     }
   };
 };
-
-function getJobExecutionErrorMessage(e: unknown): string {
-  if (isUnrecoverableError(e)) return e.message;
-  if (e instanceof CodeEvalExecutionError) return e.message;
-
-  return getCodeEvalUserVisibleError(e).message;
-}

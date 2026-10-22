@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -375,15 +375,6 @@ export const getRowHeightTailwindClass = (
   return customHeights?.[rowHeight] || defaultHeights[rowHeight];
 };
 
-export function useRowHeightLocalStorage(
-  tableName: string,
-  defaultValue: RowHeight,
-) {
-  const adjustable = useAdjustableRowHeight(tableName, defaultValue);
-
-  return [adjustable.preset, adjustable.setPreset, adjustable] as const;
-}
-
 /**
  * Preset plus an optional free height, in the same per-table localStorage key
  * as `useRowHeightLocalStorage`. A previously saved preset string still loads.
@@ -443,6 +434,15 @@ export function useAdjustableRowHeight(
     setCustomPx,
     selectCustom,
   };
+}
+
+export function useRowHeightLocalStorage(
+  tableName: string,
+  defaultValue: RowHeight,
+) {
+  const adjustable = useAdjustableRowHeight(tableName, defaultValue);
+
+  return [adjustable.preset, adjustable.setPreset, adjustable] as const;
 }
 
 /** Menu props for the row-height switch. Custom stays hidden until a drag. */

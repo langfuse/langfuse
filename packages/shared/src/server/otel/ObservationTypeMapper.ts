@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 
@@ -19,6 +18,20 @@ interface ObservationTypeMapper {
     scopeData?: Record<string, unknown>,
     spanName?: string,
   ): LangfuseObservationType | null;
+}
+
+// value is not null, undefined, empty string, or empty object/array
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.keys(value).length > 0;
+  }
+  return true;
 }
 
 class SimpleAttributeMapper implements ObservationTypeMapper {
@@ -116,20 +129,6 @@ class CustomAttributeMapper implements ObservationTypeMapper {
   }
 }
 
-// value is not null, undefined, empty string, or empty object/array
-function hasMeaningfulValue(value: unknown): boolean {
-  if (value === null || value === undefined || value === "") {
-    return false;
-  }
-  if (Array.isArray(value)) {
-    return value.length > 0;
-  }
-  if (typeof value === "object" && value !== null) {
-    return Object.keys(value).length > 0;
-  }
-  return true;
-}
-
 // for Vercel AI SDK checks attributes operation.name with startsWith and ai.operationId with equals
 function matchesVercelAiSdkOperation(
   attributes: Record<string, unknown>,
@@ -153,6 +152,34 @@ function matchesVercelAiSdkOperation(
   }
 
   return false;
+}
+
+/** Anthropic scopes also emit regular API spans; a session ID identifies Claude Managed Agents. */
+export function isClaudeManagedAgentSpan(
+  attributes: Record<string, unknown>,
+  scopeName: unknown,
+): boolean {
+  const sessionId = attributes["anthropic.session.id"];
+  return (
+    typeof scopeName === "string" &&
+    (scopeName === "com.anthropic.claude-platform" ||
+      scopeName.startsWith("com.anthropic.sdk.")) &&
+    typeof sessionId === "string" &&
+    sessionId.trim().length > 0
+  );
+}
+
+/** CMA session creation configures a model without executing a model call. */
+export function isClaudeManagedAgentSessionCreation(
+  attributes: Record<string, unknown>,
+  scopeName: unknown,
+  spanName?: string,
+): boolean {
+  return (
+    spanName === "anthropic.sessions.create" &&
+    !hasMeaningfulValue(attributes["gen_ai.operation.name"]) &&
+    isClaudeManagedAgentSpan(attributes, scopeName)
+  );
 }
 
 /**
@@ -524,32 +551,4 @@ export class ObservationTypeMapperRegistry {
   getMappersForDebugging(): ReadonlyArray<ObservationTypeMapper> {
     return [...this.mappers];
   }
-}
-
-/** CMA session creation configures a model without executing a model call. */
-export function isClaudeManagedAgentSessionCreation(
-  attributes: Record<string, unknown>,
-  scopeName: unknown,
-  spanName?: string,
-): boolean {
-  return (
-    spanName === "anthropic.sessions.create" &&
-    !hasMeaningfulValue(attributes["gen_ai.operation.name"]) &&
-    isClaudeManagedAgentSpan(attributes, scopeName)
-  );
-}
-
-/** Anthropic scopes also emit regular API spans; a session ID identifies Claude Managed Agents. */
-export function isClaudeManagedAgentSpan(
-  attributes: Record<string, unknown>,
-  scopeName: unknown,
-): boolean {
-  const sessionId = attributes["anthropic.session.id"];
-  return (
-    typeof scopeName === "string" &&
-    (scopeName === "com.anthropic.claude-platform" ||
-      scopeName.startsWith("com.anthropic.sdk.")) &&
-    typeof sessionId === "string" &&
-    sessionId.trim().length > 0
-  );
 }

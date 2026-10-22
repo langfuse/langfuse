@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 
@@ -174,6 +173,98 @@ export function sendAuthErrorJson(
   res.json(body);
 }
 
+function toUtcMidnight(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00Z`);
+}
+
+function toUnixSeconds(isoDate: string): number {
+  return toUtcMidnight(isoDate).getTime() / 1000;
+}
+
+/** toReplacementPath turns "GET /api/public/v2/observations?from=..." into "/api/public/v2/observations". */
+function toReplacementPath(replacement: string): string | undefined {
+  return replacement.split(" ")[1]?.split("?")[0];
+}
+
+/** setDeprecationHeaders sets the RFC 9745 `Deprecation`, RFC 8594 `Sunset` and RFC 8288 `Link` headers. */
+export function setDeprecationHeaders(
+  res: NextApiResponse,
+  deprecation: ApiDeprecationInfo,
+) {
+  res.setHeader("Deprecation", `@${toUnixSeconds(V3_DEPRECATED_AT)}`);
+  if (deprecation.sunsetAt) {
+    res.setHeader("Sunset", toUtcMidnight(deprecation.sunsetAt).toUTCString());
+  }
+  const links: string[] = [];
+  const successorPath = deprecation.replacement
+    ? toReplacementPath(deprecation.replacement)
+    : undefined;
+  if (successorPath) {
+    links.push(`<${successorPath}>; rel="successor-version"`);
+  }
+  if (deprecation.docsUrl) {
+    links.push(`<${deprecation.docsUrl}>; rel="deprecation"`);
+  }
+  if (links.length > 0) {
+    res.setHeader("Link", links.join(", "));
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** appendReplacementHint ends an error body's `message` with the replacement unless it already names it. */
+function appendReplacementHint(
+  body: unknown,
+  deprecation: ApiDeprecationInfo,
+): unknown {
+  const replacement = deprecation.replacement;
+  if (
+    !replacement ||
+    !isPlainObject(body) ||
+    typeof body.message !== "string"
+  ) {
+    return body;
+  }
+  const replacementPath = toReplacementPath(replacement);
+  if (replacementPath && body.message.includes(replacementPath)) {
+    return body;
+  }
+  const message = body.message.trimEnd();
+  const separator = /[.!?]$/.test(message) ? " " : ". ";
+  return {
+    ...body,
+    message: `${message}${separator}Use ${replacement} instead.`,
+  };
+}
+
+/** attachDeprecation prepends `_deprecation` to an object body and `deprecation` to its `meta`; other bodies pass through unchanged. */
+export function attachDeprecation(
+  body: unknown,
+  deprecation: ApiDeprecationInfo | undefined,
+): unknown {
+  if (!deprecation || !isPlainObject(body)) {
+    return body;
+  }
+  const stamped: Record<string, unknown> = {
+    _deprecation: deprecation,
+    ...body,
+  };
+  if (isPlainObject(body.meta)) {
+    stamped.meta = {
+      deprecation: {
+        ...(deprecation.sunsetAt ? { sunsetAt: deprecation.sunsetAt } : {}),
+        ...(deprecation.replacement
+          ? { replacement: deprecation.replacement }
+          : {}),
+      },
+      ...body.meta,
+    };
+  }
+  return stamped;
+}
+
 /** withDeprecationResponse sets the deprecation headers and returns a view of `res` whose `json` stamps the notice, plus the replacement hint on non-auth 4xx errors. */
 export function withDeprecationResponse(
   res: NextApiResponse,
@@ -206,96 +297,4 @@ export function withDeprecationResponse(
     },
   });
   return response;
-}
-
-/** attachDeprecation prepends `_deprecation` to an object body and `deprecation` to its `meta`; other bodies pass through unchanged. */
-export function attachDeprecation(
-  body: unknown,
-  deprecation: ApiDeprecationInfo | undefined,
-): unknown {
-  if (!deprecation || !isPlainObject(body)) {
-    return body;
-  }
-  const stamped: Record<string, unknown> = {
-    _deprecation: deprecation,
-    ...body,
-  };
-  if (isPlainObject(body.meta)) {
-    stamped.meta = {
-      deprecation: {
-        ...(deprecation.sunsetAt ? { sunsetAt: deprecation.sunsetAt } : {}),
-        ...(deprecation.replacement
-          ? { replacement: deprecation.replacement }
-          : {}),
-      },
-      ...body.meta,
-    };
-  }
-  return stamped;
-}
-
-/** appendReplacementHint ends an error body's `message` with the replacement unless it already names it. */
-function appendReplacementHint(
-  body: unknown,
-  deprecation: ApiDeprecationInfo,
-): unknown {
-  const replacement = deprecation.replacement;
-  if (
-    !replacement ||
-    !isPlainObject(body) ||
-    typeof body.message !== "string"
-  ) {
-    return body;
-  }
-  const replacementPath = toReplacementPath(replacement);
-  if (replacementPath && body.message.includes(replacementPath)) {
-    return body;
-  }
-  const message = body.message.trimEnd();
-  const separator = /[.!?]$/.test(message) ? " " : ". ";
-  return {
-    ...body,
-    message: `${message}${separator}Use ${replacement} instead.`,
-  };
-}
-
-/** setDeprecationHeaders sets the RFC 9745 `Deprecation`, RFC 8594 `Sunset` and RFC 8288 `Link` headers. */
-export function setDeprecationHeaders(
-  res: NextApiResponse,
-  deprecation: ApiDeprecationInfo,
-) {
-  res.setHeader("Deprecation", `@${toUnixSeconds(V3_DEPRECATED_AT)}`);
-  if (deprecation.sunsetAt) {
-    res.setHeader("Sunset", toUtcMidnight(deprecation.sunsetAt).toUTCString());
-  }
-  const links: string[] = [];
-  const successorPath = deprecation.replacement
-    ? toReplacementPath(deprecation.replacement)
-    : undefined;
-  if (successorPath) {
-    links.push(`<${successorPath}>; rel="successor-version"`);
-  }
-  if (deprecation.docsUrl) {
-    links.push(`<${deprecation.docsUrl}>; rel="deprecation"`);
-  }
-  if (links.length > 0) {
-    res.setHeader("Link", links.join(", "));
-  }
-}
-
-/** toReplacementPath turns "GET /api/public/v2/observations?from=..." into "/api/public/v2/observations". */
-function toReplacementPath(replacement: string): string | undefined {
-  return replacement.split(" ")[1]?.split("?")[0];
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toUtcMidnight(isoDate: string): Date {
-  return new Date(`${isoDate}T00:00:00Z`);
-}
-
-function toUnixSeconds(isoDate: string): number {
-  return toUtcMidnight(isoDate).getTime() / 1000;
 }

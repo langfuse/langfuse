@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   AggregateFunctionNode,
   ColumnNode,
@@ -15,6 +14,14 @@ import { COLUMN_DATA_TYPES } from "./schema";
 // types come from the table registry in `schema.ts`.
 
 const NUMERIC_AGGREGATES = new Set(["sum", "avg"]);
+
+function columnNameOf(node: OperationNode): string | undefined {
+  if (ColumnNode.is(node)) return node.column.name;
+  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
+    return node.column.column.name;
+  }
+  return undefined;
+}
 
 /**
  * Runtime validation pass: numeric aggregates over non-numeric columns.
@@ -35,12 +42,4 @@ export function validateTypeCompatibility(root: OperationNode): void {
       }
     }
   });
-}
-
-function columnNameOf(node: OperationNode): string | undefined {
-  if (ColumnNode.is(node)) return node.column.name;
-  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
-    return node.column.column.name;
-  }
-  return undefined;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
@@ -24,6 +23,11 @@ import { compareImportedSkills } from "../utils/compare-imported-skills";
 type ImportResult =
   | { status: "success"; version: number }
   | { status: "error"; message: string };
+
+function CliSkillImportTab({ projectId }: { projectId: string }) {
+  const host = useLangfuseBaseUrl();
+  return <CliSkillImportInstructions projectId={projectId} host={host} />;
+}
 
 export function ImportSkillsDialog({
   projectId,
@@ -443,9 +447,4 @@ export function ImportSkillsDialog({
       {({ openDialog }) => children(createOpenHandler(openDialog))}
     </DialogController>
   );
-}
-
-function CliSkillImportTab({ projectId }: { projectId: string }) {
-  const host = useLangfuseBaseUrl();
-  return <CliSkillImportInstructions projectId={projectId} host={host} />;
 }

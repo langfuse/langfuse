@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useState } from "react";
 import {
   AlertCircle,
@@ -32,6 +32,21 @@ import { DatasetSelect } from "@/src/features/scores-chart-view/components/Datas
 import { MetricSelect } from "@/src/features/scores-chart-view/components/MetricSelect";
 import { AggregationSelect } from "@/src/features/scores-chart-view/components/AggregationSelect";
 import { BreakdownSelect } from "@/src/features/scores-chart-view/components/BreakdownSelect";
+
+function PanelField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-muted-foreground text-xs font-bold">{label}</span>
+      {children}
+    </div>
+  );
+}
 
 /**
  * The scores-table chart layout — same "maximized canvas + collapsible config
@@ -189,18 +204,3 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
     </div>
   );
 });
-
-function PanelField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs font-bold">{label}</span>
-      {children}
-    </div>
-  );
-}

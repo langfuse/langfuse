@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -604,42 +603,6 @@ export function filterInAppAgentAvailableLangfuseMcpTools<TTool>(params: {
 
 type InAppAgentTool = object;
 
-export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
-  tools: Record<string, TTool>,
-  policy: InAppAgentToolPolicy,
-): Record<string, TTool | (TTool & { requireApproval: true })> {
-  return Object.fromEntries(
-    Object.entries(tools).map(([toolName, tool]) => [
-      toolName,
-      isInAppAgentAutoApprovedToolName(toolName, policy) ||
-      hasConditionalApproval(tool)
-        ? tool
-        : { ...tool, requireApproval: true },
-    ]),
-  ) as Record<string, TTool | (TTool & { requireApproval: true })>;
-}
-
-// A function-valued requireApproval decides per call; Mastra runs it before
-// pausing, so overwriting it would drop the tool's own decision.
-function hasConditionalApproval(tool: InAppAgentTool) {
-  return (
-    "requireApproval" in tool && typeof tool.requireApproval === "function"
-  );
-}
-
-function isInAppAgentAutoApprovedToolName(
-  toolName: string,
-  policy: InAppAgentToolPolicy,
-): boolean {
-  const source = getInAppAgentToolApprovalSource({
-    toolName,
-    policy,
-    toolCallId: "",
-  });
-
-  return source !== undefined && source !== "human";
-}
-
 export function getInAppAgentToolApprovalSource(params: {
   toolName: string;
   policy: InAppAgentToolPolicy;
@@ -673,6 +636,42 @@ export function getInAppAgentToolApprovalSource(params: {
     "auto"
     ? "auto"
     : "conversation_grant";
+}
+
+function isInAppAgentAutoApprovedToolName(
+  toolName: string,
+  policy: InAppAgentToolPolicy,
+): boolean {
+  const source = getInAppAgentToolApprovalSource({
+    toolName,
+    policy,
+    toolCallId: "",
+  });
+
+  return source !== undefined && source !== "human";
+}
+
+// A function-valued requireApproval decides per call; Mastra runs it before
+// pausing, so overwriting it would drop the tool's own decision.
+function hasConditionalApproval(tool: InAppAgentTool) {
+  return (
+    "requireApproval" in tool && typeof tool.requireApproval === "function"
+  );
+}
+
+export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
+  tools: Record<string, TTool>,
+  policy: InAppAgentToolPolicy,
+): Record<string, TTool | (TTool & { requireApproval: true })> {
+  return Object.fromEntries(
+    Object.entries(tools).map(([toolName, tool]) => [
+      toolName,
+      isInAppAgentAutoApprovedToolName(toolName, policy) ||
+      hasConditionalApproval(tool)
+        ? tool
+        : { ...tool, requireApproval: true },
+    ]),
+  ) as Record<string, TTool | (TTool & { requireApproval: true })>;
 }
 
 export function buildInAppAgentToolApprovalSidecar(params: {

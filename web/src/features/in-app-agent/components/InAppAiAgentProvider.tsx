@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createContext,
   useCallback,
@@ -236,66 +235,89 @@ export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
 }>;
 
-export function InAppAiAgentProvider({
-  children,
-  defaultOpen = false,
-}: InAppAiAgentProviderProps) {
-  const router = useRouter();
-  const routerProjectId = router.query.projectId;
-  const projectId =
-    typeof routerProjectId === "string" ? routerProjectId : undefined;
+/** Whether a run would be admitted for this project. Client mirror of
+ * assertInAppAgentAvailable: instance switch, entitlement, and org AI
+ * Features. Use this for polling and other paths that must not hit the
+ * server when org AI Features is off. More restrictive than
+ * useIsInAppAgentLauncherVisible. */
+function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
+  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
-  if (!projectId || !hasInAppAgentEntitlement) {
-    return children;
+  return (
+    instanceEnabled &&
+    hasInAppAgentEntitlement &&
+    Boolean(organization?.aiFeaturesEnabled)
+  );
+}
+
+function isAgentConversationMessage(message: unknown): message is AgUiMessage {
+  const result = AgUiMessageSchema.safeParse(message);
+
+  return result.success;
+}
+
+function attachActiveRunIdToAssistantMessages(
+  messages: readonly AgUiMessage[],
+  runId: string | null,
+): readonly AgUiMessage[] {
+  if (!runId) {
+    return messages;
   }
 
-  return (
-    <InAppAiAgentProjectProvider
-      key={projectId}
-      projectId={projectId}
-      defaultOpen={defaultOpen}
-    >
-      {children}
-    </InAppAiAgentProjectProvider>
-  );
+  return messages.map((message) => {
+    if (message.role !== "assistant" || message.runId) {
+      return message;
+    }
+
+    return { ...message, runId };
+  });
 }
 
-function InAppAiAgentProjectProvider({
-  children,
-  projectId,
-  defaultOpen,
-}: InAppAiAgentProviderProps & {
-  projectId: string;
-}) {
-  const session = useSession();
-  const userId = session.data?.user?.id ?? null;
-  const [open, setOpen] = useSessionStorage<boolean>(
-    `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
-    defaultOpen ?? false,
-  );
+function mergeMessagesWithFeedback(
+  messages: readonly AgUiMessage[],
+  feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
+): readonly InAppAgentUiMessage[] {
+  if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
+    return messages;
+  }
 
-  // Remount when userId resolves so activity localStorage re-reads the
-  // user-scoped ledger key (useLocalStorage only loads on mount).
-  return (
-    <InAppAiAgentProviderInner
-      key={userId ?? "pending-session"}
-      projectId={projectId}
-      userId={userId}
-      open={open}
-      setOpen={setOpen}
-    >
-      {children}
-    </InAppAiAgentProviderInner>
-  );
+  return messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    const feedback = feedbackByMessageId[message.id];
+    if (!feedback) {
+      return message;
+    }
+
+    return { ...message, feedback };
+  });
 }
 
-type InAppAiAgentProviderInnerProps = PropsWithChildren<{
-  projectId: string;
-  userId: string | null;
-  open: boolean;
-  setOpen: Dispatch<SetStateAction<boolean>>;
-}>;
+function getAgentErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const payload = "payload" in error ? error.payload : undefined;
+
+    if (
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+    ) {
+      return payload.error;
+    }
+
+    if ("message" in error && typeof error.message === "string") {
+      return error.message;
+    }
+  }
+
+  return "Halo request failed. Please try again.";
+}
 
 function InAppAiAgentProviderInner({
   children,
@@ -1573,71 +1595,66 @@ function InAppAiAgentProviderInner({
   );
 }
 
-function isAgentConversationMessage(message: unknown): message is AgUiMessage {
-  const result = AgUiMessageSchema.safeParse(message);
+function InAppAiAgentProjectProvider({
+  children,
+  projectId,
+  defaultOpen,
+}: InAppAiAgentProviderProps & {
+  projectId: string;
+}) {
+  const session = useSession();
+  const userId = session.data?.user?.id ?? null;
+  const [open, setOpen] = useSessionStorage<boolean>(
+    `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
+    defaultOpen ?? false,
+  );
 
-  return result.success;
+  // Remount when userId resolves so activity localStorage re-reads the
+  // user-scoped ledger key (useLocalStorage only loads on mount).
+  return (
+    <InAppAiAgentProviderInner
+      key={userId ?? "pending-session"}
+      projectId={projectId}
+      userId={userId}
+      open={open}
+      setOpen={setOpen}
+    >
+      {children}
+    </InAppAiAgentProviderInner>
+  );
 }
 
-function mergeMessagesWithFeedback(
-  messages: readonly AgUiMessage[],
-  feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
-): readonly InAppAgentUiMessage[] {
-  if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
-    return messages;
+export function InAppAiAgentProvider({
+  children,
+  defaultOpen = false,
+}: InAppAiAgentProviderProps) {
+  const router = useRouter();
+  const routerProjectId = router.query.projectId;
+  const projectId =
+    typeof routerProjectId === "string" ? routerProjectId : undefined;
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+
+  if (!projectId || !hasInAppAgentEntitlement) {
+    return children;
   }
 
-  return messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
-    }
-
-    const feedback = feedbackByMessageId[message.id];
-    if (!feedback) {
-      return message;
-    }
-
-    return { ...message, feedback };
-  });
+  return (
+    <InAppAiAgentProjectProvider
+      key={projectId}
+      projectId={projectId}
+      defaultOpen={defaultOpen}
+    >
+      {children}
+    </InAppAiAgentProjectProvider>
+  );
 }
 
-function attachActiveRunIdToAssistantMessages(
-  messages: readonly AgUiMessage[],
-  runId: string | null,
-): readonly AgUiMessage[] {
-  if (!runId) {
-    return messages;
-  }
-
-  return messages.map((message) => {
-    if (message.role !== "assistant" || message.runId) {
-      return message;
-    }
-
-    return { ...message, runId };
-  });
-}
-
-function getAgentErrorMessage(error: unknown): string {
-  if (error && typeof error === "object") {
-    const payload = "payload" in error ? error.payload : undefined;
-
-    if (
-      payload &&
-      typeof payload === "object" &&
-      "error" in payload &&
-      typeof payload.error === "string"
-    ) {
-      return payload.error;
-    }
-
-    if ("message" in error && typeof error.message === "string") {
-      return error.message;
-    }
-  }
-
-  return "Halo request failed. Please try again.";
-}
+type InAppAiAgentProviderInnerProps = PropsWithChildren<{
+  projectId: string;
+  userId: string | null;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+}>;
 
 export function useInAppAiAgent() {
   const ctx = useContext(InAppAiAgentContext);
@@ -1645,24 +1662,6 @@ export function useInAppAiAgent() {
     return NOOP_CONTEXT;
   }
   return ctx;
-}
-
-/** Whether a run would be admitted for this project. Client mirror of
- * assertInAppAgentAvailable: instance switch, entitlement, and org AI
- * Features. Use this for polling and other paths that must not hit the
- * server when org AI Features is off. More restrictive than
- * useIsInAppAgentLauncherVisible. */
-function useCanUseInAppAgent() {
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { organization } = useQueryProjectOrOrganization();
-  const session = useSession();
-  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
-
-  return (
-    instanceEnabled &&
-    hasInAppAgentEntitlement &&
-    Boolean(organization?.aiFeaturesEnabled)
-  );
 }
 
 /** Whether to show Assistant entry points (nav launcher, v4/eval CTAs).

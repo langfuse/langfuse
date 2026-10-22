@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Converts a DOM Selection to JSON path and character range.
  *
@@ -12,6 +11,95 @@ interface SelectionPathResult {
   rangeStart: number[];
   rangeEnd: number[];
   selectedText: string;
+}
+
+function findJsonPath(node: Node): string | null {
+  let current: Node | null = node;
+  while (current && current !== document.body) {
+    if (current instanceof HTMLElement && current.dataset.jsonPath) {
+      return current.dataset.jsonPath;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function findKeyValueElement(node: Node): HTMLElement | null {
+  let current: Node | null = node;
+  while (current && current !== document.body) {
+    if (current instanceof HTMLElement && current.dataset.jsonKeyValue) {
+      return current;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function calculateOffset(
+  container: Node,
+  offset: number,
+  keyValueElement: HTMLElement,
+): number {
+  const walker = document.createTreeWalker(
+    keyValueElement,
+    NodeFilter.SHOW_TEXT,
+    null,
+  );
+  let charCount = 0;
+  let node = walker.nextNode();
+
+  while (node) {
+    if (node === container) {
+      return charCount + offset;
+    }
+    charCount += node.textContent?.length || 0;
+    node = walker.nextNode();
+  }
+
+  return charCount + offset;
+}
+
+/**
+ * Collects all row elements between startRow and endRow (inclusive).
+ * Handles both forward and backward selections.
+ */
+function collectRowsBetween(
+  startRow: HTMLElement,
+  endRow: HTMLElement,
+  container: HTMLElement,
+): HTMLElement[] {
+  const allRows = Array.from(
+    container.querySelectorAll<HTMLElement>("[data-json-key-value]"),
+  );
+
+  const startIdx = allRows.indexOf(startRow);
+  const endIdx = allRows.indexOf(endRow);
+
+  if (startIdx === -1 || endIdx === -1) return [];
+
+  // Handle backwards selection
+  const [minIdx, maxIdx] =
+    startIdx <= endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+
+  return allRows.slice(minIdx, maxIdx + 1);
+}
+
+/**
+ * Gets total text length of a key-value row element.
+ */
+function getRowTextLength(keyValueElement: HTMLElement): number {
+  let length = 0;
+  const walker = document.createTreeWalker(
+    keyValueElement,
+    NodeFilter.SHOW_TEXT,
+    null,
+  );
+  let node = walker.nextNode();
+  while (node) {
+    length += node.textContent?.length || 0;
+    node = walker.nextNode();
+  }
+  return length;
 }
 
 export function selectionToPath(
@@ -126,93 +214,4 @@ export function selectionToPath(
     rangeEnd: rangeEnds,
     selectedText,
   };
-}
-
-function findJsonPath(node: Node): string | null {
-  let current: Node | null = node;
-  while (current && current !== document.body) {
-    if (current instanceof HTMLElement && current.dataset.jsonPath) {
-      return current.dataset.jsonPath;
-    }
-    current = current.parentNode;
-  }
-  return null;
-}
-
-function findKeyValueElement(node: Node): HTMLElement | null {
-  let current: Node | null = node;
-  while (current && current !== document.body) {
-    if (current instanceof HTMLElement && current.dataset.jsonKeyValue) {
-      return current;
-    }
-    current = current.parentNode;
-  }
-  return null;
-}
-
-function calculateOffset(
-  container: Node,
-  offset: number,
-  keyValueElement: HTMLElement,
-): number {
-  const walker = document.createTreeWalker(
-    keyValueElement,
-    NodeFilter.SHOW_TEXT,
-    null,
-  );
-  let charCount = 0;
-  let node = walker.nextNode();
-
-  while (node) {
-    if (node === container) {
-      return charCount + offset;
-    }
-    charCount += node.textContent?.length || 0;
-    node = walker.nextNode();
-  }
-
-  return charCount + offset;
-}
-
-/**
- * Gets total text length of a key-value row element.
- */
-function getRowTextLength(keyValueElement: HTMLElement): number {
-  let length = 0;
-  const walker = document.createTreeWalker(
-    keyValueElement,
-    NodeFilter.SHOW_TEXT,
-    null,
-  );
-  let node = walker.nextNode();
-  while (node) {
-    length += node.textContent?.length || 0;
-    node = walker.nextNode();
-  }
-  return length;
-}
-
-/**
- * Collects all row elements between startRow and endRow (inclusive).
- * Handles both forward and backward selections.
- */
-function collectRowsBetween(
-  startRow: HTMLElement,
-  endRow: HTMLElement,
-  container: HTMLElement,
-): HTMLElement[] {
-  const allRows = Array.from(
-    container.querySelectorAll<HTMLElement>("[data-json-key-value]"),
-  );
-
-  const startIdx = allRows.indexOf(startRow);
-  const endIdx = allRows.indexOf(endRow);
-
-  if (startIdx === -1 || endIdx === -1) return [];
-
-  // Handle backwards selection
-  const [minIdx, maxIdx] =
-    startIdx <= endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
-
-  return allRows.slice(minIdx, maxIdx + 1);
 }

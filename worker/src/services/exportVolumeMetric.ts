@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { recordIncrement } from "@langfuse/shared/src/server";
 
@@ -52,6 +51,15 @@ export const recordExportVolume = ({
   recordIncrement(EXPORT_VOLUME_METRIC, bytes, tags);
 };
 
+// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
+function serializeSchemaForEgress(schema: unknown): string {
+  try {
+    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
+  } catch {
+    return JSON.stringify(schema);
+  }
+}
+
 /**
  * Egress bytes of an LLM request as LLM-as-a-judge and Topics count them: the
  * provider-bound messages plus the JSON Schema of the requested output, uncompressed.
@@ -71,12 +79,3 @@ export const llmRequestEgressBytes = (
   (schema === undefined
     ? 0
     : Buffer.byteLength(serializeSchemaForEgress(schema), "utf8"));
-
-// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
-function serializeSchemaForEgress(schema: unknown): string {
-  try {
-    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
-  } catch {
-    return JSON.stringify(schema);
-  }
-}

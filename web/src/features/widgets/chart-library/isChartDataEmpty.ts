@@ -1,5 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+
+function isMetricEmpty(metric: DataPoint["metric"]): boolean {
+  if (metric == null) return true;
+  if (Array.isArray(metric)) {
+    return metric.length === 0 || metric.every((bin) => bin.length === 0);
+  }
+  return false; // a real number, including 0, is an honest value — never "empty".
+}
 
 /**
  * Preparer (data -> visualiser seam): decides whether a chart has nothing
@@ -29,12 +36,4 @@ export function isChartDataEmpty(data: DataPoint[]): boolean {
   return (
     data.length === 0 || data.every((point) => isMetricEmpty(point.metric))
   );
-}
-
-function isMetricEmpty(metric: DataPoint["metric"]): boolean {
-  if (metric == null) return true;
-  if (Array.isArray(metric)) {
-    return metric.length === 0 || metric.every((bin) => bin.length === 0);
-  }
-  return false; // a real number, including 0, is an honest value — never "empty".
 }

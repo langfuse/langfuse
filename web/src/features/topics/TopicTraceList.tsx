@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useState } from "react";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { ExternalLink } from "@langfuse/icons";
@@ -14,6 +14,10 @@ import { type FacetRow, topicTracesHref } from "./facet-topics";
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
 const FIRST_CELL = "block pr-3 pl-2";
+
+function compactAge(timestamp: string) {
+  return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
+}
 
 export function TopicTraceList({
   projectId,
@@ -168,7 +172,3 @@ type TopicTraceListProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   divider?: "top" | "side";
 };
-
-function compactAge(timestamp: string) {
-  return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
-}

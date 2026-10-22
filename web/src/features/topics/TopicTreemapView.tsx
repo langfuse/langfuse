@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
@@ -39,132 +38,6 @@ const COUNT_SIZE: Record<TileTier, string> = {
   small: "text-sm",
   tiny: "",
 };
-
-export function TopicTreemapView({
-  projectId,
-  facet,
-  peekView,
-  onGenerateTopics,
-  canGenerateTopics,
-}: TopicTreemapViewProps) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  if (facet.topics.length === 0) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
-  }
-  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
-  const topics: FacetTopic[] =
-    unassignedCount > 0
-      ? [
-          ...facet.topics,
-          {
-            id: UNASSIGNED_ID,
-            name: "Unassigned",
-            description: "",
-            count: unassignedCount,
-          },
-        ]
-      : facet.topics;
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const selectedRowTopicId = selected.id === UNASSIGNED_ID ? null : selected.id;
-  const rows = facet.rows.filter(
-    (row) => (row.topicId ?? null) === selectedRowTopicId,
-  );
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <TopicTreemap
-        facet={facet}
-        topics={topics}
-        selectedTopicId={selected.id}
-        onSelectTopic={setSelectedTopicId}
-      />
-      <TopicTraceList
-        key={selected.id}
-        projectId={projectId}
-        title={selected.name}
-        description={selected.description}
-        swatchColor={swatchFor(facet, selected.id)}
-        rows={rows}
-        peekView={peekView}
-        divider="top"
-      />
-    </div>
-  );
-}
-
-function TopicTreemap({
-  facet,
-  topics,
-  selectedTopicId,
-  onSelectTopic,
-}: TopicTreemapProps) {
-  const [ref, size] = useElementSize<HTMLDivElement>();
-  const total = facet.rows.length;
-  function tileColors(topicId: string, big: boolean) {
-    if (topicId === UNASSIGNED_ID) return unassignedTileClasses;
-    return treemapTileClasses(
-      facet.topics.findIndex((topic) => topic.id === topicId),
-      big,
-    );
-  }
-  const tiles = size
-    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
-    : [];
-  return (
-    <section
-      aria-label="Topics"
-      ref={ref}
-      className="relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2"
-    >
-      {tiles.map(({ item, x, y, width, height }) => (
-        <TopicTile
-          key={item.id}
-          topic={item}
-          share={total > 0 ? item.count / total : 0}
-          colors={tileColors(item.id, width * height > BIG_TILE_AREA)}
-          isSelected={item.id === selectedTopicId}
-          onSelect={onSelectTopic}
-          rect={{ left: x, top: y, width, height }}
-          tier={tileTier(width, height)}
-        />
-      ))}
-    </section>
-  );
-}
-
-function TopicTile(props: TopicTileProps) {
-  const { topic, share, tier } = props;
-  const shareLabel = `${Math.round(share * 100)}% of traces`;
-  if (tier === "large" || tier === "medium") {
-    return <TopicTileButton {...props} shareLabel={shareLabel} />;
-  }
-  return (
-    <CustomTooltip
-      placement="top"
-      content={
-        <span className="ph-no-capture flex flex-col gap-0.5">
-          <span className="font-bold">{topic.name}</span>
-          <span className="text-muted-foreground text-xs">
-            {topic.count.toLocaleString()} traces · {shareLabel}
-          </span>
-        </span>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <TopicTileButton
-          {...props}
-          shareLabel={shareLabel}
-          triggerProps={getTriggerProps()}
-        />
-      )}
-    </CustomTooltip>
-  );
-}
 
 function TopicTileButton({
   topic,
@@ -238,6 +111,35 @@ function TopicTileButton({
   );
 }
 
+function TopicTile(props: TopicTileProps) {
+  const { topic, share, tier } = props;
+  const shareLabel = `${Math.round(share * 100)}% of traces`;
+  if (tier === "large" || tier === "medium") {
+    return <TopicTileButton {...props} shareLabel={shareLabel} />;
+  }
+  return (
+    <CustomTooltip
+      placement="top"
+      content={
+        <span className="ph-no-capture flex flex-col gap-0.5">
+          <span className="font-bold">{topic.name}</span>
+          <span className="text-muted-foreground text-xs">
+            {topic.count.toLocaleString()} traces · {shareLabel}
+          </span>
+        </span>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <TopicTileButton
+          {...props}
+          shareLabel={shareLabel}
+          triggerProps={getTriggerProps()}
+        />
+      )}
+    </CustomTooltip>
+  );
+}
+
 function tileTier(width: number, height: number): TileTier {
   if (width >= 240 && height >= 160) return "large";
   if (width >= 112 && height >= 96) return "medium";
@@ -245,10 +147,107 @@ function tileTier(width: number, height: number): TileTier {
   return "tiny";
 }
 
+function TopicTreemap({
+  facet,
+  topics,
+  selectedTopicId,
+  onSelectTopic,
+}: TopicTreemapProps) {
+  const [ref, size] = useElementSize<HTMLDivElement>();
+  const total = facet.rows.length;
+  function tileColors(topicId: string, big: boolean) {
+    if (topicId === UNASSIGNED_ID) return unassignedTileClasses;
+    return treemapTileClasses(
+      facet.topics.findIndex((topic) => topic.id === topicId),
+      big,
+    );
+  }
+  const tiles = size
+    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
+    : [];
+  return (
+    <section
+      aria-label="Topics"
+      ref={ref}
+      className="relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2"
+    >
+      {tiles.map(({ item, x, y, width, height }) => (
+        <TopicTile
+          key={item.id}
+          topic={item}
+          share={total > 0 ? item.count / total : 0}
+          colors={tileColors(item.id, width * height > BIG_TILE_AREA)}
+          isSelected={item.id === selectedTopicId}
+          onSelect={onSelectTopic}
+          rect={{ left: x, top: y, width, height }}
+          tier={tileTier(width, height)}
+        />
+      ))}
+    </section>
+  );
+}
+
 function swatchFor(facet: Facet, topicId: string) {
   if (topicId === UNASSIGNED_ID) return UNASSIGNED_SWATCH_COLOR;
   return treemapSwatchColor(
     facet.topics.findIndex((topic) => topic.id === topicId),
+  );
+}
+
+export function TopicTreemapView({
+  projectId,
+  facet,
+  peekView,
+  onGenerateTopics,
+  canGenerateTopics,
+}: TopicTreemapViewProps) {
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  if (facet.topics.length === 0) {
+    return (
+      <TopicsEmptyState
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+      />
+    );
+  }
+  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
+  const topics: FacetTopic[] =
+    unassignedCount > 0
+      ? [
+          ...facet.topics,
+          {
+            id: UNASSIGNED_ID,
+            name: "Unassigned",
+            description: "",
+            count: unassignedCount,
+          },
+        ]
+      : facet.topics;
+  const selected =
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
+  const selectedRowTopicId = selected.id === UNASSIGNED_ID ? null : selected.id;
+  const rows = facet.rows.filter(
+    (row) => (row.topicId ?? null) === selectedRowTopicId,
+  );
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <TopicTreemap
+        facet={facet}
+        topics={topics}
+        selectedTopicId={selected.id}
+        onSelectTopic={setSelectedTopicId}
+      />
+      <TopicTraceList
+        key={selected.id}
+        projectId={projectId}
+        title={selected.name}
+        description={selected.description}
+        swatchColor={swatchFor(facet, selected.id)}
+        rows={rows}
+        peekView={peekView}
+        divider="top"
+      />
+    </div>
   );
 }
 

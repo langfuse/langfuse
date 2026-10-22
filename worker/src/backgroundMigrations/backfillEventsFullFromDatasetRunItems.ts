@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   buildClickHouseLogComment,
@@ -104,6 +103,24 @@ class DescendantCapExceededError extends Error {
     );
     this.name = "DescendantCapExceededError";
   }
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function computeBatchTimeWindow(
+  driBatch: DatasetRunItem[],
+  lookbackDays: number,
+): { minTime: Date; maxTime: Date } {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const timestamps = driBatch.map((d) => new Date(d.created_at).getTime());
+  const minTs = Math.min(...timestamps);
+  const maxTs = Math.max(...timestamps);
+  return {
+    minTime: new Date(minTs - lookbackDays * dayMs),
+    maxTime: new Date(maxTs + lookbackDays * dayMs),
+  };
 }
 
 // ============================================================================
@@ -762,24 +779,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     logger.info("[Backfill Events DRIs] Aborting migration");
     this.isAborted = true;
   }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function computeBatchTimeWindow(
-  driBatch: DatasetRunItem[],
-  lookbackDays: number,
-): { minTime: Date; maxTime: Date } {
-  const dayMs = 24 * 60 * 60 * 1000;
-  const timestamps = driBatch.map((d) => new Date(d.created_at).getTime());
-  const minTs = Math.min(...timestamps);
-  const maxTs = Math.max(...timestamps);
-  return {
-    minTime: new Date(minTs - lookbackDays * dayMs),
-    maxTime: new Date(maxTs + lookbackDays * dayMs),
-  };
 }
 
 // ============================================================================

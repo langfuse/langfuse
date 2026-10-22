@@ -1,31 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import crypto from "node:crypto";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { IngestionEventType } from "./types";
 
-export function isTraceIdInSample(params: {
-  projectId: string | null;
-  event: IngestionEventType;
-}): { isSampled: boolean; isSamplingConfigured: boolean } {
-  const { projectId, event } = params;
+function parseTraceId(event: IngestionEventType): string | null | undefined {
+  if (event.type === "trace-create") return event.body.id;
 
-  const sampledProjects = env.LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS;
-
-  if (!projectId || !sampledProjects.has(projectId))
-    return { isSampled: true, isSamplingConfigured: false };
-
-  const sampleRate = sampledProjects.get(projectId);
-  if (sampleRate === undefined)
-    return { isSampled: true, isSamplingConfigured: true };
-
-  const traceId = parseTraceId(event);
-  if (!traceId) return { isSampled: true, isSamplingConfigured: true };
-
-  return {
-    isSampled: isInSample(traceId, sampleRate),
-    isSamplingConfigured: true,
-  };
+  return "traceId" in event.body ? event.body.traceId : null;
 }
 
 function isInSample(traceId: string, sampleRate: number) {
@@ -53,8 +34,26 @@ function isInSample(traceId: string, sampleRate: number) {
   return normalizedHash < sampleRate;
 }
 
-function parseTraceId(event: IngestionEventType): string | null | undefined {
-  if (event.type === "trace-create") return event.body.id;
+export function isTraceIdInSample(params: {
+  projectId: string | null;
+  event: IngestionEventType;
+}): { isSampled: boolean; isSamplingConfigured: boolean } {
+  const { projectId, event } = params;
 
-  return "traceId" in event.body ? event.body.traceId : null;
+  const sampledProjects = env.LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS;
+
+  if (!projectId || !sampledProjects.has(projectId))
+    return { isSampled: true, isSamplingConfigured: false };
+
+  const sampleRate = sampledProjects.get(projectId);
+  if (sampleRate === undefined)
+    return { isSampled: true, isSamplingConfigured: true };
+
+  const traceId = parseTraceId(event);
+  if (!traceId) return { isSampled: true, isSamplingConfigured: true };
+
+  return {
+    isSampled: isInSample(traceId, sampleRate),
+    isSamplingConfigured: true,
+  };
 }

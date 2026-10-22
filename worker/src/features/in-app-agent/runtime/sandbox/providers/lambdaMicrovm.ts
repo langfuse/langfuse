@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import {
@@ -71,6 +70,188 @@ type LambdaMicrovmInfo = {
   state: string;
   stateReason?: string;
 };
+
+function readMicrovmInfo(value: {
+  microvmId?: string;
+  endpoint?: string;
+  state?: string;
+  stateReason?: string;
+}) {
+  if (!value.microvmId || !value.endpoint || !value.state) {
+    throw new Error("Lambda MicroVM response did not include required fields");
+  }
+
+  return {
+    microvmId: value.microvmId,
+    endpoint: value.endpoint,
+    state: value.state,
+    ...(value.stateReason ? { stateReason: value.stateReason } : {}),
+  } satisfies LambdaMicrovmInfo;
+}
+
+function isMissingMicrovmError(error: unknown) {
+  const parsedError = LambdaMicrovmErrorSchema.safeParse(error);
+  if (!parsedError.success) {
+    return false;
+  }
+
+  const { name, $metadata } = parsedError.data;
+  const statusCode = $metadata?.httpStatusCode;
+
+  return name === "ResourceNotFoundException" || statusCode === 404;
+}
+
+async function getMicrovm(client: LambdaMicrovmsClient, microvmId: string) {
+  try {
+    return readMicrovmInfo(
+      await client.send(
+        new GetMicrovmCommand({ microvmIdentifier: microvmId }),
+      ),
+    );
+  } catch (error) {
+    if (isMissingMicrovmError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+function isTerminalMicrovmState(state: string) {
+  return state === "TERMINATING" || state === "TERMINATED";
+}
+
+function normalizeEndpoint(endpoint: string) {
+  const trimmed = endpoint.replace(/\/$/, "");
+  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function getEndpointPort(endpoint: string) {
+  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  const parsedEndpoint = new URL(normalizedEndpoint);
+
+  if (parsedEndpoint.port) {
+    return Number(parsedEndpoint.port);
+  }
+
+  return parsedEndpoint.protocol === "http:" ? 80 : 443;
+}
+
+async function createMicrovmAuthToken(params: {
+  client: LambdaMicrovmsClient;
+  microvmId: string;
+  endpoint: string;
+}) {
+  const endpointPort = getEndpointPort(params.endpoint);
+  logger.debug("[Lambda MicroVM Sandbox] creating auth token", {
+    microvmId: params.microvmId,
+    endpoint: params.endpoint,
+    normalizedEndpoint: normalizeEndpoint(params.endpoint),
+    endpointPort,
+    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+  });
+
+  const response = await params.client.send(
+    new CreateMicrovmAuthTokenCommand({
+      microvmIdentifier: params.microvmId,
+      expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
+      allowedPorts: [{ allPorts: {} }],
+    }),
+  );
+
+  const token =
+    response.authToken?.["X-aws-proxy-auth"] ??
+    response.authToken?.["x-aws-proxy-auth"] ??
+    Object.values(response.authToken ?? {})[0];
+
+  if (!token) {
+    throw new Error(
+      "Lambda MicroVM auth token response did not include X-aws-proxy-auth",
+    );
+  }
+
+  logger.debug("[Lambda MicroVM Sandbox] created auth token", {
+    microvmId: params.microvmId,
+    endpointPort,
+    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+    authTokenKeys: Object.keys(response.authToken ?? {}),
+  });
+
+  return {
+    value: token,
+    expiresAtMs: Date.now() + DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
+  };
+}
+
+async function waitForBridge(params: {
+  client: LambdaMicrovmsClient;
+  microvmId: string;
+  endpoint: string;
+}): Promise<
+  | { status: "ready" }
+  | { status: "unavailable"; reason: "not_found" | "terminal_state" }
+> {
+  const startedAt = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - startedAt < BRIDGE_READY_TIMEOUT_MS) {
+    const microvm = await getMicrovm(params.client, params.microvmId);
+    if (!microvm) {
+      return { status: "unavailable", reason: "not_found" };
+    }
+
+    if (isTerminalMicrovmState(microvm.state)) {
+      return { status: "unavailable", reason: "terminal_state" };
+    }
+
+    try {
+      logger.debug("[Lambda MicroVM Sandbox] bridge health probe", {
+        microvmId: params.microvmId,
+        endpoint: params.endpoint,
+        normalizedEndpoint: normalizeEndpoint(params.endpoint),
+        endpointPort: getEndpointPort(params.endpoint),
+        sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+      });
+      const response = await fetch(
+        `${normalizeEndpoint(params.endpoint)}/health`,
+        {
+          headers: {
+            "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
+            "X-aws-proxy-auth": (await createMicrovmAuthToken(params)).value,
+          },
+        },
+      );
+
+      if (response.ok) {
+        return { status: "ready" };
+      }
+
+      lastError = new Error(
+        (await response.text()) ||
+          `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
+      );
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("[Lambda MicroVM Sandbox] bridge did not become ready");
+}
+
+function getSession(
+  sessions: Map<string, LambdaMicrovmSession>,
+  sessionId: string,
+) {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    throw new Error(`Missing sandbox session: ${sessionId}`);
+  }
+  return session;
+}
 
 export function createLambdaMicrovmSandboxProvider(params: {
   imageIdentifier: string;
@@ -458,186 +639,4 @@ export function createLambdaMicrovmSandboxProvider(params: {
       }
     },
   };
-}
-
-async function waitForBridge(params: {
-  client: LambdaMicrovmsClient;
-  microvmId: string;
-  endpoint: string;
-}): Promise<
-  | { status: "ready" }
-  | { status: "unavailable"; reason: "not_found" | "terminal_state" }
-> {
-  const startedAt = Date.now();
-  let lastError: unknown;
-
-  while (Date.now() - startedAt < BRIDGE_READY_TIMEOUT_MS) {
-    const microvm = await getMicrovm(params.client, params.microvmId);
-    if (!microvm) {
-      return { status: "unavailable", reason: "not_found" };
-    }
-
-    if (isTerminalMicrovmState(microvm.state)) {
-      return { status: "unavailable", reason: "terminal_state" };
-    }
-
-    try {
-      logger.debug("[Lambda MicroVM Sandbox] bridge health probe", {
-        microvmId: params.microvmId,
-        endpoint: params.endpoint,
-        normalizedEndpoint: normalizeEndpoint(params.endpoint),
-        endpointPort: getEndpointPort(params.endpoint),
-        sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
-      });
-      const response = await fetch(
-        `${normalizeEndpoint(params.endpoint)}/health`,
-        {
-          headers: {
-            "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
-            "X-aws-proxy-auth": (await createMicrovmAuthToken(params)).value,
-          },
-        },
-      );
-
-      if (response.ok) {
-        return { status: "ready" };
-      }
-
-      lastError = new Error(
-        (await response.text()) ||
-          `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
-      );
-    } catch (error) {
-      lastError = error;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("[Lambda MicroVM Sandbox] bridge did not become ready");
-}
-
-async function createMicrovmAuthToken(params: {
-  client: LambdaMicrovmsClient;
-  microvmId: string;
-  endpoint: string;
-}) {
-  const endpointPort = getEndpointPort(params.endpoint);
-  logger.debug("[Lambda MicroVM Sandbox] creating auth token", {
-    microvmId: params.microvmId,
-    endpoint: params.endpoint,
-    normalizedEndpoint: normalizeEndpoint(params.endpoint),
-    endpointPort,
-    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
-  });
-
-  const response = await params.client.send(
-    new CreateMicrovmAuthTokenCommand({
-      microvmIdentifier: params.microvmId,
-      expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
-      allowedPorts: [{ allPorts: {} }],
-    }),
-  );
-
-  const token =
-    response.authToken?.["X-aws-proxy-auth"] ??
-    response.authToken?.["x-aws-proxy-auth"] ??
-    Object.values(response.authToken ?? {})[0];
-
-  if (!token) {
-    throw new Error(
-      "Lambda MicroVM auth token response did not include X-aws-proxy-auth",
-    );
-  }
-
-  logger.debug("[Lambda MicroVM Sandbox] created auth token", {
-    microvmId: params.microvmId,
-    endpointPort,
-    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
-    authTokenKeys: Object.keys(response.authToken ?? {}),
-  });
-
-  return {
-    value: token,
-    expiresAtMs: Date.now() + DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
-  };
-}
-
-async function getMicrovm(client: LambdaMicrovmsClient, microvmId: string) {
-  try {
-    return readMicrovmInfo(
-      await client.send(
-        new GetMicrovmCommand({ microvmIdentifier: microvmId }),
-      ),
-    );
-  } catch (error) {
-    if (isMissingMicrovmError(error)) {
-      return null;
-    }
-
-    throw error;
-  }
-}
-
-function getSession(
-  sessions: Map<string, LambdaMicrovmSession>,
-  sessionId: string,
-) {
-  const session = sessions.get(sessionId);
-  if (!session) {
-    throw new Error(`Missing sandbox session: ${sessionId}`);
-  }
-  return session;
-}
-
-function readMicrovmInfo(value: {
-  microvmId?: string;
-  endpoint?: string;
-  state?: string;
-  stateReason?: string;
-}) {
-  if (!value.microvmId || !value.endpoint || !value.state) {
-    throw new Error("Lambda MicroVM response did not include required fields");
-  }
-
-  return {
-    microvmId: value.microvmId,
-    endpoint: value.endpoint,
-    state: value.state,
-    ...(value.stateReason ? { stateReason: value.stateReason } : {}),
-  } satisfies LambdaMicrovmInfo;
-}
-
-function normalizeEndpoint(endpoint: string) {
-  const trimmed = endpoint.replace(/\/$/, "");
-  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-}
-
-function getEndpointPort(endpoint: string) {
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
-  const parsedEndpoint = new URL(normalizedEndpoint);
-
-  if (parsedEndpoint.port) {
-    return Number(parsedEndpoint.port);
-  }
-
-  return parsedEndpoint.protocol === "http:" ? 80 : 443;
-}
-
-function isTerminalMicrovmState(state: string) {
-  return state === "TERMINATING" || state === "TERMINATED";
-}
-
-function isMissingMicrovmError(error: unknown) {
-  const parsedError = LambdaMicrovmErrorSchema.safeParse(error);
-  if (!parsedError.success) {
-    return false;
-  }
-
-  const { name, $metadata } = parsedError.data;
-  const statusCode = $metadata?.httpStatusCode;
-
-  return name === "ResourceNotFoundException" || statusCode === 404;
 }

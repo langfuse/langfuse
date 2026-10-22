@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
@@ -217,6 +216,15 @@ export function buildWidgetExport(widget: WidgetExportSource) {
     minVersion: widget.minVersion,
   };
 }
+function buildWidgetJsonFileName(widgetName: string) {
+  const fileSafeName = widgetName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `${fileSafeName || "widget"}.json`;
+}
 
 export function downloadWidgetJson(widget: WidgetExportSource) {
   const blob = new Blob([JSON.stringify(buildWidgetExport(widget), null, 2)], {
@@ -230,15 +238,6 @@ export function downloadWidgetJson(widget: WidgetExportSource) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-}
-function buildWidgetJsonFileName(widgetName: string) {
-  const fileSafeName = widgetName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return `${fileSafeName || "widget"}.json`;
 }
 
 function normalizeImportedFilters(params: {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import {
   Check,
@@ -140,6 +139,129 @@ function boxClasses(
 const HEADER_CONTROL_CLASSES =
   "text-muted-foreground hover:text-foreground hover:bg-transparent";
 
+/** Info trigger with a hover card; sits outside the title toggle. */
+function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
+  return (
+    <HoverCard
+      placement="right"
+      content={
+        <div className="w-80 p-3 text-xs">
+          <p>
+            {info.text}
+            {info.docsHref ? (
+              <>
+                {" "}
+                Learn more in the{" "}
+                <Link
+                  href={info.docsHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-foreground underline"
+                >
+                  documentation
+                </Link>
+                .
+              </>
+            ) : null}
+          </p>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          aria-label={info.label}
+          className="text-muted-foreground hover:text-foreground"
+          {...getTriggerProps()}
+        >
+          <Info size="base" />
+        </button>
+      )}
+    </HoverCard>
+  );
+}
+
+/** Saving / saved / error label; `pr-2` keeps its gap to the actions. */
+function StatusLabel({ status }: { status: IOSectionStatus }) {
+  if (status.kind === "error") {
+    return <span className="pr-2 text-xs text-red-500">{status.text}</span>;
+  }
+  return (
+    <div className="flex items-center gap-1 pr-2">
+      {status.kind === "saving" ? <Spinner size="xxs" /> : <Check size="sm" />}
+      <span className="text-muted-foreground text-xs">{status.text}</span>
+    </div>
+  );
+}
+
+/** The header's right-hand controls, in order: status, actions, toggle, copy. */
+function IOSectionControls({
+  status,
+  actions,
+  toggle,
+  onCopy,
+}: Pick<IOSectionProps, "status" | "actions" | "toggle" | "onCopy">) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  return (
+    <>
+      {status ? <StatusLabel status={status} /> : null}
+      {actions?.map((action) => (
+        <Button
+          key={action.label}
+          variant="ghost"
+          size="icon-xs"
+          type="button"
+          title={action.label}
+          aria-label={action.label}
+          disabled={action.disabled}
+          onClick={action.onClick}
+          className={HEADER_CONTROL_CLASSES}
+        >
+          {action.active ? (
+            <action.icon size="base" __rawClassName="text-primary" />
+          ) : (
+            <action.icon size="base" color="default" />
+          )}
+        </Button>
+      ))}
+      {toggle ? (
+        <div className="flex items-center">
+          <div className="mx-1">
+            <Switch
+              checked={toggle.checked}
+              onCheckedChange={toggle.onCheckedChange}
+              disabled={toggle.disabled}
+              size="sm"
+            />
+          </div>
+          <span className="text-muted-foreground text-xs">{toggle.label}</span>
+        </div>
+      ) : null}
+      {onCopy ? (
+        <Button
+          title="Copy to clipboard"
+          variant="ghost"
+          size="icon-xs"
+          type="button"
+          onClick={(event) => {
+            setIsCopied(true);
+            onCopy(event);
+            setTimeout(() => setIsCopied(false), 1000);
+          }}
+          className={HEADER_CONTROL_CLASSES}
+        >
+          {isCopied ? (
+            <Check size="base" color="default" />
+          ) : (
+            <Copy size="base" color="default" />
+          )}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * One I/O section of the trace view: a header row (caret, title, hover
  * controls) over a boxed body. The header row toggles the body (its controls
@@ -253,129 +375,6 @@ export function IOSection({
         </div>
       )}
     </div>
-  );
-}
-
-/** The header's right-hand controls, in order: status, actions, toggle, copy. */
-function IOSectionControls({
-  status,
-  actions,
-  toggle,
-  onCopy,
-}: Pick<IOSectionProps, "status" | "actions" | "toggle" | "onCopy">) {
-  const [isCopied, setIsCopied] = useState(false);
-
-  return (
-    <>
-      {status ? <StatusLabel status={status} /> : null}
-      {actions?.map((action) => (
-        <Button
-          key={action.label}
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          title={action.label}
-          aria-label={action.label}
-          disabled={action.disabled}
-          onClick={action.onClick}
-          className={HEADER_CONTROL_CLASSES}
-        >
-          {action.active ? (
-            <action.icon size="base" __rawClassName="text-primary" />
-          ) : (
-            <action.icon size="base" color="default" />
-          )}
-        </Button>
-      ))}
-      {toggle ? (
-        <div className="flex items-center">
-          <div className="mx-1">
-            <Switch
-              checked={toggle.checked}
-              onCheckedChange={toggle.onCheckedChange}
-              disabled={toggle.disabled}
-              size="sm"
-            />
-          </div>
-          <span className="text-muted-foreground text-xs">{toggle.label}</span>
-        </div>
-      ) : null}
-      {onCopy ? (
-        <Button
-          title="Copy to clipboard"
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          onClick={(event) => {
-            setIsCopied(true);
-            onCopy(event);
-            setTimeout(() => setIsCopied(false), 1000);
-          }}
-          className={HEADER_CONTROL_CLASSES}
-        >
-          {isCopied ? (
-            <Check size="base" color="default" />
-          ) : (
-            <Copy size="base" color="default" />
-          )}
-        </Button>
-      ) : null}
-    </>
-  );
-}
-
-/** Saving / saved / error label; `pr-2` keeps its gap to the actions. */
-function StatusLabel({ status }: { status: IOSectionStatus }) {
-  if (status.kind === "error") {
-    return <span className="pr-2 text-xs text-red-500">{status.text}</span>;
-  }
-  return (
-    <div className="flex items-center gap-1 pr-2">
-      {status.kind === "saving" ? <Spinner size="xxs" /> : <Check size="sm" />}
-      <span className="text-muted-foreground text-xs">{status.text}</span>
-    </div>
-  );
-}
-
-/** Info trigger with a hover card; sits outside the title toggle. */
-function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
-  return (
-    <HoverCard
-      placement="right"
-      content={
-        <div className="w-80 p-3 text-xs">
-          <p>
-            {info.text}
-            {info.docsHref ? (
-              <>
-                {" "}
-                Learn more in the{" "}
-                <Link
-                  href={info.docsHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-foreground underline"
-                >
-                  documentation
-                </Link>
-                .
-              </>
-            ) : null}
-          </p>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          aria-label={info.label}
-          className="text-muted-foreground hover:text-foreground"
-          {...getTriggerProps()}
-        >
-          <Info size="base" />
-        </button>
-      )}
-    </HoverCard>
   );
 }
 

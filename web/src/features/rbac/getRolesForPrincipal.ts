@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   hasOrganizationKind,
   hasProjectKind,
@@ -16,36 +15,6 @@ import {
 import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { type Prisma, type RoleAssignment } from "@langfuse/shared/src/db";
 import { type Policy, type Role } from "./types";
-
-/** getRolesForPrincipal loads a principal's roles with policies bound to each assignment. */
-export async function getRolesForPrincipal(
-  prisma: Prisma.TransactionClient,
-  principalId: PrincipalId,
-): Promise<Role[]> {
-  const assignments = await getRoleAssignmentsForPrincipal(prisma, principalId);
-  return assignments.map(toRole);
-}
-
-/** toRole binds a stored assignment's system role to its tenant and owner. */
-function toRole(assignment: RoleAssignment): Role {
-  const definition = systemRoleAccessRights[assignment.systemRole];
-  const roleId = SystemRoleId(assignment.systemRole);
-  const tenantId = OrganizationId(assignment.orgId);
-  const ownerId = toOwnerId(assignment);
-  const resources = hasProjectKind(ownerId)
-    ? [ownerId]
-    : [ownerId, ProjectId("*")];
-  return {
-    id: roleId,
-    tenantId,
-    name: definition.name,
-    description: definition.description,
-    policies: definition.policies
-      .map((policy) => toPolicy(policy, roleId, tenantId, resources))
-      .filter((policy): policy is Policy => policy !== null),
-    tags: definition.tags,
-  };
-}
 
 /** toOwnerId tags the populated owner foreign key. */
 function toOwnerId(assignment: RoleAssignment): OwnerId {
@@ -74,4 +43,34 @@ function toPolicy(
     actions: definition.actions,
     resources: ofKind,
   };
+}
+
+/** toRole binds a stored assignment's system role to its tenant and owner. */
+function toRole(assignment: RoleAssignment): Role {
+  const definition = systemRoleAccessRights[assignment.systemRole];
+  const roleId = SystemRoleId(assignment.systemRole);
+  const tenantId = OrganizationId(assignment.orgId);
+  const ownerId = toOwnerId(assignment);
+  const resources = hasProjectKind(ownerId)
+    ? [ownerId]
+    : [ownerId, ProjectId("*")];
+  return {
+    id: roleId,
+    tenantId,
+    name: definition.name,
+    description: definition.description,
+    policies: definition.policies
+      .map((policy) => toPolicy(policy, roleId, tenantId, resources))
+      .filter((policy): policy is Policy => policy !== null),
+    tags: definition.tags,
+  };
+}
+
+/** getRolesForPrincipal loads a principal's roles with policies bound to each assignment. */
+export async function getRolesForPrincipal(
+  prisma: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<Role[]> {
+  const assignments = await getRoleAssignmentsForPrincipal(prisma, principalId);
+  return assignments.map(toRole);
 }

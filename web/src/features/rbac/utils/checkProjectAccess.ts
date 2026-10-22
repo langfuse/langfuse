@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -32,6 +31,31 @@ type HasProjectAccessParams = (
     }
 ) & { forbiddenErrorMessage?: string };
 
+function isDemoProjectLlmScope(p: HasProjectAccessParams): boolean {
+  return (
+    !hasOwnRole(p) &&
+    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+    demoProjectLlmScopes.has(p.scope)
+  );
+}
+
+// For use in UI components as function, if session is already available
+export function hasProjectAccess(p: HasProjectAccessParams): boolean {
+  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
+  if (isAdmin) return true;
+
+  if (isDemoProjectLlmScope(p)) return false;
+
+  const projectRole: Role | undefined = hasOwnRole(p)
+    ? p.role
+    : p.session?.user?.organizations
+        .flatMap((org) => org.projects)
+        .find((project) => project.id === p.projectId)?.role;
+  if (projectRole === undefined) return false;
+
+  return projectRoleAccessRights[projectRole].includes(p.scope);
+}
+
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
  * @throws TRPCError("FORBIDDEN") if user does not have access
@@ -62,28 +86,3 @@ export const useHasProjectAccess = (p: {
 
   return hasProjectAccess({ session: session.data, scope, projectId });
 };
-
-// For use in UI components as function, if session is already available
-export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
-
-  if (isDemoProjectLlmScope(p)) return false;
-
-  const projectRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
-  if (projectRole === undefined) return false;
-
-  return projectRoleAccessRights[projectRole].includes(p.scope);
-}
-
-function isDemoProjectLlmScope(p: HasProjectAccessParams): boolean {
-  return (
-    !hasOwnRole(p) &&
-    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    demoProjectLlmScopes.has(p.scope)
-  );
-}

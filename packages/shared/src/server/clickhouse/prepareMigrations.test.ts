@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -187,16 +186,6 @@ function readMigration(run: MigrationRun, file: string): string {
   return readFileSync(join(run.capturedMigrationsDirectory, file), "utf8");
 }
 
-function readHistoricalSql(run: MigrationRun): string {
-  return historicalMigrationFiles(run.capturedMigrationsDirectory)
-    .map((file) => readMigration(run, file))
-    .join("\n");
-}
-
-function countMatches(value: string, pattern: RegExp): number {
-  return [...value.matchAll(pattern)].length;
-}
-
 function historicalMigrationFiles(directory: string): string[] {
   return readdirSync(directory)
     .filter(
@@ -205,6 +194,16 @@ function historicalMigrationFiles(directory: string): string[] {
         Number(file.slice(0, 4)) <= historicalMigrationVersion,
     )
     .sort();
+}
+
+function readHistoricalSql(run: MigrationRun): string {
+  return historicalMigrationFiles(run.capturedMigrationsDirectory)
+    .map((file) => readMigration(run, file))
+    .join("\n");
+}
+
+function countMatches(value: string, pattern: RegExp): number {
+  return [...value.matchAll(pattern)].length;
 }
 
 function hashHistoricalMigrations(directory: string): string {

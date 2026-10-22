@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { filterOperators } from "@langfuse/shared";
@@ -20,6 +19,88 @@ import {
   type ExperimentFilterTarget,
 } from "./experimentFilterTypes";
 import { ExperimentFilterValueEditor } from "./ExperimentFilterValueEditor";
+
+function scoreNames(
+  draft: ExperimentFilterDraft,
+  options: ExperimentFilterOptions | undefined,
+): string[] {
+  if (draft.type === "numberObject") return options?.scores_avg ?? [];
+  if (draft.type === "categoryOptions")
+    return Object.keys(options?.score_categories ?? {});
+  if (draft.type === "booleanObject") return options?.score_booleans ?? [];
+  return [];
+}
+
+function scoreLevels(
+  draft: ExperimentFilterDraft,
+  options: ExperimentFilterOptions | undefined,
+) {
+  if (draft.type === "numberObject")
+    return options?.score_name_levels_numeric?.[draft.key] ?? [];
+  if (draft.type === "categoryOptions")
+    return options?.score_name_levels_categorical?.[draft.key] ?? [];
+  if (draft.type === "booleanObject")
+    return options?.score_name_levels_boolean?.[draft.key] ?? [];
+  return [];
+}
+
+function prepareBlockState(
+  draft: ExperimentFilterDraft,
+  targets: readonly ExperimentFilterTarget[],
+  options: ExperimentFilterOptions | undefined,
+  optionsError: string | null,
+) {
+  const kind = EXPERIMENT_FILTER_KINDS.find(
+    (entry) => entry.column === draft.column,
+  );
+  const target = targets.find((entry) => entry.id === draft.target);
+  const isScore = ["numberObject", "booleanObject", "categoryOptions"].includes(
+    draft.type,
+  );
+  const isMetadata = draft.type === "stringObject";
+  const availableNames = scoreNames(draft, options);
+  const allNames = new Set([
+    ...(options?.scores_avg ?? []),
+    ...Object.keys(options?.score_categories ?? {}),
+    ...(options?.score_booleans ?? []),
+  ]);
+  const invalidType =
+    isScore && allNames.has(draft.key) && !availableNames.includes(draft.key);
+  const availableTargets = targets.map((entry) => ({
+    value: entry.id,
+    label: entry.label,
+  }));
+  if (!target)
+    availableTargets.push({
+      value: draft.target,
+      label: `Unavailable experiment (${draft.target})`,
+    });
+  let emptyScoresMessage = "Loading scores…";
+  if (options) emptyScoresMessage = "No scores of this type";
+  if (optionsError) emptyScoresMessage = "Score options unavailable";
+  return {
+    title: kind?.label ?? draft.column,
+    target,
+    targets: availableTargets,
+    isScore,
+    isMetadata,
+    isPresence: isMetadata && ["is set", "is not set"].includes(draft.operator),
+    scoreNames: [
+      ...new Set([...availableNames, ...(draft.key ? [draft.key] : [])]),
+    ].map((value) => ({ value, label: value })),
+    levels: scoreLevels(draft, options),
+    invalidType,
+    emptyScoresMessage,
+    isWaiting:
+      isScore && options === undefined && !optionsError && Boolean(target),
+    canApply: Boolean(
+      completeExperimentFilter(draft) &&
+      target &&
+      !invalidType &&
+      (!isScore || (options !== undefined && !optionsError)),
+    ),
+  };
+}
 
 /** Each keyed mount owns only its unfinished form values. */
 export function ExperimentFilterBlock({
@@ -161,88 +242,6 @@ export function ExperimentFilterBlock({
       )}
     </form>
   );
-}
-
-function prepareBlockState(
-  draft: ExperimentFilterDraft,
-  targets: readonly ExperimentFilterTarget[],
-  options: ExperimentFilterOptions | undefined,
-  optionsError: string | null,
-) {
-  const kind = EXPERIMENT_FILTER_KINDS.find(
-    (entry) => entry.column === draft.column,
-  );
-  const target = targets.find((entry) => entry.id === draft.target);
-  const isScore = ["numberObject", "booleanObject", "categoryOptions"].includes(
-    draft.type,
-  );
-  const isMetadata = draft.type === "stringObject";
-  const availableNames = scoreNames(draft, options);
-  const allNames = new Set([
-    ...(options?.scores_avg ?? []),
-    ...Object.keys(options?.score_categories ?? {}),
-    ...(options?.score_booleans ?? []),
-  ]);
-  const invalidType =
-    isScore && allNames.has(draft.key) && !availableNames.includes(draft.key);
-  const availableTargets = targets.map((entry) => ({
-    value: entry.id,
-    label: entry.label,
-  }));
-  if (!target)
-    availableTargets.push({
-      value: draft.target,
-      label: `Unavailable experiment (${draft.target})`,
-    });
-  let emptyScoresMessage = "Loading scores…";
-  if (options) emptyScoresMessage = "No scores of this type";
-  if (optionsError) emptyScoresMessage = "Score options unavailable";
-  return {
-    title: kind?.label ?? draft.column,
-    target,
-    targets: availableTargets,
-    isScore,
-    isMetadata,
-    isPresence: isMetadata && ["is set", "is not set"].includes(draft.operator),
-    scoreNames: [
-      ...new Set([...availableNames, ...(draft.key ? [draft.key] : [])]),
-    ].map((value) => ({ value, label: value })),
-    levels: scoreLevels(draft, options),
-    invalidType,
-    emptyScoresMessage,
-    isWaiting:
-      isScore && options === undefined && !optionsError && Boolean(target),
-    canApply: Boolean(
-      completeExperimentFilter(draft) &&
-      target &&
-      !invalidType &&
-      (!isScore || (options !== undefined && !optionsError)),
-    ),
-  };
-}
-
-function scoreNames(
-  draft: ExperimentFilterDraft,
-  options: ExperimentFilterOptions | undefined,
-): string[] {
-  if (draft.type === "numberObject") return options?.scores_avg ?? [];
-  if (draft.type === "categoryOptions")
-    return Object.keys(options?.score_categories ?? {});
-  if (draft.type === "booleanObject") return options?.score_booleans ?? [];
-  return [];
-}
-
-function scoreLevels(
-  draft: ExperimentFilterDraft,
-  options: ExperimentFilterOptions | undefined,
-) {
-  if (draft.type === "numberObject")
-    return options?.score_name_levels_numeric?.[draft.key] ?? [];
-  if (draft.type === "categoryOptions")
-    return options?.score_name_levels_categorical?.[draft.key] ?? [];
-  if (draft.type === "booleanObject")
-    return options?.score_name_levels_boolean?.[draft.key] ?? [];
-  return [];
 }
 
 type ExperimentFilterBlockProps = {

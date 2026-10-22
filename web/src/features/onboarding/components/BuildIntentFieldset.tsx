@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ReactNode } from "react";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
@@ -16,6 +15,41 @@ type BuildIntentFieldsetProps = {
   onChange: (value: BuildIntentId[]) => void;
   otherInput: ReactNode;
 };
+
+function BuildIntentOptionRow({
+  option,
+  isChecked,
+  isDisabled,
+  onToggle,
+  children,
+}: BuildIntentOptionRowProps) {
+  const checkboxId = `build-intent-${option.id}`;
+
+  const handleCheckedChange = (checked: boolean | "indeterminate") =>
+    onToggle(option.id, checked === true);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start gap-3">
+        <div className="pt-0.5">
+          <Checkbox
+            id={checkboxId}
+            checked={isChecked}
+            disabled={isDisabled}
+            onCheckedChange={handleCheckedChange}
+          />
+        </div>
+        <label htmlFor={checkboxId} className="flex cursor-pointer flex-col">
+          <span className="text-sm">{option.label}</span>
+          {option.hint ? (
+            <span className="text-muted-foreground text-sm">{option.hint}</span>
+          ) : null}
+        </label>
+      </div>
+      {isChecked && children ? <div className="pl-7">{children}</div> : null}
+    </div>
+  );
+}
 
 export function BuildIntentFieldset({
   options,
@@ -64,38 +98,3 @@ type BuildIntentOptionRowProps = {
   onToggle: (id: BuildIntentId, isChecked: boolean) => void;
   children: ReactNode;
 };
-
-function BuildIntentOptionRow({
-  option,
-  isChecked,
-  isDisabled,
-  onToggle,
-  children,
-}: BuildIntentOptionRowProps) {
-  const checkboxId = `build-intent-${option.id}`;
-
-  const handleCheckedChange = (checked: boolean | "indeterminate") =>
-    onToggle(option.id, checked === true);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-3">
-        <div className="pt-0.5">
-          <Checkbox
-            id={checkboxId}
-            checked={isChecked}
-            disabled={isDisabled}
-            onCheckedChange={handleCheckedChange}
-          />
-        </div>
-        <label htmlFor={checkboxId} className="flex cursor-pointer flex-col">
-          <span className="text-sm">{option.label}</span>
-          {option.hint ? (
-            <span className="text-muted-foreground text-sm">{option.hint}</span>
-          ) : null}
-        </label>
-      </div>
-      {isChecked && children ? <div className="pl-7">{children}</div> : null}
-    </div>
-  );
-}

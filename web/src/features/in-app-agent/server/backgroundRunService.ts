@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
@@ -51,6 +50,28 @@ import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
+
+function getPendingToolApprovals(
+  events: readonly PersistedConversationEvent[],
+  parkedRunIds: ReadonlySet<string>,
+) {
+  const decidedToolCallIds = new Set(
+    events.flatMap((persisted) => {
+      const decision = parseInAppAgentApprovalDecisionEvent(persisted.event);
+      return decision ? [decision.toolCallId] : [];
+    }),
+  );
+
+  return events.flatMap((persisted) => {
+    const approvalRequest = parseInAppAgentInterruptEvent(persisted.event);
+
+    return approvalRequest &&
+      parkedRunIds.has(persisted.runId) &&
+      !decidedToolCallIds.has(approvalRequest.toolCallId)
+      ? [{ runId: persisted.runId, approvalRequest }]
+      : [];
+  });
+}
 
 export async function getBackgroundConversationSnapshot(params: {
   prisma: PrismaClient;
@@ -187,6 +208,58 @@ export function serializeConversationLatestRun(
   };
 }
 
+async function enqueueInAppAgentRun(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  runId: string;
+}) {
+  try {
+    const queue = InAppAgentRunQueue.getInstance();
+
+    if (!queue) {
+      throw new Error("In-app agent run queue is unavailable");
+    }
+
+    await queue.add(
+      QueueJobs.InAppAgentRunJob,
+      {
+        timestamp: new Date(),
+        id: randomUUID(),
+        name: QueueJobs.InAppAgentRunJob,
+        payload: { projectId: params.projectId, runId: params.runId },
+      },
+      { jobId: params.runId },
+    );
+  } catch (error) {
+    logger.error("Failed to enqueue in-app agent run", {
+      error,
+      projectId: params.projectId,
+      runId: params.runId,
+    });
+
+    await params.prisma.inAppAgentRun.updateMany({
+      where: {
+        id: params.runId,
+        projectId: params.projectId,
+        status: InAppAgentRunStatus.QUEUED,
+      },
+      data: {
+        status: InAppAgentRunStatus.FAILED,
+        finishedAt: new Date(),
+        errorCode: InAppAgentRunErrorCode.ENQUEUE_FAILED,
+        errorMessage: "Couldn't start the run",
+      },
+    });
+
+    throw new BaseError(
+      "InternalServerError",
+      500,
+      "Couldn't start the run. Try again.",
+      true,
+    );
+  }
+}
+
 export async function startBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -283,6 +356,17 @@ export async function startBackgroundRun(params: {
   });
 
   return { conversationId: conversation.id, runId: run.id };
+}
+
+async function removeInAppAgentRunJob(runId: string) {
+  try {
+    await InAppAgentRunQueue.getInstance()?.remove(runId);
+  } catch (error) {
+    logger.info("Failed to remove cancelled in-app agent run job", {
+      error,
+      runId,
+    });
+  }
 }
 
 /** Soft-delete a conversation and cancel its unsettled runs atomically. */
@@ -439,89 +523,4 @@ export async function decideBackgroundApproval(params: {
   });
 
   return { runId: continuationRun.id };
-}
-
-function getPendingToolApprovals(
-  events: readonly PersistedConversationEvent[],
-  parkedRunIds: ReadonlySet<string>,
-) {
-  const decidedToolCallIds = new Set(
-    events.flatMap((persisted) => {
-      const decision = parseInAppAgentApprovalDecisionEvent(persisted.event);
-      return decision ? [decision.toolCallId] : [];
-    }),
-  );
-
-  return events.flatMap((persisted) => {
-    const approvalRequest = parseInAppAgentInterruptEvent(persisted.event);
-
-    return approvalRequest &&
-      parkedRunIds.has(persisted.runId) &&
-      !decidedToolCallIds.has(approvalRequest.toolCallId)
-      ? [{ runId: persisted.runId, approvalRequest }]
-      : [];
-  });
-}
-
-async function enqueueInAppAgentRun(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  runId: string;
-}) {
-  try {
-    const queue = InAppAgentRunQueue.getInstance();
-
-    if (!queue) {
-      throw new Error("In-app agent run queue is unavailable");
-    }
-
-    await queue.add(
-      QueueJobs.InAppAgentRunJob,
-      {
-        timestamp: new Date(),
-        id: randomUUID(),
-        name: QueueJobs.InAppAgentRunJob,
-        payload: { projectId: params.projectId, runId: params.runId },
-      },
-      { jobId: params.runId },
-    );
-  } catch (error) {
-    logger.error("Failed to enqueue in-app agent run", {
-      error,
-      projectId: params.projectId,
-      runId: params.runId,
-    });
-
-    await params.prisma.inAppAgentRun.updateMany({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        status: InAppAgentRunStatus.QUEUED,
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: new Date(),
-        errorCode: InAppAgentRunErrorCode.ENQUEUE_FAILED,
-        errorMessage: "Couldn't start the run",
-      },
-    });
-
-    throw new BaseError(
-      "InternalServerError",
-      500,
-      "Couldn't start the run. Try again.",
-      true,
-    );
-  }
-}
-
-async function removeInAppAgentRunJob(runId: string) {
-  try {
-    await InAppAgentRunQueue.getInstance()?.remove(runId);
-  } catch (error) {
-    logger.info("Failed to remove cancelled in-app agent run job", {
-      error,
-      runId,
-    });
-  }
 }

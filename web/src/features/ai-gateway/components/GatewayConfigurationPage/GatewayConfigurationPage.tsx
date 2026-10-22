@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
@@ -17,6 +16,21 @@ type Project = {
   name: string;
   deletedAt?: Date | string | null;
 };
+
+function ConfigurationSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" data-testid="gateway-config-loading">
+      <Skeleton className="h-7 w-64" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-40 w-full" />
+      <div className="grid gap-3 md:grid-cols-3">
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
+      </div>
+    </div>
+  );
+}
 
 export function GatewayConfigurationPage({
   organizationId,
@@ -118,20 +132,5 @@ export function GatewayConfigurationPage({
       }}
       onCreateProject={handleCreateProject}
     />
-  );
-}
-
-function ConfigurationSkeleton() {
-  return (
-    <div className="flex flex-col gap-6" data-testid="gateway-config-loading">
-      <Skeleton className="h-7 w-64" />
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-40 w-full" />
-      <div className="grid gap-3 md:grid-cols-3">
-        <Skeleton className="h-36" />
-        <Skeleton className="h-36" />
-        <Skeleton className="h-36" />
-      </div>
-    </div>
   );
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { pickDefaultStripMetric } from "@/src/features/experiments/fns/pickDefaultStripMetric";
@@ -16,6 +15,22 @@ export type ExperimentChartSlot = {
 const INITIAL_CHARTS: ExperimentChartSlot[] = [
   { id: "initial", metricId: null, chartType: "line" },
 ];
+
+function validSlots(value: unknown): value is ExperimentChartSlot[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= MAX_EXPERIMENT_CHARTS &&
+    new Set(value.map((slot) => slot?.id)).size === value.length &&
+    value.every(
+      (slot) =>
+        slot &&
+        typeof slot.id === "string" &&
+        (slot.metricId === null || typeof slot.metricId === "string") &&
+        (slot.chartType === "line" || slot.chartType === "bar"),
+    )
+  );
+}
 
 export function useExperimentCharts({
   projectId,
@@ -78,20 +93,4 @@ export function useExperimentCharts({
       );
     },
   };
-}
-
-function validSlots(value: unknown): value is ExperimentChartSlot[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.length <= MAX_EXPERIMENT_CHARTS &&
-    new Set(value.map((slot) => slot?.id)).size === value.length &&
-    value.every(
-      (slot) =>
-        slot &&
-        typeof slot.id === "string" &&
-        (slot.metricId === null || typeof slot.metricId === "string") &&
-        (slot.chartType === "line" || slot.chartType === "bar"),
-    )
-  );
 }

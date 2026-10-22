@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 
@@ -45,6 +44,57 @@ const ANTHROPIC_PASSTHROUGH_KEYS = new Set([
 ]);
 
 const ANTHROPIC_THINKING_TYPES = new Set(["adaptive", "enabled", "disabled"]);
+
+function translateAnthropicThinking(
+  value: unknown,
+): { ok: true; value: Record<string, unknown> } | { ok: false } {
+  if (typeof value !== "object" || value === null) return { ok: false };
+
+  const {
+    type,
+    budget_tokens: budgetTokensSnake,
+    budgetTokens: budgetTokensCamel,
+    display,
+    ...rest
+  } = value as Record<string, unknown>;
+
+  if (Object.keys(rest).length > 0) return { ok: false };
+  if (typeof type !== "string" || !ANTHROPIC_THINKING_TYPES.has(type)) {
+    return { ok: false };
+  }
+
+  const budgetTokens = budgetTokensCamel ?? budgetTokensSnake;
+
+  return {
+    ok: true,
+    value: {
+      type,
+      ...(budgetTokens !== undefined ? { budgetTokens } : {}),
+      ...(display !== undefined ? { display } : {}),
+    },
+  };
+}
+
+function translateAnthropicMetadata(
+  value: unknown,
+): { ok: true; value: Record<string, unknown> } | { ok: false } {
+  if (typeof value !== "object" || value === null) return { ok: false };
+
+  const {
+    user_id: userIdSnake,
+    userId: userIdCamel,
+    ...rest
+  } = value as Record<string, unknown>;
+
+  if (Object.keys(rest).length > 0) return { ok: false };
+
+  const userId = userIdCamel ?? userIdSnake;
+
+  return {
+    ok: true,
+    value: userId !== undefined ? { userId } : {},
+  };
+}
 
 /**
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK Anthropic
@@ -127,56 +177,5 @@ export function translateAnthropicProviderOptions(
   return {
     ok: true,
     value: Object.keys(translated).length > 0 ? translated : undefined,
-  };
-}
-
-function translateAnthropicThinking(
-  value: unknown,
-): { ok: true; value: Record<string, unknown> } | { ok: false } {
-  if (typeof value !== "object" || value === null) return { ok: false };
-
-  const {
-    type,
-    budget_tokens: budgetTokensSnake,
-    budgetTokens: budgetTokensCamel,
-    display,
-    ...rest
-  } = value as Record<string, unknown>;
-
-  if (Object.keys(rest).length > 0) return { ok: false };
-  if (typeof type !== "string" || !ANTHROPIC_THINKING_TYPES.has(type)) {
-    return { ok: false };
-  }
-
-  const budgetTokens = budgetTokensCamel ?? budgetTokensSnake;
-
-  return {
-    ok: true,
-    value: {
-      type,
-      ...(budgetTokens !== undefined ? { budgetTokens } : {}),
-      ...(display !== undefined ? { display } : {}),
-    },
-  };
-}
-
-function translateAnthropicMetadata(
-  value: unknown,
-): { ok: true; value: Record<string, unknown> } | { ok: false } {
-  if (typeof value !== "object" || value === null) return { ok: false };
-
-  const {
-    user_id: userIdSnake,
-    userId: userIdCamel,
-    ...rest
-  } = value as Record<string, unknown>;
-
-  if (Object.keys(rest).length > 0) return { ok: false };
-
-  const userId = userIdCamel ?? userIdSnake;
-
-  return {
-    ok: true,
-    value: userId !== undefined ? { userId } : {},
   };
 }

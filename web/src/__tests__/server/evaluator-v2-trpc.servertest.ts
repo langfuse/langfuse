@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
@@ -141,6 +140,26 @@ afterAll(async () => {
   await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
   await prisma.user.deleteMany({ where: { id: userId } });
 });
+
+function evaluatorWrites(
+  roleCaller: ReturnType<typeof appRouter.createCaller>,
+  evaluatorId: string,
+) {
+  return [
+    () =>
+      roleCaller.evalsV2.update({
+        projectId,
+        evaluatorId,
+        name: "Renamed protected evaluator",
+        description: null,
+        definition,
+      }),
+    () => roleCaller.evalsV2.reactivate({ projectId, evaluatorId }),
+    () => roleCaller.evalsV2.delete({ projectId, evaluatorId }),
+    () =>
+      roleCaller.evalsV2.deleteMany({ projectId, evaluatorIds: [evaluatorId] }),
+  ];
+}
 
 describe("evalsV2 tRPC", () => {
   it("allows viewers to estimate costs without running a missing-cost test", async () => {
@@ -675,23 +694,3 @@ describe("evalsV2 tRPC", () => {
     });
   });
 });
-
-function evaluatorWrites(
-  roleCaller: ReturnType<typeof appRouter.createCaller>,
-  evaluatorId: string,
-) {
-  return [
-    () =>
-      roleCaller.evalsV2.update({
-        projectId,
-        evaluatorId,
-        name: "Renamed protected evaluator",
-        description: null,
-        definition,
-      }),
-    () => roleCaller.evalsV2.reactivate({ projectId, evaluatorId }),
-    () => roleCaller.evalsV2.delete({ projectId, evaluatorId }),
-    () =>
-      roleCaller.evalsV2.deleteMany({ projectId, evaluatorIds: [evaluatorId] }),
-  ];
-}

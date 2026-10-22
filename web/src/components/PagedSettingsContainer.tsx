@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
@@ -40,6 +39,89 @@ type SettingsProps = {
 };
 
 const pageKey = (page: SettingsPage) => `${page.section ?? ""}:${page.slug}`;
+
+function settingsPath(asPath: string, slug: string) {
+  const pathSegments = asPath.split("?")[0].split("/");
+  if (pathSegments[pathSegments.length - 1] !== "settings") pathSegments.pop();
+  if (slug !== "index") pathSegments.push(slug);
+  return pathSegments.join("/");
+}
+
+function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
+  return pages.reduce<Array<{ section: string | undefined; pages: T[] }>>(
+    (groups, page) => {
+      const previous = groups.at(-1);
+      if (previous && previous.section === page.section) {
+        previous.pages.push(page);
+      } else {
+        groups.push({ section: page.section, pages: [page] });
+      }
+      return groups;
+    },
+    [],
+  );
+}
+
+function DisabledNavEntry({
+  title,
+  reason,
+}: {
+  title: string;
+  reason: string;
+}) {
+  return (
+    <Tooltip label={reason} placement="right" hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          role="link"
+          aria-disabled="true"
+          tabIndex={0}
+          className="text-muted-foreground/50 flex h-8 w-fit cursor-not-allowed items-center rounded-sm px-2"
+        >
+          {title}
+        </span>
+      )}
+    </Tooltip>
+  );
+}
+
+function NavEntry({
+  page,
+  isActive,
+  onSelect,
+}: {
+  page: SettingsPage;
+  isActive: boolean;
+  onSelect: (slug: string) => void;
+}) {
+  if ("href" in page) {
+    return (
+      <Link
+        href={page.href}
+        className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
+      >
+        {page.title}
+        {!page.internal && <ArrowUpRight size="base" __rawClassName="inline" />}
+      </Link>
+    );
+  }
+  function handleSelect() {
+    onSelect(page.slug);
+  }
+
+  return (
+    <span
+      onClick={handleSelect}
+      className={cn(
+        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
+        isActive && "bg-muted text-primary font-bold",
+      )}
+    >
+      {page.title}
+    </span>
+  );
+}
 
 export const PagedSettingsContainer = ({
   pages,
@@ -183,86 +265,3 @@ export const PagedSettingsContainer = ({
     </main>
   );
 };
-
-function NavEntry({
-  page,
-  isActive,
-  onSelect,
-}: {
-  page: SettingsPage;
-  isActive: boolean;
-  onSelect: (slug: string) => void;
-}) {
-  if ("href" in page) {
-    return (
-      <Link
-        href={page.href}
-        className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
-      >
-        {page.title}
-        {!page.internal && <ArrowUpRight size="base" __rawClassName="inline" />}
-      </Link>
-    );
-  }
-  function handleSelect() {
-    onSelect(page.slug);
-  }
-
-  return (
-    <span
-      onClick={handleSelect}
-      className={cn(
-        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
-        isActive && "bg-muted text-primary font-bold",
-      )}
-    >
-      {page.title}
-    </span>
-  );
-}
-
-function DisabledNavEntry({
-  title,
-  reason,
-}: {
-  title: string;
-  reason: string;
-}) {
-  return (
-    <Tooltip label={reason} placement="right" hoverableContent={false}>
-      {({ getTriggerProps }) => (
-        <span
-          {...getTriggerProps()}
-          role="link"
-          aria-disabled="true"
-          tabIndex={0}
-          className="text-muted-foreground/50 flex h-8 w-fit cursor-not-allowed items-center rounded-sm px-2"
-        >
-          {title}
-        </span>
-      )}
-    </Tooltip>
-  );
-}
-
-function settingsPath(asPath: string, slug: string) {
-  const pathSegments = asPath.split("?")[0].split("/");
-  if (pathSegments[pathSegments.length - 1] !== "settings") pathSegments.pop();
-  if (slug !== "index") pathSegments.push(slug);
-  return pathSegments.join("/");
-}
-
-function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
-  return pages.reduce<Array<{ section: string | undefined; pages: T[] }>>(
-    (groups, page) => {
-      const previous = groups.at(-1);
-      if (previous && previous.section === page.section) {
-        previous.pages.push(page);
-      } else {
-        groups.push({ section: page.section, pages: [page] });
-      }
-      return groups;
-    },
-    [],
-  );
-}

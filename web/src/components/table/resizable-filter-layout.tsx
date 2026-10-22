@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import {
@@ -36,89 +36,6 @@ const FILTER_PANEL_MIN_PX = 160;
 // ultrawides. Capped so the table keeps priority on narrow windows.
 const FILTER_PANEL_DEFAULT_PX = 280;
 const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
-
-/** Resizable layout for filter sidebar and table content.
- *  On mobile, renders a stacked layout instead of resizable panels.
- *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
- */
-export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  return <FilterPanels>{children}</FilterPanels>;
-}
-
-/**
- * Responsive composition for searchable filter tables.
- *
- * Desktop keeps the search bar and toolbar above the resizable sidebar/table
- * split. Mobile keeps the compact toolbar row visible, moves the large search
- * bar into the same Filters sheet as the facets, and leaves the table at full
- * width. The layout caches unsubmitted search text while the mobile sheet is
- * closed, without keeping the modal mounted while it is hidden.
- */
-export function SearchableTableFilterLayout({
-  search,
-  toolbar,
-  mobileControls,
-  children,
-}: PropsWithChildren<{
-  search: ReactNode;
-  toolbar: ReactNode;
-  /** Compact context controls that belong in the mobile Filters sheet rather
-   * than consuming a second toolbar row (for example saved views and time). */
-  mobileControls?: ReactNode;
-}>) {
-  const { isMobile } = useDataTableControls();
-  const searchDraftCache = useSearchBarDraftCache(
-    isValidElement(search) ? search.key : null,
-  );
-
-  return (
-    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
-      {isMobile ? null : search}
-      {toolbar}
-      <FilterPanels
-        mobileSearch={isMobile ? search : null}
-        mobileControls={isMobile ? mobileControls : null}
-      >
-        {children}
-      </FilterPanels>
-    </SearchBarDraftCacheContext.Provider>
-  );
-}
-
-/** Sticky-header variant for tables whose search and toolbar must scroll as one band. */
-export function StickySearchableTableFilterLayout({
-  search,
-  toolbar,
-  mobileControls,
-  nonStickyContent,
-  children,
-}: PropsWithChildren<{
-  search: ReactNode;
-  toolbar: ReactNode;
-  mobileControls?: ReactNode;
-  nonStickyContent?: ReactNode;
-}>) {
-  const { isMobile } = useDataTableControls();
-  const searchDraftCache = useSearchBarDraftCache(
-    isValidElement(search) ? search.key : null,
-  );
-
-  return (
-    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
-      <div className="bg-surface sticky top-0 z-30 pb-1.5">
-        {isMobile ? null : search}
-        {toolbar}
-      </div>
-      {nonStickyContent}
-      <FilterPanels
-        mobileSearch={isMobile ? search : null}
-        mobileControls={isMobile ? mobileControls : null}
-      >
-        {children}
-      </FilterPanels>
-    </SearchBarDraftCacheContext.Provider>
-  );
-}
 
 function FilterPanels({
   children,
@@ -271,5 +188,88 @@ function FilterPanels({
       secondaryPosition="left"
       persistId={tableName ? `filter-layout-${tableName}` : "filter-layout"}
     />
+  );
+}
+
+/** Resizable layout for filter sidebar and table content.
+ *  On mobile, renders a stacked layout instead of resizable panels.
+ *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
+ */
+export function ResizableFilterLayout({ children }: PropsWithChildren) {
+  return <FilterPanels>{children}</FilterPanels>;
+}
+
+/**
+ * Responsive composition for searchable filter tables.
+ *
+ * Desktop keeps the search bar and toolbar above the resizable sidebar/table
+ * split. Mobile keeps the compact toolbar row visible, moves the large search
+ * bar into the same Filters sheet as the facets, and leaves the table at full
+ * width. The layout caches unsubmitted search text while the mobile sheet is
+ * closed, without keeping the modal mounted while it is hidden.
+ */
+export function SearchableTableFilterLayout({
+  search,
+  toolbar,
+  mobileControls,
+  children,
+}: PropsWithChildren<{
+  search: ReactNode;
+  toolbar: ReactNode;
+  /** Compact context controls that belong in the mobile Filters sheet rather
+   * than consuming a second toolbar row (for example saved views and time). */
+  mobileControls?: ReactNode;
+}>) {
+  const { isMobile } = useDataTableControls();
+  const searchDraftCache = useSearchBarDraftCache(
+    isValidElement(search) ? search.key : null,
+  );
+
+  return (
+    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
+      {isMobile ? null : search}
+      {toolbar}
+      <FilterPanels
+        mobileSearch={isMobile ? search : null}
+        mobileControls={isMobile ? mobileControls : null}
+      >
+        {children}
+      </FilterPanels>
+    </SearchBarDraftCacheContext.Provider>
+  );
+}
+
+/** Sticky-header variant for tables whose search and toolbar must scroll as one band. */
+export function StickySearchableTableFilterLayout({
+  search,
+  toolbar,
+  mobileControls,
+  nonStickyContent,
+  children,
+}: PropsWithChildren<{
+  search: ReactNode;
+  toolbar: ReactNode;
+  mobileControls?: ReactNode;
+  nonStickyContent?: ReactNode;
+}>) {
+  const { isMobile } = useDataTableControls();
+  const searchDraftCache = useSearchBarDraftCache(
+    isValidElement(search) ? search.key : null,
+  );
+
+  return (
+    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
+      <div className="bg-surface sticky top-0 z-30 pb-1.5">
+        {isMobile ? null : search}
+        {toolbar}
+      </div>
+      {nonStickyContent}
+      <FilterPanels
+        mobileSearch={isMobile ? search : null}
+        mobileControls={isMobile ? mobileControls : null}
+      >
+        {children}
+      </FilterPanels>
+    </SearchBarDraftCacheContext.Provider>
   );
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * A 2D viewport over the trace, driven like a map.
  *
@@ -235,6 +234,13 @@ export function expandRowsToReadable(
   );
 }
 
+/** Row height implied by the vertical window. */
+export function rowHeightOf(viewport: Viewport, boxHeight: number): number {
+  const count = Math.max(finite(viewport.rows.count, 0), 0);
+  const height = Math.max(finite(boxHeight, 0), 0);
+  return count > 0 ? height / count : 0;
+}
+
 /** Whether growing the rows (and keeping the clock) would reveal labels. */
 export function canExpandRowsToReadable(
   viewport: Viewport,
@@ -392,6 +398,26 @@ export function focusViewport(
 
 export type RowExtent = { startMs: number; endMs: number };
 
+/** Inclusive row index range to render — windowing falls out of the viewport. */
+export function visibleRowRange(
+  viewport: Viewport,
+  rowCount: number,
+  overscan = 2,
+): { startIndex: number; endIndex: number } {
+  const total = Math.max(Math.floor(finite(rowCount, 0)), 0);
+  if (total === 0) return { startIndex: 0, endIndex: -1 };
+  const start = Math.max(
+    Math.floor(finite(viewport.rows.start, 0)) - overscan,
+    0,
+  );
+  const end = Math.min(
+    Math.ceil(finite(viewport.rows.start, 0) + finite(viewport.rows.count, 0)) +
+      overscan,
+    total - 1,
+  );
+  return { startIndex: start, endIndex: Math.max(end, start) };
+}
+
 /**
  * Slide the clock to where the rows are, when a zoom has landed on empty air.
  *
@@ -501,33 +527,6 @@ export function rowIndexAtOffset(
   );
   const total = Math.max(Math.floor(finite(rowCount, 0)), 0);
   return index >= 0 && index < total ? index : null;
-}
-
-/** Row height implied by the vertical window. */
-export function rowHeightOf(viewport: Viewport, boxHeight: number): number {
-  const count = Math.max(finite(viewport.rows.count, 0), 0);
-  const height = Math.max(finite(boxHeight, 0), 0);
-  return count > 0 ? height / count : 0;
-}
-
-/** Inclusive row index range to render — windowing falls out of the viewport. */
-export function visibleRowRange(
-  viewport: Viewport,
-  rowCount: number,
-  overscan = 2,
-): { startIndex: number; endIndex: number } {
-  const total = Math.max(Math.floor(finite(rowCount, 0)), 0);
-  if (total === 0) return { startIndex: 0, endIndex: -1 };
-  const start = Math.max(
-    Math.floor(finite(viewport.rows.start, 0)) - overscan,
-    0,
-  );
-  const end = Math.min(
-    Math.ceil(finite(viewport.rows.start, 0) + finite(viewport.rows.count, 0)) +
-      overscan,
-    total - 1,
-  );
-  return { startIndex: start, endIndex: Math.max(end, start) };
 }
 
 /**

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   applyCommentFilters,
   buildEvalExecutionData,
@@ -62,138 +61,11 @@ export type CodeEvalTestRunResult =
       executionTraceFromTimestamp: Date;
     };
 
-export async function runCodeEvalTest(params: {
-  prisma: PrismaClient;
-  orgId: string;
-  projectId: string;
-  evalTemplateId: string;
-  target: EvalTargetObject;
-  mapping: ObservationVariableMapping[];
-  scoreName: string;
-  observationId: string;
-  traceId: string;
-  startTime: Date;
-  shouldReadFromObservationsTable?: boolean;
-}): Promise<CodeEvalTestRunResult> {
-  const observation = await getObservationForEvalById({
-    projectId: params.projectId,
-    id: params.observationId,
-    traceId: params.traceId,
-    startTime: params.startTime,
-    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
-  });
-
-  return runCodeEvalTestForObservation({
-    ...params,
-    observation,
-  });
-}
-
-export async function runCodeEvalTestForJobConfig(params: {
-  prisma: PrismaClient;
-  orgId: string;
-  projectId: string;
-  evalTemplateId: string;
-  target: EvalTargetObject;
-  mapping: ObservationVariableMapping[];
-  scoreName: string;
-  filter: FilterCondition[] | null;
-}): Promise<CodeEvalTestRunResult | null> {
-  const observation = await getObservationForEvalByFilter({
-    prisma: params.prisma,
-    projectId: params.projectId,
-    target: params.target,
-    filter: params.filter,
-  });
-
-  if (!observation) {
-    return null;
-  }
-
-  return runCodeEvalTestForObservation({
-    ...params,
-    observation,
-  });
-}
-
-async function runCodeEvalTestForObservation(params: {
-  prisma: PrismaClient;
-  orgId: string;
-  projectId: string;
-  evalTemplateId: string;
-  target: EvalTargetObject;
-  mapping: ObservationVariableMapping[];
-  scoreName: string;
-  observation: ObservationForEval;
-}): Promise<CodeEvalTestRunResult> {
-  const managedKey = params.evalTemplateId.startsWith("managed:")
-    ? params.evalTemplateId.slice("managed:".length)
-    : null;
-  const managedTemplate = managedKey
-    ? MANAGED_TEMPLATES_CATALOG.templates.find(
-        (template) =>
-          template.key === managedKey &&
-          template.evaluator.type === EvalTemplateType.CODE,
-      )
-    : null;
-  const storedVersion = managedTemplate
-    ? null
-    : await params.prisma.evaluatorVersion.findFirst({
-        where: {
-          id: params.evalTemplateId,
-          evaluator: {
-            projectId: params.projectId,
-            type: EvalTemplateType.CODE,
-          },
-          sourceCode: { not: null },
-          sourceCodeLanguage: { not: null },
-        },
-        include: { evaluator: true },
-      });
-  const codeTemplate = (() => {
-    if (managedTemplate?.evaluator.type === EvalTemplateType.CODE) {
-      return {
-        id: params.evalTemplateId,
-        name: managedTemplate.name,
-        version: 1,
-        sourceCode: managedTemplate.evaluator.source,
-        sourceCodeLanguage: managedTemplate.evaluator.language,
-      };
-    }
-    if (storedVersion?.sourceCode && storedVersion.sourceCodeLanguage) {
-      return {
-        id: storedVersion.evaluator.id,
-        name: storedVersion.evaluator.name,
-        version: storedVersion.version,
-        sourceCode: storedVersion.sourceCode,
-        sourceCodeLanguage: storedVersion.sourceCodeLanguage,
-      };
-    }
-    return null;
-  })();
-
-  if (!codeTemplate) {
-    throw new CodeEvalTestRunSetupError(
-      "TEMPLATE_NOT_FOUND",
-      "Evaluator template not found",
-    );
-  }
-
-  if (!isCodeEvalSourceCodeLanguageSupported(codeTemplate.sourceCodeLanguage)) {
-    throw new CodeEvalTestRunSetupError(
-      "UNSUPPORTED_LANGUAGE",
-      "This code evaluator language is not supported by the configured dispatcher.",
-    );
-  }
-
-  return runCodeEvalTestForObservationWithEvaluator({
-    ...params,
-    evaluator: codeTemplate,
-    version: codeTemplate,
-    evaluatorMetadata: {
-      evaluator_version: codeTemplate.version,
-    },
-  });
+function toCodeEvalTestRunError({
+  retryable: _retryable,
+  ...error
+}: CodeEvalUserVisibleError): CodeEvalTestRunDispatchError {
+  return error;
 }
 
 async function runCodeEvalTestForObservationWithEvaluator(params: {
@@ -281,11 +153,111 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
   };
 }
 
-function toCodeEvalTestRunError({
-  retryable: _retryable,
-  ...error
-}: CodeEvalUserVisibleError): CodeEvalTestRunDispatchError {
-  return error;
+async function runCodeEvalTestForObservation(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observation: ObservationForEval;
+}): Promise<CodeEvalTestRunResult> {
+  const managedKey = params.evalTemplateId.startsWith("managed:")
+    ? params.evalTemplateId.slice("managed:".length)
+    : null;
+  const managedTemplate = managedKey
+    ? MANAGED_TEMPLATES_CATALOG.templates.find(
+        (template) =>
+          template.key === managedKey &&
+          template.evaluator.type === EvalTemplateType.CODE,
+      )
+    : null;
+  const storedVersion = managedTemplate
+    ? null
+    : await params.prisma.evaluatorVersion.findFirst({
+        where: {
+          id: params.evalTemplateId,
+          evaluator: {
+            projectId: params.projectId,
+            type: EvalTemplateType.CODE,
+          },
+          sourceCode: { not: null },
+          sourceCodeLanguage: { not: null },
+        },
+        include: { evaluator: true },
+      });
+  const codeTemplate = (() => {
+    if (managedTemplate?.evaluator.type === EvalTemplateType.CODE) {
+      return {
+        id: params.evalTemplateId,
+        name: managedTemplate.name,
+        version: 1,
+        sourceCode: managedTemplate.evaluator.source,
+        sourceCodeLanguage: managedTemplate.evaluator.language,
+      };
+    }
+    if (storedVersion?.sourceCode && storedVersion.sourceCodeLanguage) {
+      return {
+        id: storedVersion.evaluator.id,
+        name: storedVersion.evaluator.name,
+        version: storedVersion.version,
+        sourceCode: storedVersion.sourceCode,
+        sourceCodeLanguage: storedVersion.sourceCodeLanguage,
+      };
+    }
+    return null;
+  })();
+
+  if (!codeTemplate) {
+    throw new CodeEvalTestRunSetupError(
+      "TEMPLATE_NOT_FOUND",
+      "Evaluator template not found",
+    );
+  }
+
+  if (!isCodeEvalSourceCodeLanguageSupported(codeTemplate.sourceCodeLanguage)) {
+    throw new CodeEvalTestRunSetupError(
+      "UNSUPPORTED_LANGUAGE",
+      "This code evaluator language is not supported by the configured dispatcher.",
+    );
+  }
+
+  return runCodeEvalTestForObservationWithEvaluator({
+    ...params,
+    evaluator: codeTemplate,
+    version: codeTemplate,
+    evaluatorMetadata: {
+      evaluator_version: codeTemplate.version,
+    },
+  });
+}
+
+export async function runCodeEvalTest(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observationId: string;
+  traceId: string;
+  startTime: Date;
+  shouldReadFromObservationsTable?: boolean;
+}): Promise<CodeEvalTestRunResult> {
+  const observation = await getObservationForEvalById({
+    projectId: params.projectId,
+    id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
+    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
+  });
+
+  return runCodeEvalTestForObservation({
+    ...params,
+    observation,
+  });
 }
 
 async function getObservationForEvalByFilter(params: {
@@ -327,4 +299,31 @@ async function getObservationForEvalByFilter(params: {
   }
 
   return null;
+}
+
+export async function runCodeEvalTestForJobConfig(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<CodeEvalTestRunResult | null> {
+  const observation = await getObservationForEvalByFilter({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    target: params.target,
+    filter: params.filter,
+  });
+
+  if (!observation) {
+    return null;
+  }
+
+  return runCodeEvalTestForObservation({
+    ...params,
+    observation,
+  });
 }

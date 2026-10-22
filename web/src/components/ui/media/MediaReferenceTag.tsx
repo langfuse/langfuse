@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
@@ -10,38 +9,6 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
-
-/**
- * Container that connects a classified media value to the pure `MediaTag`: it
- * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
- * armed so re-hovers read from the query cache instead of re-fetching.
- */
-export function MediaReferenceTag({
-  descriptor,
-  label,
-  size,
-}: {
-  descriptor: MediaDescriptor;
-  label?: string;
-  size?: MediaTagProps["size"];
-}) {
-  if (descriptor.kind === "s3") {
-    return <S3MediaTag descriptor={descriptor} label={label} size={size} />;
-  }
-
-  if (descriptor.kind !== "langfuseRef") {
-    return (
-      <MediaTag
-        contentType={descriptor.contentType}
-        status="ready"
-        url={descriptor.src}
-        size={size}
-      />
-    );
-  }
-
-  return <LangfuseRefMediaTag descriptor={descriptor} size={size} />;
-}
 
 function S3MediaTag({
   descriptor,
@@ -138,4 +105,36 @@ function LangfuseRefMediaTag({
       onOpenChange={handleOpenChange}
     />
   );
+}
+
+/**
+ * Container that connects a classified media value to the pure `MediaTag`: it
+ * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
+ * armed so re-hovers read from the query cache instead of re-fetching.
+ */
+export function MediaReferenceTag({
+  descriptor,
+  label,
+  size,
+}: {
+  descriptor: MediaDescriptor;
+  label?: string;
+  size?: MediaTagProps["size"];
+}) {
+  if (descriptor.kind === "s3") {
+    return <S3MediaTag descriptor={descriptor} label={label} size={size} />;
+  }
+
+  if (descriptor.kind !== "langfuseRef") {
+    return (
+      <MediaTag
+        contentType={descriptor.contentType}
+        status="ready"
+        url={descriptor.src}
+        size={size}
+      />
+    );
+  }
+
+  return <LangfuseRefMediaTag descriptor={descriptor} size={size} />;
 }

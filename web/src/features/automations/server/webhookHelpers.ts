@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
@@ -21,65 +20,6 @@ interface WebhookConfigOptions {
   actionConfig: ActionCreate;
   actionId?: string;
   projectId: string;
-}
-
-export async function processWebhookActionConfig({
-  actionConfig,
-  actionId,
-  projectId,
-}: WebhookConfigOptions): Promise<{
-  finalActionConfig: ActionConfig;
-  newUnencryptedWebhookSecret?: string; // For one-time display
-}> {
-  if (actionConfig.type !== "WEBHOOK") {
-    throw new Error("Action type is not WEBHOOK");
-  }
-
-  const existingAction = actionId
-    ? ((await getActionByIdWithSecrets({
-        projectId: projectId!,
-        actionId,
-      })) ?? undefined)
-    : undefined;
-
-  let existingActionConfig: WebhookActionConfigWithSecrets | undefined;
-  if (existingAction) {
-    if (!isWebhookActionConfig(existingAction.config)) {
-      throw new Error(
-        `Existing action ${actionId} does not have valid webhook configuration`,
-      );
-    }
-    existingActionConfig = existingAction.config;
-  }
-
-  try {
-    await validateWebhookURL(actionConfig.url, webhookWhitelistFromEnv());
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-    });
-  }
-
-  const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
-    generateWebhookSecret();
-
-  // Process headers and generate final action config
-  const finalActionConfig = processWebhookHeaders(
-    actionConfig,
-    existingActionConfig,
-  );
-  return {
-    finalActionConfig: {
-      ...finalActionConfig,
-      secretKey: existingActionConfig?.secretKey ?? encrypt(newSecretKey),
-      displaySecretKey:
-        existingActionConfig?.displaySecretKey ?? newDisplaySecretKey,
-    },
-    newUnencryptedWebhookSecret: existingActionConfig?.secretKey
-      ? undefined
-      : newSecretKey,
-  };
 }
 
 /**
@@ -165,5 +105,64 @@ function processWebhookHeaders(
     secretKey: "", // will be overwritten by the caller
     displaySecretKey: "", // will be overwritten by the caller
     lastFailingExecutionId: existingConfig?.lastFailingExecutionId,
+  };
+}
+
+export async function processWebhookActionConfig({
+  actionConfig,
+  actionId,
+  projectId,
+}: WebhookConfigOptions): Promise<{
+  finalActionConfig: ActionConfig;
+  newUnencryptedWebhookSecret?: string; // For one-time display
+}> {
+  if (actionConfig.type !== "WEBHOOK") {
+    throw new Error("Action type is not WEBHOOK");
+  }
+
+  const existingAction = actionId
+    ? ((await getActionByIdWithSecrets({
+        projectId: projectId!,
+        actionId,
+      })) ?? undefined)
+    : undefined;
+
+  let existingActionConfig: WebhookActionConfigWithSecrets | undefined;
+  if (existingAction) {
+    if (!isWebhookActionConfig(existingAction.config)) {
+      throw new Error(
+        `Existing action ${actionId} does not have valid webhook configuration`,
+      );
+    }
+    existingActionConfig = existingAction.config;
+  }
+
+  try {
+    await validateWebhookURL(actionConfig.url, webhookWhitelistFromEnv());
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
+  }
+
+  const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
+    generateWebhookSecret();
+
+  // Process headers and generate final action config
+  const finalActionConfig = processWebhookHeaders(
+    actionConfig,
+    existingActionConfig,
+  );
+  return {
+    finalActionConfig: {
+      ...finalActionConfig,
+      secretKey: existingActionConfig?.secretKey ?? encrypt(newSecretKey),
+      displaySecretKey:
+        existingActionConfig?.displaySecretKey ?? newDisplaySecretKey,
+    },
+    newUnencryptedWebhookSecret: existingActionConfig?.secretKey
+      ? undefined
+      : newSecretKey,
   };
 }

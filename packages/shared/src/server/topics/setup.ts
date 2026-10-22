@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
 import {
@@ -27,6 +26,34 @@ import {
   invalidateTopicsProcessingActive,
   topicRuleWhere,
 } from "./processing-gate";
+
+/**
+ * Writes the rule and the model settings together: a failed model write must
+ * not leave a rule without models, and a failed rule write must not enable them.
+ */
+export async function saveTopicRuleAndModels(
+  rule: TopicRuleInput,
+  models: Parameters<typeof writeTopicsModelSettings>[1],
+  traceIdleMs: number,
+): Promise<TopicRule> {
+  const saved = await prisma.$transaction(async (tx) => {
+    const saved = await writeTopicRule(tx, rule);
+    await writeTopicsModelSettings(rule.projectId, models, {
+      userId: rule.userId,
+      tx,
+    });
+    await writeTracingReadinessSettings(
+      tx,
+      rule.projectId,
+      { traceIdleMs },
+      rule.userId,
+    );
+    return saved;
+  });
+  await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
+  await invalidateTopicsProcessingActive(rule.projectId);
+  return saved;
+}
 
 /**
  * One Topics setup: models, the four built-in facets, and a single rule. It
@@ -72,34 +99,6 @@ export async function saveTopicsSetup(
     models,
     setup.traceIdleMs,
   );
-}
-
-/**
- * Writes the rule and the model settings together: a failed model write must
- * not leave a rule without models, and a failed rule write must not enable them.
- */
-export async function saveTopicRuleAndModels(
-  rule: TopicRuleInput,
-  models: Parameters<typeof writeTopicsModelSettings>[1],
-  traceIdleMs: number,
-): Promise<TopicRule> {
-  const saved = await prisma.$transaction(async (tx) => {
-    const saved = await writeTopicRule(tx, rule);
-    await writeTopicsModelSettings(rule.projectId, models, {
-      userId: rule.userId,
-      tx,
-    });
-    await writeTracingReadinessSettings(
-      tx,
-      rule.projectId,
-      { traceIdleMs },
-      rule.userId,
-    );
-    return saved;
-  });
-  await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
-  await invalidateTopicsProcessingActive(rule.projectId);
-  return saved;
 }
 
 /**

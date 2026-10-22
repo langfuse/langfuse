@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
 import { TraceDeleteQueue } from "./redis/traceDelete";
@@ -11,6 +10,23 @@ import { formatSubmittedPublicKeyForLog } from "./auth/apiKeys";
 export interface TraceDeletionProcessorOptions {
   delayMs?: number; // Default from LANGFUSE_TRACE_DELETE_DELAY_MS env var
   actor?: Actor; // Who requested the deletion, logged in web and worker
+}
+
+export function formatActor(actor: Actor): string {
+  if (actor.type === "API_KEY") {
+    if (actor.publicKey) {
+      return `API key ${formatSubmittedPublicKeyForLog(actor.publicKey)}`;
+    }
+    return `API key ${actor.apiKeyId ?? "unknown"}`;
+  }
+  return `user ${actor.userId ?? "unknown"}`;
+}
+
+// The submitted public key is client-controlled, so log metadata only carries
+// the database ids; formatActor prints the sanitized public key.
+export function getActorLogMetadata(actor: Actor | undefined) {
+  if (!actor) return undefined;
+  return { type: actor.type, userId: actor.userId, apiKeyId: actor.apiKeyId };
 }
 
 /**
@@ -99,21 +115,4 @@ export async function traceDeletionProcessor(
     });
     throw error;
   }
-}
-
-export function formatActor(actor: Actor): string {
-  if (actor.type === "API_KEY") {
-    if (actor.publicKey) {
-      return `API key ${formatSubmittedPublicKeyForLog(actor.publicKey)}`;
-    }
-    return `API key ${actor.apiKeyId ?? "unknown"}`;
-  }
-  return `user ${actor.userId ?? "unknown"}`;
-}
-
-// The submitted public key is client-controlled, so log metadata only carries
-// the database ids; formatActor prints the sanitized public key.
-export function getActorLogMetadata(actor: Actor | undefined) {
-  if (!actor) return undefined;
-  return { type: actor.type, userId: actor.userId, apiKeyId: actor.apiKeyId };
 }

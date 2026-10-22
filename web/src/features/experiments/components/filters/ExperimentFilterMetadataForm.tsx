@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useForm } from "react-hook-form";
 import { type FilterState } from "@langfuse/shared";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -8,6 +7,14 @@ import {
   newExperimentFilterDraft,
 } from "./experimentFilterEditing";
 import { type MetadataFilterColumn } from "./experimentFilterTypes";
+
+function completeMetadataFilter(column: MetadataFilterColumn, key: string) {
+  return completeExperimentFilter({
+    ...newExperimentFilterDraft(column),
+    operator: "is set",
+    key,
+  });
+}
 
 export function ExperimentFilterMetadataForm({
   column,
@@ -61,14 +68,6 @@ export function ExperimentFilterMetadataForm({
       </div>
     </form>
   );
-}
-
-function completeMetadataFilter(column: MetadataFilterColumn, key: string) {
-  return completeExperimentFilter({
-    ...newExperimentFilterDraft(column),
-    operator: "is set",
-    key,
-  });
 }
 
 type ExperimentFilterMetadataFormProps = {

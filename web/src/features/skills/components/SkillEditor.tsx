@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type ComponentProps,
   useCallback,
@@ -79,6 +78,117 @@ const SkillAnalytics = dynamic(() =>
     (module) => module.SkillAnalytics,
   ),
 );
+
+function SkillMetadataFields({
+  store,
+  canEdit,
+  isSavingLabels,
+  isSavingTags,
+  onSaveLabels,
+  onSaveTags,
+  metadataOptions,
+}: {
+  store: SkillEditorStore;
+  canEdit: boolean;
+  isSavingLabels: boolean;
+  isSavingTags: boolean;
+  onSaveLabels: (labels: string[]) => Promise<boolean>;
+  onSaveTags: (tags: string[]) => Promise<boolean>;
+  metadataOptions: { labels: string[]; tags: string[] };
+}) {
+  const labels = useStore(store, (state) => state.labels);
+  const tags = useStore(store, (state) => state.tags);
+
+  return (
+    <div className="ph-no-capture flex max-w-full flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-muted-foreground text-xs">Labels</span>
+        <SkillLabelsSelect
+          showOnlyOnHover={false}
+          value={labels}
+          options={metadataOptions.labels}
+          disabled={!canEdit}
+          isSaving={isSavingLabels}
+          onSave={onSaveLabels}
+        />
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-muted-foreground text-xs">Tags</span>
+        <SkillTagsSelect
+          value={tags}
+          options={metadataOptions.tags}
+          disabled={!canEdit}
+          isSaving={isSavingTags}
+          onSave={onSaveTags}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SkillFileEditor({
+  projectId,
+  store,
+  isDraft,
+  editable,
+}: {
+  projectId: string;
+  store: SkillEditorStore;
+  isDraft: boolean;
+  editable: boolean;
+}) {
+  const activePath = useStore(store, (state) => state.activePath);
+  const activeFile = useStore(store, (state) => state.files[state.activePath]!);
+  const updateActiveFile = useStore(
+    store,
+    (state) => state.actions.updateActiveFile,
+  );
+  const fileContents = useSkillFileContents(projectId, activeFile);
+  const { refetch } = fileContents;
+  const content = activeFile.content ?? fileContents.data?.content;
+
+  const placeholder = useMemo(() => {
+    if (content === undefined && fileContents.isError) {
+      return (
+        <div className="flex flex-col items-start gap-2 text-sm">
+          <p>{fileContents.error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      );
+    }
+    if (content === undefined) {
+      return (
+        <div role="status" className="flex items-center gap-2 text-sm">
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
+        </div>
+      );
+    }
+    return null;
+  }, [content, fileContents.isError, fileContents.error, refetch]);
+
+  return (
+    <SkillFileView
+      key={isDraft ? "draft" : "version"}
+      path={activePath}
+      content={content}
+      mode={
+        isDraft
+          ? { kind: "draft", editable, onChange: updateActiveFile }
+          : { kind: "view" }
+      }
+    >
+      {placeholder}
+    </SkillFileView>
+  );
+}
 
 export function SkillEditor({
   projectId,
@@ -771,117 +881,6 @@ export function SkillEditor({
         </Page>
       )}
     </DialogController>
-  );
-}
-
-function SkillMetadataFields({
-  store,
-  canEdit,
-  isSavingLabels,
-  isSavingTags,
-  onSaveLabels,
-  onSaveTags,
-  metadataOptions,
-}: {
-  store: SkillEditorStore;
-  canEdit: boolean;
-  isSavingLabels: boolean;
-  isSavingTags: boolean;
-  onSaveLabels: (labels: string[]) => Promise<boolean>;
-  onSaveTags: (tags: string[]) => Promise<boolean>;
-  metadataOptions: { labels: string[]; tags: string[] };
-}) {
-  const labels = useStore(store, (state) => state.labels);
-  const tags = useStore(store, (state) => state.tags);
-
-  return (
-    <div className="ph-no-capture flex max-w-full flex-wrap items-center gap-2">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="text-muted-foreground text-xs">Labels</span>
-        <SkillLabelsSelect
-          showOnlyOnHover={false}
-          value={labels}
-          options={metadataOptions.labels}
-          disabled={!canEdit}
-          isSaving={isSavingLabels}
-          onSave={onSaveLabels}
-        />
-      </div>
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="text-muted-foreground text-xs">Tags</span>
-        <SkillTagsSelect
-          value={tags}
-          options={metadataOptions.tags}
-          disabled={!canEdit}
-          isSaving={isSavingTags}
-          onSave={onSaveTags}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SkillFileEditor({
-  projectId,
-  store,
-  isDraft,
-  editable,
-}: {
-  projectId: string;
-  store: SkillEditorStore;
-  isDraft: boolean;
-  editable: boolean;
-}) {
-  const activePath = useStore(store, (state) => state.activePath);
-  const activeFile = useStore(store, (state) => state.files[state.activePath]!);
-  const updateActiveFile = useStore(
-    store,
-    (state) => state.actions.updateActiveFile,
-  );
-  const fileContents = useSkillFileContents(projectId, activeFile);
-  const { refetch } = fileContents;
-  const content = activeFile.content ?? fileContents.data?.content;
-
-  const placeholder = useMemo(() => {
-    if (content === undefined && fileContents.isError) {
-      return (
-        <div className="flex flex-col items-start gap-2 text-sm">
-          <p>{fileContents.error.message}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetch();
-            }}
-          >
-            Retry
-          </Button>
-        </div>
-      );
-    }
-    if (content === undefined) {
-      return (
-        <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
-        </div>
-      );
-    }
-    return null;
-  }, [content, fileContents.isError, fileContents.error, refetch]);
-
-  return (
-    <SkillFileView
-      key={isDraft ? "draft" : "version"}
-      path={activePath}
-      content={content}
-      mode={
-        isDraft
-          ? { kind: "draft", editable, onChange: updateActiveFile }
-          : { kind: "view" }
-      }
-    >
-      {placeholder}
-    </SkillFileView>
   );
 }
 

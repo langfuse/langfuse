@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -122,6 +121,24 @@ beforeEach(() => {
   };
 });
 
+function SetupPanel() {
+  const [visible, setVisible] = useState(true);
+  return (
+    <LayerProvider>
+      <TooltipProvider>
+        <button onClick={() => setVisible(!visible)}>
+          {visible ? "Hide setup" : "Show setup"}
+        </button>
+        <AnnotationQueueSetupController
+          projectId="project"
+          queueId="queue"
+          renderLayout={(content) => (visible ? content : null)}
+        />
+      </TooltipProvider>
+    </LayerProvider>
+  );
+}
+
 it("waits for initial refresh and retains drafts across panel unmounts and background query failures", async () => {
   const view = render(<SetupPanel />);
   expect(
@@ -243,6 +260,30 @@ it("allows a metadata-only save for an initially unconfigured queue", async () =
   expect(mocks.capture).not.toHaveBeenCalled();
 });
 
+function MobileSetupPanel() {
+  const [open, onOpenChange] = useState(false);
+  return (
+    <LayerProvider>
+      <TooltipProvider>
+        <AnnotationQueueSetupController
+          projectId="project"
+          queueId="queue"
+          renderLayout={(content) => (
+            <SidePanel
+              id="mobile-queue-setup"
+              mobileTitle="Queue setup"
+              variant="sidebar"
+              mobileOpenState={{ open, onOpenChange }}
+            >
+              {content}
+            </SidePanel>
+          )}
+        />
+      </TooltipProvider>
+    </LayerProvider>
+  );
+}
+
 it("keeps the mobile setup sheet open when initial data arrives and retains drafts when reopened", async () => {
   mocks.isMobile = true;
   const view = render(<MobileSetupPanel />);
@@ -275,45 +316,3 @@ it("keeps the mobile setup sheet open when initial data arrives and retains draf
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled(),
   );
 });
-
-function MobileSetupPanel() {
-  const [open, onOpenChange] = useState(false);
-  return (
-    <LayerProvider>
-      <TooltipProvider>
-        <AnnotationQueueSetupController
-          projectId="project"
-          queueId="queue"
-          renderLayout={(content) => (
-            <SidePanel
-              id="mobile-queue-setup"
-              mobileTitle="Queue setup"
-              variant="sidebar"
-              mobileOpenState={{ open, onOpenChange }}
-            >
-              {content}
-            </SidePanel>
-          )}
-        />
-      </TooltipProvider>
-    </LayerProvider>
-  );
-}
-
-function SetupPanel() {
-  const [visible, setVisible] = useState(true);
-  return (
-    <LayerProvider>
-      <TooltipProvider>
-        <button onClick={() => setVisible(!visible)}>
-          {visible ? "Hide setup" : "Show setup"}
-        </button>
-        <AnnotationQueueSetupController
-          projectId="project"
-          queueId="queue"
-          renderLayout={(content) => (visible ? content : null)}
-        />
-      </TooltipProvider>
-    </LayerProvider>
-  );
-}

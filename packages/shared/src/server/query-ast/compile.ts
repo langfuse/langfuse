@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   AliasNode,
   createQueryId,
@@ -75,6 +74,11 @@ export function compileClickhouseQuery(
   };
 }
 
+function renderNode(node: OperationNode): string {
+  assertRelationFree(node);
+  return new ClickHouseQueryCompiler().compileExpression(node);
+}
+
 /**
  * SQL text of a typed expression, for raw-SQL builders that share an AST
  * definition: `metadataMap(e.metadata_names,
@@ -86,6 +90,31 @@ export function renderClickhouseExpression(
   expression: Expression<unknown>,
 ): string {
   return renderNode(expression.toOperationNode());
+}
+
+/** `expr as name` → `name`; an unaliased `e.col` → `col`. */
+function selectionName({ selection }: SelectionNode): string {
+  if (AliasNode.is(selection) && IdentifierNode.is(selection.alias)) {
+    return selection.alias.name;
+  }
+  if (ReferenceNode.is(selection) && ColumnNode.is(selection.column)) {
+    return selection.column.column.name;
+  }
+  throw new QueryCompileError(
+    "A rendered select needs an output name: alias it, or select a column.",
+  );
+}
+
+function assertDistinctOutputNames(names: readonly string[]): void {
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new QueryCompileError(
+        `Two rendered selects share the output name "${name}".`,
+      );
+    }
+    seen.add(name);
+  }
 }
 
 /**
@@ -105,34 +134,4 @@ export function renderClickhouseSelections<O>(
   );
   assertDistinctOutputNames(rendered.map(([name]) => name));
   return Object.fromEntries(rendered) as Record<keyof O & string, string>;
-}
-
-function renderNode(node: OperationNode): string {
-  assertRelationFree(node);
-  return new ClickHouseQueryCompiler().compileExpression(node);
-}
-
-function assertDistinctOutputNames(names: readonly string[]): void {
-  const seen = new Set<string>();
-  for (const name of names) {
-    if (seen.has(name)) {
-      throw new QueryCompileError(
-        `Two rendered selects share the output name "${name}".`,
-      );
-    }
-    seen.add(name);
-  }
-}
-
-/** `expr as name` → `name`; an unaliased `e.col` → `col`. */
-function selectionName({ selection }: SelectionNode): string {
-  if (AliasNode.is(selection) && IdentifierNode.is(selection.alias)) {
-    return selection.alias.name;
-  }
-  if (ReferenceNode.is(selection) && ColumnNode.is(selection.column)) {
-    return selection.column.column.name;
-  }
-  throw new QueryCompileError(
-    "A rendered select needs an output name: alias it, or select a column.",
-  );
 }

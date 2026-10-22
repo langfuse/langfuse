@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LLMAdapter, supportedModels } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -91,6 +90,14 @@ export function setupWaitMinutes(
   return TOPIC_SETUP_DEFAULT_WAIT_MINUTES;
 }
 
+function embeddingModelsFor(adapter: string) {
+  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
+    return OPENAI_EMBEDDING_MODELS;
+  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
+    return GOOGLE_EMBEDDING_MODELS;
+  return [];
+}
+
 function topicModelsFor(
   connection: TopicSetupConnection,
   kind: "chat" | "embedding",
@@ -127,6 +134,16 @@ export function topicProviderGroups(
   );
 }
 
+function compareModelVersions(a: string, b: string) {
+  const left = (a.match(/\d+/g) ?? []).map(Number);
+  const right = (b.match(/\d+/g) ?? []).map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] ?? -1) - (right[i] ?? -1);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 export function pickRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
   providerGroups: Array<[string, string[]]>,
@@ -143,16 +160,6 @@ export function pickRecommendedTopicModel(
       );
   }
   return null;
-}
-
-function compareModelVersions(a: string, b: string) {
-  const left = (a.match(/\d+/g) ?? []).map(Number);
-  const right = (b.match(/\d+/g) ?? []).map(Number);
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
-    const diff = (left[i] ?? -1) - (right[i] ?? -1);
-    if (diff !== 0) return diff;
-  }
-  return 0;
 }
 
 function topicJudgeModel(
@@ -189,6 +196,14 @@ export function resolveTopicModelSlot(
     matches[0]?.id ??
     null;
   return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
+}
+
+function topicQuestionDescription(name: string, stored: string | undefined) {
+  const description = stored?.trim();
+  if (description) return description;
+  return (
+    DEFAULT_TOPIC_FACETS.find((facet) => facet.name === name)?.description ?? ""
+  );
 }
 
 export function initialTopicSetupDraft(input: {
@@ -351,20 +366,4 @@ export function topicSetupStage(
       retryId: null,
     };
   return { stage: "done", retryId: null };
-}
-
-function topicQuestionDescription(name: string, stored: string | undefined) {
-  const description = stored?.trim();
-  if (description) return description;
-  return (
-    DEFAULT_TOPIC_FACETS.find((facet) => facet.name === name)?.description ?? ""
-  );
-}
-
-function embeddingModelsFor(adapter: string) {
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
-    return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
-    return GOOGLE_EMBEDDING_MODELS;
-  return [];
 }

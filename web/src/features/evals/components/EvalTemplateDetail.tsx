@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
@@ -21,6 +21,51 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "@langfuse/icons";
+
+function UpdateTemplate({
+  projectId,
+  isEditing,
+  setIsEditing,
+  isCustom,
+}: {
+  projectId: string;
+  isEditing: boolean;
+  setIsEditing: (isEditing: boolean) => void;
+  isCustom: boolean;
+}) {
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
+  const capture = usePostHogClientCapture();
+
+  const handlePromptEdit = (checked: boolean) => {
+    setIsEditing(checked);
+    if (checked) capture("eval_templates:update_form_open");
+  };
+
+  if (!isCustom) {
+    return (
+      <div className="flex items-center gap-2">
+        <LangfuseIcon size={16} />
+        <span className="text-muted-foreground text-sm font-bold">
+          View only
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-bold">Edit mode</span>
+      <Switch
+        checked={isEditing}
+        onCheckedChange={handlePromptEdit}
+        disabled={!hasAccess}
+      />
+    </div>
+  );
+}
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -218,48 +263,3 @@ export const EvalTemplateDetail = () => {
     </Page>
   );
 };
-
-function UpdateTemplate({
-  projectId,
-  isEditing,
-  setIsEditing,
-  isCustom,
-}: {
-  projectId: string;
-  isEditing: boolean;
-  setIsEditing: (isEditing: boolean) => void;
-  isCustom: boolean;
-}) {
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "evaluator:CUD",
-  });
-  const capture = usePostHogClientCapture();
-
-  const handlePromptEdit = (checked: boolean) => {
-    setIsEditing(checked);
-    if (checked) capture("eval_templates:update_form_open");
-  };
-
-  if (!isCustom) {
-    return (
-      <div className="flex items-center gap-2">
-        <LangfuseIcon size={16} />
-        <span className="text-muted-foreground text-sm font-bold">
-          View only
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-bold">Edit mode</span>
-      <Switch
-        checked={isEditing}
-        onCheckedChange={handlePromptEdit}
-        disabled={!hasAccess}
-      />
-    </div>
-  );
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { deepParseJson } from "@langfuse/shared";
 
 const MAX_PAYLOAD_DEPTH = 6;
@@ -19,6 +18,10 @@ const CODE_TOOL_PAYLOADS: Record<string, readonly ("arguments" | "result")[]> =
     langfuse_testEvaluator: ["arguments"],
   };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function unwrapMcpTextResult(value: unknown) {
   if (
     !isRecord(value) ||
@@ -38,6 +41,66 @@ export function unwrapMcpTextResult(value: unknown) {
   } catch {
     return value;
   }
+}
+
+function appendJsonPath(path: string, key: string | number) {
+  if (typeof key === "number") {
+    return `${path}[${key}]`;
+  }
+  if (!/^[A-Za-z_$][\w$]*$/.test(key)) {
+    return `${path}[${JSON.stringify(key)}]`;
+  }
+  return path ? `${path}.${key}` : key;
+}
+
+function readEvaluatorSourceCodeFields(
+  value: Record<string, unknown>,
+  path: string,
+) {
+  if (
+    typeof value.sourceCode !== "string" ||
+    (value.sourceCodeLanguage !== "PYTHON" &&
+      value.sourceCodeLanguage !== "TYPESCRIPT")
+  ) {
+    return null;
+  }
+
+  return {
+    language: value.sourceCodeLanguage === "PYTHON" ? "python" : "typescript",
+    path: appendJsonPath(path, "sourceCode"),
+    value: value.sourceCode,
+  } satisfies PayloadCode;
+}
+
+function readEvaluatorSourceCodes(
+  value: Record<string, unknown>,
+  path: string,
+  depth: number,
+) {
+  if (value.type !== "CODE") {
+    return [];
+  }
+
+  const directCode = readEvaluatorSourceCodeFields(value, path);
+  let codes = directCode ? [directCode] : [];
+
+  if (depth + 2 <= MAX_PAYLOAD_DEPTH && Array.isArray(value.versions)) {
+    for (const [index, version] of value.versions.entries()) {
+      if (!isRecord(version)) {
+        continue;
+      }
+
+      const versionCode = readEvaluatorSourceCodeFields(
+        version,
+        appendJsonPath(appendJsonPath(path, "versions"), index),
+      );
+      if (versionCode) {
+        codes.push(versionCode);
+      }
+    }
+  }
+
+  return codes;
 }
 
 export function prepareToolPayload(
@@ -98,68 +161,4 @@ export function prepareToolPayload(
     );
   }
   return { json: visit(value, 0, ""), codes, markers };
-}
-
-function readEvaluatorSourceCodes(
-  value: Record<string, unknown>,
-  path: string,
-  depth: number,
-) {
-  if (value.type !== "CODE") {
-    return [];
-  }
-
-  const directCode = readEvaluatorSourceCodeFields(value, path);
-  let codes = directCode ? [directCode] : [];
-
-  if (depth + 2 <= MAX_PAYLOAD_DEPTH && Array.isArray(value.versions)) {
-    for (const [index, version] of value.versions.entries()) {
-      if (!isRecord(version)) {
-        continue;
-      }
-
-      const versionCode = readEvaluatorSourceCodeFields(
-        version,
-        appendJsonPath(appendJsonPath(path, "versions"), index),
-      );
-      if (versionCode) {
-        codes.push(versionCode);
-      }
-    }
-  }
-
-  return codes;
-}
-
-function readEvaluatorSourceCodeFields(
-  value: Record<string, unknown>,
-  path: string,
-) {
-  if (
-    typeof value.sourceCode !== "string" ||
-    (value.sourceCodeLanguage !== "PYTHON" &&
-      value.sourceCodeLanguage !== "TYPESCRIPT")
-  ) {
-    return null;
-  }
-
-  return {
-    language: value.sourceCodeLanguage === "PYTHON" ? "python" : "typescript",
-    path: appendJsonPath(path, "sourceCode"),
-    value: value.sourceCode,
-  } satisfies PayloadCode;
-}
-
-function appendJsonPath(path: string, key: string | number) {
-  if (typeof key === "number") {
-    return `${path}[${key}]`;
-  }
-  if (!/^[A-Za-z_$][\w$]*$/.test(key)) {
-    return `${path}[${JSON.stringify(key)}]`;
-  }
-  return path ? `${path}.${key}` : key;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

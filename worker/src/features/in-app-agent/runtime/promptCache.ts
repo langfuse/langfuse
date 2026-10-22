@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
 type PromptCacheProvider =
@@ -13,6 +12,364 @@ const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
 const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
 const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
 const OPENAI_PROMPT_CACHE_BREAKPOINT = { mode: "explicit" as const };
+
+function resolvePromptCacheProvider(
+  provider: string,
+  modelId: string,
+): PromptCacheProvider | undefined {
+  if (
+    provider.includes("bedrock") &&
+    modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)
+  ) {
+    return "bedrock";
+  }
+  if (
+    provider.includes("anthropic") &&
+    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+  ) {
+    return "anthropic";
+  }
+  if (
+    provider.includes("openai.responses") &&
+    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+  ) {
+    return "openai-responses";
+  }
+  // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
+  // the upstream model id is still `anthropic/claude-…`.
+  if (modelId.includes("anthropic")) {
+    return "openai-compatible";
+  }
+  return undefined;
+}
+
+function getMessageRole(message: unknown) {
+  return isRecord(message) && typeof message.role === "string"
+    ? message.role
+    : undefined;
+}
+
+function messageStartsWith(message: unknown, prefix: string) {
+  if (!isRecord(message)) {
+    return false;
+  }
+
+  const content = message.content;
+  if (typeof content === "string") {
+    return content.trimStart().startsWith(prefix);
+  }
+
+  if (!Array.isArray(content)) {
+    return false;
+  }
+
+  const text = content.find(
+    (part) =>
+      isRecord(part) && part.type === "text" && typeof part.text === "string",
+  );
+  return isRecord(text) && typeof text.text === "string"
+    ? text.text.trimStart().startsWith(prefix)
+    : false;
+}
+
+function getLastConversationIndex(prompt: unknown[]) {
+  const lastIndex = prompt.length - 1;
+  if (lastIndex < 0) {
+    return -1;
+  }
+
+  return getMessageRole(prompt[lastIndex]) === "user" &&
+    messageStartsWith(prompt[lastIndex], "<current_time")
+    ? lastIndex - 1
+    : lastIndex;
+}
+
+function canCarryPromptCache(
+  message: unknown,
+  cacheProvider: PromptCacheProvider,
+) {
+  if (cacheProvider !== "openai-responses") {
+    return true;
+  }
+
+  const role = getMessageRole(message);
+  return (
+    role === "system" ||
+    (role === "user" &&
+      isRecord(message) &&
+      Array.isArray(message.content) &&
+      message.content.length > 0)
+  );
+}
+
+function findCarrierIndex(
+  prompt: unknown[],
+  index: number,
+  cacheProvider: PromptCacheProvider,
+) {
+  for (let i = index; i >= 0; i--) {
+    if (canCarryPromptCache(prompt[i], cacheProvider)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function findPreviousTurnCacheIndex(
+  prompt: unknown[],
+  lastLeadingSystemIndex: number,
+  lastConversationIndex: number,
+) {
+  if (lastConversationIndex < 0) {
+    return -1;
+  }
+
+  if (getMessageRole(prompt[lastConversationIndex]) !== "user") {
+    return -1;
+  }
+
+  for (let i = lastConversationIndex - 1; i > lastLeadingSystemIndex; i--) {
+    if (getMessageRole(prompt[i]) === "system") {
+      break;
+    }
+    if (getMessageRole(prompt[i]) !== "assistant") {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function withBedrockCachePoint(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const bedrock = isRecord(providerOptions.bedrock)
+    ? providerOptions.bedrock
+    : {};
+
+  if (isRecord(bedrock.cachePoint)) {
+    return message;
+  }
+
+  return {
+    ...message,
+    providerOptions: {
+      ...providerOptions,
+      bedrock: {
+        ...bedrock,
+        cachePoint: BEDROCK_PROMPT_CACHE_POINT,
+      },
+    },
+  };
+}
+
+function withLastPartProviderOptions(
+  message: Record<string, unknown>,
+  stamp: (providerOptions: unknown) => unknown,
+) {
+  if (!Array.isArray(message.content) || message.content.length === 0) {
+    return message;
+  }
+
+  const lastIndex = message.content.length - 1;
+  const lastPart = message.content[lastIndex];
+  if (!isRecord(lastPart)) {
+    return message;
+  }
+
+  const nextContent = message.content.slice();
+  nextContent[lastIndex] = {
+    ...lastPart,
+    providerOptions: stamp(lastPart.providerOptions),
+  };
+
+  return {
+    ...message,
+    content: nextContent,
+  };
+}
+
+function stampOpenAICompatibleCacheControl(providerOptions: unknown) {
+  const options = isRecord(providerOptions) ? providerOptions : {};
+  const openaiCompatible = isRecord(options.openaiCompatible)
+    ? options.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return options;
+  }
+
+  return {
+    ...options,
+    openaiCompatible: {
+      ...openaiCompatible,
+      cache_control: ANTHROPIC_CACHE_CONTROL,
+    },
+  };
+}
+
+function withOpenAICompatibleCacheControl(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
+    ? providerOptions.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return message;
+  }
+
+  return withLastPartProviderOptions(
+    {
+      ...message,
+      providerOptions: stampOpenAICompatibleCacheControl(providerOptions),
+    },
+    stampOpenAICompatibleCacheControl,
+  );
+}
+
+function stampOpenAIPromptCacheBreakpoint(providerOptions: unknown) {
+  const options = isRecord(providerOptions) ? providerOptions : {};
+  const openai = isRecord(options.openai) ? options.openai : {};
+
+  if (isRecord(openai.promptCacheBreakpoint)) {
+    return options;
+  }
+
+  return {
+    ...options,
+    openai: {
+      ...openai,
+      promptCacheBreakpoint: OPENAI_PROMPT_CACHE_BREAKPOINT,
+    },
+  };
+}
+
+// The Responses converter reads `openai.promptCacheBreakpoint` from the
+// message for system messages and from each part for user messages.
+function withOpenAIResponsesCacheBreakpoint(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  if (getMessageRole(message) === "system") {
+    return {
+      ...message,
+      providerOptions: stampOpenAIPromptCacheBreakpoint(
+        message.providerOptions,
+      ),
+    };
+  }
+
+  return withLastPartProviderOptions(message, stampOpenAIPromptCacheBreakpoint);
+}
+
+function withAnthropicCacheControl(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const anthropic = isRecord(providerOptions.anthropic)
+    ? providerOptions.anthropic
+    : {};
+
+  if (isRecord(anthropic.cacheControl)) {
+    return message;
+  }
+
+  return {
+    ...message,
+    providerOptions: {
+      ...providerOptions,
+      anthropic: {
+        ...anthropic,
+        cacheControl: ANTHROPIC_CACHE_CONTROL,
+      },
+    },
+  };
+}
+
+function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
+  if (cacheProvider === "bedrock") {
+    return withBedrockCachePoint(message);
+  }
+  if (cacheProvider === "openai-compatible") {
+    return withOpenAICompatibleCacheControl(message);
+  }
+  if (cacheProvider === "openai-responses") {
+    return withOpenAIResponsesCacheBreakpoint(message);
+  }
+  return withAnthropicCacheControl(message);
+}
+
+export function applyPromptCachePoints(
+  prompt: unknown,
+  cacheProvider: PromptCacheProvider,
+) {
+  if (!Array.isArray(prompt) || prompt.length === 0) {
+    return prompt;
+  }
+
+  let lastLeadingSystemIndex = -1;
+  let sharedSystemIndex = -1;
+  for (let i = 0; i < prompt.length; i++) {
+    if (
+      getMessageRole(prompt[i]) !== "system" ||
+      messageStartsWith(prompt[i], "<current_time")
+    ) {
+      break;
+    }
+    if (messageStartsWith(prompt[i], "<user_context>")) {
+      sharedSystemIndex = i - 1;
+    }
+    lastLeadingSystemIndex = i;
+  }
+
+  const lastConversationIndex = getLastConversationIndex(prompt);
+  const cacheIndices = new Set<number>();
+  const addCheckpoint = (index: number) => {
+    const carrierIndex = findCarrierIndex(prompt, index, cacheProvider);
+    if (carrierIndex >= 0) {
+      cacheIndices.add(carrierIndex);
+    }
+  };
+
+  if (lastConversationIndex >= 0) {
+    addCheckpoint(lastConversationIndex);
+  }
+  if (sharedSystemIndex >= 0) {
+    addCheckpoint(sharedSystemIndex);
+  }
+  if (lastLeadingSystemIndex >= 0) {
+    addCheckpoint(lastLeadingSystemIndex);
+  }
+
+  const previousTurnIndex = findPreviousTurnCacheIndex(
+    prompt,
+    lastLeadingSystemIndex,
+    lastConversationIndex,
+  );
+  if (previousTurnIndex >= 0) {
+    addCheckpoint(previousTurnIndex);
+  }
+
+  return prompt.map((message, index) =>
+    cacheIndices.has(index) ? withPromptCache(message, cacheProvider) : message,
+  );
+}
 
 /**
  * Prompt cache for Claude on Bedrock Converse, native Anthropic Messages,
@@ -73,363 +430,5 @@ export function applyPromptCacheToCall<T>({
   return {
     ...options,
     prompt: applyPromptCachePoints(options.prompt, cacheProvider),
-  };
-}
-
-export function applyPromptCachePoints(
-  prompt: unknown,
-  cacheProvider: PromptCacheProvider,
-) {
-  if (!Array.isArray(prompt) || prompt.length === 0) {
-    return prompt;
-  }
-
-  let lastLeadingSystemIndex = -1;
-  let sharedSystemIndex = -1;
-  for (let i = 0; i < prompt.length; i++) {
-    if (
-      getMessageRole(prompt[i]) !== "system" ||
-      messageStartsWith(prompt[i], "<current_time")
-    ) {
-      break;
-    }
-    if (messageStartsWith(prompt[i], "<user_context>")) {
-      sharedSystemIndex = i - 1;
-    }
-    lastLeadingSystemIndex = i;
-  }
-
-  const lastConversationIndex = getLastConversationIndex(prompt);
-  const cacheIndices = new Set<number>();
-  const addCheckpoint = (index: number) => {
-    const carrierIndex = findCarrierIndex(prompt, index, cacheProvider);
-    if (carrierIndex >= 0) {
-      cacheIndices.add(carrierIndex);
-    }
-  };
-
-  if (lastConversationIndex >= 0) {
-    addCheckpoint(lastConversationIndex);
-  }
-  if (sharedSystemIndex >= 0) {
-    addCheckpoint(sharedSystemIndex);
-  }
-  if (lastLeadingSystemIndex >= 0) {
-    addCheckpoint(lastLeadingSystemIndex);
-  }
-
-  const previousTurnIndex = findPreviousTurnCacheIndex(
-    prompt,
-    lastLeadingSystemIndex,
-    lastConversationIndex,
-  );
-  if (previousTurnIndex >= 0) {
-    addCheckpoint(previousTurnIndex);
-  }
-
-  return prompt.map((message, index) =>
-    cacheIndices.has(index) ? withPromptCache(message, cacheProvider) : message,
-  );
-}
-
-function findCarrierIndex(
-  prompt: unknown[],
-  index: number,
-  cacheProvider: PromptCacheProvider,
-) {
-  for (let i = index; i >= 0; i--) {
-    if (canCarryPromptCache(prompt[i], cacheProvider)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-function canCarryPromptCache(
-  message: unknown,
-  cacheProvider: PromptCacheProvider,
-) {
-  if (cacheProvider !== "openai-responses") {
-    return true;
-  }
-
-  const role = getMessageRole(message);
-  return (
-    role === "system" ||
-    (role === "user" &&
-      isRecord(message) &&
-      Array.isArray(message.content) &&
-      message.content.length > 0)
-  );
-}
-
-function resolvePromptCacheProvider(
-  provider: string,
-  modelId: string,
-): PromptCacheProvider | undefined {
-  if (
-    provider.includes("bedrock") &&
-    modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)
-  ) {
-    return "bedrock";
-  }
-  if (
-    provider.includes("anthropic") &&
-    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
-  ) {
-    return "anthropic";
-  }
-  if (
-    provider.includes("openai.responses") &&
-    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
-  ) {
-    return "openai-responses";
-  }
-  // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
-  // the upstream model id is still `anthropic/claude-…`.
-  if (modelId.includes("anthropic")) {
-    return "openai-compatible";
-  }
-  return undefined;
-}
-
-function getLastConversationIndex(prompt: unknown[]) {
-  const lastIndex = prompt.length - 1;
-  if (lastIndex < 0) {
-    return -1;
-  }
-
-  return getMessageRole(prompt[lastIndex]) === "user" &&
-    messageStartsWith(prompt[lastIndex], "<current_time")
-    ? lastIndex - 1
-    : lastIndex;
-}
-
-function messageStartsWith(message: unknown, prefix: string) {
-  if (!isRecord(message)) {
-    return false;
-  }
-
-  const content = message.content;
-  if (typeof content === "string") {
-    return content.trimStart().startsWith(prefix);
-  }
-
-  if (!Array.isArray(content)) {
-    return false;
-  }
-
-  const text = content.find(
-    (part) =>
-      isRecord(part) && part.type === "text" && typeof part.text === "string",
-  );
-  return isRecord(text) && typeof text.text === "string"
-    ? text.text.trimStart().startsWith(prefix)
-    : false;
-}
-
-function findPreviousTurnCacheIndex(
-  prompt: unknown[],
-  lastLeadingSystemIndex: number,
-  lastConversationIndex: number,
-) {
-  if (lastConversationIndex < 0) {
-    return -1;
-  }
-
-  if (getMessageRole(prompt[lastConversationIndex]) !== "user") {
-    return -1;
-  }
-
-  for (let i = lastConversationIndex - 1; i > lastLeadingSystemIndex; i--) {
-    if (getMessageRole(prompt[i]) === "system") {
-      break;
-    }
-    if (getMessageRole(prompt[i]) !== "assistant") {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-function getMessageRole(message: unknown) {
-  return isRecord(message) && typeof message.role === "string"
-    ? message.role
-    : undefined;
-}
-
-function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
-  if (cacheProvider === "bedrock") {
-    return withBedrockCachePoint(message);
-  }
-  if (cacheProvider === "openai-compatible") {
-    return withOpenAICompatibleCacheControl(message);
-  }
-  if (cacheProvider === "openai-responses") {
-    return withOpenAIResponsesCacheBreakpoint(message);
-  }
-  return withAnthropicCacheControl(message);
-}
-
-// The Responses converter reads `openai.promptCacheBreakpoint` from the
-// message for system messages and from each part for user messages.
-function withOpenAIResponsesCacheBreakpoint(message: unknown) {
-  if (!isRecord(message)) {
-    return message;
-  }
-
-  if (getMessageRole(message) === "system") {
-    return {
-      ...message,
-      providerOptions: stampOpenAIPromptCacheBreakpoint(
-        message.providerOptions,
-      ),
-    };
-  }
-
-  return withLastPartProviderOptions(message, stampOpenAIPromptCacheBreakpoint);
-}
-
-function stampOpenAIPromptCacheBreakpoint(providerOptions: unknown) {
-  const options = isRecord(providerOptions) ? providerOptions : {};
-  const openai = isRecord(options.openai) ? options.openai : {};
-
-  if (isRecord(openai.promptCacheBreakpoint)) {
-    return options;
-  }
-
-  return {
-    ...options,
-    openai: {
-      ...openai,
-      promptCacheBreakpoint: OPENAI_PROMPT_CACHE_BREAKPOINT,
-    },
-  };
-}
-
-function withLastPartProviderOptions(
-  message: Record<string, unknown>,
-  stamp: (providerOptions: unknown) => unknown,
-) {
-  if (!Array.isArray(message.content) || message.content.length === 0) {
-    return message;
-  }
-
-  const lastIndex = message.content.length - 1;
-  const lastPart = message.content[lastIndex];
-  if (!isRecord(lastPart)) {
-    return message;
-  }
-
-  const nextContent = message.content.slice();
-  nextContent[lastIndex] = {
-    ...lastPart,
-    providerOptions: stamp(lastPart.providerOptions),
-  };
-
-  return {
-    ...message,
-    content: nextContent,
-  };
-}
-
-function withBedrockCachePoint(message: unknown) {
-  if (!isRecord(message)) {
-    return message;
-  }
-
-  const providerOptions = isRecord(message.providerOptions)
-    ? message.providerOptions
-    : {};
-  const bedrock = isRecord(providerOptions.bedrock)
-    ? providerOptions.bedrock
-    : {};
-
-  if (isRecord(bedrock.cachePoint)) {
-    return message;
-  }
-
-  return {
-    ...message,
-    providerOptions: {
-      ...providerOptions,
-      bedrock: {
-        ...bedrock,
-        cachePoint: BEDROCK_PROMPT_CACHE_POINT,
-      },
-    },
-  };
-}
-
-function withAnthropicCacheControl(message: unknown) {
-  if (!isRecord(message)) {
-    return message;
-  }
-
-  const providerOptions = isRecord(message.providerOptions)
-    ? message.providerOptions
-    : {};
-  const anthropic = isRecord(providerOptions.anthropic)
-    ? providerOptions.anthropic
-    : {};
-
-  if (isRecord(anthropic.cacheControl)) {
-    return message;
-  }
-
-  return {
-    ...message,
-    providerOptions: {
-      ...providerOptions,
-      anthropic: {
-        ...anthropic,
-        cacheControl: ANTHROPIC_CACHE_CONTROL,
-      },
-    },
-  };
-}
-
-function withOpenAICompatibleCacheControl(message: unknown) {
-  if (!isRecord(message)) {
-    return message;
-  }
-
-  const providerOptions = isRecord(message.providerOptions)
-    ? message.providerOptions
-    : {};
-  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
-    ? providerOptions.openaiCompatible
-    : {};
-
-  if (isRecord(openaiCompatible.cache_control)) {
-    return message;
-  }
-
-  return withLastPartProviderOptions(
-    {
-      ...message,
-      providerOptions: stampOpenAICompatibleCacheControl(providerOptions),
-    },
-    stampOpenAICompatibleCacheControl,
-  );
-}
-
-function stampOpenAICompatibleCacheControl(providerOptions: unknown) {
-  const options = isRecord(providerOptions) ? providerOptions : {};
-  const openaiCompatible = isRecord(options.openaiCompatible)
-    ? options.openaiCompatible
-    : {};
-
-  if (isRecord(openaiCompatible.cache_control)) {
-    return options;
-  }
-
-  return {
-    ...options,
-    openaiCompatible: {
-      ...openaiCompatible,
-      cache_control: ANTHROPIC_CACHE_CONTROL,
-    },
   };
 }

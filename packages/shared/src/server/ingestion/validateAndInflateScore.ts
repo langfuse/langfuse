@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
   isAnnotationScoreMissingConfigId,
@@ -21,70 +20,75 @@ type ValidateAndInflateScoreParams = {
   body: ScoreEventType["body"];
 };
 
-export async function validateAndInflateScore(
-  params: ValidateAndInflateScoreParams,
-) {
-  const { body, projectId, scoreId } = params;
+function resolveScoreValueIngestion(
+  body: ScoreEventType["body"],
+): string | number | null {
+  return body.value;
+}
 
-  // Central choke point: both POST /api/public/scores and
-  // POST /api/public/ingestion enqueue events that run through this function
-  // in the worker, so enforcing here covers both entry points.
-  if (isAnnotationScoreMissingConfigId(body)) {
-    throw new InvalidRequestError(ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE);
+function resolveScoreValueAnnotation(
+  body: ScoreDomain,
+): string | number | null {
+  switch (body.dataType) {
+    case ScoreDataTypeEnum.NUMERIC:
+    case ScoreDataTypeEnum.BOOLEAN:
+      return body.value;
+    case ScoreDataTypeEnum.CATEGORICAL:
+    case ScoreDataTypeEnum.TEXT:
+      return body.stringValue;
+    case ScoreDataTypeEnum.CORRECTION:
+      throw new Error("CORRECTION type not supported in annotation drawer");
   }
+}
 
-  if (body.configId) {
-    const config = await prisma.scoreConfig.findFirst({
-      where: {
-        projectId,
-        id: body.configId,
-      },
-    });
+export function validateConfigAgainstBody({
+  body,
+  config,
+  context,
+}: ValidateConfigAgainstBodyParams): void {
+  const { maxValue, minValue, categories, dataType: configDataType } = config;
 
-    if (!config || !validateDbScoreConfigSafe(config).success)
-      throw new LangfuseNotFoundError(
-        "The configId you provided does not match a valid config in this project",
-      );
-
-    // Override some fields in the score body with config fields
-    // We ignore the set fields in the body
-    const bodyWithConfigOverrides = {
-      ...body,
-      name: config.name,
-    };
-
-    validateConfigAgainstBody({
-      body: bodyWithConfigOverrides,
-      config: config as ScoreConfigDomain,
-      context: "INGESTION",
-    });
-
-    return inflateScoreBody({
-      projectId,
-      scoreId,
-      body: bodyWithConfigOverrides,
-      config: config as ScoreConfigDomain,
-    });
-  }
-
-  const validation = ScoreBodyWithoutConfig.safeParse({
-    ...body,
-    dataType: body.dataType ?? inferDataType(body.value),
-  });
-
-  if (!validation.success) {
+  if (body.dataType && body.dataType !== configDataType) {
     throw new InvalidRequestError(
-      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, string values for categorical scores, and string values of 1-500 characters for text scores.`,
+      `Data type mismatch based on config: expected ${configDataType}, got ${body.dataType}`,
     );
   }
 
-  return inflateScoreBody(params);
-}
+  if (config.isArchived) {
+    throw new InvalidRequestError(
+      "Config is archived and cannot be used to create new scores. Please restore the config first.",
+    );
+  }
 
-function inferDataType(value: string | number): ScoreDataTypeType {
-  return typeof value === "number"
-    ? ScoreDataTypeEnum.NUMERIC
-    : ScoreDataTypeEnum.CATEGORICAL;
+  if (config.name !== body.name) {
+    throw new InvalidRequestError(
+      `Name mismatch based on config: expected ${config.name}, got ${body.name}`,
+    );
+  }
+
+  const relevantDataType = configDataType ?? body.dataType;
+  const scoreValue =
+    context === "INGESTION"
+      ? resolveScoreValueIngestion(body)
+      : resolveScoreValueAnnotation(body);
+
+  const rangeValidation = ScorePropsAgainstConfig.safeParse({
+    value: scoreValue,
+    dataType: relevantDataType,
+    ...(maxValue !== null && maxValue !== undefined && { maxValue }),
+    ...(minValue !== null && minValue !== undefined && { minValue }),
+    ...(categories && { categories }),
+  });
+
+  if (!rangeValidation.success) {
+    const errorDetails = rangeValidation.error.issues
+      .map((error) => `${error.path.join(".")} - ${error.message}`)
+      .join(", ");
+
+    throw new InvalidRequestError(
+      `Ingested score body not valid against provided config: ${errorDetails}`,
+    );
+  }
 }
 
 function mapStringValueToNumericValue(
@@ -168,6 +172,72 @@ function inflateScoreBody(
   };
 }
 
+function inferDataType(value: string | number): ScoreDataTypeType {
+  return typeof value === "number"
+    ? ScoreDataTypeEnum.NUMERIC
+    : ScoreDataTypeEnum.CATEGORICAL;
+}
+
+export async function validateAndInflateScore(
+  params: ValidateAndInflateScoreParams,
+) {
+  const { body, projectId, scoreId } = params;
+
+  // Central choke point: both POST /api/public/scores and
+  // POST /api/public/ingestion enqueue events that run through this function
+  // in the worker, so enforcing here covers both entry points.
+  if (isAnnotationScoreMissingConfigId(body)) {
+    throw new InvalidRequestError(ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE);
+  }
+
+  if (body.configId) {
+    const config = await prisma.scoreConfig.findFirst({
+      where: {
+        projectId,
+        id: body.configId,
+      },
+    });
+
+    if (!config || !validateDbScoreConfigSafe(config).success)
+      throw new LangfuseNotFoundError(
+        "The configId you provided does not match a valid config in this project",
+      );
+
+    // Override some fields in the score body with config fields
+    // We ignore the set fields in the body
+    const bodyWithConfigOverrides = {
+      ...body,
+      name: config.name,
+    };
+
+    validateConfigAgainstBody({
+      body: bodyWithConfigOverrides,
+      config: config as ScoreConfigDomain,
+      context: "INGESTION",
+    });
+
+    return inflateScoreBody({
+      projectId,
+      scoreId,
+      body: bodyWithConfigOverrides,
+      config: config as ScoreConfigDomain,
+    });
+  }
+
+  const validation = ScoreBodyWithoutConfig.safeParse({
+    ...body,
+    dataType: body.dataType ?? inferDataType(body.value),
+  });
+
+  if (!validation.success) {
+    throw new InvalidRequestError(
+      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, string values for categorical scores, and string values of 1-500 characters for text scores.`,
+    );
+  }
+
+  return inflateScoreBody(params);
+}
+
 type ScoreBodyWithContext =
   | {
       body: ScoreEventType["body"];
@@ -178,77 +248,6 @@ type ScoreBodyWithContext =
       context: "ANNOTATION";
     };
 
-function resolveScoreValueIngestion(
-  body: ScoreEventType["body"],
-): string | number | null {
-  return body.value;
-}
-
-function resolveScoreValueAnnotation(
-  body: ScoreDomain,
-): string | number | null {
-  switch (body.dataType) {
-    case ScoreDataTypeEnum.NUMERIC:
-    case ScoreDataTypeEnum.BOOLEAN:
-      return body.value;
-    case ScoreDataTypeEnum.CATEGORICAL:
-    case ScoreDataTypeEnum.TEXT:
-      return body.stringValue;
-    case ScoreDataTypeEnum.CORRECTION:
-      throw new Error("CORRECTION type not supported in annotation drawer");
-  }
-}
-
 type ValidateConfigAgainstBodyParams = {
   config: ScoreConfigDomain;
 } & ScoreBodyWithContext;
-
-export function validateConfigAgainstBody({
-  body,
-  config,
-  context,
-}: ValidateConfigAgainstBodyParams): void {
-  const { maxValue, minValue, categories, dataType: configDataType } = config;
-
-  if (body.dataType && body.dataType !== configDataType) {
-    throw new InvalidRequestError(
-      `Data type mismatch based on config: expected ${configDataType}, got ${body.dataType}`,
-    );
-  }
-
-  if (config.isArchived) {
-    throw new InvalidRequestError(
-      "Config is archived and cannot be used to create new scores. Please restore the config first.",
-    );
-  }
-
-  if (config.name !== body.name) {
-    throw new InvalidRequestError(
-      `Name mismatch based on config: expected ${config.name}, got ${body.name}`,
-    );
-  }
-
-  const relevantDataType = configDataType ?? body.dataType;
-  const scoreValue =
-    context === "INGESTION"
-      ? resolveScoreValueIngestion(body)
-      : resolveScoreValueAnnotation(body);
-
-  const rangeValidation = ScorePropsAgainstConfig.safeParse({
-    value: scoreValue,
-    dataType: relevantDataType,
-    ...(maxValue !== null && maxValue !== undefined && { maxValue }),
-    ...(minValue !== null && minValue !== undefined && { minValue }),
-    ...(categories && { categories }),
-  });
-
-  if (!rangeValidation.success) {
-    const errorDetails = rangeValidation.error.issues
-      .map((error) => `${error.path.join(".")} - ${error.message}`)
-      .join(", ");
-
-    throw new InvalidRequestError(
-      `Ingested score body not valid against provided config: ${errorDetails}`,
-    );
-  }
-}

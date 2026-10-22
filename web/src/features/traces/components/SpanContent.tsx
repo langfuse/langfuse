@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props */
 /**
  * SpanContent - Pure span/observation content renderer.
  *
@@ -47,11 +47,6 @@ interface SpanContentProps {
 
 const rootClassName =
   "peer relative flex min-w-0 flex-1 items-start gap-2 rounded-md py-1 pr-2 pl-1 text-left";
-
-export function SpanContent(props: SpanContentProps | { isLoading: true }) {
-  if ("isLoading" in props) return <SpanContentLoading />;
-  return <LoadedSpanContent {...props} />;
-}
 
 /** Name and metrics lines at their text heights, so rows keep their height. */
 function SpanContentLoading() {
@@ -216,4 +211,9 @@ function LoadedSpanContent({
       </div>
     </button>
   );
+}
+
+export function SpanContent(props: SpanContentProps | { isLoading: true }) {
+  if ("isLoading" in props) return <SpanContentLoading />;
+  return <LoadedSpanContent {...props} />;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * @fileoverview Utility functions and type definitions for Pivot Table widget functionality
  *
@@ -171,6 +170,280 @@ export function createEmptyMetricValues(
 }
 
 /**
+ * Utility function to get dimension values from a database row
+ * Extracts only the specified dimension fields from the row data
+ *
+ * @param row - Database row containing all field values
+ * @param dimensions - Array of dimension field names to extract
+ * @returns Object containing only dimension field values
+ */
+export function extractDimensionValues(
+  row: DatabaseRow,
+  dimensions: string[],
+): Record<string, string> {
+  return dimensions.reduce(
+    (acc, dimension) => {
+      const value = row[dimension];
+      acc[dimension] = value?.toString() ?? "";
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+}
+
+/**
+ * Utility function to get metric values from a database row
+ * Extracts only the specified metric fields from the row data
+ *
+ * @param row - Database row containing all field values
+ * @param metrics - Array of metric field names to extract
+ * @returns Object containing only metric field values
+ */
+export function extractMetricValues(
+  row: DatabaseRow,
+  metrics: string[],
+): Record<string, number> {
+  return metrics.reduce(
+    (acc, metric) => {
+      const value = row[metric];
+      if (typeof value === "number") {
+        acc[metric] = value;
+      } else if (typeof value === "string") {
+        const parsedValue = parseFloat(value);
+        acc[metric] = isNaN(parsedValue) ? 0 : parsedValue;
+      } else {
+        acc[metric] = 0;
+      }
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+}
+
+/**
+ * Groups data by a single dimension field
+ * Used for creating single-level groupings in pivot table
+ *
+ * @param data - Array of database rows to group
+ * @param dimensionField - Field name to group by
+ * @returns Object with dimension values as keys and arrays of rows as values
+ */
+export function groupDataByDimension(
+  data: DatabaseRow[],
+  dimensionField: string,
+): Record<string, DatabaseRow[]> {
+  return data.reduce(
+    (acc, row) => {
+      const dimensionValue =
+        (row[dimensionField]?.toString() ?? "").trim() || "n/a";
+      if (!acc[dimensionValue]) {
+        acc[dimensionValue] = [];
+      }
+      acc[dimensionValue]!.push(row);
+      return acc;
+    },
+    {} as Record<string, DatabaseRow[]>,
+  );
+}
+
+/**
+ * Detects the aggregation type from a metric field name
+ * Parses field names like "count_count", "avg_latency", "sum_tokens", "p95_duration"
+ *
+ * @param metricName - The metric field name to analyze
+ * @returns The aggregation type (count, sum, avg, min, max, p95, etc.)
+ */
+function detectAggregationType(metricName: string): string {
+  // Extract the aggregation prefix from field names like "count_count", "avg_latency"
+  const parts = metricName.split("_");
+  if (parts.length >= 2) {
+    const prefix = parts[0]?.toLowerCase();
+    // Map common aggregation prefixes
+    switch (prefix) {
+      case "count":
+        return "count";
+      case "sum":
+        return "sum";
+      case "avg":
+      case "average":
+        return "avg";
+      case "min":
+        return "min";
+      case "max":
+        return "max";
+      case "p95":
+      case "p99":
+      case "p50":
+        return "percentile";
+      default:
+        // Default to sum for unknown aggregations
+        return "sum";
+    }
+  }
+
+  // Default to sum if we can't determine the type
+  return "sum";
+}
+
+/**
+ * Picks the column to weight `metric` by when aggregating per-row averages:
+ * its own `count_<measure>`, else the row count (`count_count` or `count`),
+ * else the only count column. With several unrelated count columns there is no
+ * safe choice, so this returns null rather than letting metric order decide.
+ */
+function findWeightMetric(metric: string, metrics: string[]): string | null {
+  const counts = metrics.filter(
+    (m) =>
+      m !== metric &&
+      (detectAggregationType(m) === "count" ||
+        m.toLowerCase().startsWith("count")),
+  );
+  const measure = metric.slice(metric.indexOf("_") + 1);
+
+  return (
+    counts.find((m) => m === `count_${measure}`) ??
+    counts.find((m) => m === "count_count" || m === "count") ??
+    (counts.length === 1 ? counts[0] : null)
+  );
+}
+
+/**
+ * Weighted mean of (value, weight) pairs, or null when the total weight is 0
+ * (so callers can fall back to an unweighted aggregation).
+ */
+function weightedMean(
+  pairs: Array<{ value: number; weight: number }>,
+): number | null {
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const { value, weight } of pairs) {
+    if (weight > 0) {
+      weightedSum += value * weight;
+      totalWeight += weight;
+    }
+  }
+  return totalWeight > 0 ? weightedSum / totalWeight : null;
+}
+
+/**
+ * Applies the correct aggregation function based on the aggregation type
+ *
+ * @param values - Array of numeric values to aggregate
+ * @param aggregationType - The type of aggregation to perform
+ * @returns The aggregated result
+ */
+function applyAggregation(values: number[], aggregationType: string): number {
+  if (values.length === 0) return 0;
+
+  switch (aggregationType) {
+    case "count":
+    case "sum":
+      return values.reduce((sum, val) => sum + val, 0);
+
+    case "avg":
+      return values.reduce((sum, val) => sum + val, 0) / values.length;
+
+    case "min":
+      return Math.min(...values);
+
+    case "max":
+      return Math.max(...values);
+
+    case "percentile":
+      // Percentiles cannot be recalculated exactly from per-group percentiles;
+      // this unweighted mean is only the fallback used when no count/weight
+      // metric is available (see calculateSubtotals for the weighted path).
+      return values.reduce((sum, val) => sum + val, 0) / values.length;
+
+    default:
+      // Default to sum
+      return values.reduce((sum, val) => sum + val, 0);
+  }
+}
+
+/**
+ * Calculates subtotals for a group of data rows
+ * Aggregates metric values across all rows in the group using the correct aggregation function
+ *
+ * @param data - Array of database rows to calculate subtotals for
+ * @param metrics - Array of metric field names to aggregate
+ * @returns Object with metric names as keys and calculated totals as values
+ */
+export function calculateSubtotals(
+  data: DatabaseRow[],
+  metrics: string[],
+): Record<string, number> {
+  const subtotals: Record<string, number> = {};
+
+  for (const metric of metrics) {
+    const aggregationType = detectAggregationType(metric);
+    const weightMetric =
+      aggregationType === "avg" || aggregationType === "percentile"
+        ? findWeightMetric(metric, metrics)
+        : null;
+
+    let result: number;
+    if (weightMetric) {
+      // Weight each row's value by its count so the group aggregate equals the
+      // true overall average (rather than an average of averages). Missing
+      // fields coerce to 0 via extractMetricValues, as elsewhere in this file;
+      // a row with no count carries weight 0 and drops out of the weighted mean.
+      const pairs = data.map((row) => {
+        const extracted = extractMetricValues(row, [metric, weightMetric]);
+        return { value: extracted[metric], weight: extracted[weightMetric] };
+      });
+
+      const weighted = weightedMean(pairs);
+      result =
+        weighted ??
+        // No usable weights (e.g. no count column populated) → best-effort
+        // unweighted aggregation, matching prior behavior.
+        applyAggregation(
+          pairs.map((p) => p.value),
+          aggregationType,
+        );
+    } else {
+      const values = data
+        .map((row) => extractMetricValues(row, [metric])[metric])
+        .filter(isNotNullOrUndefined);
+      result = applyAggregation(values, aggregationType);
+    }
+
+    // Round to 10 decimal places to avoid floating-point precision issues
+    subtotals[metric] = Math.round(result * 1e10) / 1e10;
+  }
+
+  return subtotals;
+}
+
+/**
+ * Creates a subtotal row for a specific dimension group
+ * Generates subtotal row with appropriate styling and values
+ *
+ * @param dimensionValue - The dimension value this subtotal represents
+ * @param subtotalValues - Calculated subtotal values for metrics
+ * @param level - Indentation level for the row
+ * @returns Formatted pivot table subtotal row
+ */
+export function createSubtotalRow(
+  dimensionValue: string,
+  subtotalValues: Record<string, number>,
+  level: number,
+): PivotTableRow {
+  const dimensionValues = { subtotal: dimensionValue };
+
+  return {
+    id: generateRowId(dimensionValues, "subtotal", level),
+    type: "subtotal",
+    level,
+    label: `${dimensionValue} (Subtotal)`,
+    values: subtotalValues,
+    isSubtotal: true,
+    dimensionValues,
+  };
+}
+
+/**
  * Recursively processes dimensions to create nested pivot table structure
  * This function handles N dimensions dynamically instead of hardcoded cases
  *
@@ -256,6 +529,46 @@ function processLevelRecursively(
 }
 
 /**
+ * Creates the grand total row for the pivot table
+ * Generates final total row with all metric grand totals
+ *
+ * @param metrics - Array of metric field names
+ * @param grandTotalValues - Calculated grand total values for metrics
+ * @returns Formatted pivot table grand total row
+ */
+export function createGrandTotalRow(
+  metrics: string[],
+  grandTotalValues: Record<string, number>,
+): PivotTableRow {
+  const dimensionValues = { total: "grand" };
+
+  return {
+    id: generateRowId(dimensionValues, "total", 0),
+    type: "total",
+    level: 0,
+    label: "Total",
+    values: grandTotalValues,
+    isTotal: true,
+    dimensionValues,
+  };
+}
+
+/**
+ * Calculates grand totals across all data rows
+ * Aggregates metric values across the entire dataset
+ *
+ * @param data - Array of database rows to calculate grand totals for
+ * @param metrics - Array of metric field names to aggregate
+ * @returns Object with metric names as keys and calculated grand totals as values
+ */
+export function calculateGrandTotals(
+  data: DatabaseRow[],
+  metrics: string[],
+): Record<string, number> {
+  return calculateSubtotals(data, metrics);
+}
+
+/**
  * Transforms flat query results into nested pivot table structure with totals and subtotals
  * Uses a recursive algorithm to handle N dimensions dynamically instead of hardcoded cases
  *
@@ -338,57 +651,6 @@ export function transformToPivotTable(
 }
 
 /**
- * Utility function to get dimension values from a database row
- * Extracts only the specified dimension fields from the row data
- *
- * @param row - Database row containing all field values
- * @param dimensions - Array of dimension field names to extract
- * @returns Object containing only dimension field values
- */
-export function extractDimensionValues(
-  row: DatabaseRow,
-  dimensions: string[],
-): Record<string, string> {
-  return dimensions.reduce(
-    (acc, dimension) => {
-      const value = row[dimension];
-      acc[dimension] = value?.toString() ?? "";
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-}
-
-/**
- * Utility function to get metric values from a database row
- * Extracts only the specified metric fields from the row data
- *
- * @param row - Database row containing all field values
- * @param metrics - Array of metric field names to extract
- * @returns Object containing only metric field values
- */
-export function extractMetricValues(
-  row: DatabaseRow,
-  metrics: string[],
-): Record<string, number> {
-  return metrics.reduce(
-    (acc, metric) => {
-      const value = row[metric];
-      if (typeof value === "number") {
-        acc[metric] = value;
-      } else if (typeof value === "string") {
-        const parsedValue = parseFloat(value);
-        acc[metric] = isNaN(parsedValue) ? 0 : parsedValue;
-      } else {
-        acc[metric] = 0;
-      }
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-}
-
-/**
  * Type guard to check if a row is a data row (not subtotal or total)
  *
  * @param row - Pivot table row to check
@@ -419,266 +681,27 @@ export function isTotalRow(row: PivotTableRow): boolean {
 }
 
 /**
- * Groups data by a single dimension field
- * Used for creating single-level groupings in pivot table
+ * Finds the parent subtotal group for a data row
  *
- * @param data - Array of database rows to group
- * @param dimensionField - Field name to group by
- * @returns Object with dimension values as keys and arrays of rows as values
+ * @param dataRow - The data row to find parent for
+ * @param subtotalRows - Array of all subtotal rows
+ * @returns The parent subtotal row or null if not found
  */
-export function groupDataByDimension(
-  data: DatabaseRow[],
-  dimensionField: string,
-): Record<string, DatabaseRow[]> {
-  return data.reduce(
-    (acc, row) => {
-      const dimensionValue =
-        (row[dimensionField]?.toString() ?? "").trim() || "n/a";
-      if (!acc[dimensionValue]) {
-        acc[dimensionValue] = [];
-      }
-      acc[dimensionValue]!.push(row);
-      return acc;
-    },
-    {} as Record<string, DatabaseRow[]>,
-  );
-}
-
-/**
- * Detects the aggregation type from a metric field name
- * Parses field names like "count_count", "avg_latency", "sum_tokens", "p95_duration"
- *
- * @param metricName - The metric field name to analyze
- * @returns The aggregation type (count, sum, avg, min, max, p95, etc.)
- */
-function detectAggregationType(metricName: string): string {
-  // Extract the aggregation prefix from field names like "count_count", "avg_latency"
-  const parts = metricName.split("_");
-  if (parts.length >= 2) {
-    const prefix = parts[0]?.toLowerCase();
-    // Map common aggregation prefixes
-    switch (prefix) {
-      case "count":
-        return "count";
-      case "sum":
-        return "sum";
-      case "avg":
-      case "average":
-        return "avg";
-      case "min":
-        return "min";
-      case "max":
-        return "max";
-      case "p95":
-      case "p99":
-      case "p50":
-        return "percentile";
-      default:
-        // Default to sum for unknown aggregations
-        return "sum";
-    }
-  }
-
-  // Default to sum if we can't determine the type
-  return "sum";
-}
-
-/**
- * Applies the correct aggregation function based on the aggregation type
- *
- * @param values - Array of numeric values to aggregate
- * @param aggregationType - The type of aggregation to perform
- * @returns The aggregated result
- */
-function applyAggregation(values: number[], aggregationType: string): number {
-  if (values.length === 0) return 0;
-
-  switch (aggregationType) {
-    case "count":
-    case "sum":
-      return values.reduce((sum, val) => sum + val, 0);
-
-    case "avg":
-      return values.reduce((sum, val) => sum + val, 0) / values.length;
-
-    case "min":
-      return Math.min(...values);
-
-    case "max":
-      return Math.max(...values);
-
-    case "percentile":
-      // Percentiles cannot be recalculated exactly from per-group percentiles;
-      // this unweighted mean is only the fallback used when no count/weight
-      // metric is available (see calculateSubtotals for the weighted path).
-      return values.reduce((sum, val) => sum + val, 0) / values.length;
-
-    default:
-      // Default to sum
-      return values.reduce((sum, val) => sum + val, 0);
-  }
-}
-
-/**
- * Picks the column to weight `metric` by when aggregating per-row averages:
- * its own `count_<measure>`, else the row count (`count_count` or `count`),
- * else the only count column. With several unrelated count columns there is no
- * safe choice, so this returns null rather than letting metric order decide.
- */
-function findWeightMetric(metric: string, metrics: string[]): string | null {
-  const counts = metrics.filter(
-    (m) =>
-      m !== metric &&
-      (detectAggregationType(m) === "count" ||
-        m.toLowerCase().startsWith("count")),
-  );
-  const measure = metric.slice(metric.indexOf("_") + 1);
+function findParentGroup(
+  dataRow: PivotTableRow,
+  subtotalRows: PivotTableRow[],
+): PivotTableRow | null {
+  // For now, use a simple approach: find subtotal row with matching level
+  // This can be enhanced later for more complex grouping logic
+  const parentLevel = dataRow.level - 1;
 
   return (
-    counts.find((m) => m === `count_${measure}`) ??
-    counts.find((m) => m === "count_count" || m === "count") ??
-    (counts.length === 1 ? counts[0] : null)
+    subtotalRows.find(
+      (subtotal) =>
+        subtotal.level === parentLevel &&
+        subtotal.label.includes(dataRow.label.split(" - ")[0]), // Simple matching
+    ) || null
   );
-}
-
-/**
- * Weighted mean of (value, weight) pairs, or null when the total weight is 0
- * (so callers can fall back to an unweighted aggregation).
- */
-function weightedMean(
-  pairs: Array<{ value: number; weight: number }>,
-): number | null {
-  let weightedSum = 0;
-  let totalWeight = 0;
-  for (const { value, weight } of pairs) {
-    if (weight > 0) {
-      weightedSum += value * weight;
-      totalWeight += weight;
-    }
-  }
-  return totalWeight > 0 ? weightedSum / totalWeight : null;
-}
-
-/**
- * Calculates subtotals for a group of data rows
- * Aggregates metric values across all rows in the group using the correct aggregation function
- *
- * @param data - Array of database rows to calculate subtotals for
- * @param metrics - Array of metric field names to aggregate
- * @returns Object with metric names as keys and calculated totals as values
- */
-export function calculateSubtotals(
-  data: DatabaseRow[],
-  metrics: string[],
-): Record<string, number> {
-  const subtotals: Record<string, number> = {};
-
-  for (const metric of metrics) {
-    const aggregationType = detectAggregationType(metric);
-    const weightMetric =
-      aggregationType === "avg" || aggregationType === "percentile"
-        ? findWeightMetric(metric, metrics)
-        : null;
-
-    let result: number;
-    if (weightMetric) {
-      // Weight each row's value by its count so the group aggregate equals the
-      // true overall average (rather than an average of averages). Missing
-      // fields coerce to 0 via extractMetricValues, as elsewhere in this file;
-      // a row with no count carries weight 0 and drops out of the weighted mean.
-      const pairs = data.map((row) => {
-        const extracted = extractMetricValues(row, [metric, weightMetric]);
-        return { value: extracted[metric], weight: extracted[weightMetric] };
-      });
-
-      const weighted = weightedMean(pairs);
-      result =
-        weighted ??
-        // No usable weights (e.g. no count column populated) → best-effort
-        // unweighted aggregation, matching prior behavior.
-        applyAggregation(
-          pairs.map((p) => p.value),
-          aggregationType,
-        );
-    } else {
-      const values = data
-        .map((row) => extractMetricValues(row, [metric])[metric])
-        .filter(isNotNullOrUndefined);
-      result = applyAggregation(values, aggregationType);
-    }
-
-    // Round to 10 decimal places to avoid floating-point precision issues
-    subtotals[metric] = Math.round(result * 1e10) / 1e10;
-  }
-
-  return subtotals;
-}
-
-/**
- * Calculates grand totals across all data rows
- * Aggregates metric values across the entire dataset
- *
- * @param data - Array of database rows to calculate grand totals for
- * @param metrics - Array of metric field names to aggregate
- * @returns Object with metric names as keys and calculated grand totals as values
- */
-export function calculateGrandTotals(
-  data: DatabaseRow[],
-  metrics: string[],
-): Record<string, number> {
-  return calculateSubtotals(data, metrics);
-}
-
-/**
- * Creates a subtotal row for a specific dimension group
- * Generates subtotal row with appropriate styling and values
- *
- * @param dimensionValue - The dimension value this subtotal represents
- * @param subtotalValues - Calculated subtotal values for metrics
- * @param level - Indentation level for the row
- * @returns Formatted pivot table subtotal row
- */
-export function createSubtotalRow(
-  dimensionValue: string,
-  subtotalValues: Record<string, number>,
-  level: number,
-): PivotTableRow {
-  const dimensionValues = { subtotal: dimensionValue };
-
-  return {
-    id: generateRowId(dimensionValues, "subtotal", level),
-    type: "subtotal",
-    level,
-    label: `${dimensionValue} (Subtotal)`,
-    values: subtotalValues,
-    isSubtotal: true,
-    dimensionValues,
-  };
-}
-
-/**
- * Creates the grand total row for the pivot table
- * Generates final total row with all metric grand totals
- *
- * @param metrics - Array of metric field names
- * @param grandTotalValues - Calculated grand total values for metrics
- * @returns Formatted pivot table grand total row
- */
-export function createGrandTotalRow(
-  metrics: string[],
-  grandTotalValues: Record<string, number>,
-): PivotTableRow {
-  const dimensionValues = { total: "grand" };
-
-  return {
-    id: generateRowId(dimensionValues, "total", 0),
-    type: "total",
-    level: 0,
-    label: "Total",
-    values: grandTotalValues,
-    isTotal: true,
-    dimensionValues,
-  };
 }
 
 /**
@@ -805,30 +828,6 @@ export function sortPivotTableRows(
   sortedRows.push(...ungroupedRows);
 
   return sortedRows;
-}
-
-/**
- * Finds the parent subtotal group for a data row
- *
- * @param dataRow - The data row to find parent for
- * @param subtotalRows - Array of all subtotal rows
- * @returns The parent subtotal row or null if not found
- */
-function findParentGroup(
-  dataRow: PivotTableRow,
-  subtotalRows: PivotTableRow[],
-): PivotTableRow | null {
-  // For now, use a simple approach: find subtotal row with matching level
-  // This can be enhanced later for more complex grouping logic
-  const parentLevel = dataRow.level - 1;
-
-  return (
-    subtotalRows.find(
-      (subtotal) =>
-        subtotal.level === parentLevel &&
-        subtotal.label.includes(dataRow.label.split(" - ")[0]), // Simple matching
-    ) || null
-  );
 }
 
 /**

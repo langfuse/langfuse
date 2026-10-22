@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Check, Sparkles } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
@@ -40,6 +39,48 @@ const NO_TOPICS = new Set([
   "insufficient_data",
   "no_applicable_summaries",
 ]);
+
+function PhaseMarker({
+  active,
+  done,
+  index,
+}: {
+  active: boolean;
+  done: boolean;
+  index: number;
+}) {
+  if (done)
+    return (
+      <span className="bg-dark-green flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+        <Check size="sm" aria-hidden="true" />
+      </span>
+    );
+  if (active) return <Spinner size="sm" />;
+  return (
+    <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full border text-xs">
+      {index}
+    </span>
+  );
+}
+
+function StepMarker({ state }: { state: "done" | "active" | "waiting" }) {
+  if (state === "done") return <Check size="sm" aria-hidden="true" />;
+  if (state === "active") return <Spinner size="xxs" />;
+  return <span className="size-3 rounded-full border" />;
+}
+
+function stepState(index: number, current: number) {
+  if (index < current) return "done";
+  if (index === current) return "active";
+  return "waiting";
+}
+
+function facetResult(facet: TopicSetupProgressFacet) {
+  if (facet.outcome === "failed") return "Failed";
+  if (NO_TOPICS.has(facet.outcome ?? "")) return "Not enough data yet";
+  if (facet.topicCount === null) return "Topics ready";
+  return `${facet.topicCount} ${facet.topicCount === 1 ? "topic" : "topics"}`;
+}
 
 /** First-run progress in two phases: summaries, then topics. */
 export function TopicSetupProgressView({
@@ -167,46 +208,4 @@ export function TopicSetupProgressView({
       ) : null}
     </div>
   );
-}
-
-function stepState(index: number, current: number) {
-  if (index < current) return "done";
-  if (index === current) return "active";
-  return "waiting";
-}
-
-function facetResult(facet: TopicSetupProgressFacet) {
-  if (facet.outcome === "failed") return "Failed";
-  if (NO_TOPICS.has(facet.outcome ?? "")) return "Not enough data yet";
-  if (facet.topicCount === null) return "Topics ready";
-  return `${facet.topicCount} ${facet.topicCount === 1 ? "topic" : "topics"}`;
-}
-
-function PhaseMarker({
-  active,
-  done,
-  index,
-}: {
-  active: boolean;
-  done: boolean;
-  index: number;
-}) {
-  if (done)
-    return (
-      <span className="bg-dark-green flex size-5 shrink-0 items-center justify-center rounded-full text-white">
-        <Check size="sm" aria-hidden="true" />
-      </span>
-    );
-  if (active) return <Spinner size="sm" />;
-  return (
-    <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full border text-xs">
-      {index}
-    </span>
-  );
-}
-
-function StepMarker({ state }: { state: "done" | "active" | "waiting" }) {
-  if (state === "done") return <Check size="sm" aria-hidden="true" />;
-  if (state === "active") return <Spinner size="xxs" />;
-  return <span className="size-3 rounded-full border" />;
 }

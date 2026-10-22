@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   CircularRedirectError,
   fetchWithSecureRedirects,
@@ -21,33 +20,35 @@ type SecureLlmFetchParams = {
   additionalSensitiveHeaders?: string[];
 };
 
-export function createSecureLlmFetch({
-  logContext,
-  additionalSensitiveHeaders,
-}: SecureLlmFetchParams): typeof fetch {
-  return async (input, init) => {
-    try {
-      const { url, options } = await normalizeFetchInput(input, init);
+async function normalizeFetchInput(
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit,
+): Promise<{ url: string; options: RequestInit }> {
+  const request = new Request(input, init);
 
-      return await fetchSecureLlmUrl(url, options, {
-        logContext,
-        additionalSensitiveHeaders,
-      });
-    } catch (cause) {
-      const validationError = findSecureLlmValidationError(cause);
-      if (!validationError) throw cause;
-
-      throw new LLMValidationError({
-        code:
-          validationError instanceof OutboundUrlValidationError &&
-          validationError.code === "dns-lookup-failed"
-            ? "endpoint-unreachable"
-            : "invalid-connection",
-        message: validationError.message,
-        cause,
-      });
-    }
+  return {
+    url: request.url,
+    options: {
+      ...init,
+      method: request.method,
+      headers: request.headers,
+      body: ["GET", "HEAD"].includes(request.method)
+        ? undefined
+        : await request.text(),
+      // Never forward request.signal: undici links init.signal to it through
+      // a WeakRef'd AbortController owned by the temporary Request above, so
+      // once GC collects the Request, aborts (e.g. the AI SDK engine's native
+      // timeout) silently stop propagating and the HTTP request runs
+      // unbounded. Forward the caller's own signal instead.
+      signal: init?.signal ?? (input instanceof Request ? input.signal : null),
+    },
   };
+}
+
+function stripCallerDispatcher(options: RequestInit): RequestInit {
+  const fetchOptions = { ...options } as RequestInitWithDispatcher;
+  delete fetchOptions.dispatcher;
+  return fetchOptions;
 }
 
 export async function fetchSecureLlmUrl(
@@ -89,37 +90,6 @@ export async function fetchSecureLlmUrl(
   return response;
 }
 
-function stripCallerDispatcher(options: RequestInit): RequestInit {
-  const fetchOptions = { ...options } as RequestInitWithDispatcher;
-  delete fetchOptions.dispatcher;
-  return fetchOptions;
-}
-
-async function normalizeFetchInput(
-  input: Parameters<typeof fetch>[0],
-  init?: RequestInit,
-): Promise<{ url: string; options: RequestInit }> {
-  const request = new Request(input, init);
-
-  return {
-    url: request.url,
-    options: {
-      ...init,
-      method: request.method,
-      headers: request.headers,
-      body: ["GET", "HEAD"].includes(request.method)
-        ? undefined
-        : await request.text(),
-      // Never forward request.signal: undici links init.signal to it through
-      // a WeakRef'd AbortController owned by the temporary Request above, so
-      // once GC collects the Request, aborts (e.g. the AI SDK engine's native
-      // timeout) silently stop propagating and the HTTP request runs
-      // unbounded. Forward the caller's own signal instead.
-      signal: init?.signal ?? (input instanceof Request ? input.signal : null),
-    },
-  };
-}
-
 function findSecureLlmValidationError(error: unknown): Error | undefined {
   const visited = new Set<unknown>();
   let current = error;
@@ -142,4 +112,33 @@ function findSecureLlmValidationError(error: unknown): Error | undefined {
   }
 
   return undefined;
+}
+
+export function createSecureLlmFetch({
+  logContext,
+  additionalSensitiveHeaders,
+}: SecureLlmFetchParams): typeof fetch {
+  return async (input, init) => {
+    try {
+      const { url, options } = await normalizeFetchInput(input, init);
+
+      return await fetchSecureLlmUrl(url, options, {
+        logContext,
+        additionalSensitiveHeaders,
+      });
+    } catch (cause) {
+      const validationError = findSecureLlmValidationError(cause);
+      if (!validationError) throw cause;
+
+      throw new LLMValidationError({
+        code:
+          validationError instanceof OutboundUrlValidationError &&
+          validationError.code === "dns-lookup-failed"
+            ? "endpoint-unreachable"
+            : "invalid-connection",
+        message: validationError.message,
+        cause,
+      });
+    }
+  };
 }

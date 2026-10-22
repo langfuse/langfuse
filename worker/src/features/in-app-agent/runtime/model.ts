@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
 import { createVertex } from "ai-sdk-google-vertex-v4";
@@ -30,6 +29,82 @@ const DEFAULT_VERTEX_LOCATION = "global";
 export type InAppAgentLanguageModel = ReturnType<
   ReturnType<typeof createAmazonBedrock>
 >;
+
+function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
+  return resolveLangfuseAIOpenAICall({
+    baseURL,
+    useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
+  });
+}
+
+function createOpenAIInAppAgentLanguageModel(config: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string;
+  extraHeaders?: Record<string, string>;
+}) {
+  const { apiMode } = resolveLangfuseAIOpenAICallFromEnv(config.baseURL);
+  const extraHeaders = config.extraHeaders
+    ? { headers: config.extraHeaders }
+    : {};
+
+  // Match Ask AI / playground: custom OpenAI-compatible URLs use the
+  // compatible Chat Completions client so OpenAI chat heuristics do not
+  // run on a Claude (or other) model id behind a gateway.
+  if (
+    apiMode === "chat-completions" &&
+    isOpenAICompatibleEndpoint(config.baseURL)
+  ) {
+    const openaiCompatible = createOpenAICompatible({
+      name: "openai",
+      apiKey: config.apiKey,
+      baseURL: config.baseURL,
+      ...extraHeaders,
+    });
+
+    return openaiCompatible.languageModel(config.modelId);
+  }
+
+  const openai = createOpenAI({
+    apiKey: config.apiKey,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+    ...extraHeaders,
+  });
+
+  return apiMode === "responses"
+    ? openai.responses(config.modelId)
+    : openai.chat(config.modelId);
+}
+
+async function createVertexInAppAgentLanguageModel(config: {
+  modelId: string;
+  location?: string;
+}) {
+  // Vertex authenticates through application default credentials, and the AI
+  // SDK needs the project spelled out for URL construction, so resolve it from
+  // the same credential chain. Project and token both come from shared so the
+  // worker never constructs google-auth-library (pnpm does not expose it).
+  const project = await resolveVertexProjectIdFromADC();
+  const location = config.location ?? DEFAULT_VERTEX_LOCATION;
+
+  if (isClaudeModel(config.modelId)) {
+    assertValidAnthropicVertexModelName(config.modelId);
+
+    const vertexAnthropic = createVertexAnthropic({
+      project,
+      location,
+      generateAuthToken: generateVertexAccessTokenFromADC,
+    });
+
+    return vertexAnthropic(
+      config.modelId as Parameters<typeof vertexAnthropic>[0],
+    );
+  }
+
+  const vertex = createVertex({ project, location });
+
+  return vertex(config.modelId as Parameters<typeof vertex>[0]);
+}
 
 export async function createInAppAgentLanguageModel(params: {
   config: InAppAgentModelConfig;
@@ -78,75 +153,6 @@ export async function createInAppAgentLanguageModel(params: {
   }
 }
 
-async function createVertexInAppAgentLanguageModel(config: {
-  modelId: string;
-  location?: string;
-}) {
-  // Vertex authenticates through application default credentials, and the AI
-  // SDK needs the project spelled out for URL construction, so resolve it from
-  // the same credential chain. Project and token both come from shared so the
-  // worker never constructs google-auth-library (pnpm does not expose it).
-  const project = await resolveVertexProjectIdFromADC();
-  const location = config.location ?? DEFAULT_VERTEX_LOCATION;
-
-  if (isClaudeModel(config.modelId)) {
-    assertValidAnthropicVertexModelName(config.modelId);
-
-    const vertexAnthropic = createVertexAnthropic({
-      project,
-      location,
-      generateAuthToken: generateVertexAccessTokenFromADC,
-    });
-
-    return vertexAnthropic(
-      config.modelId as Parameters<typeof vertexAnthropic>[0],
-    );
-  }
-
-  const vertex = createVertex({ project, location });
-
-  return vertex(config.modelId as Parameters<typeof vertex>[0]);
-}
-
-function createOpenAIInAppAgentLanguageModel(config: {
-  modelId: string;
-  apiKey: string;
-  baseURL?: string;
-  extraHeaders?: Record<string, string>;
-}) {
-  const { apiMode } = resolveLangfuseAIOpenAICallFromEnv(config.baseURL);
-  const extraHeaders = config.extraHeaders
-    ? { headers: config.extraHeaders }
-    : {};
-
-  // Match Ask AI / playground: custom OpenAI-compatible URLs use the
-  // compatible Chat Completions client so OpenAI chat heuristics do not
-  // run on a Claude (or other) model id behind a gateway.
-  if (
-    apiMode === "chat-completions" &&
-    isOpenAICompatibleEndpoint(config.baseURL)
-  ) {
-    const openaiCompatible = createOpenAICompatible({
-      name: "openai",
-      apiKey: config.apiKey,
-      baseURL: config.baseURL,
-      ...extraHeaders,
-    });
-
-    return openaiCompatible.languageModel(config.modelId);
-  }
-
-  const openai = createOpenAI({
-    apiKey: config.apiKey,
-    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
-    ...extraHeaders,
-  });
-
-  return apiMode === "responses"
-    ? openai.responses(config.modelId)
-    : openai.chat(config.modelId);
-}
-
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -167,6 +173,27 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
         thinking: { type: "adaptive" as const, display: "summarized" },
         output_config: { effort: "medium" as const },
       },
+    },
+  };
+}
+
+// @ai-sdk/openai sends `reasoning` (and requests encrypted reasoning for
+// stateless replay) only for model ids it detects as gpt/o-series reasoning
+// models. `forceReasoning` extends that to Claude ids behind a Responses
+// gateway. Forced reasoning also defaults `systemMessageMode` to `developer`;
+// pinning it to `system` keeps the system role, so the reasoning fields are
+// the only difference from the unforced request.
+function forceResponsesReasoning(
+  providerOptions: Extract<
+    ReturnType<typeof resolveLangfuseAIOpenAICallFromEnv>,
+    { apiMode: "responses" }
+  >["providerOptions"],
+) {
+  return {
+    openai: {
+      ...providerOptions.openai,
+      forceReasoning: true,
+      systemMessageMode: "system" as const,
     },
   };
 }
@@ -235,32 +262,4 @@ export function getInAppAgentReasoningProviderOptions(
       return undefined;
     }
   }
-}
-
-function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
-  return resolveLangfuseAIOpenAICall({
-    baseURL,
-    useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
-  });
-}
-
-// @ai-sdk/openai sends `reasoning` (and requests encrypted reasoning for
-// stateless replay) only for model ids it detects as gpt/o-series reasoning
-// models. `forceReasoning` extends that to Claude ids behind a Responses
-// gateway. Forced reasoning also defaults `systemMessageMode` to `developer`;
-// pinning it to `system` keeps the system role, so the reasoning fields are
-// the only difference from the unforced request.
-function forceResponsesReasoning(
-  providerOptions: Extract<
-    ReturnType<typeof resolveLangfuseAIOpenAICallFromEnv>,
-    { apiMode: "responses" }
-  >["providerOptions"],
-) {
-  return {
-    openai: {
-      ...providerOptions.openai,
-      forceReasoning: true,
-      systemMessageMode: "system" as const,
-    },
-  };
 }

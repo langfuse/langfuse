@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { registeredProviders } from "../../conventions";
 import {
   asRecord,
@@ -56,6 +55,26 @@ type ToolDefinitionOptions = {
   allowProviderToolWithoutName?: boolean;
   allowToolMap?: boolean;
 };
+
+/** Canonical tool-definition constructor — same contract as the tool-part
+ * builders: callers extract their own dialect's fields. */
+export function toolDefinition(
+  fields: ToolDefinitionFields,
+): ToolDefinition | null {
+  if (typeof fields.name !== "string" || fields.name.length === 0) return null;
+
+  return compact<ToolDefinition>({
+    name: fields.name,
+    description:
+      typeof fields.description === "string" ? fields.description : undefined,
+    inputSchema:
+      fields.inputSchema === undefined
+        ? undefined
+        : toJsonValue(parseIfString(fields.inputSchema)),
+    type: typeof fields.type === "string" ? fields.type : undefined,
+    providerMetadata: fields.providerMetadata,
+  });
+}
 
 /**
  * Loose fallback: bare `{name, description | desc, parameters}` items
@@ -150,23 +169,3 @@ export type ToolDefinitionFields = {
   type?: unknown;
   providerMetadata?: JsonObject;
 };
-
-/** Canonical tool-definition constructor — same contract as the tool-part
- * builders: callers extract their own dialect's fields. */
-export function toolDefinition(
-  fields: ToolDefinitionFields,
-): ToolDefinition | null {
-  if (typeof fields.name !== "string" || fields.name.length === 0) return null;
-
-  return compact<ToolDefinition>({
-    name: fields.name,
-    description:
-      typeof fields.description === "string" ? fields.description : undefined,
-    inputSchema:
-      fields.inputSchema === undefined
-        ? undefined
-        : toJsonValue(parseIfString(fields.inputSchema)),
-    type: typeof fields.type === "string" ? fields.type : undefined,
-    providerMetadata: fields.providerMetadata,
-  });
-}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, decrypt, createSignatureHeader } from "../../encryption";
 import {
   WebhookDefaultHeaders,
@@ -70,6 +69,11 @@ export function mergeHeaders(
   return merged;
 }
 
+function maskSecretValue(value: string): string {
+  if (value.length <= 8) return "****";
+  return `${value.substring(0, 4)}...${value.substring(value.length - 4)}`;
+}
+
 export function createDisplayHeaders(
   mergedHeaders: Record<string, { secret: boolean; value: string }>,
 ): Record<string, { secret: boolean; value: string }> {
@@ -133,9 +137,4 @@ export function decryptSecretHeaders(
   }
 
   return decryptedRequestHeaders;
-}
-
-function maskSecretValue(value: string): string {
-  if (value.length <= 8) return "****";
-  return `${value.substring(0, 4)}...${value.substring(value.length - 4)}`;
 }

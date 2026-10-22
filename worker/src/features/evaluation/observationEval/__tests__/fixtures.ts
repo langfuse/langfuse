@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { vi, type Mock } from "vitest";
 import { randomUUID } from "crypto";
 import { type Prisma } from "@langfuse/shared/src/db";
@@ -232,6 +231,57 @@ export function createMockJobExecution(
 }
 
 /**
+ * Creates a mock eval template record.
+ */
+export function createMockEvalTemplate(
+  overrides: Partial<{
+    id: string;
+    projectId: string | null;
+    name: string;
+    version: number;
+    type: EvalTemplateType;
+    prompt: string | null;
+    model: string;
+    provider: string;
+    modelParams: Record<string, unknown>;
+    outputDefinition: Record<string, string> | null;
+    sourceCode: string | null;
+    sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
+    vars: string[];
+    createdAt: Date;
+    updatedAt: Date;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? `template-${randomUUID()}`,
+    projectId:
+      "projectId" in overrides ? overrides.projectId : "test-project-123",
+    name: overrides.name ?? "Test Evaluator",
+    version: overrides.version ?? 1,
+    type: overrides.type ?? EvalTemplateType.LLM_AS_JUDGE,
+    prompt:
+      "prompt" in overrides
+        ? overrides.prompt
+        : "Evaluate the following output: {{output}}. Score 0-1.",
+    model: overrides.model ?? "gpt-4",
+    provider: overrides.provider ?? "openai",
+    modelParams: overrides.modelParams ?? {},
+    outputDefinition:
+      "outputDefinition" in overrides
+        ? overrides.outputDefinition
+        : {
+            score: "A number between 0 and 1",
+            reasoning: "Explain your reasoning",
+          },
+    sourceCode: overrides.sourceCode ?? null,
+    sourceCodeLanguage: overrides.sourceCodeLanguage ?? null,
+    vars: overrides.vars ?? ["output"],
+    createdAt: overrides.createdAt ?? new Date(),
+    updatedAt: overrides.updatedAt ?? new Date(),
+  };
+}
+
+/**
  * Creates a mock job configuration record.
  * Use evalTemplate option to include a nested template (for Prisma include queries).
  */
@@ -282,57 +332,6 @@ export function createMockJobConfiguration(
         ? overrides.evalTemplate
         : createMockEvalTemplate({ id: templateId, projectId }),
     project: { orgId: "test-org-123" },
-  };
-}
-
-/**
- * Creates a mock eval template record.
- */
-export function createMockEvalTemplate(
-  overrides: Partial<{
-    id: string;
-    projectId: string | null;
-    name: string;
-    version: number;
-    type: EvalTemplateType;
-    prompt: string | null;
-    model: string;
-    provider: string;
-    modelParams: Record<string, unknown>;
-    outputDefinition: Record<string, string> | null;
-    sourceCode: string | null;
-    sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
-    vars: string[];
-    createdAt: Date;
-    updatedAt: Date;
-  }> = {},
-) {
-  return {
-    id: overrides.id ?? `template-${randomUUID()}`,
-    projectId:
-      "projectId" in overrides ? overrides.projectId : "test-project-123",
-    name: overrides.name ?? "Test Evaluator",
-    version: overrides.version ?? 1,
-    type: overrides.type ?? EvalTemplateType.LLM_AS_JUDGE,
-    prompt:
-      "prompt" in overrides
-        ? overrides.prompt
-        : "Evaluate the following output: {{output}}. Score 0-1.",
-    model: overrides.model ?? "gpt-4",
-    provider: overrides.provider ?? "openai",
-    modelParams: overrides.modelParams ?? {},
-    outputDefinition:
-      "outputDefinition" in overrides
-        ? overrides.outputDefinition
-        : {
-            score: "A number between 0 and 1",
-            reasoning: "Explain your reasoning",
-          },
-    sourceCode: overrides.sourceCode ?? null,
-    sourceCodeLanguage: overrides.sourceCodeLanguage ?? null,
-    vars: overrides.vars ?? ["output"],
-    createdAt: overrides.createdAt ?? new Date(),
-    updatedAt: overrides.updatedAt ?? new Date(),
   };
 }
 

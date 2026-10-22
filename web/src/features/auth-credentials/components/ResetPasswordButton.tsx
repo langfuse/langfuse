@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +14,18 @@ import {
   TurnstileWidget,
   type TurnstileWidgetHandle,
 } from "@/src/features/auth/components/TurnstileWidget";
+
+// NextAuth's email sign-in catch puts the thrown Error into the query via
+// URLSearchParams, which stringifies it as "Error: <message>".
+function resetEmailSignInError(error: string): string {
+  if (error === "AccessDenied") {
+    return "This email is not associated with any account.";
+  }
+  if (error.includes(TURNSTILE_FAILED_MESSAGE)) {
+    return TURNSTILE_FAILED_MESSAGE;
+  }
+  return error;
+}
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -149,16 +161,4 @@ export function RequestResetPasswordEmailButton({
       )}
     </>
   );
-}
-
-// NextAuth's email sign-in catch puts the thrown Error into the query via
-// URLSearchParams, which stringifies it as "Error: <message>".
-function resetEmailSignInError(error: string): string {
-  if (error === "AccessDenied") {
-    return "This email is not associated with any account.";
-  }
-  if (error.includes(TURNSTILE_FAILED_MESSAGE)) {
-    return TURNSTILE_FAILED_MESSAGE;
-  }
-  return error;
 }

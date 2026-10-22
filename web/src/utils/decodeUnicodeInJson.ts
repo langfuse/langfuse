@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 // Guards to keep decoding bounded on very large payloads. Exceeding either
@@ -14,6 +13,33 @@ export const DECODE_UNICODE_MAX_DEPTH = 200;
 // decode it here — so we must re-apply the same guard on the decoded key to
 // avoid assigning to Object.prototype accessors (e.g. the __proto__ setter).
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function assignDecodedOrDescend(
+  v: unknown,
+  depth: number,
+  stack: Array<{
+    source: unknown[] | Record<string, unknown>;
+    target: unknown[] | Record<string, unknown>;
+    depth: number;
+  }>,
+): unknown {
+  if (typeof v === "string") {
+    return decodeUnicodeEscapesOnly(v, true);
+  }
+  if (v === null || typeof v !== "object") {
+    return v;
+  }
+  if (depth + 1 > DECODE_UNICODE_MAX_DEPTH) {
+    return v; // bail on deeper subtrees to avoid runaway work
+  }
+  const child: unknown[] | Record<string, unknown> = Array.isArray(v) ? [] : {};
+  stack.push({
+    source: v as unknown[] | Record<string, unknown>,
+    target: child,
+    depth: depth + 1,
+  });
+  return child;
+}
 
 /**
  * Iteratively decode \uXXXX escape sequences in all string values of a parsed JSON
@@ -92,31 +118,4 @@ export function decodeUnicodeInJson(value: unknown): unknown {
   }
 
   return root;
-}
-
-function assignDecodedOrDescend(
-  v: unknown,
-  depth: number,
-  stack: Array<{
-    source: unknown[] | Record<string, unknown>;
-    target: unknown[] | Record<string, unknown>;
-    depth: number;
-  }>,
-): unknown {
-  if (typeof v === "string") {
-    return decodeUnicodeEscapesOnly(v, true);
-  }
-  if (v === null || typeof v !== "object") {
-    return v;
-  }
-  if (depth + 1 > DECODE_UNICODE_MAX_DEPTH) {
-    return v; // bail on deeper subtrees to avoid runaway work
-  }
-  const child: unknown[] | Record<string, unknown> = Array.isArray(v) ? [] : {};
-  stack.push({
-    source: v as unknown[] | Record<string, unknown>,
-    target: child,
-    depth: depth + 1,
-  });
-  return child;
 }

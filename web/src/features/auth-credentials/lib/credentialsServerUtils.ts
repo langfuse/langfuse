@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
@@ -16,6 +15,10 @@ function hashEmailOtpToken(token: string) {
   return createHash("sha256")
     .update(`${token}${env.NEXTAUTH_SECRET}`)
     .digest("hex");
+}
+
+function isValidPassword(password: string) {
+  return password.length >= 8;
 }
 
 /**
@@ -128,8 +131,4 @@ export async function consumeEmailOtpAndUpdatePassword({
       message: "Invalid or expired verification code.",
     });
   }
-}
-
-function isValidPassword(password: string) {
-  return password.length >= 8;
 }

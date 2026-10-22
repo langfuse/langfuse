@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
@@ -18,17 +17,6 @@ import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBr
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
-
-export default function DatasetItemsPage() {
-  const route = useReadyRouteParams(["projectId", "datasetId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
-  return (
-    <DatasetItemsView
-      projectId={route.params.projectId}
-      datasetId={route.params.datasetId}
-    />
-  );
-}
 
 function DatasetItemsView({
   projectId,
@@ -180,5 +168,16 @@ function DatasetItemsView({
         </div>
       )}
     </Page>
+  );
+}
+
+export default function DatasetItemsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
   );
 }

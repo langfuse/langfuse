@@ -1,9 +1,20 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { InAppAgentQuestionnaireResult } from "@langfuse/shared/in-app-agent";
 
 export type InAppAgentQuestionnaireSummaryProps = {
   answers: InAppAgentQuestionnaireResult["answers"];
 };
+
+function QuestionnaireSummaryAnswer({
+  answer,
+}: {
+  answer: InAppAgentQuestionnaireResult["answers"][number];
+}) {
+  if (answer.skipped) {
+    return <dd className="text-muted-foreground italic">Skipped</dd>;
+  }
+
+  return <dd className="text-foreground">{answer.answer.join(", ")}</dd>;
+}
 
 export function InAppAgentQuestionnaireSummary({
   answers,
@@ -18,16 +29,4 @@ export function InAppAgentQuestionnaireSummary({
       ))}
     </dl>
   );
-}
-
-function QuestionnaireSummaryAnswer({
-  answer,
-}: {
-  answer: InAppAgentQuestionnaireResult["answers"][number];
-}) {
-  if (answer.skipped) {
-    return <dd className="text-muted-foreground italic">Skipped</dd>;
-  }
-
-  return <dd className="text-foreground">{answer.answer.join(", ")}</dd>;
 }

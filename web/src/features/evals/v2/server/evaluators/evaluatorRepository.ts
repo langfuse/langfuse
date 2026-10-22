@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTemplateType,
   Prisma,
@@ -297,6 +296,24 @@ async function evaluatorWhere(params: {
   };
 }
 
+function getEffectiveModel(
+  evaluator: {
+    type: EvalTemplateType;
+    versions: Array<{ model: string | null }>;
+  },
+  defaultModel: string | null | undefined,
+): string | null {
+  switch (evaluator.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return evaluator.versions[0]?.model ?? defaultModel ?? null;
+    case EvalTemplateType.DECISION_MODEL:
+      return evaluator.versions[0]?.model ?? null;
+    case EvalTemplateType.CODE:
+    case EvalTemplateType.FACET:
+      return null;
+  }
+}
+
 export async function listEvaluators(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -351,24 +368,6 @@ export async function listEvaluators(params: {
     })),
     totalItems,
   };
-}
-
-function getEffectiveModel(
-  evaluator: {
-    type: EvalTemplateType;
-    versions: Array<{ model: string | null }>;
-  },
-  defaultModel: string | null | undefined,
-): string | null {
-  switch (evaluator.type) {
-    case EvalTemplateType.LLM_AS_JUDGE:
-      return evaluator.versions[0]?.model ?? defaultModel ?? null;
-    case EvalTemplateType.DECISION_MODEL:
-      return evaluator.versions[0]?.model ?? null;
-    case EvalTemplateType.CODE:
-    case EvalTemplateType.FACET:
-      return null;
-  }
 }
 
 export async function listEvaluatorsCursor(params: {

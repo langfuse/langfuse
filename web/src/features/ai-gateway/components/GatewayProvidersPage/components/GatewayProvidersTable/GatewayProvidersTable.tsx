@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
@@ -30,6 +30,29 @@ const connectionStatus = {
   ERROR: "error",
   DISABLED: "disabled",
 } as const satisfies Record<GatewayConnection["status"], string>;
+
+function ProviderName({ provider }: { provider: GatewayProvider }) {
+  return (
+    <div className="flex items-center gap-2">
+      <GatewayProviderMark provider={provider} />
+      <span>{providerLabels[provider]}</span>
+    </div>
+  );
+}
+
+function ModelCount({
+  value,
+}: {
+  value: { enabled: number; total: number } | "loading" | undefined;
+}) {
+  if (value === "loading") return <>Loading…</>;
+  if (value === undefined) return <>—</>;
+  return (
+    <>
+      {value.enabled} of {value.total} enabled
+    </>
+  );
+}
 
 export function GatewayProvidersTable({
   connections,
@@ -121,28 +144,5 @@ export function GatewayProvidersTable({
       onRowClick={onSelect}
       noResultsMessage="No provider credentials configured."
     />
-  );
-}
-
-function ModelCount({
-  value,
-}: {
-  value: { enabled: number; total: number } | "loading" | undefined;
-}) {
-  if (value === "loading") return <>Loading…</>;
-  if (value === undefined) return <>—</>;
-  return (
-    <>
-      {value.enabled} of {value.total} enabled
-    </>
-  );
-}
-
-function ProviderName({ provider }: { provider: GatewayProvider }) {
-  return (
-    <div className="flex items-center gap-2">
-      <GatewayProviderMark provider={provider} />
-      <span>{providerLabels[provider]}</span>
-    </div>
   );
 }

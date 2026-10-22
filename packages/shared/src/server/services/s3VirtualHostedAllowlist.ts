@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BLOB_STORAGE_REGION_REGEX } from "../../utils/stringChecks";
 import {
   type OutboundUrlValidationWhitelist,
@@ -17,30 +16,6 @@ export type S3VirtualHostTarget = {
   region?: string | null;
 };
 
-/** withS3VirtualHostedBucket trusts `{bucket}.{allowlisted endpoint}` and rejects other names under that parent. */
-export function withS3VirtualHostedBucket(
-  whitelist: OutboundUrlValidationWhitelist,
-  target?: S3VirtualHostTarget,
-): OutboundUrlValidationWhitelist {
-  const allowedHosts = whitelist.allowedHosts ?? [];
-  const bucketName = target?.bucketName?.trim() ?? "";
-  if (
-    allowedHosts.length === 0 ||
-    !target ||
-    target.forcePathStyle ||
-    !isDnsCompatibleBucketName(bucketName)
-  ) {
-    return whitelist;
-  }
-
-  const virtualHosts = virtualHostedNames(target, bucketName, allowedHosts);
-  if (virtualHosts.length === 0) return whitelist;
-  return {
-    ...whitelist,
-    allowedHosts: [...allowedHosts, ...virtualHosts],
-  };
-}
-
 function isDnsCompatibleBucketName(bucketName: string): boolean {
   return (
     DNS_COMPATIBLE_BUCKET_NAME.test(bucketName) &&
@@ -49,24 +24,8 @@ function isDnsCompatibleBucketName(bucketName: string): boolean {
   );
 }
 
-function virtualHostedNames(
-  target: S3VirtualHostTarget,
-  bucketName: string,
-  allowedHosts: string[],
-): string[] {
-  const names: string[] = [];
-  for (const base of addressBases(target)) {
-    // HTTPS virtual-hosting skips bucket names that contain a dot; the SDK
-    // keeps the endpoint host so the certificate still matches.
-    if (base.https && bucketName.includes(".")) continue;
-    if (!allowedHosts.includes(base.hostname)) continue;
-    const virtualHost = `${bucketName}.${base.hostname}`;
-    if (allowedHosts.includes(virtualHost) || names.includes(virtualHost)) {
-      continue;
-    }
-    names.push(virtualHost);
-  }
-  return names;
+function isIpHostname(hostname: string): boolean {
+  return hostname.startsWith("[") || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
 }
 
 function addressBases(
@@ -95,6 +54,46 @@ function addressBases(
   return bases;
 }
 
-function isIpHostname(hostname: string): boolean {
-  return hostname.startsWith("[") || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+function virtualHostedNames(
+  target: S3VirtualHostTarget,
+  bucketName: string,
+  allowedHosts: string[],
+): string[] {
+  const names: string[] = [];
+  for (const base of addressBases(target)) {
+    // HTTPS virtual-hosting skips bucket names that contain a dot; the SDK
+    // keeps the endpoint host so the certificate still matches.
+    if (base.https && bucketName.includes(".")) continue;
+    if (!allowedHosts.includes(base.hostname)) continue;
+    const virtualHost = `${bucketName}.${base.hostname}`;
+    if (allowedHosts.includes(virtualHost) || names.includes(virtualHost)) {
+      continue;
+    }
+    names.push(virtualHost);
+  }
+  return names;
+}
+
+/** withS3VirtualHostedBucket trusts `{bucket}.{allowlisted endpoint}` and rejects other names under that parent. */
+export function withS3VirtualHostedBucket(
+  whitelist: OutboundUrlValidationWhitelist,
+  target?: S3VirtualHostTarget,
+): OutboundUrlValidationWhitelist {
+  const allowedHosts = whitelist.allowedHosts ?? [];
+  const bucketName = target?.bucketName?.trim() ?? "";
+  if (
+    allowedHosts.length === 0 ||
+    !target ||
+    target.forcePathStyle ||
+    !isDnsCompatibleBucketName(bucketName)
+  ) {
+    return whitelist;
+  }
+
+  const virtualHosts = virtualHostedNames(target, bucketName, allowedHosts);
+  if (virtualHosts.length === 0) return whitelist;
+  return {
+    ...whitelist,
+    allowedHosts: [...allowedHosts, ...virtualHosts],
+  };
 }

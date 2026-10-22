@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
@@ -20,6 +19,20 @@ type HasOrganizationAccessParams =
       organizationId: string;
       scope: OrganizationScope;
     };
+
+// For use in UI components as function, if session is already available
+export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
+  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
+  if (isAdmin) return true;
+
+  const organizationRole: Role | undefined = hasOwnRole(p)
+    ? p.role
+    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
+        ?.role;
+  if (organizationRole === undefined) return false;
+
+  return organizationRoleAccessRights[organizationRole].includes(p.scope);
+}
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
@@ -54,17 +67,3 @@ export const useHasOrganizationAccess = (p: {
     organizationId,
   });
 };
-
-// For use in UI components as function, if session is already available
-export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
-
-  const organizationRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
-        ?.role;
-  if (organizationRole === undefined) return false;
-
-  return organizationRoleAccessRights[organizationRole].includes(p.scope);
-}

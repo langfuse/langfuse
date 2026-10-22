@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isPrismaException } from "@/src/utils/exceptions";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -86,6 +85,26 @@ const logBaseError = (error: BaseError) => {
 
   logger.error(error);
 };
+
+/** deprecationForRequest returns the requested handler's deprecation on Cloud; for a method the route lacks, it returns one only when every handler is deprecated. */
+function deprecationForRequest(
+  handlers: Handlers,
+  method: HttpMethod,
+): ApiDeprecationInfo | undefined {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return undefined;
+  const handler = handlers[method];
+  if (handler) return handler.deprecation;
+  const defined = Object.values(handlers).filter(
+    (h): h is RouteHandler => h !== undefined,
+  );
+  return defined.every((h) => h.deprecation)
+    ? defined[0]?.deprecation
+    : undefined;
+}
+
+export function isZodError(error: any): error is ZodError {
+  return error instanceof Object && error.constructor.name === "ZodError";
+}
 
 export function withMiddlewares(
   handlers: Handlers,
@@ -218,24 +237,4 @@ export function withMiddlewares(
       }
     });
   };
-}
-
-/** deprecationForRequest returns the requested handler's deprecation on Cloud; for a method the route lacks, it returns one only when every handler is deprecated. */
-function deprecationForRequest(
-  handlers: Handlers,
-  method: HttpMethod,
-): ApiDeprecationInfo | undefined {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return undefined;
-  const handler = handlers[method];
-  if (handler) return handler.deprecation;
-  const defined = Object.values(handlers).filter(
-    (h): h is RouteHandler => h !== undefined,
-  );
-  return defined.every((h) => h.deprecation)
-    ? defined[0]?.deprecation
-    : undefined;
-}
-
-export function isZodError(error: any): error is ZodError {
-  return error instanceof Object && error.constructor.name === "ZodError";
 }

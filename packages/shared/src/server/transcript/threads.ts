@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import type { Thread, ThreadMessage } from "./types";
 import type { OrderedObservation } from "./ordering";
@@ -47,6 +46,25 @@ export function findThread(threads: ThreadState[], input: PreparedMessage[]) {
   });
 }
 
+export function addContributor(
+  thread: ThreadState,
+  observation: TranscriptObservation,
+) {
+  if (
+    !thread.contributors.some(
+      ({ id, traceId }) =>
+        id === observation.id && traceId === observation.traceId,
+    )
+  ) {
+    thread.contributors.push({
+      id: observation.id,
+      traceId: observation.traceId,
+      type: observation.type,
+      nestingLevel: observation.nestingLevel,
+    });
+  }
+}
+
 /**
  * Append a generation's messages. The n-th input occurrence of a key repeats
  * the n-th message the thread already shows with that key. If only enrichment
@@ -91,25 +109,6 @@ export function append(
       }
     }
     calls.attach(results);
-  }
-}
-
-export function addContributor(
-  thread: ThreadState,
-  observation: TranscriptObservation,
-) {
-  if (
-    !thread.contributors.some(
-      ({ id, traceId }) =>
-        id === observation.id && traceId === observation.traceId,
-    )
-  ) {
-    thread.contributors.push({
-      id: observation.id,
-      traceId: observation.traceId,
-      type: observation.type,
-      nestingLevel: observation.nestingLevel,
-    });
   }
 }
 

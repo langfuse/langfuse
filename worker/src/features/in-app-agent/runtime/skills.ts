@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createSkill } from "@mastra/core/skills";
 import pLimit from "p-limit";
 import { z } from "zod/v4";
@@ -24,51 +23,6 @@ type SkillsConfig = {
   secretKey?: string;
   signal?: AbortSignal;
 };
-
-/** Merge hosted instructions into bundled skills, with hosted names taking precedence. */
-export async function loadInAppAgentSkills(config: SkillsConfig): Promise<{
-  skills: typeof LANGFUSE_IN_APP_AGENT_SKILLS;
-}> {
-  if (!config.tag) return { skills: LANGFUSE_IN_APP_AGENT_SKILLS };
-
-  const controller = new AbortController();
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    timeout = setTimeout(
-      () => controller.abort(new Error("Managed assistant skills timed out")),
-      5_000,
-    );
-    const signal = config.signal
-      ? AbortSignal.any([config.signal, controller.signal])
-      : controller.signal;
-    const { skills: managedSkills } = await loadManagedCatalogue(
-      { ...config, signal },
-      config.tag,
-    );
-    signal.throwIfAborted();
-    return {
-      skills: [
-        ...new Map(
-          [...LANGFUSE_IN_APP_AGENT_SKILLS, ...managedSkills].map((skill) => [
-            skill.name,
-            skill,
-          ]),
-        ).values(),
-      ],
-    };
-  } catch (error) {
-    logger.warn(
-      "Failed to load managed assistant skills; using bundled skills",
-      {
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-    );
-    return { skills: LANGFUSE_IN_APP_AGENT_SKILLS };
-  } finally {
-    clearTimeout(timeout);
-    controller.abort();
-  }
-}
 
 async function loadManagedCatalogue(config: SkillsConfig, tag: string) {
   if (!config.publicKey || !config.secretKey) {
@@ -156,4 +110,49 @@ async function loadManagedCatalogue(config: SkillsConfig, tag: string) {
     if (!catalogue.meta.hasNextPage) break;
   }
   return { skills };
+}
+
+/** Merge hosted instructions into bundled skills, with hosted names taking precedence. */
+export async function loadInAppAgentSkills(config: SkillsConfig): Promise<{
+  skills: typeof LANGFUSE_IN_APP_AGENT_SKILLS;
+}> {
+  if (!config.tag) return { skills: LANGFUSE_IN_APP_AGENT_SKILLS };
+
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    timeout = setTimeout(
+      () => controller.abort(new Error("Managed assistant skills timed out")),
+      5_000,
+    );
+    const signal = config.signal
+      ? AbortSignal.any([config.signal, controller.signal])
+      : controller.signal;
+    const { skills: managedSkills } = await loadManagedCatalogue(
+      { ...config, signal },
+      config.tag,
+    );
+    signal.throwIfAborted();
+    return {
+      skills: [
+        ...new Map(
+          [...LANGFUSE_IN_APP_AGENT_SKILLS, ...managedSkills].map((skill) => [
+            skill.name,
+            skill,
+          ]),
+        ).values(),
+      ],
+    };
+  } catch (error) {
+    logger.warn(
+      "Failed to load managed assistant skills; using bundled skills",
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    );
+    return { skills: LANGFUSE_IN_APP_AGENT_SKILLS };
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
 }

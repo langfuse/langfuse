@@ -1,7 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { FilterNode } from "./ast";
 import type { FieldRegistry, FilterTargeting } from "./fields";
 import { quote, quoteIfNeeded, unquote } from "./quoting";
+
+export function targetReference(
+  target: FilterTargeting["targets"][number],
+): NonNullable<FilterNode["target"]> {
+  return { kind: target.keyword ? "keyword" : "name", value: target.label };
+}
 
 /** The target is separate from the field path, including during partial input. */
 export function readTargetPrefix(
@@ -64,6 +69,26 @@ export function readTargetPrefix(
   return null;
 }
 
+/** Presence predicates inherit the capability of the fields they inspect. */
+export function supportsFilterTarget(
+  node: FilterNode,
+  registry: FieldRegistry,
+): boolean {
+  const capability = registry.targeting;
+  if (!capability) return false;
+  const field = registry.resolveField(node.key);
+  if (field?.type === "pseudo" && field.id === "has") {
+    return (
+      node.values.length > 0 &&
+      node.values.every((value) => {
+        const referenced = registry.resolveField(value);
+        return referenced !== null && capability.supports(referenced);
+      })
+    );
+  }
+  return field !== null && capability.supports(field);
+}
+
 export function resolveFilterTarget(
   node: FilterNode,
   registry: FieldRegistry,
@@ -93,26 +118,6 @@ export function resolveFilterTarget(
   return { id: matches[0].id };
 }
 
-/** Presence predicates inherit the capability of the fields they inspect. */
-export function supportsFilterTarget(
-  node: FilterNode,
-  registry: FieldRegistry,
-): boolean {
-  const capability = registry.targeting;
-  if (!capability) return false;
-  const field = registry.resolveField(node.key);
-  if (field?.type === "pseudo" && field.id === "has") {
-    return (
-      node.values.length > 0 &&
-      node.values.every((value) => {
-        const referenced = registry.resolveField(value);
-        return referenced !== null && capability.supports(referenced);
-      })
-    );
-  }
-  return field !== null && capability.supports(field);
-}
-
 /**
  * Resolve the registry target this filter binds to, or undefined when the
  * field is not targetable and the node carries no explicit target.
@@ -125,12 +130,6 @@ export function resolveAttachedTarget(
     return undefined;
   }
   return resolveFilterTarget(node, registry);
-}
-
-export function targetReference(
-  target: FilterTargeting["targets"][number],
-): NonNullable<FilterNode["target"]> {
-  return { kind: target.keyword ? "keyword" : "name", value: target.label };
 }
 
 export function serializeTarget(

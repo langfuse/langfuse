@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -243,6 +242,45 @@ const processPostHogEvents = async (
     transformEventForPostHog,
   );
 };
+
+// Terminal "export disabled" notification. Called at most once per broken
+// integration, guarded by the atomic enabled true→false claim, so it needs no
+// cooldown of its own (matching blob's disabled path, which also bypasses it).
+// Swallows every failure: notification trouble must not turn the deliberate
+// RESOLVE back into a job failure. projectName/host are passed in rather than
+// re-read — the caller already holds them.
+async function notifyPostHogExportFailed(
+  projectId: string,
+  projectName: string,
+  host: string,
+): Promise<void> {
+  try {
+    const settingsPath = `/project/${projectId}/settings/integrations/posthog`;
+    await dispatchProjectNotification({
+      projectId,
+      event: {
+        eventType: "posthog-export-failed",
+        severity: "ALERT",
+        projectId,
+        projectName,
+        // The integration is keyed by projectId (1:1); the host is the most
+        // useful human label for the failing export destination.
+        resourceId: projectId,
+        resourceName: host || "PostHog integration",
+        message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
+        url: env.NEXTAUTH_URL
+          ? `${env.NEXTAUTH_URL}${settingsPath}`
+          : undefined,
+        disabled: true,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      `[POSTHOG] Failed to send failure notification for project ${projectId}`,
+      error,
+    );
+  }
+}
 
 export const handlePostHogIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.PostHogIntegrationProcessingQueue]>,
@@ -533,42 +571,3 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 };
-
-// Terminal "export disabled" notification. Called at most once per broken
-// integration, guarded by the atomic enabled true→false claim, so it needs no
-// cooldown of its own (matching blob's disabled path, which also bypasses it).
-// Swallows every failure: notification trouble must not turn the deliberate
-// RESOLVE back into a job failure. projectName/host are passed in rather than
-// re-read — the caller already holds them.
-async function notifyPostHogExportFailed(
-  projectId: string,
-  projectName: string,
-  host: string,
-): Promise<void> {
-  try {
-    const settingsPath = `/project/${projectId}/settings/integrations/posthog`;
-    await dispatchProjectNotification({
-      projectId,
-      event: {
-        eventType: "posthog-export-failed",
-        severity: "ALERT",
-        projectId,
-        projectName,
-        // The integration is keyed by projectId (1:1); the host is the most
-        // useful human label for the failing export destination.
-        resourceId: projectId,
-        resourceName: host || "PostHog integration",
-        message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
-        url: env.NEXTAUTH_URL
-          ? `${env.NEXTAUTH_URL}${settingsPath}`
-          : undefined,
-        disabled: true,
-      },
-    });
-  } catch (error) {
-    logger.error(
-      `[POSTHOG] Failed to send failure notification for project ${projectId}`,
-      error,
-    );
-  }
-}

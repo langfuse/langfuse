@@ -1,33 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { type AutomaticProcessingState } from "./AutomaticProcessingControl";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
-
-/**
- * Automatic processing status and its single write. The paused notice's
- * "Keep off" and the dialog's Save share it, so writes never overlap.
- */
-export function useAutomaticProcessing({
-  projectId,
-  rule,
-  stored,
-}: {
-  projectId: string;
-  rule: TopicRule | null;
-  stored: StoredSettings | undefined;
-}) {
-  const mutation = useSetAutomaticProcessing(projectId);
-  return {
-    state: automaticProcessingState(stored, rule),
-    clearPause: () => mutation.mutate({ projectId, enabled: false }),
-    save: (input: { enabled: boolean; sampling: number }) =>
-      mutation.mutateAsync({ projectId, ...input }),
-    saving: mutation.isPending,
-  };
-}
 
 function useSetAutomaticProcessing(projectId: string) {
   const utils = api.useUtils();
@@ -55,4 +31,27 @@ export function automaticProcessingState(
     };
   if (stored.enabled) return { status: "on" };
   return { status: "off" };
+}
+
+/**
+ * Automatic processing status and its single write. The paused notice's
+ * "Keep off" and the dialog's Save share it, so writes never overlap.
+ */
+export function useAutomaticProcessing({
+  projectId,
+  rule,
+  stored,
+}: {
+  projectId: string;
+  rule: TopicRule | null;
+  stored: StoredSettings | undefined;
+}) {
+  const mutation = useSetAutomaticProcessing(projectId);
+  return {
+    state: automaticProcessingState(stored, rule),
+    clearPause: () => mutation.mutate({ projectId, enabled: false }),
+    save: (input: { enabled: boolean; sampling: number }) =>
+      mutation.mutateAsync({ projectId, ...input }),
+    saving: mutation.isPending,
+  };
 }

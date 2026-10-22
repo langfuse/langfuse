@@ -1,9 +1,16 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type FieldRef,
   type FilterTargeting,
 } from "@/src/features/search-bar/lib/fields";
 import { getExperimentColorStyles } from "@/src/features/experiments/components/table/types";
+
+function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
+  return (
+    field.type === "scores" ||
+    field.type === "metadata" ||
+    (field.type === "field" && field.field.id === "level")
+  );
+}
 
 export function experimentItemsFilterTargeting({
   baselineId,
@@ -81,12 +88,4 @@ export function experimentItemsFilterTargeting({
     ],
     supports: supportsExperimentItemFilterTarget,
   };
-}
-
-function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
-  return (
-    field.type === "scores" ||
-    field.type === "metadata" ||
-    (field.type === "field" && field.field.id === "level")
-  );
 }

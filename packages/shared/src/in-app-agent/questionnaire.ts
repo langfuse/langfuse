@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 4;
@@ -95,6 +94,38 @@ export type InAppAgentQuestionnaireResult = z.infer<
   typeof InAppAgentQuestionnaireResultSchema
 >;
 
+function getOtherText(answer: InAppAgentQuestionnaireAnswer): string | null {
+  return answer.otherText?.trim() || null;
+}
+
+function isValidAnswer(
+  question: InAppAgentQuestionnaireQuestion,
+  answer: InAppAgentQuestionnaireAnswer,
+): boolean {
+  const { selectedOptionIndexes } = answer;
+  const isOutOfRange = selectedOptionIndexes.some(
+    (optionIndex) => optionIndex >= question.options.length,
+  );
+  if (isOutOfRange) {
+    return false;
+  }
+
+  const answerCount =
+    selectedOptionIndexes.length + (getOtherText(answer) ? 1 : 0);
+  return question.allowMultiple || answerCount <= 1;
+}
+
+function toAnswerLabels(
+  question: InAppAgentQuestionnaireQuestion,
+  answer: InAppAgentQuestionnaireAnswer,
+): string[] {
+  const labels = answer.selectedOptionIndexes.map(
+    (optionIndex) => question.options[optionIndex].label,
+  );
+  const otherText = getOtherText(answer);
+  return otherText === null ? labels : [...labels, otherText];
+}
+
 /**
  * Answers schema bound to the questions the model asked. Parsing checks every
  * answer against its question and outputs the tool result the model reads.
@@ -166,36 +197,4 @@ export function resolveInAppAgentQuestionnaireAnswers({
   }
 
   return { success: true, result: parsedAnswers.data };
-}
-
-function getOtherText(answer: InAppAgentQuestionnaireAnswer): string | null {
-  return answer.otherText?.trim() || null;
-}
-
-function isValidAnswer(
-  question: InAppAgentQuestionnaireQuestion,
-  answer: InAppAgentQuestionnaireAnswer,
-): boolean {
-  const { selectedOptionIndexes } = answer;
-  const isOutOfRange = selectedOptionIndexes.some(
-    (optionIndex) => optionIndex >= question.options.length,
-  );
-  if (isOutOfRange) {
-    return false;
-  }
-
-  const answerCount =
-    selectedOptionIndexes.length + (getOtherText(answer) ? 1 : 0);
-  return question.allowMultiple || answerCount <= 1;
-}
-
-function toAnswerLabels(
-  question: InAppAgentQuestionnaireQuestion,
-  answer: InAppAgentQuestionnaireAnswer,
-): string[] {
-  const labels = answer.selectedOptionIndexes.map(
-    (optionIndex) => question.options[optionIndex].label,
-  );
-  const otherText = getOtherText(answer);
-  return otherText === null ? labels : [...labels, otherText];
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job, Processor } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { z } from "zod";
@@ -63,6 +62,23 @@ export function shouldProcessLegacyOtelMedia(params: {
   writesToLegacyTables: boolean;
 }): boolean {
   return params.mediaUploadEnabled && params.writesToLegacyTables;
+}
+
+function extractBaseSdkVersion(sdkVersion: string): string {
+  const version = sdkVersion.trim();
+
+  // Standard semver / semver pre-release / build metadata
+  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
+    return version.split(/[-+]/)[0];
+  }
+
+  // Python PEP 440 pre-release shorthand: 4.0.0a1, 4.0.0b1, 4.0.0rc1
+  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
+  if (pep440Match?.[1]) {
+    return pep440Match[1];
+  }
+
+  return version;
 }
 
 /**
@@ -331,23 +347,6 @@ export function resolveOtelWritePath(params: {
   return { useDirectEventWrite: false, writePath: "dual" };
 }
 
-function extractBaseSdkVersion(sdkVersion: string): string {
-  const version = sdkVersion.trim();
-
-  // Standard semver / semver pre-release / build metadata
-  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
-    return version.split(/[-+]/)[0];
-  }
-
-  // Python PEP 440 pre-release shorthand: 4.0.0a1, 4.0.0b1, 4.0.0rc1
-  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
-  if (pep440Match?.[1]) {
-    return pep440Match[1];
-  }
-
-  return version;
-}
-
 /**
  * SDK information extracted from OTEL resourceSpans.
  */
@@ -430,6 +429,77 @@ export function checkSdkVersionRequirements(
       error,
     );
     return false;
+  }
+}
+
+function combineOtelMediaPresence(
+  current: OtelMediaPresence | undefined,
+  next: OtelMediaPresence,
+): OtelMediaPresence {
+  if (current === "present" || next === "present") return "present";
+  if (current === "unknown" || next === "unknown") return "unknown";
+  return "absent";
+}
+
+function setOtelInputPreparationSpanAttributes(
+  span: ReturnType<typeof getCurrentSpan>,
+  params: {
+    durationMs?: number;
+    mediaPath?: "early" | "reference";
+    mediaPresence?: OtelMediaPresence;
+  },
+): void {
+  if (params.mediaPath) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.media_presence",
+      params.mediaPresence ?? "unknown",
+    );
+    if (params.mediaPresence && params.mediaPresence !== "unknown") {
+      span?.setAttribute(
+        "langfuse.ingestion.otel.media_detected",
+        params.mediaPresence === "present",
+      );
+    }
+  }
+  if (params.durationMs !== undefined) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.input_preparation_duration_ms",
+      params.durationMs,
+    );
+  }
+}
+
+function recordOtelInputPreparationMetrics(params: {
+  durationMs?: number;
+  mediaPath?: "early" | "reference";
+  mediaPresence?: OtelMediaPresence;
+  inputByteLength?: number;
+}): void {
+  if (params.durationMs === undefined || !params.mediaPath) return;
+
+  // The duration is captured after download and before event conversion.
+  // Media classification comes from the existing downstream detector.
+  const tags = {
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence ?? "unknown",
+  };
+  recordDistribution(
+    "langfuse.ingestion.otel.input_preparation_duration_ms",
+    params.durationMs,
+    tags,
+  );
+  recordIncrement("langfuse.ingestion.otel.input_preparation_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.input_preparation_duration_total_ms",
+    params.durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    recordIncrement(
+      "langfuse.ingestion.otel.input_preparation_bytes_total",
+      params.inputByteLength,
+      tags,
+    );
   }
 }
 
@@ -908,74 +978,3 @@ export const otelIngestionQueueProcessorBuilder = (
     }
   };
 };
-
-function combineOtelMediaPresence(
-  current: OtelMediaPresence | undefined,
-  next: OtelMediaPresence,
-): OtelMediaPresence {
-  if (current === "present" || next === "present") return "present";
-  if (current === "unknown" || next === "unknown") return "unknown";
-  return "absent";
-}
-
-function setOtelInputPreparationSpanAttributes(
-  span: ReturnType<typeof getCurrentSpan>,
-  params: {
-    durationMs?: number;
-    mediaPath?: "early" | "reference";
-    mediaPresence?: OtelMediaPresence;
-  },
-): void {
-  if (params.mediaPath) {
-    span?.setAttribute(
-      "langfuse.ingestion.otel.media_presence",
-      params.mediaPresence ?? "unknown",
-    );
-    if (params.mediaPresence && params.mediaPresence !== "unknown") {
-      span?.setAttribute(
-        "langfuse.ingestion.otel.media_detected",
-        params.mediaPresence === "present",
-      );
-    }
-  }
-  if (params.durationMs !== undefined) {
-    span?.setAttribute(
-      "langfuse.ingestion.otel.input_preparation_duration_ms",
-      params.durationMs,
-    );
-  }
-}
-
-function recordOtelInputPreparationMetrics(params: {
-  durationMs?: number;
-  mediaPath?: "early" | "reference";
-  mediaPresence?: OtelMediaPresence;
-  inputByteLength?: number;
-}): void {
-  if (params.durationMs === undefined || !params.mediaPath) return;
-
-  // The duration is captured after download and before event conversion.
-  // Media classification comes from the existing downstream detector.
-  const tags = {
-    media_path: params.mediaPath,
-    media_presence: params.mediaPresence ?? "unknown",
-  };
-  recordDistribution(
-    "langfuse.ingestion.otel.input_preparation_duration_ms",
-    params.durationMs,
-    tags,
-  );
-  recordIncrement("langfuse.ingestion.otel.input_preparation_sample", 1, tags);
-  recordIncrement(
-    "langfuse.ingestion.otel.input_preparation_duration_total_ms",
-    params.durationMs,
-    tags,
-  );
-  if (params.inputByteLength && params.inputByteLength > 0) {
-    recordIncrement(
-      "langfuse.ingestion.otel.input_preparation_bytes_total",
-      params.inputByteLength,
-      tags,
-    );
-  }
-}

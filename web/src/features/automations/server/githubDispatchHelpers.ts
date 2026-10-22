@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
@@ -18,6 +17,15 @@ interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;
   actionId?: string;
   projectId: string;
+}
+
+function maskGitHubToken(token: string): string {
+  if (token.length < 6) {
+    return token;
+  }
+  const prefix = token.substring(0, 4);
+  const suffix = token.substring(token.length - 1);
+  return `${prefix}...${suffix}`;
 }
 
 export async function processGitHubDispatchActionConfig({
@@ -147,13 +155,4 @@ export async function processGitHubDispatchActionConfig({
     },
     githubToken: returnToken,
   };
-}
-
-function maskGitHubToken(token: string): string {
-  if (token.length < 6) {
-    return token;
-  }
-  const prefix = token.substring(0, 4);
-  const suffix = token.substring(token.length - 1);
-  return `${prefix}...${suffix}`;
 }

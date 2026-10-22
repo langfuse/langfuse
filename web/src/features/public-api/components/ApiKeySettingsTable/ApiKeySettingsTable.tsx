@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
 import { Pencil, Trash } from "@langfuse/icons";
 
@@ -25,6 +24,22 @@ const GATEWAY_KEY_FILTER_OPTIONS = [
 export type ApiKeySettingsTableRow =
   | RouterOutput["projectApiKeys"]["byProjectId"][number]
   | RouterOutput["organizationApiKeys"]["byOrganizationId"][number];
+
+function toGatewayKeySettingsFilter({
+  includeGatewayKeys,
+  onIncludeGatewayKeysChange,
+}: GatewayKeyFilter): SettingsTableFilter {
+  return {
+    type: "select",
+    id: "gatewayKeys",
+    label: "Gateway keys",
+    placeholder: "Exclude gateway keys",
+    options: GATEWAY_KEY_FILTER_OPTIONS,
+    value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
+    onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
+    muted: !includeGatewayKeys,
+  };
+}
 
 export function ApiKeySettingsTable({
   editNameAction,
@@ -139,22 +154,6 @@ export function ApiKeySettingsTable({
       {...tableProps}
     />
   );
-}
-
-function toGatewayKeySettingsFilter({
-  includeGatewayKeys,
-  onIncludeGatewayKeysChange,
-}: GatewayKeyFilter): SettingsTableFilter {
-  return {
-    type: "select",
-    id: "gatewayKeys",
-    label: "Gateway keys",
-    placeholder: "Exclude gateway keys",
-    options: GATEWAY_KEY_FILTER_OPTIONS,
-    value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
-    onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
-    muted: !includeGatewayKeys,
-  };
 }
 
 type ApiKeySettingsTableProps = Pick<

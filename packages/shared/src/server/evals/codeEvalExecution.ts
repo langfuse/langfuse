@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { stringifyValue } from "../../utils/stringChecks";
 import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import {
@@ -38,6 +37,16 @@ const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
 
+function formatCodeEvalByteLimit(bytes: number): string {
+  const unit = bytes >= 1024 * 1024 ? "MB" : "KB";
+  const value = bytes / (unit === "MB" ? 1024 * 1024 : 1024);
+  const formattedValue = Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(1);
+
+  return `${formattedValue} ${unit}`;
+}
+
 const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
   Record<CodeEvalDispatcherErrorCode, string>
 > = {
@@ -60,16 +69,6 @@ const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
     `Evaluator result is too large. Code-based evaluator results are limited to ${formatCodeEvalByteLimit(CODE_EVAL_DISPATCH_RESULT_MAX_BYTES)}. Return fewer scores or smaller score values, comments, and metadata.`,
   ),
 };
-
-function formatCodeEvalByteLimit(bytes: number): string {
-  const unit = bytes >= 1024 * 1024 ? "MB" : "KB";
-  const value = bytes / (unit === "MB" ? 1024 * 1024 : 1024);
-  const formattedValue = Number.isInteger(value)
-    ? String(value)
-    : value.toFixed(1);
-
-  return `${formattedValue} ${unit}`;
-}
 
 export type CodeEvalUserVisibleErrorCode =
   | CodeEvalDispatcherErrorCode
@@ -208,6 +207,63 @@ export function getCodeEvalUserVisibleError(
   };
 }
 
+async function writeCodeEvalTraceSafely(params: {
+  writeTrace?: InternalTraceWriter;
+  trace: InternalTraceWriteInput;
+}) {
+  if (!params.writeTrace) return;
+
+  try {
+    await params.writeTrace(params.trace);
+  } catch (error) {
+    logger.warn("Failed to write internal trace for code eval execution", {
+      executionTraceId: params.trace.rootSpanId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function buildCodeEvalTraceInput(params: {
+  projectId: string;
+  executionTraceId: string;
+  traceStartTime: Date;
+  traceName: string;
+  payload: CodeEvalPayload;
+  output: unknown;
+  metadata: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
+  sourceCode: string;
+  level?: string;
+  statusMessage?: string;
+}): InternalTraceWriteInput {
+  const eventInput: InternalTraceEventInput = {
+    projectId: params.projectId,
+    traceId: params.executionTraceId,
+    spanId: params.executionTraceId,
+    startTimeISO: params.traceStartTime.toISOString(),
+    endTimeISO: new Date().toISOString(),
+    name: params.traceName,
+    traceName: params.traceName,
+    type: "SPAN",
+    environment: LangfuseInternalTraceEnvironment.CodeEval,
+    level: params.level ?? "DEFAULT",
+    statusMessage: params.statusMessage,
+    input: stringifyValue(params.payload),
+    output: stringifyValue(params.output),
+    metadata: {
+      ...params.metadata,
+      code_eval_source_code: params.sourceCode,
+    },
+    evaluationContext: params.evaluationContext,
+    source: INTERNAL_TRACE_EVENT_SOURCE,
+  };
+
+  return {
+    rootSpanId: params.executionTraceId,
+    eventInputs: [eventInput],
+  };
+}
+
 export async function runCodeBasedEvaluationDispatch(params: {
   dispatcher: CodeEvalDispatcher;
   organizationId: string;
@@ -317,62 +373,5 @@ export async function runCodeBasedEvaluationDispatch(params: {
       executionTraceId: params.executionTraceId,
       executionTraceFromTimestamp: traceStartTime,
     };
-  }
-}
-
-function buildCodeEvalTraceInput(params: {
-  projectId: string;
-  executionTraceId: string;
-  traceStartTime: Date;
-  traceName: string;
-  payload: CodeEvalPayload;
-  output: unknown;
-  metadata: Record<string, unknown>;
-  evaluationContext?: EvalExecutionContext;
-  sourceCode: string;
-  level?: string;
-  statusMessage?: string;
-}): InternalTraceWriteInput {
-  const eventInput: InternalTraceEventInput = {
-    projectId: params.projectId,
-    traceId: params.executionTraceId,
-    spanId: params.executionTraceId,
-    startTimeISO: params.traceStartTime.toISOString(),
-    endTimeISO: new Date().toISOString(),
-    name: params.traceName,
-    traceName: params.traceName,
-    type: "SPAN",
-    environment: LangfuseInternalTraceEnvironment.CodeEval,
-    level: params.level ?? "DEFAULT",
-    statusMessage: params.statusMessage,
-    input: stringifyValue(params.payload),
-    output: stringifyValue(params.output),
-    metadata: {
-      ...params.metadata,
-      code_eval_source_code: params.sourceCode,
-    },
-    evaluationContext: params.evaluationContext,
-    source: INTERNAL_TRACE_EVENT_SOURCE,
-  };
-
-  return {
-    rootSpanId: params.executionTraceId,
-    eventInputs: [eventInput],
-  };
-}
-
-async function writeCodeEvalTraceSafely(params: {
-  writeTrace?: InternalTraceWriter;
-  trace: InternalTraceWriteInput;
-}) {
-  if (!params.writeTrace) return;
-
-  try {
-    await params.writeTrace(params.trace);
-  } catch (error) {
-    logger.warn("Failed to write internal trace for code eval execution", {
-      executionTraceId: params.trace.rootSpanId,
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 }

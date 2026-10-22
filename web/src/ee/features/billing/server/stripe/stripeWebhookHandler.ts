@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import {
   getOrgIdFromStripeClientReference,
   isStripeClientReferenceFromCurrentCloudRegion,
@@ -27,128 +27,6 @@ import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server";
 import { createDefaultSpendAlertsForStripeProduct } from "@/src/ee/features/billing/server/defaultSpendAlerts";
 
 /**
- * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
- * This endpoint processes various Stripe events to keep the organization's billing state in sync.
- *
- * Supported events:
- * - customer.subscription.created: New subscription setup
- * - customer.subscription.updated: Plan changes and updates
- * - customer.subscription.deleted: Subscription cancellations
- * - invoice.created: Invoice generation and usage alert recreation
- * - billing.alert.triggered: Usage threshold notifications
- *
- * Security:
- * - Validates Stripe webhook signatures
- * - Ensures correct cloud region handling
- * - Maintains subscription metadata integrity
- *
- * @param req - Next.js request object containing the Stripe webhook event
- * @returns NextResponse with appropriate status and message
- */
-export async function stripeWebhookHandler(req: NextRequest) {
-  if (req.method !== "POST")
-    return NextResponse.json(
-      { message: "Method not allowed" },
-      { status: 405 },
-    );
-
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripeClient) {
-    logger.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");
-    return NextResponse.json(
-      { message: "Stripe webhook endpoint only available in Langfuse Cloud" },
-      { status: 500 },
-    );
-  }
-  if (!env.STRIPE_WEBHOOK_SIGNING_SECRET) {
-    logger.error("[Stripe Webhook] Stripe webhook signing key not found");
-    return NextResponse.json(
-      { message: "Stripe secret key not found" },
-      { status: 500 },
-    );
-  }
-
-  // check if the request is signed by stripe
-  const sig = req.headers.get("stripe-signature");
-  if (!sig) {
-    logger.error("[Stripe Webhook] No signature");
-    return NextResponse.json({ message: "No signature" }, { status: 400 });
-  }
-  let event: Stripe.Event;
-  try {
-    event = stripeClient.webhooks.constructEvent(
-      await req.text(),
-      sig,
-      env.STRIPE_WEBHOOK_SIGNING_SECRET,
-    );
-  } catch (err) {
-    logger.error("[Stripe Webhook] Error verifying signature", err);
-    return NextResponse.json(
-      { message: `Webhook Error: ${err}` },
-      { status: 400 },
-    );
-  }
-
-  // Handle the event
-  switch (event.type) {
-    case "customer.subscription.created":
-      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
-      const subscription = event.data.object;
-      logger.info("[Stripe Webhook] Start customer.subscription.created", {
-        payload: subscription,
-      });
-      await handleSubscriptionChanged(subscription, "created");
-      break;
-    case "customer.subscription.updated":
-      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
-      const updatedSubscription = event.data.object;
-      logger.info("[Stripe Webhook] Start customer.subscription.updated", {
-        payload: updatedSubscription,
-      });
-      await handleSubscriptionChanged(updatedSubscription, "updated");
-      break;
-    case "customer.subscription.deleted":
-      // remove the active product id on the organization linked to the subscription + subscription, keep customer id
-      const deletedSubscription = event.data.object;
-      logger.info("[Stripe Webhook] Start customer.subscription.deleted", {
-        payload: deletedSubscription,
-      });
-      await handleSubscriptionChanged(deletedSubscription, "deleted");
-      break;
-    default:
-      logger.warn(`Unhandled event type ${event.type}`);
-  }
-
-  return NextResponse.json({ received: true }, { status: 200 });
-}
-
-/**
- * Retrieves an organization by its Langfuse organization ID.
- */
-async function getOrgById(orgId: string): Promise<Organization | null> {
-  const org = await prisma.organization.findUnique({
-    where: { id: orgId },
-  });
-  return org;
-}
-
-/**
- * Retrieves an organization based on its Stripe customer ID.
- */
-async function getOrgBasedOnCustomerId(
-  customerId: string,
-): Promise<Organization | null> {
-  const org = await prisma.organization.findFirst({
-    where: {
-      cloudConfig: {
-        path: ["stripe", "customerId"],
-        equals: customerId,
-      },
-    },
-  });
-  return org;
-}
-
-/**
  * Retrieves an organization based on its active Stripe subscription ID.
  * This is the primary method for finding organizations with existing subscriptions.
  *
@@ -170,12 +48,21 @@ async function getOrgBasedOnActiveSubscriptionId(
 }
 
 /**
- * Whether a Stripe object names this cloud region, another one, or none at all.
- * Only Stripe itself is shared between regions, so these markers are the only
- * ownership information a region can read without access to another region's
- * database.
+ * Retrieves an organization based on its Stripe customer ID.
  */
-type RegionMarker = "own-region" | "other-region" | "none";
+async function getOrgBasedOnCustomerId(
+  customerId: string,
+): Promise<Organization | null> {
+  const org = await prisma.organization.findFirst({
+    where: {
+      cloudConfig: {
+        path: ["stripe", "customerId"],
+        equals: customerId,
+      },
+    },
+  });
+  return org;
+}
 
 /**
  * Fallback method to find an organization using the checkout session attached to a subscription.
@@ -229,22 +116,14 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
 }
 
 /**
- * Why the organization for a subscription could not be resolved. The
- * distinction decides whether a human has to look: Stripe delivers every event
- * to all cloud regions, so a miss in a region that does not own the
- * subscription is the normal case, not a fault.
+ * Retrieves an organization by its Langfuse organization ID.
  */
-type OrgLookupMiss =
-  /** A region marker exists and names a different region: expected fan-out. */
-  | "other-region"
-  /** A marker names this region, but the organization row is gone. */
-  | "org-row-missing"
-  /** No region marker at all, so no region can own this event. */
-  | "unattributable";
-
-type OrgLookupResult =
-  | { found: true; org: ParsedOrganization }
-  | { found: false; miss: OrgLookupMiss };
+async function getOrgById(orgId: string): Promise<Organization | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+  return org;
+}
 
 /**
  * Resolve the organization for a given subscription using layered fallbacks:
@@ -750,3 +629,124 @@ export async function handleSubscriptionChanged(
 
   return;
 }
+
+/**
+ * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
+ * This endpoint processes various Stripe events to keep the organization's billing state in sync.
+ *
+ * Supported events:
+ * - customer.subscription.created: New subscription setup
+ * - customer.subscription.updated: Plan changes and updates
+ * - customer.subscription.deleted: Subscription cancellations
+ * - invoice.created: Invoice generation and usage alert recreation
+ * - billing.alert.triggered: Usage threshold notifications
+ *
+ * Security:
+ * - Validates Stripe webhook signatures
+ * - Ensures correct cloud region handling
+ * - Maintains subscription metadata integrity
+ *
+ * @param req - Next.js request object containing the Stripe webhook event
+ * @returns NextResponse with appropriate status and message
+ */
+export async function stripeWebhookHandler(req: NextRequest) {
+  if (req.method !== "POST")
+    return NextResponse.json(
+      { message: "Method not allowed" },
+      { status: 405 },
+    );
+
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripeClient) {
+    logger.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");
+    return NextResponse.json(
+      { message: "Stripe webhook endpoint only available in Langfuse Cloud" },
+      { status: 500 },
+    );
+  }
+  if (!env.STRIPE_WEBHOOK_SIGNING_SECRET) {
+    logger.error("[Stripe Webhook] Stripe webhook signing key not found");
+    return NextResponse.json(
+      { message: "Stripe secret key not found" },
+      { status: 500 },
+    );
+  }
+
+  // check if the request is signed by stripe
+  const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    logger.error("[Stripe Webhook] No signature");
+    return NextResponse.json({ message: "No signature" }, { status: 400 });
+  }
+  let event: Stripe.Event;
+  try {
+    event = stripeClient.webhooks.constructEvent(
+      await req.text(),
+      sig,
+      env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    );
+  } catch (err) {
+    logger.error("[Stripe Webhook] Error verifying signature", err);
+    return NextResponse.json(
+      { message: `Webhook Error: ${err}` },
+      { status: 400 },
+    );
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case "customer.subscription.created":
+      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
+      const subscription = event.data.object;
+      logger.info("[Stripe Webhook] Start customer.subscription.created", {
+        payload: subscription,
+      });
+      await handleSubscriptionChanged(subscription, "created");
+      break;
+    case "customer.subscription.updated":
+      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
+      const updatedSubscription = event.data.object;
+      logger.info("[Stripe Webhook] Start customer.subscription.updated", {
+        payload: updatedSubscription,
+      });
+      await handleSubscriptionChanged(updatedSubscription, "updated");
+      break;
+    case "customer.subscription.deleted":
+      // remove the active product id on the organization linked to the subscription + subscription, keep customer id
+      const deletedSubscription = event.data.object;
+      logger.info("[Stripe Webhook] Start customer.subscription.deleted", {
+        payload: deletedSubscription,
+      });
+      await handleSubscriptionChanged(deletedSubscription, "deleted");
+      break;
+    default:
+      logger.warn(`Unhandled event type ${event.type}`);
+  }
+
+  return NextResponse.json({ received: true }, { status: 200 });
+}
+
+/**
+ * Whether a Stripe object names this cloud region, another one, or none at all.
+ * Only Stripe itself is shared between regions, so these markers are the only
+ * ownership information a region can read without access to another region's
+ * database.
+ */
+type RegionMarker = "own-region" | "other-region" | "none";
+
+/**
+ * Why the organization for a subscription could not be resolved. The
+ * distinction decides whether a human has to look: Stripe delivers every event
+ * to all cloud regions, so a miss in a region that does not own the
+ * subscription is the normal case, not a fault.
+ */
+type OrgLookupMiss =
+  /** A region marker exists and names a different region: expected fan-out. */
+  | "other-region"
+  /** A marker names this region, but the organization row is gone. */
+  | "org-row-missing"
+  /** No region marker at all, so no region can own this event. */
+  | "unattributable";
+
+type OrgLookupResult =
+  | { found: true; org: ParsedOrganization }
+  | { found: false; miss: OrgLookupMiss };

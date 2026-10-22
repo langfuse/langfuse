@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import {
@@ -38,6 +37,64 @@ const ScoreValueCounts = ({
     </span>
   ));
 };
+
+function AggregateScoreMetadataPeek({
+  scoreId,
+  projectId,
+}: {
+  scoreId: string;
+  projectId: string;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
+    {
+      projectId,
+      id: scoreId,
+    },
+    {
+      enabled: !!projectId && !!scoreId && isOpen,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const metadataLoaded = metadata && Object.keys(metadata).length > 0;
+
+  return (
+    <ControlledHoverCard
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      content={
+        <div className="w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal">
+          {metadataLoaded ? (
+            <JSONView codeClassName="rounded-md!" json={metadata} />
+          ) : (
+            <Skeleton className="h-12 w-full" />
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          aria-label="View score metadata"
+          className="inline-flex shrink-0 cursor-pointer items-center"
+          {...getTriggerProps()}
+        >
+          <BracesIcon size="sm" />
+        </button>
+      )}
+    </ControlledHoverCard>
+  );
+}
 
 export const ScoresTableCell = ({
   aggregate,
@@ -185,61 +242,3 @@ export const ScoresTableCell = ({
     </div>
   );
 };
-
-function AggregateScoreMetadataPeek({
-  scoreId,
-  projectId,
-}: {
-  scoreId: string;
-  projectId: string;
-}) {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
-    {
-      projectId,
-      id: scoreId,
-    },
-    {
-      enabled: !!projectId && !!scoreId && isOpen,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const metadataLoaded = metadata && Object.keys(metadata).length > 0;
-
-  return (
-    <ControlledHoverCard
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      content={
-        <div className="w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal">
-          {metadataLoaded ? (
-            <JSONView codeClassName="rounded-md!" json={metadata} />
-          ) : (
-            <Skeleton className="h-12 w-full" />
-          )}
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          aria-label="View score metadata"
-          className="inline-flex shrink-0 cursor-pointer items-center"
-          {...getTriggerProps()}
-        >
-          <BracesIcon size="sm" />
-        </button>
-      )}
-    </ControlledHoverCard>
-  );
-}

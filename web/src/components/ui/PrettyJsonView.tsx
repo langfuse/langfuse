@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props */
 import React, {
   useMemo,
@@ -678,6 +678,37 @@ function JsonPrettyTable({
       </table>
     </div>
   );
+}
+
+// TODO: deduplicate with CodeJsonViewer.tsx
+function stringifyJsonNode(node: unknown) {
+  // return single string nodes without quotes
+  if (typeof node === "string") {
+    return node;
+  }
+
+  try {
+    return JSON.stringify(
+      node,
+      (key, value) => {
+        switch (typeof value) {
+          case "bigint":
+            return String(value) + "n";
+          case "number":
+          case "boolean":
+          case "object":
+          case "string":
+            return value as string;
+          default:
+            return String(value);
+        }
+      },
+      4,
+    );
+  } catch (error) {
+    console.error("JSON stringify error", error);
+    return "Error: JSON.stringify failed";
+  }
 }
 
 export function PrettyJsonView(props: {
@@ -1416,35 +1447,4 @@ export function PrettyJsonView(props: {
       </IOSection>
     </div>
   );
-}
-
-// TODO: deduplicate with CodeJsonViewer.tsx
-function stringifyJsonNode(node: unknown) {
-  // return single string nodes without quotes
-  if (typeof node === "string") {
-    return node;
-  }
-
-  try {
-    return JSON.stringify(
-      node,
-      (key, value) => {
-        switch (typeof value) {
-          case "bigint":
-            return String(value) + "n";
-          case "number":
-          case "boolean":
-          case "object":
-          case "string":
-            return value as string;
-          default:
-            return String(value);
-        }
-      },
-      4,
-    );
-  } catch (error) {
-    console.error("JSON stringify error", error);
-    return "Error: JSON.stringify failed";
-  }
 }

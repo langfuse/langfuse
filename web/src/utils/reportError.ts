@@ -1,5 +1,15 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { addBreadcrumb, captureException } from "@sentry/nextjs";
+
+function describeUnknown(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value !== "object") return String(value);
+  const ctorName =
+    (value as { constructor?: { name?: string } }).constructor?.name ??
+    "Object";
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length > 0 ? `${ctorName} { ${keys.join(", ")} }` : ctorName;
+}
 
 /**
  * Turn an unknown thrown/logged value into a legible string.
@@ -21,16 +31,6 @@ function safeStringify(value: unknown): string {
     // circular reference or a throwing getter — fall through to describe()
   }
   return describeUnknown(value);
-}
-
-function describeUnknown(value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value !== "object") return String(value);
-  const ctorName =
-    (value as { constructor?: { name?: string } }).constructor?.name ??
-    "Object";
-  const keys = Object.keys(value as Record<string, unknown>);
-  return keys.length > 0 ? `${ctorName} { ${keys.join(", ")} }` : ctorName;
 }
 
 /**

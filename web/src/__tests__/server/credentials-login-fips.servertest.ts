@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { hash } from "bcryptjs";
 import type { CredentialsConfig } from "next-auth/providers/credentials";
@@ -26,6 +25,34 @@ vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
 });
 
 const PASSWORD = "Loginpass1!";
+
+async function createUser(passwordHash: string) {
+  const id = randomUUID();
+  const email = `fips-login-${id}@example.com`;
+  await prisma.user.create({
+    data: {
+      id: `user-${id}`,
+      email,
+      name: "FIPS Login Test User",
+      password: passwordHash,
+    },
+  });
+  return email;
+}
+
+async function signIn(email: string, password: string) {
+  const provider = (await getAuthOptions()).providers.find(
+    (p) => p.id === "credentials",
+  );
+  const { authorize } = provider?.options as Pick<
+    CredentialsConfig,
+    "authorize"
+  >;
+  return authorize(
+    { email, password },
+    { body: {}, query: {}, headers: {}, method: "POST" },
+  );
+}
 
 describe("credentials login in FIPS mode", () => {
   beforeEach(() => {
@@ -57,31 +84,3 @@ describe("credentials login in FIPS mode", () => {
     await expect(signIn(email, PASSWORD)).resolves.toMatchObject({ email });
   });
 });
-
-async function createUser(passwordHash: string) {
-  const id = randomUUID();
-  const email = `fips-login-${id}@example.com`;
-  await prisma.user.create({
-    data: {
-      id: `user-${id}`,
-      email,
-      name: "FIPS Login Test User",
-      password: passwordHash,
-    },
-  });
-  return email;
-}
-
-async function signIn(email: string, password: string) {
-  const provider = (await getAuthOptions()).providers.find(
-    (p) => p.id === "credentials",
-  );
-  const { authorize } = provider?.options as Pick<
-    CredentialsConfig,
-    "authorize"
-  >;
-  return authorize(
-    { email, password },
-    { body: {}, query: {}, headers: {}, method: "POST" },
-  );
-}

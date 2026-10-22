@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import {
@@ -15,6 +15,32 @@ import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/utils/tailwind";
 
 import { useMessageSearch } from "./context";
+
+function IconButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: IconComponent;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-6 w-6"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+    >
+      <Icon size="base" color="default" />
+    </Button>
+  );
+}
 
 export function MessageSearchToolbar({ className }: { className?: string }) {
   const {
@@ -113,31 +139,5 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
       />
       <IconButton icon={X} label="Close search" onClick={closeSearch} />
     </div>
-  );
-}
-
-function IconButton({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: IconComponent;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="h-6 w-6"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-    >
-      <Icon size="base" color="default" />
-    </Button>
   );
 }

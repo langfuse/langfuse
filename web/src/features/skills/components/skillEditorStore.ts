@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { MAX_SKILL_FILES, SkillFilePathSchema } from "@langfuse/shared";
 import { getParentFolderPaths } from "./skillFileTree";
@@ -66,6 +65,28 @@ type SkillEditorState = {
 };
 
 export type SkillEditorStore = StoreApi<SkillEditorState>;
+
+function hasFileAtOrAbove(
+  path: string,
+  files: Record<string, SkillDraftFile>,
+): boolean {
+  const segments = path.split("/");
+  return segments.some((_, index) =>
+    Boolean(files[segments.slice(0, index + 1).join("/")]),
+  );
+}
+
+function hasFilePathConflict(
+  path: string,
+  files: Record<string, SkillDraftFile>,
+  folders: string[],
+): boolean {
+  return (
+    hasFileAtOrAbove(path, files) ||
+    folders.includes(path) ||
+    Object.keys(files).some((filePath) => filePath.startsWith(`${path}/`))
+  );
+}
 
 export function createSkillEditorStore(
   initialValue: SkillEditorInitialValue,
@@ -363,26 +384,4 @@ export function createSkillEditorStore(
   }));
   store.getState().actions.hashPendingFiles();
   return store;
-}
-
-function hasFileAtOrAbove(
-  path: string,
-  files: Record<string, SkillDraftFile>,
-): boolean {
-  const segments = path.split("/");
-  return segments.some((_, index) =>
-    Boolean(files[segments.slice(0, index + 1).join("/")]),
-  );
-}
-
-function hasFilePathConflict(
-  path: string,
-  files: Record<string, SkillDraftFile>,
-  folders: string[],
-): boolean {
-  return (
-    hasFileAtOrAbove(path, files) ||
-    folders.includes(path) ||
-    Object.keys(files).some((filePath) => filePath.startsWith(`${path}/`))
-  );
 }

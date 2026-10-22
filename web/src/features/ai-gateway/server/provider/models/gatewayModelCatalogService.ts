@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type {
   GatewayConnectionStatus,
   PrismaClient,
@@ -51,6 +50,46 @@ const MODEL_CACHE_TTL_SECONDS = 5 * 60;
 const CUSTOM_MODELS: Partial<Record<GatewayProviderName, string[]>> = {
   OPENAI: ["codex-auto-review"],
 };
+
+function addCustomModels(
+  provider: GatewayProviderName,
+  models: GatewayModelCatalogEntry[],
+): GatewayModelCatalogEntry[] {
+  const discoveredIds = new Set(models.map(({ id }) => id));
+  const customModels = (CUSTOM_MODELS[provider] ?? [])
+    .filter((id) => !discoveredIds.has(id))
+    .map((id) => ({
+      id,
+      provider,
+      canonicalSlug: id,
+      displayName: id,
+      createdAt: new Date(0).toISOString(),
+    }));
+  return models.concat(customModels);
+}
+
+function isGatewayModelCatalog(
+  value: unknown,
+): value is GatewayModelCatalogEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (model) =>
+        model &&
+        typeof model === "object" &&
+        "id" in model &&
+        typeof model.id === "string" &&
+        "provider" in model &&
+        gatewayProviders.includes(model.provider as GatewayProviderName) &&
+        "canonicalSlug" in model &&
+        typeof model.canonicalSlug === "string" &&
+        "displayName" in model &&
+        typeof model.displayName === "string" &&
+        "createdAt" in model &&
+        typeof model.createdAt === "string",
+    )
+  );
+}
 
 export class GatewayModelCatalogService {
   private readonly repository: GatewayProviderRepository;
@@ -318,44 +357,4 @@ export class GatewayModelCatalogService {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
     }
   }
-}
-
-function addCustomModels(
-  provider: GatewayProviderName,
-  models: GatewayModelCatalogEntry[],
-): GatewayModelCatalogEntry[] {
-  const discoveredIds = new Set(models.map(({ id }) => id));
-  const customModels = (CUSTOM_MODELS[provider] ?? [])
-    .filter((id) => !discoveredIds.has(id))
-    .map((id) => ({
-      id,
-      provider,
-      canonicalSlug: id,
-      displayName: id,
-      createdAt: new Date(0).toISOString(),
-    }));
-  return models.concat(customModels);
-}
-
-function isGatewayModelCatalog(
-  value: unknown,
-): value is GatewayModelCatalogEntry[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (model) =>
-        model &&
-        typeof model === "object" &&
-        "id" in model &&
-        typeof model.id === "string" &&
-        "provider" in model &&
-        gatewayProviders.includes(model.provider as GatewayProviderName) &&
-        "canonicalSlug" in model &&
-        typeof model.canonicalSlug === "string" &&
-        "displayName" in model &&
-        typeof model.displayName === "string" &&
-        "createdAt" in model &&
-        typeof model.createdAt === "string",
-    )
-  );
 }

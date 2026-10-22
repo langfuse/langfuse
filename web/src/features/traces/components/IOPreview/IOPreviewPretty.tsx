@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
@@ -131,6 +131,63 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }
 
 /**
@@ -389,61 +446,4 @@ export function IOPreviewPretty({
       ) : null}
     </div>
   );
-}
-
-/** Captures the normalization result for each displayed record. */
-function useIOParserComparisonCapture({
-  input,
-  output,
-  chatMLParserResult,
-  isLoading,
-  isParsing,
-  observationId,
-  traceId,
-  shouldRenderMessages,
-}: Pick<
-  IOPreviewPrettyProps,
-  | "input"
-  | "output"
-  | "chatMLParserResult"
-  | "isLoading"
-  | "isParsing"
-  | "observationId"
-  | "traceId"
-> & { shouldRenderMessages: boolean }) {
-  const capture = usePostHogClientCapture();
-  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
-
-  /** Empty payloads are excluded from the normalization success metric. */
-  const hasPayloadToNormalize =
-    (input !== null && input !== undefined) ||
-    (output !== null && output !== undefined);
-
-  useEffect(() => {
-    if (
-      chatMLParserResult !== undefined ||
-      !hasPayloadToNormalize ||
-      isLoading ||
-      isParsing
-    ) {
-      return;
-    }
-
-    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
-    if (capturedNormalizationRecord.current === recordKey) return;
-
-    capturedNormalizationRecord.current = recordKey;
-    capture("trace_detail:io_parser_comparison", {
-      isNormalizedSuccess: shouldRenderMessages,
-    });
-  }, [
-    capture,
-    chatMLParserResult,
-    hasPayloadToNormalize,
-    isLoading,
-    isParsing,
-    observationId,
-    shouldRenderMessages,
-    traceId,
-  ]);
 }

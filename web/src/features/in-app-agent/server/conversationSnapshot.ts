@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 
 import {
@@ -12,6 +11,15 @@ import {
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
+
+function getEventString(event: unknown, key: string): string | undefined {
+  if (typeof event !== "object" || event === null) {
+    return undefined;
+  }
+
+  const value = (event as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : undefined;
+}
 
 /**
  * Rebuilds both representations a browser needs from one read of the persisted
@@ -77,13 +85,4 @@ export function getConversationSnapshotFromEvents(
     messages: redactSilentToolMessages(accumulator.getMessages()),
     displayState,
   };
-}
-
-function getEventString(event: unknown, key: string): string | undefined {
-  if (typeof event !== "object" || event === null) {
-    return undefined;
-  }
-
-  const value = (event as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : undefined;
 }

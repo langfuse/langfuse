@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
@@ -201,6 +200,18 @@ export type OpenAIDecisionQuestionPreview =
     }
   | { type: "predicate"; name: string; instructions: string };
 
+function openAIInstructions(draft: DecisionModelQuestionDraft) {
+  if (draft.type !== DecisionModelQuestionType.NOUL) {
+    return draft.instructions.trim();
+  }
+  const parts = [draft.instructions.trim()];
+  const whenTrue = draft.criteria.true.trim();
+  const whenFalse = draft.criteria.false.trim();
+  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
+  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
+  return parts.filter((part) => part.length > 0).join("\n\n");
+}
+
 /** Questions as the Decisions API receives them, including unfinished drafts. */
 export function previewOpenAIDecisionQuestions(
   drafts: DecisionModelQuestionDraft[],
@@ -241,16 +252,4 @@ export function previewOpenAIDecisionQuestions(
         return { type: "predicate", name, instructions };
     }
   });
-}
-
-function openAIInstructions(draft: DecisionModelQuestionDraft) {
-  if (draft.type !== DecisionModelQuestionType.NOUL) {
-    return draft.instructions.trim();
-  }
-  const parts = [draft.instructions.trim()];
-  const whenTrue = draft.criteria.true.trim();
-  const whenFalse = draft.criteria.false.trim();
-  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
-  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
-  return parts.filter((part) => part.length > 0).join("\n\n");
 }

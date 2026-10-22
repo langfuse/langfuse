@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseToolDefinitionValue } from "../normalize/tool-definitions";
 import {
   NormalizedMessage,
@@ -9,6 +8,38 @@ import type { NormalizedIOAccumulator } from "./interface";
 import { ToolDefinitionOptions } from "../../conventions/io-convention";
 import type { ParserContext } from "../parser-context";
 import { getToolCallKeyForPart } from "../normalize/part";
+
+function addToolDefinition(
+  accumulator: NormalizedIOAccumulator,
+  definition: ToolDefinition,
+): void {
+  const existingIndex = accumulator.toolDefinitionIndexByName.get(
+    definition.name,
+  );
+
+  if (existingIndex === undefined) {
+    accumulator.toolDefinitionIndexByName.set(
+      definition.name,
+      accumulator.toolDefinitions.length,
+    );
+    accumulator.toolDefinitions.push(definition);
+    return;
+  }
+
+  const existing = accumulator.toolDefinitions[existingIndex];
+  if (!existing) return;
+
+  accumulator.toolDefinitions[existingIndex] = {
+    name: existing.name,
+    description: existing.description ?? definition.description,
+    inputSchema: existing.inputSchema ?? definition.inputSchema,
+    type: existing.type ?? definition.type,
+    providerMetadata:
+      existing.providerMetadata && definition.providerMetadata
+        ? { ...definition.providerMetadata, ...existing.providerMetadata }
+        : (existing.providerMetadata ?? definition.providerMetadata),
+  };
+}
 
 export function addToolDefinitionValue(
   accumulator: NormalizedIOAccumulator,
@@ -66,36 +97,4 @@ export function addMessage(
     }
     messages.push({ ...message, parts });
   }
-}
-
-function addToolDefinition(
-  accumulator: NormalizedIOAccumulator,
-  definition: ToolDefinition,
-): void {
-  const existingIndex = accumulator.toolDefinitionIndexByName.get(
-    definition.name,
-  );
-
-  if (existingIndex === undefined) {
-    accumulator.toolDefinitionIndexByName.set(
-      definition.name,
-      accumulator.toolDefinitions.length,
-    );
-    accumulator.toolDefinitions.push(definition);
-    return;
-  }
-
-  const existing = accumulator.toolDefinitions[existingIndex];
-  if (!existing) return;
-
-  accumulator.toolDefinitions[existingIndex] = {
-    name: existing.name,
-    description: existing.description ?? definition.description,
-    inputSchema: existing.inputSchema ?? definition.inputSchema,
-    type: existing.type ?? definition.type,
-    providerMetadata:
-      existing.providerMetadata && definition.providerMetadata
-        ? { ...definition.providerMetadata, ...existing.providerMetadata }
-        : (existing.providerMetadata ?? definition.providerMetadata),
-  };
 }

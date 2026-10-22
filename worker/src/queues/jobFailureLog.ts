@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   isS3SlowDownError,
   logger,
@@ -6,6 +5,26 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
+
+interface AttemptState {
+  attemptsMade?: number;
+  opts?: { attempts?: number };
+}
+
+function isTerminalAttempt(
+  job: AttemptState,
+  error: unknown,
+  attemptsIncludeCurrentFailure: boolean | undefined,
+): boolean {
+  const attemptsMade = job.attemptsMade ?? 0;
+  const observed = attemptsIncludeCurrentFailure
+    ? Math.max(0, attemptsMade - 1)
+    : attemptsMade;
+  return isFinalBullmqAttempt(
+    { attemptsMade: observed, opts: job.opts },
+    error,
+  );
+}
 
 /**
  * Log a failed queue attempt. Retryable S3 SlowDown stays a warning until the
@@ -48,24 +67,4 @@ export function exceedsNonSlowDownAttemptBudget(
   budget: number,
 ): boolean {
   return !isS3SlowDownError(error) && (job.attemptsMade ?? 0) >= budget - 1;
-}
-
-function isTerminalAttempt(
-  job: AttemptState,
-  error: unknown,
-  attemptsIncludeCurrentFailure: boolean | undefined,
-): boolean {
-  const attemptsMade = job.attemptsMade ?? 0;
-  const observed = attemptsIncludeCurrentFailure
-    ? Math.max(0, attemptsMade - 1)
-    : attemptsMade;
-  return isFinalBullmqAttempt(
-    { attemptsMade: observed, opts: job.opts },
-    error,
-  );
-}
-
-interface AttemptState {
-  attemptsMade?: number;
-  opts?: { attempts?: number };
 }

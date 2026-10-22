@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "node:crypto";
@@ -9,6 +8,108 @@ import { env } from "@/src/env.mjs";
 import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+async function createOrganization({
+  featureFlagOrgDefaults = [],
+}: {
+  featureFlagOrgDefaults?: string[];
+} = {}) {
+  const id = randomUUID();
+  return prisma.organization.create({
+    data: {
+      id: `org-${id}`,
+      name: `Feature Flag Org ${id}`,
+      featureFlagOrgDefaults,
+    },
+  });
+}
+
+async function createUser({
+  email,
+  featureFlags = [],
+}: {
+  email?: string;
+  featureFlags?: string[];
+} = {}) {
+  const id = randomUUID();
+  return prisma.user.create({
+    data: {
+      id,
+      email: email ?? `${id}@example.com`,
+      name: `Feature Flag User ${id}`,
+      featureFlags,
+    },
+  });
+}
+
+async function prepare(
+  plan: Plan = "cloud:core",
+  actorRole: Role = Role.OWNER,
+  actorIsPlatformAdmin = false,
+) {
+  const id = randomUUID();
+  const org = await createOrganization();
+  const project = await prisma.project.create({
+    data: {
+      id: `project-${id}`,
+      orgId: org.id,
+      name: `Feature Flag Project ${id}`,
+    },
+  });
+  const actor = await createUser();
+  await prisma.organizationMembership.create({
+    data: { orgId: org.id, userId: actor.id, role: actorRole },
+  });
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: actor.id,
+      email: actor.email,
+      name: actor.name,
+      admin: actorIsPlatformAdmin,
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: actorRole,
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: project.id,
+              name: project.name,
+              role: Role.OWNER,
+              deletedAt: null,
+              retentionDays: null,
+              metadata: {},
+            } as NonNullable<
+              Session["user"]
+            >["organizations"][number]["projects"][number],
+          ],
+        },
+      ],
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: plan,
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return {
+    actor,
+    caller: appRouter.createCaller({ ...ctx, prisma }),
+    org,
+    project,
+    session,
+  };
+}
 
 describe("organization feature preview defaults", () => {
   it("enables a default without mutating current members", async () => {
@@ -565,105 +666,3 @@ describe("organization member feature preview overrides", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
-
-async function createUser({
-  email,
-  featureFlags = [],
-}: {
-  email?: string;
-  featureFlags?: string[];
-} = {}) {
-  const id = randomUUID();
-  return prisma.user.create({
-    data: {
-      id,
-      email: email ?? `${id}@example.com`,
-      name: `Feature Flag User ${id}`,
-      featureFlags,
-    },
-  });
-}
-
-async function createOrganization({
-  featureFlagOrgDefaults = [],
-}: {
-  featureFlagOrgDefaults?: string[];
-} = {}) {
-  const id = randomUUID();
-  return prisma.organization.create({
-    data: {
-      id: `org-${id}`,
-      name: `Feature Flag Org ${id}`,
-      featureFlagOrgDefaults,
-    },
-  });
-}
-
-async function prepare(
-  plan: Plan = "cloud:core",
-  actorRole: Role = Role.OWNER,
-  actorIsPlatformAdmin = false,
-) {
-  const id = randomUUID();
-  const org = await createOrganization();
-  const project = await prisma.project.create({
-    data: {
-      id: `project-${id}`,
-      orgId: org.id,
-      name: `Feature Flag Project ${id}`,
-    },
-  });
-  const actor = await createUser();
-  await prisma.organizationMembership.create({
-    data: { orgId: org.id, userId: actor.id, role: actorRole },
-  });
-
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      admin: actorIsPlatformAdmin,
-      canCreateOrganizations: true,
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: actorRole,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              role: Role.OWNER,
-              deletedAt: null,
-              retentionDays: null,
-              metadata: {},
-            } as NonNullable<
-              Session["user"]
-            >["organizations"][number]["projects"][number],
-          ],
-        },
-      ],
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: plan,
-    },
-  };
-
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  return {
-    actor,
-    caller: appRouter.createCaller({ ...ctx, prisma }),
-    org,
-    project,
-    session,
-  };
-}

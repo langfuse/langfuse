@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import { describe, expect, it, vi } from "vitest";
 import { loadSsoProviders } from "@/src/ee/features/multi-tenant-sso/utils";
@@ -16,6 +15,20 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
 vi.mock("@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable", () => ({
   multiTenantSsoAvailable: true,
 }));
+
+function oneLoginRow(domain: string, issuer: string) {
+  return {
+    domain,
+    authProvider: "onelogin",
+    authConfig: {
+      clientId: "onelogin-client",
+      clientSecret: encrypt("onelogin-secret"),
+      issuer,
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
 
 describe("loadSsoProviders — OneLogin", () => {
   it("uses a single /oidc/2 in the discovery URL for every issuer form", async () => {
@@ -46,17 +59,3 @@ describe("loadSsoProviders — OneLogin", () => {
     });
   });
 });
-
-function oneLoginRow(domain: string, issuer: string) {
-  return {
-    domain,
-    authProvider: "onelogin",
-    authConfig: {
-      clientId: "onelogin-client",
-      clientSecret: encrypt("onelogin-secret"),
-      issuer,
-    },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}

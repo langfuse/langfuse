@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StorageService } from "../services/StorageService";
@@ -42,6 +41,31 @@ beforeEach(() => {
   storage.uploadFile.mockReset().mockResolvedValue(undefined);
   storage.download.mockReset().mockResolvedValue(JSON.stringify(storedV1));
 });
+
+function transcript(text = "Hello 🌍"): Transcript {
+  return {
+    threads: [
+      {
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [{ id: "span", traceId: "trace" }],
+          messages: [
+            {
+              role: "assistant",
+              source: "output",
+              parts: [{ type: "text", text }],
+              observationId: "span",
+              traceId: "trace",
+              startTime: new Date("2026-10-20T10:00:00.123Z"),
+              endTime: null,
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
 
 describe("trace batch input storage", () => {
   it("initializes the provider lazily and reuses it across storage instances", async () => {
@@ -191,28 +215,3 @@ describe("trace batch input storage", () => {
     await expect(inputStorage.get(reference)).rejects.toThrow();
   });
 });
-
-function transcript(text = "Hello 🌍"): Transcript {
-  return {
-    threads: [
-      {
-        conversationHistory: [],
-        currentTurn: {
-          nestingLevel: 0,
-          observations: [{ id: "span", traceId: "trace" }],
-          messages: [
-            {
-              role: "assistant",
-              source: "output",
-              parts: [{ type: "text", text }],
-              observationId: "span",
-              traceId: "trace",
-              startTime: new Date("2026-10-20T10:00:00.123Z"),
-              endTime: null,
-            },
-          ],
-        },
-      },
-    ],
-  };
-}

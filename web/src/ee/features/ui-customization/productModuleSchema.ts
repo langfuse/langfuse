@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 /**
@@ -22,6 +21,23 @@ export const ProductModule = z.enum(PRODUCT_MODULES);
  * Type for product modules that can be enabled/disabled in the UI
  */
 export type ProductModule = z.infer<typeof ProductModule>;
+
+/**
+ * Parse comma-separated values into product modules array.
+ * Invalid values are filtered out.
+ */
+function parseModulesList(input: string): ProductModule[] {
+  if (!input || !input.trim()) return [];
+
+  return input
+    .toLowerCase()
+    .split(",")
+    .map((module) => module.trim())
+    .filter(Boolean)
+    .filter((module) =>
+      PRODUCT_MODULES.includes(module as ProductModule),
+    ) as ProductModule[];
+}
 
 /**
  * Parse environment variables to determine which product modules should be visible.
@@ -61,21 +77,4 @@ export function getVisibleProductModules(
 
   // Neither is set - all modules are visible
   return [...PRODUCT_MODULES] as ProductModule[];
-}
-
-/**
- * Parse comma-separated values into product modules array.
- * Invalid values are filtered out.
- */
-function parseModulesList(input: string): ProductModule[] {
-  if (!input || !input.trim()) return [];
-
-  return input
-    .toLowerCase()
-    .split(",")
-    .map((module) => module.trim())
-    .filter(Boolean)
-    .filter((module) =>
-      PRODUCT_MODULES.includes(module as ProductModule),
-    ) as ProductModule[];
 }

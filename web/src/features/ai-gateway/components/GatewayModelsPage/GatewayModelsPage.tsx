@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
@@ -9,26 +8,29 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 import { api } from "@/src/utils/api";
 import { aggregateModels } from "./fns/aggregateModels";
 
-export function GatewayModelsPage({
-  organizationId,
-}: {
-  organizationId: string;
-}) {
-  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
-    useGatewaySettingsAccess(organizationId);
-
-  if (isSetupStatusPending) {
-    return <ModelsSkeleton />;
-  }
-  /** Managers are redirected to Configuration by the settings route. */
-  if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Models" />;
-  }
+function ModelsSkeleton() {
   return (
-    <GatewayModels
-      organizationId={organizationId}
-      canManageGateway={canManageGateway}
-    />
+    <div className="flex flex-col gap-4" data-testid="gateway-models-loading">
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-48 w-full" />
+    </div>
+  );
+}
+
+function ModelsLoadError({ retry }: { retry: () => void }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Header title="Gateway models" />
+      <Alert variant="destructive">
+        <Alert.Title>Provider credentials could not be loaded</Alert.Title>
+        <Alert.Description>
+          Models cannot be discovered until the credential list is available.
+        </Alert.Description>
+      </Alert>
+      <Button className="w-fit" variant="secondary" onClick={retry}>
+        Retry
+      </Button>
+    </div>
   );
 }
 
@@ -74,28 +76,25 @@ function GatewayModels({
   );
 }
 
-function ModelsLoadError({ retry }: { retry: () => void }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Header title="Gateway models" />
-      <Alert variant="destructive">
-        <Alert.Title>Provider credentials could not be loaded</Alert.Title>
-        <Alert.Description>
-          Models cannot be discovered until the credential list is available.
-        </Alert.Description>
-      </Alert>
-      <Button className="w-fit" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
-    </div>
-  );
-}
+export function GatewayModelsPage({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
 
-function ModelsSkeleton() {
+  if (isSetupStatusPending) {
+    return <ModelsSkeleton />;
+  }
+  /** Managers are redirected to Configuration by the settings route. */
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <GatewayNotSetUpNotice title="Models" />;
+  }
   return (
-    <div className="flex flex-col gap-4" data-testid="gateway-models-loading">
-      <Skeleton className="h-7 w-48" />
-      <Skeleton className="h-48 w-full" />
-    </div>
+    <GatewayModels
+      organizationId={organizationId}
+      canManageGateway={canManageGateway}
+    />
   );
 }

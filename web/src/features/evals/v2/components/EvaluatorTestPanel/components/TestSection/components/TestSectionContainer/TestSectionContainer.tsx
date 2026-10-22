@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EvalTemplateType } from "@langfuse/shared";
 import { useStore } from "zustand";
 
@@ -21,6 +20,12 @@ const RESULT_TITLES: Record<
   CODE: "Code Output",
   DECISION_MODEL: "Decision Model Output",
 };
+
+function readNumber(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) return null;
+  const metric = (value as Record<string, unknown>)[key];
+  return typeof metric === "number" ? metric : null;
+}
 
 export function TestSectionContainer({
   projectId,
@@ -99,10 +104,4 @@ export function TestSectionContainer({
       }
     />
   );
-}
-
-function readNumber(value: unknown, key: string) {
-  if (!value || typeof value !== "object" || !(key in value)) return null;
-  const metric = (value as Record<string, unknown>)[key];
-  return typeof metric === "number" ? metric : null;
 }

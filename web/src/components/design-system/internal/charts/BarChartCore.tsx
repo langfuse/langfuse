@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import { useId, useMemo, useState } from "react";
@@ -54,15 +53,6 @@ export type MultiSeriesBarChartCoreProps = {
   legend?: LineChartLegend;
   layout: "stacked" | "grouped";
 };
-
-export function BarChartCore(
-  props: SingleBarChartCoreProps | MultiSeriesBarChartCoreProps,
-) {
-  if (props.layout === "single") {
-    return <SingleBarChart {...props} />;
-  }
-  return <MultiSeriesBarChart {...props} />;
-}
 
 // Shared chart mechanics for categorical bars and histogram bins; the public
 // components fix spacing to match their respective data semantics.
@@ -912,4 +902,13 @@ function MultiSeriesBarChart({
       ) : null}
     </div>
   );
+}
+
+export function BarChartCore(
+  props: SingleBarChartCoreProps | MultiSeriesBarChartCoreProps,
+) {
+  if (props.layout === "single") {
+    return <SingleBarChart {...props} />;
+  }
+  return <MultiSeriesBarChart {...props} />;
 }

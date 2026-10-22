@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { env } from "@/src/env.mjs";
 import {
@@ -6,6 +5,18 @@ import {
   type Plan,
   type CloudConfigSchema,
 } from "@langfuse/shared";
+
+export function getSelfHostedInstancePlanServerSide(): Plan | null {
+  const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
+  if (!licenseKey) return null;
+  if (licenseKey.startsWith("langfuse_ee_")) {
+    return "self-hosted:enterprise";
+  }
+  if (licenseKey.startsWith("langfuse_pro_")) {
+    return "self-hosted:pro";
+  }
+  return null;
+}
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
@@ -68,16 +79,4 @@ export function getOrganizationPlanServerSide(
   }
 
   return "oss";
-}
-
-export function getSelfHostedInstancePlanServerSide(): Plan | null {
-  const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
-  if (!licenseKey) return null;
-  if (licenseKey.startsWith("langfuse_ee_")) {
-    return "self-hosted:enterprise";
-  }
-  if (licenseKey.startsWith("langfuse_pro_")) {
-    return "self-hosted:pro";
-  }
-  return null;
 }

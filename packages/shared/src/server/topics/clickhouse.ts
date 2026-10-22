@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
@@ -447,6 +446,55 @@ function clusteringSummariesSql(columns: string, rowColumns = "*") {
       AND environment != {publicLlmJudgeEnvironment:String}`;
 }
 
+/** Count current compatible summaries without loading summary text or vectors. */
+export async function getTopicSummaryCounts(
+  projectId: string,
+  facets: TopicFacetRef[],
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
+  if (!facets.length) return [];
+  const scopeSql = `trace_id != ''
+    AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})`;
+  const rows = await queryClickhouse<{
+    facetId: string;
+    facetVersion: number;
+    count: string;
+  }>({
+    query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
+      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions, environment
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+        AND ${latestSummaryFilterSql(scopeSql)}
+      ORDER BY processed_at DESC
+      LIMIT 1 BY ${sourceKeySql}
+    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+      AND dimensions = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}
+    GROUP BY facet_id, facet_version`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetIds: facets.map(({ facetId }) => facetId),
+      facetVersions: facets.map(({ version }) => version),
+      ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    },
+    tags: { route: "topics-summary-counts", projectId },
+  });
+  return facets.map(({ facetId, version }) => ({
+    facetId,
+    facetVersion: version,
+    count: Number(
+      rows.find(
+        (row) => row.facetId === facetId && row.facetVersion === version,
+      )?.count ?? 0,
+    ),
+  }));
+}
+
 /** Returns aggregate admission estimates; summary payloads stay in ClickHouse. */
 export async function getTopicClusteringSummaryStats(
   projectId: string,
@@ -654,55 +702,6 @@ export async function getTopicExecutionCosts(
   return Object.fromEntries(
     rows.map((row) => [row.executionId, Number(row.cost)]),
   );
-}
-
-/** Count current compatible summaries without loading summary text or vectors. */
-export async function getTopicSummaryCounts(
-  projectId: string,
-  facets: TopicFacetRef[],
-  embeddingConfig: TopicEmbeddingConfig,
-  timeRange: TopicTimeRange,
-): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
-  if (!facets.length) return [];
-  const scopeSql = `trace_id != ''
-    AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})`;
-  const rows = await queryClickhouse<{
-    facetId: string;
-    facetVersion: number;
-    count: string;
-  }>({
-    query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
-      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions, environment
-      FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-        AND ${latestSummaryFilterSql(scopeSql)}
-      ORDER BY processed_at DESC
-      LIMIT 1 BY ${sourceKeySql}
-    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
-      AND dimensions = {embeddingDimensions:UInt32}
-      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-      AND environment != {publicLlmJudgeEnvironment:String}
-    GROUP BY facet_id, facet_version`,
-    params: {
-      projectId,
-      ...timeRangeParams(timeRange),
-      facetIds: facets.map(({ facetId }) => facetId),
-      facetVersions: facets.map(({ version }) => version),
-      ...embeddingConfig,
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-    },
-    tags: { route: "topics-summary-counts", projectId },
-  });
-  return facets.map(({ facetId, version }) => ({
-    facetId,
-    facetVersion: version,
-    count: Number(
-      rows.find(
-        (row) => row.facetId === facetId && row.facetVersion === version,
-      )?.count ?? 0,
-    ),
-  }));
 }
 
 /** writeTopicSummaries rejects the whole insert if any row fails this check. */

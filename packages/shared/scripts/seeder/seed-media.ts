@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Media Seeding Utilities
  *
@@ -70,6 +69,14 @@ export const MEDIA_TEST_TRACE_IDS = {
   allTypesChatML: "seed-media-all-types-chatml",
 } as const;
 
+/**
+ * Derive media ID from SHA256 hash (first 22 chars, URL-safe)
+ */
+function getMediaIdFromHash(sha256Hash: string): string {
+  const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
+  return urlSafeHash.slice(0, 22);
+}
+
 export function getSeedMediaFixture(
   mediaKey: SeedMediaKey,
 ): SeedMediaFixture | null {
@@ -107,14 +114,6 @@ export function getSeedMediaFixture(
 }
 
 /**
- * Derive media ID from SHA256 hash (first 22 chars, URL-safe)
- */
-function getMediaIdFromHash(sha256Hash: string): string {
-  const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
-  return urlSafeHash.slice(0, 22);
-}
-
-/**
  * Get bucket path for a media file
  */
 function getBucketPath(
@@ -132,51 +131,6 @@ function getBucketPath(
   const extension = extensionMap[contentType] || "bin";
   const prefix = env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX || "";
   return `${prefix}${projectId}/${mediaId}.${extension}`;
-}
-
-/**
- * Uploads a fixture and creates its `media` row, idempotently. Returns the
- * fixture so callers can embed `referenceString` in a payload — that alone is
- * enough for the UI to resolve the asset (`media.getById`); a trace/observation
- * link only adds the separate "Media" strip.
- */
-export async function ensureSeedMediaUploaded(
-  projectId: string,
-  mediaKey: SeedMediaKey,
-): Promise<SeedMediaFixture | null> {
-  const fixture = getSeedMediaFixture(mediaKey);
-  if (!fixture) return null;
-
-  const mediaId = await uploadAndCreateMediaRecord(
-    projectId,
-    MEDIA_FILES[mediaKey],
-  );
-
-  return mediaId ? fixture : null;
-}
-
-/**
- * Links an already-uploaded fixture to one observation's field, mirroring what
- * ingestion writes. Drives the "Media" strip on observation surfaces.
- */
-export async function linkSeedMediaToObservation({
-  projectId,
-  traceId,
-  observationId,
-  mediaId,
-  field,
-}: {
-  projectId: string;
-  traceId: string;
-  observationId: string;
-  mediaId: string;
-  field: "input" | "output" | "metadata";
-}): Promise<void> {
-  await prisma.$queryRaw`
-    INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
-    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
-    ON CONFLICT DO NOTHING;
-  `;
 }
 
 /**
@@ -290,6 +244,51 @@ async function uploadAndCreateMediaRecord(
 
   logger.info(`[seed-media] Created media record for ${mediaFile.name}`);
   return mediaId;
+}
+
+/**
+ * Uploads a fixture and creates its `media` row, idempotently. Returns the
+ * fixture so callers can embed `referenceString` in a payload — that alone is
+ * enough for the UI to resolve the asset (`media.getById`); a trace/observation
+ * link only adds the separate "Media" strip.
+ */
+export async function ensureSeedMediaUploaded(
+  projectId: string,
+  mediaKey: SeedMediaKey,
+): Promise<SeedMediaFixture | null> {
+  const fixture = getSeedMediaFixture(mediaKey);
+  if (!fixture) return null;
+
+  const mediaId = await uploadAndCreateMediaRecord(
+    projectId,
+    MEDIA_FILES[mediaKey],
+  );
+
+  return mediaId ? fixture : null;
+}
+
+/**
+ * Links an already-uploaded fixture to one observation's field, mirroring what
+ * ingestion writes. Drives the "Media" strip on observation surfaces.
+ */
+export async function linkSeedMediaToObservation({
+  projectId,
+  traceId,
+  observationId,
+  mediaId,
+  field,
+}: {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+  mediaId: string;
+  field: "input" | "output" | "metadata";
+}): Promise<void> {
+  await prisma.$queryRaw`
+    INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+    ON CONFLICT DO NOTHING;
+  `;
 }
 
 /** Links an uploaded fixture to a trace's field (the `dx` seed path). */

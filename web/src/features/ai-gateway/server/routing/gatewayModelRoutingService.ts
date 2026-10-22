@@ -1,5 +1,34 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+
+function parseGatewayModelSlug(model: string) {
+  const separatorIndex = model.indexOf(":");
+  if (separatorIndex <= 0) {
+    return null;
+  }
+  const providerModel = model.slice(separatorIndex + 1);
+  if (!providerModel.trim()) return null;
+
+  return {
+    connectionName: model.slice(0, separatorIndex),
+    providerModel,
+  };
+}
+
+function findImplicitConnection<Connection extends GatewayRouteConnection>(
+  model: string,
+  connections: readonly Connection[],
+  provider: "OPENAI" | "ANTHROPIC",
+) {
+  let firstProviderConnection: Connection | null = null;
+  for (const connection of connections) {
+    if (connection.provider !== provider) continue;
+    if (!firstProviderConnection) firstProviderConnection = connection;
+    if (isGatewayModelAllowed(connection.allowedModels, model)) {
+      return connection;
+    }
+  }
+  return firstProviderConnection;
+}
 
 export class GatewayModelRoutingService {
   resolve<Connection extends GatewayRouteConnection>(
@@ -47,36 +76,6 @@ export class GatewayModelRoutingService {
       providerModel: model,
     };
   }
-}
-
-function findImplicitConnection<Connection extends GatewayRouteConnection>(
-  model: string,
-  connections: readonly Connection[],
-  provider: "OPENAI" | "ANTHROPIC",
-) {
-  let firstProviderConnection: Connection | null = null;
-  for (const connection of connections) {
-    if (connection.provider !== provider) continue;
-    if (!firstProviderConnection) firstProviderConnection = connection;
-    if (isGatewayModelAllowed(connection.allowedModels, model)) {
-      return connection;
-    }
-  }
-  return firstProviderConnection;
-}
-
-function parseGatewayModelSlug(model: string) {
-  const separatorIndex = model.indexOf(":");
-  if (separatorIndex <= 0) {
-    return null;
-  }
-  const providerModel = model.slice(separatorIndex + 1);
-  if (!providerModel.trim()) return null;
-
-  return {
-    connectionName: model.slice(0, separatorIndex),
-    providerModel,
-  };
 }
 
 type GatewayRouteConnection = {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Clock, RefreshCw } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -77,6 +76,147 @@ export type TopicSetupFlowDialogProps = {
   summary: JudgeModel | null;
   waitMinutes: TopicSetupWaitMinutes;
 };
+
+function nextStepDisabled({
+  busy,
+  canLeaveQuestions,
+  canStart,
+  canWrite,
+  step,
+}: {
+  step: TopicSetupStep;
+  busy: boolean;
+  canWrite: boolean;
+  canLeaveQuestions: boolean;
+  canStart: boolean;
+}) {
+  if (step === "questions") return busy || !canLeaveQuestions;
+  if (step === "review") return !canStart;
+  return busy || !canWrite;
+}
+
+function ModelRow({
+  disabled,
+  label,
+  model,
+  onConfigureProviders,
+  onSelect,
+  providerGroups,
+  recommended,
+}: {
+  disabled: boolean;
+  label: string;
+  model: JudgeModel | null;
+  onConfigureProviders: () => void;
+  onSelect: (model: JudgeModel) => void;
+  providerGroups: Array<[string, string[]]>;
+  recommended: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-2 py-1.5 pr-1.5 pl-3">
+      <span className="text-sm">{label}</span>
+      <JudgeModelPicker
+        purpose="decision"
+        open={open && !disabled}
+        onOpenChange={setOpen}
+        providerGroups={providerGroups}
+        selectedModel={model}
+        onSelect={onSelect}
+        onConfigureProviders={onConfigureProviders}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={`${label} model`}
+            title={model ? `${model.provider} / ${model.model}` : undefined}
+            className="hover:bg-muted data-[state=open]:bg-muted flex h-8 min-w-0 items-center justify-between gap-2 rounded-md px-2.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                title={model?.model}
+                className={
+                  model
+                    ? "truncate font-mono text-xs"
+                    : "text-muted-foreground truncate text-sm"
+                }
+              >
+                {model?.model ?? "Select a model"}
+              </span>
+              {recommended ? (
+                <Badge text="Recommended" color="green" size="sm" />
+              ) : null}
+            </span>
+            <ChevronDown
+              size="base"
+              __rawClassName="text-muted-foreground shrink-0"
+            />
+          </button>
+        </PopoverTrigger>
+      </JudgeModelPicker>
+    </div>
+  );
+}
+
+function samplePercentFromInput(value: string) {
+  if (!/^\d+$/.test(value)) return null;
+  const percent = Number(value);
+  if (percent < 1 || percent > 100) return null;
+  return percent;
+}
+
+function dailyEstimate(dailyTraces: number, samplePercent: number) {
+  const perDay = (dailyTraces * samplePercent) / 100;
+  if (perDay > 0 && perDay < 1) return "<1";
+  return Math.round(perDay).toLocaleString("en-US");
+}
+
+function ReviewRow({
+  label,
+  lines,
+  onEdit,
+}: {
+  label: string;
+  lines: Array<{ key?: string; value: string; mono?: boolean }>;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3.5 py-3">
+      <span className="text-sm font-bold">{label}</span>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {lines.map((line) => (
+          <div
+            key={`${line.key ?? ""}${line.value}`}
+            className="flex min-w-0 items-baseline gap-1.5"
+          >
+            {line.key ? (
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {line.key}
+              </span>
+            ) : null}
+            <span
+              className={line.mono ? "truncate font-mono text-xs" : "text-sm"}
+              title={line.mono ? line.value : undefined}
+            >
+              {line.value}
+            </span>
+          </div>
+        ))}
+      </div>
+      <Button text="Edit" variant="ghost" size="sm" onClick={onEdit} />
+    </div>
+  );
+}
+
+function backfillLine(count: TopicSetupPastCount) {
+  if (count.status === "loading") return "Counting past traces…";
+  if (count.status === "error") return "Could not count past traces";
+  if (count.matched === 0)
+    return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
+  const window = count.days === 1 ? "day" : `${count.days} days`;
+  return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
+}
 
 export function TopicSetupFlowDialog({
   advancedOpen,
@@ -384,146 +524,5 @@ export function TopicSetupFlowDialog({
         </div>
       </div>
     </Dialog>
-  );
-}
-
-function dailyEstimate(dailyTraces: number, samplePercent: number) {
-  const perDay = (dailyTraces * samplePercent) / 100;
-  if (perDay > 0 && perDay < 1) return "<1";
-  return Math.round(perDay).toLocaleString("en-US");
-}
-
-function backfillLine(count: TopicSetupPastCount) {
-  if (count.status === "loading") return "Counting past traces…";
-  if (count.status === "error") return "Could not count past traces";
-  if (count.matched === 0)
-    return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
-  const window = count.days === 1 ? "day" : `${count.days} days`;
-  return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
-}
-
-function samplePercentFromInput(value: string) {
-  if (!/^\d+$/.test(value)) return null;
-  const percent = Number(value);
-  if (percent < 1 || percent > 100) return null;
-  return percent;
-}
-
-function nextStepDisabled({
-  busy,
-  canLeaveQuestions,
-  canStart,
-  canWrite,
-  step,
-}: {
-  step: TopicSetupStep;
-  busy: boolean;
-  canWrite: boolean;
-  canLeaveQuestions: boolean;
-  canStart: boolean;
-}) {
-  if (step === "questions") return busy || !canLeaveQuestions;
-  if (step === "review") return !canStart;
-  return busy || !canWrite;
-}
-
-function ModelRow({
-  disabled,
-  label,
-  model,
-  onConfigureProviders,
-  onSelect,
-  providerGroups,
-  recommended,
-}: {
-  disabled: boolean;
-  label: string;
-  model: JudgeModel | null;
-  onConfigureProviders: () => void;
-  onSelect: (model: JudgeModel) => void;
-  providerGroups: Array<[string, string[]]>;
-  recommended: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-2 py-1.5 pr-1.5 pl-3">
-      <span className="text-sm">{label}</span>
-      <JudgeModelPicker
-        purpose="decision"
-        open={open && !disabled}
-        onOpenChange={setOpen}
-        providerGroups={providerGroups}
-        selectedModel={model}
-        onSelect={onSelect}
-        onConfigureProviders={onConfigureProviders}
-      >
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label={`${label} model`}
-            title={model ? `${model.provider} / ${model.model}` : undefined}
-            className="hover:bg-muted data-[state=open]:bg-muted flex h-8 min-w-0 items-center justify-between gap-2 rounded-md px-2.5 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                title={model?.model}
-                className={
-                  model
-                    ? "truncate font-mono text-xs"
-                    : "text-muted-foreground truncate text-sm"
-                }
-              >
-                {model?.model ?? "Select a model"}
-              </span>
-              {recommended ? (
-                <Badge text="Recommended" color="green" size="sm" />
-              ) : null}
-            </span>
-            <ChevronDown
-              size="base"
-              __rawClassName="text-muted-foreground shrink-0"
-            />
-          </button>
-        </PopoverTrigger>
-      </JudgeModelPicker>
-    </div>
-  );
-}
-
-function ReviewRow({
-  label,
-  lines,
-  onEdit,
-}: {
-  label: string;
-  lines: Array<{ key?: string; value: string; mono?: boolean }>;
-  onEdit: () => void;
-}) {
-  return (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3.5 py-3">
-      <span className="text-sm font-bold">{label}</span>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        {lines.map((line) => (
-          <div
-            key={`${line.key ?? ""}${line.value}`}
-            className="flex min-w-0 items-baseline gap-1.5"
-          >
-            {line.key ? (
-              <span className="text-muted-foreground shrink-0 text-xs">
-                {line.key}
-              </span>
-            ) : null}
-            <span
-              className={line.mono ? "truncate font-mono text-xs" : "text-sm"}
-              title={line.mono ? line.value : undefined}
-            >
-              {line.value}
-            </span>
-          </div>
-        ))}
-      </div>
-      <Button text="Edit" variant="ghost" size="sm" onClick={onEdit} />
-    </div>
   );
 }

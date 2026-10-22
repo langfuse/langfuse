@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { type MediaContentType } from "@/src/features/media";
@@ -13,15 +12,15 @@ export type ExternalMediaViewProps = {
   descriptor: S3MediaDescriptor;
 };
 
-export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
-  const projectId = useProjectIdFromURL();
-  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId,
-  });
-  if (!isFeatureEnabled) return <ExternalMediaFallback uri={descriptor.uri} />;
-
-  return <EnabledExternalMediaView descriptor={descriptor} />;
+function ExternalMediaFallback({ uri }: ExternalMediaFallbackProps) {
+  return (
+    <span
+      className="text-muted-foreground block max-w-full min-w-0 truncate text-xs"
+      title={uri}
+    >
+      {uri}
+    </span>
+  );
 }
 
 function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
@@ -49,15 +48,15 @@ function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
   );
 }
 
-function ExternalMediaFallback({ uri }: ExternalMediaFallbackProps) {
-  return (
-    <span
-      className="text-muted-foreground block max-w-full min-w-0 truncate text-xs"
-      title={uri}
-    >
-      {uri}
-    </span>
-  );
+export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
+  const projectId = useProjectIdFromURL();
+  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
+  if (!isFeatureEnabled) return <ExternalMediaFallback uri={descriptor.uri} />;
+
+  return <EnabledExternalMediaView descriptor={descriptor} />;
 }
 
 type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;

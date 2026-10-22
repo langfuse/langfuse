@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
@@ -85,57 +85,6 @@ WHERE project_id = ${quote(projectId)}
   AND span_id = ${quote(observation.id)}
 ORDER BY event_ts DESC
 LIMIT 1;`;
-}
-
-export function ConnectedDetailHeaderActionsMenuController({
-  webCallout,
-  ...props
-}: ConnectedDetailHeaderActionsMenuControllerProps) {
-  const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
-
-  if (!webCallout) {
-    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
-  }
-
-  return (
-    <WebCalloutActionController
-      projectId={props.projectId}
-      webCallout={webCallout}
-    >
-      {(webCalloutAction) => (
-        <DetailHeaderActionsMenuController
-          {...props}
-          isAdmin={isAdmin}
-          webCalloutAction={webCalloutAction}
-        />
-      )}
-    </WebCalloutActionController>
-  );
-}
-
-function WebCalloutActionController({
-  projectId,
-  webCallout,
-  children,
-}: {
-  projectId: string;
-  webCallout: NonNullable<
-    ConnectedDetailHeaderActionsMenuControllerProps["webCallout"]
-  >;
-  children: (action: ReturnType<typeof useWebCalloutAction>) => ReactNode;
-}) {
-  const action = useWebCalloutAction(
-    {
-      projectId,
-      traceId: webCallout.traceId,
-      observationId: webCallout.observationId,
-      sessionId: webCallout.sessionId,
-    },
-    true,
-  );
-
-  return children(action);
 }
 
 export function DetailHeaderActionsMenuController({
@@ -255,5 +204,56 @@ export function DetailHeaderActionsMenuController({
     <DropdownMenu items={items} placement="bottom-end">
       {children}
     </DropdownMenu>
+  );
+}
+
+function WebCalloutActionController({
+  projectId,
+  webCallout,
+  children,
+}: {
+  projectId: string;
+  webCallout: NonNullable<
+    ConnectedDetailHeaderActionsMenuControllerProps["webCallout"]
+  >;
+  children: (action: ReturnType<typeof useWebCalloutAction>) => ReactNode;
+}) {
+  const action = useWebCalloutAction(
+    {
+      projectId,
+      traceId: webCallout.traceId,
+      observationId: webCallout.observationId,
+      sessionId: webCallout.sessionId,
+    },
+    true,
+  );
+
+  return children(action);
+}
+
+export function ConnectedDetailHeaderActionsMenuController({
+  webCallout,
+  ...props
+}: ConnectedDetailHeaderActionsMenuControllerProps) {
+  const session = useSession();
+  const isAdmin = session.data?.user?.admin === true;
+
+  if (!webCallout) {
+    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
+  }
+
+  return (
+    <WebCalloutActionController
+      projectId={props.projectId}
+      webCallout={webCallout}
+    >
+      {(webCalloutAction) => (
+        <DetailHeaderActionsMenuController
+          {...props}
+          isAdmin={isAdmin}
+          webCalloutAction={webCalloutAction}
+        />
+      )}
+    </WebCalloutActionController>
   );
 }

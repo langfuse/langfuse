@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Plus } from "@langfuse/icons";
@@ -6,6 +5,16 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { PopoverController } from "@/src/components/ui/popover";
 import { ExperimentFilterCreationPopup } from "./ExperimentFilterCreationPopup";
 import { type ExperimentFilterOptions } from "./experimentFilterTypes";
+
+function renderTrigger({
+  Trigger,
+}: Parameters<ComponentProps<typeof PopoverController>["children"]>[0]) {
+  return (
+    <Trigger asChild>
+      <Button text="Add filter" icon={Plus} variant="secondary" size="sm" />
+    </Trigger>
+  );
+}
 
 export function ExperimentFilterAddButton({
   options,
@@ -36,16 +45,6 @@ export function ExperimentFilterAddButton({
     >
       {renderTrigger}
     </PopoverController>
-  );
-}
-
-function renderTrigger({
-  Trigger,
-}: Parameters<ComponentProps<typeof PopoverController>["children"]>[0]) {
-  return (
-    <Trigger asChild>
-      <Button text="Add filter" icon={Plus} variant="secondary" size="sm" />
-    </Trigger>
   );
 }
 

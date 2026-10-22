@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   AliasNode,
   IdentifierNode,
@@ -32,14 +31,6 @@ export type Relation = {
   alias?: string;
 };
 
-/** The FROM items of `node`, then its JOIN tables. */
-export function selectRelations(node: SelectQueryNode): Relation[] {
-  return [
-    ...(node.from?.froms ?? []),
-    ...(node.joins ?? []).map((join) => join.table),
-  ].map(describeRelation);
-}
-
 export function describeRelation(node: OperationNode): Relation {
   const withoutFinal = FinalTableNode.is(node) ? unwrapFinalTable(node) : node;
   const aliased = AliasNode.is(withoutFinal) ? withoutFinal : undefined;
@@ -53,4 +44,12 @@ export function describeRelation(node: OperationNode): Relation {
         ? aliased.alias.name
         : undefined,
   };
+}
+
+/** The FROM items of `node`, then its JOIN tables. */
+export function selectRelations(node: SelectQueryNode): Relation[] {
+  return [
+    ...(node.from?.froms ?? []),
+    ...(node.joins ?? []).map((join) => join.table),
+  ].map(describeRelation);
 }

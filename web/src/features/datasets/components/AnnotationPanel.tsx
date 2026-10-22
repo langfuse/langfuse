@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import {
   ResizableHandle,
@@ -15,24 +14,6 @@ import {
 } from "@/src/features/scores";
 import { ChevronRight } from "@langfuse/icons";
 import { useCallback } from "react";
-
-export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
-  const { activeCell, clearActiveCell, setCommentDraft } = useActiveCell();
-  if (!activeCell) return <Skeleton className="h-full w-full" />;
-  return (
-    <ActiveAnnotationPanel
-      key={JSON.stringify([
-        projectId,
-        activeCell.traceId,
-        activeCell.observationId,
-      ])}
-      projectId={projectId}
-      activeCell={activeCell}
-      clearActiveCell={clearActiveCell}
-      setCommentDraft={setCommentDraft}
-    />
-  );
-};
 
 function ActiveAnnotationPanel({
   projectId,
@@ -131,3 +112,21 @@ function ActiveAnnotationPanel({
     </ResizablePanelGroup>
   );
 }
+
+export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
+  const { activeCell, clearActiveCell, setCommentDraft } = useActiveCell();
+  if (!activeCell) return <Skeleton className="h-full w-full" />;
+  return (
+    <ActiveAnnotationPanel
+      key={JSON.stringify([
+        projectId,
+        activeCell.traceId,
+        activeCell.observationId,
+      ])}
+      projectId={projectId}
+      activeCell={activeCell}
+      clearActiveCell={clearActiveCell}
+      setCommentDraft={setCommentDraft}
+    />
+  );
+};

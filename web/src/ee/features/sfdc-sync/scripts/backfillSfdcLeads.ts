@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * One-off backfill of pre-existing orgs, users, and memberships into SFDC via
  * the live Mulesoft sync service — processed one organization at a time.
@@ -153,6 +152,30 @@ type Cli = {
   skipRecentMinutes: number;
 };
 
+/** One org id per row; #-comments, blanks, and a lone header row tolerated. */
+function readOrgIdCsv(flag: string, path: string): string[] {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch (err) {
+    throw new Error(
+      `${flag}: cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const [index, line] of raw.split(/\r?\n/).entries()) {
+    const value = line.split(",")[0].trim().replace(/^"|"$/g, "");
+    if (!value || value.startsWith("#")) continue;
+    if (index === 0 && /^(org_?id|id)$/i.test(value)) continue;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    ids.push(value);
+  }
+  if (ids.length === 0) throw new Error(`${flag}: no org ids found in ${path}`);
+  return ids;
+}
+
 function parseCli(): Cli {
   // `pnpm --filter web sfdc:backfill -- --flags` forwards the `--` separator
   // verbatim; drop it or parseArgs treats every flag after it as a positional.
@@ -219,30 +242,6 @@ function parseCli(): Cli {
     alreadyDoneOrgIds,
     skipRecentMinutes: toInt(values["skip-recent-minutes"] as string, 0),
   };
-}
-
-/** One org id per row; #-comments, blanks, and a lone header row tolerated. */
-function readOrgIdCsv(flag: string, path: string): string[] {
-  let raw: string;
-  try {
-    raw = readFileSync(path, "utf8");
-  } catch (err) {
-    throw new Error(
-      `${flag}: cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const [index, line] of raw.split(/\r?\n/).entries()) {
-    const value = line.split(",")[0].trim().replace(/^"|"$/g, "");
-    if (!value || value.startsWith("#")) continue;
-    if (index === 0 && /^(org_?id|id)$/i.test(value)) continue;
-    if (seen.has(value)) continue;
-    seen.add(value);
-    ids.push(value);
-  }
-  if (ids.length === 0) throw new Error(`${flag}: no org ids found in ${path}`);
-  return ids;
 }
 
 /** Bounded-concurrency map; preserves input order, never rejects on item error. */

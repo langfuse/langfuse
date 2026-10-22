@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Duration-label text measurement — ported from Sentry's
  * `traceRenderers/traceTextMeasurer.tsx`.
@@ -34,27 +33,6 @@ const unitAt = (text: string, index: number): string | null => {
 export type TextMeasurer = {
   measure: (text: string) => number;
 };
-
-export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
-  let context: CanvasRenderingContext2D | null = null;
-  try {
-    context =
-      typeof document === "undefined"
-        ? null
-        : document.createElement("canvas").getContext("2d");
-  } catch {
-    context = null;
-  }
-  return createTextMeasurerFrom(context, font);
-}
-
-/** Explicit-context entry point: `null` exercises the `PX_PER_LETTER` fallback. */
-export function createTextMeasurerFrom(
-  context: CanvasRenderingContext2D | null,
-  font = "12px ui-sans-serif",
-): TextMeasurer {
-  return { measure: measurerFor(context, font) };
-}
 
 /**
  * The px size out of a CSS font shorthand — the SIZE, not the first number in
@@ -156,4 +134,25 @@ function measurerFor(
     cache.set(text, width);
     return width;
   };
+}
+
+/** Explicit-context entry point: `null` exercises the `PX_PER_LETTER` fallback. */
+export function createTextMeasurerFrom(
+  context: CanvasRenderingContext2D | null,
+  font = "12px ui-sans-serif",
+): TextMeasurer {
+  return { measure: measurerFor(context, font) };
+}
+
+export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
+  let context: CanvasRenderingContext2D | null = null;
+  try {
+    context =
+      typeof document === "undefined"
+        ? null
+        : document.createElement("canvas").getContext("2d");
+  } catch {
+    context = null;
+  }
+  return createTextMeasurerFrom(context, font);
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 import {
@@ -14,6 +13,15 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { BaseError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
+
+/** authenticateMembershipMutation reuses the route context when available. */
+async function authenticateMembershipMutation(
+  req: NextApiRequest,
+  context: AuthorizationContext | undefined,
+) {
+  if (context) return { success: true as const, context };
+  return authenticator.authenticate({ headers: req.headers });
+}
 
 /** handler serves project memberships for authenticated API keys. */
 export default async function handler(
@@ -142,13 +150,4 @@ export default async function handler(
       error: "Internal server error",
     });
   }
-}
-
-/** authenticateMembershipMutation reuses the route context when available. */
-async function authenticateMembershipMutation(
-  req: NextApiRequest,
-  context: AuthorizationContext | undefined,
-) {
-  if (context) return { success: true as const, context };
-  return authenticator.authenticate({ headers: req.headers });
 }

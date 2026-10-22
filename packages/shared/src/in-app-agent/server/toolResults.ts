@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 
 import {
@@ -35,6 +34,18 @@ export const getInAppAgentSilentMcpOutputMessage = (
 ) =>
   `Output saved to /workspace/${getInAppAgentSilentMcpOutputFilePath(toolName, toolCallId)}`;
 
+export function isSilentInAppAgentMcpToolOutput(
+  value: unknown,
+): value is SilentInAppAgentMcpToolOutput {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
+    "output" in value
+  );
+}
+
 export function getPublicInAppAgentMcpToolResultContent(content: string) {
   try {
     const output = JSON.parse(content) as unknown;
@@ -59,18 +70,6 @@ export function getSandboxInAppAgentMcpToolResultContent(content: string) {
   const parsed = JSON.parse(content) as unknown;
 
   return isSilentInAppAgentMcpToolOutput(parsed) ? parsed.output : parsed;
-}
-
-export function isSilentInAppAgentMcpToolOutput(
-  value: unknown,
-): value is SilentInAppAgentMcpToolOutput {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
-    "output" in value
-  );
 }
 
 export type AiSdkToolModelOutput = {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 
 import {
@@ -18,6 +17,39 @@ import {
 const IN_APP_AGENT_WATCH_TAIL_POLL_MS = 1_000;
 const IN_APP_AGENT_WATCH_KEEPALIVE_MS = 15_000;
 const IN_APP_AGENT_WATCH_MAX_CONNECTION_MS = 90_000;
+
+function syntheticFrame(
+  cursor: number,
+  event: AgUiEvent,
+): InAppAgentWatchFrame {
+  return {
+    type: "event",
+    sequenceNumber: cursor,
+    event,
+  };
+}
+
+/** Only a claimed run can be judged by its heartbeat. */
+function isStaleClaimedRun(
+  run: {
+    status: string | null;
+    claimedAt?: Date | null;
+    heartbeatAt?: Date | null;
+  },
+  now: number,
+): boolean {
+  if (run.status !== InAppAgentRunStatus.RUNNING) {
+    return false;
+  }
+
+  const lastSign = run.heartbeatAt ?? run.claimedAt;
+
+  if (!lastSign) {
+    return false;
+  }
+
+  return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
+}
 
 /**
  * Tail persisted events while preserving AG-UI run framing. Synthetic frames
@@ -216,37 +248,4 @@ export async function* watchConversationFrames(params: {
 
     await sleep(IN_APP_AGENT_WATCH_TAIL_POLL_MS);
   }
-}
-
-/** Only a claimed run can be judged by its heartbeat. */
-function isStaleClaimedRun(
-  run: {
-    status: string | null;
-    claimedAt?: Date | null;
-    heartbeatAt?: Date | null;
-  },
-  now: number,
-): boolean {
-  if (run.status !== InAppAgentRunStatus.RUNNING) {
-    return false;
-  }
-
-  const lastSign = run.heartbeatAt ?? run.claimedAt;
-
-  if (!lastSign) {
-    return false;
-  }
-
-  return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
-}
-
-function syntheticFrame(
-  cursor: number,
-  event: AgUiEvent,
-): InAppAgentWatchFrame {
-  return {
-    type: "event",
-    sequenceNumber: cursor,
-    event,
-  };
 }
