@@ -4,17 +4,21 @@ import { type NextApiRequest } from "next";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
   getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
 import {
+  ApiKeyId,
   OrganizationId,
   ProjectId,
+  SystemRoleId,
   type OrganizationAction,
   type ProjectAction,
 } from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -137,29 +141,11 @@ const scopeOf = (result: ShadowResult): Record<string, unknown> => {
 };
 
 const createOrgApiKey = async (targetOrgId: string) => {
-  const publicKey = `pk-lf-${randomUUID()}`;
-  const secretKey = `sk-lf-${randomUUID()}`;
-  const apiKeyRowId = randomUUID();
-  await prisma.apiKey.create({
-    data: {
-      id: apiKeyRowId,
-      orgId: targetOrgId,
-      publicKey,
-      hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
-      fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
-      displaySecretKey: getDisplaySecretKey(secretKey),
-      scope: "ORGANIZATION",
-    },
-  });
-  await prisma.roleAssignment.create({
-    data: {
-      orgId: targetOrgId,
-      apiKeyId: apiKeyRowId,
-      principalId: `apiKey/${apiKeyRowId}`,
-      systemRole: "LEGACY_ORGANIZATION_API_KEY",
-      roleId: "system/LEGACY_ORGANIZATION_API_KEY",
-      ownerId: `organization/${targetOrgId}`,
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(targetOrgId),
+    scope: OrganizationId(targetOrgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
   });
   return createBasicAuthHeader(publicKey, secretKey);
 };
@@ -189,6 +175,7 @@ const ownedProjectIds = (context: AuthorizationContext): string[] =>
 const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
   const publicKey = `pk-lf-${randomUUID()}`;
   const secretKey = `sk-lf-${randomUUID()}`;
+  // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a key with no role assignment, which createApiKey always adds.
   const apiKey = await prisma.apiKey.create({
     data: {
       scope,
@@ -273,16 +260,12 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
 
     it("preserves a narrow assignment instead of restoring a legacy grant", async () => {
       const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
-      const assignment = await prisma.roleAssignment.create({
-        data: {
-          orgId,
-          projectId,
-          apiKeyId: apiKey.id,
-          ownerId: `project/${projectId}`,
-          principalId: `apiKey/${apiKey.id}`,
-          roleId: "system/SCORES_INGEST",
-          systemRole: "SCORES_INGEST",
-        },
+      const assignment = await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId: ProjectId(projectId),
+        principalId: ApiKeyId(apiKey.id),
+        roleId: SystemRoleId("SCORES_INGEST"),
+        tags: [],
       });
       setMode("enforce");
       const result = await shadowAuth({
@@ -526,16 +509,12 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
 
   it("a project ADMIN key on a project-nested route authorizes only its own project in enforce", async () => {
     const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
-    await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        projectId,
-        apiKeyId: apiKey.id,
-        ownerId: `project/${projectId}`,
-        principalId: `apiKey/${apiKey.id}`,
-        roleId: "system/ADMIN",
-        systemRole: "ADMIN",
-      },
+    await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: ApiKeyId(apiKey.id),
+      roleId: SystemRoleId("ADMIN"),
+      tags: [],
     });
     const sibling = await prisma.project.create({
       data: { orgId, name: `sibling-${randomUUID()}` },

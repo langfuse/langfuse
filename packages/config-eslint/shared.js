@@ -4,6 +4,14 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
+// Files allowed to create each Prisma model's rows; globs match trailing path segments.
+const prismaWriters = {
+  apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
+  roleAssignment: [
+    "packages/shared/src/features/rbac/roleAssignmentService.ts",
+  ],
+};
+
 export default [
   {
     name: "langfuse/shared/ignores",
@@ -35,6 +43,7 @@ export default [
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
       "@repo/no-exotic-operators": "warn",
+      "@repo/no-restricted-prisma-writes": ["error", { models: prismaWriters }],
     },
   },
 
