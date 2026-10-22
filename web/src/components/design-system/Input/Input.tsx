@@ -35,15 +35,18 @@ type InputProps = Pick<
 > & {
   allowPasswordManager?: boolean;
   error?: boolean;
-  /** Grows and shrinks with the value; place it in a `w-fit` container. */
-  fitContent?: boolean;
+  /**
+   * `inline` sits within a sentence and grows and shrinks with its value;
+   * place it in a `w-fit` container.
+   */
+  layout?: "block" | "inline";
   ref?: Ref<HTMLInputElement>;
 };
 
 export function Input({
   allowPasswordManager,
   error,
-  fitContent,
+  layout = "block",
   ref,
   ...props
 }: InputProps) {
@@ -51,7 +54,7 @@ export function Input({
     <InputControl contentLayout="text" error={error}>
       <input
         {...props}
-        className={fitContent ? "field-sizing-content" : undefined}
+        className={layout === "inline" ? "field-sizing-content" : undefined}
         {...(!allowPasswordManager && { "data-1p-ignore": true })}
         ref={ref}
       />

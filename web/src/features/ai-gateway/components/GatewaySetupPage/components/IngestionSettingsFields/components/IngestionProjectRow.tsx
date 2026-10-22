@@ -65,7 +65,7 @@ export function IngestionProjectRow({
       {isNewProject ? (
         <div className="ph-no-capture w-fit">
           <Input
-            fitContent
+            layout="inline"
             aria-label="Project name"
             value={settings.newProjectName}
             onChange={handleNameChange}
