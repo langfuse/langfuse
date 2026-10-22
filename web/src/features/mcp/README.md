@@ -51,23 +51,7 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
 ## Architecture
 
-### Request limits
-
-Each HTTP request is limited to **4.5 MB** and **50,000 object members and array
-elements combined**. The structural limit counts the entire request, including
-nested tool arguments, metadata, and protocol fields. Multiple calls sent in one
-JSON-RPC batch share this budget; separate HTTP requests have separate budgets.
-Tool responses are not subject to this structural limit.
-
-`batchUpsertDatasetItems` accepts at most 100 items, but large structured items
-may require smaller batches. For example, 100 items with 200 two-field chat
-messages each exceed the structural limit even when the request is under 1 MB.
-
-A structural-limit rejection returns HTTP 422 before any tools in that request
-execute. Split batches into smaller requests before retrying. Do not retry the
-same request unchanged or silently truncate data. If one item cannot fit, explain
-the limit and ask the user how to proceed. Once a dataset batch is accepted,
-normal execution can still partially succeed before a later item fails.
+MCP requests are limited to 4.5 MB and 50,000 object members/array elements combined.
 
 ### Stateless Design
 
