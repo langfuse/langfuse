@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
-import { DEFAULT_TOPIC_FACETS } from "./default-facets";
+import {
+  BUILT_IN_TOPIC_FACETS,
+  DEFAULT_TOPIC_FACETS,
+  offeredTopicFacets,
+} from "./default-facets";
 
-export { DEFAULT_TOPIC_FACETS };
+export { BUILT_IN_TOPIC_FACETS, DEFAULT_TOPIC_FACETS, offeredTopicFacets };
 
 export const TOPICS_BEDROCK_ACCESS_ERROR =
   "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
@@ -126,12 +130,13 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
       }),
     )
     .superRefine((facets, ctx) => {
-      const expected = DEFAULT_TOPIC_FACETS.map((facet) => facet.name);
+      const required = DEFAULT_TOPIC_FACETS.map((facet) => facet.name);
+      const known = new Set(BUILT_IN_TOPIC_FACETS.map((facet) => facet.name));
       const names = facets.map((facet) => facet.name);
       if (
-        names.length !== expected.length ||
         new Set(names).size !== names.length ||
-        expected.some((name) => !names.includes(name))
+        required.some((name) => !names.includes(name)) ||
+        names.some((name) => !known.has(name))
       ) {
         ctx.addIssue({
           code: "custom",

@@ -1,14 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { LLMAdapter, supportedModels } from "@langfuse/shared";
-import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
+import { offeredTopicFacets } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-
-export const TOPIC_SETUP_QUESTIONS = [
-  { name: "Intent" },
-  { name: "Sentiment" },
-  { name: "Outcome" },
-  { name: "Issues" },
-] as const;
 
 export const TOPIC_SETUP_WAIT_MINUTES = [2, 5, 10] as const;
 const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;
@@ -20,7 +13,7 @@ const TOPIC_SETUP_MIN_PAST_TRACES = 100;
 export type TopicSetupStep = "questions" | "traces" | "review";
 export type TopicSetupWaitMinutes = (typeof TOPIC_SETUP_WAIT_MINUTES)[number];
 export type TopicSetupQuestion = {
-  name: (typeof TOPIC_SETUP_QUESTIONS)[number]["name"];
+  name: string;
   description: string;
   enabled: boolean;
 };
@@ -224,16 +217,15 @@ export function initialTopicSetupDraft(input: {
   );
   return {
     step: "questions",
-    questions: TOPIC_SETUP_QUESTIONS.map((question) => {
+    questions: offeredTopicFacets(
+      input.facets.flatMap((facet) => (facet.isBuiltIn ? [facet.name] : [])),
+    ).map((preset) => {
       const existing = input.facets.find(
-        (facet) => facet.isBuiltIn && facet.name === question.name,
+        (facet) => facet.isBuiltIn && facet.name === preset.name,
       );
       return {
-        name: question.name,
-        description: topicQuestionDescription(
-          question.name,
-          existing?.description,
-        ),
+        name: preset.name,
+        description: existing?.description?.trim() || preset.description,
         enabled: input.enabledFacetIds
           ? Boolean(existing && input.enabledFacetIds.has(existing.id))
           : true,
@@ -351,14 +343,6 @@ export function topicSetupStage(
       retryId: null,
     };
   return { stage: "done", retryId: null };
-}
-
-function topicQuestionDescription(name: string, stored: string | undefined) {
-  const description = stored?.trim();
-  if (description) return description;
-  return (
-    DEFAULT_TOPIC_FACETS.find((facet) => facet.name === name)?.description ?? ""
-  );
 }
 
 function embeddingModelsFor(adapter: string) {

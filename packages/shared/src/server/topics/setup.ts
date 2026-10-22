@@ -29,7 +29,7 @@ import {
 } from "./processing-gate";
 
 /**
- * One Topics setup: models, the four built-in facets, and a single rule. It
+ * One Topics setup: models, the built-in facets, and a single rule. It
  * keeps the stored automatic-processing state, pause and sampling rate.
  */
 export async function saveTopicsSetup(

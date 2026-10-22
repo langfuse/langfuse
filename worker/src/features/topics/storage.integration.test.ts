@@ -85,7 +85,11 @@ describe("Topics eval-backed configuration", () => {
       where: { projectId, type: "FACET", isBuiltIn: true },
       include: { versions: true },
     });
-    expect(defaults).toHaveLength(4);
+    expect(defaults.map((facet) => facet.name).sort()).toEqual([
+      "Intent",
+      "Issues",
+      "Outcome",
+    ]);
     for (const result of results)
       expect(
         result
