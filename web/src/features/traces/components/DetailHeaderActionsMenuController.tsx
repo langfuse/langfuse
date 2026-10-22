@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";

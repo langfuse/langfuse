@@ -48,7 +48,7 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import {
   TurnstileWidget,
   type TurnstileWidgetHandle,
@@ -811,18 +811,6 @@ export default function SignInPage({
         setLastUsedSsoEmail("");
       }
       setShowPasswordStep(true);
-
-      // Auto-focus password input when password step becomes visible
-      setTimeout(() => {
-        // Find and focus the password input
-        // Ref did not work, so we use a more specific selector
-        const passwordInput = document.querySelector(
-          'input[name="password"]',
-        ) as HTMLInputElement;
-        if (passwordInput) {
-          passwordInput.focus();
-        }
-      }, 100);
     } catch (error) {
       // JSON.parse of a non-JSON 200 (proxy/WAF HTML) is transport, not an
       // app bug — breadcrumb it. Unknown failures still capture.
@@ -925,7 +913,11 @@ export default function SignInPage({
                             </Link>
                           </FormLabel>
                           <FormControl>
-                            <PasswordInput allowPasswordManager {...field} />
+                            <PasswordInput
+                              allowPasswordManager
+                              autoFocus={authProviders.sso}
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

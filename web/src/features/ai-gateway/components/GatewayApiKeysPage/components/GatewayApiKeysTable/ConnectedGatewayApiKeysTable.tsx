@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
@@ -15,13 +18,23 @@ export function ConnectedGatewayApiKeysTable({
     page: "pageIndex",
     limit: "pageSize",
   });
-  const apiKeysQuery = api.aiGateway.listApiKeys.useQuery({
-    orgId: organizationId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  const [searchQuery, setSearchQuery] = useState("");
+  const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
+    {
+      orgId: organizationId,
+      searchQuery,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    { placeholderData: keepPreviousData },
+  );
   const utils = api.useUtils();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setPaginationState({ ...paginationState, pageIndex: 0 });
+  };
 
   if (apiKeysQuery.isError) {
     return (
@@ -84,6 +97,7 @@ export function ConnectedGatewayApiKeysTable({
                   state: paginationState,
                   onChange: setPaginationState,
                 }}
+                search={{ value: searchQuery, onChange: handleSearchChange }}
                 createAction={openDialog}
                 onRevoke={openRevokeDialog}
               />

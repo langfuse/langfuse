@@ -134,7 +134,8 @@ describe("Blob Storage Integrations API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const orgApiKey = await createApiKey(prisma, {
-      owner: OrganizationId(testOrgId),
+      tenant: OrganizationId(testOrgId),
+      scope: OrganizationId(testOrgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
       name: "Test API Key for Blob Storage API",
@@ -248,7 +249,8 @@ describe("Blob Storage Integrations API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       const projectApiKey = await createApiKey(prisma, {
-        owner: ProjectId(testProject1Id),
+        tenant: OrganizationId(testOrgId),
+        scope: ProjectId(testProject1Id),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Project API Key",
@@ -1472,7 +1474,8 @@ describe("Blob Storage Integrations API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       const projectApiKey = await createApiKey(prisma, {
-        owner: ProjectId(testProject1Id),
+        tenant: OrganizationId(testOrgId),
+        scope: ProjectId(testProject1Id),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Project API Key",

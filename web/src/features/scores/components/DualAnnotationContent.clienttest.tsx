@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   act,
   fireEvent,
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   headerRender: vi.fn(),
   hasConfigAccess: false,
   configsLoading: false,
+  scoreEditsDisabled: false,
 }));
 const defaultConfig = {
   id: "quality",
@@ -67,6 +69,9 @@ vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
+  useScoreEditsDisabled: () => mocks.scoreEditsDisabled,
+}));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
@@ -192,6 +197,7 @@ describe("unified annotation targets", () => {
     vi.clearAllMocks();
     mocks.hasConfigAccess = false;
     mocks.configsLoading = false;
+    mocks.scoreEditsDisabled = false;
     Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
@@ -413,6 +419,26 @@ describe("unified annotation targets", () => {
       expect(mocks.create).not.toHaveBeenCalled();
     },
   );
+
+  it("locks saved scores when the project disables score edits", async () => {
+    mocks.scoreEditsDisabled = true;
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...serverQualityScore(), metadata: "{}" }],
+      }),
+    );
+    const quality = screen.getByRole("group", { name: "Quality" });
+    expect(
+      within(quality).getByText(
+        "Saved scores cannot be edited in this project.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(quality).getByText("True"));
+    act(() => quality.focus());
+    await act(async () => fireEvent.keyDown(quality, { key: "2" }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
 
   it("refreshes clean scores on reopening while retaining text and score-comment drafts", async () => {
     configs.push({

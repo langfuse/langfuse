@@ -1,4 +1,10 @@
-import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
+import {
+  type ComponentProps,
+  useLayoutEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Search } from "@langfuse/icons";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -45,6 +51,9 @@ export function SessionConversationalView(
   },
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   const showSidebar = (workspaceSize?.width ?? 0) >= 768;
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -137,6 +146,15 @@ export function SessionConversationalView(
     return {
       ...item,
       ...entry,
+      isCollapsed: collapsedTraceIds.has(item.trace.id),
+      onToggleCollapsed: () => {
+        setCollapsedTraceIds((current) => {
+          const next = new Set(current);
+          if (next.has(item.trace.id)) next.delete(item.trace.id);
+          else next.add(item.trace.id);
+          return next;
+        });
+      },
       scrollTarget:
         item.scrollTarget?.itemId && item.scrollTarget.itemId !== entry.itemId
           ? null
@@ -199,15 +217,21 @@ export function SessionConversationalView(
             ];
           });
       })();
+      const matchesTraceName =
+        props.searchQuery.length > 0 &&
+        (item.trace.name ?? "")
+          .toLowerCase()
+          .includes(props.searchQuery.toLowerCase());
       const matchingRows =
-        props.searchQuery && transcriptRows
+        props.searchQuery && !matchesTraceName && transcriptRows
           ? transcriptRows.filter((row) =>
               `${row.role} ${row.label}`
                 .toLowerCase()
                 .includes(props.searchQuery.toLowerCase()),
             )
           : transcriptRows;
-      if (props.searchQuery && matchingRows?.length === 0) continue;
+      if (props.searchQuery && !matchesTraceName && matchingRows?.length === 0)
+        continue;
       const threadVisibility =
         item.state.type === "transcript"
           ? getSessionTranscriptThreads(item.state.result.transcript)
@@ -241,6 +265,18 @@ export function SessionConversationalView(
           ...props,
           traces: sidebarTraces,
           activeTraceId: props.controller.activeItemId ?? undefined,
+          onSelect: (...args: Parameters<typeof props.onSelect>) => {
+            const item = timelineItems[args[0]];
+            if (item) {
+              setCollapsedTraceIds((current) => {
+                if (!current.has(item.trace.id)) return current;
+                const next = new Set(current);
+                next.delete(item.trace.id);
+                return next;
+              });
+            }
+            props.onSelect(...args);
+          },
         };
   return (
     <div

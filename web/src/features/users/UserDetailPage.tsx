@@ -1,11 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { TracesTable } from "@/src/features/traces";
 import { ScoresTable } from "@/src/features/scores";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";

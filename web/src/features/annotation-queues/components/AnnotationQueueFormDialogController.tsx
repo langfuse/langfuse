@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useState } from "react";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 

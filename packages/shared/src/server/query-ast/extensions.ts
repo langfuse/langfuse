@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * ClickHouse-specific query-builder extensions for the Kysely dialect.
  *
@@ -241,15 +242,16 @@ function subscript<V>(
  * Sum of the map values whose key contains `needle`, case-insensitively:
  * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
+ * Pass a code constant as `literal(...)` so it is inlined.
  */
 export function sumMapValuesWhereKeyContains(
   map: Expression<Record<string, unknown>>,
-  needle: string,
+  needle: Expression<string>,
 ): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
-      ValueNode.create(needle),
+      needle.toOperationNode(),
     ]),
     OperatorNode.create(">"),
     ValueNode.createImmediate(0),
@@ -272,6 +274,13 @@ export function sumMapValuesWhereKeyContains(
   );
 }
 
+/**
+ * A helper's result. Its table scope is every table: Kysely doesn't check an
+ * expression's scope where it is used (`ExpressionWrapper<DB, "e", T>` is
+ * assignable to `ExpressionWrapper<DB, "t", T>`), so a narrower type would
+ * catch nothing. Scope is checked where references are written, so shared
+ * expressions take the calling query's `eb` (README, "Using it").
+ */
 type ChExpression<T> = ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
@@ -372,12 +381,18 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
 }
 
-/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+/**
+ * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
+ * `literal(...)` for a code constant so it is inlined.
+ */
 export function startsWith(
   haystack: Expression<string>,
-  prefix: string,
+  prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
-  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
+  return functionCall("startsWith", [
+    haystack,
+    typeof prefix === "string" ? ValueNode.create(prefix) : prefix,
+  ]);
 }
 
 /** ClickHouse `length(array)`. */
@@ -406,6 +421,22 @@ export function arrayExists<T>(
 /** ClickHouse `any(value)`: some value of the group. */
 export function anyValue<T>(value: Expression<T>): ChExpression<T> {
   return aggregate("any", [value]);
+}
+
+/** ClickHouse `anyIf(value, condition)`: some value among the matching rows. */
+export function anyIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("anyIf", [value, condition]);
+}
+
+/** ClickHouse `argMax(value, by)`: `value` of the row with the largest `by`. */
+export function argMax<T>(
+  value: Expression<T>,
+  by: Expression<unknown>,
+): ChExpression<T> {
+  return aggregate("argMax", [value, by]);
 }
 
 /** ClickHouse `countIf(condition)`. */
@@ -445,6 +476,13 @@ export function groupUniqArrayIf<T>(
   condition: Expression<SqlBool>,
 ): ChExpression<T[]> {
   return aggregate("groupUniqArrayIf", [value, condition]);
+}
+
+/** ClickHouse `groupUniqArrayArray(array)`: the distinct elements of all arrays. */
+export function groupUniqArrayArray<T>(
+  array: Expression<T[]>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayArray", [array]);
 }
 
 /** ClickHouse `groupUniqArrayArrayIf(array, condition)`. */
@@ -516,13 +554,20 @@ export function toStartOfMinute(
   return functionCall("toStartOfMinute", [dateArg(value)]);
 }
 
+/** ClickHouse `tuple(a, b, …)`. */
+export function tuple<T extends unknown[]>(
+  ...values: { [K in keyof T]: Expression<T[K]> }
+): ChExpression<T> {
+  return functionCall("tuple", values);
+}
+
 /** ClickHouse `arrayReverse(array)`. */
 function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayReverse", [array]);
 }
 
 /** ClickHouse `mapFromArrays(keys, values)`. */
-function mapFromArrays<V>(
+export function mapFromArrays<V>(
   keys: Expression<string[]>,
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {
@@ -625,34 +670,60 @@ export function argMaxIf<T>(
 }
 
 /**
- * A trace's session id from its events: the latest non-empty `session_id`,
- * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
- * columns, for a trace-level aggregate over one events table.
+ * The latest non-empty `value` by `by` across the group:
+ * `argMaxIf(value, by, value != '')`.
  */
-export function traceSessionId(): ChExpression<string> {
-  const eb = expressionBuilder<ClickHouseDatabase, "events_core">();
-  const sessionId = eb.ref("session_id");
-  return argMaxIf(sessionId, eb.ref("event_ts"), nonEmpty(sessionId));
+export function latestNonEmpty(
+  value: Expression<string>,
+  by: Expression<unknown>,
+): ChExpression<string> {
+  return argMaxIf(value, by, nonEmpty(value));
 }
 
 /**
- * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
- * bound, a `literal(...)` is inlined.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap} over the events
+ * `metadata_names` / `metadata_values` columns, so the last entry of a
+ * duplicated key wins. Keys follow {@link mapValue}: a string is bound, a
+ * `literal(...)` is inlined. `names` / `values` must be one relation's
+ * `metadata_names` / `metadata_values` refs; anything else throws.
  */
 export function metadataValue(
-  tableAlias: string,
+  names: Expression<string[]>,
+  values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  const column = (name: string) =>
-    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
-      qualifiedColumn(tableAlias, name),
+  assertMetadataColumns(names, values);
+  return subscript<string>(metadataMap(names, values), key, true);
+}
+
+/**
+ * Throws unless `names` / `values` are `q.metadata_names` / `q.metadata_values`
+ * of one qualifier `q`. The routing pass trusts the lookup's marker and does
+ * not walk these arguments, so they may read nothing else.
+ */
+function assertMetadataColumns(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): void {
+  const namesOf = qualifierOf(names.toOperationNode(), "metadata_names");
+  const valuesOf = qualifierOf(values.toOperationNode(), "metadata_values");
+  if (namesOf === undefined || namesOf !== valuesOf) {
+    throw new QueryCompileError(
+      'metadataValue reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").',
     );
-  return subscript<string>(
-    metadataMap(column("metadata_names"), column("metadata_values")),
-    key,
-    true,
-  );
+  }
+}
+
+/** `e` for the reference `e.<column>`; undefined for anything else. */
+function qualifierOf(node: OperationNode, column: string): string | undefined {
+  if (
+    !ReferenceNode.is(node) ||
+    !ColumnNode.is(node.column) ||
+    node.column.column.name !== column
+  ) {
+    return undefined;
+  }
+  return node.table?.table.identifier.name;
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`
@@ -775,7 +846,7 @@ class FinalPlugin implements KyselyPlugin {
 /**
  * `FROM <table> FINAL` / `JOIN <table> AS alias FINAL` as a `$call` step:
  * `qb.$call(useFinal(["scores"]))`. Tables declared `dedup: none` (immutable
- * at read time, including `events_core`) cannot take FINAL.
+ * at read time, including the events relations) cannot take FINAL.
  */
 export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   for (const table of tables) {

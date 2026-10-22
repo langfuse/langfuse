@@ -5,7 +5,7 @@ import { type IconComponent, X } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
 
 const tagVariants = cva(
-  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-sm border px-1.5 pb-px font-mono text-xs leading-none font-normal",
+  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-sm border px-1.5 font-mono text-xs leading-none font-normal",
   {
     variants: {
       status: {

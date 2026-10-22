@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner
@@ -23,7 +24,7 @@ import {
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
-import { Toaster } from "@/src/components/ui/sonner";
+import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   VersionUpdateBanner,

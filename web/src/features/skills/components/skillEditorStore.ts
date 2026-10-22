@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { MAX_SKILL_FILES, SkillFilePathSchema } from "@langfuse/shared";
 import { getParentFolderPaths } from "./skillFileTree";

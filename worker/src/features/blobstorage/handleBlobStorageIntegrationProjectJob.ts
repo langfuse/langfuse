@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -62,6 +63,9 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  type ExportFieldGroup,
+  getObservationFieldGroups,
+  getScoreFieldGroups,
   isLegacyExportSource,
   isLegacyExporter,
   resolveBlobExportTuning,
@@ -413,7 +417,7 @@ const processBlobStorageExport = async (config: {
   // when `compressed` is true.
   gzipLevel: number | undefined;
   convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   rawPassthrough: boolean;
   // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
@@ -552,10 +556,15 @@ const processBlobStorageExport = async (config: {
           return blobStorageProps.contentType;
         })();
 
-        const exportFieldGroups =
+        // Each table's query only receives its own groups. Score groups are
+        // opt-in, so the empty-selection fallback covers observation groups only.
+        const selectedFieldGroups: ExportFieldGroup[] =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
+        const observationFieldGroups =
+          getObservationFieldGroups(selectedFieldGroups);
+        const scoreFieldGroups = getScoreFieldGroups(selectedFieldGroups);
 
         // blob.path already encodes parquet (no per-table fallback), so no
         // separate blob.config.parquet attribute is needed.
@@ -623,6 +632,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  scoreFieldGroups,
                 )
               ).stream;
               break;
@@ -632,7 +642,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
-                  exportFieldGroups,
+                  observationFieldGroups,
                 )
               ).stream;
               break;
@@ -642,7 +652,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
-                  exportFieldGroups,
+                  observationFieldGroups,
                   config.convertV4LatencyToSeconds,
                 )
               ).stream;
@@ -669,13 +679,13 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
-                  exportFieldGroups,
+                  observationFieldGroups,
                 )
               : getEventsForBlobStorageExportRaw(
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
-                  exportFieldGroups,
+                  observationFieldGroups,
                   config.convertV4LatencyToSeconds,
                 );
 
@@ -717,14 +727,14 @@ const processBlobStorageExport = async (config: {
                     config.projectId,
                     config.minTimestamp,
                     config.maxTimestamp,
-                    exportFieldGroups,
+                    observationFieldGroups,
                   ),
                   chStats,
                 ),
                 config.projectId,
                 "model_id",
                 false, // v3 query already returns latency in seconds
-                exportFieldGroups,
+                observationFieldGroups,
                 config.skipEnrichment,
               );
               break;
@@ -733,6 +743,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                scoreFieldGroups,
               );
               break;
             case "observations_v2": // observations_v2 is the events table
@@ -743,14 +754,14 @@ const processBlobStorageExport = async (config: {
                     config.projectId,
                     config.minTimestamp,
                     config.maxTimestamp,
-                    exportFieldGroups,
+                    observationFieldGroups,
                   ),
                   chStats,
                 ),
                 config.projectId,
                 "model_id",
                 config.convertV4LatencyToSeconds,
-                exportFieldGroups,
+                observationFieldGroups,
                 config.skipEnrichment,
               );
               break;
@@ -1311,7 +1322,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       gzipLevel: exportTuning.gzipLevel,
       convertV4LatencyToSeconds,
       exportFieldGroups:
-        blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+        blobStorageIntegration.exportFieldGroups as ExportFieldGroup[],
       rawPassthrough: exportTuning.rawPassthrough,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,

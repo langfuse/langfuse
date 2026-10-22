@@ -21,6 +21,8 @@ changing how it emits SQL.
 
 - `compile.ts` — the one supported entry point,
   `compileClickhouseQuery(query, projectId)`.
+- `ctes.ts` — the first pass: rejects CTE and FROM/JOIN names that could
+  mean two relations, so later passes read every registry name as its table.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
@@ -93,14 +95,29 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, an unqualified truncated column, and a CTE named `events_core` /
-  `events_full` are compile errors while `events` is in scope. Name
-  `events_core` to read the truncated copy on purpose; `events_core` /
-  `events_full` stay selectable by name, which is also the override for a
-  shape the pass rejects.
-- **Function and aggregate names must be plain identifiers.**
-  The compiler writes them verbatim, so anything else fails to compile.
-  `collate` is not supported.
+  it, and an unqualified truncated column are compile errors while `events`
+  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  (input/output/metadata previews): it always compiles to `events_core`,
+  whatever columns it reads, and the pass does not reject `*` or raw SQL over
+  it. `events_core` / `events_full` are not part of the Kysely schema, and
+  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
+  compile error; only the routing pass writes them.
+- **Give each CTE (and view) its own plain name.** A CTE name is a plain
+  identifier that is not a registry table (`traces`, `events_core`, the
+  logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
+  enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
+  name is an unqualified registry table or a CTE in scope; schema-qualified
+  names (`default.traces`) are rejected, since the registry describes tables
+  by name only. A CTE body sees only the CTEs declared before it, so
+  recursive and cyclic CTEs are out. The passes then read every registry
+  name as its table. Rename or reorder the CTEs when the compile rejects
+  them; add a physical table to the registry to read it.
+- **Identifiers, function and aggregate names must be plain identifiers**
+  (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
+  else fails to compile. This covers columns, tables, aliases, CTE names,
+  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  columns instead. A positive integer after a qualifier (`x.1`) is tuple
+  element access and compiles as is. `collate` is not supported.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -121,7 +138,18 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
-  `{p:Int64}`). Same-value binds still intern to one placeholder.
+  `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple
+  (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
+  placeholder. A value compared to a column the compiler can't type throws
+  `QueryCompileError`: a qualifier no relation declares, a table outside the
+  registry (or a CTE that reads one), and an unqualified column that the
+  joined relations type differently (a computed CTE column counts as its own
+  type) or that a relation outside the registry may provide. Qualify the
+  column with the alias of a registry relation, or add the table to the
+  registry. A SELECT alias takes the type of the column it names, also
+  through another alias; a computed alias, an ARRAY JOIN alias, or a column
+  no relation has, binds by value. A `*` over a join types a shared column
+  name from the leftmost relation, as ClickHouse does.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server
@@ -130,11 +158,33 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Inline code constants with `literal(...)`, bind everything else.**
   `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
   comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
-  rejects backslashes and must never receive user input.
+  rejects backslashes and must never receive user input. For a constant `IN`
+  list, wrap each item: `eb("data_type", "in", TYPES.map((t) => literal(t)))`
+  renders `data_type in ('A', 'B')`. A list that mixes `literal(...)` items
+  with bound values is rejected.
 - **Registry types are logical, not wire types.** `DateTime64` is `Date` and
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do
   not type results with the builder's `InferResult`.
+- **Build shared expressions from the calling query's expression builder.**
+  A reusable events expression or select list is wrapped in
+  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
+  query that reads a full events row as `e` and nothing else: no join, no
+  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
+  of the same name in the calling query can't shadow them. A helper typed
+  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
+  names, but not joins or the rest of the row: fine for a fixed small column
+  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
+  `scopedToEvents`. A module-level constant built from a detached
+  `expressionBuilder()` loses the check entirely: helper results don't carry
+  their table scope in their type, and Kysely's `select()` / `where()` accept
+  any expression.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -172,7 +222,7 @@ db.selectFrom("events")
 // soft-delete pass so a deleted latest version is dropped
 ```
 
-**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
 
 ```ts
 db.selectFrom("scores as s")
@@ -181,13 +231,13 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined; `names` / `values` must be one relation's `metadata_names` / `metadata_values` refs, anything else throws. Events reads use `eventsMetadataValue(eb, key)` from `../repositories/events-selects.ts`):
 
 ```ts
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events as e")
   .select("e.span_id")
-  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
+  .where((eb) => eb(eventsMetadataValue(eb, filterKey), "=", "x"));
 // select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
 
@@ -236,6 +286,10 @@ and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
+   `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
+   before every other pass. A FROM/JOIN name that resolves to no registry
+   table or CTE in scope, and a schema-qualified name, throw
+   `UnscopedRelationError`; naming errors throw `QueryCompileError`.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
@@ -265,8 +319,9 @@ and it is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-6. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`, as
+6. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
+   inside raw SQL in any position throw `UnscopedRelationError`, as
    does any FROM/JOIN source that is neither a table reference nor a subquery
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.
@@ -330,9 +385,9 @@ documented-protected API.
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
-anchors it so it stays in the build graph. `@ts-expect-error` lines there must
-stay live.
+arrayJoin widening, limitBy / useFinal preservation). It is never run: `tsc`
+checks it through the package's `include`, and knip treats `*types.assert.ts`
+as an entry. `@ts-expect-error` lines there must stay live.
 
 ### Verifying changes
 

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -93,7 +93,7 @@ export function JSONView(props: {
           "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-surface-output dark:border-border"
+            ? "bg-surface-section dark:border-border"
             : "",
           props.scrollable || props.borderless || props.title
             ? ""

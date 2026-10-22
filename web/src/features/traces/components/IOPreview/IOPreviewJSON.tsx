@@ -53,7 +53,7 @@ function statusMessageBackgroundColor(
     return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
   if (level === "WARNING")
     return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
-  return "hsl(var(--surface-output))";
+  return "hsl(var(--surface-section))";
 }
 
 /**
@@ -163,7 +163,7 @@ function IOPreviewJSONInner({
   const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
     () => ({
       inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-      outputBgColor: "hsl(var(--surface-output))",
+      outputBgColor: "hsl(var(--surface-section))",
       metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
     }),
     [isDark],

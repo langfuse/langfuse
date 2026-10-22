@@ -18,7 +18,7 @@ export function ThinkingBlock({
   const displayContent = summary || content;
 
   return (
-    <div className="my-2 px-1">
+    <div className="my-2">
       <button
         type="button"
         className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
@@ -63,7 +63,7 @@ export function RedactedThinkingBlock({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <div className="my-2 px-1">
+    <div className="my-2">
       <button
         type="button"
         className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"

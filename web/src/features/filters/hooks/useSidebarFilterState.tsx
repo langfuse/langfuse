@@ -226,6 +226,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   onRemoveCondition: (index: number) => void;
   min: number;
   max: number;
+  step?: number;
   onChange: (value: [number, number]) => void;
   unit?: string;
 }
@@ -1410,6 +1411,9 @@ export function useSidebarFilterPresentation(
             (f) => f.column === facet.column && f.type === "number",
           );
           const disableState = getFacetDisabledState(facet);
+          const column = config.columnDefinitions.find(
+            (column) => column.id === facet.column,
+          );
           return {
             type: "numeric",
             column: facet.column,
@@ -1421,6 +1425,9 @@ export function useSidebarFilterPresentation(
             conditions,
             min: facet.min,
             max: facet.max,
+            step:
+              facet.step ??
+              (column?.type === "number" ? column.step : undefined),
             unit: facet.unit,
             loading: false,
             expanded: expandedSet.has(facet.column),

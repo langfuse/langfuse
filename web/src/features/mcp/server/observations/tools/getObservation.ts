@@ -1,4 +1,4 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { isoDateTime, LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -22,16 +22,12 @@ const OBSERVATION_MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const GetObservationBaseSchema = z.object({
   observationId: z.string().min(1),
   traceId: z.string().min(1).optional(),
-  fromStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 90 days (2160 hours).",
-    ),
-  toStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 2160 hours later. The observation's startTime must be strictly before this bound.",
-    ),
+  fromStartTime: isoDateTime({ offset: true }).describe(
+    "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 90 days (2160 hours).",
+  ),
+  toStartTime: isoDateTime({ offset: true }).describe(
+    "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 2160 hours later. The observation's startTime must be strictly before this bound.",
+  ),
   fields: ObservationFieldsSchema,
   expandMetadataKeys: ExpandMetadataKeysSchema,
 });
@@ -43,7 +39,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
     "Use this when you already know the observation ID and want to inspect its timing, model, status, payload, metadata, usage, cost, or prompt fields.",
     "Requires explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 2160 hours (90 days). The limit measures elapsed time, not calendar dates; do not extend the upper bound to the end of the 90th day. Reuse the observation startTime and traceId from earlier results to narrow the lookup; traceId does not replace time bounds. When using the observation startTime as fromStartTime, choose a later toStartTime.",
     "",
-    'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
+    'By default this returns compact summary fields. After reviewing listObservations summaries, request full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
   action: "traces:read",

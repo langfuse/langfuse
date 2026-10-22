@@ -16,7 +16,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { SkillService } from "./index";
 
-import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/unstable-skills";
+import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
 import { SkillListOrderBySchema } from "../constants/skillsSorting";
 
 const projectInput = z.object({ projectId: z.string() });

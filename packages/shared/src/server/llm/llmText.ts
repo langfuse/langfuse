@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ZodType } from "zod";
 
 import {
@@ -8,6 +9,7 @@ import {
   streamText,
   tool,
   type GenerateTextAbortEvent,
+  type GenerateTextInclude,
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
@@ -136,7 +138,9 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
 export type GenerateLLMTextOptions<
   TOOLS extends ToolSet = {},
   OUTPUT extends Output.Output = Output.Output<string, string, never>,
-> = BaseLLMTextOptions<TOOLS, OUTPUT>;
+> = BaseLLMTextOptions<TOOLS, OUTPUT> & {
+  include?: GenerateTextInclude;
+};
 
 export type StreamLLMTextOptions<
   TOOLS extends ToolSet = {},
@@ -193,6 +197,7 @@ export async function generateLLMText<
         model: prepared.languageModel,
         ...prepared.callOptions,
         output: options.output,
+        include: options.include,
         onEnd: options.onEnd,
       }),
     );
@@ -385,6 +390,7 @@ export async function embedLLMText(options: {
   model: LLMModelRef;
   connection: LLMConnection;
   values: string[];
+  dimensions?: number;
   providerOptions?: ProviderOptions;
   maxRetries?: number;
   maxParallelCalls?: number;
@@ -412,6 +418,7 @@ export async function embedLLMText(options: {
   return embedMany({
     model: embeddingModel,
     values: options.values,
+    dimensions: options.dimensions,
     providerOptions: options.providerOptions,
     maxRetries: options.maxRetries,
     maxParallelCalls: options.maxParallelCalls,

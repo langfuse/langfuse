@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
 import { TriangleAlert } from "@langfuse/icons";

@@ -35,7 +35,7 @@ import {
   deriveAuditLogEventId,
   logger,
 } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
@@ -59,7 +59,8 @@ describe("audit log license gate", () => {
     projectId = org.projectId;
     apiKeyId = (
       await createApiKey(prisma, {
-        owner: ProjectId(org.projectId),
+        tenant: OrganizationId(org.orgId),
+        scope: ProjectId(org.projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: "system",
         name: "License gate test key",

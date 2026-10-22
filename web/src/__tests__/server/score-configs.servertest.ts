@@ -5,6 +5,7 @@ import {
 import {
   GetScoreConfigResponse,
   GetScoreConfigsResponse,
+  PostScoreConfigBody,
   PostScoreConfigResponse,
   PutScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
@@ -15,6 +16,22 @@ import {
 import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+
+describe("score schema omission compatibility", () => {
+  it.each(["BOOLEAN", "TEXT"] as const)(
+    "accepts %s configs without categories",
+    (dataType) => {
+      const input = { name: "score config", dataType };
+
+      expect(PostScoreConfigBody.parse(input)).toEqual(input);
+      for (const categories of [null, []]) {
+        expect(
+          PostScoreConfigBody.safeParse({ ...input, categories }).success,
+        ).toBe(false);
+      }
+    },
+  );
+});
 
 const configOne = [
   {

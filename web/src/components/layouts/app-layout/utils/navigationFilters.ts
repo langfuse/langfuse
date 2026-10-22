@@ -9,6 +9,7 @@ import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
 import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -200,6 +201,12 @@ const filters = {
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
+      canViewTopics: canViewTopics(
+        ctx.session,
+        organization?.projects.find(
+          (project) => project.id === ctx.routerProjectId,
+        ),
+      ),
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,

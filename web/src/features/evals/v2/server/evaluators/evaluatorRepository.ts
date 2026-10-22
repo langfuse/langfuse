@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTemplateType,
   Prisma,
@@ -19,6 +20,7 @@ import {
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
+  escapeSqlLikePattern,
   stringFilterToPrisma,
   stringOptionsFilterToPrisma,
   type PrismaFilterColumnHandlers,
@@ -281,7 +283,12 @@ async function evaluatorWhere(params: {
     ...visibleEvaluatorWhere,
     ...(modelEvaluatorIds ? { id: { in: modelEvaluatorIds } } : {}),
     ...(params.search
-      ? { name: { contains: params.search, mode: "insensitive" as const } }
+      ? {
+          name: {
+            contains: escapeSqlLikePattern(params.search),
+            mode: "insensitive" as const,
+          },
+        }
       : {}),
     AND: compilePrismaFilters<Prisma.EvaluatorWhereInput>(
       otherFilters ?? [],
@@ -507,7 +514,12 @@ export async function listEvaluatorOptions(params: {
       projectId: params.projectId,
       ...visibleEvaluatorWhere,
       ...(params.search
-        ? { name: { contains: params.search, mode: "insensitive" } }
+        ? {
+            name: {
+              contains: escapeSqlLikePattern(params.search),
+              mode: "insensitive",
+            },
+          }
         : {}),
       ...(params.excludeLegacyEvaluators ? batchEligibleEvaluatorWhere : {}),
     },

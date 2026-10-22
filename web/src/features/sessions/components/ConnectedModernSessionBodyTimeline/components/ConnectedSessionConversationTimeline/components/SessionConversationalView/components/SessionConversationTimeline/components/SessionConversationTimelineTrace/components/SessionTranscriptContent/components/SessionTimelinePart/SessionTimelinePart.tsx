@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { FileIcon, Wrench } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
@@ -126,6 +127,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "text") {
+    if (content.text.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Reasoning"
@@ -155,6 +165,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "redacted") {
+    if (content.data.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Redacted reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Redacted reasoning"

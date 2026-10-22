@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
@@ -9,10 +9,16 @@ import { buttonVariants } from "@/src/components/ui/button";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import motionStyles from "./dialog-motion.module.css";
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialog = AlertDialogPrimitive.Root;
 
 // Route the portal into the `modal` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Portal>) => {
@@ -21,6 +27,9 @@ const AlertDialogPortal = ({
 };
 AlertDialogPortal.displayName = "AlertDialogPortal";
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogOverlay = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
@@ -37,6 +46,9 @@ const AlertDialogOverlay = React.forwardRef<
 ));
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName;
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController or compose design-system/DialogController/DialogController with design-system/Dialog/Dialog.
+ */
 const AlertDialogContent = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
@@ -56,6 +68,9 @@ const AlertDialogContent = React.forwardRef<
 ));
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
+/**
+ * @deprecated Use the title prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogHeader = ({
   className,
   ...props
@@ -70,6 +85,9 @@ const AlertDialogHeader = ({
 );
 AlertDialogHeader.displayName = "AlertDialogHeader";
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogFooter = ({
   className,
   ...props
@@ -84,6 +102,9 @@ const AlertDialogFooter = ({
 );
 AlertDialogFooter.displayName = "AlertDialogFooter";
 
+/**
+ * @deprecated Use the title prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogTitle = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
@@ -96,6 +117,9 @@ const AlertDialogTitle = React.forwardRef<
 ));
 AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName;
 
+/**
+ * @deprecated Use the text prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogDescription = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
@@ -109,6 +133,9 @@ const AlertDialogDescription = React.forwardRef<
 AlertDialogDescription.displayName =
   AlertDialogPrimitive.Description.displayName;
 
+/**
+ * @deprecated Use the confirmLabel, onConfirm and variant props of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogAction = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
@@ -121,6 +148,9 @@ const AlertDialogAction = React.forwardRef<
 ));
 AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName;
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogCancel = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>

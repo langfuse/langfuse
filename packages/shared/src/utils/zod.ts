@@ -2,6 +2,22 @@ import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
 import { InvalidRequestError } from "../errors";
 
+/** ISO datetimes with minutes, seconds, or fractional seconds; timezone required. */
+export function isoDateTime({
+  offset = false,
+  error = "Invalid ISO datetime",
+}: {
+  offset?: boolean;
+  error?: string | z.core.$ZodErrorMap;
+} = {}) {
+  // Share the date/time patterns once to keep tool schemas compact and union-free.
+  const date = z.regexes.date.source.slice(1, -1);
+  const time = z.regexes.time({}).source.slice(1, -1);
+  const timezone = offset ? "(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)" : "Z";
+  const pattern = new RegExp(`^${date}T${time}${timezone}$`);
+  return z.string({ error }).regex(pattern, { error });
+}
+
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
 

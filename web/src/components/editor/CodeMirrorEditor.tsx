@@ -13,6 +13,7 @@ import {
   RangeSetBuilder,
   StateEffect,
   StateField,
+  Prec,
 } from "@codemirror/state";
 import { SearchQuery, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
@@ -343,6 +344,16 @@ const gutterHiddenTheme = EditorView.theme({
   ".cm-gutters": { display: "none" },
 });
 
+// Flat editors sit in a host box: no fill of their own, on any layer.
+const flatTheme = Prec.highest(
+  EditorView.theme({
+    "&": { backgroundColor: "transparent" },
+    ".cm-gutters": { backgroundColor: "transparent" },
+    ".cm-scroller": { backgroundColor: "transparent" },
+    ".cm-content": { backgroundColor: "transparent" },
+  }),
+);
+
 const gutterBorderTheme = EditorView.theme({
   ".cm-gutters": { borderRight: "1px solid" },
 });
@@ -424,6 +435,7 @@ export function CodeMirrorEditor({
   enableSearchKeymap = true,
   onEditorMount,
   extensions: additionalExtensions,
+  appearance = "bordered",
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -442,6 +454,8 @@ export function CodeMirrorEditor({
   // Caller-provided CodeMirror extensions appended after the built-ins, e.g. a
   // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
   extensions?: Extension[];
+  /** `flat`: no border or fill of its own, for editors inside a host box. */
+  appearance?: "bordered" | "flat";
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -523,6 +537,7 @@ export function CodeMirrorEditor({
       ...(editable && mode === "json" ? [createJsonMagicPasteExtension()] : []),
       ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      ...(appearance === "flat" ? [flatTheme] : []),
       ...(additionalExtensions ?? []),
     ],
     [
@@ -533,6 +548,7 @@ export function CodeMirrorEditor({
       mode,
       linterEnabled,
       lineWrapping,
+      appearance,
       additionalExtensions,
     ],
   );
@@ -570,7 +586,8 @@ export function CodeMirrorEditor({
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md text-xs",
+        appearance === "flat" ? "border-0 bg-transparent" : "border",
         className,
       )}
       editable={editable}

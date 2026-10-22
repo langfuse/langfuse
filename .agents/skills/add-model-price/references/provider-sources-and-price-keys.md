@@ -1218,21 +1218,40 @@ json_literal    = "<price_per_mtok>e-6"
   above. Re-attempt a full tabular fetch in a future audit if a Bedrock-only price (such as
   the Public Extended Access SKU) needs independent reconfirmation.
 - **Gemini 3.x pricing-page single-model fetch gap for gemini-3.5-flash and
-  gemini-3.7-flash (found October 13 2026)** — Targeted WebFetch requests against
-  `https://ai.google.dev/gemini-api/docs/pricing` asking only about `gemini-3.5-flash` (the
-  non-Lite sibling) or `gemini-3.7-flash` each returned "model not found on this page," even
-  though broader fetches of the same page in the same run returned data for
-  `gemini-3.8-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`, and the Gemini models
-  catalog (`ai.google.dev/gemini-api/docs/models`) lists both as active (not labeled "Shut
-  down") in the same run. This is a different failure mode from the known free/paid
-  column-collapse issue: the row appears to be silently dropped rather than
-  misattributed. Do not treat a "model not found" result for these two IDs as evidence of
-  removal — cross-check the models catalog's shutdown labels first, and prefer a fetch that
-  asks for every row on the page at once (risking column-collapse, correctable with a
-  Free/Paid-explicit follow-up) over a single-model-targeted fetch on this specific page
-  (risking the row being dropped entirely). `gemini-3.5-flash` and `gemini-3.7-flash` prices
-  were left unchanged this run, carried forward from their last confirmed values
-  ($1.50/$9.00/$0.15 and $0.75/$3.75/$0.075 respectively).
+  gemini-3.7-flash (found October 13 2026; root cause confirmed October 21 2026)** —
+  Targeted WebFetch requests against `https://ai.google.dev/gemini-api/docs/pricing` asking
+  only about `gemini-3.5-flash` (the non-Lite sibling) or `gemini-3.7-flash` each returned
+  "model not found on this page," even though broader fetches of the same page in the same
+  run returned data for `gemini-3.8-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`,
+  and the Gemini models catalog (`ai.google.dev/gemini-api/docs/models`) lists both as active
+  (not labeled "Shut down") in the same run. The October 21 2026 audit resolved this: it is
+  not a WebFetch artifact. `https://ai.google.dev/gemini-api/docs/deprecations`'s "Gemini 3
+  models" table carries an explicit row for each, under columns "Model", "Release date",
+  "Shutdown date", "Recommended replacement": `gemini-3.5-flash` → Shutdown date `N/A`,
+  replacement `gemini-3.6-flash` ("not available to select in Google AI Studio; the endpoint
+  is not shutting down and automatically routes API requests to `gemini-3.6-flash`");
+  `gemini-3.7-flash` → Shutdown date `N/A`, replacement `gemini-3.8-flash` (same wording,
+  routes to `gemini-3.8-flash`). Both IDs are also completely absent from the models catalog
+  page now (not even labeled "Shut down" — simply not listed), which is why a single-model
+  pricing-page fetch finds no row: Google no longer prices them as independent products, it
+  silently proxies the request to the stated successor at the successor's price. This is a
+  new lifecycle category not covered by the three removal criteria in
+  `automated-audit.md`'s "Selectable Model Availability": the model is explicitly **not**
+  shut down and has no shutdown date, so it is not "shut down or past its retirement date"; it
+  is a GA model ID (not a preview/experimental/dated snapshot); and it remains callable
+  through the text-generation endpoint (requests still succeed, just silently billed and
+  served as the successor model). Do not remove either ID from a selectable array on this
+  evidence alone — report it as unresolved for a human to decide whether a fourth removal
+  criterion ("confirmed not selectable in the provider's own console, with requests
+  auto-routing to a successor already present in the array") should be added, since this
+  precedent will likely recur for other Gemini point releases. Note `gemini-3.5-flash` is
+  currently the **first (default) entry of `vertexAIModels`**; removing it would promote
+  `gemini-2.5-flash` to default, which itself carries the September 2026 access-restriction
+  notice (see below) — exactly the "next entry is itself deprecated" scenario the hard
+  constraints say to report rather than resolve automatically. `gemini-3.5-flash` and
+  `gemini-3.7-flash` prices were left unchanged this run, carried forward from their last
+  confirmed values ($1.50/$9.00/$0.15 and $0.75/$3.75/$0.075 respectively) since neither has
+  an independent current price to confirm against.
 
 - **Gemini 4 Argon (added October 14 2026)** — `gemini-4-argon` is Google's new
   flagship reasoning model, confirmed "New Stable" via
@@ -1298,6 +1317,47 @@ json_literal    = "<price_per_mtok>e-6"
   already-tracked October 23, 2026 "Legacy GPT model snapshots" batch (see
   the October 9 2026 entry above) — do not conflate the two shutdown dates or
   model lists when a future audit processes either one.
+- **October 21 2026 audit: no price drift; a second confirmed instance of the
+  deprecations-page date-confusion failure mode; gemini-3.5-flash/gemini-3.7-flash
+  resolved as a new "permanent alias, not shut down" lifecycle category (see the
+  updated entry above)** — Re-fetched the full Anthropic pricing page (model table,
+  cache-hits footnote, Fast mode table, Batch table) and the Anthropic
+  model-deprecations page (full "Model status" table), the OpenAI aggregate Standard
+  pricing table (every `gpt-6`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/`gpt-5.2`/
+  `gpt-5.1`/`gpt-5`/o-series/`gpt-4.1`/`gpt-4o` row, plus every GPT-6/GPT-5.6-family
+  Large Context row), `https://developers.openai.com/api/docs/deprecations`, the OpenAI
+  model catalog, both Gemini pricing pages (3.x and 2.5 families), the Gemini models
+  catalog, the Gemini deprecations page, the AWS Bedrock pricing page, and the TypeSafe
+  Jev models page. Every price checked — cross-verified field-by-field against the live
+  JSON with `jq`, not just visually compared — matched exactly; no pricing-file edits
+  were needed. Two findings:
+  1. **The October 23, 2026 "Legacy GPT model snapshots" shutdown date has still not
+     passed (it is 2 days in the future as of this run's date, 2026-10-21), but a
+     generically-worded WebFetch of the deprecations page again mischaracterized it as
+     "has now expired (2 days ago)"** — the same date-direction confusion documented in
+     the October 9 2026 entry above, now confirmed recurring. The summarizer appears to
+     anchor on the gap between today and the date without reliably determining which
+     direction it runs. Do not trust a WebFetch's own "expired" / "upcoming" framing for
+     a deprecation date close to the audit's run date; always compare the literal date
+     string against the run date yourself (`date -u +%Y-%m-%dT00:00:00.000Z`) before
+     treating a shutdown as actionable. This batch remains correctly un-removed from
+     `openAIModels`; re-check on or after October 23, 2026 per the October 9 2026 entry's
+     model list.
+  2. **gemini-3.5-flash and gemini-3.7-flash's "model not found" pricing-page fetch gap
+     (open since October 13, 2026) is resolved** — see the updated entry above for the
+     full finding: both are permanently aliased to a successor via the Gemini
+     deprecations page, with no shutdown date, left unchanged in both selectable arrays
+     pending a human decision on the removal criteria.
+  No other drift was found: `claude-haiku-4-5-20251001`'s tentative retirement floor
+  ("Not sooner than October 15, 2026") has passed without a firm date being announced
+  (still `Active`, `Deprecated: N/A` on the Anthropic model-deprecations page) — not
+  actionable, consistent with the "not sooner than" wording meaning a floor, not a
+  trigger. The January 14, 2027 "GPT-4 series" batch (`gpt-4o`/`gpt-4o-2024-08-06`/
+  `gpt-4.1`/`gpt-4.1-2025-04-14`/`gpt-4.1-mini`/`gpt-4.1-mini-2025-04-14`) is unchanged
+  and still 85 days out. No new flagship text/chat/reasoning model was found on any
+  provider. AWS Bedrock's pricing page again could not be made to yield extractable
+  per-model numeric rows for any Claude model (standing limitation); TypeSafe's Jev page
+  confirms `jev-1.13.0`/`jev-1.14.0` unchanged at $42/Btok input, output free.
 
 ## Provider Usage Keys
 

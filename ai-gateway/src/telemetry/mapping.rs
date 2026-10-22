@@ -158,6 +158,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         ("organization_id", "organization.id"),
         ("ingestion_mode", "ingestion.mode"),
         ("key_id", "api_key.id"),
+        ("user_id", "api_key.user.id"),
         ("provider_connection_id", "connection.id"),
     ] {
         if let Some(value) = facts.metadata.get(source) {
@@ -473,10 +474,12 @@ mod tests {
         let mut facts = facts();
         facts.metadata["organization_id"] = json!("org");
         facts.metadata["provider_connection_id"] = json!("connection");
+        facts.metadata["user_id"] = json!("user");
         facts.metadata["key_metadata"] = json!({
             "team": "search", "enabled": true, "cost_center": 42,
             "langfuse.gateway.response.status_code": 500,
             "langfuse.gateway.api_key.id": "spoofed-key",
+            "langfuse.gateway.api_key.user.id": "spoofed-user",
             "langfuse.gateway.upstream.request.id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
             "langfuse.gateway.api_key.metadata.team": "spoofed-team",
@@ -502,6 +505,7 @@ mod tests {
         );
         assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.api_key.user.id"], "user");
         assert_eq!(metadata["langfuse.gateway.connection.id"], "connection");
         assert_eq!(metadata["langfuse.gateway.response.id"], "response");
         assert_eq!(metadata["langfuse.gateway.organization.id"], "org");

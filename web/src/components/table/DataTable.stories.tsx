@@ -46,7 +46,7 @@ import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
@@ -1528,7 +1528,7 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-section");
   },
 });
 

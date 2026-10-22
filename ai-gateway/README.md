@@ -499,6 +499,7 @@ each field describes:
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
 | `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
+| `api_key.user.id`                                                                           | Langfuse user the gateway key belongs to; null for keys created before keys were bound to users |
 | `ingestion.mode`                                                                            | Effective capture mode                                                      |
 | `request.api_format`                                                                        | Native API contract: `openai.responses`, `openai.chat-completions` or `anthropic.messages` |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
@@ -817,7 +818,15 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 
 ## Container
 
-From the repository root:
+Each Langfuse release publishes a multi-platform (linux/amd64, linux/arm64)
+image to `langfuse/ai-gateway` on Docker Hub and
+`ghcr.io/langfuse/ai-gateway`, tagged like the web and worker images.
+Every release publishes `<version>` and `sha-<commit>`. Stable releases also
+update `<major>.<minor>` and `<major>`, plus `latest` for v4; release candidates
+(`-rc`) do not move these tags. Release images build on the Iron Bank UBI9
+bases.
+
+To build locally, from the repository root:
 
 ```sh
 docker build --target runtime \

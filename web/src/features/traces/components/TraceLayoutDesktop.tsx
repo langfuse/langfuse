@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useDefaultLayout } from "@/src/components/ui/resizable";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";

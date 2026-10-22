@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -143,6 +144,7 @@ export function buildSettingsPages({
       slug: page.slug,
       section: page.section,
       show: page.show,
+      disabledReason: page.disabledReason,
       href: organizationSettingsPath(organizationId, page.slug),
       internal: true,
     };
