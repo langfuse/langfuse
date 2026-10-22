@@ -2,7 +2,13 @@
 
 import { cva } from "class-variance-authority";
 import { ChevronDown } from "@langfuse/icons";
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+  type RefObject,
+} from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
@@ -17,12 +23,11 @@ const peekVariants = cva("", {
   },
 });
 
-type ExpandableContentPeekProps = {
-  children: React.ReactNode;
+type ExpandableContentPeekProps = PropsWithChildren<{
   /** Label of the button that reveals the rest, e.g. "Show all steps". */
   expandLabel: string;
   collapsedHeight?: "sm" | "md" | "lg";
-};
+}>;
 
 /**
  * Shows the top of its content and fades the rest out behind an expand button.
