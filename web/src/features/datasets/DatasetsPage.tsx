@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
 import Page from "@/src/components/layouts/page";

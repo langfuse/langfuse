@@ -28,6 +28,7 @@ this.
 
 | I need...                                                                                                                                        | Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Managed in-app assistant skills | `pnpm run seed -- assistant-skills` (imports bundled SKILL.md files through the synthetic seed key; production label, in-app-agent tag; reuses unchanged versions) |
 | A very complex observation tree (v3)                                                                                                             | `pnpm run seed -- trace-tree --observations 5000 --depth 12 --breadth 500`                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | The same tree readable in the v4 events UI                                                                                                       | add `--v4` (writes `events_full`; `events_core` fills via MV)                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Async parents whose subtree outlives their own span (subtree wall-clock duration badge)                                                          | add `--async-parents` to `trace-tree` (root + hub end immediately while children keep running)                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -78,6 +79,15 @@ Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/RE
 for batch IDs, dataset contents, and clustering settings.
 
 ## Contract
+
+For managed in-app assistant skills, run `pnpm run seed -- assistant-skills`.
+It imports the bundled catalog through the synthetic seed API key, reuses
+unchanged versions, labels them `production`, and adds the `in-app-agent` tag
+(`--tag` overrides it). See the [local assistant setup](../../../packages/shared/scripts/seeder/README.md#managed-assistant-skills)
+for the worker configuration.
+Add `--demo` for an instructions-only `local-assistant-check` skill;
+ask the assistant "Run the local assistant check skill." and expect
+"Hosted skills are connected."
 
 - Last stdout line is a JSON summary: `traceIds`, `sessionIds`, `counts`,
   `verified` (ClickHouse readback), `links` (UI deep links). Use `--json` to

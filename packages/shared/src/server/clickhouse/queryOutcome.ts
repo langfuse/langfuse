@@ -26,6 +26,7 @@ export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
 
 export type ClickHouseQueryOutcome =
   | "success"
+  | "cancelled"
   | "timeout"
   | "memory_limit"
   | "overcommit"

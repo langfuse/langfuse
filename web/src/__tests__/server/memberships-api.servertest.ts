@@ -89,7 +89,8 @@ describe("Memberships APIs", () => {
 
     // Create an organization API key
     const apiKey = await createApiKey(prisma, {
-      owner: OrganizationId(testOrgId),
+      tenant: OrganizationId(testOrgId),
+      scope: OrganizationId(testOrgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(testUserId),
       name: "Test API Key for Memberships API",
@@ -166,7 +167,8 @@ describe("Memberships APIs", () => {
       it("should return 403 when using a non-organization API key", async () => {
         // Create a project API key
         const projectApiKey = await createApiKey(prisma, {
-          owner: ProjectId(testProjectId),
+          tenant: OrganizationId(testOrgId),
+          scope: ProjectId(testProjectId),
           role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           createdBy: UserId(testUserId),
           name: "Test API Key for Memberships API",
@@ -598,7 +600,8 @@ describe("Organization membership safeguards", () => {
     const [ownerKey, adminKey] = await Promise.all(
       (["LEGACY_ORGANIZATION_API_KEY", "ADMIN"] as const).map((role) =>
         createApiKey(prisma, {
-          owner: OrganizationId(orgId),
+          tenant: OrganizationId(orgId),
+          scope: OrganizationId(orgId),
           role: SystemRoleId(role),
           createdBy: UserId(ownerId),
         }),
@@ -738,7 +741,8 @@ describe("Organization membership safeguards", () => {
 
   it("rejects a VIEWER key without membership write grants", async () => {
     const key = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("VIEWER"),
       createdBy: UserId(ownerId),
     });
@@ -895,6 +899,67 @@ describe("Organization membership safeguards", () => {
     expect((await membership(memberId))?.role).toBe(Role.ADMIN);
     expect(await logs()).toHaveLength(1);
   });
+
+  describe("gateway key revocation", () => {
+    const createBoundGatewayKey = (userId: string) =>
+      createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: UserId(userId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(userId),
+      });
+    const keyExists = async (id: string) =>
+      (await prisma.apiKey.count({ where: { id } })) === 1;
+    const callHandler = async (
+      handler: typeof handleUpdateMembership,
+      method: "PUT" | "DELETE",
+      body: { userId: string; role?: Role },
+    ) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method,
+        body,
+      });
+      await handler(req, res, orgId, apiKeyId, ownerContext);
+      return res.statusCode;
+    };
+
+    it("revokes the gateway keys of a member removed via DELETE", async () => {
+      const key = await createBoundGatewayKey(memberId);
+
+      expect(
+        await callHandler(handleDeleteMembership, "DELETE", {
+          userId: memberId,
+        }),
+      ).toBe(200);
+
+      expect(await keyExists(key.id)).toBe(false);
+    });
+
+    it.each([
+      [Role.MEMBER, true],
+      [Role.VIEWER, false],
+      [Role.NONE, false],
+    ])(
+      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
+      async (role, kept) => {
+        await prisma.organizationMembership.update({
+          where: { orgId_userId: { orgId, userId: memberId } },
+          data: { role: Role.OWNER },
+        });
+        const key = await createBoundGatewayKey(memberId);
+
+        expect(
+          await callHandler(handleUpdateMembership, "PUT", {
+            userId: memberId,
+            role,
+          }),
+        ).toBe(200);
+
+        expect((await membership(memberId))?.role).toBe(role);
+        expect(await keyExists(key.id)).toBe(kept);
+      },
+    );
+  });
 });
 
 describe("Project membership safeguards", () => {
@@ -930,7 +995,8 @@ describe("Project membership safeguards", () => {
     });
     userId = user.id;
     const key = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("ADMIN"),
       createdBy: UserId(userId),
     });
@@ -941,7 +1007,8 @@ describe("Project membership safeguards", () => {
     if (!authentication.success) throw authentication.error;
     adminContext = authentication.context;
     const projectKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("ADMIN"),
       createdBy: UserId(userId),
     });
@@ -951,7 +1018,8 @@ describe("Project membership safeguards", () => {
       projectKey.secretKey,
     );
     const legacyKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(userId),
     });
@@ -1034,7 +1102,8 @@ describe("Project membership safeguards", () => {
       mutableEnv.API_AUTH_MIGRATION = mode;
       expect((await request("PUT", Role.OWNER)).statusCode).toBe(403);
       const viewer = await createApiKey(prisma, {
-        owner: OrganizationId(orgId),
+        tenant: OrganizationId(orgId),
+        scope: OrganizationId(orgId),
         role: SystemRoleId("VIEWER"),
         createdBy: UserId(userId),
       });

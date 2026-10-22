@@ -16,6 +16,7 @@ vi.mock("@/src/env.mjs", () => ({
 const context: CachedResolveContext = {
   organizationId: "org-1",
   apiKeyId: "key-1",
+  userId: "user-1",
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,

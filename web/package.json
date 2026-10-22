@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.66.0",
+  "version": "4.67.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -118,6 +118,7 @@
     "core-js": "^3.38.1",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.2",
+    "d3-hierarchy": "^3.1.2",
     "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",
     "d3-shape": "^3.2.0",
@@ -194,6 +195,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/chroma-js": "^3.1.2",
     "@types/cors": "^2.8.19",
+    "@types/d3-hierarchy": "^3.1.7",
     "@types/d3-scale": "^4.0.9",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.2.0",
@@ -226,7 +228,7 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.20.5",
     "typescript": "^7.0.2",
-    "vite": "^7.3.5",
+    "vite": "^7.3.7",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"

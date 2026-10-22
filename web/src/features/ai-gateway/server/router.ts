@@ -9,6 +9,7 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedOrganizationProcedureWithoutTracing,
+  type AuthedSession,
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
@@ -58,6 +59,25 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
+/** Admits gateway key owners; the returned `ownerUserId` limits non-managers to their own keys. */
+function requireGatewayInvoke(params: {
+  session: AuthedSession;
+  orgId: string;
+}) {
+  requireGatewayEnabledForOrganization(params.orgId);
+  throwIfNoOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:invoke",
+  });
+  const canManageGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:manage",
+  });
+  return { ownerUserId: canManageGateway ? undefined : params.session.user.id };
+}
+
 function requireGatewayRead(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
   const canManageGateway = hasOrganizationAccess({
@@ -104,18 +124,19 @@ export const aiGatewayRouter = createTRPCRouter({
       };
     }),
 
+  /** Readable by every gateway reader; exposes only whether setup is done, not the config itself. */
+  getSetupStatus: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
   updateConfig: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
         defaultIngestionProjectId: z.string().nullable(),
-        ingestionMode: z
-          .enum(GatewayIngestionMode)
-          .refine(
-            (mode) =>
-              mode !== GatewayIngestionMode.NONE ||
-              !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-            "Ingestion mode NONE is only available on self-hosted deployments",
-          ),
+        ingestionMode: z.enum(GatewayIngestionMode),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -327,11 +348,20 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   listApiKeys: protectedOrganizationProcedure
-    .input(offsetPaginatedOrganizationInput)
+    .input(
+      offsetPaginatedOrganizationInput.extend({
+        searchQuery: z.string().trim().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      const { ownerUserId } = requireGatewayInvoke({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
       return new GatewayApiKeyService(ctx.prisma, redis).list({
         organizationId: input.orgId,
+        ownerUserId,
+        searchQuery: input.searchQuery,
         page: input.page,
         limit: input.limit,
       });
@@ -352,7 +382,13 @@ export const aiGatewayRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      // Legacy public API auth ignores key roles, so a gateway key passes as an
+      // organization admin key there; only managers may mint one outside enforce.
+      if (env.API_AUTH_MIGRATION === "enforce") {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      }
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
         name: input.name,
@@ -366,9 +402,13 @@ export const aiGatewayRouter = createTRPCRouter({
   revokeApiKey: protectedOrganizationProcedure
     .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      const { ownerUserId } = requireGatewayInvoke({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
       await new GatewayApiKeyService(ctx.prisma, redis).revoke({
         organizationId: input.orgId,
+        ownerUserId,
         apiKeyId: input.id,
         session: ctx.session,
       });

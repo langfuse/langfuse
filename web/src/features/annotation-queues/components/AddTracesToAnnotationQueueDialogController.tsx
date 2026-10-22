@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";

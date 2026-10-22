@@ -144,18 +144,6 @@ export function TopicSetupNotice({
           />
         </div>
       ) : null}
-      {status?.kind === "models" && !showOnboarding ? (
-        <Alert variant="info">
-          <Alert.Title>Choose the models Topics runs on</Alert.Title>
-          <Alert.Description>
-            <p>
-              Topics uses your LLM connections for three jobs: facet summaries,
-              embeddings, and topic clustering. Open Configure Topics to set all
-              three.
-            </p>
-          </Alert.Description>
-        </Alert>
-      ) : null}
     </>
   );
 }

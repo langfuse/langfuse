@@ -12,7 +12,12 @@ import {
   createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -65,6 +70,8 @@ import {
 import { createInAppAgentSandbox } from "./runtime/sandbox";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { loadInAppAgentSkills } from "./runtime/skills";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
 
@@ -393,7 +400,8 @@ export async function executeInAppAgentRun(params: {
     // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(project.orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
         name: inAppAgentApiKeyName,
@@ -614,6 +622,7 @@ export async function executeInAppAgentRun(params: {
           isV4Enabled: access.v4BetaEnabled,
         },
         useLocalPrompt: useBundledPrompt,
+        ...(await loadSkills(abortController.signal)),
         ...(useBundledPrompt
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
@@ -672,6 +681,16 @@ export async function executeInAppAgentRun(params: {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     activeRunAborts.delete(abortController);
   }
+}
+
+async function loadSkills(signal: AbortSignal) {
+  return loadInAppAgentSkills({
+    tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+    baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+    publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    signal,
+  });
 }
 
 async function resolveUserProjectAccess(params: {

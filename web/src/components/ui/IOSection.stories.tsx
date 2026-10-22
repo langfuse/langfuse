@@ -1,3 +1,4 @@
+import { useState } from "react";
 import preview from "../../../.storybook/preview";
 import { expect, fn, userEvent, within } from "storybook/test";
 import Image from "next/image";
@@ -63,6 +64,29 @@ const jsonToggle = {
   checked: false,
   onCheckedChange: fn(),
 };
+
+/** A section whose header carries a view switch (always visible while open). */
+function TabsControlExample() {
+  const [tab, setTab] = useState("called");
+  return (
+    <IOSection
+      title="Tools"
+      variant="table"
+      tabs={{
+        value: tab,
+        onValueChange: setTab,
+        items: [
+          { value: "called", label: "Called", count: 3 },
+          { value: "not-called", label: "Not called", count: 36 },
+        ],
+      }}
+    >
+      <p className="px-1 py-1.5 text-sm">
+        {tab === "called" ? "3 called tools" : "36 tools not called"}
+      </p>
+    </IOSection>
+  );
+}
 
 export const Default = meta.story({
   args: {
@@ -187,6 +211,10 @@ export const VariantMatrix = meta.story({
         <IOSection onCopy={args.onCopy} title="Skills" count={3}>
           <p className="text-sm">3 skills loaded for this run.</p>
         </IOSection>
+      </Example>
+
+      <Example caption="Tabs control: Called / Not called switch in the header, hidden while collapsed">
+        <TabsControlExample />
       </Example>
 
       <Example caption="Title icon">

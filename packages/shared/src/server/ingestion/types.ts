@@ -464,6 +464,25 @@ export const SdkLogEvent = z.object({
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
+// Values outside the supported shapes (e.g. a structured-output
+// `response_format`) are stored as JSON strings instead of rejecting the whole
+// generation. OTel ingestion applies the same rule before reaching this schema.
+const ModelParameters = z
+  .record(
+    z.string(),
+    z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.array(z.string()),
+        z.record(z.string(), z.string()),
+        z.unknown().transform((value) => JSON.stringify(value)),
+      ])
+      .nullish(),
+  )
+  .nullish();
+
 // Complete schema factory - single source of truth for ALL schemas
 const createAllIngestionSchemas = ({
   isPublic = true,
@@ -526,20 +545,7 @@ const createAllIngestionSchemas = ({
   const CreateGenerationBody = CreateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,
@@ -555,20 +561,7 @@ const createAllIngestionSchemas = ({
   const UpdateGenerationBody = UpdateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,

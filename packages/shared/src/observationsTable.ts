@@ -156,6 +156,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal: 'o."prompt_tokens"',
     nullable: true,
   },
@@ -163,6 +164,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal: 'o."completion_tokens"',
     nullable: true,
   },
@@ -170,6 +172,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal: 'o."total_tokens"',
     nullable: true,
   },
@@ -177,6 +180,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Tokens",
     id: "tokens",
     type: "number",
+    step: 1,
     internal: 'o."total_tokens"',
   },
   {
@@ -225,6 +229,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Prompt Version",
     id: "promptVersion",
     type: "number",
+    step: 1,
     internal: "p.version",
     nullable: true,
   },
@@ -239,6 +244,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {
@@ -267,6 +273,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Available Tools",
     id: "toolDefinitions",
     type: "number",
+    step: 1,
     internal: "", // ClickHouse only
     nullable: true,
   },
@@ -274,6 +281,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Tool Calls",
     id: "toolCalls",
     type: "number",
+    step: 1,
     internal: "", // ClickHouse only
     nullable: true,
   },

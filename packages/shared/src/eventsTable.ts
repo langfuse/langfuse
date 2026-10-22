@@ -250,6 +250,7 @@ const eventsTableColsDefinition = [
     name: "Prompt Version",
     id: "promptVersion",
     type: "number",
+    step: 1,
     internal: "e.prompt_version",
     nullable: true,
   },
@@ -281,6 +282,7 @@ const eventsTableColsDefinition = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
     nullable: true,
@@ -289,6 +291,7 @@ const eventsTableColsDefinition = [
     name: "Cached Input Tokens",
     id: "cachedInputTokens",
     type: "number",
+    step: 1,
     internal: eventsTableCachedInputTokensSql,
     nullable: true,
   },
@@ -296,6 +299,7 @@ const eventsTableColsDefinition = [
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
     nullable: true,
@@ -304,6 +308,7 @@ const eventsTableColsDefinition = [
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     nullable: true,
@@ -441,6 +446,7 @@ const eventsTableColsDefinition = [
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {
@@ -545,6 +551,7 @@ const eventsTableColsDefinition = [
     name: "Available Tools",
     id: "toolDefinitions",
     type: "number",
+    step: 1,
     internal: "length(mapKeys(e.tool_definitions))",
     nullable: true,
   },
@@ -552,6 +559,7 @@ const eventsTableColsDefinition = [
     name: "Tool Calls",
     id: "toolCalls",
     type: "number",
+    step: 1,
     internal: "length(e.tool_calls)",
     nullable: true,
   },
