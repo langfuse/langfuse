@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
-import { MultiSelect } from "./multi-select";
+import { MultiSelect } from "./MultiSelect";
 
 vi.stubGlobal(
   "ResizeObserver",
