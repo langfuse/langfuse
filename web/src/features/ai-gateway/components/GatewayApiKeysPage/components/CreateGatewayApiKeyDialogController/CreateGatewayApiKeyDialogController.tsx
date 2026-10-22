@@ -1,21 +1,15 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import {
-  DialogBody,
-  DialogController,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -100,23 +94,34 @@ export function CreateGatewayApiKeyDialogController({
 
   return (
     <DialogController
-      size="default"
-      closeOnInteractionOutside={false}
       onBeforeClose={() => !create.isPending}
       onDismiss={reset}
-      renderContent={({ closeDialog }) =>
+      renderDialog={({ closeDialog }) =>
         generatedSecretKey ? (
-          <GeneratedKeyContent
-            organizationId={organizationId}
-            secretKey={generatedSecretKey}
-            onDone={closeDialog}
-          />
+          <Dialog
+            title="Gateway key created"
+            size="md"
+            actions={[{ label: "Done", onClick: closeDialog }]}
+          >
+            <GeneratedKeyContent
+              organizationId={organizationId}
+              secretKey={generatedSecretKey}
+            />
+          </Dialog>
         ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Issue API key</DialogTitle>
-            </DialogHeader>
-            <DialogBody>
+          <Dialog
+            title="Issue API key"
+            size="md"
+            actions={[
+              {
+                label: "Create key",
+                loading: create.isPending,
+                disabled: create.isPending || expiresAt === undefined,
+                onClick: submit,
+              },
+            ]}
+          >
+            <Dialog.Body>
               <div>
                 <Label
                   htmlFor="gateway-key-name"
@@ -246,20 +251,8 @@ export function CreateGatewayApiKeyDialogController({
                   </Alert.Description>
                 </Alert>
               ) : null}
-            </DialogBody>
-            <DialogFooter>
-              <Button variant="secondary" onClick={closeDialog}>
-                Cancel
-              </Button>
-              <Button
-                loading={create.isPending}
-                disabled={create.isPending || expiresAt === undefined}
-                onClick={submit}
-              >
-                Create key
-              </Button>
-            </DialogFooter>
-          </>
+            </Dialog.Body>
+          </Dialog>
         )
       }
     >

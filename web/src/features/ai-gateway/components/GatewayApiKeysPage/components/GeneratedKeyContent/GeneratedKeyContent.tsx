@@ -1,19 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useState } from "react";
-
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ExpandableContentPeek } from "@/src/components/design-system/ExpandableContentPeek/ExpandableContentPeek";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import {
-  DialogBody,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { AGENT_SETUP_DOCS_URLS } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import { AgentSetupSteps } from "./components/AgentSetupSteps";
 import { CopyForAgentButton } from "./components/CopyForAgentButton";
@@ -25,70 +15,28 @@ const DEFAULT_TAB: AgentSetupInstructions["id"] = "api";
 type GeneratedKeyContentProps = {
   organizationId: string;
   secretKey: string;
-  onDone: () => void;
 };
 
 export function GeneratedKeyContent({
   organizationId,
   secretKey,
-  onDone,
 }: GeneratedKeyContentProps) {
-  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
-  const { instructions, isPending, isError } =
-    useAgentSetupInstructions(organizationId);
-  const activeInstructions = instructions?.find(
-    (entry) => entry.id === activeTab,
-  );
-
   return (
-    <>
-      <DialogHeader>
-        <div className="flex items-baseline gap-2">
-          <DialogTitle>Gateway key created</DialogTitle>
-          {/* The header centers its close button on this row, so the taller button must not grow it. */}
-          <div className="-my-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              text="Read docs"
-              href={activeInstructions?.docsUrl ?? AGENT_SETUP_DOCS_URLS.api}
-            />
-          </div>
-        </div>
-      </DialogHeader>
-      <DialogBody>
-        {/* Outside the header, which centers its close button against all of its content. */}
-        <DialogDescription>
-          Copy the key now. It is shown only once.
-        </DialogDescription>
-        <MaskedGatewayKey secretKey={secretKey} />
-        <SetupInstructions
-          instructions={instructions}
-          isPending={isPending}
-          isError={isError}
-          activeTab={activeTab}
-          onActiveTabChange={setActiveTab}
-        />
-      </DialogBody>
-      <DialogFooter className="sm:justify-between">
-        {activeInstructions ? (
-          <CopyForAgentButton instructions={activeInstructions} />
-        ) : (
-          <span />
-        )}
-        <Button text="Done" onClick={onDone} />
-      </DialogFooter>
-    </>
+    <Dialog.Body>
+      <p className="text-muted-foreground">
+        Copy the key now. It is shown only once.
+      </p>
+      <MaskedGatewayKey secretKey={secretKey} />
+      <hr className="-mx-4" />
+      <SetupInstructions organizationId={organizationId} />
+    </Dialog.Body>
   );
 }
 
-function SetupInstructions({
-  instructions,
-  isPending,
-  isError,
-  activeTab,
-  onActiveTabChange,
-}: SetupInstructionsProps) {
+function SetupInstructions({ organizationId }: SetupInstructionsProps) {
+  const { instructions, isPending, isError } =
+    useAgentSetupInstructions(organizationId);
+
   if (isPending) {
     return <Skeleton className="h-48 w-full" />;
   }
@@ -104,7 +52,7 @@ function SetupInstructions({
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={onActiveTabChange}>
+    <Tabs defaultValue={DEFAULT_TAB}>
       <Tabs.List variant="inset" size="md" aria-label="Setup instructions">
         {instructions.map((entry) => (
           <Tabs.Trigger key={entry.id} value={entry.id} label={entry.label} />
@@ -112,7 +60,16 @@ function SetupInstructions({
       </Tabs.List>
       {instructions.map((entry) => (
         <Tabs.Content key={entry.id} value={entry.id}>
-          <div className="pt-4">
+          <div className="flex flex-col gap-3 pt-4">
+            <div className="flex items-center gap-2">
+              <CopyForAgentButton instructions={entry} />
+              <Button
+                variant="ghost"
+                size="sm"
+                text="Read docs"
+                href={entry.docsUrl}
+              />
+            </div>
             {/* Inactive tabs unmount, so switching tabs collapses the peek again. */}
             <ExpandableContentPeek expandLabel="Show all steps">
               <AgentSetupSteps instructions={entry} />
@@ -125,9 +82,5 @@ function SetupInstructions({
 }
 
 type SetupInstructionsProps = {
-  instructions: AgentSetupInstructions[] | undefined;
-  isPending: boolean;
-  isError: boolean;
-  activeTab: string;
-  onActiveTabChange: (tab: string) => void;
+  organizationId: string;
 };

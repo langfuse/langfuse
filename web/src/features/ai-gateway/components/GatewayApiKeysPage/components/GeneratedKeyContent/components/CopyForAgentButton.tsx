@@ -22,7 +22,8 @@ export function CopyForAgentButton({ instructions }: CopyForAgentButtonProps) {
 
   return (
     <Button
-      variant="ghost"
+      variant="secondary"
+      size="sm"
       icon={isCopied ? Check : Copy}
       text={isCopied ? "Copied" : "Copy for agent"}
       onClick={handleCopy}
