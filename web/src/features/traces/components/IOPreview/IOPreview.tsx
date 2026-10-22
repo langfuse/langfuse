@@ -14,18 +14,9 @@ import {
   type SkillsAvailable,
   type SkillsResourceLoaded,
   deepParseJson,
-  isOpenAITextContentPart,
 } from "@langfuse/shared";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  IOSection,
-  type IOSectionAction,
-  type IOSectionStatus,
-  type IOSectionInfo,
-  type IOSectionToggle,
-} from "@/src/components/ui/IOSection";
+import { IOPreviewSection } from "./components/IOPreviewSection/IOPreviewSection";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
@@ -33,8 +24,6 @@ import { CorrectedOutputDiffDialog } from "./components/CorrectedOutputDiffDialo
 import {
   ChevronDown,
   ChevronRight,
-  FileCode2,
-  FileText,
   BookOpen,
   X,
   ChevronUp,
@@ -44,20 +33,9 @@ import {
   Pencil,
   Trash,
   FileDiff,
-  FoldVertical,
-  UnfoldVertical,
-  ListChevronsDownUp,
-  ListChevronsUpDown,
 } from "@langfuse/icons";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import { type MediaReturnType } from "@/src/features/media";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "../../hooks/usePreserveRelativeScroll";
@@ -103,29 +81,17 @@ import {
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ChatMessage } from "./components/ChatMessage";
-import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
-import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import {
-  ToolCallDefinitionCard,
-  type ToolDefinition,
-} from "./components/ToolCallDefinitionCard";
+import { type ToolDefinition } from "./components/ToolCallDefinitionCard";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import {
   getMessageTitle,
   shouldRenderMessageForContentMode,
-  hasPassthroughJson,
-  isPlaceholderMessage,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   getStatusMessagePresentation,
   parseStructuredStatusMessage,
@@ -134,6 +100,11 @@ import {
 
 export type { ViewMode };
 export type IOPreviewContentMode = "all" | "conversation";
+
+type CorrectionSectionProps = Extract<
+  React.ComponentProps<typeof IOPreviewSection>,
+  { kind: "correction" }
+>;
 
 export interface ExpansionStateProps {
   inputExpansionState?: Record<string, boolean> | boolean;
@@ -361,8 +332,6 @@ function IOPreviewContent({
   const isPretty = selectedView === "pretty";
   const isJson = selectedView === "json";
   const isAdvanced = selectedView === "json-beta";
-  const [isSkillsExpanded, setSkillsExpanded] = useState(false);
-  const [expandedSkillKey, setExpandedSkillKey] = useState("");
   const [othersOpen, setOthersOpen] = useState(false);
   const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
     "called",
@@ -370,34 +339,6 @@ function IOPreviewContent({
   const [storedToolsCollapsed, setStoredToolsCollapsed] = useSessionStorage<
     boolean | null
   >(TOOLS_COLLAPSED_KEY, null);
-  const skillGroups = new Map<
-    string,
-    {
-      key: string;
-      skill: SkillsAvailable[number];
-      files: Set<string>;
-    }
-  >();
-  const skillItems = (() => {
-    if (!isPretty || !skills) return [];
-    if (skills.kind === "loaded")
-      return skills.items.map((skill) => ({ skill, filePath: skill.filePath }));
-    return skills.items.map((skill) => ({ skill, filePath: undefined }));
-  })();
-  for (const { skill, filePath } of skillItems) {
-    const key = JSON.stringify([
-      skill.langfuseSkillId ?? null,
-      skill.skillName,
-      skill.skillVersion ?? null,
-    ]);
-    const group = skillGroups.get(key) ?? {
-      key,
-      skill,
-      files: new Set<string>(),
-    };
-    skillGroups.set(key, group);
-    if (filePath !== undefined) group.files.add(filePath);
-  }
 
   // Legacy JSON must probe RAW fields before parsing: its eager renderer cannot
   // safely materialize multi-MB payloads. Other modes do not pay this cost.
@@ -727,7 +668,9 @@ function IOPreviewContent({
     setCorrectionOpen(true);
     if (hasCorrectionAccess) handleEdit();
   };
-  const correctOutputAction: IOSectionAction = {
+  const correctOutputAction: NonNullable<
+    CorrectionSectionProps["actions"]
+  >[number] = {
     icon: Pencil,
     label: "Correct output",
     disabled: !hasCorrectionAccess,
@@ -758,7 +701,7 @@ function IOPreviewContent({
       return correctionEditorValue;
     }
   }, [correctionEditorValue, strictJsonMode]);
-  const correctionStatus: IOSectionStatus | undefined = (() => {
+  const correctionStatus: CorrectionSectionProps["status"] = (() => {
     if (!isValidJson) {
       if (!isEditing || !hasCorrectionContent) return undefined;
       return {
@@ -772,36 +715,37 @@ function IOPreviewContent({
     if (saveStatus === "saved") return { kind: "saved", text: "Saved" };
     return undefined;
   })();
-  const correctionActions: IOSectionAction[] = hasCorrectionContent
-    ? [
-        {
-          icon: FileDiff,
-          label: "View diff between original and corrected output",
-          onClick: () => setIsDiffDialogOpen(true),
-        },
-        ...(!isEditing
-          ? [
-              {
-                icon: Pencil,
-                label: "Edit corrected output",
-                onClick: handleEdit,
-                disabled: !hasCorrectionAccess,
-              },
-            ]
-          : []),
-        {
-          icon: Trash,
-          label: "Delete corrected output",
-          disabled: !hasCorrectionAccess,
-          onClick: () => {
-            handleDelete();
-            setIsEditing(false);
-            setCorrectionOpen(false);
+  const correctionActions: NonNullable<CorrectionSectionProps["actions"]> =
+    hasCorrectionContent
+      ? [
+          {
+            icon: FileDiff,
+            label: "View diff between original and corrected output",
+            onClick: () => setIsDiffDialogOpen(true),
           },
-        },
-      ]
-    : [];
-  const correctionJsonToggle: IOSectionToggle = {
+          ...(!isEditing
+            ? [
+                {
+                  icon: Pencil,
+                  label: "Edit corrected output",
+                  onClick: handleEdit,
+                  disabled: !hasCorrectionAccess,
+                },
+              ]
+            : []),
+          {
+            icon: Trash,
+            label: "Delete corrected output",
+            disabled: !hasCorrectionAccess,
+            onClick: () => {
+              handleDelete();
+              setIsEditing(false);
+              setCorrectionOpen(false);
+            },
+          },
+        ]
+      : [];
+  const correctionJsonToggle: CorrectionSectionProps["toggle"] = {
     label: "JSON",
     checked: strictJsonMode,
     disabled: !isEditing,
@@ -815,46 +759,11 @@ function IOPreviewContent({
       }
     },
   };
-  const correctionInfo: IOSectionInfo = {
+  const correctionInfo: CorrectionSectionProps["info"] = {
     label: "About corrected outputs",
     text: "Corrected outputs allow you to save the expected output for a trace or observation.",
     docsHref: "https://langfuse.com/docs/observability/features/corrections",
   };
-  const correctionBody = (() => {
-    if (!hasCorrectionContent && !isEditing)
-      return (
-        <button
-          type="button"
-          onClick={handleEdit}
-          disabled={!hasCorrectionAccess}
-          className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
-        >
-          Click to add corrected output
-        </button>
-      );
-    if (isEditing)
-      return (
-        <CodeMirrorEditor
-          value={correctionDisplayValue}
-          onChange={handleChange}
-          mode={strictJsonMode ? "json" : "text"}
-          minHeight={200}
-          placeholder="Enter corrected output..."
-          editorRef={editorRef}
-          onEditorMount={focusEditor}
-          appearance="flat"
-          className="focus-within:ring-ring focus-within:ring-2"
-        />
-      );
-    return (
-      <CodeMirrorEditor
-        value={correctionDisplayValue}
-        mode={strictJsonMode ? "json" : "text"}
-        editable={false}
-        appearance="flat"
-      />
-    );
-  })();
   const correctedOutputField = (() => {
     if (!showCorrectionField) return null;
     if (!correctionOpen && !effectiveCorrection)
@@ -870,34 +779,27 @@ function IOPreviewContent({
           </button>
         </div>
       );
-    if (isAdvanced)
-      return (
-        <div className="group pt-2">
-          <div className="flex items-center justify-between py-1.5">
-            <IOSection.InfoButton info={correctionInfo} />
-            <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <IOSection.Controls
-                status={correctionStatus}
-                actions={correctionActions}
-                toggle={correctionJsonToggle}
-              />
-            </div>
-          </div>
-          {correctionBody}
-        </div>
-      );
     return (
-      <div className="pt-2">
-        <IOSection
-          title="Corrected output"
-          info={correctionInfo}
-          status={correctionStatus}
-          actions={correctionActions.length > 0 ? correctionActions : undefined}
-          toggle={correctionJsonToggle}
-        >
-          {correctionBody}
-        </IOSection>
-      </div>
+      <IOPreviewSection
+        kind="correction"
+        presentation={isAdvanced ? "inline" : "section"}
+        title="Corrected output"
+        info={correctionInfo}
+        status={correctionStatus}
+        actions={correctionActions}
+        toggle={correctionJsonToggle}
+        hasContent={hasCorrectionContent}
+        isEditing={isEditing}
+        canEdit={hasCorrectionAccess}
+        onEdit={handleEdit}
+        editor={{
+          value: correctionDisplayValue,
+          onChange: handleChange,
+          mode: strictJsonMode ? "json" : "text",
+          editorRef,
+          onEditorMount: focusEditor,
+        }}
+      />
     );
   })();
   const correctionDiffDialog =
@@ -1313,50 +1215,31 @@ function IOPreviewContent({
         status &&
         statusPresentation &&
         (parsedStatusMessage !== undefined ? (
-          <JsonSectionController
+          <IOPreviewSection
+            kind="json"
             title={statusPresentation.title}
-            json={status.message}
-            parsedJson={parsedStatusMessage}
-            currentView={isJson ? "json" : "pretty"}
+            jsonProps={{
+              json: status.message,
+              parsedJson: parsedStatusMessage,
+              currentView: isJson ? "json" : "pretty",
+            }}
             tone={statusPresentation.tone}
-          >
-            {({ title, tone, variant, onCopy, actions }, viewer) => (
-              <IOSection
-                title={title}
-                tone={tone}
-                variant={variant}
-                onCopy={onCopy}
-                actions={actions}
-              >
-                <PrettyJsonView
-                  json={viewer.json}
-                  parsedJson={viewer.parsedJson}
-                  currentView={viewer.currentView}
-                  borderless
-                  downloadLabel={title}
-                  expandAllRef={viewer.expandAllRef}
-                  onExpandStateChange={viewer.onExpandStateChange}
-                  copyRef={viewer.copyRef}
-                  onDisplayModeChange={viewer.onDisplayModeChange}
-                  onExpandabilityChange={viewer.onExpandabilityChange}
-                />
-              </IOSection>
-            )}
-          </JsonSectionController>
+          />
         ) : (
-          <IOSection
+          <IOPreviewSection
+            kind="status"
             title={statusPresentation.title}
-            onCopy={() => copyTextToClipboard(status.message)}
             tone={statusPresentation.tone}
-          >
-            {status.message}
-          </IOSection>
+            text={status.message}
+          />
         ))}
 
       {showData && allTools.length > 0 ? (
-        <IOSection
+        <IOPreviewSection
+          kind="tools"
           title="Tools"
-          variant="table"
+          activeTab={activeToolTab}
+          toolsProps={{ tools: visibleTools, toolCallsByName }}
           collapsed={
             storedToolsCollapsed ?? allTools.length > TOOLS_COLLAPSE_THRESHOLD
           }
@@ -1384,125 +1267,16 @@ function IOPreviewContent({
                 }
               : undefined
           }
-        >
-          <ToolCallDefinitionCard
-            key={activeToolTab}
-            tools={visibleTools}
-            toolCallsByName={toolCallsByName}
-          />
-        </IOSection>
+        />
       ) : null}
 
       {isPretty && showData && skills && skills.items.length > 0 ? (
-        <IOSection title="Skills" count={skillGroups.size}>
-          <Collapsible
-            open={isSkillsExpanded}
-            onOpenChange={setSkillsExpanded}
-            className="flex flex-col gap-2"
-          >
-            <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                <FileCode2 size="base" color="muted" aria-hidden />
-                <span>
-                  {skillGroups.size}{" "}
-                  {skills.kind === "available" ? "available" : "loaded"}{" "}
-                  {skillGroups.size === 1 ? "skill" : "skills"}
-                </span>
-              </span>
-              <Badge
-                color="filled"
-                size="sm"
-                text={isSkillsExpanded ? "hide" : "show"}
-              />
-              <DropdownIndicator
-                direction={isSkillsExpanded ? "down" : "right"}
-              />
-            </CollapsibleTrigger>
-            <CollapsibleContent asChild>
-              <ul className="flex flex-col gap-2">
-                {Array.from(skillGroups.values(), ({ key, skill, files }) => (
-                  <Collapsible
-                    key={key}
-                    asChild
-                    open={expandedSkillKey === key}
-                    onOpenChange={(open) =>
-                      setExpandedSkillKey(open ? key : "")
-                    }
-                  >
-                    <li className="min-w-0 overflow-hidden rounded-sm border">
-                      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-                        <FileCode2 size="base" color="muted" aria-hidden />
-                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                          {skill.langfuseSkillId &&
-                          skill.skillVersion != null ? (
-                            <LinkBadge
-                              href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
-                              text={skill.skillName}
-                              newTab
-                              noCapture
-                            />
-                          ) : (
-                            <Badge
-                              color="ghost"
-                              font="mono"
-                              text={skill.skillName}
-                            />
-                          )}
-                          {skill.skillVersion != null ? (
-                            <Badge
-                              color="filled"
-                              size="sm"
-                              text={`v${skill.skillVersion}`}
-                            />
-                          ) : null}
-                        </div>
-                        {files.size > 0 ? (
-                          <CollapsibleTrigger
-                            className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
-                            aria-label={`Files loaded for ${skill.skillName}`}
-                          >
-                            <Badge
-                              color="green"
-                              size="sm"
-                              text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
-                            />
-                            <DropdownIndicator
-                              direction={
-                                expandedSkillKey === key ? "down" : "right"
-                              }
-                            />
-                          </CollapsibleTrigger>
-                        ) : null}
-                      </div>
-                      {files.size > 0 ? (
-                        <CollapsibleContent asChild>
-                          <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
-                            {Array.from(files, (filePath) => (
-                              <li
-                                key={filePath}
-                                className="flex min-w-0 items-start gap-2"
-                              >
-                                <FileText
-                                  size="base"
-                                  color="muted"
-                                  __rawClassName="mt-0.5"
-                                  aria-hidden
-                                />
-                                <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
-                                  {filePath}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </CollapsibleContent>
-                      ) : null}
-                    </li>
-                  </Collapsible>
-                ))}
-              </ul>
-            </CollapsibleContent>
-          </Collapsible>
-        </IOSection>
+        <IOPreviewSection
+          kind="skills"
+          title="Skills"
+          skills={skills}
+          projectId={projectId}
+        />
       ) : null}
 
       {shouldRenderMessages ? (
@@ -1522,19 +1296,21 @@ function IOPreviewContent({
                     // Folded messages do not mount (no parsing) until the row opens.
                     if (folded && !othersOpen) return null;
                     const chatMessage = (
-                      <MessageSectionController
+                      <IOPreviewSection
+                        kind="message"
                         key={originalIndex}
-                        message={message}
                         title={
                           titleBySide ? sideTitle : getMessageTitle(message)
                         }
-                        shouldRenderMarkdown={shouldRenderMarkdown}
-                        currentView="pretty"
-                        toolCallNumbers={messageToToolCallNumbers.get(
-                          originalIndex,
-                        )}
                         isOutputMessage={isOutputMessage}
-                        contentMode={contentMode}
+                        messageProps={{
+                          message,
+                          shouldRenderMarkdown,
+                          currentView: "pretty",
+                          toolCallNumbers:
+                            messageToToolCallNumbers.get(originalIndex),
+                          contentMode,
+                        }}
                         defaultCollapsed={
                           foldsMiddle
                             ? folded
@@ -1547,75 +1323,7 @@ function IOPreviewContent({
                             ? outputActions
                             : undefined
                         }
-                      >
-                        {function renderMessage(
-                          {
-                            title,
-                            collapsed,
-                            onCollapsedChange,
-                            variant,
-                            actions,
-                            onCopy,
-                          },
-                          messageProps,
-                        ) {
-                          return (
-                            <IOSection
-                              title={title}
-                              collapsed={collapsed}
-                              onCollapsedChange={onCollapsedChange}
-                              variant={variant}
-                              actions={actions}
-                              onCopy={onCopy}
-                            >
-                              <ChatMessage
-                                message={messageProps.message}
-                                shouldRenderMarkdown={
-                                  messageProps.shouldRenderMarkdown
-                                }
-                                currentView={messageProps.currentView}
-                                toolCallNumbers={messageProps.toolCallNumbers}
-                                contentMode={messageProps.contentMode}
-                                showPassthroughJson={
-                                  messageProps.showPassthroughJson
-                                }
-                                borderless
-                                expandAllRef={messageProps.expandAllRef}
-                                onExpandStateChange={
-                                  messageProps.onExpandStateChange
-                                }
-                                copyRef={messageProps.copyRef}
-                                onDisplayModeChange={
-                                  messageProps.onDisplayModeChange
-                                }
-                                onExpandabilityChange={
-                                  messageProps.onExpandabilityChange
-                                }
-                                renderResponse={(response) =>
-                                  shouldRenderMessageForContentMode(
-                                    response,
-                                    messageProps.contentMode ?? "all",
-                                    undefined,
-                                  ) ? (
-                                    <MessageSectionController
-                                      message={response}
-                                      title={getMessageTitle(response)}
-                                      shouldRenderMarkdown={
-                                        messageProps.shouldRenderMarkdown
-                                      }
-                                      currentView={messageProps.currentView}
-                                      contentMode={messageProps.contentMode}
-                                      defaultCollapsed={false}
-                                    >
-                                      {renderMessage}
-                                    </MessageSectionController>
-                                  ) : null
-                                }
-                              />
-                            </IOSection>
-                          );
-                        }}
-                      </MessageSectionController>
+                      />
                     );
                     if (foldsMiddle && filteredIndex === 0) {
                       return (
@@ -1643,49 +1351,21 @@ function IOPreviewContent({
                 )}
               </div>
               {showData && additionalInputToShow && (
-                <JsonSectionController
+                <IOPreviewSection
+                  kind="json"
                   title="Additional Input"
-                  json={additionalInputToShow}
-                  currentView={shouldRenderMarkdown ? "pretty" : "json"}
-                >
-                  {({ title, variant, onCopy, actions }, viewer) => (
-                    <IOSection
-                      title={title}
-                      variant={variant}
-                      onCopy={onCopy}
-                      actions={actions}
-                    >
-                      <PrettyJsonView
-                        json={viewer.json}
-                        currentView={viewer.currentView}
-                        borderless
-                        downloadLabel={title}
-                        expandAllRef={viewer.expandAllRef}
-                        onExpandStateChange={viewer.onExpandStateChange}
-                        copyRef={viewer.copyRef}
-                        onDisplayModeChange={viewer.onDisplayModeChange}
-                        onExpandabilityChange={viewer.onExpandabilityChange}
-                      />
-                    </IOSection>
-                  )}
-                </JsonSectionController>
+                  jsonProps={{
+                    json: additionalInputToShow,
+                    currentView: shouldRenderMarkdown ? "pretty" : "json",
+                  }}
+                />
               )}
               {remainingMedia.length > 0 && (
-                <IOSection title="Media" variant="media">
-                  <div className="flex flex-wrap gap-2">
-                    {remainingMedia.map((media) => (
-                      <LangfuseMediaView
-                        key={media.mediaId}
-                        mediaAPIReturnValue={media}
-                        variant={
-                          media.contentType.startsWith("image")
-                            ? "inline"
-                            : "icon"
-                        }
-                      />
-                    ))}
-                  </div>
-                </IOSection>
+                <IOPreviewSection
+                  kind="media"
+                  title="Media"
+                  media={remainingMedia}
+                />
               )}
             </div>
           </div>
@@ -1696,68 +1376,39 @@ function IOPreviewContent({
             <Fragment key={field.key}>
               {field.show &&
                 (isJson && field.tooLarge && field.probe ? (
-                  <IOSection
+                  <IOPreviewSection
+                    kind="large-json"
                     title={field.title}
                     actions={field.key === "output" ? outputActions : undefined}
-                  >
-                    <LargeJsonFieldFallback
-                      title={field.title}
-                      hideTitle
-                      serialized={field.probe.serialized}
-                      isString={field.probe.isString}
-                      charCount={field.probe.size}
-                      downloadFileBase={`${field.key}-${downloadName}`}
-                    />
-                  </IOSection>
-                ) : (
-                  <JsonSectionController
-                    title={field.title}
-                    json={isJson ? field.raw : field.value}
-                    parsedJson={isJson ? field.value : undefined}
-                    isLoading={isLoading}
-                    isParsing={isParsing}
-                    media={
-                      media?.filter((item) => item.field === field.key) ?? []
-                    }
-                    currentView={isJson ? "json" : "pretty"}
-                    actions={field.key === "output" ? outputActions : undefined}
-                    externalExpansionState={field.expansion}
-                    onExternalExpansionChange={(expansion) => {
-                      if (isJson) {
-                        if (typeof expansion === "boolean")
-                          field.onJsonExpansion?.(expansion);
-                      } else field.onExpansion?.(expansion);
+                    fallback={{
+                      serialized: field.probe.serialized,
+                      isString: field.probe.isString,
+                      charCount: field.probe.size,
+                      downloadFileBase: `${field.key}-${downloadName}`,
                     }}
-                  >
-                    {({ title, variant, onCopy, actions }, viewer) => (
-                      <IOSection
-                        title={title}
-                        variant={variant}
-                        onCopy={onCopy}
-                        actions={actions}
-                      >
-                        <PrettyJsonView
-                          json={viewer.json}
-                          parsedJson={viewer.parsedJson}
-                          isLoading={viewer.isLoading}
-                          isParsing={viewer.isParsing}
-                          media={viewer.media}
-                          currentView={viewer.currentView}
-                          externalExpansionState={viewer.externalExpansionState}
-                          onExternalExpansionChange={
-                            viewer.onExternalExpansionChange
-                          }
-                          borderless
-                          downloadLabel={title}
-                          expandAllRef={viewer.expandAllRef}
-                          onExpandStateChange={viewer.onExpandStateChange}
-                          copyRef={viewer.copyRef}
-                          onDisplayModeChange={viewer.onDisplayModeChange}
-                          onExpandabilityChange={viewer.onExpandabilityChange}
-                        />
-                      </IOSection>
-                    )}
-                  </JsonSectionController>
+                  />
+                ) : (
+                  <IOPreviewSection
+                    kind="json"
+                    title={field.title}
+                    actions={field.key === "output" ? outputActions : undefined}
+                    jsonProps={{
+                      json: isJson ? field.raw : field.value,
+                      parsedJson: isJson ? field.value : undefined,
+                      isLoading,
+                      isParsing,
+                      media:
+                        media?.filter((item) => item.field === field.key) ?? [],
+                      currentView: isJson ? "json" : "pretty",
+                      externalExpansionState: field.expansion,
+                      onExternalExpansionChange: (expansion) => {
+                        if (isJson) {
+                          if (typeof expansion === "boolean")
+                            field.onJsonExpansion?.(expansion);
+                        } else field.onExpansion?.(expansion);
+                      },
+                    }}
+                  />
                 ))}
               {field.key === "output" && correctedOutputField}
             </Fragment>
@@ -1827,194 +1478,4 @@ function useIOParserComparisonCapture({
     shouldRenderMessages,
     traceId,
   ]);
-}
-
-function JsonSectionController({
-  children,
-  title,
-  titleIcon,
-  actions,
-  tone,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
-  ...props
-}: React.ComponentProps<typeof PrettyJsonView> &
-  Pick<
-    React.ComponentProps<typeof IOSection>,
-    | "title"
-    | "titleIcon"
-    | "actions"
-    | "tone"
-    | "defaultCollapsed"
-    | "collapsed"
-    | "onCollapsedChange"
-  > & {
-    children: (
-      sectionProps: Pick<
-        React.ComponentProps<typeof IOSection>,
-        | "title"
-        | "titleIcon"
-        | "tone"
-        | "defaultCollapsed"
-        | "collapsed"
-        | "onCollapsedChange"
-        | "variant"
-        | "onCopy"
-        | "actions"
-      >,
-      viewerProps: React.ComponentProps<typeof PrettyJsonView>,
-    ) => React.ReactNode;
-  }) {
-  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
-  const expandAllRef = useRef<(() => void) | null>(null);
-  const copyRef = useRef<(() => void) | null>(null);
-  const [variant, setVariant] = useState<"text" | "table">("text");
-  const [canExpand, setCanExpand] = useState(false);
-  const expandAction: IOSectionAction = {
-    icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
-    label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
-    onClick: () => expandAllRef.current?.(),
-  };
-  return children(
-    {
-      title,
-      titleIcon,
-      tone,
-      defaultCollapsed,
-      collapsed,
-      onCollapsedChange,
-      variant,
-      onCopy: () => copyRef.current?.(),
-      actions: [...(canExpand ? [expandAction] : []), ...(actions ?? [])],
-    },
-    {
-      ...props,
-      borderless: true,
-      downloadLabel: title,
-      expandAllRef,
-      onExpandStateChange: setAllRowsExpanded,
-      copyRef,
-      onDisplayModeChange: setVariant,
-      onExpandabilityChange: setCanExpand,
-    },
-  );
-}
-
-function MessageSectionController({
-  children,
-  title,
-  actions,
-  defaultCollapsed,
-  isOutputMessage,
-  ...props
-}: React.ComponentProps<typeof ChatMessage> &
-  Pick<
-    React.ComponentProps<typeof IOSection>,
-    "title" | "actions" | "defaultCollapsed"
-  > & {
-    isOutputMessage?: boolean;
-    children: (
-      sectionProps: Pick<
-        React.ComponentProps<typeof IOSection>,
-        | "title"
-        | "collapsed"
-        | "onCollapsedChange"
-        | "variant"
-        | "actions"
-        | "onCopy"
-      >,
-      messageProps: React.ComponentProps<typeof ChatMessage>,
-    ) => React.ReactNode;
-  }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
-  const [showPassthroughJson, setShowPassthroughJson] = useState(false);
-  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
-  const expandAllRef = useRef<(() => void) | null>(null);
-  const copyRef = useRef<(() => void) | null>(null);
-  const [variant, setVariant] = useState<"text" | "table">("text");
-  const [canExpand, setCanExpand] = useState(false);
-  const characterLimit = useMarkdownRenderCharacterLimit();
-  const { message } = props;
-  const placeholder = isPlaceholderMessage(message);
-  const textContent = (() => {
-    if (message.role !== "system" || isLargeRenderString(message.content))
-      return "";
-    if (typeof message.content === "string")
-      return splitStringByMediaReferences(message.content)
-        .filter((part) => part.type === "text")
-        .map((part) => part.value)
-        .join("")
-        .trim();
-    if (Array.isArray(message.content))
-      return message.content
-        .filter(isOpenAITextContentPart)
-        .map((part) => part.text)
-        .join("\n");
-    return "";
-  })();
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt: (() => {
-      if (message.role !== "system" || showPassthroughJson) return false;
-      if (!textContent || textContent.length > characterLimit) return false;
-      if (
-        !props.shouldRenderMarkdown &&
-        (props.currentView !== "pretty" || typeof message.content !== "string")
-      )
-        return false;
-      return canRenderContentAsMarkdown(message.content, characterLimit);
-    })(),
-    content: textContent,
-  });
-  const isCollapsed = systemPrompt.shouldBeCollapsible
-    ? systemPrompt.isCollapsed
-    : collapsed;
-  const sectionActions: IOSectionAction[] = [
-    ...(canExpand
-      ? [
-          {
-            icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
-            label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
-            onClick: () => expandAllRef.current?.(),
-          },
-        ]
-      : []),
-    ...(props.contentMode !== "conversation" && hasPassthroughJson(message)
-      ? [
-          {
-            icon: showPassthroughJson ? ListChevronsDownUp : ListChevronsUpDown,
-            label: showPassthroughJson
-              ? "Show formatted view"
-              : "Show passthrough JSON data",
-            onClick: () => setShowPassthroughJson((value) => !value),
-            active: showPassthroughJson,
-          },
-        ]
-      : []),
-    ...(actions ?? []),
-  ];
-  return children(
-    {
-      title: placeholder
-        ? "Placeholder"
-        : title || (isOutputMessage ? "Output" : "Input"),
-      collapsed: isCollapsed,
-      onCollapsedChange: systemPrompt.shouldBeCollapsible
-        ? systemPrompt.toggleCollapsed
-        : setCollapsed,
-      variant,
-      actions: sectionActions,
-      onCopy: isCollapsed ? undefined : () => copyRef.current?.(),
-    },
-    {
-      ...props,
-      showPassthroughJson,
-      borderless: true,
-      expandAllRef,
-      onExpandStateChange: setAllRowsExpanded,
-      copyRef,
-      onDisplayModeChange: setVariant,
-      onExpandabilityChange: setCanExpand,
-    },
-  );
 }
