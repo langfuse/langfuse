@@ -12,7 +12,6 @@ import {
 } from "./TopicSetupFlowDialog";
 import {
   TOPIC_SETUP_BACKFILL_DAYS,
-  TOPIC_SETUP_BACKFILL_FILTER,
   TOPIC_SETUP_BACKFILL_LIMIT,
   followsTopicRecommendations,
   initialTopicSetupDraft,
@@ -23,7 +22,6 @@ import {
   type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
-import { relativeTopicTimeRange } from "./time-range";
 
 export function TopicSetupFlowController({
   canWrite,
@@ -112,7 +110,7 @@ function TopicSetupSession({
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
-  const trigger = api.topics.trigger.useMutation();
+  const startSetup = api.topics.startSetup.useMutation();
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
       id: connection.id,
@@ -135,24 +133,16 @@ function TopicSetupSession({
   useEffect(() => {
     capture("topics:setup_opened", { source });
   }, [capture, source]);
-  const [countedAt] = useState(() => new Date());
-  const range = relativeTopicTimeRange(TOPIC_SETUP_BACKFILL_DAYS, countedAt);
-  const preview = api.topics.previewTraces.useQuery(
-    {
-      projectId,
-      filter: TOPIC_SETUP_BACKFILL_FILTER,
-      from: range.from,
-      to: range.to,
-      limit: TOPIC_SETUP_BACKFILL_LIMIT,
-      sampling: "random",
-      seed: "setup-count",
-    },
+  // Counted once per step 2 visit; the slider only rescales the result.
+  const counts = api.topics.setupTraceCounts.useQuery(
+    { projectId },
     { enabled: draft.step !== "questions", retry: false },
   );
   const pastCount = pastTraceCount(
-    preview.data,
-    preview.error?.message ?? null,
-    preview.isFetching,
+    counts.data,
+    draft.samplePercent,
+    counts.error?.message ?? null,
+    counts.isFetching,
   );
 
   async function saveQuestions() {
@@ -217,15 +207,6 @@ function TopicSetupSession({
   async function startAnalyzing() {
     onHoldOpen();
     await persistSampling(true);
-    const backfillCount = preview.data?.selectedTraceCount ?? 0;
-    if (backfillCount === 0) {
-      capture("topics:setup_started", {
-        backfillCount,
-        samplePercent: draft.samplePercent,
-      });
-      closeDialog();
-      return;
-    }
     const facets = await utils.topics.facets.fetch({ projectId });
     const enabled = new Set<string>(
       draft.questions
@@ -239,21 +220,11 @@ function TopicSetupSession({
     });
     if (refs.length === 0)
       throw new Error("Save at least one question before starting.");
-    await trigger.mutateAsync({
+    const { traceCount: backfillCount } = await startSetup.mutateAsync({
       projectId,
-      operation: "process",
-      facets: refs,
-      reuseExistingSummaries: true,
       requestId: crypto.randomUUID(),
-      selection: {
-        filter: TOPIC_SETUP_BACKFILL_FILTER,
-        from: range.from,
-        to: range.to,
-        limit: TOPIC_SETUP_BACKFILL_LIMIT,
-        sampling: "random",
-        seed: crypto.randomUUID(),
-        excludedTraceIds: [],
-      },
+      sampling: draft.samplePercent / 100,
+      facets: refs,
     });
     await utils.topics.executions.invalidate({ projectId });
     capture("topics:setup_started", {
@@ -291,7 +262,7 @@ function TopicSetupSession({
   return (
     <TopicSetupFlowDialog
       step={draft.step}
-      busy={save.isPending || trigger.isPending}
+      busy={save.isPending || startSetup.isPending}
       canWrite={canWrite}
       error={error}
       questions={draft.questions}
@@ -354,16 +325,26 @@ function TopicSetupSession({
 }
 
 function pastTraceCount(
-  data: { selectedTraceCount: number; matchedTraceCount: number } | undefined,
+  counts:
+    | { finished1d: number; finished7d: number; finished14d: number }
+    | undefined,
+  samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
-  if (data)
+  if (counts) {
+    // Mirrors the server: the smallest window that fills the batch, else 14 days.
+    const rate = samplePercent / 100;
+    const window =
+      [counts.finished1d, counts.finished7d].find(
+        (count) => count * rate >= TOPIC_SETUP_BACKFILL_LIMIT,
+      ) ?? counts.finished14d;
     return {
       status: "ready",
-      matched: data.selectedTraceCount,
-      dailyTraces: data.matchedTraceCount / TOPIC_SETUP_BACKFILL_DAYS,
+      matched: Math.min(TOPIC_SETUP_BACKFILL_LIMIT, Math.round(window * rate)),
+      dailyTraces: counts.finished14d / TOPIC_SETUP_BACKFILL_DAYS,
     };
+  }
   if (error && !fetching) return { status: "error", message: error };
   return { status: "loading" };
 }

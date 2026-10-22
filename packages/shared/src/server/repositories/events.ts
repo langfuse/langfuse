@@ -30,6 +30,10 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
@@ -4136,3 +4140,83 @@ export const getTracesIdentifierForSessionFromEvents = async (
     environment: row.environment,
   }));
 };
+
+// Finished traces: no event within the project's idle wait. Grouped by trace_id, so
+// traces without a root observation (OTel default) still count.
+const topicSetupTracesSql = (days: "1" | "7" | "14", sampled: boolean) => `
+  SELECT trace_id, max(start_time) AS last_ts
+  FROM events_core
+  WHERE project_id = {projectId: String}
+    AND start_time >= {now: DateTime64(3)} - INTERVAL ${days} DAY
+    AND trace_id != ''
+    AND is_deleted = 0
+    AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
+    AND environment != {publicLlmJudgeEnvironment: String}
+    ${
+      sampled
+        ? // Mirrors worker deterministicSampling: sha256(domain + traceId), top 53 bits.
+          "AND bitShiftRight(reinterpretAsUInt64(reverse(substring(SHA256(concat('langfuse:evaluation-sampling:v1', char(0), trace_id)), 1, 8))), 11) < {sampling: Float64} * 9007199254740992"
+        : ""
+    }
+  GROUP BY trace_id
+  HAVING last_ts < {now: DateTime64(3)} - toIntervalMillisecond({idleMs: UInt32})`;
+
+const topicSetupParams = (projectId: string, idleMs: number, now: Date) => ({
+  projectId,
+  idleMs,
+  now: convertDateToClickhouseDateTime(now),
+  internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+});
+
+/** Unsampled finished-trace counts for the Topics setup estimate. */
+export async function getTopicSetupTraceCounts(input: {
+  projectId: string;
+  idleMs: number;
+  now: Date;
+}) {
+  const rows = await queryClickhouse<{
+    finished1d: string;
+    finished7d: string;
+    finished14d: string;
+  }>({
+    query: `
+      SELECT
+        countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 1 DAY) AS finished1d,
+        countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 7 DAY) AS finished7d,
+        count() AS finished14d
+      FROM (${topicSetupTracesSql("14", false)})`,
+    params: topicSetupParams(input.projectId, input.idleMs, input.now),
+    tags: { route: "topics-setup-counts", projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  return {
+    finished1d: Number(rows[0]?.finished1d ?? 0),
+    finished7d: Number(rows[0]?.finished7d ?? 0),
+    finished14d: Number(rows[0]?.finished14d ?? 0),
+  };
+}
+
+/** The most recent finished, sampled traces in one window for the Topics setup backfill. */
+export async function getTopicSetupTraceIds(input: {
+  projectId: string;
+  idleMs: number;
+  now: Date;
+  days: 1 | 7 | 14;
+  sampling: number;
+  limit: number;
+}) {
+  const rows = await queryClickhouse<{ trace_id: string }>({
+    query: `${topicSetupTracesSql(String(input.days) as "1" | "7" | "14", input.sampling < 1)}
+      ORDER BY last_ts DESC, trace_id
+      LIMIT {limit: UInt32}`,
+    params: {
+      ...topicSetupParams(input.projectId, input.idleMs, input.now),
+      sampling: input.sampling,
+      limit: input.limit,
+    },
+    tags: { route: "topics-setup-traces", projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  return rows.map((row) => row.trace_id);
+}

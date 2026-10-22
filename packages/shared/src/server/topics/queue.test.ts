@@ -30,10 +30,14 @@ const mocks = vi.hoisted(() => ({
   hget: vi.fn(),
   exists: vi.fn(),
   get: vi.fn(),
+  create: vi.fn(),
+  userId: vi.fn(),
 }));
 vi.mock("./execution-store", () => ({
   readTopicExecutionSummary: mocks.read,
   writeTopicExecution: mocks.write,
+  createTopicExecution: mocks.create,
+  readTopicExecutionUserId: mocks.userId,
 }));
 vi.mock("../redis/redis", () => ({
   createBullMQQueueOptionsWithRedis: () => null,
@@ -446,6 +450,7 @@ describe("Topics execution queue state", () => {
       expect(mocks.write.mock.calls.map(([, version]) => version)).toEqual([
         1, 2, 3, 4, 5,
       ]);
+      expect(mocks.create).not.toHaveBeenCalled();
       for (const key of keys) expect(await client.ttl(key)).toBeGreaterThan(0);
       await client.del(...keys);
       mocks.write.mockClear();
@@ -453,6 +458,73 @@ describe("Topics execution queue state", () => {
         recordTopicProcessBatchProgress("1", batch("running")),
       ).rejects.toThrow("expired");
       expect(mocks.write).not.toHaveBeenCalled();
+    } finally {
+      if (keys.size) await client.del(...keys);
+      client.disconnect();
+    }
+  });
+});
+
+describe("Topics setup follow-up", () => {
+  it("generates topics once all batches finish, in small-sample mode for a small run", async () => {
+    const client = new Redis({
+      lazyConnect: true,
+      maxRetriesPerRequest: 0,
+      host: env.REDIS_HOST ?? "localhost",
+      port: env.REDIS_PORT ?? 6379,
+      password: env.REDIS_AUTH ?? undefined,
+      username: env.REDIS_USERNAME ?? undefined,
+    });
+    const keys = new Set<string>();
+    mocks.exists.mockImplementation((...keys: string[]) =>
+      client.exists(...keys),
+    );
+    mocks.eval.mockImplementation(
+      async (script: string, count: number, ...args: (string | number)[]) => {
+        args.slice(0, count).forEach((key) => keys.add(String(key)));
+        return client.eval(script, count, ...args);
+      },
+    );
+    const timeRange = {
+      from: new Date("2026-10-08T00:00:00.000Z"),
+      to: new Date("2026-10-22T00:00:00.000Z"),
+    };
+    const parent = { ...execution("process", 60), id: randomUUID() };
+    parent.input = topicExecutionInputSchema.parse({
+      ...parent.input,
+      thenUpdate: { timeRange },
+    });
+    mocks.read.mockImplementation(async () => structuredClone(parent));
+    mocks.write.mockImplementation(async (state: TopicExecution) => {
+      Object.assign(parent, structuredClone(state));
+    });
+    mocks.userId.mockResolvedValue("user-1");
+    mocks.create.mockResolvedValue({ id: "update", status: "completed" });
+    const local = structuredClone(parent);
+    local.status = "completed";
+    local.facets[0].counts.complete = 60;
+    local.facets[0].outcome = "awaiting_topics";
+    const batch: TopicProcessBatchState = {
+      execution: local,
+      summaries: [],
+      failedTraceIds: [],
+      summarized: true,
+    };
+    try {
+      await recordTopicProcessBatchProgress("0", batch);
+      await recordTopicProcessBatchProgress("0", batch);
+      expect(mocks.create).toHaveBeenCalledTimes(2);
+      expect(mocks.create.mock.calls[0]).toEqual(mocks.create.mock.calls[1]);
+      expect(mocks.create.mock.calls[0]).toEqual([
+        expect.objectContaining({
+          operation: "update",
+          requestId: `${parent.id}-topics`,
+          timeRange,
+          exploratory: true,
+        }),
+        undefined,
+        "user-1",
+      ]);
     } finally {
       if (keys.size) await client.del(...keys);
       client.disconnect();

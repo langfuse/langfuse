@@ -5,7 +5,9 @@ import { createBullMQQueueOptionsWithRedis, redis } from "../redis/redis";
 import { logger } from "../logger";
 import { isTopicsEnabled } from "./config";
 import {
+  createTopicExecution,
   readTopicExecutionSummary,
+  readTopicExecutionUserId,
   writeTopicExecution,
 } from "./execution-store";
 import type {
@@ -344,6 +346,38 @@ export async function recordTopicProcessBatchProgress(
   execution.phase = done ? execution.status : local.phase;
   execution.error = failed ? (local.error ?? execution.error) : null;
   await writeTopicExecution(execution, totals.get("version"));
+  if (done && !failed) await startFollowUpTopicUpdate(execution);
+}
+
+// Small-sample settings below this many summaries in any facet.
+const FOLLOW_UP_FULL_MINIMUM = 100;
+
+/** Idempotent: the update's request ID derives from the process execution. */
+async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
+  const { input } = execution;
+  if (input.operation !== "process" || !input.thenUpdate) return;
+  const userId = await readTopicExecutionUserId(
+    execution.projectId,
+    execution.id,
+  );
+  if (!userId) return;
+  const update = await createTopicExecution(
+    {
+      operation: "update",
+      projectId: execution.projectId,
+      requestId: `${execution.id}-topics`,
+      facets: input.facets,
+      embeddingConfig: input.embeddingConfig,
+      timeRange: input.thenUpdate.timeRange,
+      exploratory: execution.facets.some(
+        (facet) => facet.counts.complete < FOLLOW_UP_FULL_MINIMUM,
+      ),
+    },
+    undefined,
+    userId,
+  );
+  if (update.status === "queued")
+    await enqueueTopicExecution(execution.projectId, update.id);
 }
 
 /** Error details have the queue's retention; counts remain in Postgres. */

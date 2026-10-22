@@ -1,8 +1,4 @@
-import {
-  LLMAdapter,
-  supportedModels,
-  type FilterState,
-} from "@langfuse/shared";
+import { LLMAdapter, supportedModels } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -19,15 +15,6 @@ const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;
 export const TOPIC_SETUP_BACKFILL_DAYS = 14;
 export const TOPIC_SETUP_BACKFILL_LIMIT = 500;
 const TOPIC_SETUP_MIN_PAST_TRACES = 100;
-
-export const TOPIC_SETUP_BACKFILL_FILTER: FilterState = [
-  {
-    column: "isRootObservation",
-    type: "boolean",
-    operator: "=",
-    value: true,
-  },
-];
 
 export type TopicSetupStep = "questions" | "traces" | "review";
 export type TopicSetupWaitMinutes = (typeof TOPIC_SETUP_WAIT_MINUTES)[number];

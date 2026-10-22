@@ -9,6 +9,10 @@ import {
 } from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
+import {
+  getTopicSetupTraceIds,
+  getTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
 
 export const topicTraceSelectionSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
@@ -92,4 +96,30 @@ export async function resolveTopicTraceSelection(
     ...execution,
     traceIds,
   });
+}
+
+// Fallback when a project has no stored idle time; the setup flow always saves one.
+const SETUP_DEFAULT_IDLE_MS = 600_000;
+const SETUP_WINDOWS = [1, 7, 14] as const;
+
+export async function topicSetupIdleMs(projectId: string) {
+  const { traceIdleMs } = await getTracingReadinessSettings(projectId);
+  return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
+}
+
+/** Widens 1 → 7 → 14 days until the limit is met, so busy projects scan one day. */
+export async function selectTopicSetupTraces(input: {
+  projectId: string;
+  sampling: number;
+  limit: number;
+  now: Date;
+}) {
+  const idleMs = await topicSetupIdleMs(input.projectId);
+  let traceIds: string[] = [];
+  let days: (typeof SETUP_WINDOWS)[number] = 1;
+  for (days of SETUP_WINDOWS) {
+    traceIds = await getTopicSetupTraceIds({ ...input, idleMs, days });
+    if (traceIds.length >= input.limit) break;
+  }
+  return { traceIds, days };
 }

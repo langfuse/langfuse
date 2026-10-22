@@ -103,7 +103,16 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
               state.inputSettings.timeRange,
             ),
           }
-        : state.inputSettings,
+        : state.inputSettings.thenUpdate
+          ? {
+              ...state.inputSettings,
+              thenUpdate: {
+                timeRange: topicTimeRangeSchema.parse(
+                  state.inputSettings.thenUpdate.timeRange,
+                ),
+              },
+            }
+          : state.inputSettings,
     facets: state.inputSettings.facets.map(({ facetId, version }) => {
       const facet = state.facets.find(
         (candidate) =>
@@ -114,6 +123,15 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
       return facet;
     }),
   };
+}
+
+/** The user who started an execution, so follow-up runs stay in their History. */
+export async function readTopicExecutionUserId(
+  projectId: string,
+  executionId: string,
+): Promise<string | null> {
+  const row = await storedExecution(projectId, executionId);
+  return row?.userId ?? null;
 }
 
 /** Postgres owns compact execution settings and progress, never per-trace payloads. */

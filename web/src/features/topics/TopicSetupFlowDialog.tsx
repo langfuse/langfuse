@@ -396,7 +396,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "error") return count.message;
   if (count.matched === 0)
     return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
-  return `Include ${count.matched.toLocaleString("en-US")} past traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
+  return `Include about ${count.matched.toLocaleString("en-US")} past traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
 }
 
 function samplePercentFromInput(value: string) {

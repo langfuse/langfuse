@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import { getTracingReadinessSettings } from "@langfuse/shared/src/server";
+import {
+  getTopicSetupTraceCounts,
+  getTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
   topicFacetRefSchema,
+  topicProcessingConfigSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
@@ -55,11 +59,14 @@ import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
+  selectTopicSetupTraces,
+  topicSetupIdleMs,
   topicTraceSelectionSchema,
   topicTriggerInputSchema,
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -454,6 +461,62 @@ export const topicsRouter = createTRPCRouter({
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
+    }),
+  setupTraceCounts: topicsProcedure.query(async ({ input }) =>
+    getTopicSetupTraceCounts({
+      projectId: input.projectId,
+      idleMs: await topicSetupIdleMs(input.projectId),
+      now: new Date(),
+    }),
+  ),
+  /** Summarizes recent finished traces, then generates topics over the same window. */
+  startSetup: topicsWriteProcedure
+    .input(
+      projectInput.extend({
+        requestId: topicIdSchema,
+        sampling: z.number().gt(0).max(1),
+        facets: z.array(topicFacetRefSchema).min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { summary, embedding } = await requireTopicsModels(input.projectId);
+      await requireFacetVersions(input.projectId, input.facets);
+      const now = new Date();
+      const { traceIds, days } = await selectTopicSetupTraces({
+        projectId: input.projectId,
+        sampling: input.sampling,
+        limit: TOPIC_SETUP_BACKFILL_LIMIT,
+        now,
+      });
+      if (traceIds.length === 0) return { id: null, traceCount: 0, days };
+      const execution = await createTopicExecution(
+        {
+          operation: "process",
+          projectId: input.projectId,
+          requestId: input.requestId,
+          facets: input.facets,
+          traceIds,
+          reuseExistingSummaries: true,
+          embeddingConfig: {
+            embeddingModel: embedding.model,
+            embeddingDimensions: embedding.dimensions,
+          },
+          processingConfig: topicProcessingConfigSchema.parse({
+            summaryModel: summary.model,
+          }),
+          thenUpdate: {
+            timeRange: {
+              from: new Date(now.getTime() - days * 86_400_000),
+              to: now,
+            },
+          },
+        },
+        undefined,
+        ctx.session.user.id,
+      );
+      if (execution.status === "queued")
+        await enqueueTopicExecution(input.projectId, execution.id, traceIds);
+      return { id: execution.id, traceCount: traceIds.length, days };
     }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)

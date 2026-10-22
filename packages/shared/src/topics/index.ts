@@ -196,6 +196,8 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
+      // Generate topics over this range once every batch has finished.
+      thenUpdate: z.object({ timeRange: topicTimeRangeSchema }).optional(),
     })
     .strict(),
   z
