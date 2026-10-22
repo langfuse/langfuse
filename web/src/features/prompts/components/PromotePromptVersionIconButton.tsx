@@ -36,7 +36,11 @@ export function PromotePromptVersionIconButton({
           size="sm"
           disabled={!hasAccess || isPending}
           data-version-trigger="true"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
           onClick={(event) => {
+            event.preventDefault();
             event.stopPropagation();
             promote();
           }}

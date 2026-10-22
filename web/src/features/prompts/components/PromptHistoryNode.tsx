@@ -66,6 +66,7 @@ const PromptHistoryTraceNode = (props: {
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (
+            target.closest("button") ||
             target.closest('[role="button"]') ||
             target.closest('[data-version-trigger="true"]')
           ) {
@@ -136,7 +137,16 @@ const PromptHistoryTraceNode = (props: {
             </div>
           </div>
           {!prompt.labels.includes(PRODUCTION_LABEL) ? (
-            <span className="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+            <span
+              className="flex shrink-0"
+              data-version-trigger="true"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
               <PromotePromptVersionIconButton
                 projectId={prompt.projectId}
                 promptId={prompt.id}
