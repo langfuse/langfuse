@@ -910,7 +910,7 @@ export class InAppAgentInstrumentation {
   ) {
     this.recordObservation(type, {
       ...body,
-      ...((type === "generation-create" || type === "tool-create") &&
+      ...((type === "GENERATION" || type === "TOOL") &&
       this.skillsAvailable.length > 0
         ? { skillsAvailable: this.skillsAvailable }
         : {}),
