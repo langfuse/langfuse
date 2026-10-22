@@ -1,12 +1,7 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
-import type {
-  Transcript,
-  TranscriptLevelEvent,
-  TranscriptObservation,
-  TranscriptOptions,
-} from "./types";
+import type { Transcript, TranscriptOptions } from "./types";
 import { limitTranscript } from "./limit";
 import {
   append,
@@ -17,8 +12,6 @@ import {
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 import { prepareMessage } from "./messages";
-
-const LEVEL_STATUS_MAX_CHARACTERS = 1_000;
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
@@ -43,48 +36,6 @@ function normalize(observation: OrderedObservation) {
     messages.map(prepareMessage),
     (message) => message.source === "input",
   );
-}
-
-/** Check if an observation's level and status message belong in `levelEvents`. */
-export function hasReportableLevel(
-  observation: Pick<TranscriptObservation, "level" | "statusMessage">,
-): boolean {
-  return (
-    observation.level === "ERROR" ||
-    (observation.level === "WARNING" && Boolean(observation.statusMessage))
-  );
-}
-
-function toLevelEvent(observation: OrderedObservation): TranscriptLevelEvent {
-  return {
-    observationId: observation.id,
-    traceId: observation.traceId,
-    type: observation.type,
-    name: observation.name ?? null,
-    level: observation.level === "ERROR" ? "ERROR" : "WARNING",
-    statusMessage: observation.statusMessage
-      ? observation.statusMessage.slice(0, LEVEL_STATUS_MAX_CHARACTERS)
-      : null,
-    startTime: observation.startTime,
-  };
-}
-
-function collectLevelEvents(
-  observations: OrderedObservation[],
-): TranscriptLevelEvent[] {
-  const levelEvents: TranscriptLevelEvent[] = [];
-  for (const observation of observations)
-    if (hasReportableLevel(observation))
-      levelEvents.push(toLevelEvent(observation));
-  return levelEvents;
-}
-
-function withLevelEvents(
-  transcript: Transcript | null,
-  levelEvents: TranscriptLevelEvent[],
-): Transcript | null {
-  if (levelEvents.length === 0) return transcript;
-  return { ...(transcript ?? { threads: [] }), levelEvents };
 }
 
 /**
@@ -127,16 +78,14 @@ export function assembleTranscript(
     append(thread, observation, input, output, toolCalls);
   }
 
-  const conversation = threads.length
+  const transcript = threads.length
     ? { threads: threads.map(splitTurn) }
     : null;
   onTimings?.({
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  const limited =
-    conversation && maxCharacters !== undefined
-      ? limitTranscript(conversation, maxCharacters)
-      : conversation;
-  return withLevelEvents(limited, collectLevelEvents(orderedObservations));
+  return transcript && maxCharacters !== undefined
+    ? limitTranscript(transcript, maxCharacters)
+    : transcript;
 }

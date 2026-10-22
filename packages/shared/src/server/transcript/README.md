@@ -23,18 +23,7 @@ type TranscriptOptions = {
   onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
 };
 
-type Transcript = { threads: Thread[]; levelEvents?: TranscriptLevelEvent[]; truncated?: true };
-
-// ERROR observations, and WARNING observations with a status message, in order.
-type TranscriptLevelEvent = {
-  observationId: string;
-  traceId: string | null;
-  type: ObservationType;
-  name: string | null;
-  level: "ERROR" | "WARNING";
-  statusMessage: string | null; // first 1,000 characters
-  startTime: Date;
-};
+type Transcript = { threads: Thread[]; truncated?: true };
 
 type Thread = {
   conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
@@ -77,14 +66,9 @@ connect them, but does not retain the fields a trace-level view needs:
 - A root `SPAN` or `AGENT` can carry the trace input and final application
   output, including output produced after the last model or tool call. Those
   fields are absent from the assembled conversation.
-- Non-generation operations and unmatched tool observations are not
-  represented as conversation messages. Observation levels are kept separately
-  in `levelEvents`: every ERROR observation, and every WARNING observation with
-  a status message (`hasReportableLevel`), keyed by `observationId` so a
-  renderer can place them in the matching observation block. They are
-  collected from all supplied observations, so a failed model call that
-  emitted no messages still appears, and a transcript with only level events
-  is not null.
+- Non-generation operations, unmatched tool observations, and observation
+  type/name/level/status are not represented as conversation messages. A
+  renderer needs them to show the operation sequence and inline failures.
 - Available tool definitions can occur in generation input or metadata. They
   are not part of the normalized messages returned by the assembler.
 
@@ -97,6 +81,21 @@ context field or richer observation references on the assembled result could
 remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
+
+## Execution issues
+
+`assembleTranscriptContext(orderedObservations, options?)` composes
+`assembleTranscript` with `collectExecutionIssues` over the same observations
+and returns `{ transcript, executionIssues }`, or `null` when there is no
+transcript. `Transcript` stays purely conversational.
+
+An execution issue is an ERROR observation, or a WARNING observation with a
+status message (`isExecutionIssue`). Issues are collected from all supplied
+observations, including ones that contribute no messages, in observation order.
+Each keeps its observation reference, type, name, level, start time and the
+first 1,000 characters of its status message, so a consumer can place it in the
+matching observation block. `maxCharacters` limits only the transcript; issues
+are not capped.
 
 ## Schema
 
@@ -114,9 +113,7 @@ of that storage format.
 ## Character limit
 
 `assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
-`JSON.stringify(result).length <= 10_000` for the conversation. `levelEvents`
-are attached afterwards and not counted against the limit; how they should be
-capped is open. The limit counts UTF-16 code units,
+`JSON.stringify(result).length <= 10_000`. The limit counts UTF-16 code units,
 including JSON escaping, provenance, provider metadata and the truncation marker.
 It must be a safe integer of at least 4, the serialized length of `null`.
 Omitting it preserves the complete transcript and existing assembly behavior.
@@ -131,7 +128,7 @@ pruned to the retained current-turn messages. The original current turn
 nesting level is preserved.
 
 Changed results include `truncated: true`. If no message fits, the result is
-`null`, or only the `levelEvents` with empty `threads` when there are any. Truncated transcripts are partial evidence, not a replayable conversation:
+`null`. Truncated transcripts are partial evidence, not a replayable conversation:
 a tool call and its result can be separated by omitted messages. This bounds
 serialized output, not input size or normalization work. Timing callbacks exclude
 the limiting pass.
@@ -302,6 +299,7 @@ transcript/
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript
+├── context.ts             assembleTranscriptContext and execution issues
 ├── limit.ts               optional hard limit on serialized JSON
 ├── comparison.ts          messageKey
 ├── comparison.test.ts     focused equality regressions

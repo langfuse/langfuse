@@ -4,6 +4,7 @@ import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
+import { assembleTranscriptContext } from "../context";
 import { transcriptSchema } from "../schema";
 
 describe("transcript fixtures", () => {
@@ -36,7 +37,7 @@ describe("transcript fixtures", () => {
     ]);
   });
 
-  it("records failed observations, also when they emitted no messages", () => {
+  it("collects execution issues next to the transcript, also from observations without messages", () => {
     const failed = (
       id: string,
       type: "GENERATION" | "TOOL" | "SPAN",
@@ -71,28 +72,29 @@ describe("transcript fixtures", () => {
       ),
     ];
 
-    expect(assembleTranscript(observations)?.levelEvents).toEqual([
-      expect.objectContaining({
-        observationId: "2",
-        type: "TOOL",
-        name: "tool-2",
-        level: "ERROR",
-        statusMessage: "Request timed out",
-      }),
-      expect.objectContaining({
-        observationId: "5",
-        type: "GENERATION",
-        level: "ERROR",
-        statusMessage: "Bedrock is unable to process your request",
-      }),
-    ]);
-    expect(assembleTranscript([observations[4]])).toEqual({
-      threads: [],
-      levelEvents: [expect.objectContaining({ observationId: "5" })],
+    expect(assembleTranscriptContext(observations)).toEqual({
+      transcript: assembleTranscript(observations),
+      executionIssues: [
+        expect.objectContaining({
+          observationId: "2",
+          type: "TOOL",
+          name: "tool-2",
+          level: "ERROR",
+          statusMessage: "Request timed out",
+        }),
+        expect.objectContaining({
+          observationId: "5",
+          type: "GENERATION",
+          level: "ERROR",
+          statusMessage: "Bedrock is unable to process your request",
+        }),
+      ],
     });
-    expect(assembleTranscript([observations[0]])).not.toHaveProperty(
-      "levelEvents",
-    );
+    expect(assembleTranscriptContext(observations.slice(1))).toBeNull();
+    expect(assembleTranscriptContext([observations[0]])).toEqual({
+      transcript: assembleTranscript([observations[0]]),
+      executionIssues: [],
+    });
   });
 
   it("preserves an unfinished generation's null end time", () => {

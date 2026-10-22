@@ -118,24 +118,14 @@ export function prepareAssembledTopicTranscript(
       hasContent = true;
       return [{ role: message.role, parts }];
     });
-  const levelEvents = (transcript?.levelEvents ?? []).map((event) => ({
-    type: event.type,
-    name: event.name,
-    level: event.level,
-    statusMessage: event.statusMessage
-      ? redactInlineMedia(event.statusMessage)
-      : null,
-  }));
   const text = stableJsonStringify({
     threads: (transcript?.threads ?? []).map((thread) => ({
       conversationHistory: messages(thread.conversationHistory),
       currentTurn: messages(thread.currentTurn.messages),
     })),
-    // Omitted when empty, so traces without level events keep the same input.
-    ...(levelEvents.length > 0 ? { levelEvents } : {}),
   });
   return {
     text,
-    hasContent: hasContent || levelEvents.length > 0,
+    hasContent,
   };
 }

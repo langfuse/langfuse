@@ -6,7 +6,8 @@ import type {
 } from "../../utils/normalized-io";
 import { normalizeIO } from "../normalized-io";
 import { orderObservations } from "./ordering";
-import { assembleTranscript, hasReportableLevel } from "./transcript";
+import { assembleTranscript } from "./transcript";
+import { isExecutionIssue } from "./context";
 import type { Transcript } from "./types";
 import {
   transcriptRenderConfigSchema,
@@ -449,7 +450,7 @@ export function renderTranscript(
   }
   if (config.errors.include) {
     observations.forEach((observation, observationIndex) => {
-      if (hasReportableLevel(observation))
+      if (isExecutionIssue(observation))
         currentWithErrors.push({
           kind: "error",
           observation,

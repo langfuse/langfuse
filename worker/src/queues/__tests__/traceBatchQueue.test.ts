@@ -1032,8 +1032,8 @@ describe("trace batch queue", () => {
               content: "private output",
             }),
             metadata: {},
-            level: "DEFAULT",
-            status_message: null,
+            level: "WARNING",
+            status_message: "Rate limited, retried",
             tool_definitions: {},
             tool_calls: [],
             tool_call_names: [],
@@ -1079,6 +1079,13 @@ describe("trace batch queue", () => {
           {
             transcript: vi.mocked(summarizeAssembledTrace).mock.calls[0][0]
               .transcript,
+            executionIssues: [
+              expect.objectContaining({
+                observationId: "span",
+                level: "WARNING",
+                statusMessage: "Rate limited, retried",
+              }),
+            ],
             traceContext: {
               sessionId: null,
               traceTimestamp: "2026-09-11T00:00:00.000Z",

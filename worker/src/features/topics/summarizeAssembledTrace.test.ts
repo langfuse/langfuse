@@ -17,7 +17,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
-  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v4",
+  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),

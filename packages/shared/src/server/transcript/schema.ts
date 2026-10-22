@@ -29,23 +29,20 @@ export const threadSchema = z.object({
   currentTurn: turnSchema,
 });
 
-/** An observation with a WARNING or ERROR level and the status message it recorded. */
-export const transcriptLevelEventSchema = z.object({
+export const transcriptSchema = z.object({
+  threads: z.array(threadSchema),
+  /** The character limit shortened text or omitted messages. */
+  truncated: z.literal(true).optional(),
+});
+
+/** An ERROR observation, or a WARNING observation with a status message. */
+export const executionIssueSchema = z.object({
   observationId: z.string(),
   traceId: z.string().nullable(),
   type: ObservationTypeDomain,
   name: z.string().nullable(),
   level: z.enum(["ERROR", "WARNING"]),
+  /** First 1,000 characters of the status message. */
   statusMessage: z.string().nullable(),
   startTime: z.date(),
-});
-
-export const transcriptSchema = z.object({
-  threads: z.array(threadSchema),
-  /** ERROR observations, and WARNING observations with a status message, in order.
-   * Omitted when there are none. Independent of threads: a failed call can emit no messages.
-   * Not counted against `maxCharacters`, which limits only the conversation. */
-  levelEvents: z.array(transcriptLevelEventSchema).optional(),
-  /** The character limit shortened text or omitted messages. */
-  truncated: z.literal(true).optional(),
 });

@@ -116,33 +116,3 @@ it("keeps canonical conversation evidence without provenance or opaque payloads"
   expect(prepared.text).not.toMatch(/private-|SElEREVO|toolDefinitions/);
   expect(prepareAssembledTopicTranscript(null).hasContent).toBe(false);
 });
-
-it("passes level events to the model and omits the field when there are none", () => {
-  const levelEvent = {
-    observationId: "private-observation",
-    traceId: "private-trace",
-    type: "GENERATION" as const,
-    name: "invoke-model",
-    level: "ERROR" as const,
-    statusMessage: "Bedrock is unable to process your request",
-    startTime: new Date("2026-01-01T00:00:00.000Z"),
-  };
-
-  const failed = prepareAssembledTopicTranscript({
-    threads: [],
-    levelEvents: [levelEvent],
-  });
-  expect(failed.hasContent).toBe(true);
-  expect(JSON.parse(failed.text).levelEvents).toEqual([
-    {
-      type: "GENERATION",
-      name: "invoke-model",
-      level: "ERROR",
-      statusMessage: "Bedrock is unable to process your request",
-    },
-  ]);
-  expect(failed.text).not.toContain("private-");
-  expect(
-    JSON.parse(prepareAssembledTopicTranscript({ threads: [] }).text),
-  ).toEqual({ threads: [] });
-});

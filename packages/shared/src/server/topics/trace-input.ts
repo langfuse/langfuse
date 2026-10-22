@@ -13,7 +13,7 @@ import {
 } from "../transcript";
 
 /** Historical summaries are reusable only with the same transcript producer. */
-export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v4";
+export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
@@ -39,8 +39,6 @@ type SnapshotRow = {
   end_time: string | null;
   type: TranscriptObservation["type"];
   name: string;
-  level: NonNullable<TranscriptObservation["level"]>;
-  status_message: string | null;
   input: string;
   output: string;
   metadata: Record<string, string>;
@@ -94,8 +92,6 @@ export async function loadTopicTranscript(params: {
       "e.end_time",
       "e.type",
       "e.name",
-      "e.level",
-      "e.status_message",
     )
     .selectIO(false)
     .selectMetadataExpanded()
@@ -175,8 +171,6 @@ export async function loadTopicTranscript(params: {
           row.end_time === null ? null : new Date(utcTimestamp(row.end_time)),
         type: row.type,
         name: row.name,
-        level: row.level,
-        statusMessage: row.status_message || null,
         input: row.input,
         output: row.output,
         metadata: row.metadata,
