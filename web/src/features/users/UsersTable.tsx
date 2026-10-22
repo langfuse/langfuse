@@ -573,6 +573,11 @@ export function UsersTable({
             <DataTable
               tableName="users"
               columns={columns}
+              onRowClick={(row) => {
+                router.push(
+                  `/project/${projectId}/users/${encodeURIComponent(row.userId)}`,
+                );
+              }}
               data={
                 users.isLoading || isViewLoading
                   ? { isLoading: true, isError: false }
