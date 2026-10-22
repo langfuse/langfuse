@@ -340,6 +340,29 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isConfigured: false });
   });
 
+  it("gives key owners the gateway URL and enabled providers without connection details", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-test-client-setup",
+    });
+
+    const setup = await member.aiGateway.getClientSetup({
+      orgId: owner.org.id,
+    });
+    expect(setup).toEqual({
+      gatewayBaseUrl: expect.any(String),
+      providers: ["OPENAI"],
+    });
+    await expect(
+      viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("redirects gateway managers to Configuration until ingestion is set up", async () => {
     const owner = await prepare();
     const memberSession = {

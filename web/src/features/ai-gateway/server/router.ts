@@ -132,6 +132,23 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
     }),
 
+  /** What a key owner needs to point a client at the gateway; no connection details. */
+  getClientSetup: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const connections = await new GatewayProviderService(ctx.prisma).listAll(
+        input.orgId,
+        GatewayConnectionStatus.ENABLED,
+      );
+      return {
+        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
+        providers: [
+          ...new Set(connections.map((connection) => connection.provider)),
+        ],
+      };
+    }),
+
   updateConfig: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
