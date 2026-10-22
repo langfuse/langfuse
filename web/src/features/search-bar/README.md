@@ -272,7 +272,8 @@ The table always reads the sidebar's `effectiveFilterState` +
 `searchQuery`/`searchType` — unchanged from non-bar mode. The events table is
 mounted by both `/observations` and `/traces` in v4 mode (and embedded on the
 user/session detail pages — page-scoped by `userId`/`sessionId` — and the
-evaluator form via `hideControls`, where the bar stays off). In bar mode the
+evaluator form with `hideSearchBar`, `hideToolbar`, `hideFilterSidebar`, and
+`hidePeekPanel`, where the bar stays off). In bar mode the
 toolbar's legacy search field is hidden (full-text search is inline in the
 bar); the time-range + refresh controls stay in the toolbar row (next to the
 filter toggle and views), exactly as in non-bar mode — `EventsTable` passes

@@ -1905,7 +1905,8 @@ export default function ObservationsEventsTable({
                 });
               }}
               search={
-                hideSearchBar ? undefined : searchBarMode ? (
+                !hideSearchBar &&
+                (searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
                       size={showControlsInPageHeader ? "large" : "default"}
@@ -1945,7 +1946,7 @@ export default function ObservationsEventsTable({
                     tableName={eventsFilterConfig.tableName}
                     isV4
                   />
-                )
+                ))
               }
               headerControls={
                 !hideToolbar && (
