@@ -15,15 +15,21 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  EvalTemplateType,
   JobExecutionStatus,
   type FilterState,
   type EvalExecutionMode,
   canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
+
+const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([
+  "parentObservationId",
+]);
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -171,30 +177,53 @@ export async function scheduleObservationEvals(
     data: observation,
   });
 
-  // Process each assignment of every matching rule/config.
-  await Promise.all(
-    matchingConfigs.flatMap(({ config, assignments }) =>
-      assignments.map((assignment) =>
-        processMatchingConfig({
-          observation,
-          matchingConfig: config,
-          assignment,
-          observationS3Path,
-          schedulerDeps,
-          executionMode,
-          executionScopeId,
-        }).catch((error) => {
-          logger.error("Failed to process observation eval assignment", {
-            configId: config.id,
-            assignmentId: assignment.id,
-            observationId: observation.span_id,
-            projectId: observation.project_id,
-            error,
-          });
-        }),
-      ),
+  const assignmentAttempts = matchingConfigs.flatMap(
+    ({ config, assignments }) =>
+      assignments.map((assignment) => ({ config, assignment })),
+  );
+
+  const results = await Promise.allSettled(
+    assignmentAttempts.map(({ config, assignment }) =>
+      processMatchingConfig({
+        observation,
+        matchingConfig: config,
+        assignment,
+        observationS3Path,
+        schedulerDeps,
+        executionMode,
+        executionScopeId,
+      }),
     ),
   );
+
+  const failures = results.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [];
+
+    const { config, assignment } = assignmentAttempts[index];
+    logger.error("Failed to process observation eval assignment", {
+      configId: config.id,
+      assignmentId: assignment.id,
+      observationId: observation.span_id,
+      projectId: observation.project_id,
+      error: result.reason,
+    });
+
+    return [result.reason];
+  });
+
+  if (failures.length > 0) {
+    const firstFailure = failures[0];
+    const firstFailureMessage =
+      firstFailure instanceof Error
+        ? firstFailure.message
+        : "Unknown scheduling error";
+    const remainingFailureCount = failures.length - 1;
+
+    throw new AggregateError(
+      failures,
+      `Failed to schedule ${failures.length} of ${assignmentAttempts.length} observation eval assignment(s): ${firstFailureMessage}${remainingFailureCount > 0 ? ` (${remainingFailureCount} more failure(s))` : ""}`,
+    );
+  }
 }
 
 interface ProcessConfigParams {
@@ -303,20 +332,24 @@ function getExecutableAssignments(
   rule: ObservationEvalRule,
 ): ScheduledObservationEvalAssignment[] {
   if (!("assignments" in rule)) {
-    return rule.evalTemplateId
-      ? [
-          {
-            id: rule.id,
-            evaluatorId: null,
-            evaluationRuleId: null,
-            evalTemplateId: rule.evalTemplateId,
-            evaluatorType: rule.evalTemplate.type,
-          },
-        ]
-      : [];
+    if (
+      !rule.evalTemplateId ||
+      rule.evalTemplate.type === EvalTemplateType.FACET
+    )
+      return [];
+    return [
+      {
+        id: rule.id,
+        evaluatorId: null,
+        evaluationRuleId: null,
+        evalTemplateId: rule.evalTemplateId,
+        evaluatorType: rule.evalTemplate.type,
+      },
+    ];
   }
 
   return rule.assignments.flatMap((assignment) => {
+    if (assignment.evaluator.type === EvalTemplateType.FACET) return [];
     // Blocked evaluators are already excluded by the query; this guards the
     // tenant boundary for callers that build assignments by hand.
     if (assignment.evaluator.projectId !== rule.projectId) {
@@ -356,7 +389,9 @@ function evaluateFilter(
   observation: ObservationForEval,
   config: ObservationEvalRule,
 ): boolean {
-  const filterConditions = config.filter as FilterState;
+  const filterConditions = coerceLegacyEmptyMetadataFilters(
+    config.filter,
+  ) as FilterState;
 
   // Empty filter matches all (for filter purposes)
   const isEmptyFilter =
@@ -375,6 +410,9 @@ function evaluateFilter(
         observation,
         filterConditions,
         fieldMapper,
+        {
+          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
+        },
       );
 
   return isFilterMatch;

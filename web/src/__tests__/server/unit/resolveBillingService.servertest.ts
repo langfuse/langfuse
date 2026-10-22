@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   env: {
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: null as Date | null,
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: [] as string[],
   },
   getChbApiClient: vi.fn(),
   createBillingServiceFromContext: vi.fn(),
@@ -19,7 +20,7 @@ vi.mock("@/src/ee/features/billing/server/stripe/stripeBillingService", () => ({
   createBillingServiceFromContext: mocks.createBillingServiceFromContext,
 }));
 
-import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
+import { resolveBillingService } from "@/src/ee/features/billing/server";
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -41,6 +42,7 @@ describe("resolveBillingService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = null;
+    mocks.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS = [];
     mocks.createBillingServiceFromContext.mockReturnValue(STRIPE_SERVICE);
     mocks.getChbApiClient.mockReturnValue({ client: true });
     mocks.findOrg.mockResolvedValue({
@@ -96,6 +98,19 @@ describe("resolveBillingService", () => {
     );
 
     expect(billingProvider).toBe("clickhouse");
+  });
+
+  it("routes an opted-in never-billed org to CHB without a cutoff", async () => {
+    // Same plumbing guard as the cutoff: the opt-in list is injected too.
+    mocks.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS = [ORG_ID];
+
+    const { billingProvider, service } = await resolveBillingService(
+      ctxWithOrg({}),
+      ORG_ID,
+    );
+
+    expect(billingProvider).toBe("clickhouse");
+    expect(service).toBeInstanceOf(ChbBillingService);
   });
 
   it("fails closed to Stripe when the cutoff is set but the CHB env is incomplete", async () => {

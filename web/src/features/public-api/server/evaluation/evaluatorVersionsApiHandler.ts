@@ -11,6 +11,7 @@ import {
 export const evaluatorVersionsApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({
     name: "List evaluator versions",
+    action: "evaluator:read",
     querySchema: ListEvaluatorVersionsQuery,
     responseSchema: ListEvaluatorVersionsResponse,
     fn: ({ query, auth }) =>

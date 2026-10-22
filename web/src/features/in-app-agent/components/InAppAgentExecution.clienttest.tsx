@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   act,
   fireEvent,
@@ -1041,10 +1042,9 @@ describe("in-app agent execution", () => {
     );
     renderExecutionUi();
 
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-      { target: { value: "Investigate this" } },
-    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Message Halo" }), {
+      target: { value: "Investigate this" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     const stopButton = await screen.findByRole("button", { name: "Stop run" });
@@ -1063,7 +1063,7 @@ describe("in-app agent execution", () => {
     expect(queryActivityIndicator()).not.toBeInTheDocument();
 
     const textbox = screen.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(textbox, { target: { value: "Start a new analysis" } });
     const sendButton = screen.getByRole("button", { name: "Send message" });
@@ -1137,7 +1137,7 @@ describe("in-app agent concurrent conversations", () => {
     fireEvent.click(newConversationButton);
 
     const input = await screen.findByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "Second question" } });
     const form = input.closest("form");
@@ -1174,7 +1174,7 @@ describe("in-app agent concurrent conversations", () => {
     renderExecutionUi();
 
     const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "First question" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
@@ -1246,7 +1246,7 @@ describe("in-app agent concurrent conversations", () => {
     renderExecutionUi();
 
     const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "First question" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));

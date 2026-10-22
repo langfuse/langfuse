@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -18,12 +18,13 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
-import { Check, ChevronLeft, ChevronRight, CircleX } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleX } from "@langfuse/icons";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useModelParams } from "@/src/features/playground";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
@@ -264,6 +265,7 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         error.message || "Failed to trigger dataset run",
         "Please try again.",
+        classifyTrpcToastError(error, "experiment.create"),
       );
     },
     onSettled: handleExperimentSettled ?? (() => {}),
@@ -322,6 +324,11 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
         "Disable structured output or choose a prompt without tools.",
+        {
+          operation: "experiment.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
@@ -458,7 +465,7 @@ export const MultiStepExperimentForm = ({
     }
 
     if (isStepValid(stepId)) {
-      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+      return <Check size="base" __rawClassName="mr-1.5 text-green-600" />;
     }
 
     if (
@@ -468,7 +475,8 @@ export const MultiStepExperimentForm = ({
       return (
         <CircleX
           aria-label={`${stepLabel} has errors`}
-          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+          size="base"
+          __rawClassName="mr-1.5 text-red-500"
         />
       );
     }
@@ -481,12 +489,15 @@ export const MultiStepExperimentForm = ({
     .filter((step) => step.id !== "dataset" || !isDatasetValidationPending)
     .filter((step) => !isStepValid(step.id))
     .map((step) => step.label);
-  const reviewErrorMessage =
-    invalidRequiredStepLabels.length === 0
-      ? undefined
-      : invalidRequiredStepLabels.length === 1
-        ? `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`
-        : `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  const reviewErrorMessage = (() => {
+    if (invalidRequiredStepLabels.length === 0) {
+      return undefined;
+    }
+    if (invalidRequiredStepLabels.length === 1) {
+      return `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`;
+    }
+    return `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  })();
 
   if (
     !promptsByName ||
@@ -700,7 +711,11 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-2"
+                />
                 Previous
               </Button>
 
@@ -722,7 +737,7 @@ export const MultiStepExperimentForm = ({
                     }
                   >
                     Next
-                    <ChevronRight className="ml-2 h-4 w-4" />
+                    <ChevronRight size="base" __rawClassName="ml-2" />
                   </Button>
                 ) : (
                   <Button

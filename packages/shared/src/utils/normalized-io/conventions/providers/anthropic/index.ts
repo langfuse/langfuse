@@ -1,8 +1,12 @@
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
+  parseIfString,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -15,12 +19,12 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
 } from "../../../core/normalize/tool-definitions";
-import type { FilePart, FinishReason } from "../../../types";
+import type { FilePart, FinishReason, ToolResultPart } from "../../../types";
 import type {
   IOConvention,
   PartHandler,
@@ -29,9 +33,9 @@ import type {
 
 /**
  * Anthropic Messages API convention: this module owns Anthropic's typed
- * block vocabulary, its `system` request field, and the `thinking` sibling
- * array. One message can still contain parts from several dialects — the
- * core folds every provider cumulatively.
+ * block vocabulary and its `system` request field. One message can still
+ * contain parts from several dialects — the core folds every provider
+ * cumulatively.
  */
 
 // Anthropic `stop_reason` vocabulary -> the canonical FinishReason set.
@@ -125,8 +129,12 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
     ),
   );
 
-const normalizeAnthropicThinking: PartHandler = (value) =>
-  claimed(reasoningPart(value.thinking, optionalString(value.signature)));
+const normalizeAnthropicThinking: PartHandler = (value) => {
+  if (value.thinking === null || value.thinking === undefined) return unmatched;
+  return claimed(
+    reasoningPart(value.thinking, optionalString(value.signature)),
+  );
+};
 
 const normalizeAnthropicRedactedThinking: PartHandler = (value) => {
   const data = optionalString(value.data);
@@ -168,14 +176,24 @@ const normalizeAnthropicContainerUpload: PartHandler = (value) => {
 
 // Anthropic result blocks: { type: "tool_result" | "*_tool_result",
 // tool_use_id, content, is_error? }.
-const normalizeAnthropicToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.tool_use_id ?? value.id,
-      output: value.content,
+const normalizeAnthropicToolResult: PartHandler = (value, context) => {
+  const raw = parseIfString(value.content ?? null);
+  let output: ToolResultPart["output"] =
+    typeof raw === "string"
+      ? { type: "text", value: raw }
+      : { type: "json", value: toJsonValue(raw) };
+  if (Array.isArray(value.content)) {
+    output = toolResultOutput(context.normalizePartList(value.content), raw);
+  }
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.tool_use_id ?? value.id),
+      output,
       isError: typeof value.is_error === "boolean" ? value.is_error : undefined,
     }),
   );
+};
 
 const ANTHROPIC_PART_HANDLERS = {
   tool_use: (value) => claimed(anthropicToolCall(value, "tool_use")),
@@ -206,7 +224,7 @@ function anthropicSystemMessage(
   if (kind !== "input" || !("system" in root)) return undefined;
   return {
     kind: "single",
-    value: { content: root.system },
+    value: { content: recordKeyAsParsed(root, "system") },
     fallbackRole: "user",
     roleOverride: "system",
   };
@@ -232,18 +250,6 @@ export const anthropicProvider = {
       providerMetadata: toolDefinitionProviderMetadata(value, value),
     });
     return definition ? claimed(definition) : unmatched;
-  },
-  collectSiblingParts: (
-    value: Record<string, unknown>,
-    _baseParts,
-    context,
-  ) => {
-    const parts = context.normalizePartList(
-      Array.isArray(value.thinking) ? value.thinking : [],
-    );
-    return parts.length > 0
-      ? [{ sourceKey: "thinking", slot: "after-content", parts }]
-      : [];
   },
   getSystemMessage: anthropicSystemMessage,
 } satisfies IOConvention;

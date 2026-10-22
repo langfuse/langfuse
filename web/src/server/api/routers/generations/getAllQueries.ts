@@ -1,13 +1,17 @@
 import { type z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { BatchTableNames, paginationZod } from "@langfuse/shared";
+import {
+  BatchTableNames,
+  normalizeOrderByForTable,
+  paginationZod,
+} from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 import {
   getObservationsTableCount,
   applyCommentFilters,
 } from "@langfuse/shared/src/server";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
 
 const GetAllGenerationsInput = GenerationTableOptions.safeExtend({
   ...paginationZod,
@@ -40,6 +44,10 @@ export const getAllQueries = {
         input: {
           ...input,
           filter: filterState,
+          orderBy: normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          }),
           searchQuery: search.searchQuery ?? null,
           searchType: search.searchType ?? ["id"],
         },

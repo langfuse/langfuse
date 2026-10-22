@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * ViewPreferencesContext - Manages user display preferences persisted to localStorage.
  *
@@ -18,21 +19,19 @@ import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSys
 import {
   GRAPH_VIEW_MODES,
   type GraphViewMode,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  type JsonViewPreference,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 /** Log view ordering mode */
 export type LogViewMode = "chronological" | "tree-order";
 
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
-
-/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta).
- * "pretty-beta" is the admin-only normalized-parser formatted view. */
-export type JsonViewPreference =
-  | "pretty"
-  | "pretty-beta"
-  | "json"
-  | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
 type TraceRenderContext = "fullscreen" | "peek" | "annotation";
@@ -44,12 +43,8 @@ interface ViewPreferencesContextValue {
   setShowCostTokens: (value: boolean) => void;
   showScores: boolean;
   setShowScores: (value: boolean) => void;
-  colorCodeMetrics: boolean;
-  setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
-  showGraph: boolean;
-  setShowGraph: (value: boolean) => void;
   /** Graph panel build mode (aggregated vs expanded "as it ran") */
   graphViewMode: GraphViewMode;
   setGraphViewMode: (value: GraphViewMode) => void;
@@ -73,7 +68,7 @@ interface ViewPreferencesContextValue {
   /** Whether JSON Beta (advanced viewer) is enabled */
   jsonBetaEnabled: boolean;
   setJsonBetaEnabled: (value: boolean) => void;
-  /** Whether long system prompts render collapsed to a first-lines preview */
+  /** Whether long system prompts render with their section collapsed */
   collapseSystemPrompt: boolean;
   setCollapseSystemPrompt: (value: boolean) => void;
 }
@@ -115,12 +110,7 @@ export function ViewPreferencesProvider({
     "scoresOnObservationTree",
     true,
   );
-  const [colorCodeMetrics, setColorCodeMetrics] = useLocalStorage(
-    "colorCodeMetricsOnObservationTree",
-    true,
-  );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
-  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [storedGraphViewMode, setGraphViewMode] =
     useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
   // Sanitize persisted values: the mode enum may evolve and a stale
@@ -139,16 +129,22 @@ export function ViewPreferencesProvider({
   );
   const [logViewTreeStyle, setLogViewTreeStyle] =
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
-  const [jsonViewPreference, setJsonViewPreference] =
-    useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
+  const [storedJsonViewPreference, setJsonViewPreference] =
+    useLocalStorage<JsonViewPreference>(
+      JSON_VIEW_PREFERENCE_STORAGE_KEY,
+      DEFAULT_JSON_VIEW_PREFERENCE,
+    );
+  const jsonViewPreference = normalizeJsonViewPreference(
+    storedJsonViewPreference,
+  );
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
     "jsonBetaEnabled",
     typeof window !== "undefined" &&
-      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+      localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
-  // Shared with the inline expand/collapse toggle on system prompt messages;
+  // Shared with the section caret on system prompt messages;
   // instances sync via useLocalStorage's localStorageChange events.
   const [collapseSystemPrompt, setCollapseSystemPrompt] =
     useCollapseSystemPromptPreference();
@@ -161,12 +157,8 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,
@@ -192,12 +184,8 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,

@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 
-import AuthError from "@/src/pages/auth/error";
+import AuthError from "@/src/features/auth/AuthErrorPage";
 import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/constants";
 
 const { captureExceptionMock, addBreadcrumbMock, routerState } = vi.hoisted(

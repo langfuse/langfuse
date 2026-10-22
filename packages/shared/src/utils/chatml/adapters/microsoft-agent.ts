@@ -37,13 +37,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasPydanticAiMessageMarkers(data: unknown): boolean {
-  const messages = Array.isArray(data)
-    ? data
-    : isRecord(data) && Array.isArray(data.messages)
-      ? data.messages
-      : isRecord(data)
-        ? [data]
-        : [];
+  const messages = (() => {
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (isRecord(data) && Array.isArray(data.messages)) {
+      return data.messages;
+    }
+    if (isRecord(data)) {
+      return [data];
+    }
+    return [];
+  })();
 
   return messages.some((msg) => {
     if (!isRecord(msg)) return false;

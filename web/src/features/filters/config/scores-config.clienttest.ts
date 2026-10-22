@@ -1,8 +1,40 @@
 // @vitest-environment node
 
 import { getScoreFilterConfig, observationScopeFilter } from "./scores-config";
+import { decodeAndNormalizeFilters } from "../hooks/useSidebarFilterState";
+import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
+import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
+import { planCommit } from "@/src/features/search-bar";
 
 describe("getScoreFilterConfig", () => {
+  it("keeps the evaluator-test filter when opening a score URL and editing its search pill", () => {
+    const config = getScoreFilterConfig();
+    const filters: FilterState = [
+      {
+        column: "isEvaluatorTest",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ];
+
+    expect(
+      decodeAndNormalizeFilters(
+        encodeFiltersGeneric(filters),
+        config.columnDefinitions,
+      ),
+    ).toEqual(filters);
+    const committed = planCommit(
+      "isEvaluatorTest:false",
+      undefined,
+      scoresFieldRegistry(config),
+    );
+    expect(committed.status).toBe("committed");
+    if (committed.status === "committed") {
+      expect(committed.filters).toEqual(filters);
+    }
+  });
+
   it("offers score metadata in the filter sidebar", () => {
     const config = getScoreFilterConfig();
 

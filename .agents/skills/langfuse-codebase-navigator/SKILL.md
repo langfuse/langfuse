@@ -25,7 +25,11 @@ Use this as the first stop for Langfuse org navigation. Your job is to choose th
 ## Quick Skill Routing
 
 - Product implementation in `langfuse/langfuse`: choose the matching repo-local skill under `.agents/skills`, such as `backend-dev-guidelines`, `frontend-browser-review`, `clickhouse-best-practices`, `add-model-price`, `turborepo`, `pnpm-upgrade-package`, `code-review`, or production-debug skills as applicable.
-- Cursor Cloud or Cursor desktop agents implementing a Linear issue, opening a PR, asking a human to test, or handling Claude, Greptile, or Codex review comments: use `cursor-agents-workflow`.
+- Cursor Cloud or Cursor desktop agents implementing a Linear issue, opening a PR, applying the `cursor` GitHub label, asking a human to test, or handling Claude, Greptile, or Codex review comments: use `cursor-agents-workflow`.
+- A change too large for one reviewable PR: split it into small stacked PRs rather than one wide PR.
+- "What should I do today", or preparing a weekly project update: use `linear-work-rhythm`.
+- Reconstructing why a surface is the way it is before changing it, or proposing the reasoning behind finished work onto its Linear ticket: use `linear-context-handover`.
+- Before any agent write to Linear — a comment, a description edit, a ticket: use `linear-agent-writes`, the write policy (propose updates; mark every write). Ordinary writes stay a title and a few sentences. Subtickets under an existing parent are free.
 - Frontend work under `langfuse/langfuse/web`: also check `web/.agents/skills/vercel-react-best-practices` and `web/.agents/skills/vercel-composition-patterns`.
 - Infrastructure autoscaling or cloud capacity: use `infra-scaling`.
 - Public Langfuse usage, docs lookup, API access, instrumentation, prompt migration, SDK upgrade, trace analysis, or CLI work: use the public `langfuse` skill from `langfuse/skills`.

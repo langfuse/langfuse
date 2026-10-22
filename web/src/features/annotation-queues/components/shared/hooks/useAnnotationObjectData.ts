@@ -1,10 +1,9 @@
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 
 export interface ObjectDataHook<TData> {
   data: TData | undefined;
@@ -30,14 +29,7 @@ export const useAnnotationObjectData = (
     { traceId: traceId as string, projectId },
     {
       enabled: isTraceOrObservation && !isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -58,14 +50,7 @@ export const useAnnotationObjectData = (
     },
     {
       enabled: isSession && !isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -77,14 +62,7 @@ export const useAnnotationObjectData = (
     },
     {
       enabled: isSession && isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 

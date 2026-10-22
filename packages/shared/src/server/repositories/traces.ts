@@ -366,10 +366,12 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   start,
   end,
   projectId,
+  projectIds,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
+  projectIds?: string[];
 }) => {
   const query = `
     SELECT
@@ -379,6 +381,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
+    ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
     GROUP BY project_id
   `;
 
@@ -388,6 +391,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       ...(projectId ? { projectId } : {}),
+      ...(projectIds ? { projectIds } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
@@ -502,16 +506,24 @@ export const getTraceByIdFromTracesTable = async ({
     tags: { projectId },
   };
 
-  const inputColumn = excludeInputOutput
-    ? "''"
-    : renderingProps.truncated
-      ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-      : "input";
-  const outputColumn = excludeInputOutput
-    ? "''"
-    : renderingProps.truncated
-      ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-      : "output";
+  const inputColumn = (() => {
+    if (excludeInputOutput) {
+      return "''";
+    }
+    if (renderingProps.truncated) {
+      return `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+    }
+    return "input";
+  })();
+  const outputColumn = (() => {
+    if (excludeInputOutput) {
+      return "''";
+    }
+    if (renderingProps.truncated) {
+      return `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+    }
+    return "output";
+  })();
   // map() (not a '{}' string literal) so the excluded column keeps the
   // Map type and converts to an empty object in the domain model.
   const metadataColumn = excludeMetadata ? "map()" : "metadata";
@@ -1237,6 +1249,7 @@ const buildTracesForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "ReadOnly" as const,
   };
 };
 
@@ -1284,7 +1297,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
              o.trace_id,
              sum(total_cost) as total_cost,
              count(*) as observation_count,
-             date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+             if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds
       FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
       AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
@@ -1385,6 +1398,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     params: {
       traceIds,
     },
+    tags: { surface: "ssr", route: "trace_redirect" },
   });
 
   return records.map((record) => ({
@@ -1651,7 +1665,7 @@ async function buildTracesBaseQuery(
       SELECT
         trace_id,
         project_id,
-        ${includeMetricsInCTE ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
+        ${includeMetricsInCTE ? "sum(total_cost) as total_cost, if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds, " : ""}
         sumMap(usage_details) as usage_details,
         sumMap(cost_details) as cost_details,
         multiIf(arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT', 'DEBUG') AS aggregated_level,

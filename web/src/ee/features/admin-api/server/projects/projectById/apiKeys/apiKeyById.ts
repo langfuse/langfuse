@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 
 export const validateQueryParams = (
@@ -19,14 +19,15 @@ export const validateQueryParams = (
   return validation.data;
 };
 
+/** handleDeleteApiKey revokes a project key and records the authenticating actor. */
 export async function handleDeleteApiKey(
   req: NextApiRequest,
   res: NextApiResponse,
   projectId: string,
   apiKeyId: string,
   orgId: string,
+  authenticatingApiKeyId: string,
 ) {
-  // Check if API key exists and belongs to the project
   const apiKey = await prisma.apiKey.findFirst({
     where: {
       id: apiKeyId,
@@ -40,7 +41,6 @@ export async function handleDeleteApiKey(
     return res.status(404).json({ message: "API key not found" });
   }
 
-  // Delete the API key
   const deleted = await new ApiAuthService(prisma, redis).deleteApiKey(
     apiKeyId,
     projectId,
@@ -51,7 +51,6 @@ export async function handleDeleteApiKey(
     return res.status(500).json({ message: "Failed to delete API key" });
   }
 
-  // Log the API key deletion
   await auditLog({
     resourceType: "apiKey",
     resourceId: apiKeyId,
@@ -59,7 +58,7 @@ export async function handleDeleteApiKey(
     orgId: orgId,
     projectId: projectId,
     orgRole: "ADMIN",
-    apiKeyId: "ORG_KEY",
+    apiKeyId: authenticatingApiKeyId,
   });
 
   logger.info(

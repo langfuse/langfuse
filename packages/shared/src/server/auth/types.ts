@@ -14,6 +14,7 @@ const ApiKeyBaseSchema = z.object({
   fastHashedSecretKey: z.string(),
   hashedSecretKey: z.string(),
   orgId: z.string(),
+  organizationCreatedAt: z.iso.datetime(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
@@ -22,6 +23,7 @@ const ApiKeyBaseSchema = z.object({
   // these columns existed
   createdByUserId: z.string().nullish(),
   createdByApiKeyId: z.string().nullish(),
+  userId: z.string().nullish(),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -68,6 +70,7 @@ type BaseApiAccessScope = {
 
 type ApiAccessScopeMetadata = {
   orgId: string;
+  organizationCreatedAt?: string | null;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;
@@ -80,3 +83,12 @@ export type ApiAccessScopeIngestion = BaseApiAccessScope &
   MakeOptional<ApiAccessScopeMetadata>;
 
 export type ApiAccessScope = BaseApiAccessScope & ApiAccessScopeMetadata;
+
+// Gateway ingestion token don't specify the originating API key as they might be
+// batched across users
+export type ApiAccessScopeWithOptionalApiKeyId = Omit<
+  ApiAccessScope,
+  "apiKeyId"
+> & {
+  apiKeyId?: string;
+};

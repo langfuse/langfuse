@@ -2,6 +2,7 @@ import { LangfuseNotFoundError, SCORE_FIELD_GROUPS_V3 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server";
 import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
 
@@ -14,6 +15,7 @@ export const [getScoreTool, handleGetScore] = defineTool({
     "The score carries a polymorphic value matching its dataType (number, boolean, or string) and a subject describing what it scores: { kind: trace | observation | session | experiment, id }.",
     "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
   ].join("\n"),
+  action: "scores:read",
   baseSchema: GetScoreInputSchema,
   inputSchema: GetScoreInputSchema,
   handler: async (input, context) => {
@@ -23,12 +25,15 @@ export const [getScoreTool, handleGetScore] = defineTool({
       attributes: { "mcp.score_id": input.scoreId },
       fn: async () => {
         // v3 has no by-id route; a v3 list with an id filter is the lookup path.
-        const result = await listScoresV3ForPublicApi({
-          projectId: context.projectId,
-          limit: 1,
-          fields: [...SCORE_FIELD_GROUPS_V3],
-          id: [input.scoreId],
-        });
+        const result = await listScoresV3ForPublicApi(
+          {
+            projectId: context.projectId,
+            limit: 1,
+            fields: [...SCORE_FIELD_GROUPS_V3],
+            id: [input.scoreId],
+          },
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
+        );
 
         const score = result.data[0];
         if (!score) {

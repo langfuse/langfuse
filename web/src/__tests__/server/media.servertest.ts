@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
 import type { Session } from "next-auth";
@@ -7,11 +8,14 @@ import { z } from "zod";
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
 import {
+  createMediaUploadUrl,
   type GetMediaResponse,
   GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+  MediaContentType,
+  updateMediaUploadStatus,
+} from "@/src/features/media/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -63,14 +67,7 @@ describe("Media Upload API", () => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -808,6 +805,49 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
+  // Azure Blob Storage answers a successful Put Blob with 201 Created.
+  describe("Azure Blob upload status", () => {
+    it("treats a 201 upload as completed and reuses the media", async () => {
+      const uploadRequest = {
+        contentType: MediaContentType.PNG,
+        contentLength: validPNG.contentLength,
+        sha256Hash: validPNG.sha256Hash,
+        traceId: `trace-${crypto.randomUUID()}`,
+        field: "input",
+      };
+
+      const first = await createMediaUploadUrl({
+        projectId,
+        body: uploadRequest,
+      });
+      expect(first.uploadUrl).toEqual(expect.any(String));
+
+      await updateMediaUploadStatus({
+        projectId,
+        mediaId: first.mediaId,
+        body: {
+          uploadedAt: new Date(),
+          uploadHttpStatus: 201,
+          uploadHttpError: "",
+        },
+      });
+
+      const media = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: first.mediaId } },
+      });
+      expect(media).toMatchObject({
+        uploadHttpStatus: 201,
+        uploadHttpError: null,
+      });
+
+      const second = await createMediaUploadUrl({
+        projectId,
+        body: { ...uploadRequest, traceId: `trace-${crypto.randomUUID()}` },
+      });
+      expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
+    });
+  });
+
   describe("tRPC media reader", () => {
     it("ignores media link rows without a media parent", async () => {
       const traceId = `trace-${crypto.randomUUID()}`;
@@ -949,7 +989,7 @@ describe("Media Upload API", () => {
 
       // Create a modified copy of the PNG file bytes by changing a single byte
       const modifiedFileBytes = Buffer.from(validPNG.fileBytes);
-      modifiedFileBytes[0] = modifiedFileBytes[0] ^ 0xff; // Flip bits of first byte
+      modifiedFileBytes[0] = 255 - modifiedFileBytes[0];
 
       const result = await runMediaUploadEndToEndTest({
         ...validPNG,

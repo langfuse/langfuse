@@ -1,10 +1,10 @@
 import {
   EvalTemplateTypeEnum,
+  experimentTargetEvalVariableColumns,
   observationVariableMappingList,
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
-  type EvalTemplateType,
   type EvaluatorPromptMessage,
 } from "@langfuse/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -20,7 +20,12 @@ import type {
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+type EditableEvaluatorType = NormalizedEvaluatorDefinition["type"];
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
+import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
@@ -28,10 +33,25 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 Input: {{input}}
 Response: {{output}}`;
 
+const DEFAULT_STATE_KEYS = ["input", "output"];
+
+function buildInitialStateKeys(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): string[] {
+  return definition?.type === "DECISION_MODEL"
+    ? definition.vars
+    : DEFAULT_STATE_KEYS;
+}
+
 function buildInitialVariableFields(
   definition: NormalizedEvaluatorDefinition | null | undefined,
 ): Record<string, VariableFieldState> {
-  if (definition?.type !== "LLM_AS_JUDGE") return {};
+  if (
+    definition?.type !== "LLM_AS_JUDGE" &&
+    definition?.type !== "DECISION_MODEL"
+  ) {
+    return {};
+  }
 
   const parsed = observationVariableMappingList.safeParse(
     definition.variableMapping,
@@ -55,8 +75,32 @@ function buildInitialVariableFields(
   );
 }
 
+function buildInitialScoreOutput(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): ScoreOutputFormState {
+  return toScoreOutputFormState(
+    definition?.type === "LLM_AS_JUDGE" ? definition.outputDefinition : null,
+  );
+}
+
+function buildInitialQuestions(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): DecisionModelQuestionDraft[] {
+  return definition?.type === "DECISION_MODEL"
+    ? questionsToDrafts(definition.questions)
+    : [];
+}
+
 type EvaluatorSetupStoreActions = {
-  setType: (type: EvalTemplateType) => void;
+  setType: (type: EditableEvaluatorType) => void;
+  setQuestion: (question: DecisionModelQuestionDraft) => void;
+  addQuestion: (question: DecisionModelQuestionDraft) => void;
+  removeQuestion: (id: string) => void;
+  reorderQuestion: (fromIndex: number, toIndex: number) => void;
+  setExpandedQuestionId: (id: string | null) => void;
+  addStateKey: () => void;
+  renameStateKey: (key: string, next: string) => void;
+  removeStateKey: (key: string) => void;
   setPromptMessage: (index: number, message: EvaluatorPromptMessage) => void;
   addPromptMessage: () => void;
   removePromptMessage: (index: number) => void;
@@ -87,10 +131,13 @@ type EvaluatorSetupStoreActions = {
 
 export type EvaluatorSetupStoreState = {
   initialDefinition: NormalizedEvaluatorDefinition | undefined;
-  type: EvalTemplateType;
+  type: EditableEvaluatorType;
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
+  questions: DecisionModelQuestionDraft[];
+  expandedQuestionId: string | null;
+  stateKeys: string[];
   sourceCode: string;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
   sourceCodeDrafts: Partial<Record<EvalTemplateSourceCodeLanguage, string>>;
@@ -105,6 +152,7 @@ export type EvaluatorSetupStoreState = {
   defaultModel: JudgeModel | null;
   selectedModel: JudgeModel | null;
   modelParams: ModelConfig | null;
+  hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
@@ -114,11 +162,17 @@ export type EvaluatorSetupStoreState = {
 
 export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
-export const selectHasValidModel = (state: EvaluatorSetupStoreState) =>
-  state.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE ||
-  Boolean(
-    state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
-  );
+export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
+  if (state.type === EvalTemplateTypeEnum.LLM_AS_JUDGE) {
+    return Boolean(
+      state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
+    );
+  }
+  if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    return Boolean(state.selectedModel);
+  }
+  return true;
+};
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
@@ -132,7 +186,7 @@ export function createEvaluatorSetupStore({
     definition: NormalizedEvaluatorDefinition;
   } | null;
   initialSampleFilter?: FilterState;
-  initialType?: EvalTemplateType;
+  initialType?: EditableEvaluatorType;
   defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
@@ -150,25 +204,27 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "LLM_AS_JUDGE"
       ? initialDefinition.promptMessages
       : [{ role: "user" as const, content: DEFAULT_PROMPT }];
+  const type =
+    initialDefinition?.type ?? initialType ?? EvalTemplateTypeEnum.LLM_AS_JUDGE;
+  const hasModelSelection =
+    initialDefinition?.type === "LLM_AS_JUDGE" ||
+    initialDefinition?.type === "DECISION_MODEL";
+  const initialQuestions = buildInitialQuestions(initialDefinition);
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
-    type:
-      initialDefinition?.type ??
-      initialType ??
-      EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    type,
     promptMessages: initialPromptMessages,
     promptMessageIds: initialPromptMessages.map(() => safeRandomUUID()),
+    questions: initialQuestions,
+    expandedQuestionId: initialQuestions[0]?.id ?? null,
+    stateKeys: buildInitialStateKeys(initialDefinition),
     sourceCode: initialSourceCode,
     sourceCodeLanguage: initialSourceCodeLanguage,
     sourceCodeDrafts: {
       [initialSourceCodeLanguage]: initialSourceCode,
     },
-    scoreOutput: toScoreOutputFormState(
-      initialDefinition?.type === "LLM_AS_JUDGE"
-        ? initialDefinition.outputDefinition
-        : null,
-    ),
+    scoreOutput: buildInitialScoreOutput(initialDefinition),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
     openSteps: { 1: true, 2: true, 3: true },
@@ -176,14 +232,13 @@ export function createEvaluatorSetupStore({
     activeMapping: null,
     modelPickerOpen: false,
     modelMode:
-      initialDefinition?.type === "LLM_AS_JUDGE" && initialDefinition.model
+      (initialDefinition?.type === "LLM_AS_JUDGE" && initialDefinition.model) ||
+      type === EvalTemplateTypeEnum.DECISION_MODEL
         ? "custom"
         : "default",
     defaultModel,
     selectedModel:
-      initialDefinition?.type === "LLM_AS_JUDGE" &&
-      initialDefinition.provider &&
-      initialDefinition.model
+      hasModelSelection && initialDefinition.provider && initialDefinition.model
         ? {
             provider: initialDefinition.provider,
             model: initialDefinition.model,
@@ -193,6 +248,7 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.modelParams
         : null,
+    hasChangedModelSelection: false,
     selectedObservation: null,
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
@@ -200,7 +256,128 @@ export function createEvaluatorSetupStore({
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
-      setType: (type) => set({ type }),
+      setType: (type) =>
+        set((state) => {
+          if (type === state.type) return state;
+          if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            return {
+              type,
+              modelMode: "custom",
+              selectedModel: null,
+              modelParams: null,
+            };
+          }
+          if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            return {
+              type,
+              modelMode: "default",
+              selectedModel: null,
+              modelParams: null,
+            };
+          }
+          return { type };
+        }),
+      setQuestion: (question) =>
+        set((state) => ({
+          questions: state.questions.map((current) =>
+            current.id === question.id ? question : current,
+          ),
+        })),
+      addQuestion: (question) =>
+        set((state) => ({
+          questions: [...state.questions, question],
+          expandedQuestionId: question.id,
+        })),
+      removeQuestion: (id) =>
+        set((state) => ({
+          questions: state.questions.filter((question) => question.id !== id),
+          expandedQuestionId:
+            state.expandedQuestionId === id ? null : state.expandedQuestionId,
+        })),
+      reorderQuestion: (fromIndex, toIndex) =>
+        set((state) => ({
+          questions: moveItem(state.questions, fromIndex, toIndex),
+        })),
+      setExpandedQuestionId: (expandedQuestionId) =>
+        set({ expandedQuestionId }),
+      addStateKey: () =>
+        set((state) => {
+          let index = state.stateKeys.length + 1;
+          while (state.stateKeys.includes(`field_${index}`)) index += 1;
+          const key = `field_${index}`;
+          return {
+            stateKeys: [...state.stateKeys, key],
+            variableFields: {
+              ...state.variableFields,
+              [key]: { selectedColumnId: null, jsonSelector: null },
+            },
+            activeMapping: { variable: key, state: "renaming" },
+          };
+        }),
+      renameStateKey: (key, next) =>
+        set((state) => {
+          if (
+            key === next ||
+            !state.stateKeys.includes(key) ||
+            state.stateKeys.includes(next)
+          ) {
+            return state;
+          }
+          const current = state.variableFields[key] ?? {
+            selectedColumnId: null,
+            jsonSelector: null,
+          };
+          const fieldState = current.selectedColumnId
+            ? current
+            : {
+                selectedColumnId: experimentTargetEvalVariableColumns.some(
+                  (column) => column.id === next,
+                )
+                  ? next
+                  : null,
+                jsonSelector: null,
+              };
+          // Plain string replacement: the token is a literal, so no regex is
+          // built from user input.
+          const oldReference = `\`${key}\``;
+          const nextReference = `\`${next}\``;
+          return {
+            stateKeys: state.stateKeys.map((current) =>
+              current === key ? next : current,
+            ),
+            variableFields: Object.fromEntries(
+              Object.entries(state.variableFields).map(([variable, value]) =>
+                variable === key ? [next, fieldState] : [variable, value],
+              ),
+            ),
+            questions: state.questions.map((question) => ({
+              ...question,
+              instructions: question.instructions.replaceAll(
+                oldReference,
+                nextReference,
+              ),
+            })),
+            activeMapping: {
+              variable: next,
+              state: fieldState.selectedColumnId ? "preview" : "editing",
+            },
+          };
+        }),
+      removeStateKey: (key) =>
+        set((state) => {
+          return {
+            stateKeys: state.stateKeys.filter((current) => current !== key),
+            variableFields: Object.fromEntries(
+              Object.entries(state.variableFields).filter(
+                ([variable]) => variable !== key,
+              ),
+            ),
+            activeMapping:
+              state.activeMapping?.variable === key
+                ? null
+                : state.activeMapping,
+          };
+        }),
       setPromptMessage: (index, message) =>
         set((state) => {
           const promptMessages = state.promptMessages.map((current, i) =>
@@ -286,12 +463,14 @@ export function createEvaluatorSetupStore({
         })),
       setActiveMapping: (activeMapping) => set({ activeMapping }),
       setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
-      setModelMode: (modelMode) => set({ modelMode }),
+      setModelMode: (modelMode) =>
+        set({ modelMode, hasChangedModelSelection: true }),
       setDefaultModel: (defaultModel) => set({ defaultModel }),
       selectModel: (selectedModel) =>
         set((state) => ({
           selectedModel,
           modelMode: "custom",
+          hasChangedModelSelection: true,
           modelParams:
             state.selectedModel?.provider === selectedModel.provider &&
             state.selectedModel.model === selectedModel.model
@@ -299,7 +478,12 @@ export function createEvaluatorSetupStore({
               : null,
         })),
       configureModel: (selectedModel, modelParams) =>
-        set({ selectedModel, modelParams, modelMode: "custom" }),
+        set({
+          selectedModel,
+          modelParams,
+          modelMode: "custom",
+          hasChangedModelSelection: true,
+        }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
@@ -329,6 +513,22 @@ export function createEvaluatorSetupStore({
                 }
               : null;
 
+          if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            const questions = questionsToDrafts(definition.questions);
+            return {
+              type: definition.type,
+              questions,
+              expandedQuestionId: questions[0]?.id ?? null,
+              stateKeys: buildInitialStateKeys(definition),
+              variableFields: buildInitialVariableFields(definition),
+              activeMapping: null,
+              modelMode: "custom",
+              selectedModel,
+              modelParams: null,
+              hasChangedModelSelection: true,
+            };
+          }
+
           return {
             type: definition.type,
             promptMessages: definition.promptMessages,
@@ -341,6 +541,7 @@ export function createEvaluatorSetupStore({
             modelMode: selectedModel ? "custom" : "default",
             selectedModel,
             modelParams: selectedModel ? definition.modelParams : null,
+            hasChangedModelSelection: true,
           };
         }),
     },

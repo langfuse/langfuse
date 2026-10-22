@@ -1,5 +1,6 @@
 export * from "./upsertDataset";
 export * from "./upsertDatasetItem";
+export * from "./batchUpsertDatasetItems";
 export * from "./createDatasetRunItem";
 export * from "./deleteDatasetItem";
 export * from "./deleteDatasetRun";

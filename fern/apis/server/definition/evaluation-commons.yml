@@ -173,6 +173,23 @@ types:
       - name: EndsWith
         value: ends with
 
+  EvaluationRuleStringObjectFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: Contains
+        value: contains
+      - name: DoesNotContain
+        value: does not contain
+      - name: StartsWith
+        value: starts with
+      - name: EndsWith
+        value: ends with
+      - name: IsSet
+        value: is set
+      - name: IsNotSet
+        value: is not set
+
   EvaluationRuleNumberFilterOperator:
     enum:
       - name: Equals
@@ -279,9 +296,11 @@ types:
         type: string
         docs: Top-level key inside the object-valued column to filter on.
       operator:
-        type: EvaluationRuleStringFilterOperator
+        type: EvaluationRuleStringObjectFilterOperator
+        docs: Use `is set` / `is not set` to filter on key presence.
       value:
         type: string
+        docs: Value to compare against. Ignored for `is set` / `is not set`; send `""`.
 
   NumberObjectEvaluationRuleFilter:
     properties:
@@ -488,7 +507,7 @@ types:
       - `datetime`: `"="`, `">"`, `"<"`, `">="`, `"<="`
       - `stringOptions`: `any of`, `none of`
       - `arrayOptions`: `any of`, `none of`, `all of`
-      - `stringObject`: same operators as `string`
+      - `stringObject`: `"="`, `contains`, `does not contain`, `starts with`, `ends with`, `is set`, `is not set` (use `is set` / `is not set` for key presence; an empty value for `contains`, `starts with`, or `ends with` is treated as `is set`)
       - `boolean`: `"="`, `"<>"`
       - `null`: `is null`, `is not null`
 

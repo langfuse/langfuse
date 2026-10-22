@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 /**
  * MCP Tool: listPrompts
  *
@@ -13,20 +14,18 @@ import {
   ParamPromptTag,
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
-import { listPromptsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { listPromptsForApi } from "@/src/features/prompts/server";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
 
-const ParamFromUpdatedAt = z.iso
-  .datetime({ offset: true })
+const ParamFromUpdatedAt = isoDateTime({ offset: true })
   .optional()
   .describe(
     "Filter prompts updated at or after this timestamp (ISO 8601 with timezone, e.g. 2026-02-02T00:00:00Z)",
   );
 
-const ParamToUpdatedAt = z.iso
-  .datetime({ offset: true })
+const ParamToUpdatedAt = isoDateTime({ offset: true })
   .optional()
   .describe(
     "Filter prompts updated at or before this timestamp (ISO 8601 with timezone, e.g. 2026-02-02T00:00:00Z)",
@@ -86,6 +85,7 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
     "",
     "Pagination: page (default: 1), limit (default: 50, max: 100)",
   ].join("\n"),
+  action: "prompts:read",
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsInputSchema,
   handler: async (input, context) => {

@@ -6,8 +6,8 @@ import {
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
-import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
-import { getWidgetImportFilterConfig } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { createPublicDashboardWidget } from "@/src/features/widgets/server";
+import { getWidgetImportFilterConfig } from "@/src/features/dashboard/server";
 import { StructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetBody,
@@ -84,15 +84,21 @@ const throwActionableDashboardWidgetError = (
     (field === "filters"
       ? Array.from(getWidgetImportFilterConfig(input.view).allowedColumns)
       : []);
-  const fieldLabel = field?.startsWith("dimensions")
-    ? "dimensions"
-    : field?.endsWith(".agg")
-      ? "aggregations"
-      : field?.endsWith(".measure")
-        ? "measures"
-        : field === "filters"
-          ? "filter columns"
-          : "values";
+  const fieldLabel = (() => {
+    if (field?.startsWith("dimensions")) {
+      return "dimensions";
+    }
+    if (field?.endsWith(".agg")) {
+      return "aggregations";
+    }
+    if (field?.endsWith(".measure")) {
+      return "measures";
+    }
+    if (field === "filters") {
+      return "filter columns";
+    }
+    return "values";
+  })();
   const supportedValuesHint =
     allowedValues.length > 0
       ? ` Supported ${fieldLabel} for "${input.view}": ${allowedValues.join(", ")}.`
@@ -106,6 +112,7 @@ const throwActionableDashboardWidgetError = (
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
   defineTool({
     name: "createDashboardWidget",
+    action: "dashboards:CUD",
     description: [
       "Create a dashboard widget (a standalone chart definition you place on any dashboard).",
       "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",

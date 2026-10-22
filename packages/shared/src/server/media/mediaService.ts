@@ -187,6 +187,11 @@ export async function uploadMediaForTrace(params: {
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
+  /**
+   * Base64 SHA-256 of contentBytes, precomputed during native extraction to avoid
+   * hashing twice. TypeScript uploads omit it; this function computes their hash.
+   */
+  sha256Hash?: string;
   mediaBucket: string;
   mediaPrefix: string;
   origin: MediaAssociationOrigin;
@@ -202,7 +207,9 @@ export async function uploadMediaForTrace(params: {
     mediaPrefix,
     origin,
   } = params;
-  const sha256Hash = createHash("sha256").update(contentBytes).digest("base64");
+  const sha256Hash =
+    params.sha256Hash ??
+    createHash("sha256").update(contentBytes).digest("base64");
   const mediaId = getMediaId(sha256Hash);
   const existingMedia = await prisma.media.findUnique({
     where: {

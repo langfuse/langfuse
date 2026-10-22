@@ -11,6 +11,7 @@
  * This is split into its own file because the env is process-wide for the file;
  * the dual-mode flag tests live in traces-trpc.servertest.ts.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup
@@ -88,14 +89,7 @@ maybe("traces trpc (events_only write mode)", () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -328,9 +322,8 @@ maybe("traces trpc (events_only write mode)", () => {
     });
   });
 
-  // Same routing as the bookmark case, but publish throws NOT_FOUND (rewrapped
-  // as INTERNAL_SERVER_ERROR) instead of silently no-opping when the read is
-  // misrouted to the empty legacy table.
+  // Same routing as the bookmark case, but publish throws NOT_FOUND instead of
+  // silently no-opping when the read is misrouted to the empty legacy table.
   it("should make a trace public that only exists in the events table", async () => {
     const traceId = randomUUID();
 

@@ -33,6 +33,8 @@ export default [
       "no-void": "warn",
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",
+      "no-nested-ternary": "error",
+      "@repo/no-exotic-operators": "warn",
     },
   },
 
@@ -55,6 +57,16 @@ export default [
         },
       ],
       "@typescript-eslint/no-inferrable-types": "warn",
+    },
+  },
+
+  // Prisma `contains`/`startsWith`/`endsWith` and raw `LIKE` treat `_`, `%` and `\` as wildcards.
+  {
+    name: "langfuse/shared/no-unescaped-prisma-like-pattern",
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    ignores: ["**/*.test.ts", "**/*.servertest.ts", "**/__tests__/**"],
+    rules: {
+      "@repo/no-unescaped-prisma-like-pattern": "warn",
     },
   },
 

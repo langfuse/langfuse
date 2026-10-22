@@ -17,13 +17,11 @@ import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/features/evals/v2/server/rules/ruleErrors";
 
 const telemetryMocks = vi.hoisted(() => ({
-  getRecentRuleExecutionTraces: vi.fn(),
   getTotalCostByRule: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
-  getRecentRuleExecutionTraces: telemetryMocks.getRecentRuleExecutionTraces,
   getTotalCostByRule: telemetryMocks.getTotalCostByRule,
 }));
 
@@ -43,7 +41,6 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  telemetryMocks.getRecentRuleExecutionTraces.mockReset();
   telemetryMocks.getTotalCostByRule.mockReset();
   defaultEvaluatorId = (await createEvaluator()).id;
 });
@@ -378,27 +375,6 @@ describe("RuleService", () => {
   });
 
   describe("telemetry", () => {
-    it("returns recent event-backed traces grouped by rule", async () => {
-      const timestamp = new Date("2026-08-12T12:00:00.000Z");
-      telemetryMocks.getRecentRuleExecutionTraces.mockResolvedValue([
-        { ruleId: "rule-1", id: "trace-1", level: "DEFAULT", timestamp },
-      ]);
-
-      await expect(
-        createService().listRecent({
-          projectId,
-          ruleIds: ["rule-1", "rule-2"],
-        }),
-      ).resolves.toEqual({
-        "rule-1": [{ id: "trace-1", level: "DEFAULT", timestamp }],
-        "rule-2": [],
-      });
-      expect(telemetryMocks.getRecentRuleExecutionTraces).toHaveBeenCalledWith(
-        projectId,
-        ["rule-1", "rule-2"],
-      );
-    });
-
     it("returns event-backed costs by rule", async () => {
       telemetryMocks.getTotalCostByRule.mockResolvedValue([
         { ruleId: "rule-1", totalCost: 1.25 },

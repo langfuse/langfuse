@@ -1,9 +1,9 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { Check, Pencil, TriangleAlert } from "lucide-react";
+import { Check, Pencil, TriangleAlert } from "@langfuse/icons";
 import Link from "next/link";
 
 export function ManageDefaultEvalModel({
@@ -37,9 +37,9 @@ export function ManageDefaultEvalModel({
     <div className="flex items-center">
       {!showEditButton &&
         (defaultModel ? (
-          <Check className="text-dark-green mr-2 h-4 w-4" />
+          <Check size="base" __rawClassName="text-dark-green mr-2" />
         ) : (
-          <TriangleAlert className="text-dark-yellow mr-2 h-4 w-4" />
+          <TriangleAlert size="base" __rawClassName="text-dark-yellow mr-2" />
         ))}
       {defaultModel ? (
         <span
@@ -76,8 +76,8 @@ export function ManageDefaultEvalModel({
             target="_blank"
           >
             <Pencil
-              className={cn(
-                "h-3 w-3",
+              size="base"
+              __rawClassName={cn(
                 variant === "color-coded" &&
                   !defaultModel &&
                   "text-dark-yellow",

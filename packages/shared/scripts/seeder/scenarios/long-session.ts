@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../../src/db";
 import {
   createTrace,
@@ -128,12 +129,15 @@ const run = async (
     const isHuge = t > 0 && t % 17 === 0;
     const style: PayloadStyle =
       t % 7 === 3 ? "unicode" : rng.bool(0.6) ? "json" : "text";
-    const name =
-      t % 9 === 4
-        ? `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`
-        : t % 7 === 3
-          ? `多言語サポート ${rng.pick(TRACE_NAMES)}`
-          : rng.pick(TRACE_NAMES);
+    const name = (() => {
+      if (t % 9 === 4) {
+        return `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`;
+      }
+      if (t % 7 === 3) {
+        return `多言語サポート ${rng.pick(TRACE_NAMES)}`;
+      }
+      return rng.pick(TRACE_NAMES);
+    })();
 
     const trace = createTrace({
       id: traceId,

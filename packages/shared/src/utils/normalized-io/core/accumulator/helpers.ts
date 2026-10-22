@@ -1,4 +1,4 @@
-import { normalizeToolDefinitionValue } from "../normalize/tool-definitions";
+import { parseToolDefinitionValue } from "../normalize/tool-definitions";
 import {
   NormalizedMessage,
   NormalizedMessagePart,
@@ -13,10 +13,12 @@ export function addToolDefinitionValue(
   accumulator: NormalizedIOAccumulator,
   value: unknown,
   options: ToolDefinitionOptions = {},
-): void {
-  for (const definition of normalizeToolDefinitionValue(value, options)) {
+): boolean {
+  const { definitions, fullyParsed } = parseToolDefinitionValue(value, options);
+  for (const definition of definitions) {
     addToolDefinition(accumulator, definition);
   }
+  return fullyParsed;
 }
 
 function getToolCallKey(part: NormalizedMessagePart): string | undefined {

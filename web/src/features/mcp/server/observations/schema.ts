@@ -36,7 +36,7 @@ type ObservationMcpFieldType =
   | "unknown";
 
 const EXPENSIVE_FIELD_SCOPE_REQUIREMENT =
-  "Requires traceId, an exact id filter, or both fromStartTime and toStartTime.";
+  "Requires both fromStartTime (inclusive) and toStartTime (exclusive), even when scoped by traceId or observation id. listObservations allows a maximum range of 14 days (336 elapsed hours); getObservation allows 90 days (2160 elapsed hours). Limits measure elapsed time, not calendar dates.";
 
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
   (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],

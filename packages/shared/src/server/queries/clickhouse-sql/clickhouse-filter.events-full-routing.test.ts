@@ -4,12 +4,15 @@ import {
   BooleanObjectFilter,
   FilterList,
   filtersRequireEventsFull,
-  metadataFilterIsEventsCoreSafe,
+  metadataFilterCanPruneEventsFull,
   NullFilter,
   NumberObjectFilter,
   StringFilter,
   StringObjectFilter,
 } from "./clickhouse-filter";
+import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
+import { createFilterFromFilterState } from "./factory";
+import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
 // boundary is 200 Unicode code points.
@@ -84,6 +87,11 @@ describe("metadataFilterIsEventsCoreSafe", () => {
     expect(metadataFilterIsEventsCoreSafe("is not null", undefined)).toBe(true);
   });
 
+  it("keeps key presence/absence checks on events_core (metadata_names is untruncated)", () => {
+    expect(metadataFilterIsEventsCoreSafe("is set", "")).toBe(true);
+    expect(metadataFilterIsEventsCoreSafe("is not set", "")).toBe(true);
+  });
+
   it("counts by code point, not UTF-16 unit (astral chars near the boundary)", () => {
     // 100 astral code points = 200 UTF-16 units but only 100 code points, so an
     // `=` filter stays on events_core.
@@ -154,6 +162,134 @@ describe("filtersRequireEventsFull metadata routing", () => {
   });
 });
 
+describe("StringObjectFilter key presence/absence operators", () => {
+  it("compiles `is set` / `is not set` to has() on events tables", () => {
+    expect(metadataString("is set", "").apply().query).toMatch(
+      /^has\(metadata_names, \{stringObjectKeyFilter\w+: String\}\)$/,
+    );
+    expect(metadataString("is not set", "").apply().query).toMatch(
+      /^NOT \(has\(metadata_names, \{stringObjectKeyFilter\w+: String\}\)\)$/,
+    );
+  });
+
+  it("compiles `is set` / `is not set` to mapContains() on map tables", () => {
+    const mapFilter = (operator: StringObjectFilter["operator"]) =>
+      new StringObjectFilter({
+        clickhouseTable: "traces",
+        field: "metadata",
+        key: "some_key",
+        operator,
+        value: "",
+      });
+    expect(mapFilter("is set").apply().query).toMatch(
+      /^mapContains\(metadata, \{stringObjectKeyFilter\w+: String\}\)$/,
+    );
+    expect(mapFilter("is not set").apply().query).toMatch(
+      /^NOT \(mapContains\(metadata, \{stringObjectKeyFilter\w+: String\}\)\)$/,
+    );
+  });
+
+  it("keeps presence/absence filters on events_core", () => {
+    expect(
+      filtersRequireEventsFull(new FilterList([metadataString("is set", "")])),
+    ).toBe(false);
+    expect(
+      filtersRequireEventsFull(
+        new FilterList([metadataString("is not set", "")]),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("NullFilter metadata filters on events tables", () => {
+  it.each([
+    ["metadata", "metadata_names"],
+    ["experiment_metadata", "experiment_metadata_names"],
+    ["experiment_item_metadata", "experiment_item_metadata_names"],
+  ] as const)(
+    "compiles `%s` null checks against `%s`",
+    (field, namesColumn) => {
+      const isNullFilter = new NullFilter({
+        clickhouseTable: "events_proto",
+        field,
+        operator: "is null",
+        tablePrefix: "e",
+      });
+      const isNotNullFilter = new NullFilter({
+        clickhouseTable: "events_proto",
+        field,
+        operator: "is not null",
+        tablePrefix: "e",
+      });
+
+      expect(isNullFilter.apply()).toEqual({
+        query: `empty(e.${namesColumn})`,
+        params: {},
+      });
+      expect(isNotNullFilter.apply()).toEqual({
+        query: `notEmpty(e.${namesColumn})`,
+        params: {},
+      });
+    },
+  );
+
+  it("keeps null filters on legacy map tables unchanged", () => {
+    const filter = new NullFilter({
+      clickhouseTable: "traces",
+      field: "metadata",
+      operator: "is null",
+    });
+
+    expect(filter.apply()).toEqual({
+      query: "metadata is null",
+      params: {},
+    });
+  });
+});
+
+describe("NullFilter metadata aliases through table mappings", () => {
+  it("compiles experiment item metadata null filters against its names array", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "itemMetadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      experimentItemsTableNativeUiColumnDefinitions,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+
+    expect(filter.apply()).toEqual({
+      query: "empty(e.experiment_item_metadata_names)",
+      params: {},
+    });
+  });
+});
+
+describe("StringObjectFilter empty-value rejection", () => {
+  it.each(["contains", "starts with", "ends with"] as const)(
+    "rejects an empty value for the substring operator `%s`",
+    (operator) => {
+      expect(() => metadataString(operator, "").apply()).toThrow(
+        /Empty value is not allowed/,
+      );
+    },
+  );
+
+  it("allows a non-empty value for substring operators", () => {
+    expect(() => metadataString("contains", "x").apply()).not.toThrow();
+  });
+
+  it("allows an empty value for `=` (empty-string equality is a valid match)", () => {
+    expect(() => metadataString("=", "").apply()).not.toThrow();
+  });
+});
+
 describe("filtersRequireEventsFull input/output routing", () => {
   const ioFilter = (field: "input" | "output") =>
     new StringFilter({
@@ -197,5 +333,20 @@ describe("filtersRequireEventsFull input/output routing", () => {
         ]),
       ),
     ).toBe(true);
+  });
+});
+
+describe("metadataFilterCanPruneEventsFull", () => {
+  it.each([
+    ["contains", "OMRA", true],
+    ["starts with", "OMRA", true],
+    ["ends with", "OMRA", true],
+    ["contains", "", false],
+    ["=", "OMRA", true],
+    ["=", "!!", false],
+    ["does not contain", "OMRA", false],
+    ["is not set", "", false],
+  ])("%s %j -> %s", (operator, value, expected) => {
+    expect(metadataFilterCanPruneEventsFull(operator, value)).toBe(expected);
   });
 });

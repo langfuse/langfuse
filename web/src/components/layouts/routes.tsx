@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -6,7 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
+  type IconComponent,
   Settings,
   UsersIcon,
   TerminalIcon,
@@ -14,27 +15,32 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  FolderCode,
   Search,
   Home,
   SquarePercent,
   ClipboardPen,
   Clock,
   Beaker,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { SupportButton } from "@/src/components/nav/support-button";
-import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { type OrganizationScope } from "@/src/features/rbac";
+import { SupportButton } from "@/src/components/nav/SupportButton";
+import { V4SidebarToggle } from "@/src/features/events";
+import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
+import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 
 export enum RouteSection {
   Main = "main",
@@ -44,18 +50,21 @@ export enum RouteSection {
 export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
+  ContextManagement = "Context Management",
   Evaluation = "Evaluation",
 }
 
 export type Route = {
+  id?: "v4-migration";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon; // ignored for nested routes
-  pathname: string; // link
+  icon?: IconComponent; // ignored for nested routes
+  href: string;
+  isActive?: (pathname: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
@@ -67,9 +76,11 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canViewTopics: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -80,33 +91,37 @@ export type Route = {
 export const ROUTES: Route[] = [
   {
     title: "Go to...",
-    pathname: "", // Empty pathname since this is a dropdown
+    href: "", // Empty pathname since this is a dropdown
     icon: Search,
     menuNode: <CommandMenuTrigger />,
     section: RouteSection.Main,
   },
   {
     title: "Organizations",
-    pathname: "/",
+    href: "/",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,
   },
   {
     title: "Projects",
-    pathname: "/organization/[organizationId]",
+    href: "/organization/[organizationId]",
     icon: Grid2X2,
     section: RouteSection.Main,
   },
   {
     title: "Home",
-    pathname: `/project/[projectId]`,
+    href: `/project/[projectId]`,
     icon: Home,
     section: RouteSection.Main,
   },
   {
     title: "Dashboards",
-    pathname: `/project/[projectId]/dashboards`,
+    href: `/project/[projectId]/dashboards`,
+    isActive: matchesPathname([
+      `/project/[projectId]/dashboards`,
+      `/project/[projectId]/widgets`,
+    ]),
     icon: LayoutDashboard,
     productModule: "dashboards",
     section: RouteSection.Main,
@@ -117,7 +132,11 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/traces`,
+    href: `/project/[projectId]/traces`,
+    isActive: matchesPathname([
+      `/project/[projectId]/traces`,
+      `/project/[projectId]/observations`,
+    ]),
   },
   {
     title: "Sessions",
@@ -125,19 +144,28 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/sessions`,
+    href: `/project/[projectId]/sessions`,
   },
   {
     title: "Users",
-    pathname: `/project/[projectId]/users`,
+    href: `/project/[projectId]/users`,
     icon: UsersIcon,
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
   {
+    title: "Topics",
+    href: "/project/[projectId]/topics",
+    icon: Grid2X2,
+    label: <TopicsInternalBadge />,
+    show: ({ canViewTopics }) => canViewTopics,
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Alerts",
-    pathname: "/project/[projectId]/alerts",
+    href: "/project/[projectId]/alerts",
     icon: BellRing,
     projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
@@ -145,8 +173,19 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Skills",
+    featureFlag: "skillManagement",
+    label: <Badge text="Beta" color="blue" size="sm" />,
+    href: "/project/[projectId]/skills",
+    icon: FolderCode,
+    projectRbacScopes: ["skills:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
     title: "Prompts",
-    pathname: "/project/[projectId]/prompts",
+    href: "/project/[projectId]/prompts",
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
@@ -155,7 +194,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Playground",
-    pathname: "/project/[projectId]/playground",
+    href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
     group: RouteGroup.PromptManagement,
@@ -163,7 +202,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Scores",
-    pathname: `/project/[projectId]/scores`,
+    href: `/project/[projectId]/scores`,
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: SquarePercent,
@@ -175,12 +214,12 @@ export const ROUTES: Route[] = [
     projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/evals`,
+    href: `/project/[projectId]/evals`,
     legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
     title: "Human Annotation",
-    pathname: `/project/[projectId]/annotation-queues`,
+    href: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
@@ -188,7 +227,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Datasets",
-    pathname: `/project/[projectId]/datasets`,
+    href: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
     projectRbacScopes: ["datasets:read"],
@@ -197,7 +236,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Experiments",
-    pathname: `/project/[projectId]/experiments`,
+    href: `/project/[projectId]/experiments`,
     icon: Beaker,
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
@@ -207,34 +246,40 @@ export const ROUTES: Route[] = [
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade Plan and Settings.
     title: "Update",
-    pathname: "",
+    id: "v4-migration",
+    href: "",
     section: RouteSection.Secondary,
     show: ({ projectId, v4UpgradeUiAvailable }) =>
       v4UpgradeUiAvailable && projectId !== undefined,
-    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
     section: RouteSection.Secondary,
-    pathname: "",
+    href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
       isLangfuseCloud && hasActiveCloudIncident,
     menuNode: <CloudStatusMenu />,
   },
   {
     title: "V4 Preview",
-    pathname: "",
+    href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
     title: "Upgrade Plan",
     icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
+    href: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
@@ -243,7 +288,7 @@ export const ROUTES: Route[] = [
   {
     title: "Upgrade Plan",
     icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
+    href: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
@@ -251,30 +296,35 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Settings",
-    pathname: "/project/[projectId]/settings",
+    href: "/project/[projectId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
     title: "Settings",
-    pathname: "/organization/[organizationId]/settings",
+    href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
     title: "Book a call",
     section: RouteSection.Secondary,
-    pathname: "",
+    href: "",
     menuNode: <BookACallButton />,
   },
   {
     title: "Support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
-    pathname: "", // Empty pathname since this is a dropdown
+    href: "", // Empty pathname since this is a dropdown
     menuNode: <SupportButton />,
   },
 ];
+
+function TopicsInternalBadge() {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+}
 
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();
@@ -290,9 +340,9 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="h-4 w-4" />
+      <Search size="base" />
       Go to...
-      <span className="ml-auto hidden md:inline-flex">
+      <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />
       </span>
     </SidebarMenuButton>

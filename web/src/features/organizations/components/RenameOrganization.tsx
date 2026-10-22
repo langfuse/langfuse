@@ -12,12 +12,12 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectNameSchema } from "@/src/features/auth";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { LockIcon } from "lucide-react";
+import { LockIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 export default function RenameOrganization() {
@@ -101,7 +101,10 @@ export default function RenameOrganization() {
                       />
                       {!hasAccess && (
                         <span title="No access">
-                          <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                          <LockIcon
+                            size="base"
+                            __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
+                          />
                         </span>
                       )}
                     </div>

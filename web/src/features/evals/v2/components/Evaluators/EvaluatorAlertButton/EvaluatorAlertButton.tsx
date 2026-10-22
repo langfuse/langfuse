@@ -1,13 +1,15 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import {
   ArrowUpRight,
   Bell,
-  ChevronDown,
   DollarSign,
   Gauge,
   LoaderCircle,
   Plus,
-} from "lucide-react";
+} from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -44,7 +46,7 @@ type EvaluatorAlertButtonProps = {
   | {
       scope: "evaluator";
       evaluatorId: string;
-      evaluatorType: "LLM_AS_JUDGE" | "CODE";
+      evaluatorType: EvalTemplateType;
       scoreDataType?: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
     }
   | { scope: "allEvaluators" }
@@ -150,7 +152,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         severity={alert.severity}
                         className="ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]"
                       />
-                      <ArrowUpRight className="text-muted-foreground h-4 w-4 shrink-0" />
+                      <ArrowUpRight size="base" color="muted" />
                     </CommandItem>
                   ))}
                 </div>
@@ -171,7 +173,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     }
                   >
                     <span>See all alerts</span>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
               </div>
@@ -214,7 +220,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <Gauge className="text-muted-foreground h-4 w-4" />
+                      <Gauge size="base" color="muted" />
                       Score
                     </Button>
                   ) : null}
@@ -233,7 +239,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <DollarSign className="text-muted-foreground h-4 w-4" />
+                      <DollarSign size="base" color="muted" />
                       Cost
                     </Button>
                   ) : null}
@@ -253,7 +259,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <Gauge className="text-muted-foreground" />
+                    <Gauge size="base" color="muted" />
                     <div>
                       <p>Score threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -261,7 +267,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         threshold
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
                 {supportsCostAlert ? (
@@ -275,7 +285,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <DollarSign className="text-muted-foreground" />
+                    <DollarSign size="base" color="muted" />
                     <div>
                       <p>Cost threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -284,7 +294,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                           : "Alert on spend from running this evaluator"}
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
               </CommandGroup>
@@ -314,23 +328,37 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
           >
             {isLoading ? (
               <LoaderCircle
-                className="mr-1 h-4 w-4 shrink-0 animate-spin"
+                size="base"
+                color="default"
+                __rawClassName="mr-1 animate-spin"
                 aria-hidden="true"
               />
             ) : alertCount > 0 ? (
-              <Bell className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <Bell
+                size="base"
+                color="default"
+                __rawClassName="mr-1"
+                aria-hidden="true"
+              />
             ) : (
-              <Plus className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <Plus
+                size="base"
+                color="default"
+                __rawClassName="mr-1"
+                aria-hidden="true"
+              />
             )}
             <span className="flex-1 text-left">
               {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
-              <Badge variant="secondary" size="sm" className="ml-1 shrink-0">
+              <Badge variant="secondary" className="ml-1 shrink-0">
                 {alertCount}
               </Badge>
             ) : null}
-            <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+            <span className="ml-1 flex">
+              <DropdownIndicator />
+            </span>
           </Button>
         </Trigger>
       )}

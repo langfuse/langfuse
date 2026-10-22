@@ -1,5 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
-import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { type SdkVersionInfo } from "@/src/features/sdk-version";
+import { LANGFUSE_SDK_LATEST_MAJOR } from "@langfuse/shared";
 
 type V4MigrationSdkStatus =
   | "checking"
@@ -195,19 +197,54 @@ export const getDetectedInstrumentationSeries = (
 export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
   if (!sdkVersion?.language || !sdkVersion.version) return null;
 
-  const language =
-    sdkVersion.language === "javascript"
-      ? "JavaScript"
-      : sdkVersion.language === "python"
-        ? "Python"
-        : sdkVersion.language;
+  const language = (() => {
+    if (sdkVersion.language === "javascript") {
+      return "JavaScript";
+    }
+    if (sdkVersion.language === "python") {
+      return "Python";
+    }
+    return sdkVersion.language;
+  })();
   return `${language} ${sdkVersion.version}`;
 };
 
+const SDK_MAJOR_UPGRADE_GUIDE_URLS = {
+  python:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+  javascript:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v5-to-v6",
+} as const satisfies Record<keyof typeof LANGFUSE_SDK_LATEST_MAJOR, string>;
+
+/** A newer SDK major for V4-compatible traffic still on the previous major. */
+export const getAvailableSdkMajorUpgrade = (
+  series: V4MigrationSdkUsageSeries,
+): { label: string; upgradeGuideUrl: string } | null => {
+  if (
+    series.remediationType !== "update_sdk" ||
+    !series.canonicalSdkName ||
+    series.sdkVersionMajor === null
+  ) {
+    return null;
+  }
+  const latestMajor = LANGFUSE_SDK_LATEST_MAJOR[series.canonicalSdkName];
+  if (series.sdkVersionMajor >= latestMajor) return null;
+  return {
+    label: `${series.canonicalSdkName === "python" ? "Python" : "JS"} SDK v${latestMajor}`,
+    upgradeGuideUrl: SDK_MAJOR_UPGRADE_GUIDE_URLS[series.canonicalSdkName],
+  };
+};
+
+/** `latestSdkMajor` is the minimum V4-compatible major from the SQL check. */
 export const formatSdkUpgradeRequirement = (
-  latestSdkMajor: V4MigrationSdkUsageSeries["latestSdkMajor"],
+  series: Pick<
+    V4MigrationSdkUsageSeries,
+    "canonicalSdkName" | "latestSdkMajor"
+  >,
 ) => {
-  return latestSdkMajor
-    ? `upgrade required to >= ${latestSdkMajor}.0.0`
-    : "upgrade required";
+  if (!series.latestSdkMajor) return "upgrade required";
+  if (!series.canonicalSdkName) {
+    return `upgrade required to >= ${series.latestSdkMajor}.0.0`;
+  }
+  return `upgrade required to v${LANGFUSE_SDK_LATEST_MAJOR[series.canonicalSdkName]} (>= ${series.latestSdkMajor}.0.0 also works)`;
 };

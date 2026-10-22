@@ -2,8 +2,10 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
   optionalString,
   parseArray,
+  recordKeyAsParsed,
   toJsonValue,
 } from "../../../core/utils/json";
 import {
@@ -13,7 +15,6 @@ import {
 } from "../../../core/normalize/message-parts/media";
 import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FilePart,
   FinishReason,
@@ -80,9 +81,12 @@ function normalizeGeminiPart(
     // Gemini functionResponse: { name, response } — the name doubles as the
     // call id fallback, not the tool name (parity with the original join).
     return claimed(
-      toolResultPart({
-        toolCallId: functionResponse.id ?? functionResponse.name ?? value.id,
-        output: functionResponse.response,
+      compact<ToolResultPart>({
+        type: "tool-result",
+        toolCallId: nullableString(
+          functionResponse.id ?? functionResponse.name ?? value.id,
+        ),
+        output: { type: "json", value: toJsonValue(functionResponse.response) },
       }),
     );
   }
@@ -146,7 +150,7 @@ function normalizeGeminiPart(
         type: "tool-result",
         toolCallId: null,
         toolName: "code_execution",
-        output: toJsonValue(codeExecutionResult),
+        output: { type: "json", value: toJsonValue(codeExecutionResult) },
         isError: outcome && outcome !== "OUTCOME_OK" ? true : undefined,
       }),
     );
@@ -177,8 +181,10 @@ function normalizeGeminiPart(
 function geminiToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
-  const tools = parseArray(asRecord(carrier.root?.config)?.tools);
+  if (!carrier.root) return [];
+  const tools = parseArray(asRecord(carrier.root.config)?.tools);
   if (!tools) return [];
+  recordKeyAsParsed(carrier.root, "config", "tools");
 
   return tools.map((tool, index) => {
     const toolGroup = asRecord(tool);
@@ -210,9 +216,11 @@ function geminiSystemMessage(
 ): MessageSource | undefined {
   if (kind !== "input") return undefined;
 
-  const config = asRecord(root.config);
   const systemInstruction =
-    config?.system_instruction ?? config?.systemInstruction;
+    recordKeyAsParsed(root, "systemInstruction") ??
+    recordKeyAsParsed(root, "system_instruction") ??
+    recordKeyAsParsed(root, "config", "system_instruction") ??
+    recordKeyAsParsed(root, "config", "systemInstruction");
   if (!systemInstruction) return undefined;
 
   return {
@@ -233,16 +241,15 @@ function geminiMessages(
     if ("new_message" in root) {
       sources.push({
         kind: "single",
-        value: root.new_message,
+        value: recordKeyAsParsed(root, "new_message"),
         fallbackRole: "user",
       });
       return sources;
     }
 
     if ("contents" in root) {
-      const contents = Array.isArray(root.contents)
-        ? root.contents
-        : [root.contents];
+      const rawContents = recordKeyAsParsed(root, "contents");
+      const contents = Array.isArray(rawContents) ? rawContents : [rawContents];
       sources.push({
         kind: "sequence",
         values: contents,

@@ -20,9 +20,10 @@ export {
   NullFilter,
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
-  metadataFilterIsEventsCoreSafe,
+  metadataFilterCanPruneEventsFull,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
+export { metadataFilterIsEventsCoreSafe } from "./clickhouse-sql/events-core-truncation";
 export {
   orderByToClickhouseSql,
   orderByToEntries,
@@ -57,24 +58,31 @@ export {
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
 export {
+  ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
-  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
+  normalizeSessionCounts,
   type CTESchema,
   type CTEWithSchema,
   type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
-  type SessionEventsMetricsRow,
+  type SessionEventsFields,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export { OBSERVATION_FIELD_GROUP_FIELD_NAMES } from "../repositories/events-field-sets";
+export type {
+  SessionEventsField,
+  SessionEventsMetricsRow,
+} from "../repositories/events-selects";
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_TOP_N,
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
@@ -90,7 +98,6 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
-  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
@@ -108,3 +115,7 @@ export {
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";
 export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
+export {
+  isSeekEligibleFilter,
+  scoreOnlyFiltersAreSeekEligible,
+} from "./clickhouse-sql/score-seek-eligibility";

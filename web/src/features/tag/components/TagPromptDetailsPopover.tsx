@@ -44,7 +44,7 @@ export function TagPromptDetailsPopover({
       return { prev };
     },
     onError: (err, _newTags, context) => {
-      trpcErrorToast(err);
+      trpcErrorToast(err, "prompt_tags.update");
       // Rollback to the previous value if mutation fails
       utils.prompts.allVersions.setData(allVersionsInput, context?.prev);
     },

@@ -1118,6 +1118,85 @@ maybeDescribe("events table batch actions", () => {
     expect(updatedBatchAction?.processedCount).toBe(2);
   });
 
+  it("should not add observations to dataset for a batch action from another project", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: new Date().getTime(),
+      }),
+    ]);
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        input: { prompt: "Hello" },
+        output: { response: "Hi" },
+      }),
+    ]);
+
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: uuidv4(),
+        projectId,
+        name: uuidv4(),
+      },
+    });
+
+    const otherProjectBatchAction = await prisma.batchAction.create({
+      data: {
+        projectId: otherProjectId,
+        userId: "test-user",
+        actionType: "observation-add-to-dataset",
+        tableName: BatchTableNames.Events,
+        status: BatchActionStatus.Queued,
+        query: { filter: [], orderBy: null },
+      },
+    });
+
+    await expect(
+      handleBatchActionJob({
+        id: uuidv4(),
+        timestamp: new Date(),
+        name: QueueJobs.BatchActionProcessingJob as const,
+        payload: {
+          batchActionId: otherProjectBatchAction.id,
+          projectId,
+          actionId: "observation-add-to-dataset" as const,
+          tableName: BatchTableNames.Events,
+          cutoffCreatedAt: new Date(),
+          query: { filter: [], orderBy: null },
+          config: {
+            datasetId: dataset.id,
+            datasetName: dataset.name,
+            mapping: {
+              input: { mode: "full" as const },
+              expectedOutput: { mode: "full" as const },
+              metadata: { mode: "none" as const },
+            },
+          },
+          type: BatchActionType.Create,
+        },
+      }),
+    ).rejects.toThrow();
+
+    const datasetItems = await prisma.datasetItem.findMany({
+      where: { datasetId: dataset.id },
+    });
+    expect(datasetItems).toHaveLength(0);
+
+    const unchangedBatchAction = await prisma.batchAction.findUniqueOrThrow({
+      where: { id: otherProjectBatchAction.id },
+    });
+    expect(unchangedBatchAction.status).toBe(BatchActionStatus.Queued);
+    expect(unchangedBatchAction.totalCount).toBeNull();
+    expect(unchangedBatchAction.processedCount).toBeNull();
+  });
+
   it("should apply jsonSelector mapping when adding events to dataset", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

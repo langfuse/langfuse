@@ -194,6 +194,39 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
     });
   });
 
+  it("classifies Lambda runtime exits without a reason as timeouts", async () => {
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: {
+        send: vi.fn().mockResolvedValue({
+          StatusCode: 200,
+          FunctionError: "Unhandled",
+          Payload: Buffer.from(
+            JSON.stringify({
+              errorType: "Runtime.ExitError",
+              errorMessage:
+                "RequestId: 35e2f5d1-5f0b-459e-ba5a-c6c1a9475806 Error: Runtime exited without providing a reason",
+            }),
+          ),
+          $metadata: {
+            requestId: "request-timeout",
+            httpStatusCode: 200,
+            attempts: 1,
+            totalRetryDelay: 0,
+          },
+        }),
+      } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "TIMEOUT",
+      retryable: false,
+    });
+    expectSpanAttributes({
+      "langfuse.code_eval.error.code": "TIMEOUT",
+      "langfuse.code_eval.error.retryable": false,
+    });
+  });
+
   it.each([
     {
       errorType: "Runtime.OutOfMemory",

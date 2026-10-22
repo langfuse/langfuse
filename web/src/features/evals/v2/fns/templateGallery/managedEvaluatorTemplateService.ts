@@ -1,3 +1,5 @@
+import type { EvalTemplateType } from "@langfuse/shared";
+
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 
 export const managedEvaluatorTemplateService = {
@@ -8,7 +10,7 @@ export const managedEvaluatorTemplateService = {
   }: {
     search?: string;
     category?: string;
-    type?: "LLM_AS_JUDGE" | "CODE";
+    type?: EvalTemplateType;
   } = {}) {
     const query = search?.trim().toLowerCase();
 

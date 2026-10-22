@@ -5,6 +5,7 @@ import {
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "./event-query-builder";
 
 describe("EventsQueryBuilder public API v2 field groups", () => {
@@ -21,6 +22,34 @@ describe("EventsQueryBuilder public API v2 field groups", () => {
       expect(query.includes('"is_root_observation"')).toBe(selected);
     },
   );
+
+  it.each([
+    {
+      name: "usage vs metadata",
+      orderA: ["core", "basic", "usage", "metadata"] as const,
+      orderB: ["core", "basic", "metadata", "usage"] as const,
+    },
+    {
+      name: "usage vs metrics",
+      orderA: ["core", "basic", "usage", "metrics"] as const,
+      orderB: ["core", "basic", "metrics", "usage"] as const,
+    },
+    {
+      name: "usage vs trace_context",
+      orderA: ["core", "basic", "usage", "trace_context"] as const,
+      orderB: ["core", "basic", "trace_context", "usage"] as const,
+    },
+  ])(
+    "emits identical SQL regardless of field-group order ($name)",
+    ({ orderA, orderB }) => {
+      const queryFor = (sets: typeof orderA | typeof orderB) =>
+        new EventsQueryBuilder({ projectId: "test-project" })
+          .selectFieldSet(...sets)
+          .buildWithParams().query;
+
+      expect(queryFor(orderA)).toBe(queryFor(orderB));
+    },
+  );
 });
 
 describe("EventsAggregationQueryBuilder", () => {
@@ -32,10 +61,10 @@ describe("EventsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
+      "length(groupUniqArrayIf(e.span_id, (e.span_id <> '' and e.span_id <> concat('t-', e.trace_id)))) as observation_count",
     );
     expect(query).toContain(
-      "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+      "(e.parent_span_id = '' or e.is_app_root = true) and e.name <> ''",
     );
   });
 
@@ -47,10 +76,10 @@ describe("EventsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+      "argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') as evaluator_id",
     );
     expect(query).toContain(
-      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+      "argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') as evaluation_rule_id",
     );
   });
 });
@@ -64,10 +93,10 @@ describe("EventsSessionAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+      "argMax(e.metadata_names, tuple(e.start_time, e.event_ts, e.span_id)) as metadata_names",
     );
     expect(query).toContain(
-      "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
+      "argMax(e.metadata_values, tuple(e.start_time, e.event_ts, e.span_id)) as metadata_values",
     );
     expect(query).toContain("e.project_id = {projectId: String}");
   });
@@ -81,6 +110,36 @@ describe("EventsSessionAggregationQueryBuilder", () => {
 
     expect(query).not.toContain("metadata_names");
     expect(query).not.toContain("metadata_values");
+    expect(query).not.toContain("tool_definitions");
+    expect(query).not.toContain("tool_calls");
+  });
+
+  it("selects only the session fields the caller lists", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectSessionFields(["session_id", "trace_count"])
+      .buildWithParams();
+
+    expect(query).toContain("uniq(e.trace_id) as trace_count");
+    expect(query).not.toContain("trace_ids");
+    expect(query).not.toContain("sumMap");
+  });
+
+  it("selects tool aggregates only when requested", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base", "tools")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "groupUniqArrayArray(mapKeys(e.tool_definitions)) as tool_names",
+    );
+    expect(query).toContain(
+      "groupUniqArrayArray(e.tool_call_names) as called_tool_names",
+    );
+    expect(query).toContain("sum(length(e.tool_calls)) as tool_calls_count");
   });
 });
 
@@ -167,5 +226,43 @@ describe("buildEventsFullTableSplitQuery", () => {
     expect(query).toContain("i.input as input");
     expect(query).toContain("i.output as output");
     expect(query).toContain("i.metadata as metadata");
+  });
+
+  it("bounds the io lane to base's start_time range and keeps the semi-join", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+    }).buildWithParams();
+
+    // The bound is derived from base (no re-serialized params) so events_full
+    // can prune partitions/primary key; the semi-join stays for join exactness.
+    // Both bounds read one byte-identical (min, max) scalar subquery so
+    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice.
+    expect(query).not.toContain("io_bounds");
+    expect(query).toContain(
+      "AND e.start_time >= (SELECT (min(start_time), max(start_time)) FROM base).1",
+    );
+    expect(query).toContain(
+      "AND e.start_time <= (SELECT (min(start_time), max(start_time)) FROM base).2",
+    );
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) as experiment_description",
+    );
   });
 });

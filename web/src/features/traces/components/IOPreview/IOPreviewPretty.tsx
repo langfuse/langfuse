@@ -1,22 +1,37 @@
-import { useMemo } from "react";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+/* eslint-disable no-nested-ternary */
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ObservationType,
+  type Prisma,
+  type ScoreDomain,
+  deepParseJson,
+} from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type IOPreviewParserMode,
+  hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
+import {
+  SectionSkills,
+  type SectionSkillsProps,
+} from "./components/SectionSkills";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
-import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
+import {
+  CorrectedOutputField,
+  useCorrectOutputAction,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -37,6 +52,8 @@ interface JsonInputOutputViewProps {
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  /** Extra header controls on the Output section. */
+  outputActions?: IOSectionAction[];
 }
 
 function JsonInputOutputView({
@@ -52,16 +69,17 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  outputActions,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
-          json={parsedInput ?? null}
+          json={parsedInput}
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}
@@ -78,6 +96,7 @@ function JsonInputOutputView({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
+          actions={outputActions}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
         />
@@ -87,6 +106,7 @@ function JsonInputOutputView({
 }
 
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -97,25 +117,20 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
-  observationName?: string;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
-  // Whether to show metadata section (default: false)
-  showMetadata?: boolean;
   observationId?: string;
+  observationType?: ObservationType;
   projectId: string;
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  // Which parser produces the preview; the normalized parser is admin-only
-  // while it is being validated. Legacy remains the safe default.
-  parser?: IOPreviewParserMode;
 }
 
 /**
@@ -131,6 +146,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
+  skills,
   input,
   output,
   status,
@@ -140,7 +156,6 @@ export function IOPreviewPretty({
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
   chatMLParserResult,
-  observationName,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -149,19 +164,16 @@ export function IOPreviewPretty({
   media,
   inputExpansionState,
   outputExpansionState,
-  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
-  onMetadataExpansionChange,
-  showMetadata = false,
   observationId,
+  observationType,
   projectId,
   traceId,
   environment = "default",
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
-  parser = "legacy",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -179,39 +191,39 @@ export function IOPreviewPretty({
     : (preParsedMetadata ??
       deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
 
-  // Enable the metadata rows' actions menu (copy + add-to-filter). Observation
-  // metadata filters the observations table; trace metadata the traces table.
-  const metadataActions = useMemo<MetadataFilterActions>(
-    () => ({
-      projectId,
-      filterTarget: observationId ? "observations" : "traces",
-    }),
-    [projectId, observationId],
+  // Parse into the shared preview contract.
+  const parserResult = useIOPreviewParser(
+    input,
+    output,
+    metadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    chatMLParserResult,
   );
 
-  // Parse into the shared preview contract. The normalized parser is opt-in
-  // while it is being rolled out; legacy remains the safe default.
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+  });
+
   const {
-    canDisplayAsChat,
     allMessages,
     additionalInput,
     allTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
     inputMessageCount,
-  } = useIOPreviewParser(
-    parser,
-    input,
-    output,
-    metadata,
-    observationName,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
-    chatMLParserResult,
-  );
+  } = parserResult;
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -275,29 +287,82 @@ export function IOPreviewPretty({
     onOutputExpansionChange,
   };
 
-  // Determine if metadata should be shown
-  const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages =
-    canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : !hideOutput && !(hideIfNull && !parsedOutput);
+  const correctionTrigger = hasOutputHeader ? "header" : "inline";
+  const outputActions =
+    showCorrections &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const correctedOutputField = showCorrectionField ? (
+    <CorrectedOutputField
+      actualOutput={parsedOutput}
+      existingCorrection={outputCorrection}
+      observationId={observationId}
+      projectId={projectId}
+      traceId={traceId}
+      environment={environment}
+      trigger={correctionTrigger}
+      startEditing={correctionOpen && !effectiveCorrection}
+      onClosed={() => setCorrectionOpen(false)}
+    />
+  ) : null;
+  // Only generations hold a conversation; tools, spans, agents and the rest
+  // are titled Input / Output rather than by role. (`isGenerationLike` is
+  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
+  const titleBySide =
+    observationType !== undefined && observationType !== "GENERATION";
 
   return (
-    <div>
+    <div className="space-y-2 pt-3">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
 
-      {showData ? (
+      {showData && allTools.length > 0 ? (
         <SectionToolDefinitions
           tools={allTools}
           toolCallCounts={toolCallCounts}
           toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       ) : null}
 
+      {showData && skills && skills.items.length > 0 ? (
+        <SectionSkills projectId={projectId} skills={skills} />
+      ) : null}
+
       {shouldRenderMessages ? (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div>
           <ChatMessageList
             messages={allMessages}
             shouldRenderMarkdown={shouldRenderMarkdown}
@@ -308,52 +373,77 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
+            titleBySide={titleBySide}
+            outputActions={outputActions}
           />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          {correctedOutputField}
         </div>
       ) : showData ? (
-        <>
-          <JsonInputOutputView {...jsonViewProps} />
-          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-            {showCorrections && (
-              <CorrectedOutputField
-                actualOutput={parsedOutput}
-                existingCorrection={outputCorrection}
-                observationId={observationId}
-                projectId={projectId}
-                traceId={traceId}
-                environment={environment}
-              />
-            )}
-          </div>
-        </>
-      ) : null}
-
-      {/* Metadata Section */}
-      {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-          <PrettyJsonView
-            title="Metadata"
-            json={parsedMetadata}
-            isLoading={isLoading}
-            isParsing={isParsing}
-            media={media?.filter((m) => m.field === "metadata") ?? []}
-            currentView="pretty"
-            externalExpansionState={metadataExpansionState}
-            onExternalExpansionChange={onMetadataExpansionChange}
-            metadataActions={metadataActions}
+        <div>
+          <JsonInputOutputView
+            {...jsonViewProps}
+            outputActions={outputActions}
           />
+          {correctedOutputField}
         </div>
-      )}
+      ) : null}
     </div>
   );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }

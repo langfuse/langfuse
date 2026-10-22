@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * ExpandButton - Chevron button for expanding/collapsing rows
  *
@@ -6,7 +7,7 @@
  * Positioned next to line numbers, not indented.
  */
 
-import { ChevronRight, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Loader2 } from "@langfuse/icons";
 import { type JSONTheme } from "../types";
 
 interface ExpandButtonProps {
@@ -30,7 +31,15 @@ export function ExpandButton({
   }
 
   // Show spinner when toggling, otherwise show chevron
-  const Icon = isToggling ? Loader2 : isExpanded ? ChevronDown : ChevronRight;
+  const Icon = (() => {
+    if (isToggling) {
+      return Loader2;
+    }
+    if (isExpanded) {
+      return ChevronDown;
+    }
+    return ChevronRight;
+  })();
 
   return (
     <button
@@ -55,7 +64,7 @@ export function ExpandButton({
       }
       disabled={isToggling}
     >
-      <Icon size={14} />
+      <Icon size="base" />
     </button>
   );
 }

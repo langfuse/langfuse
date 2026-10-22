@@ -1,12 +1,13 @@
-import { PlusIcon } from "lucide-react";
+/* eslint-disable no-nested-ternary */
+import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { AutomationButton } from "@/src/features/automations";
+import { useEntitlementLimit } from "@/src/features/entitlements";
+import { monitorFilterConfig } from "@/src/features/filters";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { MonitorsOnboarding } from "@/src/features/monitors/components/MonitorsOnboarding";
 import { MonitorsTable } from "@/src/features/monitors/components/MonitorsTable";
@@ -100,7 +101,9 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
-                icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+                icon={
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
+                }
                 hasAccess={hasCUDAccess}
                 usageLimit={
                   typeof monitorEntitlementLimit === "number"

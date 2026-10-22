@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type {
   ColumnDefinition,
   FilterState,
@@ -43,6 +44,7 @@ export type SidebarFilterActionContext = {
 // Represents one active filter row in the key-value facet UI
 // Example: key="accuracy", operator="any of", value=["good", "excellent"]
 export type KeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "any of" | "none of";
   value: string[];
@@ -51,24 +53,33 @@ export type KeyValueFilterEntry = {
 // Represents one active numeric filter row in the numeric key-value facet UI
 // Example: key="accuracy", operator=">=", value=0.8
 export type NumericKeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "=" | ">" | "<" | ">=" | "<=";
   value: number | "";
 };
 
 export type BooleanKeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "=" | "<>";
   value: boolean | "";
 };
 
 // Represents one active string filter row in the string key-value facet UI
-// Example: key="environment", operator="=", value="production"
+// Example: key="environment", operator="=", value="production". `is set` /
+// `is not set` are value-less key-presence operators (value stays "").
 export type StringKeyValueFilterEntry = {
+  target?: string;
   key: string;
-  operator: "=" | "contains" | "does not contain";
+  operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
   value: string;
 };
+
+// `is set` / `is not set` filter on key presence, so a row is complete without a
+// value — unlike the value operators, whose empty-value rows are still drafts.
+export const isStringPresenceOperator = (operator: string): boolean =>
+  operator === "is set" || operator === "is not set";
 
 const toValueList = (options: SidebarFilterOptions[string]): string[] | null =>
   Array.isArray(options)
@@ -167,6 +178,20 @@ export function resolveCheckboxOperator(params: {
   return { finalOperator: "any of", finalValues: values };
 }
 
+/** A single checkbox selection cannot represent conditions for different targets. */
+export function hasMultipleFilterTargets(
+  filters: FilterState,
+  column: string,
+): boolean {
+  return (
+    new Set(
+      filters
+        .filter((filter) => filter.column === column)
+        .map((filter) => filter.target),
+    ).size > 1
+  );
+}
+
 /**
  * Applies a checkbox/boolean facet selection to the state. Returns `current`
  * unchanged when the column is unknown or its options are not enumerable.
@@ -178,6 +203,11 @@ export function applySelection(
   values: string[],
   operator?: CheckboxOperator,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
+  const existingFilter = current.find((f) => f.column === column);
+  const target = existingFilter?.target
+    ? { target: existingFilter.target }
+    : {};
   const other = current.filter((f) => f.column !== column);
 
   const facet = ctx.facets.find((f) => f.column === column);
@@ -200,6 +230,7 @@ export function applySelection(
         ...other,
         {
           column,
+          ...target,
           type: "boolean" as const,
           operator: "=" as const,
           value: !invert,
@@ -211,6 +242,7 @@ export function applySelection(
         ...other,
         {
           column,
+          ...target,
           type: "boolean" as const,
           operator: "=" as const,
           value: !!invert,
@@ -237,7 +269,6 @@ export function applySelection(
   // Determine operator and values based on context
   let finalOperator: CheckboxOperator;
   let finalValues: string[];
-  const existingFilter = current.find((f) => f.column === column);
   const isManagedEnvironmentColumn = column === ctx.managedEnvironmentColumn;
   // For an active "none of" filter, "all checked" is not the same as
   // "no filter": exclusions outside the current option list may still be
@@ -286,6 +317,7 @@ export function applySelection(
           ...other,
           {
             column,
+            ...target,
             type: "stringOptions" as const,
             operator: "any of" as const,
             value: values,
@@ -340,6 +372,7 @@ export function applySelection(
       ...other,
       {
         column,
+        ...target,
         type: "arrayOptions" as const,
         operator: finalOperator,
         value: finalValues,
@@ -358,6 +391,7 @@ export function applySelection(
     ...other,
     {
       column,
+      ...target,
       type: "stringOptions" as const,
       operator: stringOperator,
       value: finalValues,
@@ -376,6 +410,7 @@ export function applyCheckboxSelection(
   values: string[],
   operator?: CheckboxOperator,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
   const withoutTextFilters = current.filter(
     (f) =>
       !(
@@ -384,7 +419,19 @@ export function applyCheckboxSelection(
         (f.operator === "contains" || f.operator === "does not contain")
       ),
   );
-  return applySelection(ctx, withoutTextFilters, column, values, operator);
+  const next = applySelection(
+    ctx,
+    withoutTextFilters,
+    column,
+    values,
+    operator,
+  );
+  const target = current.find((filter) => filter.column === column)?.target;
+  return target
+    ? next.map((filter) =>
+        filter.column === column ? { ...filter, target } : filter,
+      )
+    : next;
 }
 
 /**
@@ -525,7 +572,8 @@ export function addTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState | null {
-  if (!value.trim()) return null;
+  if (!value.trim() || hasMultipleFilterTargets(current, column)) return null;
+  const target = current.find((filter) => filter.column === column)?.target;
 
   const withoutCheckboxFilters = current.filter(
     (f) =>
@@ -539,6 +587,7 @@ export function addTextFilterEntry(
     ...withoutCheckboxFilters,
     {
       column,
+      ...(target ? { target } : {}),
       type: "string",
       operator,
       value: value.trim(),
@@ -553,6 +602,7 @@ export function removeTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
   return current.filter(
     (f) =>
       !(
@@ -607,6 +657,7 @@ export function applyKeyedFilterEntries(
             type: "categoryOptions" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value,
           })),
       ];
@@ -620,6 +671,7 @@ export function applyKeyedFilterEntries(
             type: "numberObject" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value as number,
           })),
       ];
@@ -633,6 +685,7 @@ export function applyKeyedFilterEntries(
             type: "booleanObject" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value as boolean,
           })),
       ];
@@ -640,13 +693,20 @@ export function applyKeyedFilterEntries(
       return [
         ...without,
         ...update.entries
-          .filter((entry) => entry.key && entry.value.trim() !== "")
+          .filter(
+            (entry) =>
+              entry.key &&
+              (isStringPresenceOperator(entry.operator) ||
+                entry.value.trim() !== ""),
+          )
           .map((entry) => ({
             column,
             type: "stringObject" as const,
             operator: entry.operator,
             key: entry.key,
-            value: entry.value,
+            ...(entry.target ? { target: entry.target } : {}),
+            // Presence operators carry no value.
+            value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
           })),
       ];
   }

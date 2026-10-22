@@ -1,0 +1,676 @@
+import { Button } from "@/src/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/components/ui/form";
+import { Input } from "@/src/components/ui/input";
+import { signupSchema } from "@/src/features/auth/lib/signupSchema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn } from "next-auth/react";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { env } from "@/src/env.mjs";
+import { useRef, useState } from "react";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import {
+  FALLBACK_AUTH_PROVIDERS,
+  SSOButtons,
+  useHuggingFaceRedirect,
+  type PageProps,
+} from "@/src/features/auth/SignInPage";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useRouter } from "next/router";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { reportError } from "@/src/utils/reportError";
+import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
+import {
+  getOnboardingTargetPath,
+  getSignupCallbackUrl,
+} from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
+import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
+
+type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
+
+const LOGIN_CAPTCHA_WAIT_MS = 20_000;
+const ACCOUNT_CREATED_MESSAGE =
+  "Your account was created. Complete the captcha, then sign in.";
+const VERIFICATION_CODE_PENDING_MESSAGE =
+  "Your account was created. Complete the captcha to receive the verification code.";
+
+function waitForLoginToken(
+  pending: Promise<string | undefined> | undefined,
+): Promise<string | undefined> {
+  if (!pending) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), LOGIN_CAPTCHA_WAIT_MS);
+    pending.then(
+      (token) => {
+        clearTimeout(timer);
+        resolve(token);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      },
+    );
+  });
+}
+
+function verifiedSignupSignInError(error: string): string {
+  if (error === "AccessDenied") {
+    return "Unable to send verification email. Please try again.";
+  }
+  if (error.includes(TURNSTILE_FAILED_MESSAGE)) {
+    return TURNSTILE_FAILED_MESSAGE;
+  }
+  return error;
+}
+
+// Schema for the verified signup flow (email + name only, no password)
+const signupVerifyFormSchema = z.object({
+  name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
+    message: "Input should not contain a URL",
+  }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {
+    message: "Name can only contain letters, numbers, and spaces",
+  }),
+  email: z.email(),
+});
+
+export default function SignUpPage({
+  authProviders = FALLBACK_AUTH_PROVIDERS,
+  runningOnHuggingFaceSpaces,
+  emailVerificationRequired,
+}: PageProps) {
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+
+  if (emailVerificationRequired) {
+    return (
+      <VerifiedSignupFlow
+        authProviders={authProviders}
+        emailVerificationRequired={emailVerificationRequired}
+      />
+    );
+  }
+
+  return (
+    <StandardSignupFlow
+      authProviders={authProviders}
+      emailVerificationRequired={emailVerificationRequired}
+    />
+  );
+}
+
+function StandardSignupFlow({
+  authProviders,
+}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
+  // Skip this flow when no SSO is configured - show password field immediately
+  const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
+    !authProviders.sso,
+  );
+  const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation and the follow-up sign-in are separate siteverify checks
+  // with different actions, so the widget switches to `login` once the
+  // account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.signup | typeof TURNSTILE_ACTIONS.login
+  >(TURNSTILE_ACTIONS.signup);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
+    useLocalStorage<NextAuthProvider | null>(
+      "langfuse_last_used_auth_method",
+      null,
+    );
+
+  const form = useForm({
+    resolver: showPasswordStep ? zodResolver(signupSchema) : undefined,
+    defaultValues: {
+      name: "",
+      email: emailParam ?? "",
+      password: "",
+    },
+  });
+
+  async function handleContinue() {
+    setContinueLoading(true);
+    setFormError(null);
+    form.clearErrors();
+
+    // Ensure email is valid before hitting the API
+    // We use z.email() manually because we don't use the full schema resolver in the first step
+    // or we could just trigger validation for the email field only
+    const emailValue = form.getValues("email");
+    // Basic check using zod directly or trigger
+    // Using trigger("email") might validate against the full schema if we don't be careful,
+    // but since we conditionally set the resolver, it might be tricky.
+    // Simplest is manual check here matching what sign-in does.
+    // Note: signupSchema has name and password as required, so trigger() would fail on those if using full schema.
+
+    // Manual email validation to match sign-in behavior
+    // Although signupSchema.shape.email is ZodString, let's just use a new Zod check for simplicity and robustness
+    const emailSchema = z.email();
+    const emailResult = emailSchema.safeParse(emailValue);
+
+    if (!emailResult.success) {
+      form.setError("email", {
+        message: "Invalid email address",
+      });
+      setContinueLoading(false);
+      return;
+    }
+
+    // Extract domain and check whether SSO is configured for it
+    const domain = emailResult.data.split("@")[1]?.toLowerCase();
+
+    try {
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain }),
+        },
+      );
+
+      if (res.ok) {
+        // Enterprise SSO found – redirect straight away
+        const { providerId } = await res.json();
+        capture("sign_up:button_click", { provider: "sso_auto" });
+
+        // Store the SSO provider as the last used auth method
+        setLastUsedAuthMethod(providerId as NextAuthProvider);
+
+        signIn(
+          providerId,
+          targetPath ? { callbackUrl: targetPath } : undefined,
+        );
+        return; // stop further execution – page redirect expected
+      }
+
+      // No SSO – fall back to password step
+      setShowPasswordStep(true);
+
+      // Auto-focus password input when password step becomes visible
+      setTimeout(() => {
+        // Find and focus the name input (since it's the first new field) or password?
+        // Plan says "name + password fields". Usually Name is first in Sign Up.
+        // Let's focus Name.
+        const nameInput = document.querySelector(
+          'input[name="name"]',
+        ) as HTMLInputElement;
+        if (nameInput) {
+          nameInput.focus();
+        }
+      }, 100);
+    } catch (error) {
+      reportError(error, {
+        area: "auth.signUp.checkSso",
+        expected: isJsonParseSyntaxError(error),
+        extra: { context: "auth.signUp.checkSso" },
+      });
+      setFormError("Unable to check SSO configuration. Please try again.");
+    } finally {
+      setContinueLoading(false);
+    }
+  }
+
+  async function signInAfterSignup(
+    values: z.infer<typeof signupSchema>,
+    loginTurnstileToken: string | undefined,
+  ) {
+    await signIn<"credentials">("credentials", {
+      email: values.email,
+      password: values.password,
+      callbackUrl: getSignupCallbackUrl({ targetPath, isLangfuseCloud }),
+      turnstileToken: loginTurnstileToken,
+    });
+  }
+
+  async function onSubmit(values: z.infer<typeof signupSchema>) {
+    // Once the account exists, later submits must not call signup again.
+    // The widget is on the login action, so a signup retry would send a
+    // token the signup endpoint rejects.
+    let created = accountCreated;
+    try {
+      setFormError(null);
+      if (created) {
+        await signInAfterSignup(values, turnstileToken);
+        return;
+      }
+
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...values, turnstileToken }),
+        },
+      );
+
+      if (!res.ok) {
+        turnstileRef.current?.reset();
+        const payload = (await res.json()) as { message: string };
+        setFormError(payload.message);
+        return;
+      }
+
+      created = true;
+      setAccountCreated(true);
+
+      // The sign-up request redeemed its token; signing in needs a fresh
+      // token issued for the `login` action.
+      let loginTurnstileToken: string | undefined;
+      if (turnstileSiteKey) {
+        const nextToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.login);
+        loginTurnstileToken = await waitForLoginToken(nextToken);
+      }
+      if (turnstileSiteKey && !loginTurnstileToken) {
+        setFormError(ACCOUNT_CREATED_MESSAGE);
+        return;
+      }
+
+      await signInAfterSignup(values, loginTurnstileToken);
+    } catch {
+      turnstileRef.current?.reset();
+      setFormError(
+        created
+          ? ACCOUNT_CREATED_MESSAGE
+          : "An error occurred. Please try again.",
+      );
+    }
+  }
+
+  const passwordSubmitLabel = accountCreated ? "Sign in" : "Sign up";
+
+  return (
+    <SignupPageShell>
+      <Form {...form}>
+        <form
+          className="space-y-6"
+          onSubmit={
+            showPasswordStep
+              ? form.handleSubmit(onSubmit)
+              : (e) => {
+                  e.preventDefault();
+                  handleContinue();
+                }
+          }
+        >
+          {showPasswordStep && (
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Jane Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="jsdoe@example.com"
+                    allowPasswordManager
+                    autoComplete="email"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {showPasswordStep && (
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <PasswordInput allowPasswordManager {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+          {showPasswordStep && turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={turnstileAction}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
+          <Button
+            type="submit"
+            className="w-full"
+            loading={
+              showPasswordStep ? form.formState.isSubmitting : continueLoading
+            }
+            disabled={
+              showPasswordStep
+                ? Boolean(turnstileSiteKey) && !turnstileToken
+                : form.watch("email") === ""
+            }
+            data-testid="submit-email-password-sign-up-form"
+          >
+            {showPasswordStep ? passwordSubmitLabel : "Continue"}
+          </Button>
+          {formError ? (
+            <div className="text-destructive text-center text-sm font-bold">
+              {formError}
+            </div>
+          ) : null}
+        </form>
+      </Form>
+      <SSOButtons
+        authProviders={authProviders}
+        action="sign up"
+        callbackUrl={targetPath}
+        lastUsedMethod={lastUsedAuthMethod}
+        onProviderSelect={setLastUsedAuthMethod}
+      />
+      <SignupFooter />
+    </SignupPageShell>
+  );
+}
+
+function VerifiedSignupFlow({
+  authProviders,
+}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+  const setupTargetPath = getOnboardingTargetPath({
+    targetPath,
+    isLangfuseCloud,
+  });
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
+    : "/auth/setup-password";
+
+  const [formError, setFormError] = useState<string | null>(null);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation spends a `signup_verify` token. The setup-code email
+  // is a separate siteverify check, so the widget switches to
+  // `password_reset` once the account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    | typeof TURNSTILE_ACTIONS.signupVerify
+    | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.signupVerify);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
+    useLocalStorage<NextAuthProvider | null>(
+      "langfuse_last_used_auth_method",
+      null,
+    );
+
+  const form = useForm({
+    resolver: zodResolver(signupVerifyFormSchema),
+    defaultValues: {
+      name: "",
+      email: emailParam ?? "",
+    },
+  });
+
+  async function sendSetupCode(
+    values: z.infer<typeof signupVerifyFormSchema>,
+    passwordResetToken: string | undefined,
+  ) {
+    const signInRes = await signIn("email", {
+      email: values.email,
+      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
+      redirect: false,
+      ...(passwordResetToken ? { turnstileToken: passwordResetToken } : {}),
+    });
+
+    if (signInRes?.error) {
+      turnstileRef.current?.reset();
+      setFormError(verifiedSignupSignInError(signInRes.error));
+      return;
+    }
+
+    capture("sign_up:button_click", { provider: "email_verification" });
+    sessionStorage.setItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+      values.email.toLowerCase(),
+    );
+    await router.push(setupPasswordPath);
+  }
+
+  async function onVerifiedSubmit(
+    values: z.infer<typeof signupVerifyFormSchema>,
+  ) {
+    let created = accountCreated;
+    try {
+      setFormError(null);
+
+      if (created) {
+        await sendSetupCode(values, turnstileToken);
+        return;
+      }
+
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup-verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: values.email,
+            name: values.name,
+            turnstileToken,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        turnstileRef.current?.reset();
+        const payload = (await res.json()) as { message: string };
+        setFormError(payload.message);
+        return;
+      }
+
+      created = true;
+      setAccountCreated(true);
+
+      // The signup request redeemed its token. The setup-code email needs
+      // a fresh token issued for `password_reset`.
+      let passwordResetToken: string | undefined;
+      if (turnstileSiteKey) {
+        const pendingToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.passwordReset);
+        passwordResetToken = await waitForLoginToken(pendingToken);
+      }
+      if (turnstileSiteKey && !passwordResetToken) {
+        setFormError(VERIFICATION_CODE_PENDING_MESSAGE);
+        return;
+      }
+
+      await sendSetupCode(values, passwordResetToken);
+    } catch {
+      turnstileRef.current?.reset();
+      setFormError(
+        created
+          ? VERIFICATION_CODE_PENDING_MESSAGE
+          : "An error occurred. Please try again.",
+      );
+    }
+  }
+
+  return (
+    <SignupPageShell>
+      <Form {...form}>
+        <form
+          className="space-y-6"
+          onSubmit={form.handleSubmit(onVerifiedSubmit)}
+        >
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="Jane Doe" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="jsdoe@example.com"
+                    allowPasswordManager
+                    autoComplete="email"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={turnstileAction}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
+          <Button
+            type="submit"
+            className="w-full"
+            loading={form.formState.isSubmitting}
+            disabled={Boolean(turnstileSiteKey) && !turnstileToken}
+            data-testid="submit-email-password-sign-up-form"
+          >
+            {accountCreated ? "Send verification code" : "Continue"}
+          </Button>
+          {formError ? (
+            <div className="text-destructive text-center text-sm font-bold">
+              {formError}
+            </div>
+          ) : null}
+        </form>
+      </Form>
+      <SSOButtons
+        authProviders={authProviders}
+        action="sign up"
+        callbackUrl={targetPath}
+        lastUsedMethod={lastUsedAuthMethod}
+        onProviderSelect={setLastUsedAuthMethod}
+      />
+      <SignupFooter />
+    </SignupPageShell>
+  );
+}
+
+function SignupPageShell({ children }: { children: React.ReactNode }) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+
+  return (
+    <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mx-auto w-fit">
+          <LangfuseIcon alt="" />
+        </div>
+        <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+          Create new account
+        </h2>
+      </div>
+      {isLangfuseCloud ? (
+        <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
+          No credit card required.
+        </div>
+      ) : null}
+
+      {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
+
+      <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
+        {children}
+      </div>
+      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        <CloudPrivacyNotice action="creating an account" />
+      )}
+    </div>
+  );
+}
+
+function SignupFooter() {
+  const router = useRouter();
+  return (
+    <p className="text-muted-foreground mt-10 text-center text-sm">
+      Already have an account?{" "}
+      <Link
+        href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+        className="text-link hover:text-link-hover font-bold"
+      >
+        Sign in
+      </Link>
+    </p>
+  );
+}

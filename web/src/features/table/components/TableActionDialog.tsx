@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useEffect } from "react";
 import {
   Dialog,
@@ -26,11 +27,11 @@ import { type TableAction } from "@/src/features/table/types";
 import { TableActionTargetOptions } from "@/src/features/table/components/TableActionTargetOptions";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
+import { useOptionalEntitlement } from "@/src/features/entitlements";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TableActionDialogProps = {
   isOpen: boolean;

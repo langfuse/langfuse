@@ -17,7 +17,7 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
@@ -29,15 +29,42 @@ import {
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
+import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
 
-export function EventsSearchBarRow({
+type EventsSearchBarRowProps = Omit<
+  React.ComponentProps<typeof EventsSearchBarRowContent>,
+  "aiFeaturesEnabled"
+>;
+
+export function EventsSearchBarRow(props: EventsSearchBarRowProps) {
+  const registry = props.registry ?? EVENTS_FIELD_REGISTRY;
+  return props.projectId && registry.aiFilterPrompt ? (
+    <ProjectSearchBarRow {...props} />
+  ) : (
+    <EventsSearchBarRowContent {...props} aiFeaturesEnabled={false} />
+  );
+}
+
+function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
+  const { organization } = useQueryProject();
+  return (
+    <EventsSearchBarRowContent
+      {...props}
+      aiFeaturesEnabled={Boolean(organization?.aiFeaturesEnabled)}
+    />
+  );
+}
+
+function EventsSearchBarRowContent({
+  aiFeaturesEnabled,
   projectId,
   tableName,
+  isV4 = true,
   store,
   commit,
   observed,
@@ -52,10 +79,13 @@ export function EventsSearchBarRow({
   aiScoreNames,
   className,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
-  projectId: string;
+  aiFeaturesEnabled: boolean;
+  projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
+  isV4?: boolean;
   store: SearchBarStore;
   commit: SearchCommit;
   observed: ObservedOptions | undefined;
@@ -96,16 +126,29 @@ export function EventsSearchBarRow({
   className?: string;
   /** The view-specific grammar and filter contract. */
   registry?: FieldRegistry;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComposerSize;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
-  const { organization } = useQueryProject();
   // Mirror the legacy wand gate: org-level AI features. The server
   // enforces it too, so this only governs whether the affordance is offered.
   // Org entitlement AND a prompt written for this view — see
   // FieldRegistry.aiFilterPrompt. Without the second half a new surface silently
   // inherits the events prompt.
+  const aiRegistryId =
+    registry.id === "events" ||
+    registry.id === "evaluationRules" ||
+    registry.id === "evaluatorSamples" ||
+    registry.id === "ruleSamples" ||
+    registry.id === "sessions" ||
+    registry.id === "scores" ||
+    registry.id === "experiments" ||
+    registry.id === "users"
+      ? registry.id
+      : undefined;
   const aiAvailable =
-    Boolean(organization?.aiFeaturesEnabled) && registry.aiFilterPrompt;
+    Boolean(projectId && aiRegistryId && aiFeaturesEnabled) &&
+    registry.aiFilterPrompt;
 
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so
@@ -116,14 +159,16 @@ export function EventsSearchBarRow({
 
   return (
     <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
-      {aiOpen && aiAvailable ? (
+      {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
           projectId={projectId}
           tableName={tableName}
+          isV4={isV4}
           store={store}
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
-          registryId={registry.id}
+          registryId={aiRegistryId}
+          size={size}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
@@ -140,6 +185,7 @@ export function EventsSearchBarRow({
             presetSections={presetSections}
             onQueryPresetPick={onQueryPresetPick}
             registry={registry}
+            size={size}
           />
         </SearchBarStoreProvider>
       )}

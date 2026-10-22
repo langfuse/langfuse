@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import {
   observationVariableMappingList,
@@ -11,7 +12,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
-import { Eye, X } from "lucide-react";
+import { Eye, X } from "@langfuse/icons";
 
 export type BatchEvaluator = {
   id: string;
@@ -128,7 +129,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
-                  <X className="h-3 w-3" />
+                  <X size="base" color="default" />
                 </Button>
               ) : null}
             </div>
@@ -140,8 +141,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                     <EvaluatorPromptPreview
                       key={evaluator.id}
                       previewContent={getPromptPreview(evaluator)}
-                      trigger={
-                        <div>
+                      trigger={({ getTriggerProps }) => (
+                        <div tabIndex={0} {...getTriggerProps()}>
                           <Badge
                             variant="secondary"
                             className="flex items-center gap-1 pr-1"
@@ -153,11 +154,11 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                               className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
-                              <X className="h-3 w-3" />
+                              <X size="sm" />
                             </button>
                           </Badge>
                         </div>
-                      }
+                      )}
                     />
                   ))
                 ) : (
@@ -190,21 +191,23 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       </p>
                       <EvaluatorPromptPreview
                         previewContent={getPromptPreview(item)}
-                        trigger={
+                        trigger={({ getTriggerProps }) => (
                           <Button
                             variant="ghost"
                             size="icon-sm"
                             className="h-7 w-7"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => event.stopPropagation()}
+                            {...getTriggerProps({
+                              onMouseDown: (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              },
+                              onClick: (event) => event.stopPropagation(),
+                            })}
                             aria-label={`Preview ${item.scoreName}`}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye size="base" color="default" />
                           </Button>
-                        }
+                        )}
                       />
                       <span className="mr-1">
                         <Checkbox

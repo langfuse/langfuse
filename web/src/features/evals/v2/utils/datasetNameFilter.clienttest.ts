@@ -5,12 +5,12 @@ import {
   EVALUATOR_FIELD_REGISTRY,
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
 import {
   type FieldRegistry,
+  filterStateToQueryText,
+  planCommit,
   withFieldOptions,
-} from "@/src/features/search-bar/lib/fields";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+} from "@/src/features/search-bar";
 import { addDatasetNameObservedOptions } from "./datasetNameFilter";
 
 const datasets = [

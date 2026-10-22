@@ -21,7 +21,11 @@ class ResizeObserverStub {
 (global as typeof globalThis & { ResizeObserver: unknown }).ResizeObserver =
   ResizeObserverStub;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const point = (metric: DataPoint["metric"], dimension?: string): DataPoint => ({
   time_dimension: "2026-01-01T00:00:00Z",
@@ -47,11 +51,7 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
       <Chart chartType="LINE_TIME_SERIES" data={data} rowLimit={100} />,
     );
     expect(screen.queryByText("No data")).not.toBeInTheDocument();
-    // The real chart primitive mounted instead of the empty-state box —
-    // `ChartContainer` stamps a `data-chart` id on its wrapper unconditionally,
-    // independent of the (jsdom-only) 0x0 layout warning recharts logs when it
-    // can't measure a real box to size its <svg> surface.
-    expect(container.querySelector("[data-chart]")).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("does NOT show NoDataOrLoading while isLoading, even with no data yet", () => {
@@ -73,4 +73,48 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
     render(<Chart chartType="BAR_TIME_SERIES" data={[]} rowLimit={100} />);
     expect(screen.getByText("No data")).toBeInTheDocument();
   });
+});
+
+it("renders a compact bar chart whose values cross zero", () => {
+  const bounds = new DOMRect(0, 0, 500, 63);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      return this.id === "recharts_measurement_span"
+        ? new DOMRect(0, 0, 8, 12)
+        : bounds;
+    },
+  );
+  vi.stubGlobal(
+    "ResizeObserver",
+    class implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback(
+          [{ target, contentRect: bounds } as ResizeObserverEntry],
+          this,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+
+  const { container } = render(
+    <Chart
+      chartType="VERTICAL_BAR"
+      data={[point(-1, "negative"), point(1, "positive")]}
+      rowLimit={100}
+      zeroBaseline
+      hideXAxisLabels
+    />,
+  );
+
+  expect(container.querySelectorAll('[role="graphics-symbol"]')).toHaveLength(
+    2,
+  );
+  expect(container.querySelector("[data-zero-baseline]")).toHaveAttribute(
+    "stroke-width",
+    "1.5",
+  );
+  expect(screen.getByText("0")).toBeInTheDocument();
 });

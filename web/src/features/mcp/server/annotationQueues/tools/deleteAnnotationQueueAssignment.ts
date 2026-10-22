@@ -1,4 +1,4 @@
-import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server";
 import { DeleteAnnotationQueueAssignmentResponse } from "@/src/features/public-api/server";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
@@ -11,6 +11,7 @@ export const [
 ] = defineTool({
   name: "deleteAnnotationQueueAssignment",
   description: "Remove a project user's assignment from an annotation queue.",
+  action: "annotationQueueAssignments:CUD",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>

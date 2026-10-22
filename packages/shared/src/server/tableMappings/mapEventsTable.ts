@@ -10,7 +10,12 @@ import {
   eventsTableCachedInputCostSql,
   eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
+  eventsTableLoadedSkillNamesSql,
+  eventsTableLoadedSkillVersionsSql,
+  eventsTableAvailableSkillNamesSql,
+  eventsTableAvailableSkillVersionsSql,
 } from "../../eventsTable";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
@@ -175,14 +180,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Cached Input Tokens",
     uiTableId: "cachedInputTokens",
     clickhouseTableName: "events_proto",
     clickhouseSelect: eventsTableCachedInputTokensSql,
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -190,7 +195,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -198,7 +203,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -206,7 +211,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Metadata",
@@ -373,6 +378,42 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "toolCalls",
     clickhouseTableName: "events_proto",
     clickhouseSelect: "length(e.tool_calls)",
+  },
+  {
+    uiTableName: "Loaded Skill Names",
+    uiTableId: "skillsNamesLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillNamesSql,
+  },
+  {
+    uiTableName: "Loaded Skill Versions",
+    uiTableId: "skillsVersionsLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillVersionsSql,
+  },
+  {
+    uiTableName: "Available Skill Names",
+    uiTableId: "skillNamesAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillNamesSql,
+  },
+  {
+    uiTableName: "Available Skill Versions",
+    uiTableId: "skillVersionsAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillVersionsSql,
+  },
+  {
+    uiTableName: "Skill Names",
+    uiTableId: "skillNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillNamesSql}, ${eventsTableAvailableSkillNamesSql})`,
+  },
+  {
+    uiTableName: "Skill Versions",
+    uiTableId: "skillVersions",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillVersionsSql}, ${eventsTableAvailableSkillVersionsSql})`,
   },
   {
     uiTableName: "Tool Names",

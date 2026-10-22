@@ -1,6 +1,6 @@
-/* eslint-disable @repo/no-null-render */
+import { IOSection } from "@/src/components/ui/IOSection";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 
 // SectionMedia props
 export interface SectionMediaProps {
@@ -11,14 +11,9 @@ export interface SectionMediaProps {
  * SectionMedia renders media attachments at the bottom of the message list.
  */
 export function SectionMedia({ media }: SectionMediaProps) {
-  if (media.length === 0) {
-    return null;
-  }
-
   return (
-    <>
-      <div className="text-muted-foreground my-1 px-2 py-1 text-xs">Media</div>
-      <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
+    <IOSection title="Media" variant="media">
+      <div className="flex flex-wrap gap-2">
         {media.map((m) => (
           <LangfuseMediaView
             mediaAPIReturnValue={m}
@@ -27,6 +22,6 @@ export function SectionMedia({ media }: SectionMediaProps) {
           />
         ))}
       </div>
-    </>
+    </IOSection>
   );
 }

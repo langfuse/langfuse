@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ReactNode, useState } from "react";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2 } from "@langfuse/icons";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -121,9 +122,16 @@ const ImportPromptsDialogContent: React.FC<{
                   className="flex items-start gap-2 py-1"
                 >
                   {r.success ? (
-                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                    <CheckCircle
+                      size="base"
+                      __rawClassName="mt-0.5 text-green-500"
+                    />
                   ) : (
-                    <XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+                    <XCircle
+                      size="base"
+                      color="destructive"
+                      __rawClassName="mt-0.5"
+                    />
                   )}
                   <span className="font-mono">{r.name}</span>
                   {r.error && (
@@ -149,12 +157,15 @@ const ImportPromptsDialogContent: React.FC<{
   const selectedFile =
     state.step === "parsed" || state.step === "error" ? state.file : undefined;
   const parsedItems = state.step === "parsed" ? state.items : null;
-  const error =
-    state.step === "error"
-      ? state.error
-      : state.step === "parsed"
-        ? state.importError
-        : undefined;
+  const error = (() => {
+    if (state.step === "error") {
+      return state.error;
+    }
+    if (state.step === "parsed") {
+      return state.importError;
+    }
+    return undefined;
+  })();
 
   return (
     <>
@@ -201,7 +212,7 @@ const ImportPromptsDialogContent: React.FC<{
         >
           {isImportPending ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 size="base" __rawClassName="mr-2 animate-spin" />
               Importing…
             </>
           ) : (

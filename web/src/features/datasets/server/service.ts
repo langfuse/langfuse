@@ -5,7 +5,7 @@ import {
   type FilterState,
   type DatasetItem,
   type TracingSearchType,
-  singleFilter,
+  singleFilterList,
   type DatasetRunItemDomain,
   AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
@@ -21,13 +21,13 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import groupBy from "lodash/groupBy";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import { calculateRecursiveMetricsForRunItems } from "./utils";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   ...optionalPaginationZod,
 });
 
@@ -35,7 +35,7 @@ export const datasetRunTableMetricsSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   runIds: z.array(z.string()),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
 });
 
 export type DatasetRunItemsTableInput = {

@@ -1,9 +1,15 @@
+import type { EarlyOtelBatch } from "@langfuse/native";
+import {
+  resolveExtractedMedia,
+  restoreInlineMedia,
+} from "./resolveExtractedMedia";
 import {
   getClickhouseEntityType,
   instrumentAsync,
   logger,
   processOtelMedia,
   recordDistribution,
+  recordIncrement,
   type IngestionEventType,
   type OtelMediaPayload,
   type OtelMediaTarget,
@@ -14,32 +20,42 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
+export type OtelMediaPresence = "present" | "absent" | "unknown";
+
 /**
  * Worker integration point for media in normalized OTEL payloads selected for
  * persistence by the ingestion queue.
  *
- * Responsibilities are split across three layers:
+ * Responsibilities:
  * - This adapter filters event shapes and owns storage configuration,
  *   instrumentation, and fail-open behavior.
  * - `processOtelMedia` iterates input/output/metadata, supplies OTEL upload
- *   context, and aggregates processing results.
+ *   context, and aggregates processing results for media still inline.
  * - `transformMediaPayload`, called by `processOtelMedia`, contains the generic
  *   Data URI/provider-shape detection and replacement algorithm. It has no
  *   knowledge of OTEL, storage, projects, or tracing.
+ * - `resolveExtractedMedia` is the TypeScript resolver for references created
+ *   by Rust before normalization. It uploads media whose references survive in
+ *   input/output/metadata, replaces them on success, and restores failed uploads
+ *   inline. TypeScript detection still runs for media Rust left inline.
  *
  * Successful replacements mutate each target payload in place. Missing storage
- * configuration or unexpected processing errors are logged and swallowed so
- * media extraction cannot reject the enclosing OTEL ingestion job.
+ * configuration is logged and skips processing. Unexpected processing errors
+ * are logged and swallowed after restoring any pending references. If restoration
+ * itself fails, that error propagates to avoid persisting unresolved references.
  */
 export async function processOtelEventMedia(params: {
+  earlyBatch?: EarlyOtelBatch;
+  mediaPath?: "early" | "reference";
   targets: OtelMediaTarget[];
   writePath: OtelMediaWritePath;
   projectId: string;
   fileKey: string;
   mediaBucket?: string;
   mediaPrefix: string;
+  inputByteLength?: number;
   processMedia?: typeof processOtelMedia;
-}): Promise<void> {
+}): Promise<OtelMediaPresence | undefined> {
   const {
     targets,
     writePath,
@@ -49,6 +65,8 @@ export async function processOtelEventMedia(params: {
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
+  const mediaPath =
+    params.mediaPath ?? (params.earlyBatch ? "early" : "reference");
 
   if (!mediaBucket) {
     logger.warn(
@@ -58,18 +76,25 @@ export async function processOtelEventMedia(params: {
     return;
   }
 
-  if (targets.length === 0) return;
+  if (targets.length === 0) return "absent";
 
+  let mediaPresence: OtelMediaPresence = "unknown";
   try {
     await instrumentAsync(
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
         const startedAt = Date.now();
+        span.setAttributes({
+          "langfuse.ingestion.otel.media_path": mediaPath,
+        });
         try {
+          // Scan media still inline, including values below native's 1 KiB cutoff.
+          // References from native extraction are resolved separately below.
           const result = await processMedia({
             targets,
             projectId,
             writePath,
+            mediaPath,
             mediaBucket,
             mediaPrefix,
             uploadMedia: (uploadParams) =>
@@ -78,6 +103,26 @@ export async function processOtelEventMedia(params: {
                 origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
               }),
           });
+
+          if (params.earlyBatch) {
+            const early = await resolveExtractedMedia({
+              batch: params.earlyBatch,
+              targets,
+              projectId,
+              mediaBucket,
+              mediaPrefix,
+              writePath,
+            });
+            result.uploaded += early.uploaded;
+            result.reused += early.reused;
+            result.failed += early.failed;
+            result.candidates += early.candidates;
+            result.bytesProcessed += early.bytesProcessed;
+            result.bytesRemoved += early.bytesRemoved;
+          }
+          // Classify the same completed stage that contributes a duration sample.
+          mediaPresence =
+            result.candidates > 0 || result.failed > 0 ? "present" : "absent";
 
           span.setAttributes({
             "langfuse.ingestion.otel.media.uploaded": result.uploaded,
@@ -107,7 +152,7 @@ export async function processOtelEventMedia(params: {
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_byte_length",
             result.bytesProcessed,
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_checked_byte_length",
@@ -115,21 +160,68 @@ export async function processOtelEventMedia(params: {
               (total, bytes) => total + bytes,
               0,
             ),
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
         } finally {
-          recordDistribution(
-            "langfuse.ingestion.otel.media.processing_duration_ms",
-            Date.now() - startedAt,
-            { write_path: writePath },
-          );
+          recordMediaStageMetrics({
+            durationMs: Date.now() - startedAt,
+            writePath,
+            mediaPath,
+            mediaPresence,
+            inputByteLength: params.inputByteLength,
+          });
         }
       },
     );
+    return mediaPresence;
   } catch (error) {
+    if (params.earlyBatch) {
+      // Unexpected detector failures must not leave pending references in persisted payloads.
+      await restoreInlineMedia(
+        params.earlyBatch,
+        targets.map(({ payload }) => payload),
+        {
+          includePayloads: true,
+        },
+      );
+    }
     logger.warn(
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },
+    );
+    return "unknown";
+  }
+}
+
+function recordMediaStageMetrics(params: {
+  durationMs: number;
+  writePath: OtelMediaWritePath;
+  mediaPath: "early" | "reference";
+  mediaPresence: "present" | "absent" | "unknown";
+  inputByteLength?: number;
+}): void {
+  const tags = {
+    write_path: params.writePath,
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence,
+  };
+  recordDistribution(
+    "langfuse.ingestion.otel.media.processing_duration_ms",
+    params.durationMs,
+    tags,
+  );
+  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.media.processing_duration_total_ms",
+    params.durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    // Dual writes contribute both their input bytes and stage time.
+    recordIncrement(
+      "langfuse.ingestion.otel.media.input_bytes_total",
+      params.inputByteLength,
+      tags,
     );
   }
 }

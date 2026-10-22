@@ -1,5 +1,5 @@
 import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { filterRank } from "@/src/features/search-bar/lib/rank";
+import { filterRank } from "@/src/features/search-bar";
 
 // Pure display helpers for the faceted filter sidebar
 // (data-table-controls.tsx). No React, no state — unit-testable.
@@ -111,6 +111,11 @@ export function getFacetSummary(filter: UIFilter): string | null {
   if (filter.type === "numeric") {
     if (!filter.isActive) return null;
     const unit = filter.unit ? ` ${filter.unit}` : "";
+    if (filter.value === null) {
+      return filter.conditions
+        .map((condition) => `${condition.operator} ${condition.value}${unit}`)
+        .join(" · ");
+    }
     return `${filter.value[0]}–${filter.value[1]}${unit}`;
   }
 
@@ -168,8 +173,15 @@ export function getFacetSummaryValue(filter: UIFilter): string | null {
 }
 
 /** Better of two ranks when either string may not match at all. */
-const bestRank = (a: number | null, b: number | null): number | null =>
-  a === null ? b : b === null ? a : Math.min(a, b);
+const bestRank = (a: number | null, b: number | null): number | null => {
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  return Math.min(a, b);
+};
 
 /**
  * Rank a facet's option values for its search box the way the search bar

@@ -1,4 +1,4 @@
-import { CircleAlert, Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -16,7 +16,7 @@ export function ConversationActivityIndicator({
   if (state === "approval") {
     return (
       <ConversationActivityIndicatorSlot label="Needs your approval">
-        <CircleAlert className="text-primary-accent size-3" />
+        <CircleAlert size="sm" __rawClassName="text-primary-accent " />
       </ConversationActivityIndicatorSlot>
     );
   }
@@ -24,7 +24,7 @@ export function ConversationActivityIndicator({
   if (state === "running") {
     return (
       <ConversationActivityIndicatorSlot label="Working">
-        <Loader2 className="text-muted-foreground size-3 animate-spin" />
+        <Loader2 size="sm" color="muted" __rawClassName="animate-spin" />
       </ConversationActivityIndicatorSlot>
     );
   }

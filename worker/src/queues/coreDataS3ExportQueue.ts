@@ -1,5 +1,6 @@
 import { Processor } from "bullmq";
 import { Readable } from "node:stream";
+import { DashboardWidgetChartType } from "@prisma/client";
 import pLimit from "p-limit";
 import {
   logger,
@@ -60,14 +61,22 @@ export const mapUserToCoreDataRow = ({
 type JobConfigurationCoreDataInput = {
   evalTemplate: { name: string } | null;
   sampling: { toNumber: () => number };
+  variableMapping?: unknown;
 } & Record<string, unknown>;
+
+// Airbyte's JSONL schema inference cannot merge null with array for one column.
+// Empty mappings are exported as [] so every row has an array.
+const variableMappingForExport = (variableMapping: unknown) =>
+  variableMapping == null ? [] : variableMapping;
 
 export const mapJobConfigurationToCoreDataRow = ({
   evalTemplate,
   sampling,
+  variableMapping,
   ...jobConfiguration
 }: JobConfigurationCoreDataInput) => ({
   ...jobConfiguration,
+  variableMapping: variableMappingForExport(variableMapping),
   sampling: sampling.toNumber(),
   evalTemplateName: evalTemplate?.name ?? null,
 });
@@ -82,6 +91,30 @@ export const mapEvaluationRuleToCoreDataRow = ({
 }: EvaluationRuleCoreDataInput) => ({
   ...evaluationRule,
   sampling: sampling.toNumber(),
+});
+
+type EvaluatorVersionCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluatorVersionToCoreDataRow = ({
+  variableMapping,
+  ...version
+}: EvaluatorVersionCoreDataInput) => ({
+  ...version,
+  variableMapping: variableMappingForExport(variableMapping),
+});
+
+type EvaluationRuleEvaluatorAssignmentCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluationRuleEvaluatorAssignmentToCoreDataRow = ({
+  variableMapping,
+  ...assignment
+}: EvaluationRuleEvaluatorAssignmentCoreDataInput) => ({
+  ...assignment,
+  variableMapping: variableMappingForExport(variableMapping),
 });
 
 // Widget dimensions/metrics/chart config are persisted as free-form strings
@@ -100,30 +133,34 @@ const KNOWN_WIDGET_DIMENSIONS = new Set(
   ),
 );
 const KNOWN_WIDGET_AGGREGATIONS = new Set<string>(metricAggregations.options);
+const KNOWN_WIDGET_CHART_TYPES = new Set<string>(
+  Object.values(DashboardWidgetChartType),
+);
 const INVALID_SENTINEL = "__invalid__";
 
-const allowlisted = (value: unknown, allowlist: Set<string>): string | null =>
-  value == null
-    ? null
-    : typeof value === "string" && allowlist.has(value)
-      ? value
-      : INVALID_SENTINEL;
+const allowlisted = (value: unknown, allowlist: Set<string>): string | null => {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "string" && allowlist.has(value)) {
+    return value;
+  }
+  return INVALID_SENTINEL;
+};
 
 type DashboardWidgetCoreDataInput = {
   dimensions: unknown;
   metrics: unknown;
-  filters: unknown;
   chartConfig: unknown;
+  /** Drops a supplied filters column so it cannot leak through the rest spread. */
+  filters?: unknown;
 } & Record<string, unknown>;
 
-// Widget filters carry customer-entered values (user ids, metadata values,
-// tool names, ...). Analytics only needs which columns/operators are used, so
-// the values (and metadata keys) are stripped before export; every other
-// string field is allowlisted (see above).
+/** Allowlists widget dimensions, metrics, and chart type, and keeps numeric chartConfig limits. */
 export const mapDashboardWidgetToCoreDataRow = ({
   dimensions,
   metrics,
-  filters,
+  filters: _filters,
   chartConfig,
   ...widget
 }: DashboardWidgetCoreDataInput) => {
@@ -141,17 +178,8 @@ export const mapDashboardWidgetToCoreDataRow = ({
           agg: allowlisted(metric.agg, KNOWN_WIDGET_AGGREGATIONS),
         }))
       : [],
-    filters: Array.isArray(filters)
-      ? filters.map((filter: Record<string, unknown>) => ({
-          column: filter.column ?? null,
-          operator: filter.operator ?? null,
-          type: filter.type ?? null,
-        }))
-      : [],
-    // Explicit safe scalars only; defaultSort.column is a free string and is
-    // deliberately not exported.
     chartConfig: {
-      type: typeof config.type === "string" ? config.type : null,
+      type: allowlisted(config.type, KNOWN_WIDGET_CHART_TYPES),
       row_limit: typeof config.row_limit === "number" ? config.row_limit : null,
       bins: typeof config.bins === "number" ? config.bins : null,
     },
@@ -600,8 +628,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "jobConfigurations",
-      // Keep this stable for downstream consumers while evaluator v2 exports
-      // are adopted independently.
+      /** Omits the customer-authored job-configuration filter. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.jobConfiguration.findMany({
           take,
@@ -616,7 +643,6 @@ export const coreDataTableExports: Array<
             blockReason: true,
             evalTemplateId: true,
             scoreName: true,
-            filter: true,
             targetObject: true,
             variableMapping: true,
             sampling: true,
@@ -657,9 +683,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluatorVersions",
-      // Evaluator definitions (prompt, code, model params, and output
-      // definitions) may contain customer data. Export metadata and mapping
-      // shape only, matching the legacy job-configuration export.
+      /** Exports version metadata, vars, and variableMapping, and omits prompt, code, and model params. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluatorVersion.findMany({
           take,
@@ -679,11 +703,13 @@ export const coreDataTableExports: Array<
             createdAt: true,
           },
         }),
+      mapRow: mapEvaluatorVersionToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRules",
+      /** Omits the customer-authored evaluation-rule filter. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRule.findMany({
           take,
@@ -696,7 +722,6 @@ export const coreDataTableExports: Array<
             name: true,
             status: true,
             targetObject: true,
-            filter: true,
             sampling: true,
             delay: true,
             timeScope: true,
@@ -725,6 +750,7 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+      mapRow: mapEvaluationRuleEvaluatorAssignmentToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({
@@ -753,11 +779,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "dashboardWidgets",
-      // Customer-authored name/description are free text and intentionally
-      // excluded; filter values are stripped in the mapper. The remaining
-      // shape (view, metrics, dimensions, chart type) is what dashboard
-      // product decisions need (e.g. which aggregation users pair with a
-      // measure). projectId NULL marks Langfuse-owned template widgets.
+      /** Allowlists widget dimensions, metrics, and chart type, and omits customer-authored filters. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.dashboardWidget.findMany({
           take,
@@ -770,7 +792,6 @@ export const coreDataTableExports: Array<
             view: true,
             dimensions: true,
             metrics: true,
-            filters: true,
             chartType: true,
             chartConfig: true,
             minVersion: true,

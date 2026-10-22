@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 import crypto from "crypto";
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -31,8 +32,8 @@ import {
 const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
 
 const MetricsQuerySchema = z.object({
-  startTime: z.iso.datetime({ offset: true }),
-  endTime: z.iso.datetime({ offset: true }),
+  startTime: isoDateTime({ offset: true }),
+  endTime: isoDateTime({ offset: true }),
   resourceId: z.string().min(1),
 });
 

@@ -28,7 +28,7 @@ describe("toIOPreview", () => {
       ],
     };
 
-    expect(toIOPreview(io, {}).allMessages[0]?.content).toEqual([
+    expect(toIOPreview(io).allMessages[0]?.content).toEqual([
       { type: "text", text: "Look at this" },
       { type: "image_url", image_url: { url: mediaReference } },
     ]);
@@ -62,14 +62,14 @@ describe("toIOPreview", () => {
               type: "tool-result",
               toolCallId: "call-1",
               toolName: "search",
-              output: { matches: 1 },
+              output: { type: "json", value: { matches: 1 } },
             },
           ],
         },
       ],
     };
 
-    const result = toIOPreview(io, {});
+    const result = toIOPreview(io);
 
     expect(result.allMessages).toEqual([
       {
@@ -89,7 +89,6 @@ describe("toIOPreview", () => {
     ]);
     expect(result.inputMessageCount).toBe(0);
     expect(result.toolCallCounts.get("search")).toBe(1);
-    expect(result.toolNameToDefinitionNumber.get("search")).toBe(1);
   });
 
   it("keeps unmatched tool results standalone and unanswered calls at null", () => {
@@ -122,20 +121,20 @@ describe("toIOPreview", () => {
             {
               type: "tool-result",
               toolCallId: "call-a",
-              output: "boom",
+              output: { type: "text", value: "boom" },
               isError: true,
             },
             {
               type: "tool-result",
               toolCallId: "call-unknown",
-              output: "orphaned",
+              output: { type: "text", value: "orphaned" },
             },
           ],
         },
       ],
     };
 
-    const result = toIOPreview(io, {});
+    const result = toIOPreview(io);
 
     expect(result.allMessages).toEqual([
       {

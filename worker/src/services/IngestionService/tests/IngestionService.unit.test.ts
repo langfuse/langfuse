@@ -77,7 +77,7 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
-    await ingestionService.writeEventRecord(eventRecord);
+    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
 
     expect(addToQueue).toHaveBeenCalledOnce();
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
@@ -89,6 +89,7 @@ describe("IngestionService unit tests", () => {
       Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
     );
     expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
+    expect(acceptedBytes).toBe(eventBytes);
   });
 
   it("overflows only the direct events_full copy and preserves the enriched record", async () => {
@@ -128,7 +129,7 @@ describe("IngestionService unit tests", () => {
       ],
     });
 
-    await ingestionService.writeEventRecord(eventRecord);
+    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
@@ -141,6 +142,12 @@ describe("IngestionService unit tests", () => {
       metadata_names: ["keep", "large.nested"],
       metadata_values: ["small", expect.stringContaining("metadata-media")],
     });
+    const { event_bytes: eventBytes, ...eventWithoutSize } =
+      addToQueue.mock.calls[0]![1];
+    expect(acceptedBytes).toBe(eventBytes);
+    expect(acceptedBytes).toBe(
+      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+    );
   });
 
   it("promotes provided usage and cost for model-less direct events", async () => {

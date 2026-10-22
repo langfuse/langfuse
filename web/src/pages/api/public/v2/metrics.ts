@@ -9,7 +9,7 @@ import {
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { validateQuery } from "@langfuse/shared/query";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 const DEFAULT_ROW_LIMIT = 100;
 
 export function isMetricsV2Available(): boolean {
@@ -22,6 +22,7 @@ export function isMetricsV2Available(): boolean {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
+    action: "metrics:read",
     rateLimitResource: "public-api-v2-metrics",
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,

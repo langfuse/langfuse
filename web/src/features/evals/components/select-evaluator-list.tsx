@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
@@ -11,7 +12,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { Bot, Check, Code2 } from "lucide-react";
+import { Bot, Check, Code2 } from "@langfuse/icons";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications";
@@ -130,7 +131,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
                 onClick={() => handleOpenCreateEvaluator(EvalTemplateType.CODE)}
               >
-                <Code2 className="h-5 w-5 shrink-0" />
+                <Code2 size="base" color="default" />
                 <span className="flex flex-col gap-1">
                   <span className="font-bold">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
@@ -147,7 +148,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
               }
             >
-              <Bot className="h-5 w-5 shrink-0" />
+              <Bot size="base" color="default" />
               <span className="flex flex-col gap-1">
                 <span className="font-bold">LLM as a judge evaluator</span>
                 <span className="text-muted-foreground text-sm font-normal">
@@ -317,7 +318,10 @@ function CreateLlmEvaluatorWizard({
                   {isActive ? (
                     <BreadcrumbPage className="flex items-center font-bold">
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check
+                          size="base"
+                          __rawClassName="text-dark-green mr-1.5"
+                        />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbPage>
@@ -331,7 +335,10 @@ function CreateLlmEvaluatorWizard({
                       className="flex cursor-pointer items-center"
                     >
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check
+                          size="base"
+                          __rawClassName="text-dark-green mr-1.5"
+                        />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbLink>
@@ -407,6 +414,7 @@ function CreateEvaluatorTemplateForm({
       onFormSuccess={(newTemplate) => {
         onSuccess(newTemplate);
         showSuccessToast({
+          operation: "evaluator.create",
           title: "Evaluator created successfully",
           description: "You can now use this evaluator.",
         });

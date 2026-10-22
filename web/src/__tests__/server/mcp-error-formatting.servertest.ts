@@ -26,7 +26,9 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   BaseError,
+  ApiError,
 } from "@langfuse/shared";
+import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 
 describe("MCP Error Formatting", () => {
   describe("formatErrorForUser", () => {
@@ -164,6 +166,38 @@ describe("MCP Error Formatting", () => {
     });
 
     describe("Langfuse standard errors", () => {
+      it("should format ClickHouse timeouts with actionable guidance", () => {
+        const error = new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("ClickHouse internal timeout details"),
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain("ClickHouse query timed out");
+        expect(mcpError.message).toContain("Narrow the query");
+        expect(mcpError.message).toContain("shortening the date range");
+        expect(mcpError.message).toContain("adding more specific filters");
+        expect(mcpError.message).not.toContain("internal timeout details");
+      });
+
+      it.each(["MEMORY_LIMIT", "OVERCOMMIT"] as const)(
+        "should format ClickHouse %s errors without internal details",
+        (errorType) => {
+          const error = new ClickHouseResourceError(
+            errorType,
+            new Error("Memory limit exceeded at 215 GiB"),
+          );
+          const mcpError = formatErrorForUser(error);
+
+          expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+          expect(mcpError.message).toContain(
+            ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+          );
+          expect(mcpError.message).not.toContain("215 GiB");
+        },
+      );
+
       it("should format UnauthorizedError with auth message", () => {
         const error = new UnauthorizedError("Invalid API key");
         const mcpError = formatErrorForUser(error);
@@ -173,14 +207,32 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.message).toContain("API key");
       });
 
-      it("should format ForbiddenError with permission message", () => {
-        const error = new ForbiddenError("Access denied");
+      it("should pass through ApiError 401 message for connection auth", () => {
+        const error = new ApiError(
+          "Invalid credentials. Confirm that you've configured the correct host.",
+          401,
+        );
         const mcpError = formatErrorForUser(error);
 
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        expect(mcpError.message).toContain("forbidden");
-        expect(mcpError.message).toContain("permission");
+        expect(mcpError.message).toContain("Invalid credentials");
       });
+
+      it.each([
+        ["Access denied", "MCP error -32600: Access denied"],
+        [
+          undefined,
+          "MCP error -32600: Access denied. You do not have permission to access this resource.",
+        ],
+      ])(
+        "preserves the ForbiddenError message: %s",
+        (description, expectedMessage) => {
+          const mcpError = formatErrorForUser(new ForbiddenError(description));
+
+          expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+          expect(mcpError.message).toBe(expectedMessage);
+        },
+      );
 
       it("should format LangfuseNotFoundError with original message", () => {
         const error = new LangfuseNotFoundError("Prompt not found: chatbot");

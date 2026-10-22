@@ -30,7 +30,7 @@ const h = vi.hoisted(() => ({
 }));
 
 // The banner portals into an overlay layer that only exists via _document.tsx.
-vi.mock("@/src/components/ui/layer", () => ({
+vi.mock("@/src/components/design-system/Layer/Layer", () => ({
   Layer: ({ children }: { children?: unknown }) => children,
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

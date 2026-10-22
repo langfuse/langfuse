@@ -1,6 +1,10 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
-
-type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
+import {
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  type JsonViewPreference,
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 /**
  * Hook for managing JSON Beta toggle state alongside view preference.
@@ -11,38 +15,26 @@ type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
  * use useViewPreferences() instead.
  */
 export function useJsonBetaToggle(
-  currentView: ViewMode,
-  setCurrentView: (view: ViewMode) => void,
-  /** Whether the pretty-beta tab is selectable here. A persisted
-   * "pretty-beta" preference clamps to "pretty" when it is not, so the
-   * highlighted tab always matches the parser that produced the content. */
-  prettyBetaAvailable = false,
+  currentView: JsonViewPreference,
+  setCurrentView: (view: JsonViewPreference) => void,
 ) {
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
     "jsonBetaEnabled",
     typeof window !== "undefined" &&
-      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+      localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
 
-  // Derive UI tab selection (pretty, flag-gated pretty-beta, or json)
-  const selectedViewTab =
-    currentView === "pretty-beta"
-      ? prettyBetaAvailable
-        ? ("pretty-beta" as const)
-        : ("pretty" as const)
-      : currentView === "pretty"
-        ? ("pretty" as const)
-        : ("json" as const);
+  const selectedViewTab = jsonViewToggleTab(currentView);
 
   const handleViewTabChange = (tab: string) => {
-    if (tab === "pretty" || tab === "pretty-beta") {
-      setCurrentView(tab);
-    } else {
+    if (tab === "json") {
       // When switching to JSON, use beta preference
       setCurrentView(jsonBetaEnabled ? "json-beta" : "json");
+      return;
     }
+    setCurrentView(normalizeJsonViewPreference(tab));
   };
 
   const handleBetaToggle = (enabled: boolean) => {

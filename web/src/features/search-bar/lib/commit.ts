@@ -17,13 +17,11 @@ import {
   type ScoreTypeContext,
 } from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
+import { filterStateToQueryText } from "./filter-state-to-query";
 import { validateQuery } from "./validate";
 
-// The full-text scope a bare query (no scope token) applies: ids & names
-// (`id` lane) PLUS input & output (`content` lane). Typing plain text searches
-// all of them. `input:`/`output:` narrow to one column; `name:`/`id:` narrow to
-// those. `content` here is the backend searchType lane (input ∪ output), not a
-// user-typed token — the `content:` grammar token has been removed.
+// The full Events default. Other hosts declare their own defaultSearchType
+// in the registry so bare text keeps the host's existing search behavior.
 export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id", "content"];
 
 export type CommitResult =
@@ -78,8 +76,11 @@ export function planCommit(
     status: "committed",
     filters,
     searchQuery,
-    searchType: searchType ?? DEFAULT_SEARCH_TYPE,
-    canonical: serialize(res.ast, registry),
+    searchType: searchType ?? [...registry.defaultSearchType],
+    canonical: registry.targeting
+      ? filterStateToQueryText(filters, { searchQuery, searchType }, registry)
+          .text
+      : serialize(res.ast, registry),
   };
 }
 

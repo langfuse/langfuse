@@ -1,21 +1,15 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import {
-  Check,
-  ChevronRight,
-  Circle,
-  Minus,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Minus, type IconComponent } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -56,7 +50,11 @@ const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    {!hasCustomIcon && <ChevronRight className="ml-auto h-4 w-4" />}
+    {!hasCustomIcon && (
+      <span className="ml-auto flex">
+        <DropdownIndicator direction="right" />
+      </span>
+    )}
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName =
@@ -137,20 +135,28 @@ const DropdownContentWrapper = React.forwardRef<
     const { register, recompute, top, bottom } = useScrollGradients<
       React.ComponentRef<typeof DropdownMenuPrimitive.Content>
     >(maxHeight !== undefined);
+    const setContentRef = React.useCallback(
+      (
+        element: React.ComponentRef<
+          typeof DropdownMenuPrimitive.Content
+        > | null,
+      ) => {
+        register(element);
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref, register],
+    );
     const content =
       typeof children === "function" ? children({ top, bottom }) : children;
 
     return (
       <DropdownMenuPrimitive.Portal container={container}>
         <DropdownMenuPrimitive.Content
-          ref={(element) => {
-            register(element);
-            if (typeof ref === "function") {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
+          ref={setContentRef}
           sideOffset={sideOffset}
           className={cn(
             dropdownMenuContentVariants({
@@ -258,6 +264,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
  */
 type DropdownMenuControllerProps = {
   align: React.ComponentProps<typeof DropdownMenuContent>["align"];
+  isActive?: boolean;
   children: (control: {
     isOpen: boolean;
     Trigger: typeof DropdownMenuTrigger;
@@ -272,6 +279,7 @@ type DropdownMenuControllerProps = {
 
 const DropdownMenuController = ({
   align,
+  isActive = true,
   children,
   maxWidth,
   onCloseAutoFocus,
@@ -280,13 +288,16 @@ const DropdownMenuController = ({
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+    <DropdownMenu open={isActive && isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen: isActive && isOpen, Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
         align={align}
         style={maxWidth === undefined ? undefined : { maxWidth }}
         onClick={(event) => event.stopPropagation()}
-        onCloseAutoFocus={onCloseAutoFocus}
+        onCloseAutoFocus={(event) => {
+          if (!isActive) event.preventDefault();
+          onCloseAutoFocus?.(event);
+        }}
       >
         {renderMenu()}
       </DropdownMenuContent>
@@ -338,11 +349,11 @@ type DropdownMenuItemAction = {
 
 type DropdownMenuItemWithSecondaryActionProps = {
   disabled?: { reason: string };
-  icon?: LucideIcon;
+  icon?: IconComponent;
   title: string;
   secondaryAction?: DropdownMenuItemAction & {
     ariaLabel?: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
 } & DropdownMenuItemAction;
 
@@ -370,7 +381,12 @@ const DropdownMenuItemWithSecondaryAction = (
   const primaryContent = (
     <>
       {PrimaryActionIcon && (
-        <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
+        <PrimaryActionIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-1.5"
+          aria-hidden="true"
+        />
       )}
       <span
         className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
@@ -380,13 +396,12 @@ const DropdownMenuItemWithSecondaryAction = (
       </span>
     </>
   );
-  let secondaryActionContent: React.ReactNode = null;
-
-  // The secondary action is intentionally pointer-only and cannot be targeted
-  // with the keyboard; the parent remains the row's sole menu item.
-  if (secondaryAction && SecondaryActionIcon) {
+  const secondaryActionContent = React.useMemo(() => {
+    // The secondary action is intentionally pointer-only and cannot be targeted
+    // with the keyboard; the parent remains the row's sole menu item.
+    if (!secondaryAction || !SecondaryActionIcon) return null;
     if (secondaryAction.href !== undefined) {
-      secondaryActionContent = (
+      return (
         <Link
           href={secondaryAction.href}
           target={secondaryAction.target}
@@ -414,27 +429,26 @@ const DropdownMenuItemWithSecondaryAction = (
             }
           }}
         >
-          <SecondaryActionIcon size={12} />
+          <SecondaryActionIcon size="sm" color="default" />
         </Link>
       );
-    } else {
-      secondaryActionContent = (
-        <button
-          type="button"
-          aria-label={secondaryAction.ariaLabel}
-          disabled={isDisabled}
-          className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => {
-            event.stopPropagation();
-            secondaryAction.onBeforeAction?.();
-            secondaryAction.onClick();
-          }}
-        >
-          <SecondaryActionIcon size={12} />
-        </button>
-      );
     }
-  }
+    return (
+      <button
+        type="button"
+        aria-label={secondaryAction.ariaLabel}
+        disabled={isDisabled}
+        className={dropdownMenuItemSecondaryActionVariants()}
+        onClick={(event) => {
+          event.stopPropagation();
+          secondaryAction.onBeforeAction?.();
+          secondaryAction.onClick();
+        }}
+      >
+        <SecondaryActionIcon size="sm" color="default" />
+      </button>
+    );
+  }, [secondaryAction, SecondaryActionIcon, isDisabled]);
 
   return (
     <DropdownMenuItem
@@ -502,12 +516,6 @@ const DropdownMenuItemWithSecondaryAction = (
   );
 };
 
-const DropdownMenuLoadingItem = () => (
-  <DropdownMenuItem disabled aria-label="Loading">
-    <Skeleton variant="contrast" className="h-4 w-24" />
-  </DropdownMenuItem>
-);
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -523,8 +531,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && <Minus className="h-4 w-4" />}
-        {checked === true && <Check className="h-4 w-4" />}
+        {checked === "indeterminate" && <Minus size="base" color="default" />}
+        {checked === true && <Check size="base" color="default" />}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -547,7 +555,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
+        <span className="size-2 rounded-full bg-current" aria-hidden />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -601,7 +609,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,

@@ -33,6 +33,6 @@ Fixes # (issue)
 - My code doesn't follow the style guidelines of this project (`pnpm run format`)
 - I haven't commented my code, particularly in hard-to-understand areas
 - I haven't checked if my PR needs changes to the documentation
-- I haven't checked if my changes generate no new warnings (`npm run lint`)
+- I haven't checked if my changes generate no new warnings (`pnpm run lint`)
 - I haven't added tests that prove my fix is effective or that my feature works
 - I haven't checked if new and existing unit tests pass locally with my changes

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
@@ -22,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -34,6 +35,7 @@ import {
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 import {
   getCodeEvalHoverDocs,
@@ -240,12 +242,15 @@ export function CodeEvalTemplateFormBody({
   const shouldShowFormatButton = editable;
   const canFormat =
     editable && validationResult !== null && !validationResult.hasErrors;
-  const formatDisabledReason =
-    validationResult === null
-      ? "Wait for code validation to finish before formatting."
-      : validationResult.hasErrors
-        ? "Fix the code validation errors before formatting."
-        : null;
+  const formatDisabledReason = (() => {
+    if (validationResult === null) {
+      return "Wait for code validation to finish before formatting.";
+    }
+    if (validationResult.hasErrors) {
+      return "Fix the code validation errors before formatting.";
+    }
+    return null;
+  })();
   // `onSourceCodeChange` comes from a react-hook-form render prop and changes
   // identity as the field updates. Keep CodeMirror's handler stable so it does
   // not reconfigure the editor on every keystroke. The refs are synced in an
@@ -257,6 +262,12 @@ export function CodeEvalTemplateFormBody({
     sourceCodeRef.current = sourceCode;
   });
   const handleSourceCodeChange = useCallback((value: string) => {
+    // CodeMirror's MutationObserver can echo the current document back through
+    // onChange while React is already committing the same value. Pushing that
+    // echo into form state nests setState until React hits max update depth.
+    if (value === sourceCodeRef.current) {
+      return;
+    }
     sourceCodeRef.current = value;
     onSourceCodeChangeRef.current(value);
   }, []);
@@ -310,6 +321,11 @@ export function CodeEvalTemplateFormBody({
         error instanceof Error
           ? error.message
           : "The formatter could not process this code.",
+        {
+          operation: "evaluator_code.format",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     } finally {
       isFormattingRef.current = false;
@@ -365,6 +381,7 @@ export function CodeEvalTemplateFormBody({
   );
   const extensions = useMemo(
     () => [
+      tolerateUnstableViewportPosAtCoords,
       // The `editable` prop only blocks direct typing; readOnly also blocks
       // paste and drag-and-drop edits.
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
@@ -397,7 +414,13 @@ export function CodeEvalTemplateFormBody({
       className={formatDisabledReason ? "pointer-events-none" : undefined}
       onClick={() => formatSource()}
     >
-      {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+      {isFormatting && (
+        <Loader2
+          size="base"
+          color="default"
+          __rawClassName="mr-1.5 animate-spin"
+        />
+      )}
       Format
       <span className="ml-2 hidden md:inline-flex">
         <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />

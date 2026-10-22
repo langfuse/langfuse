@@ -2,9 +2,9 @@
  * Adapters that transform data prepared for tremor-v4-chart to the recharts chart library data format.
  * This can be removed once we have converted all data API calls to the DataPoint format that recharts expects.
  */
-import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets";
 import type { TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
-import type { ChartBin } from "@/src/features/scores/types";
+import type { ChartBin } from "@/src/features/scores";
 /** Histogram bin shape: binLabel plus numeric fields (e.g. count). Compatible with createHistogramData return type. */
 type HistogramBinLike = { binLabel: string; [key: string]: string | number };
 

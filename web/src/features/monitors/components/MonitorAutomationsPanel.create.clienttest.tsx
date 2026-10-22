@@ -1,4 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
 
 const existingRow = {
   id: "auto-1",
@@ -58,9 +68,7 @@ import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 
 /** openCreateDialog opens the "+ Automation" menu and picks one of its items. */
 const openCreateDialog = async (item: RegExp) => {
-  fireEvent.keyDown(screen.getByRole("button", { name: /^automation$/i }), {
-    key: "Enter",
-  });
+  fireEvent.click(screen.getByRole("button", { name: /^automation$/i }));
   fireEvent.click(await screen.findByRole("menuitem", { name: item }));
 };
 
@@ -82,6 +90,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         triggerIds={["trig-1"]}
         onTriggerIdsChange={onTriggerIdsChange}
       />,
+      { wrapper: LayerProvider },
     );
 
     await openCreateDialog(/new automation/i);
@@ -107,7 +116,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel());
+    const { rerender } = render(panel(), { wrapper: LayerProvider });
 
     await openCreateDialog(/^webhook$/i);
     // The create invalidates the list, so the first automation lands while the
@@ -142,7 +151,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel([]));
+    const { rerender } = render(panel([]), { wrapper: LayerProvider });
 
     await openCreateDialog(/new automation/i);
     fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));

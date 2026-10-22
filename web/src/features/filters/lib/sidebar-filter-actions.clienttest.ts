@@ -57,6 +57,34 @@ const ctx: SidebarFilterActionContext = {
 };
 
 describe("applySelection", () => {
+  it("keeps a categorical filter's target and refuses to merge different targets", () => {
+    const current = [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["prod"],
+        target: "run-b",
+      },
+    ] satisfies FilterState;
+    expect(applyCheckboxSelection(ctx, current, "env", ["dev"])).toEqual([
+      { ...current[0], value: ["dev"] },
+    ]);
+    const text = addTextFilterEntry(current, "env", "contains", "dev")!;
+    expect(text[0].target).toBe("run-b");
+    expect(applyCheckboxSelection(ctx, text, "env", ["dev"])[0].target).toBe(
+      "run-b",
+    );
+    const multiple: FilterState = [
+      ...current,
+      { ...current[0], target: "baseline", value: ["test"] },
+    ];
+    expect(applyCheckboxSelection(ctx, multiple, "env", ["dev"])).toEqual(
+      multiple,
+    );
+    expect(addTextFilterEntry(multiple, "env", "contains", "dev")).toBeNull();
+  });
+
   it("returns current for unknown columns and non-enumerable options", () => {
     const current: FilterState = [];
     expect(applySelection(ctx, current, "nope", ["x"])).toBe(current);
@@ -451,6 +479,33 @@ describe("keyed facet transitions", () => {
         operator: "=",
         key: "env",
         value: "prod",
+      },
+    ]);
+  });
+
+  it("keeps `is set` / `is not set` presence rows even with an empty value", () => {
+    const next = applyKeyedFilterEntries([], "metadata", {
+      kind: "stringObject",
+      entries: [
+        { key: "env", operator: "is set", value: "" },
+        { key: "region", operator: "is not set", value: "" },
+        { key: "", operator: "is set", value: "" },
+      ],
+    });
+    expect(next).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is set",
+        key: "env",
+        value: "",
+      },
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is not set",
+        key: "region",
+        value: "",
       },
     ]);
   });

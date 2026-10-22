@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "@langfuse/shared/src/db";
+import { signIn } from "./utils/auth";
 
 // const checkConsoleErrors = async (page: Page) => {
 //   const errors: string[] = [];
@@ -39,30 +40,14 @@ test.describe("Create project", () => {
 
     // Sign in
     await page.goto("/auth/sign-in");
-    await page.fill('input[name="email"]', "demo@langfuse.com");
-    await page.fill('input[type="password"]', "password");
+    await signIn(page);
 
+    // Start create org flow. `page.isVisible` does not wait and its result
+    // was discarded, so the click below carried the whole wait on its 10s
+    // action timeout; assert it instead.
     await expect(
-      page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-    ).toBeEnabled();
-
-    await page.click(
-      'button[data-testid="submit-email-password-sign-in-form"]',
-    );
-
-    await page.waitForTimeout(2000);
-
-    const errorElement = page.locator(".text-destructive");
-    const hasError = await errorElement.isVisible().catch(() => false);
-    if (hasError) {
-      const errorText = await errorElement.textContent();
-      throw new Error(`Sign-in failed with error: ${errorText}`);
-    }
-
-    await expect(page).toHaveURL("/");
-
-    // Start create org flow
-    await page.isVisible('[data-testid="create-organization-btn"]');
+      page.locator('[data-testid="create-organization-btn"]'),
+    ).toBeVisible();
     await page.click('[data-testid="create-organization-btn"]');
     await expect(page).toHaveURL("/setup");
 
@@ -142,25 +127,7 @@ test.describe("Create project", () => {
 
 const signin = async (page: Page) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  await expect(page).toHaveURL("/");
+  await signIn(page);
 };
 
 const checkPageHeaderTitle = async (page: Page, title: string) => {

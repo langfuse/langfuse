@@ -1,4 +1,7 @@
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
+import {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
+} from "../../interfaces/customLLMProviderConfigSchemas";
 import { encrypt } from "../../encryption";
 import { env } from "../../env";
 import {
@@ -137,6 +140,24 @@ function toLangfuseAICompletionParams(params: {
         },
         connection: {
           secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+        },
+        credentialSource: "langfuse" as const,
+      };
+    case "vertex":
+      return {
+        messages,
+        modelParams: {
+          provider: "vertex",
+          adapter: LLMAdapter.VertexAI,
+          model: modelConfig.modelId,
+          // Same reasoning as Bedrock: newer Vertex models reject these
+          // inference params.
+          ...maxTokens,
+        },
+        // No config travels with the connection: the location rides the
+        // instance env, mirroring how Bedrock resolves its region.
+        connection: {
+          secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
         },
         credentialSource: "langfuse" as const,
       };

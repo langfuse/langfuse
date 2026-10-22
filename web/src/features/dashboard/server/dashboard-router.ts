@@ -20,6 +20,7 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -34,7 +35,7 @@ import {
   orderBy,
   StringNoHTML,
   InvalidRequestError,
-  singleFilter,
+  singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
@@ -47,7 +48,12 @@ const ListDashboardsInput = z.object({
   // The Home-dashboard picker and clone detection fetch the whole list in one
   // page, so allow a higher ceiling than the default table pagination.
   limit: z.coerce.number().int().positive().lte(500).default(50),
-  orderBy: orderBy,
+  orderBy: orderBy.refine(
+    (value) =>
+      value === null ||
+      ["name", "createdAt", "updatedAt"].includes(value.column),
+    { message: "Invalid dashboard sort column", path: ["column"] },
+  ),
 });
 
 // Get dashboard by ID input schema
@@ -100,7 +106,7 @@ const SetHomeDashboardInput = z.object({
 const UpdateDashboardFiltersInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
 });
 
 /**
@@ -624,7 +630,9 @@ export const dashboardRouter = createTRPCRouter({
       const existingClones = await ctx.prisma.dashboard.findMany({
         where: {
           projectId: input.projectId,
-          name: { startsWith: `${sourceDashboard.name} (Clone` },
+          name: {
+            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
+          },
         },
         select: { name: true },
       });

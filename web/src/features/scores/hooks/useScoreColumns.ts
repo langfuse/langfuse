@@ -22,6 +22,7 @@ export function createScoreColumns<T extends Record<string, any>>({
   headerPrefix,
   defaultHidden,
   rawKey,
+  valueTitle,
 }: {
   scoreColumns: Array<{
     key: string;
@@ -37,6 +38,8 @@ export function createScoreColumns<T extends Record<string, any>>({
   headerPrefix?: string;
   defaultHidden?: boolean;
   rawKey?: boolean;
+  /** See `ScoresTableCell`'s `valueTitle`: what this row's value belongs to. */
+  valueTitle?: (original: T) => string | undefined;
 }): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     const accessorKey = prefix ? `${prefix}-${key}` : key;
@@ -67,6 +70,7 @@ export function createScoreColumns<T extends Record<string, any>>({
           aggregate: value,
           displayFormat,
           hasMetadata: value.hasMetadata ?? false,
+          valueTitle: valueTitle?.(row.original),
         });
       },
     };
@@ -125,14 +129,18 @@ export function useScoreColumns<T extends Record<string, any>>({
     },
   );
 
-  const scoreColumns = useMemo(() => {
-    if (!scoreColumnsQuery.data?.scoreColumns) return [];
-
-    return createScoreColumns<T>({
-      scoreColumns: withPresentScoreKeys(
-        toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+  const scoreDefinitions = useMemo(
+    () =>
+      withPresentScoreKeys(
+        toOrderedScoresList(scoreColumnsQuery.data?.scoreColumns ?? []),
         presentKeys,
       ),
+    [scoreColumnsQuery.data?.scoreColumns, presentKeys],
+  );
+
+  const scoreColumns = useMemo(() => {
+    return createScoreColumns<T>({
+      scoreColumns: scoreDefinitions,
       scoreColumnKey,
       displayFormat,
       prefix,
@@ -141,18 +149,19 @@ export function useScoreColumns<T extends Record<string, any>>({
       rawKey,
     });
   }, [
-    scoreColumnsQuery.data?.scoreColumns,
+    scoreDefinitions,
     scoreColumnKey,
     prefix,
     headerPrefix,
     displayFormat,
     defaultHidden,
     rawKey,
-    presentKeys,
   ]);
 
   return {
     scoreColumns,
+    scoreDefinitions,
+    refetch: scoreColumnsQuery.refetch,
     isLoading: scoreColumnsQuery.isPending,
     error: scoreColumnsQuery.error,
   };

@@ -7,13 +7,15 @@ import type {
 } from "@/src/features/evals/v2/types/rules";
 import type { ColumnOrderState, VisibilityState } from "@tanstack/react-table";
 import { type Dispatch, type SetStateAction, type ComponentProps } from "react";
-import type { RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import type {
+  CustomRowHeightControl,
+  RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import type { FilterState, OrderByState } from "@langfuse/shared";
 
 export function RulesTableToolbar({
   columns,
   currentQuery,
-  onSearchChange,
   pageRowIds,
   pageSize,
   pageIndex,
@@ -25,13 +27,13 @@ export function RulesTableToolbar({
   setColumnOrder,
   rowHeight,
   setRowHeight,
+  customRowHeight,
   filterState,
   orderByState,
   viewConfig,
 }: {
   columns: LangfuseColumnDef<RuleTableRow>[];
   currentQuery: string | undefined;
-  onSearchChange: (query: string) => void;
   pageRowIds: string[];
   pageSize: number;
   pageIndex: number;
@@ -42,7 +44,8 @@ export function RulesTableToolbar({
   columnOrder: ColumnOrderState;
   setColumnOrder: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight: RowHeight;
-  setRowHeight: Dispatch<SetStateAction<RowHeight>>;
+  setRowHeight: (rowHeight: RowHeight) => void;
+  customRowHeight: CustomRowHeightControl;
   filterState: FilterState;
   orderByState: OrderByState;
   viewConfig: NonNullable<
@@ -60,12 +63,6 @@ export function RulesTableToolbar({
       orderByState={orderByState}
       currentSearchQuery={currentQuery}
       viewConfig={viewConfig}
-      searchConfig={{
-        metadataSearchFields: ["Name"],
-        currentQuery,
-        tableAllowsFullTextSearch: false,
-        updateQuery: onSearchChange,
-      }}
       multiSelect={{
         selectAll,
         setSelectAll: selectionActions.setSelectAll,
@@ -81,6 +78,7 @@ export function RulesTableToolbar({
       setColumnOrder={setColumnOrder}
       rowHeight={rowHeight}
       setRowHeight={setRowHeight}
+      customRowHeight={customRowHeight}
     />
   );
 }

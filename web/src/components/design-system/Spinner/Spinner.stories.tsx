@@ -1,6 +1,6 @@
 import React from "react";
 import preview from "../../../../.storybook/preview";
-import Spinner from "./Spinner";
+import { Spinner } from "./Spinner";
 
 type ComponentProps = React.ComponentProps<typeof Spinner>;
 type Variant = NonNullable<ComponentProps["variant"]>;

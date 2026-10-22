@@ -1,6 +1,9 @@
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { type ResourceSpan } from "./OtelIngestionProcessor";
-import { AI_FEATURE_OTEL_SDK_NAME } from "./attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import {
   internalTraceEventToOtelAttributes,
   publishOtelResourceSpans,
@@ -62,9 +65,10 @@ function aiFeatureTraceInputsToResourceSpans(
       kind: 1,
       startTimeUnixNano: timestampToUnixNano(eventInput.startTimeISO),
       endTimeUnixNano: timestampToUnixNano(eventInput.endTimeISO),
-      attributes: attributesToOtelList(
-        internalTraceEventToOtelAttributes(eventInput, { isRoot }),
-      ),
+      attributes: attributesToOtelList({
+        ...internalTraceEventToOtelAttributes(eventInput, { isRoot }),
+        [LangfuseOtelSpanAttributes.TRACE_NAME]: eventInput.traceName,
+      }),
       status: {
         ...(eventInput.level === "ERROR" ? { code: 2 } : {}),
         ...(eventInput.statusMessage

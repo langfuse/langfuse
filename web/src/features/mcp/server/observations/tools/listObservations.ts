@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
@@ -6,6 +7,7 @@ import {
   eventsTableStringFilter,
   eventsTableStringObjectFilter,
   eventsTableCols,
+  coerceLegacyEmptyMetadataFilters,
   filterOperators,
   FTS_MATCH_OPERATOR,
   numberFilter,
@@ -29,7 +31,9 @@ import {
 } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -49,11 +53,8 @@ const ObservationCursorSchema =
     "Cursor returned by a previous listObservations call",
   );
 
-const EXPENSIVE_OBSERVATION_ACCESS_COLUMNS = new Set([
-  "input",
-  "output",
-  "metadata",
-]);
+const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
 const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
   eventsTableCols
@@ -127,11 +128,11 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) => {
-    const filterSchema = OBSERVATION_MCP_FTS_COLUMNS.has(column)
+    const filterSchemaBase = OBSERVATION_MCP_FTS_COLUMNS.has(column)
       ? eventsTableStringObjectFilter
       : stringObjectFilter;
 
-    return filterSchema.omit({ type: true, column: true }).extend({
+    return filterSchemaBase.omit({ type: true, column: true }).extend({
       type: requireType
         ? z.literal("stringObject")
         : z.literal("stringObject").optional(),
@@ -245,11 +246,16 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      return eventsTableSingleFilter.parse(
+      const reshaped =
         filter.column === "tags"
           ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type },
-      );
+          : { ...filter, type };
+      // Legacy `contains ""` presence spelling → `is set` before validation.
+      const [coerced] = coerceLegacyEmptyMetadataFilters([
+        reshaped,
+      ]) as unknown[];
+
+      return eventsTableSingleFilter.parse(coerced);
     }),
 );
 
@@ -283,8 +289,12 @@ const ListObservationsBaseSchema = z.object({
     .describe(
       "Environment to filter by. Multiple environments are temporarily unsupported until the public observations API applies allow-multiple environment filters correctly.",
     ),
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  fromStartTime: isoDateTime({ offset: true }).describe(
+    "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 14 days (336 hours).",
+  ),
+  toStartTime: isoDateTime({ offset: true }).describe(
+    "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 336 hours later. For 14 full UTC calendar days starting 2026-10-01T00:00:00Z, use 2026-10-15T00:00:00Z, not 2026-10-15T23:59:59Z. Split longer ranges into adjacent requests of at most 336 hours each.",
+  ),
   filter: z
     .array(ObservationMcpFilterBaseSchema)
     .optional()
@@ -304,58 +314,27 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
-const hasObservationIdFilter = (filters: ListObservationsInput["filter"]) =>
-  filters?.some(
-    (filter) =>
-      filter.column === "id" &&
-      filter.type === "stringOptions" &&
-      filter.operator === "any of" &&
-      filter.value.length > 0,
-  ) ?? false;
-
-const hasValidStartTimeBound = (input: ListObservationsInput) => {
-  if (!input.fromStartTime || !input.toStartTime) return false;
-  return (
-    new Date(input.fromStartTime).getTime() <
-    new Date(input.toStartTime).getTime()
-  );
-};
-
-// Initially, we return io/metadata in full only if some limits are set
-const assertAllowedExpensiveObservationAccess = (
+const assertAllowedObservationAccess = (
   input: ListObservationsInput,
   projectionFields: string[],
 ) => {
-  const expensiveColumns = new Set<string>();
-
-  for (const field of projectionFields) {
-    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(field)) {
-      expensiveColumns.add(field);
-    }
+  const rangeMs =
+    new Date(input.toStartTime).getTime() -
+    new Date(input.fromStartTime).getTime();
+  if (rangeMs <= 0 || rangeMs > OBSERVATION_MAX_RANGE_MS) {
+    throw new InvalidRequestError(
+      "listObservations requires fromStartTime before toStartTime with a maximum range of 14 days (336 elapsed hours). For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent requests of at most 336 hours each.",
+    );
   }
 
-  for (const filter of input.filter ?? []) {
-    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(filter.column)) {
-      expensiveColumns.add(filter.column);
-    }
-  }
-
-  if (expensiveColumns.size === 0) return;
-
-  const hasSelectiveScope =
-    Boolean(input.traceId) ||
-    hasObservationIdFilter(input.filter) ||
-    hasValidStartTimeBound(input);
-
-  if (hasSelectiveScope) return;
-
-  throw new InvalidRequestError(
-    `Accessing observation ${Array.from(expensiveColumns)
-      .sort()
-      .join(
-        ", ",
-      )} requires traceId, an id filter, or both fromStartTime and toStartTime.`,
+  const projectsIo = projectionFields.some(
+    (field) => field === "input" || field === "output",
   );
+  if (projectsIo && input.limit > EXPENSIVE_OBSERVATION_MAX_IO_LIMIT) {
+    throw new InvalidRequestError(
+      `Projecting observation input or output by date supports a maximum limit of ${EXPENSIVE_OBSERVATION_MAX_IO_LIMIT}.`,
+    );
+  }
 };
 
 export const [listObservationsTool, handleListObservations] = defineTool({
@@ -364,12 +343,13 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
-    'For metadata filters, first inspect metadata on selectively scoped observations by passing traceId, an exact id filter, or both fromStartTime and toStartTime with fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
+    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days (336 elapsed hours) and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
-    "Requests that project or filter input, output, or metadata must include traceId, an id filter, or both fromStartTime and toStartTime.",
+    "All requests must include explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 336 hours (14 days), even when scoped by traceId or observation id. This is elapsed time, not a count of calendar dates. For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; ending at 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent windows, using each window's toStartTime as the next window's fromStartTime. Reuse timestamps from earlier results to narrow the search. Input/output projections support a maximum limit of 50.",
   ].join("\n"),
+  action: "traces:read",
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
@@ -382,7 +362,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       fn: async (span) => {
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-        assertAllowedExpensiveObservationAccess(input, projectionFields);
+        assertAllowedObservationAccess(input, projectionFields);
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
@@ -414,31 +394,42 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi({
-          projectId: context.projectId,
-          page: 0,
-          limit: input.limit,
-          traceId: input.traceId,
-          userId: input.userId,
-          level: input.level,
-          name: input.name,
-          type: input.type,
-          environment: input.environment,
-          parentObservationId: input.parentObservationId,
-          isRootObservation: input.isRootObservation,
-          fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
-          toStartTime: input.toStartTime,
-          version: input.version,
-          advancedFilters,
-          cursor: input.cursor
-            ? EncodedObservationsCursorV2.parse(input.cursor)
-            : undefined,
-          fields: fieldGroups,
-          expandMetadataKeys: getMetadataExpansionForProjection(
-            projectionFields,
-            input.expandMetadataKeys,
-          ),
-        });
+        const query = () =>
+          getObservationsV2FromEventsTableForPublicApi(
+            {
+              projectId: context.projectId,
+              page: 0,
+              limit: input.limit,
+              traceId: input.traceId,
+              userId: input.userId,
+              level: input.level,
+              name: input.name,
+              type: input.type,
+              environment: input.environment,
+              parentObservationId: input.parentObservationId,
+              isRootObservation: input.isRootObservation,
+              fromStartTime:
+                dataAccessWindow.effectiveFromTimestamp?.toISOString(),
+              toStartTime: input.toStartTime,
+              version: input.version,
+              advancedFilters,
+              cursor: input.cursor
+                ? EncodedObservationsCursorV2.parse(input.cursor)
+                : undefined,
+              fields: fieldGroups,
+              expandMetadataKeys: getMetadataExpansionForProjection(
+                projectionFields,
+                input.expandMetadataKeys,
+              ),
+            },
+            {
+              clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
+            },
+          );
+        const items = await RateLimitService.getInstance().withMcpQueryCooldown(
+          context.projectId,
+          query,
+        );
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;

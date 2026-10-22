@@ -1,9 +1,14 @@
+/* eslint-disable no-nested-ternary */
+import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { compileClickhouseQuery } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
+import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
@@ -23,6 +28,7 @@ import {
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsTracesScoresAggregation,
+  experimentItemLevelsAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
@@ -84,12 +90,8 @@ export const getDatasetExperimentMetricsFromEvents = async (props: {
 
   const experimentsQuery = eventsExperimentsAggregation({
     projectId: props.projectId,
-    fieldSet: "count",
+    fieldSet: "datasetMetrics",
   })
-    .selectRaw(
-      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-      "min(e.start_time) AS start_time",
-    )
     .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
       datasetIds: props.datasetIds,
     })
@@ -143,12 +145,15 @@ const experimentScoreCTE = (params: {
   // The agnostic arrays carry the canonical column names the level-agnostic
   // filters target; the trace-only mode keeps its prefix so legacy
   // `trace_*` filters still resolve against a trace-only aggregate.
-  const prefix =
-    params.level === "any"
-      ? ""
-      : params.level === "observation"
-        ? "obs_"
-        : "trace_";
+  const prefix = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "observation") {
+      return "obs_";
+    }
+    return "trace_";
+  })();
 
   const joinedEventScores = new CTEQueryBuilder()
     .withCTE("event_keys", {
@@ -348,19 +353,29 @@ export const getExperimentMetricsFromEvents = async (props: {
     return [];
   }
 
-  // Use eventsExperimentsAggregation with "metrics" field set for simplified aggregation
-  const queryBuilder = eventsExperimentsAggregation({
-    projectId: props.projectId,
-    fieldSet: "metrics",
-    experimentIds: props.experimentIds,
-  });
-
-  const { query, params } = queryBuilder.buildWithParams();
+  const { projectId, experimentIds } = props;
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      "e.experiment_id as experiment_id",
+      eb.fn.sum("e.total_cost").as("total_cost"),
+      avgIf(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+        eb.and([
+          eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+          eb("e.end_time", "is not", null),
+        ]),
+      ).as("latency_avg"),
+    ])
+    .where("e.experiment_id", "in", experimentIds)
+    .where("e.experiment_id", "!=", literal(""))
+    .groupBy(["e.project_id", "e.experiment_id"]);
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const res = await queryClickhouse<ExperimentMetricsReturnType>({
     query,
     params,
-    tags: { projectId: props.projectId },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -983,12 +998,22 @@ type BuildQualificationPlanInput = {
   };
 };
 
+const EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS = [
+  "level",
+  "Status",
+  "Level",
+] as const;
+
+const isExperimentItemLevelFilter = (column: string) =>
+  (EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS as readonly string[]).includes(column);
+
 type QualificationPlan = {
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
   hasAgnosticScoreFilters: boolean;
   hasTraceScoreFilters: boolean;
+  hasLevelFilters: boolean;
 };
 
 function combineConditions(
@@ -1075,6 +1100,9 @@ const buildQualificationPlan = (
       "trace_score_booleans",
     ].includes(f.column),
   );
+  const hasLevelFilters = filters.some((f) =>
+    isExperimentItemLevelFilter(f.column),
+  );
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
@@ -1112,6 +1140,7 @@ const buildQualificationPlan = (
     orderBy: `ORDER BY e.experiment_item_id ASC`,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   };
 };
 
@@ -1147,6 +1176,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     orderBy,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   } = buildQualificationPlan({
     baseExperimentId,
     compExperimentIds,
@@ -1208,6 +1238,24 @@ const getExperimentItemsFromEventsGeneric = (params: {
       b.leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.withCTE(
+        "item_levels",
+        experimentItemLevelsAggregation({
+          projectId,
+          experimentIds: [
+            ...(baseExperimentId ? [baseExperimentId] : []),
+            ...compExperimentIds,
+          ],
+        }),
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.leftJoin(
+        "item_levels AS il",
+        "ON il.experiment_id = e.experiment_id AND il.experiment_item_id = e.experiment_item_id",
       ),
     )
     .where(where)
@@ -1367,8 +1415,6 @@ export const getExperimentItemsFromEvents = async (
 // Batch IO Queries
 // ============================================================================
 
-const IO_TRUNCATE_LENGTH = 1000;
-
 /**
  * Output data for a single experiment.
  */
@@ -1387,16 +1433,36 @@ export type ExperimentItemBatchIO = {
   outputs: ExperimentOutputData[]; // From ALL experiments
 };
 
+/** Upper bound for an explicit experiment I/O read. Matches the events batch. */
+const MAX_EXPERIMENT_BATCH_IO_CHAR_LIMIT = 10_000;
+
+/**
+ * Positive integer char cap for an expanded read, or undefined when the caller
+ * wants the default pre-truncated table.
+ */
+const expandedIoCharLimit = (limit: number | undefined): number | undefined => {
+  if (limit === undefined || !Number.isFinite(limit)) return undefined;
+  return Math.min(
+    MAX_EXPERIMENT_BATCH_IO_CHAR_LIMIT,
+    Math.max(1, Math.trunc(limit)),
+  );
+};
+
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to IO_TRUNCATE_LENGTH characters.
+ *
+ * Without `ioCharLimit`, input and output come from the pre-truncated events
+ * table and expected output is capped at EXPERIMENT_IO_TRUNCATE_LENGTH. With
+ * `ioCharLimit`, all three fields are read from the full event text and capped
+ * at that many characters.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
   itemIds: string[];
   baseExperimentId?: string;
   compExperimentIds: string[];
+  ioCharLimit?: number;
 }): Promise<ExperimentItemBatchIO[]> => {
   const { projectId, itemIds, baseExperimentId, compExperimentIds } = props;
 
@@ -1409,12 +1475,19 @@ export const getExperimentItemsBatchIO = async (props: {
     ...compExperimentIds,
   ];
 
+  const expandedLimit = expandedIoCharLimit(props.ioCharLimit);
   const queryBuilder = eventsExperimentsRootSpans({
     projectId,
     experimentIds: allExperimentIds,
     experimentItemIds: itemIds,
-  })
-    .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
+  });
+  if (expandedLimit !== undefined) {
+    // The pre-truncated table only keeps a short head of input and output, so
+    // a taller row has to read the full event text before applying its cap.
+    queryBuilder.forceFullTable();
+  }
+  queryBuilder
+    .selectIO(true, expandedLimit ?? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
     .selectRaw(
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
@@ -1436,7 +1509,7 @@ export const getExperimentItemsBatchIO = async (props: {
     query,
     params: {
       ...params,
-      truncateLength: IO_TRUNCATE_LENGTH,
+      truncateLength: expandedLimit ?? EXPERIMENT_IO_TRUNCATE_LENGTH,
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -1466,6 +1539,16 @@ export const getExperimentItemsBatchIO = async (props: {
     const item = itemMap.get(row.item_id)!;
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
+
+    // The stored text is passed through verbatim, deliberately. A payload that
+    // is the JSON literal `null` and a payload that is the four-character
+    // STRING "null" are byte-identical here: the native experiment path writes
+    // both through stringifyValue, which returns a string unchanged, while the
+    // dataset-run-item path JSON-encodes (so there a string arrives quoted).
+    // One column, two encodings, no way to tell them apart — so guessing would
+    // erase a real value, and in the fallback below it would go further and
+    // substitute a DIFFERENT run's value in its place. Absent payloads are
+    // handled where they are unambiguous, in the cell.
 
     // Use baseline value if available, otherwise first non-null
     if (row.input !== null && (isBaseline || item.input === null)) {
@@ -1497,16 +1580,27 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
+/**
+ * Experiment options for the baseline / comparison pickers: one row per run,
+ * with the dataset it ran on and when it started so the UI can group by dataset
+ * and order by recency.
+ */
 export const getExperimentNamesFromEvents = async (props: {
   projectId: string;
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
+    // option pointing at an arbitrary id.
     groupByColumn: "e.experiment_id",
-    selectExpression:
-      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+    selectExpression: `any(e.experiment_name) as experimentName,
+    e.experiment_id as experimentId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
+    min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
+    .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1515,6 +1609,7 @@ export const getExperimentNamesFromEvents = async (props: {
     experimentName: string;
     experimentId: string;
     datasetId: string | null;
+    startTime: string;
   }>({
     query,
     params,
@@ -1522,5 +1617,10 @@ export const getExperimentNamesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return res;
+  return res.map((row) => ({
+    experimentId: row.experimentId,
+    experimentName: row.experimentName,
+    datasetId: row.datasetId,
+    startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
+  }));
 };

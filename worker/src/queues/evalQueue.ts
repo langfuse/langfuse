@@ -12,6 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   classifyEvaluatorLlmError,
+  type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -21,7 +22,7 @@ import { retryObservationNotFound } from "../features/evaluation/retryObservatio
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
 import {
-  getLlmEvalTerminalErrorOutcome,
+  getLlmEvalTerminalErrorAttribution,
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "../features/evaluation/evalExecutionMetrics";
@@ -261,7 +262,13 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
       });
 
-      if (llmError || isUnrecoverableError(e)) return;
+      if (llmError || isUnrecoverableError(e)) {
+        logger.warn(
+          `${queueName} job ${job.data.payload.jobExecutionId} failed terminally`,
+          getTerminalEvalErrorLogContext(job.data.payload, e, llmError),
+        );
+        return;
+      }
 
       traceException(e);
       logger.error(
@@ -323,6 +330,11 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
+      // Media may still be uploading when evaluation starts after ingestion.
+      // Retry only this evaluator job instead of making the error globally retryable.
+      const isMediaNotFoundError =
+        llmError?.kind === "validation" &&
+        llmError.validationError?.code === "media-not-found";
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
@@ -355,7 +367,9 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      const isTerminalError = Boolean(llmError) || isUnrecoverableError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
+      const isTerminalError =
+        (Boolean(llmError) && !isMediaNotFoundError) || isUnrecoverable;
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -371,19 +385,37 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           data: {
             status: JobExecutionStatus.ERROR,
             endTime: new Date(),
-            error: isTerminalError
-              ? (llmError?.message ?? (e as Error).message)
-              : "An internal error occurred",
+            error:
+              llmError || isUnrecoverable
+                ? (llmError?.message ?? (e as Error).message)
+                : "An internal error occurred",
             executionTraceId,
           },
         });
+        const attribution = getLlmEvalTerminalErrorAttribution({
+          error: e,
+          classification: llmError,
+          isUnrecoverable,
+        });
         recordEvalTerminalOutcome(
           EvalTemplateType.LLM_AS_JUDGE,
-          getLlmEvalTerminalErrorOutcome(llmError),
+          attribution.outcome,
+          attribution.reason,
         );
+
+        if (isTerminalError || isMediaNotFoundError) {
+          logger.warn(
+            `LLM-as-Judge execution job ${job.data.payload.jobExecutionId} failed terminally`,
+            {
+              ...getTerminalEvalErrorLogContext(job.data.payload, e, llmError),
+              outcome: attribution.outcome,
+              reason: attribution.reason,
+            },
+          );
+        }
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError || (isMediaNotFoundError && isFinalAttempt)) return;
 
       traceException(e);
       logger.error(
@@ -394,3 +426,21 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       throw e;
     }
   };
+
+function getTerminalEvalErrorLogContext(
+  payload: { projectId: string; jobExecutionId: string },
+  error: unknown,
+  llmError: EvaluatorLlmErrorClassification | null,
+) {
+  return {
+    projectId: payload.projectId,
+    jobExecutionId: payload.jobExecutionId,
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: (error instanceof Error
+      ? error.message
+      : String(error)
+    ).slice(0, 500),
+    llmErrorKind: llmError?.kind,
+    llmStatusCode: llmError?.statusCode,
+  };
+}

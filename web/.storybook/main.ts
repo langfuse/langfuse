@@ -1,6 +1,6 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
-import { basename, dirname, resolve } from "path";
+import { dirname, resolve } from "path";
 
 import { fileURLToPath } from "url";
 import {
@@ -10,40 +10,6 @@ import {
 } from "./storybook-flat-story-titles";
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
-const DESIGN_COMPONENT_STORIES = [
-  "Accordion/Accordion",
-  "Alert/Alert",
-  "Avatar/Avatar",
-  "Badge/Badge",
-  "Callout/Callout",
-  "Checkbox/Checkbox",
-  "Codeblock/Codeblock",
-  "Dropzone/Dropzone",
-  "KeyboardShortcut/KeyboardShortcut",
-  "LangfuseIcon/LangfuseIcon",
-  "LangfuseLogo/LangfuseLogo",
-  "PasswordInput/PasswordInput",
-  "Progress/Progress",
-  "RadioGroup/RadioGroup",
-  "SearchInput/SearchInput",
-  "Spinner/Spinner",
-  "Switch/Switch",
-  "Tabs/Tabs",
-  "TextLink/TextLink",
-  "Toggle/Toggle",
-  "table/components/IOTableCell/IOTableCell",
-  "table/columns/createBadgeTableColumn",
-  "table/columns/createDateTableColumn",
-  "table/columns/createDropdownTableColumn",
-  "table/columns/createDurationTableColumn",
-  "table/columns/createIdTableColumn",
-  "table/columns/createItemBadgeTableColumn",
-  "table/columns/createNumberTableColumn",
-  "table/columns/createStatusTableColumn",
-  "table/columns/createTagsTableColumn",
-  "table/columns/createTextTableColumn",
-  "table/columns/createTokenUsageTableColumn",
-] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
 // Directories that get their own sidebar section instead of the flat
@@ -59,6 +25,10 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
     directory: "src/components/design-system/table/components",
     titlePrefix: "Design/Components/Table/Cells",
+  },
+  {
+    directory: "src/features/ai-gateway/components",
+    titlePrefix: "Features/AI Gateway",
   },
   {
     directory: "src/features/evals/v2/components",
@@ -102,12 +72,12 @@ const config: StorybookConfig = {
       files: "**/*.mdx",
       titlePrefix: "Playground/Docs",
     },
-    // Reviewed components that are part of the design-system reference.
-    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+    // Components in the design-system are automatically shown under Design.
+    {
       directory: "../src/components/design-system",
-      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      files: `**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
-    })),
+    },
     // Design-system reference pages shown directly under Design.
     ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
       directory: "./docs",
@@ -117,15 +87,12 @@ const config: StorybookConfig = {
     // All other component stories belong to the flat Playground by default.
     // Outside components/design-system the exclusion is by path, so a generic
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;
-    // inside design-system the curated names are negated by basename, which is
-    // safe there because those files are exactly the curated ones. Disjoint
-    // globs because !(...) matches a single path segment — which also means
+    // the design-system directory is excluded in full. Disjoint globs because
+    // !(...)
+    // matches a single path segment — which also means
     // `!(dir)/**` requires at least one leading segment, so files sitting
     // directly in the entry's directory need their own `*.stories` entry
-    // (hence the depth-one entries below). Caveat: picomatch
-    // treats !(Name) as a prefix negation here, so a design-system story whose
-    // basename merely starts with a curated name (e.g. ColorPicker) would be
-    // skipped too; give such a story a non-colliding basename or its own entry.
+    // (hence the depth-one entries below).
     {
       directory: "../src",
       files: `*.stories.${STORY_EXTENSIONS}`,
@@ -144,13 +111,6 @@ const config: StorybookConfig = {
     {
       directory: "../src/components",
       files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
-      titlePrefix: "Playground",
-    },
-    {
-      directory: "../src/components/design-system",
-      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
-        .map((storyPath) => basename(storyPath))
-        .join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],
@@ -177,9 +137,45 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    // Linked workspace packages are not prebundled by default. Bundle the icon
+    // barrels so each browser worker does not request thousands of modules.
+    viteConfig.optimizeDeps = {
+      ...viteConfig.optimizeDeps,
+      include: [
+        ...(viteConfig.optimizeDeps?.include ?? []),
+        "@langfuse/icons",
+        "@langfuse/icons/si",
+        "@langfuse/icons/tb",
+      ],
+    };
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
       ...(viteConfig.plugins ?? []),
+      {
+        name: "exclude-generated-icons-from-docgen",
+        configResolved({ plugins }) {
+          const docgen = plugins.find(
+            (plugin) => plugin.name === "storybook:react-docgen-plugin",
+          );
+          if (!docgen?.transform) return;
+
+          const transform =
+            typeof docgen.transform === "function"
+              ? docgen.transform
+              : docgen.transform.handler;
+          docgen.transform = {
+            ...(typeof docgen.transform === "object" ? docgen.transform : {}),
+            handler(code, id, options) {
+              // Linked generated dependencies bypass docgen's node_modules
+              // exclusion; resolving their icon catalogs dominates build time.
+              if (id.replaceAll("\\", "/").includes("/packages/icons/dist/")) {
+                return null;
+              }
+              return transform.call(this, code, id, options);
+            },
+          };
+        },
+      },
     ];
 
     const sharedSrc = resolve(
@@ -219,6 +215,13 @@ const config: StorybookConfig = {
         find: /^@langfuse\/shared\/query$/,
         replacement: `${sharedSrc}/features/query`,
       },
+      // Client-safe role catalog, imported by the RBAC role-select UI and its
+      // stories. No `/rbac/server` rule: a story pulling server-only code
+      // should fail the build, not silently resolve.
+      {
+        find: /^@langfuse\/shared\/rbac$/,
+        replacement: `${sharedSrc}/features/rbac`,
+      },
       // Client-safe entry of the in-app-agent module (imported by the agent
       // window components and their stories). Deliberately no rule for the
       // `/server` subpaths: a story that pulls server code should fail the
@@ -226,6 +229,12 @@ const config: StorybookConfig = {
       {
         find: /^@langfuse\/shared\/in-app-agent$/,
         replacement: `${sharedSrc}/in-app-agent`,
+      },
+      // Client-safe Topics schemas and constants; no rule for
+      // `/topics/server`, for the same reason.
+      {
+        find: /^@langfuse\/shared\/topics$/,
+        replacement: `${sharedSrc}/topics`,
       },
       {
         find: /^\.prisma\/client\/index-browser$/,

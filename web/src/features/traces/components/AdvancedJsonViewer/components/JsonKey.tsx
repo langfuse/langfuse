@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /**
  * JsonKey - Renders a JSON property key or array index
  *
@@ -59,12 +59,15 @@ export function JsonKey({
       }}
     >
       {segments.map((segment, index) => {
-        const backgroundColor =
-          segment.type === "search"
-            ? theme.searchMatchBackground
-            : segment.type === "comment"
-              ? COMMENT_HIGHLIGHT_COLOR
-              : "transparent";
+        const backgroundColor = (() => {
+          if (segment.type === "search") {
+            return theme.searchMatchBackground;
+          }
+          if (segment.type === "comment") {
+            return COMMENT_HIGHLIGHT_COLOR;
+          }
+          return "transparent";
+        })();
 
         const highlightedSpan = (
           <span key={index} style={{ backgroundColor }}>

@@ -1,4 +1,4 @@
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   filterAndValidateDbScoreList,
   LISTABLE_SCORE_TYPES,
@@ -34,6 +34,7 @@ export async function getAllGenerations({
     observationIds: generations.map((gen) => gen.id),
     excludeMetadata: true,
     includeHasMetadata: true,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const validatedScores = filterAndValidateDbScoreList({

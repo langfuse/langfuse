@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { InAppAgentWindowHost } from "./InAppAgentWindowHost";
 
 const mocks = vi.hoisted(() => ({
@@ -99,20 +100,9 @@ describe("InAppAgentWindowHost", () => {
     });
     HTMLElement.prototype.setPointerCapture = vi.fn();
     HTMLElement.prototype.releasePointerCapture = vi.fn();
-
-    // The overlay layer containers normally declared in _document.
-    const overlayRoot = document.createElement("div");
-    overlayRoot.setAttribute("data-overlay-root", "");
-    for (const layer of ["panel", "agent"]) {
-      const layerNode = document.createElement("div");
-      layerNode.setAttribute("data-layer", layer);
-      overlayRoot.appendChild(layerNode);
-    }
-    document.body.appendChild(overlayRoot);
   });
 
   afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
     vi.unstubAllGlobals();
     // jsdom has no visual viewport, so leaving a stubbed one behind would hand
     // the next test a phone it never asked for.
@@ -120,7 +110,9 @@ describe("InAppAgentWindowHost", () => {
   });
 
   it("keeps geometry while open and resets it on close/reopen", () => {
-    const { rerender } = render(<InAppAgentWindowHost />);
+    const { rerender } = render(<InAppAgentWindowHost />, {
+      wrapper: LayerProvider,
+    });
 
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
 
@@ -173,7 +165,7 @@ describe("InAppAgentWindowHost", () => {
     );
   });
 
-  it("renders a full-screen drawer instead of the movable panel on a handheld", () => {
+  it("renders a full-screen drawer instead of the movable panel on a handheld", async () => {
     // A landscape phone: too wide for the `md` width clause, so only the
     // coarse-pointer clause can match. Pins that the shell asks the handheld
     // predicate, not the width-only one that sent a rotated phone back to the
@@ -181,7 +173,9 @@ describe("InAppAgentWindowHost", () => {
     stubHandheld();
     mocks.open = true;
 
-    const { rerender } = render(<InAppAgentWindowHost />);
+    const { rerender, unmount } = render(<InAppAgentWindowHost />, {
+      wrapper: LayerProvider,
+    });
 
     // No drag/resize on touch, and the drawer is the modal that scroll-locks
     // the page behind it.
@@ -196,15 +190,20 @@ describe("InAppAgentWindowHost", () => {
       "data-state",
       "closed",
     );
+
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
-  it("re-anchors the handheld drawer to the visible viewport on every keyboard cycle", () => {
+  it("re-anchors the handheld drawer to the visible viewport on every keyboard cycle", async () => {
     stubHandheld();
     // A phone with a 669px viewport and a 290px keyboard, as reported.
     const resizeViewportTo = stubVisualViewport(669);
     mocks.open = true;
 
-    render(<InAppAgentWindowHost />);
+    const { unmount } = render(<InAppAgentWindowHost />, {
+      wrapper: LayerProvider,
+    });
     const drawer = document.querySelector<HTMLElement>("#in-app-agent-drawer");
     const composer = screen.getByTestId("composer");
 
@@ -233,5 +232,8 @@ describe("InAppAgentWindowHost", () => {
     resizeViewportTo(669 - 290, 290);
     expect(drawer?.style.bottom).toBe("0px");
     expect(drawer?.style.top).toBe("max(var(--banner-offset), 290px)");
+
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 });

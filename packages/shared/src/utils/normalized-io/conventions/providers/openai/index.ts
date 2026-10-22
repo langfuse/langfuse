@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
@@ -7,6 +8,7 @@ import {
   optionalString,
   parseArray,
   parseIfString,
+  recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -20,7 +22,7 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
@@ -31,6 +33,7 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
+  ToolResultPart,
 } from "../../../types";
 import type {
   ConventionResult,
@@ -249,13 +252,19 @@ const normalizeOpenAiBuiltInCall: PartHandler = (value) =>
   claimed(normalizeBuiltInToolItem(value));
 
 // OpenAI Responses output items: { type: "*_output", call_id, output }.
-const normalizeOpenAiToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.call_id ?? value.id,
-      output: value.output,
+const normalizeOpenAiToolResult: PartHandler = (value) => {
+  const raw = parseIfString(value.output ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.call_id ?? value.id),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
     }),
   );
+};
 
 // OpenAI Responses custom (free-form input) tool call:
 // { type: "custom_tool_call", call_id, name, input }.
@@ -273,6 +282,49 @@ const normalizeOpenAiResponsesCustomToolCall: PartHandler = (value) =>
 const normalizeOpenAiReasoningText: PartHandler = (value) =>
   claimed(reasoningPart(value.text));
 
+function isReasoningTextArray(
+  value: unknown,
+  expectedType: "summary_text" | "reasoning_text",
+): boolean {
+  if (!Array.isArray(value)) return false;
+
+  return value.every((entry) => {
+    const part = asRecord(entry);
+    return part?.type === expectedType && typeof part.text === "string";
+  });
+}
+
+const normalizeOpenAiReasoning: PartHandler = (value, context) => {
+  if (!isReasoningTextArray(value.summary, "summary_text")) {
+    return unmatched;
+  }
+
+  const hasInvalidContent =
+    value.content !== undefined &&
+    !isReasoningTextArray(value.content, "reasoning_text");
+
+  if (hasInvalidContent) {
+    return unmatched;
+  }
+
+  const encryptedContent = value.encrypted_content;
+  const isValidEncryptedContent =
+    encryptedContent === undefined ||
+    encryptedContent === null ||
+    typeof encryptedContent === "string";
+
+  if (!isValidEncryptedContent) {
+    return unmatched;
+  }
+
+  // Text-based reasoning belongs to the shared handler.
+  if (value.text !== undefined) {
+    return unmatched;
+  }
+
+  return claimed(openAiReasoningParts(value, [], context));
+};
+
 const OPENAI_PART_HANDLERS = {
   function: normalizeOpenAiFunctionCall,
   function_call: normalizeOpenAiFunctionCall,
@@ -285,6 +337,7 @@ const OPENAI_PART_HANDLERS = {
   input_file: normalizeOpenAiInputFile,
   refusal: normalizeOpenAiRefusal,
   reasoning_text: normalizeOpenAiReasoningText,
+  reasoning: normalizeOpenAiReasoning,
   summary_text: normalizeOpenAiReasoningText,
   mcp_call: normalizeOpenAiMcpCall,
   ...Object.fromEntries(
@@ -354,25 +407,52 @@ function openAiCollectSiblingParts(
   if (audioPart) parts.push(audioPart);
 
   if (value.type === "reasoning") {
-    const reasoningValues = (
-      baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
-    )
-      .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
-      .filter((entry) => entry !== undefined && entry !== null);
-    parts.push(...context.normalizePartList(reasoningValues));
-
-    const encryptedContent = optionalString(value.encrypted_content);
-    if (encryptedContent) {
-      parts.push({
-        type: "reasoning",
-        content: { kind: "encrypted", data: encryptedContent },
-      });
-    }
+    parts.push(...openAiReasoningParts(value, baseParts, context));
   }
 
   return parts.length > 0
     ? [{ sourceKey: "openai.siblings", slot: "after-tool-calls", parts }]
     : [];
+}
+
+function openAiReasoningParts(
+  value: Record<string, unknown>,
+  baseParts: readonly NormalizedMessagePart[],
+  context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
+): NormalizedMessagePart[] {
+  const parts: NormalizedMessagePart[] = [];
+  const reasoningValues = (
+    baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
+  )
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .filter((entry) => entry !== undefined && entry !== null);
+  parts.push(...context.normalizePartList(reasoningValues));
+
+  const encryptedContent = optionalString(value.encrypted_content);
+  if (encryptedContent) {
+    parts.push({
+      type: "reasoning",
+      content: { kind: "encrypted", data: encryptedContent },
+    });
+  }
+  return parts;
+}
+
+function isResponsesRequest(root: Record<string, unknown>): boolean {
+  if (typeof root.input === "string" && typeof root.model === "string") {
+    return true;
+  }
+  const responseInput = parseArray(root.input);
+  return Boolean(
+    responseInput?.length &&
+    responseInput.every((item) => {
+      const record = asRecord(item);
+      return (
+        record &&
+        (typeof record.role === "string" || typeof record.type === "string")
+      );
+    }),
+  );
 }
 
 /**
@@ -383,6 +463,20 @@ function openAiMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource[] {
+  // Responses API uses `input` instead of Chat Completions' `messages`:
+  if (kind === "input") {
+    if (!isResponsesRequest(root)) return [];
+    const input = recordKeyAsParsed(root, "input");
+    return typeof input === "string" && typeof root.model === "string"
+      ? [{ kind: "single", value: input, fallbackRole: "user" }]
+      : [
+          {
+            kind: "sequence",
+            values: parseArray(input) ?? [],
+            fallbackRole: "user",
+          },
+        ];
+  }
   if (kind !== "output") return [];
 
   const choices = parseArray(root.choices);
@@ -493,6 +587,11 @@ const tryUnwrapLegacyFunctionMessage = (
   _fallbackRole: "user" | "assistant",
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> => {
+  const content = parseIfString(value.content ?? null);
+  let output: ToolResultPart["output"] =
+    typeof content === "string"
+      ? { type: "text", value: content }
+      : { type: "json", value: toJsonValue(content) };
   if (
     // LangChain dict serializations carry `type: "tool"` instead of a role
     // key; the same tool-result shape (tool_call_id, artifact, status).
@@ -500,6 +599,9 @@ const tryUnwrapLegacyFunctionMessage = (
     (typeof value.tool_call_id === "string" ||
       typeof value.tool_call_id === "number")
   ) {
+    if (Array.isArray(value.content)) {
+      output = toolResultOutput(ctx.normalizePartList(value.content), content);
+    }
     return claimed({
       ...(optionalString(value.id) ? { id: String(value.id) } : {}),
       role: "tool",
@@ -510,7 +612,7 @@ const tryUnwrapLegacyFunctionMessage = (
           // A `name` on a tool message is the tool's name, never a
           // participant name.
           toolName: optionalString(value.name),
-          output: toJsonValue(parseIfString(value.content ?? null)),
+          output,
           isError: value.status === "error" ? true : undefined,
           providerMetadata:
             value.artifact !== undefined && value.artifact !== null
@@ -533,10 +635,11 @@ const tryUnwrapLegacyFunctionMessage = (
     ...(optionalString(value.id) ? { id: String(value.id) } : {}),
     role: "tool",
     parts: [
-      toolResultPart({
-        toolCallId: value.tool_call_id,
-        toolName: value.name,
-        output: value.content,
+      compact<ToolResultPart>({
+        type: "tool-result",
+        toolCallId: nullableString(value.tool_call_id),
+        toolName: optionalString(value.name),
+        output,
       }),
     ],
     source: ctx.source,
@@ -560,4 +663,15 @@ export const openAiProvider: IOConvention = {
   typedParts: OPENAI_PART_HANDLERS,
   collectSiblingParts: openAiCollectSiblingParts,
   claimMessages: openAiMessages,
+  getSystemMessage: (root, kind) =>
+    kind === "input" &&
+    typeof root.instructions === "string" &&
+    isResponsesRequest(root)
+      ? {
+          kind: "single",
+          value: recordKeyAsParsed(root, "instructions"),
+          fallbackRole: "user",
+          roleOverride: "system",
+        }
+      : undefined,
 };

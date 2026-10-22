@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
@@ -6,7 +7,7 @@ import {
   ListTree,
   Sparkles,
   Wrench,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   type FilterState,
   type TimeFilter,
@@ -16,22 +17,27 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
+import {
+  resolveRowHeightRendering,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
-  type FieldRegistry,
+  buildAiContext,
   EVENTS_FIELD_REGISTRY,
-} from "@/src/features/search-bar/lib/fields";
-import { observedScoreNamesFromOptions } from "@/src/features/search-bar/lib/observed-options";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+  EventsSearchBarRow,
+  type FieldRegistry,
+  observedScoreNamesFromOptions,
+  useEventsSearchBar,
+} from "@/src/features/search-bar";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
@@ -428,8 +434,8 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.input;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
         variant: "input",
       }),
       createIOTableColumn<SampleObservation>({
@@ -442,8 +448,8 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.output;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
         variant: "output",
       }),
       createIOTableColumn<SampleObservation>({
@@ -456,8 +462,8 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.metadata;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
       }),
       createTextTableColumn<SampleObservation>({
         accessorKey: "environment",
@@ -552,7 +558,7 @@ export function SampleObservationSelectorBase(
                   );
                 }}
               >
-                <example.icon className="h-4 w-4" />
+                <example.icon size="base" />
                 <span>{example.label}</span>
               </Button>
             ))}
@@ -574,6 +580,8 @@ export function SampleObservationSelectorBase(
           tooltip={matchingTooltip}
           trailing={
             <DataTableColumnVisibilityFilter
+              tableName="evaluator-sample-observations"
+              isV4
               columns={columns}
               columnVisibility={columnVisibility}
               setColumnVisibility={setColumnVisibility}

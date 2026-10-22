@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -12,7 +13,7 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -22,7 +23,7 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
+import { InfoIcon, PlusIcon, Settings2 } from "@langfuse/icons";
 import {
   Popover,
   PopoverContent,
@@ -98,7 +99,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   if (availableProviders.length === 0) {
     return (
-      <div className="flex flex-col space-y-4 pr-1">
+      <div className="flex flex-col pr-1">
         {customHeader ? (
           customHeader
         ) : (
@@ -106,7 +107,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             <p className="font-bold">Model</p>
           </div>
         )}
-        <p className="text-xs">No LLM API key set in project. </p>
         <CreateLLMApiKeyDialog
           open={createLlmApiKeyDialogOpen}
           setOpen={setCreateLlmApiKeyDialogOpen}
@@ -125,7 +125,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 size={14} />
+          <Settings2 size="base" color="default" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
@@ -315,7 +315,7 @@ export const ModelParameterSettings = ({
       setModelParamEnabled={setModelParamEnabled}
       value={modelParams.max_tokens.value}
       min={1}
-      max={16384}
+      max={65535}
       step={1}
       tooltip="The maximum number of tokens that can be generated in the chat completion."
       updateModelParam={updateModelParamValue}
@@ -594,7 +594,7 @@ const ProviderOptionsInput = ({
           </span>
           <Tooltip>
             <TooltipTrigger>
-              <InfoIcon className="text-muted-foreground size-3" />
+              <InfoIcon size="sm" color="muted" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[200px] p-2">
               Additional options to pass to the invocation. Please check your
@@ -714,7 +714,11 @@ function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
     <>
       <SelectSeparator />
       <Button type="button" variant="secondary" onClick={onOpen}>
-        <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+        <PlusIcon
+          size="base"
+          __rawClassName="mr-1.5 -ml-0.5"
+          aria-hidden="true"
+        />
         Add LLM Connection
       </Button>
     </>

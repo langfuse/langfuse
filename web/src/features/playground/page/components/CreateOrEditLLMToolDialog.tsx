@@ -1,8 +1,8 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import React, { useEffect, useState } from "react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -27,7 +26,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMToolNameSchema } from "@/src/features/llm-tools/validation";
+import { LLMToolNameSchema } from "@/src/features/llm-tools";
 import { api } from "@/src/utils/api";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
@@ -43,7 +42,6 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 type CreateOrEditLLMToolDialog = {
-  children: React.ReactNode;
   projectId: string;
   onSave: (llmTool: LlmTool) => void;
   onDelete?: (llmTool: LlmTool) => void;
@@ -53,19 +51,19 @@ type CreateOrEditLLMToolDialog = {
     description: string;
     parameters: string;
   };
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
   props,
 ) => {
-  const { children, projectId, onSave, existingLlmTool } = props;
+  const { projectId, onSave, existingLlmTool, open, onOpenChange } = props;
 
   const utils = api.useUtils();
   const createLlmTool = api.llmTools.create.useMutation();
   const updateLlmTool = api.llmTools.update.useMutation();
   const deleteLlmTool = api.llmTools.delete.useMutation();
-
-  const [open, setOpen] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -118,7 +116,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
     await utils.llmTools.getAll.invalidate({ projectId });
 
     onSave(result);
-    setOpen(false);
+    onOpenChange(false);
   }
 
   async function handleDelete() {
@@ -132,7 +130,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
     props.onDelete?.(existingLlmTool);
 
     await utils.llmTools.getAll.invalidate({ projectId });
-    setOpen(false);
+    onOpenChange(false);
   }
 
   const prettifyJson = () => {
@@ -145,16 +143,18 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_tool.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-        {children}
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex flex-col sm:min-w-128 md:min-w-160"
         onClick={(e) => e.stopPropagation()}
@@ -230,7 +230,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight size="sm" />
                         </a>
                       </FormDescription>
                       <FormControl>
@@ -283,7 +283,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setOpen(false)}
+                    onClick={() => onOpenChange(false)}
                   >
                     Cancel
                   </Button>

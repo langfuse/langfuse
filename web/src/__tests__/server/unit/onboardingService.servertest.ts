@@ -2,28 +2,43 @@ const { auditLogMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
 }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: auditLogMock,
 }));
 
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
-  completeCloudSignupOnboarding,
-  getCloudSignupOnboardingStatus,
+  completeSignupOnboarding,
+  getSignupOnboardingStatus,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
-} from "@/src/features/onboarding/server/onboardingService";
+} from "@/src/features/onboarding/server";
 
 type CompletionPrisma = Parameters<
-  typeof completeCloudSignupOnboarding
+  typeof completeSignupOnboarding
 >[0]["prisma"];
 type RedirectPrisma = Parameters<
   typeof resolveOnboardingRedirectTarget
 >[0]["prisma"];
-type StatusPrisma = Parameters<
-  typeof getCloudSignupOnboardingStatus
->[0]["prisma"];
+type StatusPrisma = Parameters<typeof getSignupOnboardingStatus>[0]["prisma"];
+
+const originalEnv = {
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  LANGFUSE_DISABLE_SIGNUP_ONBOARDING: env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING,
+};
+
+beforeEach(() => {
+  Object.assign(env, {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US",
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING: undefined,
+  });
+});
+
+afterEach(() => {
+  Object.assign(env, originalEnv);
+});
 
 const makeMembership = ({
   orgId,
@@ -129,12 +144,12 @@ describe("resolveOnboardingRedirectTarget", () => {
   });
 });
 
-describe("getCloudSignupOnboardingStatus", () => {
-  const getStatus = (prisma: StatusPrisma) =>
-    getCloudSignupOnboardingStatus({
+describe("getSignupOnboardingStatus", () => {
+  const getStatus = (prisma: StatusPrisma, canCreateOrganizations = true) =>
+    getSignupOnboardingStatus({
       prisma,
       userId: "user-1",
-      canCreateOrganizations: true,
+      canCreateOrganizations,
     });
 
   it("uses the onboarding survey as the completion marker", async () => {
@@ -186,9 +201,78 @@ describe("getCloudSignupOnboardingStatus", () => {
       canConfigureAiFeatures: true,
     });
   });
+
+  it.each([
+    {
+      audience: "an installer",
+      role: undefined,
+      canCreateOrganizations: true,
+      lists: ["product", "oss"],
+    },
+    {
+      audience: "a user without a membership who can't create organizations",
+      role: undefined,
+      canCreateOrganizations: false,
+      lists: ["product"],
+    },
+    {
+      audience: "an organization admin",
+      role: Role.ADMIN,
+      canCreateOrganizations: true,
+      lists: ["product", "oss"],
+    },
+    {
+      audience: "an invited viewer",
+      role: Role.VIEWER,
+      canCreateOrganizations: true,
+      lists: ["product"],
+    },
+  ])(
+    "offers $audience the $lists newsletters on self-hosted",
+    async ({ role, canCreateOrganizations, lists }) => {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      const { tx } = makeCompletionPrisma({
+        memberships: role
+          ? [makeMembership({ orgId: "org-1", role, projects: [] })]
+          : [],
+      });
+
+      await expect(
+        getStatus(tx as unknown as StatusPrisma, canCreateOrganizations),
+      ).resolves.toMatchObject({ completed: false, newsletterLists: lists });
+    },
+  );
+
+  it("reports a disabled step as completed on self-hosted without reading the survey", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
+    const { tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await expect(getStatus(tx as unknown as StatusPrisma)).resolves.toEqual({
+      completed: true,
+      redirectTo: "/project/project-1",
+    });
+    expect(tx.survey.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("ignores the off switch on Cloud", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { tx } = makeCompletionPrisma();
+
+    await expect(getStatus(tx as unknown as StatusPrisma)).resolves.toEqual({
+      completed: false,
+      canConfigureAiFeatures: false,
+    });
+  });
 });
 
-describe("completeCloudSignupOnboarding", () => {
+describe("completeSignupOnboarding", () => {
   it("locks the user row and writes one trimmed onboarding survey once", async () => {
     const { prisma, tx } = makeCompletionPrisma({
       memberships: [
@@ -205,7 +289,7 @@ describe("completeCloudSignupOnboarding", () => {
     });
 
     await expect(
-      completeCloudSignupOnboarding({
+      completeSignupOnboarding({
         prisma,
         userId: "user-1",
         userEmail: "user@example.com",
@@ -215,6 +299,7 @@ describe("completeCloudSignupOnboarding", () => {
       }),
     ).resolves.toEqual({
       redirectTo: "/project/project-1/traces",
+      surveyCreated: true,
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -248,7 +333,7 @@ describe("completeCloudSignupOnboarding", () => {
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
-    await completeCloudSignupOnboarding({
+    const repeatResult = await completeSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",
@@ -257,8 +342,100 @@ describe("completeCloudSignupOnboarding", () => {
       aiFeaturesEnabled: false,
     });
 
+    expect(repeatResult.surveyCreated).toBe(false);
+
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
     expect(tx.organization.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores each pick with the position it was shown at", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      referralSource: "Reddit",
+      buildIntents: ["rag", "other"],
+      buildIntentPositions: [2, 6],
+      buildIntentOther: "eval pipeline",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: {
+            referralSource: "Reddit",
+            buildIntents: ["rag", "other"],
+            buildIntentPositions: [2, 6],
+            buildIntentOther: "eval pipeline",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("writes nothing when the step is disabled on self-hosted", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
+    const prisma = {
+      $transaction: vi.fn(),
+      organizationMembership: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+
+    await expect(
+      completeSignupOnboarding({
+        prisma: prisma as unknown as CompletionPrisma,
+        userId: "user-1",
+        canCreateOrganizations: true,
+        newsletter: { outcome: "declined" },
+      }),
+    ).resolves.toEqual({ redirectTo: "/setup", surveyCreated: false });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("still stores the survey on Cloud when the off switch is set", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalled();
+  });
+
+  it("stores an empty response when the survey is skipped", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ response: {} }),
+      }),
+    );
   });
 
   it("does not update AI features for an existing organization", async () => {
@@ -271,7 +448,7 @@ describe("completeCloudSignupOnboarding", () => {
       ],
     });
 
-    await completeCloudSignupOnboarding({
+    await completeSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",

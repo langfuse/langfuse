@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -66,14 +67,7 @@ const buildSession = (orgId: string, projectId: string): Session => ({
         ],
       },
     ],
-    featureFlags: {
-      searchBar: false,
-      templateFlag: true,
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as any,
@@ -183,6 +177,35 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     const caller = appRouter.createCaller({ ...ctx, prisma });
     return { project, caller };
   };
+
+  it("marks backfill on re-enable, not on a plain save", async () => {
+    const { caller, project } = await prepare();
+    const save = (enabled: boolean) =>
+      caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        enabled,
+        exportSource: "EVENTS" as const,
+      });
+    const backfill = async () =>
+      (
+        await prisma.posthogIntegration.findUniqueOrThrow({
+          where: { projectId: project.id },
+        })
+      ).backfill;
+
+    await save(true);
+    await prisma.posthogIntegration.update({
+      where: { projectId: project.id },
+      data: { backfill: false },
+    });
+    await save(true);
+    expect(await backfill()).toBe(false);
+
+    await save(false);
+    await save(true);
+    expect(await backfill()).toBe(true);
+  });
 
   // A pre-cutoff project no longer buys a *new* integration the right to a
   // legacy source. Existing integrations stay grandfathered — see

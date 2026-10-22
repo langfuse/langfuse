@@ -33,7 +33,6 @@ import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 const TEST_TABLE = "events_full" as const;
 const PATCH_WAIT_TIMEOUT_MS = 30_000;
 const PATCH_CLEAN_TIMEOUT_MS = 60_000;
-const DRAIN_TIMEOUT_MS = 120_000;
 
 async function skipUnlessEventsTableEnabled(ctx: TestContext): Promise<void> {
   await skipUnlessClickhouseTablesExist(
@@ -96,17 +95,23 @@ function workCandidate(
   };
 }
 
-async function getLeftoverPatchPartitions(): Promise<string[]> {
-  const rows = await queryClickhouse<{ partition_to_clean: string }>({
+/**
+ * Rows of the largest active patch partition on the table. The cleaner picks
+ * the largest candidate per table, so a test partition with more rows than
+ * this is guaranteed to be processed first, whatever other tests left behind.
+ */
+async function largestCandidateRows(): Promise<number> {
+  const rows = await queryClickhouse<{ total_rows: string }>({
     query: `
-      SELECT DISTINCT splitByString('-', partition)[3] AS partition_to_clean
+      SELECT sum(rows) AS total_rows
       FROM system.parts
       WHERE table = {table: String}
         AND database = {database: String}
         AND startsWith(partition, 'patch-')
-        AND partition_to_clean <> ''
-        AND partition_to_clean <> toString(toYYYYMM(now()))
         AND active = 1
+      GROUP BY partition
+      ORDER BY total_rows DESC
+      LIMIT 1
     `,
     params: {
       table: TEST_TABLE,
@@ -114,7 +119,7 @@ async function getLeftoverPatchPartitions(): Promise<string[]> {
     },
   });
 
-  return rows.map((row) => row.partition_to_clean);
+  return Number(rows[0]?.total_rows ?? 0);
 }
 
 async function hasActivePatchPart(partitionToClean: string): Promise<boolean> {
@@ -148,13 +153,32 @@ async function waitForCleanerCandidate(
   );
 }
 
-async function waitForCleanerCandidateGone(
-  partitionToClean: string,
-): Promise<void> {
+/**
+ * Rows of a project that are physically present, ignoring lightweight-delete
+ * patch parts. APPLY DELETED MASK materialises the deletion and brings this to
+ * zero as soon as its mutation finishes. The patch parts themselves stay
+ * listed as active until ClickHouse's background housekeeping removes them,
+ * which can take minutes, so they are not a usable completion signal.
+ */
+async function countPhysicalRows(projectId: string): Promise<number> {
+  const rows = await queryClickhouse<{ count: string }>({
+    query: `
+      SELECT count() AS count
+      FROM ${TEST_TABLE}
+      WHERE project_id = {projectId: String}
+      SETTINGS apply_patch_parts = 0
+    `,
+    params: { projectId },
+  });
+
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function waitForDeletionMaterialised(projectId: string): Promise<void> {
   await eventually(
-    () => hasActivePatchPart(partitionToClean),
-    (hasCandidate) => !hasCandidate,
-    `Timed out waiting for ClickHouse patch part ${partitionToClean} to be cleaned`,
+    () => countPhysicalRows(projectId),
+    (count) => count === 0,
+    `Timed out waiting for the deleted rows of project ${projectId} to be removed from ${TEST_TABLE}`,
     PATCH_CLEAN_TIMEOUT_MS,
   );
 }
@@ -213,46 +237,7 @@ async function applyDeletedMask(candidate: WorkCandidateRow): Promise<void> {
     },
   });
 
-  // Mutation count can still be 0 before the ALTER is visible. The patch
-  // disappearing from system.parts is the completion signal.
-  await waitForCleanerCandidateGone(candidate.partition_to_clean);
   await waitForNoActiveMutations(candidate.table);
-}
-
-async function applyDeletedMaskIfNeeded(
-  partitionToClean: string,
-): Promise<void> {
-  if (!(await hasActivePatchPart(partitionToClean))) {
-    return;
-  }
-
-  await applyDeletedMask({
-    partition: `patch-cleanup-${partitionToClean}`,
-    table: TEST_TABLE,
-    partition_to_clean: partitionToClean,
-    total_rows: 0,
-  });
-}
-
-async function drainCleanerCandidates(): Promise<void> {
-  const deadline = Date.now() + DRAIN_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const partitions = await getLeftoverPatchPartitions();
-    if (partitions.length === 0) {
-      return;
-    }
-
-    for (const partition of partitions) {
-      await applyDeletedMaskIfNeeded(partition);
-    }
-  }
-
-  throw new Error(
-    `Timed out draining leftover deleted-mask candidates: ${JSON.stringify(
-      await getLeftoverPatchPartitions(),
-    )}`,
-  );
 }
 
 async function createEventPatchParts(
@@ -450,7 +435,14 @@ describe.sequential("DeletedMaskCleaner integration", () => {
   afterEach(async () => {
     await redis?.del(DELETED_MASK_CLEANER_LOCK_KEY);
     for (const partition of cleanupPartitions) {
-      await applyDeletedMaskIfNeeded(partition);
+      if (await hasActivePatchPart(partition)) {
+        await applyDeletedMask({
+          partition: `patch-cleanup-${partition}`,
+          table: TEST_TABLE,
+          partition_to_clean: partition,
+          total_rows: 0,
+        });
+      }
     }
     cleanupPartitions.clear();
   }, 150_000);
@@ -461,29 +453,33 @@ describe.sequential("DeletedMaskCleaner integration", () => {
     const partitionToClean = getRandomPastMonthPartition();
     cleanupPartitions.add(partitionToClean);
 
-    await drainCleanerCandidates();
-
-    await createEventPatchParts([
+    // Other test files leave patch partitions behind, and the cleaner picks
+    // the largest one per table, so out-size them instead of trying to clean
+    // them up here.
+    const rows = Math.max(256, (await largestCandidateRows()) + 1);
+    const projectId = await createEventPatchParts([
       {
         partition: partitionToClean,
         timestamp: getTimestampForMonthPartition(partitionToClean),
-        rows: 256,
+        rows,
       },
     ]);
 
     await expect(hasActivePatchPart(partitionToClean)).resolves.toBe(true);
+    await expect(countPhysicalRows(projectId)).resolves.toBe(rows);
 
     const cleaner = new DeletedMaskCleaner();
     await eventually(
       async () => {
         await cleaner.processBatch();
         await waitForNoActiveMutations();
-        return hasActivePatchPart(partitionToClean);
+        return countPhysicalRows(projectId);
       },
-      (stillPresent) => !stillPresent,
-      `Timed out waiting for ClickHouse patch part ${partitionToClean} to be cleaned`,
+      (remaining) => remaining === 0,
+      `Timed out waiting for the cleaner to materialise the deletion in partition ${partitionToClean}`,
       PATCH_CLEAN_TIMEOUT_MS,
     );
+    await waitForDeletionMaterialised(projectId);
     expect(await redis?.get(DELETED_MASK_CLEANER_LOCK_KEY)).toBeNull();
   }, 240_000);
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -7,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
 
 export function InAppAgentDisabledDialog({
   open,
@@ -31,7 +32,7 @@ export function InAppAgentDisabledDialog({
               onOpenChange(false);
             }}
           >
-            The Langfuse Assistant requires AI features to be enabled for this
+            Langfuse Halo requires AI features to be enabled for this
             organization.
           </AIFeaturesDisabledNotice>
         </DialogBody>

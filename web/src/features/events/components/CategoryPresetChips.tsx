@@ -5,8 +5,8 @@ import {
   DollarSign,
   ThumbsDown,
   Timer,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
@@ -25,7 +25,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
-const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, LucideIcon> = {
+const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, IconComponent> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,
   [SystemTableViewPresetCategory.Errors]: ThumbsDown,
   [SystemTableViewPresetCategory.CostRegression]: DollarSign,
@@ -240,7 +240,11 @@ export function CategoryPresetChips({
                     "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" aria-hidden />
+                <Icon
+                  aria-hidden
+                  size="base"
+                  color={!isCategoryActive ? "default" : "inherit"}
+                />
                 {label}
               </Button>
             </PopoverTrigger>
@@ -360,7 +364,8 @@ export function CategoryPresetChips({
                       </span>
                       {isPresetActive && (
                         <Check
-                          className="mt-0.5 h-4 w-4 shrink-0"
+                          size="base"
+                          __rawClassName="mt-0.5"
                           aria-hidden
                         />
                       )}

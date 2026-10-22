@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
 
 /** The events read path a data-fetching surface must use. */

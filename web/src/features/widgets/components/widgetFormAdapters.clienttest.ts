@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
 import startCase from "lodash/startCase";
@@ -7,7 +8,7 @@ import { type metricAggregations } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   buildWidgetDescription,

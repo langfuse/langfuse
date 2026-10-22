@@ -7,7 +7,6 @@ const meta = preview.meta({
 
 export const Default = meta.story({
   args: {
-    tags: ["production", "support"],
     previewKey: "default-observation",
     previewProps: {
       input: {
@@ -24,7 +23,6 @@ export const Default = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },
@@ -49,7 +47,6 @@ export const Error = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },
@@ -85,7 +82,6 @@ export const JsonError = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },
@@ -113,7 +109,6 @@ export const Warning = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },
@@ -141,7 +136,6 @@ export const Debug = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },
@@ -169,7 +163,6 @@ export const Info = meta.story({
       },
       projectId: "storybook-project",
       traceId: "storybook-trace",
-      showMetadata: true,
       showCorrections: false,
     },
   },

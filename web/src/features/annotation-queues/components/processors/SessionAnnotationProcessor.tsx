@@ -4,24 +4,26 @@ import {
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import { SessionIO } from "@/src/components/session";
-import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
-import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
+import {
+  SessionIO,
+  LazyTraceEventsRow,
+  asCommentCounts,
+} from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { api } from "@/src/utils/api";
+import { useReadPath } from "@/src/features/events";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -53,14 +55,7 @@ export const SessionAnnotationProcessor: React.FC<
     { projectId, sessionId: item.objectId },
     {
       enabled: isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -136,8 +131,6 @@ export const SessionAnnotationProcessor: React.FC<
           </div>
           <CommentDrawerController
             projectId={projectId}
-            objectId={item.objectId}
-            objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
           >
             {({ disabled, openDrawer }) => (
@@ -145,14 +138,20 @@ export const SessionAnnotationProcessor: React.FC<
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={openDrawer}
+                onClick={() =>
+                  openDrawer({
+                    type: "comments",
+                    objectId: item.objectId,
+                    objectType: "SESSION",
+                  })
+                }
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare size="base" color="default" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
@@ -279,6 +278,7 @@ export const SessionAnnotationProcessor: React.FC<
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,

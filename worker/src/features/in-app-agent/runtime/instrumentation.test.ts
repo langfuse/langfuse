@@ -962,6 +962,20 @@ describe("InAppAgentInstrumentation", () => {
       });
       instrumentation.end({});
 
+      for (const [, observation] of mocks.handler.langfuse.enqueue.mock.calls) {
+        expect(observation).toMatchObject({
+          userId: "user-1",
+          sessionId: "conversation-1",
+          metadata: {
+            langfuse_project_id: "project-1",
+            langfuse_user_email: "user@example.com",
+            langfuse_user_project_role: "ADMIN",
+            langfuse_user_is_admin: true,
+            approval_continuation_count: 2,
+          },
+        });
+      }
+
       const parentTraceId = getInAppAgentInstrumentationTraceId("root-run-1");
       const parentObservationId =
         getInAppAgentInstrumentationObservationId("root-run-1");
@@ -1012,7 +1026,7 @@ describe("InAppAgentInstrumentation", () => {
           startTime: new Date(approvalRequestedAt),
           endTime: new Date(approvalDecidedAt),
           output: `User ${status} tool langfuse_createTextPrompt`,
-          metadata: approvalMetadata,
+          metadata: expect.objectContaining(approvalMetadata),
         }),
       );
       expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(

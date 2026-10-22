@@ -25,26 +25,31 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
-import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import {
+  LEGACY_WRITES_DEPRECATION,
+  TRACES_DEPRECATION,
+} from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
       name: "Create Trace (Legacy)",
+      action: "traces:create",
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
+      isLegacyTraceWrite: true,
+      deprecation: LEGACY_WRITES_DEPRECATION,
       fn: async ({ body, auth, req, res }) => {
         await telemetry();
         const event = {
@@ -79,6 +84,7 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      action: "traces:read",
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
@@ -226,6 +232,7 @@ export default withMiddlewares(
 
     DELETE: createAuthedProjectAPIRoute({
       name: "Delete Multiple Traces",
+      action: "traces:delete",
       bodySchema: DeleteTracesV1Body,
       responseSchema: DeleteTracesV1Response,
       rateLimitResource: "trace-delete",
@@ -245,7 +252,13 @@ export default withMiddlewares(
           ),
         );
 
-        await traceDeletionProcessor(auth.scope.projectId, traceIds);
+        await traceDeletionProcessor(auth.scope.projectId, traceIds, {
+          actor: {
+            type: "API_KEY",
+            apiKeyId: auth.scope.apiKeyId,
+            publicKey: auth.scope.publicKey,
+          },
+        });
 
         return { message: "Traces deleted successfully" };
       },

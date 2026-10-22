@@ -1,6 +1,6 @@
 import { CommentObjectType } from "@langfuse/shared";
 import { z } from "zod";
-import { createCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import { createCommentForApi } from "@/src/features/comments/server";
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,
@@ -25,6 +25,7 @@ const CreateCommentToolSchema = PostCommentsV1Body.omit({
 export const [createCommentTool, handleCreateComment] = defineTool({
   name: "createComment",
   description: "Create a comment on a trace, observation, session, or prompt.",
+  action: "comments:CUD",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
   handler: async (input, context) =>

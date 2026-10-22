@@ -1,4 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
+import { omit } from "lodash";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -6,16 +8,16 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
+  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { MediaContentType } from "@/src/features/media/validation";
+  MediaContentType,
+} from "@/src/features/media/server";
 import {
   paginationZod,
-  singleFilter,
+  singleFilterList,
   StringNoHTML,
   StringNoHTMLNonEmpty,
   type FilterState,
@@ -92,7 +94,7 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   updateDataset,
   upsertDataset,
@@ -107,7 +109,7 @@ import {
   RemoteExperimentHeadersSchema,
 } from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -168,7 +170,7 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
   if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
 
   // Add case-insensitive search condition
-  return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+  return Prisma.sql`AND d.name ILIKE ${`%${escapeSqlLikePattern(searchQuery)}%`}`;
 };
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
@@ -492,7 +494,7 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       const [runsMetrics, itemsCounts] = await Promise.all([
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+        ctx.session.user.v4BetaEnabled === true
           ? getDatasetExperimentMetricsFromEvents({
               projectId: input.projectId,
               datasetIds: input.datasetIds,
@@ -542,7 +544,7 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -1108,7 +1110,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        filter: z.array(singleFilter).nullish(),
+        filter: singleFilterList.nullish(),
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         version: z.date().optional(),
@@ -1174,7 +1176,7 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
-        after: datasetItem,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
 
       return datasetItem;
@@ -1487,7 +1489,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.deletedItem.id,
         action: "delete",
-        before: result.deletedItem,
+        before: omit(result.deletedItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.deletedItem;
@@ -1531,7 +1537,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: dataset.name + " (copy",
+              startsWith: escapeSqlLikePattern(dataset.name) + " (copy",
             },
           },
         })
@@ -1691,7 +1697,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.datasetItem.id,
         action: "create",
-        after: result.datasetItem,
+        after: omit(result.datasetItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.datasetItem;
@@ -1749,7 +1759,7 @@ export const datasetRouter = createTRPCRouter({
               resourceType: "datasetItem",
               resourceId: item.id,
               action: "create",
-              after: item,
+              after: omit(item, ["input", "expectedOutput", "metadata"]),
             }),
           ),
         );
@@ -1851,7 +1861,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         datasetRunId: z.string(),
         datasetItemIds: z.array(z.string()).optional(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         ...optionalPaginationZod,
       }),
     )
@@ -1950,9 +1960,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
         ...paginationZod,
       }),
@@ -2026,9 +2034,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
       }),
     )

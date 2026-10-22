@@ -3,7 +3,7 @@ import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
 import { createRule } from "../util.js";
 
 // Overlay wrappers (Dialog, Sheet, Popover, Select, Tooltip, …) must stack via
-// the app layer system (components/ui/layer.tsx) — each portals into a layer
+// the app layer system (context/LayerContext/LayerContext.tsx) — each portals into a layer
 // `container` and the layers order by DOM order. A high/arbitrary z-index on an
 // overlay wrapper is the old "escape to the top of <body>" habit this migration
 // removed; it silently fights the layer order. z-index stays a LOCAL tool for
@@ -124,7 +124,7 @@ const rule = createRule<[{ mode: Mode }], "unexpected">({
     type: "problem",
     docs: {
       description:
-        "Disallow high/arbitrary z-index utilities (z-50+, z-[9999], …) on overlay wrappers and overlay content elements. Overlays must stack via the app layer system (route the portal through a layer container, see components/ui/layer.tsx), not by escalating z-index to escape to the top.",
+        "Disallow high/arbitrary z-index utilities (z-50+, z-[9999], …) on overlay wrappers and overlay content elements. Overlays must stack via the app layer system (route the portal through a layer container, see context/LayerContext/LayerContext.tsx), not by escalating z-index to escape to the top.",
     },
     schema: [
       {
@@ -137,7 +137,7 @@ const rule = createRule<[{ mode: Mode }], "unexpected">({
     ],
     messages: {
       unexpected:
-        "Avoid `{{utility}}` on overlay wrappers/content. Overlays stack via the layer system — route the portal into a layer `container` (see components/ui/layer.tsx) instead of escalating z-index. z-index is for ordering content WITHIN a layer only.",
+        "Avoid `{{utility}}` on overlay wrappers/content. Overlays stack via the layer system — route the portal into a layer `container` (see context/LayerContext/LayerContext.tsx) instead of escalating z-index. z-index is for ordering content WITHIN a layer only.",
     },
   },
   defaultOptions: [{ mode: "wrapper" }],

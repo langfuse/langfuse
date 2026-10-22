@@ -236,6 +236,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     if (
       getBillingProvider(org, {
         cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+        optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
       }) !== "stripe"
     ) {
       traceException(

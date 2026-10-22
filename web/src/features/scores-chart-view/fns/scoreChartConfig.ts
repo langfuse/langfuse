@@ -5,9 +5,11 @@ import {
   GRANULARITIES,
   isTimeSeriesChartType,
 } from "@/src/features/chart-view/vocab";
-import { type ChartWidgetInput } from "@/src/features/chart-view/lib/chartConfigToWidget";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
+import { type ChartWidgetInput } from "@/src/features/chart-view";
+import {
+  type DataPoint,
+  getWidgetMissingBucketValue,
+} from "@/src/features/widgets";
 import { getScoreDimensionsForDataset } from "@/src/features/scores-chart-view/constants/scoreDimensions";
 import {
   getScoreMetricsForDataset,
@@ -274,16 +276,24 @@ export function scoreRowsToDataPoints(
       }
     }
 
-    const dim = hasBreakdown
-      ? dimensionValue(row[dimension.field as string])
-      : isNumber
-        ? undefined
-        : metric.label;
-    const metricValue = Array.isArray(value)
-      ? value
-      : isTimeSeries && value == null
-        ? null
-        : Number(value ?? 0);
+    const dim = (() => {
+      if (hasBreakdown) {
+        return dimensionValue(row[dimension.field as string]);
+      }
+      if (isNumber) {
+        return undefined;
+      }
+      return metric.label;
+    })();
+    const metricValue = (() => {
+      if (Array.isArray(value)) {
+        return value;
+      }
+      if (isTimeSeries && value == null) {
+        return null;
+      }
+      return Number(value ?? 0);
+    })();
     return { time_dimension, dimension: dim, metric: metricValue };
   });
 }

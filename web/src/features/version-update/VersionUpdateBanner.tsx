@@ -1,4 +1,4 @@
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
 
 /**

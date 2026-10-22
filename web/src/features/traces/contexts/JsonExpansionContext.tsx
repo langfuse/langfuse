@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * JsonExpansionContext - Persists JSON expand/collapse state per view type
  *

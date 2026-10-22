@@ -501,6 +501,7 @@ const getDatasetRunsTableInternal = async <T>(
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return res;
@@ -722,6 +723,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return res;
@@ -906,7 +908,7 @@ const getDatasetRunItemsTableInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs: opts.clickhouseConfigs,
-    preferredClickhouseService: opts.preferredClickhouseService,
+    preferredClickhouseService: opts.preferredClickhouseService ?? "ReadOnly",
   });
 
   return res;
@@ -1047,6 +1049,9 @@ export const getDatasetItemIdsByTraceIdCh = async (
       ...appliedFilter.params,
     },
     tags: { projectId },
+    // Read-after-write: createEvalJobs re-reads the just-written run item by
+    // trace_id to schedule evaluators; a replica miss silently drops the eval
+    // (no run-item-not-found retry exists). Keep on the writer.
   });
 
   return res.map((runItem) => {
@@ -1094,6 +1099,8 @@ export const hasAnyDatasetRunItem = async (
     query,
     params: { projectId },
     tags: { projectId },
+    // Keep on the writer: a stale replica could report no rows and skip the
+    // cleanup DELETE, orphaning run items after the project is gone.
   });
 
   return rows.length > 0;

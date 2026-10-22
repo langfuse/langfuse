@@ -4,3 +4,18 @@
 # Design system
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
+
+# ESLint
+/packages/config-eslint/ @bezbac
+/packages/eslint-plugin/ @bezbac
+**/eslint.config.mjs @bezbac
+
+# Skills for langfuse assistant
+/packages/langfuse-skills/ @LysanderKie @bezbac
+
+# Code review policy
+/REVIEW.md @nimarb
+
+# Normalized I/O and transcripts
+/packages/shared/src/utils/normalized-io/ @marliessophie
+/packages/shared/src/server/transcript/ @marliessophie

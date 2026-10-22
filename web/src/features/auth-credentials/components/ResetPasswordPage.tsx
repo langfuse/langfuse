@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +16,7 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { signIn, useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
@@ -24,9 +24,16 @@ import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { passwordSchema } from "@/src/features/auth";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { env } from "@/src/env.mjs";
+import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
 
 const resetPasswordSchema = z
   .object({
@@ -57,6 +64,8 @@ export function ResetPasswordPage({
   const [isSuccess, setIsSuccess] = useState(false);
   const [email, setEmail] = useState(initialEmail);
   const [codeRequested, setCodeRequested] = useState(
+    // The intent check keeps a URL-supplied initialEmail from opening the code
+    // step for an address no email was ever sent to.
     intent === "setup" && Boolean(initialEmail),
   );
 
@@ -64,9 +73,25 @@ export function ResetPasswordPage({
 
   const isSetMode =
     intent === "setup" || session.data?.user?.hasPassword === false;
+  const setupTargetPath =
+    isSetMode && router.isReady
+      ? getOnboardingTargetPath({
+          targetPath: router.query.targetPath,
+          isLangfuseCloud,
+        })
+      : undefined;
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
+    : "/auth/setup-password";
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const effectiveEmail = session.data?.user?.email ?? email;
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.login | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.login);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
@@ -112,17 +137,27 @@ export function ResetPasswordPage({
         sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
       }
 
-      let target =
-        isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
-      if (session.status !== "authenticated") {
-        const signInResult = await signIn("credentials", {
-          email: effectiveEmail,
-          password: values.password,
-          redirect: false,
-        });
-        if (!signInResult?.ok) {
-          target = "/auth/sign-in";
-        }
+      let target = setupTargetPath ?? "/";
+      // Self-hosted: only a new sign-up, which lands on the setup-password page; /onboarding forwards on when the step is off.
+      const goesThroughOnboarding = isLangfuseCloud
+        ? isSetMode && region !== "DEV"
+        : intent === "setup";
+      if (goesThroughOnboarding) {
+        target = setupTargetPath
+          ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
+          : "/onboarding";
+      }
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
+      const signInResult = await signIn("credentials", {
+        email: effectiveEmail,
+        password: values.password,
+        redirect: false,
+        ...(turnstileToken ? { turnstileToken } : {}),
+      });
+      turnstileRef.current?.reset();
+      if (!signInResult?.ok) {
+        target = "/auth/sign-in";
       }
 
       setIsSuccess(true);
@@ -153,7 +188,7 @@ export function ResetPasswordPage({
     );
 
   const title = isSetMode ? "Set your password" : "Reset your password";
-  const pageTitle = isSetMode ? "Set Password" : "Reset Password";
+  const pageTitle = isSetMode ? "Set password" : "Reset password";
   const submitLabel = isSetMode ? "Set password" : "Update Password";
   const successMessage = isSetMode
     ? "Password set successfully. Redirecting ..."
@@ -178,7 +213,11 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="mr-2 h-3 w-3" />
+                  <ArrowLeft
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Back to sign in
                 </Link>
               </Button>
@@ -186,7 +225,7 @@ export function ResetPasswordPage({
           )}
         </div>
 
-        <div className="bg-background mt-10 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="bg-card mt-10 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-12">
           <div className="space-y-6">
             <Form {...form}>
               <form
@@ -241,6 +280,7 @@ export function ResetPasswordPage({
                           </FormLabel>
                           <FormControl>
                             <PasswordInput
+                              allowPasswordManager
                               autoComplete="new-password"
                               {...field}
                             />
@@ -261,6 +301,7 @@ export function ResetPasswordPage({
                           </FormLabel>
                           <FormControl>
                             <PasswordInput
+                              allowPasswordManager
                               autoComplete="new-password"
                               {...field}
                             />
@@ -269,11 +310,24 @@ export function ResetPasswordPage({
                         </FormItem>
                       )}
                     />
+                    {turnstileSiteKey ? (
+                      <TurnstileWidget
+                        ref={turnstileRef}
+                        siteKey={turnstileSiteKey}
+                        action={turnstileAction}
+                        onTokenChange={setTurnstileToken}
+                      />
+                    ) : null}
                     <div className="pt-4">
                       <Button
                         type="submit"
                         className="w-full"
-                        disabled={mutResetPassword.isPending}
+                        disabled={
+                          mutResetPassword.isPending ||
+                          (Boolean(turnstileSiteKey) &&
+                            (turnstileAction !== TURNSTILE_ACTIONS.login ||
+                              !turnstileToken))
+                        }
                         loading={mutResetPassword.isPending}
                       >
                         {submitLabel}
@@ -281,17 +335,36 @@ export function ResetPasswordPage({
                     </div>
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
-                      onEmailSent={() => setCodeRequested(true)}
+                      callbackUrl={isSetMode ? setupPasswordPath : undefined}
+                      onEmailSent={() => {
+                        setCodeRequested(true);
+                        setTurnstileToken(undefined);
+                        setTurnstileAction(TURNSTILE_ACTIONS.login);
+                      }}
                       label="Send another code"
+                      sharedTurnstile={
+                        turnstileSiteKey
+                          ? {
+                              token: turnstileToken,
+                              action: turnstileAction,
+                              onPreparePasswordReset: () => {
+                                setTurnstileToken(undefined);
+                                setTurnstileAction(
+                                  TURNSTILE_ACTIONS.passwordReset,
+                                );
+                              },
+                              onRejectToken: () => {
+                                turnstileRef.current?.reset();
+                              },
+                            }
+                          : undefined
+                      }
                     />
                   </>
                 ) : (
                   <RequestResetPasswordEmailButton
                     email={effectiveEmail}
-                    callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                    callbackUrl={isSetMode ? setupPasswordPath : undefined}
                     onEmailSent={() => setCodeRequested(true)}
                   />
                 )}

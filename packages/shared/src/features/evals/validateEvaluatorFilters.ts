@@ -1,5 +1,4 @@
-import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
 import type { ColumnDefinition } from "../../tableDefinitions";
 import {
   evalDatasetFormFilterCols,
@@ -36,7 +35,7 @@ export type EvaluatorFilterValidationResult = {
   issues: EvaluatorFilterValidationIssue[];
 };
 
-const parsedFilterSchema = z.array(singleFilter).nullable();
+const parsedFilterSchema = singleFilterList.nullable();
 
 const getSupportedColumnsForTarget = (
   targetObject: EvalTargetObjectType,

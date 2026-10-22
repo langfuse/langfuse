@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
-import { toast } from "sonner";
 import { isPresent, type ScoreConfigDomain } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -16,22 +16,26 @@ import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
-import { type AnalyticsData } from "@/src/features/scores/types";
+import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function AddScoreCategoryDialog({
   projectId,
   config,
   initialLabel,
-  source,
+  analyticsData,
   onClose,
   onCategoryAdded,
+  isActive = true,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
   initialLabel: string;
-  source: AnalyticsData["source"] | undefined;
+  analyticsData: AnnotationAnalyticsContext;
   onClose: () => void;
   onCategoryAdded: (label: string, numericValue: number) => void;
+  isActive?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -41,10 +45,7 @@ export function AddScoreCategoryDialog({
 
   const appendCategory = api.scoreConfigs.appendCategory.useMutation({
     onSuccess: async (data, variables) => {
-      capture(
-        "score_configs:add_category_inline",
-        source ? { source } : undefined,
-      );
+      capture("score_configs:add_category_inline", analyticsData);
       await Promise.all([
         utils.scoreConfigs.invalidate(),
         utils.annotationQueues.invalidate(),
@@ -58,7 +59,11 @@ export function AddScoreCategoryDialog({
       onClose();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to add category");
+      showToast({
+        type: "ERROR",
+        title: error.message ?? "Failed to add category",
+        analytics: classifyTrpcToastError(error, "score_category.create"),
+      });
     },
   });
 
@@ -73,12 +78,17 @@ export function AddScoreCategoryDialog({
 
   return (
     <Dialog
-      open
+      open={isActive}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <DialogContent closeOnInteractionOutside>
+      <DialogContent
+        closeOnInteractionOutside
+        onCloseAutoFocus={(event) => {
+          if (!isActive) event.preventDefault();
+        }}
+      >
         <DialogHeader variant="action">
           <DialogTitle>Add category</DialogTitle>
           <DialogDescription>

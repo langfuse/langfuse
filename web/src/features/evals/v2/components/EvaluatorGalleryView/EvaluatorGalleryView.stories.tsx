@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { User } from "lucide-react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
@@ -54,6 +53,7 @@ const managedTemplate = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     promptMessages: [
@@ -182,7 +182,7 @@ const defaultArgs = {
   search: "",
   onSearchChange: fn(),
   navigationItems: [
-    { key: "custom", label: "Your templates", icon: User, count: 2 },
+    { key: "custom", label: "Your templates", count: 2 },
     { key: "recommended", label: "Recommended starting points", count: 3 },
     { key: "conversation", label: "Conversational / Chatbots", count: 2 },
     { key: "quality", label: "Quality", count: 7 },
@@ -199,6 +199,72 @@ const defaultArgs = {
 
 export const Default = meta.story({
   args: defaultArgs,
+  render: StatefulEvaluatorGalleryView,
+});
+
+const topicDecisionModel = {
+  source: "managed",
+  key: "topic-decision-model",
+  name: "Assign Input Topic",
+  categories: ["classifier", "recommended"],
+  icon: "tags",
+  description:
+    "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
+  maintainer: "langfuse",
+  previewScores: [{ name: "topic", value: "billing" }],
+  evaluator: {
+    type: EvalTemplateTypeEnum.DECISION_MODEL,
+    questions: [
+      {
+        id: "topic",
+        type: "choice",
+        scoreName: "topic",
+        instructions: "Which topic does `input` belong to?",
+        options: [
+          { value: "support", description: "Product help or troubleshooting." },
+          { value: "billing", description: "Invoices, pricing, payments." },
+          { value: "sales", description: "Purchase, trial, demo, enterprise." },
+          { value: "other", description: "None of the above." },
+        ],
+      },
+    ],
+    state: [{ key: "input", defaultMapping: { field: "input" } }],
+  },
+} satisfies GalleryTemplate;
+
+const sectionsWithDecisionModelCard = sections.map((section) =>
+  section.key === "recommended"
+    ? {
+        ...section,
+        templates: [topicDecisionModel, ...section.templates.slice(0, 2)],
+      }
+    : section,
+);
+
+export const DecisionModels = meta.story({
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+  },
+  render: StatefulEvaluatorGalleryView,
+});
+
+export const DecisionModelsNarrow = meta.story({
+  globals: { viewport: { value: "evaluator-gallery-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "evaluator-gallery-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+  },
   render: StatefulEvaluatorGalleryView,
 });
 
@@ -256,12 +322,14 @@ export const EmptySearch = meta.story({
     await expect(
       canvas.getByText("No templates match your search."),
     ).toBeInTheDocument();
-    await expect(canvas.getByText("Browse")).toBeInTheDocument();
+    await expect(
+      canvas.getAllByRole("navigation", { name: "Browse categories" })[0],
+    ).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Quality 0" }),
     ).toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "New LLM-as-a-judge" }),
+      canvas.getByRole("button", { name: /^LLM-as-a-judge/ }),
     ).toBeInTheDocument();
   },
 });

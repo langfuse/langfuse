@@ -1,10 +1,21 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FilterState } from "@langfuse/shared";
+import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
+import * as recentSearches from "@/src/features/search-bar/lib/recent-searches";
+
+afterEach(() => vi.restoreAllMocks());
+
+const { capture } = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => capture,
+}));
+beforeEach(() => capture.mockClear());
 
 const NEW_FILTERS: FilterState = [
   { type: "string", column: "name", operator: "contains", value: "checkout" },
@@ -34,7 +45,211 @@ function setup(
   return { result, setFilterState, setSearchQuery, setSearchType };
 }
 
+function setupSplitEcho() {
+  const setSearchQuery = vi.fn();
+  return {
+    setSearchQuery,
+    ...renderHook(
+      ({ searchQuery }: { searchQuery: string | null }) => {
+        const [filterState, setFilterState] = useState<FilterState>([]);
+        return {
+          ...useEventsSearchBar({
+            projectId: "p",
+            tableName: "observations",
+            enabled: true,
+            filterState,
+            searchQuery,
+            searchType: DEFAULT_SEARCH_TYPE,
+            observed: undefined,
+            setFilterState,
+            setSearchQuery,
+            setSearchType: vi.fn(),
+          }),
+          navigateToFilters: setFilterState,
+        };
+      },
+      { initialProps: { searchQuery: null as string | null } },
+    ),
+  };
+}
+
 describe("useEventsSearchBar.commit", () => {
+  it("keeps a mixed commit intact while the filter echoes before the search URL", () => {
+    const { result, rerender, setSearchQuery } = setupSplitEcho();
+
+    act(() =>
+      result.current.store.getState().actions.setDraft("level:ERROR refund"),
+    );
+    act(() => result.current.commit("enter"));
+    expect(result.current.store.getState().draft.trim()).toBe(
+      "level:ERROR refund",
+    );
+
+    act(() => result.current.commit("blur"));
+    expect(setSearchQuery).toHaveBeenLastCalledWith("refund");
+    expect(capture).toHaveBeenCalledTimes(1);
+
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft("level:ERROR refund next"),
+    );
+    rerender({ searchQuery: "refund" });
+    expect(result.current.store.getState().draft).toBe(
+      "level:ERROR refund next",
+    );
+
+    act(() => result.current.navigateToFilters([]));
+    rerender({ searchQuery: null });
+    expect(result.current.store.getState().draft).toBe("");
+  });
+
+  it("replaces a pending commit when an explicit draft reset matches a partial echo", () => {
+    const { result, rerender } = setupSplitEcho();
+    act(() =>
+      result.current.store.getState().actions.setDraft("level:ERROR refund"),
+    );
+    act(() => result.current.commit("enter"));
+    act(() =>
+      result.current.resetDraft({
+        filters: [
+          {
+            type: "stringOptions",
+            column: "level",
+            operator: "any of",
+            value: ["ERROR"],
+          },
+        ],
+        searchQuery: null,
+        searchType: DEFAULT_SEARCH_TYPE,
+      }),
+    );
+    rerender({ searchQuery: null });
+    expect(result.current.store.getState().draft.trim()).toBe("level:ERROR");
+  });
+
+  it.each(["back", "different filters"])(
+    "honors external navigation before all commit lanes acknowledge: %s",
+    (navigation) => {
+      const { result } = setupSplitEcho();
+      act(() =>
+        result.current.store.getState().actions.setDraft("level:ERROR refund"),
+      );
+      act(() => result.current.commit("enter"));
+      if (navigation === "back") {
+        act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+        act(() => result.current.navigateToFilters([]));
+        expect(result.current.store.getState().draft).toBe("");
+      } else {
+        act(() => result.current.navigateToFilters(NEW_FILTERS));
+        expect(result.current.store.getState().draft.trim()).toBe(
+          "name:checkout",
+        );
+      }
+    },
+  );
+
+  it.each<{ scope: TracingSearchType[] }>([
+    { scope: ["id"] },
+    { scope: ["id", "output"] },
+    { scope: [] },
+  ])(
+    "reports the host's actual search scope without changing grammar lowering: $scope",
+    ({ scope }) => {
+      const { result, setSearchType } = setup({
+        analyticsSearchType: scope,
+        isV4: false,
+      });
+      act(() =>
+        result.current.store
+          .getState()
+          .actions.setDraft("sensitive scope phrase"),
+      );
+      act(() => result.current.commit("enter"));
+      expect(capture).toHaveBeenCalledWith(
+        "filters:search_submitted",
+        expect.objectContaining({ searchType: scope, isV4: false }),
+      );
+      expect(setSearchType).not.toHaveBeenCalled();
+      expect(JSON.stringify(capture.mock.calls)).not.toContain(
+        "sensitive scope phrase",
+      );
+    },
+  );
+  it("records payload scope intent once without sending the phrase", () => {
+    const { result } = setup({ searchQuery: null });
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft('input:"private payload phrase"'),
+    );
+    act(() => result.current.commit("enter"));
+    act(() => result.current.commit("blur"));
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(
+      "filters:search_submitted",
+      expect.objectContaining({
+        searchScopes: ["input"],
+        hasFreeText: false,
+      }),
+    );
+    expect(JSON.stringify(capture.mock.calls)).not.toContain(
+      "private payload phrase",
+    );
+  });
+
+  it("commits outside a project without writing project recent searches", () => {
+    const recordRecentSearch = vi
+      .spyOn(recentSearches, "recordRecentSearch")
+      .mockImplementation(() => {});
+    const { result, setFilterState } = setup({
+      projectId: undefined,
+      searchQuery: null,
+    });
+    act(() => result.current.store.getState().actions.setDraft("level:ERROR"));
+    act(() => result.current.commit("enter"));
+
+    expect(setFilterState).toHaveBeenCalledWith([
+      {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ]);
+    expect(recordRecentSearch).not.toHaveBeenCalled();
+  });
+
+  it("preserves a Scores saved-view filter the bar cannot represent", () => {
+    const hiddenFilter: FilterState = [
+      {
+        column: "evaluatorId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["legacy-evaluator"],
+      },
+    ];
+    const { result, setFilterState } = setup({
+      tableName: "scores",
+      registry: SCORES_FIELD_REGISTRY,
+      filterState: hiddenFilter,
+      searchQuery: null,
+    });
+    act(() => result.current.store.getState().actions.setDraft("Rouge Score"));
+    act(() => {
+      result.current.commit("enter");
+    });
+    expect(setFilterState).toHaveBeenCalledWith([
+      {
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "Rouge Score",
+      },
+      ...hiddenFilter,
+    ]);
+  });
+
   it("fully replaces hidden filters when a query preset is picked", () => {
     const hiddenFilter: FilterState = [
       {

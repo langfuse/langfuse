@@ -1,5 +1,5 @@
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import { type MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
+import type { MissingBucketValue } from "@/src/features/widgets";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;

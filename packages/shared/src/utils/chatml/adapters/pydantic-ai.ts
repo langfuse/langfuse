@@ -66,12 +66,15 @@ function extractFromParts(parts: unknown[]): {
       textParts.push(p.content);
     } else if (p.type === "thinking") {
       // Handle thinking parts - content can be in 'content' or 'thinking' field
-      const thinkingContent =
-        typeof p.content === "string"
-          ? p.content
-          : typeof p.thinking === "string"
-            ? p.thinking
-            : "";
+      const thinkingContent = (() => {
+        if (typeof p.content === "string") {
+          return p.content;
+        }
+        if (typeof p.thinking === "string") {
+          return p.thinking;
+        }
+        return "";
+      })();
       if (thinkingContent) {
         thinkingParts.push({
           content: thinkingContent,

@@ -1,21 +1,31 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { DialogController as DesignSystemDialogController } from "@/src/components/design-system/DialogController/DialogController";
 import motionStyles from "./dialog-motion.module.css";
 
+/**
+ * @deprecated Use design-system/DialogController/DialogController with design-system/Dialog/Dialog.
+ */
 const Dialog = DialogPrimitive.Root;
 
+/**
+ * @deprecated Use openDialog from the children render prop of design-system/DialogController/DialogController.
+ */
 const DialogTrigger = DialogPrimitive.Trigger;
 
 // Route the portal into the `modal` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+/**
+ * @deprecated Use design-system/Dialog/Dialog.
+ */
 const DialogPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>) => {
@@ -24,16 +34,23 @@ const DialogPortal = ({
 };
 DialogPortal.displayName = "DialogPortal";
 
+/**
+ * @deprecated Use closeDialog from design-system/DialogController/DialogController.
+ */
 const DialogClose = DialogPrimitive.Close;
 
-type DialogOverlayMode = "subtle" | "invisible" | "blocking";
+type DialogOverlayMode = "subtle" | "invisible" | "blocking" | "soft";
 
 const dialogOverlayClasses: Record<DialogOverlayMode, string> = {
   invisible: "bg-transparent",
+  soft: "bg-black/10 dark:bg-black/65",
   subtle: "bg-black/25 dark:bg-black/45",
   blocking: "bg-black/50 dark:bg-black/65",
 };
 
+/**
+ * @deprecated Use design-system/Dialog/Dialog.
+ */
 const DialogOverlay = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
@@ -77,6 +94,9 @@ const dialogContentVariants = cva(
   },
 );
 
+/**
+ * @deprecated Use Dialog from design-system/Dialog/Dialog inside design-system/DialogController/DialogController.
+ */
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   Omit<
@@ -86,6 +106,7 @@ const DialogContent = React.forwardRef<
       overlayMode?: DialogOverlayMode;
       overlayClassName?: string;
       stopPropagationOnEnterSpace?: boolean;
+      showCloseButton?: boolean;
     } & VariantProps<typeof dialogContentVariants>,
     "onPointerDownOutside" | "onInteractOutside"
   >
@@ -99,6 +120,7 @@ const DialogContent = React.forwardRef<
       overlayMode = "subtle",
       overlayClassName,
       stopPropagationOnEnterSpace = true,
+      showCloseButton = true,
       onEscapeKeyDown,
       onClick,
       size,
@@ -158,12 +180,14 @@ const DialogContent = React.forwardRef<
           {...props}
         >
           {children}
-          <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
-            <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-          </div>
+          {showCloseButton && (
+            <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
+              <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+                <X size="base" />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     );
@@ -173,63 +197,52 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 /**
  * Owns dialog open state while callers retain trigger and content presentation.
- * Prefer Trigger for direct user actions so Radix can provide trigger semantics,
- * keyboard behavior, and focus restoration. Use openDialog when the dialog must
- * open indirectly.
  */
-type DialogControllerProps = {
+type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
   children: (control: {
     isOpen: boolean;
-    openDialog: () => void;
-    Trigger: typeof DialogTrigger;
+    openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
   onBeforeClose?: () => boolean;
   onDismiss?: () => void;
-  renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
+  renderContent: (control: {
+    state: State;
+    closeDialog: () => void;
+  }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
 };
 
-const DialogController = ({
+/**
+ * @deprecated Use design-system/DialogController/DialogController with its renderDialog prop and design-system/Dialog/Dialog.
+ */
+const DialogController = <State = void,>({
+  initialState,
   children,
   closeOnInteractionOutside,
   onBeforeClose,
   onDismiss,
   renderContent,
   size,
-}: DialogControllerProps) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const closeDialog = () => {
-    if (onBeforeClose?.() === false) return false;
-    setIsOpen(false);
-    return true;
-  };
-
-  return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (open) {
-          setIsOpen(true);
-          return;
-        }
-        if (closeDialog()) onDismiss?.();
-      }}
-    >
-      {children({
-        isOpen,
-        openDialog: () => setIsOpen(true),
-        Trigger: DialogTrigger,
-      })}
+}: DialogControllerProps<State>) => (
+  <DesignSystemDialogController
+    initialState={initialState}
+    onBeforeClose={onBeforeClose}
+    onDismiss={onDismiss}
+    renderDialog={({ state, closeDialog }) => (
       <DialogContent
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
-        {renderContent({ closeDialog })}
+        {renderContent({ state, closeDialog })}
       </DialogContent>
-    </Dialog>
-  );
-};
+    )}
+  >
+    {children}
+  </DesignSystemDialogController>
+);
 
 const dialogHeaderVariants = cva(
   "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
@@ -248,6 +261,9 @@ const dialogHeaderVariants = cva(
   },
 );
 
+/**
+ * @deprecated Use the title prop of design-system/Dialog/Dialog.
+ */
 const DialogHeader = ({
   className,
   children,
@@ -271,7 +287,7 @@ const DialogHeader = ({
         className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
         tabIndex={-1}
       >
-        <X className="h-4 w-4" />
+        <X size="base" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </div>
@@ -279,6 +295,9 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = "DialogHeader";
 
+/**
+ * @deprecated Use Dialog.Body from design-system/Dialog/Dialog.
+ */
 const DialogBody = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -308,6 +327,9 @@ const dialogFooterVariants = cva(
   },
 );
 
+/**
+ * @deprecated Use the actions prop of design-system/Dialog/Dialog.
+ */
 const DialogFooter = ({
   className,
   variant,
@@ -324,6 +346,9 @@ const DialogFooter = ({
 );
 DialogFooter.displayName = "DialogFooter";
 
+/**
+ * @deprecated Use the title prop of design-system/Dialog/Dialog.
+ */
 const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -336,6 +361,9 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
+/**
+ * @deprecated Use the text prop or Dialog.Body from design-system/Dialog/Dialog.
+ */
 const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>

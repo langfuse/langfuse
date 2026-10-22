@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";

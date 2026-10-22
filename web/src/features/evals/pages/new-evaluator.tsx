@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import Page from "@/src/components/layouts/page";
 import {
   BreadcrumbSeparator,
@@ -6,7 +7,7 @@ import {
   BreadcrumbList,
   Breadcrumb,
 } from "@/src/components/ui/breadcrumb";
-import { Check, Info } from "lucide-react";
+import { Check, Info } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
@@ -14,7 +15,7 @@ import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
@@ -143,13 +144,18 @@ export default function NewEvaluatorPage() {
     !hasDefaultModel &&
     !isCheckingDefaultModel,
   );
-  const step = !evaluatorId
-    ? "select"
-    : isCheckingDefaultModel
-      ? "loading"
-      : shouldSetupDefaultModel
-        ? "defaultModel"
-        : "run";
+  const step = (() => {
+    if (!evaluatorId) {
+      return "select";
+    }
+    if (isCheckingDefaultModel) {
+      return "loading";
+    }
+    if (shouldSetupDefaultModel) {
+      return "defaultModel";
+    }
+    return "run";
+  })();
   const selectedTemplateIsLlm = Boolean(
     currentTemplate && !isCodeEvalTemplate(currentTemplate),
   );
@@ -191,7 +197,7 @@ export default function NewEvaluatorPage() {
             >
               1. Select Evaluator
               {step !== "select" && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check size="sm" __rawClassName="ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -206,7 +212,7 @@ export default function NewEvaluatorPage() {
             >
               2. Set up LLM connection
               {isProviderStepComplete && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check size="sm" __rawClassName="ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>

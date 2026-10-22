@@ -1,10 +1,14 @@
 // @vitest-environment node
 
 import { TRPCClientError } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { vi } from "vitest";
+import type { AppRouter } from "@/src/server/api/root";
 import {
+  EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
+  buildIdLink,
   captureBuildId,
   fetchWithParseErrorStatus,
   getApproxTrpcGetUrlBytes,
@@ -18,8 +22,11 @@ import {
   MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldRetryQuery,
+  shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
+import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
 
 const {
   captureExceptionMock,
@@ -90,6 +97,41 @@ const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
     message: "Too small: expected string to have >=1 characters",
   },
 ]);
+
+describe("buildIdLink toast operation context", () => {
+  it("records the typed request path before forwarding a transport error", async () => {
+    const requestError = new TypeError("Failed to fetch");
+    const execute = buildIdLink()({} as never);
+    const result = execute({
+      op: {
+        id: 1,
+        type: "query",
+        path: "projects.create",
+        input: undefined,
+        context: {},
+        signal: undefined,
+      },
+      next: () =>
+        observable((observer) => {
+          // Exercise the defensive runtime seam even though compliant tRPC
+          // links normally wrap transport failures in TRPCClientError.
+          observer.error(requestError as unknown as TRPCClientError<AppRouter>);
+        }),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      result.subscribe({
+        next: () => reject(new Error("expected request to fail")),
+        error: (error) => {
+          expect(error).toBe(requestError);
+          expect(getTrpcToastOperation(error)).toBe("projects.create");
+          resolve();
+        },
+        complete: () => reject(new Error("expected request to fail")),
+      });
+    });
+  });
+});
 
 describe("isNetworkConnectivityError", () => {
   it("detects the reported failed fetch error without a response", () => {
@@ -491,6 +533,50 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
+  it("treats a rejected remote-experiment URL as expected", () => {
+    // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
+    // only when validateWebhookURL rejects a user-configured URL (DNS
+    // lookup failed, private IP, …). The UI already toasts the message.
+    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "BAD_REQUEST",
+            httpStatus: 400,
+            path,
+            message:
+              "Invalid remote run URL: DNS lookup failed for example.invalid",
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("does not treat BAD_REQUEST on other procedures as expected", () => {
+    // Negative fixture: a missing-projectId / invariant BAD_REQUEST is a
+    // client bug and must still reach Sentry. Widening the allowlist
+    // would hide those.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "traces.byId",
+          message: "Invalid input, projectId is required",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("suppresses Zod input validation (empty/too-short fields) as expected user input", () => {
     expect(
       isExpectedTrpcClientError(
@@ -531,15 +617,19 @@ describe("isExpectedTrpcClientError", () => {
   });
 
   it("does not treat a non-Zod BAD_REQUEST as validation", () => {
-    expect(
-      isTrpcZodValidationError(
-        trpcServerError({
-          code: "BAD_REQUEST",
-          httpStatus: 400,
-          message: "Invalid input, projectId is required",
-        }),
-      ),
-    ).toBe(false);
+    // Protected-project middleware throws this when `projectId` is missing.
+    // That is a client call-site bug (queries firing before pages-router
+    // params hydrate), not expected user input — keep capturing until the
+    // remaining unguarded pages gate on useReadyRouteParams.
+    const error = trpcServerError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      path: "datasets.runsByDatasetId",
+      message: "Invalid input, projectId is required",
+    });
+
+    expect(isTrpcZodValidationError(error)).toBe(false);
+    expect(isExpectedTrpcClientError(error)).toBe(false);
   });
 
   it("does not suppress an unrecognized tRPC code", () => {
@@ -561,6 +651,81 @@ describe("isExpectedTrpcClientError", () => {
     );
     expect(isExpectedTrpcClientError(null)).toBe(false);
     expect(isExpectedTrpcClientError(undefined)).toBe(false);
+  });
+});
+
+describe("shouldRetryQuery", () => {
+  it("does not retry a query rejected by the ClickHouse resource guardrail", () => {
+    // Production shape minted by `withErrorHandling` (web/src/server/api/
+    // trpc.ts) when a query times out or exceeds ClickHouse memory. A retry
+    // re-runs the same over-budget query while ClickHouse is still busy with
+    // the abandoned attempt.
+    const error = TRPCClientError.from({
+      error: {
+        code: -32600,
+        message:
+          "Your query could not be completed. Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+        data: {
+          code: "UNPROCESSABLE_CONTENT",
+          httpStatus: 422,
+          path: "sessions.allFromEvents",
+          errorName: "ClickHouseResourceError",
+        },
+      },
+    });
+
+    expect(shouldRetryQuery(0, error)).toBe(false);
+  });
+
+  it("does not retry a missing resource (404)", () => {
+    const error = trpcServerError({
+      code: "NOT_FOUND",
+      httpStatus: 404,
+      path: "traces.byId",
+    });
+
+    expect(shouldRetryQuery(0, error)).toBe(false);
+  });
+
+  it.each([
+    [
+      "a server error",
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "sessions.allFromEvents",
+      }),
+    ],
+    [
+      "a network connectivity failure",
+      TRPCClientError.from(new TypeError("Failed to fetch")),
+    ],
+  ])("retries %s up to three times", (_label, error) => {
+    expect(shouldRetryQuery(0, error)).toBe(true);
+    expect(shouldRetryQuery(2, error)).toBe(true);
+    expect(shouldRetryQuery(3, error)).toBe(false);
+  });
+});
+
+describe("shouldRetryResourceQuery", () => {
+  it.each([
+    ["UNAUTHORIZED", 401],
+    ["UNPROCESSABLE_CONTENT", 422],
+  ])("does not retry %s", (code, httpStatus) => {
+    const error = trpcServerError({ code, httpStatus, path: "traces.byId" });
+
+    expect(shouldRetryResourceQuery(0, error)).toBe(false);
+  });
+
+  it("retries a server error up to three times", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "traces.byId",
+    });
+
+    expect(shouldRetryResourceQuery(2, error)).toBe(true);
+    expect(shouldRetryResourceQuery(3, error)).toBe(false);
   });
 });
 
@@ -664,6 +829,26 @@ describe("reportTrpcErrorWithoutToast", () => {
     warnSpy.mockRestore();
   });
 
+  it("suppresses a rejected remote-experiment URL (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+        message:
+          "Invalid remote run URL: DNS lookup failed for example.invalid",
+      }),
+      "experiments",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "BAD_REQUEST",
+      path: "datasets.triggerRemoteExperiment",
+    });
+  });
+
   it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
     reportTrpcErrorWithoutToast(
       trpcServerError({
@@ -761,6 +946,27 @@ describe("reportTrpcErrorWithoutToast", () => {
       area: "trpc",
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "projects.create",
+    });
+  });
+
+  it("still captures a 5xx on an allowlisted remote-experiment path", () => {
+    // Negative fixture: the BAD_REQUEST allowlist must not swallow a real
+    // server failure on the same procedure.
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+      }),
+      "experiments",
+    );
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "INTERNAL_SERVER_ERROR",
+      "trpc.path": "datasets.triggerRemoteExperiment",
     });
   });
 

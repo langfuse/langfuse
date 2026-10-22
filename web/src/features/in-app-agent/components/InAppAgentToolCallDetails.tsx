@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 "use client";
 
 import {
@@ -279,12 +280,18 @@ function DefaultToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
   return (
     <div className="flex flex-col gap-2">
       <InAppAgentToolPayload
+        toolName={tool.name}
+        kind="arguments"
         label="Arguments"
         value={tool.args}
         variant="default"
       />
       {result !== undefined && (
-        <InAppAgentToolResultPayload status={tool.status} value={result} />
+        <InAppAgentToolResultPayload
+          toolName={tool.name}
+          status={tool.status}
+          value={result}
+        />
       )}
     </div>
   );

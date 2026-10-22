@@ -8,7 +8,7 @@ import {
   PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,

@@ -13,13 +13,15 @@
 // Rules:
 // - Top-level AND chain: bare text nodes become searchQuery terms (the default
 //   scope searches ids+names+input+output); everything else lowers into one or
-//   more single filters. The bar emits no scope token, so searchType is null.
+//   more single filters. Declared search scopes select the one backend phrase;
+//   absent a scope token, the registry supplies the host's default.
 // - A top-level OR of same-field `key:v` equalities collapses to one any-of
 //   filter (`level:ERROR OR level:WARNING` === `level:(ERROR OR WARNING)`).
 //   Any other OR/nested group is not representable.
 // - NOT lowers at this boundary (none-of / does-not-contain / inverted
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
+import { resolveAttachedTarget } from "./targeting";
 import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
@@ -49,10 +51,8 @@ export type AstToFilterStateResult = {
   filters: FilterState;
   searchQuery: string | null;
   /**
-   * Full-text scope. Always null today: the bar has no scope tokens — bare free
-   * text uses the caller's default (ids+names+input+output), and `input:`/
-   * `output:`/`name:`/`id:` are column filters, not scopes. Kept as the seam for
-   * caller-default resolution (commit.ts) and any future scope token.
+   * Selected backend search lanes, or null for the registry's default.
+   * Real column filters remain separate from this global search phrase.
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
@@ -116,7 +116,7 @@ function isObservedBooleanScore(
 function collapseSameFieldOr(node: ASTNode): FilterNode | null {
   if (node.kind !== "or") return null;
   const filters = node.children.filter(
-    (c): c is FilterNode => c.kind === "filter",
+    (c): c is FilterNode => c.kind === "filter" && !c.target,
   );
   if (filters.length !== node.children.length || filters.length < 2)
     return null;
@@ -141,6 +141,8 @@ type LowerContext = {
   errors: string[];
   scoreTypes?: ScoreTypeContext;
   registry: FieldRegistry;
+  scopedSearch?: { query: string; searchType: readonly TracingSearchType[] };
+  compatibilitySearchType?: TracingSearchType[];
 };
 
 export function astToFilterState(
@@ -161,15 +163,33 @@ export function astToFilterState(
   }
 
   const defaultTextFilter = lowerDefaultTextField(ctx);
+  if (
+    ctx.scopedSearch &&
+    (ctx.searchTerms.length > 0 || ctx.compatibilitySearchType)
+  ) {
+    ctx.errors.push(
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    );
+  }
+  if (
+    ctx.compatibilitySearchType &&
+    ctx.searchTerms.length === 0 &&
+    !ctx.scopedSearch
+  ) {
+    ctx.errors.push("Add search text after in:");
+  }
+  ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
 
   return {
     filters: ctx.filters,
     searchQuery:
-      defaultTextFilter || ctx.searchTerms.length === 0
+      ctx.scopedSearch?.query ??
+      (defaultTextFilter || ctx.searchTerms.length === 0
         ? null
-        : ctx.searchTerms.join(" "),
-    // The bar has no scope tokens; the caller (commit.ts) applies the default.
-    searchType: null,
+        : ctx.searchTerms.join(" ")),
+    searchType: ctx.scopedSearch
+      ? [...ctx.scopedSearch.searchType]
+      : (ctx.compatibilitySearchType ?? null),
     errors: ctx.errors,
   };
 }
@@ -278,6 +298,67 @@ function lowerFilterNode(
   negated: boolean,
   ctx: LowerContext,
 ): void {
+  const ref = ctx.registry.resolveField(node.key);
+  if (
+    ref?.type === "searchScope" ||
+    (ref?.type === "pseudo" && ref.id === "in")
+  ) {
+    if (node.target) {
+      ctx.errors.push("Search scopes do not support a target");
+      return;
+    }
+    if (node.values.length === 0) return;
+    const issue =
+      operatorIssue(ref, node.op, node.valueOp ?? "or") ??
+      (negated ? negationIssue(ref, node.op, node.valueOp ?? "or") : null);
+    if (issue) {
+      ctx.errors.push(issue);
+      return;
+    }
+    if (ref.type === "searchScope") {
+      if (node.values.length !== 1) {
+        ctx.errors.push(
+          `${ref.id}: accepts one search phrase, not grouped values`,
+        );
+        return;
+      }
+      if (node.values[0]!.trim().length === 0) {
+        ctx.errors.push(`Enter a search phrase after ${ref.id}:`);
+        return;
+      }
+      if (ctx.scopedSearch) {
+        ctx.errors.push("Only one scoped search phrase is supported");
+        return;
+      }
+      ctx.scopedSearch = {
+        query: node.values[0]!,
+        searchType: ref.scope.searchType,
+      };
+    } else {
+      if (ctx.compatibilitySearchType) {
+        ctx.errors.push("Only one in: scope selection is supported");
+        return;
+      }
+      const supported = new Set<string>([
+        ...ctx.registry.defaultSearchType,
+        ...Object.values(ctx.registry.searchScopes).flatMap(
+          (scope) => scope.searchType,
+        ),
+        ...["input", "output"].filter(
+          (field) => ctx.registry.resolveField(field)?.type === "field",
+        ),
+      ]);
+      const types = node.values.map((value) => value.toLowerCase());
+      if (types.some((type) => !supported.has(type))) {
+        ctx.errors.push(
+          `Unsupported search scope — choose ${[...supported].join(", ")}`,
+        );
+        return;
+      }
+      ctx.compatibilitySearchType = [...new Set(types)] as TracingSearchType[];
+    }
+    return;
+  }
   lowerFilter(
     node,
     negated,
@@ -296,6 +377,12 @@ function lowerFilter(
   scoreTypes?: ScoreTypeContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
+  const target = resolveAttachedTarget(node, registry);
+  if (target && "error" in target) {
+    errors.push(target.error);
+    return;
+  }
+
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
     // with the exact wording for each shape (bare key, operator prefix
@@ -324,33 +411,53 @@ function lowerFilter(
     }
   }
 
+  // One node can emit several conditions (multi-value, score expansion), so
+  // stamp a resolved target onto each before appending.
+  const conditions: SingleEventsFilter[] = [];
   switch (ref.type) {
     case "pseudo":
-      // `has` is the only pseudo-field.
-      lowerHas(node, negated, out, errors, registry);
-      return;
+      // Global search scopes are handled by lowerFilterNode.
+      lowerHas(node, negated, conditions, errors, registry);
+      break;
     case "metadata":
-      lowerMetadata(node, ref.key, negated, out, errors);
-      return;
+      lowerMetadata(node, ref.key, negated, conditions, errors, ref.column);
+      break;
     case "scores":
-      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
-      return;
+      if (registry.targeting?.scoreTypesError) {
+        errors.push(registry.targeting.scoreTypesError);
+        return;
+      }
+      lowerScores(
+        node,
+        ref.key,
+        ref.level,
+        negated,
+        conditions,
+        errors,
+        scoreTypes,
+      );
+      break;
     case "field":
       switch (ref.field.kind) {
         case "number":
-          lowerNumber(node, ref.field, negated, out, errors);
-          return;
+          lowerNumber(node, ref.field, negated, conditions, errors);
+          break;
         case "datetime":
-          lowerDatetime(node, ref.field, negated, out, errors);
-          return;
+          lowerDatetime(node, ref.field, negated, conditions, errors);
+          break;
         case "boolean":
-          lowerBoolean(node, ref.field, negated, out, errors);
-          return;
+          lowerBoolean(node, ref.field, negated, conditions, errors);
+          break;
         case "text":
-          lowerText(node, ref.field, negated, out, errors);
-          return;
+          lowerText(node, ref.field, negated, conditions, errors);
+          break;
       }
   }
+  out.push(
+    ...conditions.map((condition) =>
+      target ? { ...condition, target: target.id } : condition,
+    ),
+  );
 }
 
 /** AST string op -> Langfuse string filter operator (positive polarity). */
@@ -419,8 +526,9 @@ function lowerText(
     // none-of (negated) via stringOptions (string columns accept it). A single
     // NEGATED exact (`-name:=abc`) is exact-inequality: its only faithful flat
     // form is stringOptions none-of, since there is no `string !=`. A single
-    // POSITIVE exact stays the plain `string =`.
-    if (node.values.length > 1) {
+    // POSITIVE exact uses the owning column's shape: categorical facets need
+    // stringOptions even for one value so the selected checkbox stays visible.
+    if (node.values.length > 1 || field.exactMatchUsesOptions) {
       out.push({
         type: "stringOptions",
         column: field.id,
@@ -637,6 +745,7 @@ function lowerMetadata(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  column = "metadata",
 ): void {
   if (node.values.length > 1) {
     errors.push(
@@ -649,7 +758,7 @@ function lowerMetadata(
   if (node.op === "~") {
     out.push({
       type: "stringObject",
-      column: "metadata",
+      column,
       key,
       operator: negated ? "does not contain" : "contains",
       value,
@@ -660,7 +769,7 @@ function lowerMetadata(
     // negationIssue blocks negated forms before this point.
     out.push({
       type: "stringObject",
-      column: "metadata",
+      column,
       key,
       operator: stringOperatorOf(node.op)!,
       value,
@@ -678,7 +787,7 @@ function lowerMetadata(
   }
   out.push({
     type: "stringObject",
-    column: "metadata",
+    column,
     key,
     operator: "=",
     value,
@@ -867,6 +976,16 @@ function lowerHas(
   }
   for (const v of node.values) {
     const target = registry.resolveField(v);
+    if (target?.type === "metadata") {
+      out.push({
+        type: "stringObject",
+        column: target.column ?? "metadata",
+        key: target.key,
+        operator: negated ? "is not set" : "is set",
+        value: "",
+      });
+      continue;
+    }
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;

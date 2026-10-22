@@ -2,7 +2,10 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
+  parseIfString,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
 } from "../../../core/utils/json";
 import {
@@ -11,14 +14,20 @@ import {
   parseMediaReference,
 } from "../../../core/normalize/message-parts/media";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
 } from "../../../core/normalize/tool-definitions";
-import type { FilePart, FinishReason } from "../../../types";
+import type {
+  FilePart,
+  FinishReason,
+  ToolResultPart,
+  ToolResultOutput,
+} from "../../../types";
 import type {
   IOConvention,
+  MessageSource,
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
@@ -108,16 +117,21 @@ const normalizeAiSdkFile: PartHandler = (value) => {
   return part ? claimed(part) : unmatched;
 };
 
-const normalizeAiSdkToolError: PartHandler = (value) =>
-  claimed({
-    // AI SDK tool execution error: the error is the result.
-    ...toolResultPart({
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      output: value.error ?? null,
+const normalizeAiSdkToolError: PartHandler = (value) => {
+  const raw = parseIfString(value.error ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.toolCallId),
+      toolName: optionalString(value.toolName),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
+      isError: true,
     }),
-    isError: true,
-  });
+  );
+};
 
 const normalizeAiSdkReasoningFile: PartHandler = (value) => {
   // AI SDK reasoning-generated file (a FilePart nested under `file`; older
@@ -153,17 +167,79 @@ const normalizeAiSdkToolCall: PartHandler = (value) =>
   );
 // AI SDK tool-result parts: { toolCallId, toolName, output } (v4 emissions
 // used `result`).
-const normalizeAiSdkToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      output: value.output ?? value.result,
-      isError: typeof value.isError === "boolean" ? value.isError : undefined,
+const normalizeAiSdkToolResult: PartHandler = (value, context) => {
+  const raw = value.output ?? value.result;
+  const record = asRecord(raw);
+  const wrapper =
+    record && ("value" in record || record.type === "execution-denied")
+      ? record
+      : undefined;
+  let output: ToolResultOutput;
+  let isError = typeof value.isError === "boolean" ? value.isError : undefined;
+  switch (wrapper?.type) {
+    case "text":
+    case "error-text":
+      output =
+        typeof wrapper.value === "string"
+          ? { type: "text", value: wrapper.value }
+          : { type: "json", value: toJsonValue(wrapper.value) };
+      isError = isError ?? (wrapper.type === "error-text" ? true : undefined);
+      break;
+    case "json":
+    case "error-json":
+      output = { type: "json", value: toJsonValue(wrapper.value) };
+      isError = isError ?? (wrapper.type === "error-json" ? true : undefined);
+      break;
+    case "content":
+      output = toolResultOutput(
+        Array.isArray(wrapper.value)
+          ? context.normalizePartList(wrapper.value)
+          : [],
+        wrapper.value,
+      );
+      break;
+    case "execution-denied":
+      output = { type: "json", value: toJsonValue(raw) };
+      break;
+    default: {
+      const parsed = parseIfString(raw ?? null);
+      output =
+        typeof parsed === "string"
+          ? { type: "text", value: parsed }
+          : { type: "json", value: toJsonValue(parsed) };
+    }
+  }
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.toolCallId),
+      toolName: optionalString(value.toolName),
+      output,
+      isError,
     }),
   );
+};
+
+// Model-facing tool outputs use explicit URL/data variants rather than the
+// legacy image/file payloads used in ordinary messages.
+const normalizeAiSdkToolMedia: PartHandler = (value) => {
+  const type = String(value.type);
+  const payload = type.endsWith("-url")
+    ? { type: "url", url: value.url }
+    : { type: "data", data: value.data };
+  const part = aiSdkFilePart(payload, {
+    mediaType: optionalString(value.mediaType),
+    filename: optionalString(value.filename),
+    fallbackMediaType: type.startsWith("image-") ? "image/*" : undefined,
+  });
+  return part ? claimed(part) : unmatched;
+};
 
 const AI_SDK_PART_HANDLERS = {
+  "image-data": normalizeAiSdkToolMedia,
+  "image-url": normalizeAiSdkToolMedia,
+  "file-data": normalizeAiSdkToolMedia,
+  "file-url": normalizeAiSdkToolMedia,
   "tool-call": normalizeAiSdkToolCall,
   "tool-error": normalizeAiSdkToolError,
   "tool-result": normalizeAiSdkToolResult,
@@ -194,6 +270,22 @@ function aiSdkToolDefinitionSources(
 
 export const aiSdkProvider = {
   name: "ai-sdk",
+  claimMessages: (root, kind): MessageSource[] => {
+    if (kind !== "input" || root.messages !== undefined) return [];
+    const prompt = root.prompt;
+    if (typeof prompt === "string") {
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "single", value: prompt, fallbackRole: "user" }];
+    }
+    if (
+      Array.isArray(prompt) &&
+      prompt.every((message) => typeof asRecord(message)?.role === "string")
+    ) {
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "sequence", values: prompt, fallbackRole: "user" }];
+    }
+    return [];
+  },
   finishReasonTypeByRaw: AI_SDK_FINISH_REASON_TYPE_BY_RAW,
   // AI SDK / MCP tool declarations: { name?, description, inputSchema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {

@@ -1,6 +1,6 @@
 import { eventsEvalFilterColumns } from "@langfuse/shared";
 
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 
 /**
  * Derived from the same columns the rule service validates. The overlay only

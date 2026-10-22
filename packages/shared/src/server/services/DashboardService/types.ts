@@ -1,6 +1,6 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
-import { singleFilter } from "../../../";
+import { singleFilterList } from "../../../";
 import {
   persistedWidgetViewToQueryView,
   type views,
@@ -140,7 +140,9 @@ export const DashboardDomainSchema = z.object({
   name: z.string(),
   description: z.string(),
   definition: DashboardDefinitionSchema,
-  filters: z.array(singleFilter).default([]),
+  // Persisted filters may predate the `is set` operator and use the legacy
+  // metadata `contains ""` key-presence idiom; coerce it before validation.
+  filters: singleFilterList.default([]),
   owner: OwnerEnum,
 });
 
@@ -163,7 +165,7 @@ export const WidgetDomainSchema = z.object({
   view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
   // Lowest query-engine version required by the persisted widget definition.
@@ -178,7 +180,7 @@ export const CreateWidgetInputSchema = z.object({
   view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });

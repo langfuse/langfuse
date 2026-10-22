@@ -23,7 +23,7 @@ import {
 import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 import {
   makeIdempotencyKey,
@@ -64,7 +64,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
-class BillingService {
+export class BillingService {
   constructor(
     private stripe: Stripe,
     private ctx: OrgAuthedContext,
@@ -568,7 +568,7 @@ class BillingService {
 
         if (!stripeCustomerId || !stripeSubscriptionId) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No stripe customer or subscription found",
           });
         }
@@ -637,7 +637,7 @@ class BillingService {
 
         if (parsedOrg.cloudConfig?.plan) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Cannot initialize stripe checkout for orgs that have a manual plan override",
           });
@@ -645,7 +645,7 @@ class BillingService {
 
         if (!StripeCatalogue.isValidCheckoutProduct(stripeProductId)) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "BAD_REQUEST",
             message: "Invalid stripe product id",
           });
         }
@@ -796,7 +796,7 @@ class BillingService {
 
         if (parsedOrg.cloudConfig?.plan)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Cannot change plan for orgs that have a manually set plan",
           });
@@ -806,7 +806,7 @@ class BillingService {
 
         if (!stripeSubscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "Organization does not have an active subscription",
           });
 
@@ -830,7 +830,7 @@ class BillingService {
           )
         ) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Subscription is not active, current status: " +
               subscription.status,
@@ -839,7 +839,7 @@ class BillingService {
 
         if (!StripeCatalogue.isValidCheckoutProduct(newProductId)) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "BAD_REQUEST",
             message: "Invalid stripe product id for new product",
           });
         }
@@ -1187,7 +1187,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to cancel",
           });
 
@@ -1285,7 +1285,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to reactivate",
           });
 
@@ -1496,7 +1496,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription found",
           });
 
@@ -1559,7 +1559,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!stripeCustomerId) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No stripe customer or subscription found",
           });
         }
@@ -1919,7 +1919,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "Organization does not have an active subscription",
           });
 

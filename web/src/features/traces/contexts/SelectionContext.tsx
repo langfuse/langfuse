@@ -1,11 +1,13 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * SelectionContext - Manages UI navigation and interaction state.
  *
  * Purpose:
  * - Tracks selected node ID (synced to URL query param)
+ * - Owns panel visibility and the mobile tab alongside selection
  * - Manages collapsed/expanded state for tree nodes
  * - Handles search query with debounced input
- * - Tracks selected tab (preview/log/scores) - synced to URL query param `traceTab`
+ * - Tracks selected detail tab - synced to URL query param `traceTab`
  * - Tracks view preference (formatted/json) - synced to URL query param AND localStorage
  *
  * View Preference Behavior:
@@ -22,20 +24,23 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
+  useRef,
   useCallback,
   useMemo,
   type ReactNode,
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useViewPreferences } from "./ViewPreferencesContext";
+import { type MobileTraceTab } from "../components/TraceLayoutMobile";
 import {
-  useViewPreferences,
+  isPrettyLikeJsonView,
   type JsonViewPreference,
-} from "./ViewPreferencesContext";
+} from "@/src/components/ui/jsonViewPreference";
 
-// Valid tab values for detail view
-export type DetailTab = "preview" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "log", "scores"];
+import { DETAIL_TABS, type DetailTab } from "../constants/detailTabs";
+export type { DetailTab } from "../constants/detailTabs";
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
@@ -43,8 +48,20 @@ export type ViewPref = "formatted" | "json";
 const VALID_PREFS: ViewPref[] = ["formatted", "json"];
 
 interface SelectionContextValue {
+  defaultObservationId: string | null;
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
+  selectNode: (id: string | null) => void;
+  openDetails: () => void;
+  mobileTab: MobileTraceTab;
+  setMobileTab: (tab: MobileTraceTab) => void;
+  /** Null until the layout restores its saved sizes. */
+  navigationPanelCollapsed: boolean | null;
+  detailPanelCollapsed: boolean | null;
+  setNavigationPanelCollapsed: (collapsed: boolean) => void;
+  setDetailPanelCollapsed: (collapsed: boolean) => void;
+  pendingPanelExpand: "navigation" | "detail" | null;
+  setPendingPanelExpand: (panel: "navigation" | "detail" | null) => void;
   collapsedNodes: Set<string>;
   toggleCollapsed: (id: string) => void;
   expandAll: () => void;
@@ -72,15 +89,105 @@ export function useSelection(): SelectionContextValue {
 
 interface SelectionProviderProps {
   children: ReactNode;
+  defaultObservationId: string | null;
+  isMobile: boolean;
+  expandDetailOnMount: boolean;
 }
 
-export function SelectionProvider({ children }: SelectionProviderProps) {
+export function SelectionProvider({
+  children,
+  defaultObservationId,
+  isMobile,
+  expandDetailOnMount,
+}: SelectionProviderProps) {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
   );
+  const previousObservationId = useRef(currentObservationId ?? null);
+  const pendingObservationId = useRef<string | null | undefined>(undefined);
   const [tabParam, setTabParam] = useQueryParam("traceTab", StringParam);
   const [prefParam, setPrefParam] = useQueryParam("pref", StringParam);
+  const [mobileTabParam, setMobileTabParam] = useQueryParam(
+    "mobileTab",
+    StringParam,
+  );
+  // Opening intent is captured before the implicit root is applied. Later
+  // default-root changes choose content without changing the user's layout.
+  const [initialMobileTab] = useState<"tree" | "info">(
+    currentObservationId ? "info" : "tree",
+  );
+  const mobileTab =
+    mobileTabParam === "tree" ||
+    mobileTabParam === "timeline" ||
+    mobileTabParam === "graph" ||
+    mobileTabParam === "info"
+      ? mobileTabParam
+      : initialMobileTab;
+  const [navigationPanelCollapsed, setNavigationPanelCollapsed] = useState<
+    boolean | null
+  >(null);
+  const [detailPanelCollapsed, setDetailPanelCollapsed] = useState<
+    boolean | null
+  >(null);
+  const [pendingPanelExpand, setPendingPanelExpand] = useState<
+    "navigation" | "detail" | null
+  >(
+    !isMobile && (currentObservationId || expandDetailOnMount)
+      ? "detail"
+      : null,
+  );
+  const setMobileTab = useCallback(
+    (tab: SelectionContextValue["mobileTab"]) => {
+      // Write last when selecting on mobile: batching keeps selection + tab in
+      // one pushed history entry. Never infer a tab switch from selection changes,
+      // which would overwrite the tab restored by Back/Forward (LFE-11067).
+      setMobileTabParam(tab, "pushIn");
+    },
+    [setMobileTabParam],
+  );
+  const openDetails = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("info");
+      return;
+    }
+    if (detailPanelCollapsed !== false) setPendingPanelExpand("detail");
+  }, [isMobile, setMobileTab, detailPanelCollapsed]);
+  const selectNode = useCallback(
+    (id: string | null) => {
+      pendingObservationId.current = id;
+      setCurrentObservationId(id);
+      openDetails();
+    },
+    [setCurrentObservationId, openDetails],
+  );
+  const setSelectedNodeId = useCallback(
+    (id: string | null) => {
+      // Synthetic graph nodes intentionally change selection without opening details.
+      pendingObservationId.current = id;
+      setCurrentObservationId(id);
+    },
+    [setCurrentObservationId],
+  );
+
+  // History navigation bypasses selectNode. Watch only the explicit URL
+  // selection so loading an implicit root never changes panel visibility.
+  useEffect(() => {
+    const observationId = currentObservationId ?? null;
+    const changed = previousObservationId.current !== observationId;
+    previousObservationId.current = observationId;
+
+    if (!changed) return;
+
+    // Query writes are batched; unrelated renders can happen before they land.
+    // Consume the action's echo only once the URL selection actually changes.
+    const pendingId = pendingObservationId.current;
+    pendingObservationId.current = undefined;
+    if (pendingId === observationId || isMobile) return;
+    if (observationId === null) return;
+
+    openDetails();
+  }, [currentObservationId, isMobile, openDetails]);
 
   // Get localStorage default for view preference
   const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
@@ -90,16 +197,16 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Validate and provide defaults for tab
-  const selectedTab: DetailTab = VALID_TABS.includes(tabParam as DetailTab)
+  const selectedTab: DetailTab = DETAIL_TABS.includes(tabParam as DetailTab)
     ? (tabParam as DetailTab)
     : DEFAULT_TAB;
 
   // Map localStorage JsonViewPreference to ViewPref format
-  // Both "json" and "json-beta" map to "json" ViewPref
-  const localStorageViewPref: ViewPref =
-    jsonViewPreference === "json" || jsonViewPreference === "json-beta"
-      ? "json"
-      : "formatted";
+  const localStorageViewPref: ViewPref = isPrettyLikeJsonView(
+    jsonViewPreference,
+  )
+    ? "formatted"
+    : "json";
 
   // View preference: URL param overrides localStorage default
   const viewPref: ViewPref = VALID_PREFS.includes(prefParam as ViewPref)
@@ -166,17 +273,21 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     setCollapsedNodesArray(nodeIds);
   }, []);
 
-  const setSelectedNodeId = useCallback(
-    (id: string | null) => {
-      setCurrentObservationId(id);
-    },
-    [setCurrentObservationId],
-  );
-
   const value = useMemo<SelectionContextValue>(
     () => ({
-      selectedNodeId: currentObservationId ?? null,
+      defaultObservationId,
+      selectedNodeId: currentObservationId ?? defaultObservationId,
       setSelectedNodeId,
+      selectNode,
+      openDetails,
+      mobileTab,
+      setMobileTab,
+      navigationPanelCollapsed,
+      detailPanelCollapsed,
+      setNavigationPanelCollapsed,
+      setDetailPanelCollapsed,
+      pendingPanelExpand,
+      setPendingPanelExpand,
       collapsedNodes,
       toggleCollapsed,
       expandAll,
@@ -192,7 +303,15 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     }),
     [
       currentObservationId,
+      defaultObservationId,
       setSelectedNodeId,
+      selectNode,
+      openDetails,
+      mobileTab,
+      setMobileTab,
+      navigationPanelCollapsed,
+      detailPanelCollapsed,
+      pendingPanelExpand,
       collapsedNodes,
       toggleCollapsed,
       expandAll,

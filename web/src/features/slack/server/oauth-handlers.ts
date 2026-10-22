@@ -6,7 +6,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { getProductBaseUrl } from "@/src/utils/base-url";
@@ -39,6 +39,7 @@ export async function handleInstallPath(
   req: NextApiRequest,
   res: NextApiResponse,
   projectId: string,
+  userId: string,
 ) {
   try {
     // Use InstallProvider's handleInstallPath method to render the installation page
@@ -54,7 +55,7 @@ export async function handleInstallPath(
 
     const installOptions = {
       scopes: [...SLACK_BOT_SCOPES],
-      metadata: JSON.stringify({ projectId: projectId }),
+      metadata: JSON.stringify({ projectId, userId }),
       redirectUri: redirectUri.toString(),
     };
 

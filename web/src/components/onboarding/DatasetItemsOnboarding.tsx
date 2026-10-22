@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { Braces, Code, ListTree, Upload } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useRef, useState } from "react";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
+import { Braces, Code, ListTree, Upload } from "@langfuse/icons";
 import Link from "next/link";
 import {
   Dialog,
@@ -11,8 +12,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 
 interface DatasetItemEntryPointRowProps {
@@ -78,6 +79,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -98,7 +100,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Upload className="h-5 w-5" />}
+              icon={<Upload size="lg" />}
               title="Upload CSV"
               description="Import dataset items from a CSV file"
               onClick={() => {
@@ -113,11 +115,13 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Braces className="h-5 w-5" />}
+              icon={<Braces size="lg" />}
               title="Add Manually"
               description="Manually input a single item"
               onClick={() => {
@@ -135,6 +139,9 @@ export const DatasetItemsOnboarding = ({
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />
@@ -146,7 +153,7 @@ export const DatasetItemsOnboarding = ({
           target="_blank"
         >
           <DatasetItemEntryPointRow
-            icon={<Code className="h-5 w-5" />}
+            icon={<Code size="lg" />}
             title="Add via Code"
             description="Use our Python/TS/JS SDKs or custom API"
           />
@@ -154,7 +161,7 @@ export const DatasetItemsOnboarding = ({
 
         <Link href={`/project/${projectId}/observations`}>
           <DatasetItemEntryPointRow
-            icon={<ListTree className="h-5 w-5" />}
+            icon={<ListTree size="lg" />}
             title="Select Observations"
             description="Select observations in the observations table and use a batch action to add them to your dataset"
             onClick={() => {

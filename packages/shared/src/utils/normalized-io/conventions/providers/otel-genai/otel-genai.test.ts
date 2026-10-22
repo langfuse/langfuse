@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
-import { microsoftAgentProductionShapeFixture } from "./fixtures";
+import {
+  capturedTraceFixtures,
+  microsoftAgentProductionShapeFixture,
+} from "./fixtures";
 
 describe("OTel GenAI normalized I/O", () => {
-  it.each([microsoftAgentProductionShapeFixture])(
+  it.each([...capturedTraceFixtures, microsoftAgentProductionShapeFixture])(
     "$name",
     ({ spanIO, expected }) => {
       expect(normalizeSpanIO(spanIO)).toEqual({

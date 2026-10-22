@@ -4,6 +4,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
 import { logger } from "./server";
+import { withPostgresApplicationName } from "./server/postgresApplicationName";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -24,6 +25,7 @@ const createPrismaInstance = () => {
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
   >({
+    datasourceUrl: withPostgresApplicationName(env.DATABASE_URL),
     log: [
       { emit: "event", level: "query" },
       { emit: "event", level: "error" },
@@ -35,6 +37,9 @@ const createPrismaInstance = () => {
       dataset: {
         remoteExperimentSecretKey: true,
         remoteExperimentRequestHeaders: true,
+      },
+      gatewayAiConnection: {
+        encryptedCredential: true,
       },
     },
   });
@@ -61,7 +66,9 @@ declare const globalThis: {
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
+  if (globalThis.prismaGlobal === undefined) {
+    globalThis.prismaGlobal = createPrismaInstance();
+  }
 }
 
 export const prisma =

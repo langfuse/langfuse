@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -7,7 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DayPicker, UI, SelectionState, DayFlag } from "react-day-picker";
 
 import { cn } from "@/src/utils/tailwind";
@@ -77,19 +77,20 @@ function Calendar({
 }
 Calendar.displayName = "Calendar";
 
-const Chevron = ({ orientation = "left" }) => {
-  switch (orientation) {
-    case "left":
-      return <ChevronLeft className="h-4 w-4" />;
-    case "right":
-      return <ChevronRight className="h-4 w-4" />;
-    case "up":
-      return <ChevronUp className="h-4 w-4" />;
-    case "down":
-      return <ChevronDown className="h-4 w-4" />;
-    default:
-      return null;
-  }
+const chevronIcons = {
+  left: ChevronLeft,
+  right: ChevronRight,
+  up: ChevronUp,
+  down: ChevronDown,
+};
+
+const Chevron = ({
+  orientation = "left",
+}: {
+  orientation?: keyof typeof chevronIcons;
+}) => {
+  const Icon = chevronIcons[orientation];
+  return <Icon size="base" />;
 };
 
 export { Calendar };

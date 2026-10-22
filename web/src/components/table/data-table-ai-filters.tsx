@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -7,10 +8,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Info } from "lucide-react";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { Info } from "@langfuse/icons";
+import { useQueryProject } from "@/src/features/projects";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
@@ -81,7 +82,7 @@ export function DataTableAIFilters({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Info className="text-muted-foreground h-4 w-4" />
+              <Info size="base" color="muted" />
             </TooltipTrigger>
             <TooltipContent>
               <p className="text-xs">

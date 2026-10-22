@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -9,7 +10,8 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, Edit, ListTree, Trash2 } from "lucide-react";
+import { useMediaQuery } from "react-responsive";
+import { Archive, Edit, ListTree, Trash2 } from "@langfuse/icons";
 import {
   datasetItemFilterColumns,
   DatasetStatus,
@@ -17,22 +19,29 @@ import {
   BatchExportTableName,
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFullTextSearch, TableSearchBar } from "@/src/features/search-bar";
+import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
 
@@ -71,9 +80,14 @@ export function DatasetItemsTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "datasetItems",
     "m",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   const [filterState, setFilterState] = useQueryFilterState(
@@ -86,6 +100,10 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const { selectedVersion } = useDatasetVersion();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
@@ -159,7 +177,7 @@ export function DatasetItemsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(id)}${versionParam}`,
             value: id,
           },
         };
@@ -214,14 +232,14 @@ export function DatasetItemsTable({
       header: "Input",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createIOTableColumn<RowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       variant: "output",
     }),
     createIOTableColumn<RowData>({
@@ -229,7 +247,7 @@ export function DatasetItemsTable({
       header: "Metadata",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDropdownTableColumn<RowData, string>({
       id: "actions",
@@ -249,7 +267,7 @@ export function DatasetItemsTable({
                 setEditDialogOpen(true);
               }}
             >
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit size="base" color="default" __rawClassName="mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -272,7 +290,7 @@ export function DatasetItemsTable({
                 });
               }}
             >
-              <Archive className="mr-2 h-4 w-4" />
+              <Archive size="base" color="default" __rawClassName="mr-2" />
               {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -293,7 +311,7 @@ export function DatasetItemsTable({
                 }
               }}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 size="base" __rawClassName="mr-2" />
               Delete
             </DropdownMenuItem>
           </>
@@ -331,7 +349,7 @@ export function DatasetItemsTable({
     columns,
   );
 
-  const batchExportButton = (
+  const batchExportButton = hasBatchExportAccess ? (
     <BatchExportTableButton
       key="batchExport"
       projectId={projectId}
@@ -346,16 +364,39 @@ export function DatasetItemsTable({
         },
       ]}
     />
-  );
+  ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
-  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
+  // Below `md` the Filters sheet is the only mounted search bar. The query
+  // starts unmatched, and `hidden md:block` hides this slot until then.
+  const isMobile = useMediaQuery({ query: "(max-width: 767.98px)" });
+  const searchBar = (
+    <TableSearchBar
+      size="large"
+      key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
+      projectId={projectId}
+      tableName="dataset-items"
+      registry={DATASET_ITEMS_FIELD_REGISTRY}
+      filterState={filterState}
+      setFilterState={setFilterState}
+      observed={undefined}
+      isV4={false}
+      search={{
+        query: searchQuery,
+        type: searchType,
+        setQuery: setSearchQuery,
+        setType: setSearchType,
+      }}
+    />
+  );
 
   return (
     <>
+      {isMobile ? null : <div className="hidden md:block">{searchBar}</div>}
       <DataTableToolbar
         columns={columns}
         tableName="dataset-items"
+        isV4={false}
         filterColumnDefinition={datasetItemFilterColumns}
         filterState={filterState}
         setFilterState={setFilterStateWithDebounce}
@@ -365,20 +406,9 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
+        mobileSearch={searchBar}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
-        searchConfig={{
-          metadataSearchFields: ["ID"],
-          updateQuery: setSearchQueryWithDebounce,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: true,
-          setSearchType,
-          searchType,
-          customDropdownLabels: {
-            metadata: "IDs",
-            fullText: "Full Text",
-          },
-          hidePerformanceWarning: true,
-        }}
       />
       <DataTable
         tableName="datasetItems"
@@ -410,6 +440,9 @@ export function DatasetItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
       <EditDatasetItemDialog
         open={editDialogOpen}

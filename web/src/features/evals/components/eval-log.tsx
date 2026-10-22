@@ -1,7 +1,10 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
+  customRowHeightMenu,
+  isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -9,16 +12,21 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
+import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
@@ -62,15 +70,29 @@ export default function EvalLogTable({
   projectId: string;
   jobConfigurationId?: string;
 }) {
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "evalLogs",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+    evalLogRowHeights,
+  );
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const filterOptions = Object.fromEntries(
+    evalLogFilterConfig.columnDefinitions.flatMap((column) =>
+      column.type === "stringOptions" ? [[column.id, column.options]] : [],
+    ),
+  );
   const queryFilter = useSidebarFilterState(
     evalLogFilterConfig,
-    {}, // No dynamic options needed - status options are in column definition
+    filterOptions,
     {
       loading: false,
       stateLocation: "urlAndSessionStorage",
@@ -120,7 +142,7 @@ export default function EvalLogTable({
           return undefined;
         }
         if (typeof value === "number") {
-          return value % 1 === 0 ? value : value.toFixed(4);
+          return <span title={value.toFixed(4)}>{value.toFixed(2)}</span>;
         }
         return value;
       },
@@ -131,7 +153,7 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createIOTableColumn<JobExecutionRow>({
       accessorKey: "error",
@@ -139,7 +161,7 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "traceId",
@@ -251,19 +273,39 @@ export default function EvalLogTable({
       defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        <DataTableToolbar
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          filterState={queryFilter.filterState}
-        />
-
-        <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size="large"
+              key={queryFilter.draftResetKey}
+              projectId={projectId}
+              tableName={evalLogFilterConfig.tableName}
+              registry={EVAL_LOGS_FIELD_REGISTRY}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(filterOptions, false)}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName="evalLogs"
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
+              filterState={queryFilter.filterState}
+            />
+          }
+        >
+          <DataTableControls
+            key={queryFilter.draftResetKey}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
@@ -297,9 +339,12 @@ export default function EvalLogTable({
               onColumnOrderChange={setColumnOrder}
               customRowHeights={evalLogRowHeights}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

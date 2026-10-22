@@ -18,10 +18,14 @@ const UpdatePromptBodySchema = z.object({
 export const promptVersionHandler = withMiddlewares({
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
+    action: "prompts:CUD",
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),
-    fn: async ({ body, req, auth }) => {
-      const { newLabels } = UpdatePromptBodySchema.parse(body);
+    allowInAppAgentKey: true,
+    isAdminApiKeyAuthAllowed: false,
+    rateLimitResource: "prompts",
+    fn: async ({ body, req, auth, ctx }) => {
+      const { newLabels } = body;
       const { promptName, promptVersion } = req.query;
 
       const { updatedPrompt } = await updatePromptLabelsForApi({
@@ -29,6 +33,7 @@ export const promptVersionHandler = withMiddlewares({
         promptName: promptName as string,
         promptVersion: Number(promptVersion),
         newLabels,
+        ctx,
       });
 
       return updatedPrompt;

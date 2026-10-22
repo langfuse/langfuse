@@ -5,11 +5,10 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 
 function renderPrettyJson(ui: ReactNode) {
-  return render(<MarkdownContextProvider>{ui}</MarkdownContextProvider>);
+  return render(ui);
 }
 
 function prettyTable() {
@@ -62,10 +61,8 @@ describe("PrettyJsonView short-list expansion", () => {
     ).not.toBeInTheDocument();
     expect(within(expandedTable).getByText("0")).toBeInTheDocument();
     expect(within(expandedTable).getByText("1")).toBeInTheDocument();
-    expect(within(expandedTable).getByText('"email"')).toBeInTheDocument();
-    expect(
-      within(expandedTable).getByText('"paid_social"'),
-    ).toBeInTheDocument();
+    expect(within(expandedTable).getByText("email")).toBeInTheDocument();
+    expect(within(expandedTable).getByText("paid_social")).toBeInTheDocument();
   });
 
   it("keeps the parent preview when every expanded child is hidden", () => {
@@ -149,6 +146,6 @@ describe("PrettyJsonView short-list expansion", () => {
       within(expandedTable).queryByText('{"name": "Ada"}'),
     ).not.toBeInTheDocument();
     expect(within(expandedTable).getByText("name")).toBeInTheDocument();
-    expect(within(expandedTable).getByText('"Ada"')).toBeInTheDocument();
+    expect(within(expandedTable).getByText("Ada")).toBeInTheDocument();
   });
 });

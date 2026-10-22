@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
+vi.mock("@/src/features/natural-language-filters/server", () => ({
   getLangfuseClient: vi.fn(),
 }));
 
 import { logger } from "@langfuse/shared/src/server";
-import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,

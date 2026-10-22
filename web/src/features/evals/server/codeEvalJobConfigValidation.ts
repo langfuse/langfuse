@@ -9,7 +9,6 @@ import type { PrismaClient } from "@prisma/client";
 import { env } from "@/src/env.mjs";
 import {
   CodeEvalTestRunSetupError,
-  runCodeEvalTestForEvaluationRule,
   runCodeEvalTestForJobConfig,
 } from "@/src/features/evals/server/codeEvalTestRun";
 import { assertUnreachable } from "@/src/utils/types";
@@ -45,26 +44,6 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     ...params,
     run: (mapping) =>
       runCodeEvalTestForJobConfig({
-        ...params,
-        mapping,
-      }),
-  });
-}
-
-export async function assertCodeEvalRuleCanRun(params: {
-  prisma: PrismaClient;
-  orgId: string;
-  projectId: string;
-  evaluatorId: string;
-  target: EvalTargetObjectType;
-  mapping: unknown;
-  scoreName: string;
-  filter: FilterCondition[] | null;
-}): Promise<void> {
-  return assertCodeEvalCanRun({
-    ...params,
-    run: (mapping) =>
-      runCodeEvalTestForEvaluationRule({
         ...params,
         mapping,
       }),

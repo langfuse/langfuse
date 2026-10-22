@@ -3,8 +3,7 @@ import Link from "next/link";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { type UIModelParams } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
@@ -25,7 +24,7 @@ export const LLMApiKeyComponent = (p: {
     );
   }
 
-  const apiKeys = api.llmApiKey.all.useQuery({
+  const apiKeys = api.llmApiKey.effective.useQuery({
     projectId: p.projectId,
   });
 

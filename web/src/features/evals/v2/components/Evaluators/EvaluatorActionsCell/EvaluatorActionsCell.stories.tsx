@@ -36,13 +36,12 @@ export const OpenMenu = meta.story({
     onDelete: fn(),
   },
   play: async ({ canvas, canvasElement }) => {
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Evaluator actions" }),
-    );
+    const trigger = canvas.getByRole("button", { name: "Evaluator actions" });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     const body = within(canvasElement.ownerDocument.body);
     const menuElement = await body.findByRole("menu");
-    await expect(menuElement).toHaveAttribute("data-state", "open");
     const menu = within(menuElement);
     await expect(
       menu.getByRole("menuitem", { name: "View executions" }),

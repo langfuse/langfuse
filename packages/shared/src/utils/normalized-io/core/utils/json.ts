@@ -128,3 +128,27 @@ export function omitKeys(
     Object.entries(record).filter(([key]) => !keys.includes(key)),
   );
 }
+
+export function recordKeyAsParsed(
+  unparsedKeys: Record<string, unknown>,
+  key: string,
+  ...nestedPath: string[]
+): unknown {
+  if (nestedPath.length === 0) {
+    const value = unparsedKeys[key];
+    delete unparsedKeys[key];
+    return value;
+  }
+
+  const nested = asRecord(unparsedKeys[key]);
+  const [nestedKey, ...rest] = nestedPath;
+  if (!nested || !(nestedKey in nested)) return undefined;
+  const nestedCopy = { ...nested };
+  const value = recordKeyAsParsed(nestedCopy, nestedKey, ...rest);
+  if (Object.keys(nestedCopy).length === 0) {
+    delete unparsedKeys[key];
+  } else {
+    unparsedKeys[key] = nestedCopy;
+  }
+  return value;
+}

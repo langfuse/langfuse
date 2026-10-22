@@ -1,25 +1,29 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { CardDescription } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { AlertTriangle, UserCircle2Icon } from "lucide-react";
+import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
-import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
 import {
   requiresLegacyMigrationAction,
   isLegacyEvalTarget,
@@ -45,6 +49,10 @@ const PeekViewEvaluatorConfigDetail = ({
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
     projectId,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: [],
+    evalTemplate: evalConfig?.evalTemplate ?? undefined,
   });
   const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
     projectId,
@@ -74,11 +82,15 @@ const PeekViewEvaluatorConfigDetail = ({
     isLegacyEvalTarget(evalConfig.targetObject) &&
     (readOnly || legacyEditingDisabled);
   const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
-  const editModeDisabledReason = readOnly
-    ? "This legacy evaluator is inactive and can only be viewed or deleted"
-    : legacyEditingDisabled
-      ? "Deprecated evaluators are only available in read-only mode"
-      : undefined;
+  const editModeDisabledReason = (() => {
+    if (readOnly) {
+      return "This legacy evaluator is inactive and can only be viewed or deleted";
+    }
+    if (legacyEditingDisabled) {
+      return "Deprecated evaluators are only available in read-only mode";
+    }
+    return undefined;
+  })();
 
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
@@ -173,7 +185,7 @@ const PeekViewEvaluatorConfigDetail = ({
               {evalConfig.evalTemplate.projectId === null ? (
                 <LangfuseIcon size={16} />
               ) : (
-                <UserCircle2Icon className="h-4 w-4" />
+                <UserCircle2Icon size="base" />
               )}
             </TooltipTrigger>
             <TooltipContent>
@@ -184,27 +196,30 @@ const PeekViewEvaluatorConfigDetail = ({
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
         {evalConfig.evalTemplate ? (
-          <EvaluatorForm
-            key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
-            projectId={projectId}
-            evalTemplates={[evalConfig.evalTemplate]}
-            existingEvaluator={{
-              ...evalConfig,
-              evalTemplate: evalConfig.evalTemplate,
-            }}
-            mode="edit"
-            disabled={!isEditMode}
-            shouldWrapVariables={true}
-            useDialog={false}
-            onFormSuccess={() => {
-              setIsEditMode(false);
-              utils.evals.invalidate();
-              showSuccessToast({
-                title: "Running Evaluator updated",
-                description: "The evaluator configuration has been updated.",
-              });
-            }}
-          />
+          evalTemplate ? (
+            <EvaluatorForm
+              key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
+              projectId={projectId}
+              evalTemplate={evalTemplate}
+              existingEvaluator={{
+                ...evalConfig,
+                evalTemplate: evalConfig.evalTemplate,
+              }}
+              mode="edit"
+              disabled={!isEditMode}
+              shouldWrapVariables={true}
+              useDialog={false}
+              onFormSuccess={() => {
+                setIsEditMode(false);
+                utils.evals.invalidate();
+                showSuccessToast({
+                  operation: "evaluator.update",
+                  title: "Running Evaluator updated",
+                  description: "The evaluator configuration has been updated.",
+                });
+              }}
+            />
+          ) : null
         ) : (
           <Alert icon={AlertTriangle}>
             <Alert.Title>Referenced evaluator unavailable</Alert.Title>

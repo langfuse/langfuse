@@ -1,72 +1,77 @@
 import { useMemo } from "react";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
+import { reportError } from "@/src/utils/reportError";
 import { toIOPreview } from "../parsers/toIOPreview";
-import { parseChatML, type ChatMLParserResult } from "./useChatMLParser";
+import { type ChatMLParserResult } from "./useChatMLParser";
+import { isOnlyJsonMessage } from "../fns/chatMessageUtils";
 
-export type IOPreviewParserMode = "legacy" | "normalized";
+/** The same message-level displayability check used by the pretty preview. */
+export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
+  return (
+    result.canDisplayAsChat && !result.allMessages.every(isOnlyJsonMessage)
+  );
+}
 
 /**
- * Selects the parser used by the pretty I/O preview.
+ * Parses observation I/O into the contract rendered by the Formatted view.
  *
- * Both parsers return the same ChatMLParserResult, so the rendering tree does
- * not need to know which representation produced it. A normalized parse is
- * deliberately best-effort: malformed or unsupported data falls back to the
- * established parser for this observation.
+ * A precomputed result wins so surfaces that already parsed (the session
+ * feed) are not parsed twice. Parsing is best-effort: a payload the parser
+ * cannot handle yields no chat messages and the view falls back to JSON. The
+ * parser is not expected to throw; if it does, that is a parser bug worth a
+ * Sentry issue, and the view still falls back to JSON.
  */
 export function useIOPreviewParser(
-  parser: IOPreviewParserMode,
   input: Prisma.JsonValue | undefined,
   output: Prisma.JsonValue | undefined,
   metadata: Prisma.JsonValue | undefined,
-  observationName: string | undefined,
   preParsedInput?: unknown,
   preParsedOutput?: unknown,
   preParsedMetadata?: unknown,
   preParsedResult?: ChatMLParserResult,
 ): ChatMLParserResult {
-  const parsedInput = preParsedResult
-    ? undefined
-    : preParsedInput !== undefined
-      ? preParsedInput
-      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput = preParsedResult
-    ? undefined
-    : preParsedOutput !== undefined
-      ? preParsedOutput
-      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata = preParsedResult
-    ? undefined
-    : preParsedMetadata !== undefined
-      ? preParsedMetadata
-      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  const parsedInput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedInput !== undefined) {
+      return preParsedInput;
+    }
+    return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedOutput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedOutput !== undefined) {
+      return preParsedOutput;
+    }
+    return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedMetadata = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedMetadata !== undefined) {
+      return preParsedMetadata;
+    }
+    return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  })();
 
-  return useMemo(() => {
-    // Precomputed results win regardless of parser mode; surfaces that supply
-    // one disable the normalized-beta tab (see IOPreview) so labels stay honest.
+  return useMemo<ChatMLParserResult>(() => {
     if (preParsedResult) return preParsedResult;
 
-    const parseLegacy = () =>
-      parseChatML(parsedInput, parsedOutput, parsedMetadata, observationName);
-
-    if (parser === "legacy") return parseLegacy();
-
+    const span = {
+      input: parsedInput,
+      output: parsedOutput,
+      metadata: parsedMetadata,
+    };
     try {
-      const normalized = normalizeSpanIO({
-        input: parsedInput,
-        output: parsedOutput,
-        metadata: parsedMetadata,
-      });
-      return toIOPreview(normalized, parsedInput);
-    } catch {
-      return parseLegacy();
+      return toIOPreview(normalizeSpanIO(span));
+    } catch (error) {
+      reportError(error, { area: "io-preview-parser" });
+      return toIOPreview({ messages: [], toolDefinitions: [], span });
     }
-  }, [
-    parser,
-    preParsedResult,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
-    observationName,
-  ]);
+  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata]);
 }

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -45,7 +46,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  singleFilter,
+  singleFilterList,
   variableMappingList,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
@@ -71,6 +72,10 @@ import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "./evalFailureErrors";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   completeEvalExecution,
@@ -397,7 +402,7 @@ export const createEvalJobs = async ({
         if (config.targetObject !== EvalTargetObject.TRACE) {
           return false;
         }
-        const parsedFilter = z.array(singleFilter).safeParse(config.filter);
+        const parsedFilter = singleFilterList.safeParse(config.filter);
         return (
           !parsedFilter.success ||
           inMemoryFilterRequiresMetadata(parsedFilter.data)
@@ -553,7 +558,7 @@ export const createEvalJobs = async ({
     }
 
     logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z.array(singleFilter).parse(config.filter);
+    const validatedFilter = singleFilterList.parse(config.filter);
 
     const maxTimeStamp =
       "timestamp" in event &&
@@ -1061,8 +1066,9 @@ export async function runLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -1195,8 +1201,9 @@ export async function runLLMAsJudgeEvaluation({
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+          EvalFailureReason.InvalidModelOutput,
         );
       }
 
@@ -1309,6 +1316,7 @@ export async function executeLLMAsJudgeEvaluation(
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
+    executionType: EvalTemplateType.LLM_AS_JUDGE,
     deps,
     result,
   });

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   Select,
   SelectContent,
@@ -26,7 +27,7 @@ import { VariableMappingDescription } from "@/src/features/evals/components/eval
 import {
   EvaluationPromptPreview,
   getVariableColor,
-} from "@/src/features/evals/components/evaluation-prompt-preview";
+} from "@/src/features/evals/components/EvaluationPromptPreview";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,
@@ -46,16 +47,16 @@ import {
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle, ExternalLink } from "@langfuse/icons";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import {
   type EvalPreviewPointer,
   buildEvalPreviewNavigationPath,
@@ -231,7 +232,11 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink className="ml-1 h-4 w-4" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-1"
+                />
               </Link>
             </Button>
           ) : (
@@ -242,7 +247,7 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink className="ml-1 h-4 w-4" />
+              <ExternalLink size="base" color="default" __rawClassName="ml-1" />
             </Button>
           )}
         </div>

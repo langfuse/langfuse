@@ -59,8 +59,8 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
@@ -215,10 +215,10 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
     expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveClass("text-base", "leading-6");
+    expect(screen.getByRole("status")).toHaveClass("text-base");
     expect(screen.getByRole("status")).not.toHaveClass("text-2xl", "font-bold");
     expect(
-      screen.queryByRole("img", { name: "Langfuse Icon" }),
+      screen.queryByRole("img", { name: "Langfuse" }),
     ).not.toBeInTheDocument();
   });
 

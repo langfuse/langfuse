@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   ObservationTypeDomain,
   isNumericEventsTableColumnId,
@@ -8,14 +9,15 @@ import { z } from "zod";
 import {
   getEventFilterNumericRange,
   getEventFilterValuePage,
-} from "@/src/features/events/server/eventsService";
+} from "@/src/features/events/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -45,8 +47,16 @@ type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  fromStartTime: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "Optional inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Use the same time window as the observations you intend to search.",
+    ),
+  toStartTime: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "Optional exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
+    ),
   observationType: ObservationTypeDomain.optional(),
   isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
@@ -164,6 +174,7 @@ export const [
   name: "getObservationFilterValues",
   description:
     "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
+  action: "traces:read",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {
@@ -189,6 +200,7 @@ export const [
 
         if (isNumericEventsTableColumnId(eventsColumn)) {
           const range = await getEventFilterNumericRange({
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
             column: eventsColumn,
             projectId: context.projectId,
             startTimeFilter,
@@ -208,6 +220,7 @@ export const [
         const offset = decodeObservationFilterValueCursor(input.cursor);
 
         const page = await getEventFilterValuePage({
+          clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,

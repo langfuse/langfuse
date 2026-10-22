@@ -56,7 +56,8 @@ const meta = preview.meta({
     open: true,
     onOpenChange: fn(),
     state: {
-      modernSession: { enabled: false, onToggle: fn(), isToggling: false },
+      sessionViewV2: { enabled: false, onToggle: fn(), isToggling: false },
+      sessionViewV2Timeline: { enabled: false, disabled: true, onToggle: fn() },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -67,7 +68,7 @@ export const Default = meta.story({});
 export const Warning = meta.story({
   args: {
     state: {
-      modernSession: {
+      sessionViewV2: {
         enabled: false,
         warningReason:
           "This preview is enabled globally, so a per-user opt-out does not disable it.",
@@ -80,7 +81,7 @@ export const Warning = meta.story({
 export const Loading = meta.story({
   args: {
     state: {
-      modernSession: { enabled: false, onToggle: fn(), isToggling: true },
+      sessionViewV2: { enabled: false, onToggle: fn(), isToggling: true },
     },
   },
 });

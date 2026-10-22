@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -53,6 +54,8 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchUpsertDatasetItems: "Saving dataset items",
+  configureExternalMediaStorage: "Configuring external media storage",
   createAnnotationQueueAssignment: "Assigning annotation queue",
   createAnnotationQueueItem: "Adding to annotation queue",
   createChatPrompt: "Creating chat prompt",
@@ -61,20 +64,29 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   deleteAnnotationQueueAssignment: "Unassigning annotation queue",
   deleteDashboardPlacement: "Removing widget from dashboard",
   deleteDashboardWidget: "Deleting widget",
+  deleteExternalMediaStorage: "Deleting external media storage",
   edit: "Editing file",
   getDashboardWidget: "Inspecting widget",
+  getExternalMediaStorage: "Inspecting external media storage",
   getHealth: "Checking health",
   getMetricsSchema: "Checking metrics",
   getObservationFieldSchema: "Checking observation fields",
   getObservationFilterSchema: "Checking observation filters",
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
+  getRequestContext: "Checking request context",
+  getSkill: "Inspecting skill",
   listDashboardWidgets: "Browsing widgets",
+  listLlmConnections: "Browsing LLM connections",
+  listSkills: "Browsing skills",
+  loadSkill: "Loading skill",
+  loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
+  testExternalMediaStorage: "Testing external media storage",
   updateDashboardPlacement: "Moving widget",
   updateDashboardWidget: "Updating widget",
   updatePromptLabels: "Updating prompt labels",
@@ -393,7 +405,7 @@ function parseEmbeddedRateLimitError(message: string) {
 function getErrorMessage(error: unknown) {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
   if (!parsedError.success) {
-    return "Assistant request failed. Please try again.";
+    return "Halo request failed. Please try again.";
   }
 
   const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
@@ -403,9 +415,7 @@ function getErrorMessage(error: unknown) {
     return legacyPayload.data.error;
   }
 
-  return (
-    parsedError.data.message ?? "Assistant request failed. Please try again."
-  );
+  return parsedError.data.message ?? "Halo request failed. Please try again.";
 }
 
 export function getDrawerMessages({
@@ -620,7 +630,9 @@ export function getDrawerMessages({
         pendingSources = mergeSources(pendingSources, docsSources);
       }
 
-      pendingToolGroupId ??= `tools-${message.id}`;
+      if (pendingToolGroupId === null) {
+        pendingToolGroupId = `tools-${message.id}`;
+      }
       pendingTools.push(...toolContent);
       return;
     }

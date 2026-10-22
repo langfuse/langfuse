@@ -1,4 +1,4 @@
-import { createAnnotationQueueAssignmentForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { createAnnotationQueueAssignmentForApi } from "@/src/features/annotation-queues/server";
 import { CreateAnnotationQueueAssignmentResponse } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -11,6 +11,7 @@ export const [
   name: "createAnnotationQueueAssignment",
   description:
     "Assign a project user to an annotation queue so they can work through its review items.",
+  action: "annotationQueueAssignments:CUD",
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>

@@ -15,19 +15,67 @@ import {
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
+};
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
+    action: "scores:save",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
+    rateLimitResource: "ingestion",
     fn: async ({ body, auth, req, res }) => {
       if (auth.scope.isIngestionSuspended) {
         throw new ForbiddenError(
           "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
         );
+      }
+
+      const scoresApiService = new ScoresApiService("v1");
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+
+      if (Array.isArray(body)) {
+        const conformedBodies = body.map((score) => {
+          if (
+            typeof score !== "object" ||
+            score === null ||
+            Array.isArray(score)
+          ) {
+            // Leave malformed items for ingestion to reject.
+            return score;
+          }
+          // Generate IDs for scores with missing or empty IDs.
+          return { ...score, id: ("id" in score && score.id) || randomUUID() };
+        });
+        const { result } = await scoresApiService.createScores({
+          bodies: conformedBodies,
+          auth,
+          attribution,
+        });
+        if (result.errors.length > 0) {
+          res.status(207);
+          return {
+            accepted: result.successes.length,
+            rejected: result.errors.length,
+            errors: result.errors.map((error) => ({
+              message: error.error ?? error.message ?? "Failed to create score",
+            })),
+          };
+        }
+        res.status(202);
+        return { message: "Accepted" };
       }
 
       const conformedBody = {
@@ -38,14 +86,10 @@ export default withMiddlewares({
         id: body.id || randomUUID(),
       };
 
-      const scoresApiService = new ScoresApiService("v1");
       const { id, result } = await scoresApiService.createScore({
         body: conformedBody,
         auth,
-        attribution: createIngestionAttribution({
-          headers: req.headers,
-          authCheck: auth,
-        }),
+        attribution,
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];
@@ -63,6 +107,7 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
     deprecation: SCORES_DEPRECATION,

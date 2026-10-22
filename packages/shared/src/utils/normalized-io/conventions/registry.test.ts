@@ -26,9 +26,9 @@ describe("provider convention registry", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("keeps typed part vocabularies disjoint except for guarded media types", () => {
+  it("keeps typed part vocabularies disjoint except for guarded contested types", () => {
     const owners = new Map<string, string>();
-    const guardedTypes = new Set(["file", "image"]);
+    const guardedTypes = new Set(["file", "image", "thinking"]);
 
     for (const provider of registeredProviders) {
       for (const type of Object.keys(provider.typedParts ?? {})) {

@@ -1,4 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { type GetServerSidePropsContext } from "next";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -9,14 +11,17 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
+  passwordRequiresReset,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "@/src/features/feature-flags/server";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
@@ -51,11 +56,18 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/utils";
+} from "@/src/ee/features/multi-tenant-sso/server";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+  PASSWORD_RESET_REQUIRED_MESSAGE,
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
 } from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -78,8 +90,9 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+} from "@/src/features/events/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -91,13 +104,21 @@ const staticProviders: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
+      turnstileToken: { label: "Turnstile token", type: "text" },
     },
-    async authorize(credentials, _req) {
+    async authorize(credentials, req) {
       if (!credentials) throw new Error("No credentials");
       if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+
+      const turnstileValid = await verifyTurnstileToken({
+        token: credentials.turnstileToken,
+        action: TURNSTILE_ACTIONS.login,
+        remoteIp: getTurnstileRemoteIp(req.headers),
+      });
+      if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
@@ -121,7 +142,7 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) {
-        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        // Keep hashing work comparable across failed login paths to reduce timing-based user enumeration.
         await hashPassword(credentials.password);
         throw new Error("Invalid credentials");
       }
@@ -130,6 +151,10 @@ const staticProviders: Provider[] = [
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
+
+      if (passwordRequiresReset(dbUser.password)) {
+        throw new Error(PASSWORD_RESET_REQUIRED_MESSAGE);
       }
 
       const isValidPassword = await verifyPassword(
@@ -688,72 +713,15 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     }
   },
 
-  // Make email-OTP login that is used for password reset safer.
-  //
-  // Look the token up before consuming it. The upstream PrismaAdapter
-  // implements this as an unconditional `verificationToken.delete`, which
-  // rejects with Prisma P2025 whenever the token is missing — expired,
-  // already consumed (e.g. an email security scanner prefetching the magic
-  // link), or a bogus value from endpoint scanning. Every rejected query is
-  // surfaced by the global Prisma error handler (packages/shared/src/db.ts) as
-  // a `prisma:error` ERROR log, so a routine "invalid or expired token" spams
-  // error logs and error-rate dashboards. Reading first keeps the happy path
-  // identical while treating a missing token as the ordinary invalid-token
-  // outcome instead of a failed query.
-  async useVerificationToken(params) {
-    const identifier_token = {
-      identifier: params.identifier,
-      token: params.token,
-    };
-
-    const verificationToken = await prisma.verificationToken.findUnique({
-      where: { identifier_token },
-    });
-
-    if (!verificationToken) {
-      // Token invalid or expired-and-swept. Log the security event and clear
-      // any remaining tokens for this identifier to prevent enumeration.
-      logger.info("Failed OTP verification attempt", {
-        identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****", // partial token for debugging
-        timestamp: new Date().toISOString(),
-        reason: "invalid_or_expired",
-      });
-
-      await prisma.verificationToken.deleteMany({
-        where: { identifier: params.identifier },
-      });
-
-      return null;
-    }
-
-    try {
-      // Consume the token. NextAuth validates `expires` on the returned row.
-      await prisma.verificationToken.delete({ where: { identifier_token } });
-    } catch (error) {
-      // A concurrent request may have consumed the token between the read and
-      // the delete. Treat that race as an already-used token, not a 500.
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: unknown }).code === "P2025"
-      ) {
-        logger.info("OTP verification token already consumed", {
-          identifier: params.identifier,
-          timestamp: new Date().toISOString(),
-        });
-        return null;
-      }
-      throw error;
-    }
-
-    logger.info("OTP verification successful", {
-      identifier: params.identifier,
-      timestamp: new Date().toISOString(),
-    });
-
-    return verificationToken;
+  // Email one-time codes are consumed only by `credentials.resetPassword`
+  // (consumeEmailOtpAndUpdatePassword), which validates the code and writes
+  // the new password in one transaction. NextAuth calls this adapter method
+  // from GET /api/auth/callback/email before it consults `callbacks.signIn`,
+  // so returning null here is what keeps that route from logging a user in
+  // without a password. It also leaves the stored code untouched, so a
+  // prefetching mail scanner or a guessed request cannot burn a valid code.
+  async useVerificationToken() {
+    return null;
   },
 });
 
@@ -763,12 +731,20 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
  * @param signupAttribution - per-request marketing attribution (ad-platform
  * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
+ * @param requestContext - captcha material for this request. The email
+ * sign-in route passes the password-reset token; other callers omit it.
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(signupAttribution?: {
-  adClickIds?: AdClickIds;
-}): Promise<NextAuthOptions> {
+export async function getAuthOptions(
+  signupAttribution?: {
+    adClickIds?: AdClickIds;
+  },
+  requestContext?: {
+    turnstileToken?: unknown;
+    turnstileRemoteIp?: string;
+  },
+): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
     dynamicSsoProviders = await loadSsoProviders();
@@ -807,11 +783,28 @@ export async function getAuthOptions(signupAttribution?: {
         }
         return baseUrl;
       },
+      async jwt({ token, user }) {
+        if (user) {
+          const loginAt = await getSessionLoginAt(token.email!);
+          token.loginAt = loginAt.getTime();
+        }
+        return token;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
               email: token.email!.toLowerCase(),
+              OR: [
+                { sessionsExpiredAt: null },
+                {
+                  // Strict: a token issued in the same millisecond as revocation
+                  // is treated as revoked.
+                  sessionsExpiredAt: {
+                    lt: new Date(token.loginAt ?? 0),
+                  },
+                },
+              ],
             },
             select: {
               id: true,
@@ -904,6 +897,12 @@ export async function getAuthOptions(signupAttribution?: {
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
               v4WriteMode,
+              apiKeyProjectRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_PROJECT_ROLES_ENABLE === "true",
+              apiKeyOrgRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_ORG_ROLES_ENABLE === "true",
             },
             user:
               dbUser !== null
@@ -969,6 +968,9 @@ export async function getAuthOptions(signupAttribution?: {
                             {
                               email: dbUser.email,
                               v4BetaEnabled,
+                              aiGatewayEnabled: isGatewayEnabledForOrganization(
+                                orgMembership.organization.id,
+                              ),
                             },
                           ),
                           cloudConfig: parsedCloudConfig.data,
@@ -986,6 +988,9 @@ export async function getAuthOptions(signupAttribution?: {
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
+                                topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
@@ -1021,7 +1026,7 @@ export async function getAuthOptions(signupAttribution?: {
           };
         });
       },
-      async signIn({ user, account, profile }) {
+      async signIn({ user, account, profile, email: emailFlow }) {
         return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
@@ -1078,8 +1083,39 @@ export async function getAuthOptions(signupAttribution?: {
             }
           }
 
-          // Only allow sign in via email link if user is already in db as this is used for password reset
+          // The email provider only sends password-reset codes; it must never
+          // complete a login. NextAuth sets `email.verificationRequest` on the
+          // send request (POST /api/auth/signin/email) and omits it on the
+          // consume request (GET /api/auth/callback/email).
           if (account?.provider === "email") {
+            if (!emailFlow?.verificationRequest) {
+              logger.warn(
+                "Blocked email-OTP sign in via the NextAuth email callback",
+                { email },
+              );
+              return false;
+            }
+
+            // Checked before the user lookup so a missing or rejected token
+            // never sends a code, and does not reveal whether the account exists.
+            const turnstileValid = await verifyTurnstileToken({
+              token: requestContext?.turnstileToken,
+              action: TURNSTILE_ACTIONS.passwordReset,
+              remoteIp: requestContext?.turnstileRemoteIp,
+            });
+            if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
+
+            // Codes only reset passwords, so there is nothing to send when
+            // password login is disabled.
+            if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+              logger.info(
+                "Blocked email-OTP request because AUTH_DISABLE_USERNAME_PASSWORD is set",
+                { email },
+              );
+              return false;
+            }
+
+            // Only send a code if the user already exists, as this is used for password reset
             const blockedDomains = getSSOBlockedDomains();
             if (userDomain && blockedDomains.includes(userDomain)) {
               logger.info(
@@ -1100,6 +1136,15 @@ export async function getAuthOptions(signupAttribution?: {
               },
             });
             if (user) {
+              // NextAuth stores the new code right after this callback. Codes
+              // are hashed without the email and `token` is globally unique, so
+              // rows left behind make new codes collide. Only the newest code
+              // per account is needed, and expired codes can never be used.
+              await prisma.verificationToken.deleteMany({
+                where: {
+                  OR: [{ identifier: email }, { expires: { lt: new Date() } }],
+                },
+              });
               return true;
             }
             // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
@@ -1140,7 +1185,7 @@ export async function getAuthOptions(signupAttribution?: {
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
       error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
-      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ...(isSignupOnboardingEnabled()
         ? {
             newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
           }

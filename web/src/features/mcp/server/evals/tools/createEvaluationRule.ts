@@ -16,8 +16,9 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
     name: "createEvaluationRule",
     description: [
       "Create an observation evaluation rule with one or more evaluator assignments.",
-      "Each assignment references a project evaluator by stable ID. LLM evaluator assignments may override their variable mapping; code evaluator assignments must omit it.",
+      "Each assignment references a project evaluator by stable ID. LLM-as-a-judge and decision-model assignments may override their variable mapping; code evaluator assignments must omit it.",
     ].join(" "),
+    action: "evaluationRule:CUD",
     baseSchema: CreateEvaluationRuleBaseSchema,
     inputSchema: CreateEvaluationRuleInputSchema,
     handler: async (input, context) =>

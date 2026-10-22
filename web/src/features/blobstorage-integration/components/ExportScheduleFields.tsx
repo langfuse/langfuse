@@ -8,13 +8,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   BlobStorageExportMode,
   BlobStorageIntegrationFileType,
@@ -39,19 +33,17 @@ export const ExportScheduleFields = ({
           <FormItem>
             <FormLabel>Export Frequency</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="every_20_minutes">
-                    Every 20 Minutes
-                  </SelectItem>
-                  <SelectItem value="hourly">Hourly</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                </SelectContent>
-              </Select>
+              <SelectInput
+                value={field.value}
+                onValueChange={field.onChange}
+                placeholder="Select frequency"
+                options={[
+                  { value: "every_20_minutes", label: "Every 20 Minutes" },
+                  { value: "hourly", label: "Hourly" },
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                ]}
+              />
             </FormControl>
             <FormDescription>
               How often the data should be exported. Changes are taken into
@@ -69,17 +61,29 @@ export const ExportScheduleFields = ({
           <FormItem>
             <FormLabel>File Type</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select file type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PARQUET">Parquet</SelectItem>
-                  <SelectItem value="JSONL">JSONL</SelectItem>
-                  <SelectItem value="CSV">CSV</SelectItem>
-                  <SelectItem value="JSON">JSON</SelectItem>
-                </SelectContent>
-              </Select>
+              <SelectInput
+                value={field.value}
+                onValueChange={field.onChange}
+                placeholder="Select file type"
+                options={[
+                  {
+                    value: BlobStorageIntegrationFileType.PARQUET,
+                    label: "Parquet",
+                  },
+                  {
+                    value: BlobStorageIntegrationFileType.JSONL,
+                    label: "JSONL",
+                  },
+                  {
+                    value: BlobStorageIntegrationFileType.CSV,
+                    label: "CSV",
+                  },
+                  {
+                    value: BlobStorageIntegrationFileType.JSON,
+                    label: "JSON",
+                  },
+                ]}
+              />
             </FormControl>
             <FormDescription>
               {field.value === BlobStorageIntegrationFileType.PARQUET
@@ -98,22 +102,25 @@ export const ExportScheduleFields = ({
           <FormItem>
             <FormLabel>Export Mode</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select export mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={BlobStorageExportMode.FULL_HISTORY}>
-                    Full history
-                  </SelectItem>
-                  <SelectItem value={BlobStorageExportMode.FROM_TODAY}>
-                    Today
-                  </SelectItem>
-                  <SelectItem value={BlobStorageExportMode.FROM_CUSTOM_DATE}>
-                    Custom date
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <SelectInput
+                value={field.value}
+                onValueChange={field.onChange}
+                placeholder="Select export mode"
+                options={[
+                  {
+                    value: BlobStorageExportMode.FULL_HISTORY,
+                    label: "Full history",
+                  },
+                  {
+                    value: BlobStorageExportMode.FROM_TODAY,
+                    label: "Today",
+                  },
+                  {
+                    value: BlobStorageExportMode.FROM_CUSTOM_DATE,
+                    label: "Custom date",
+                  },
+                ]}
+              />
             </FormControl>
             <FormDescription>
               Choose when to start exporting data. &quot;Today&quot; and

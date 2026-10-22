@@ -1,15 +1,13 @@
+/* eslint-disable no-nested-ternary */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 
-import { Button } from "@/src/components/ui/button";
-import {
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
   FormControl,
@@ -18,14 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
@@ -33,7 +24,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
   isTextDataType,
-} from "@/src/features/scores/lib/helpers";
+} from "@/src/features/scores";
 import {
   createConfigSchema,
   type CreateConfig,
@@ -41,7 +32,7 @@ import {
   updateConfigSchema,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 
 type SharedUpsertScoreConfigDialogContentProps = {
   onSubmit: (values: CreateConfig | UpdateConfig) => Promise<void>;
@@ -66,6 +57,7 @@ export function UpsertScoreConfigDialogContent({
   onFormSuccess,
   isSubmitting,
 }: UpsertScoreConfigDialogContentProps) {
+  const formId = useId();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     resolver: zodResolver(
@@ -99,15 +91,32 @@ export function UpsertScoreConfigDialogContent({
   }
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>
-          {mode === "edit" ? "Update score config" : "Add new score config"}
-        </DialogTitle>
-      </DialogHeader>
+    <Dialog
+      title={mode === "edit" ? "Update score config" : "Add new score config"}
+      actions={[
+        {
+          label: "Submit",
+          type: "submit",
+          form: formId,
+          loading: isSubmitting,
+        },
+      ]}
+    >
       <Form {...form}>
-        <form className="space-y-6" onSubmit={form.handleSubmit(handleSubmit)}>
-          <DialogBody>
+        <form
+          id={formId}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          onSubmit={(event) => {
+            event.stopPropagation();
+            return form.handleSubmit(handleSubmit)(event);
+          }}
+        >
+          <Dialog.Body>
+            <p className="text-muted-foreground">
+              {mode === "edit"
+                ? "This score config is project-wide. Changes affect future scoring wherever it is used, including other queues and API/SDK scores. Data type cannot be changed after creation."
+                : "Create a project-wide score config for annotation and API/SDK scoring."}
+            </p>
             <FormField
               control={form.control}
               name="name"
@@ -131,48 +140,39 @@ export function UpsertScoreConfigDialogContent({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Data type</FormLabel>
-                  <Select
-                    disabled={mode === "edit"}
-                    defaultValue={field.value}
-                    onValueChange={(value) => {
-                      const nextDataType = value as ScoreConfigDataType;
-                      field.onChange(nextDataType);
-                      form.clearErrors();
-                      if (isNumericDataType(nextDataType)) {
-                        form.setValue("categories", undefined);
-                      } else if (isTextDataType(nextDataType)) {
-                        form.setValue("categories", undefined);
-                        form.setValue("minValue", undefined);
-                        form.setValue("maxValue", undefined);
-                      } else {
-                        form.setValue("minValue", undefined);
-                        form.setValue("maxValue", undefined);
-                        if (isBooleanDataType(nextDataType)) {
-                          replace([
-                            { label: "True", value: 1 },
-                            { label: "False", value: 0 },
-                          ]);
+                  <FormControl>
+                    <SelectInput
+                      disabled={mode === "edit"}
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const nextDataType = value as ScoreConfigDataType;
+                        field.onChange(nextDataType);
+                        form.clearErrors();
+                        if (isNumericDataType(nextDataType)) {
+                          form.setValue("categories", undefined);
+                        } else if (isTextDataType(nextDataType)) {
+                          form.setValue("categories", undefined);
+                          form.setValue("minValue", undefined);
+                          form.setValue("maxValue", undefined);
                         } else {
-                          replace([{ label: "", value: 0 }]);
+                          form.setValue("minValue", undefined);
+                          form.setValue("maxValue", undefined);
+                          if (isBooleanDataType(nextDataType)) {
+                            replace([
+                              { label: "True", value: 1 },
+                              { label: "False", value: 0 },
+                            ]);
+                          } else {
+                            replace([{ label: "", value: 0 }]);
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a data type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(ScoreDataTypeEnum)
+                      }}
+                      placeholder="Select a data type"
+                      options={Object.values(ScoreDataTypeEnum)
                         .filter((value) => value !== "CORRECTION")
-                        .map((value) => (
-                          <SelectItem value={value} key={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                        .map((value) => ({ value, label: value }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -264,7 +264,6 @@ export function UpsertScoreConfigDialogContent({
                                     readOnly
                                     disabled
                                     inputMode="numeric"
-                                    className="text-center"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -292,17 +291,14 @@ export function UpsertScoreConfigDialogContent({
                               )}
                             />
                             {isCategoricalDataType(dataType) && (
-                              <Button
-                                type="button"
+                              <IconButton
+                                icon={Trash}
+                                label={`Remove category ${index + 1}`}
                                 onClick={() => remove(index)}
-                                variant="outline"
-                                size="icon"
                                 disabled={
                                   index === 0 || index !== fields.length - 1
                                 }
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
+                              />
                             )}
                           </div>
                         </div>
@@ -311,6 +307,7 @@ export function UpsertScoreConfigDialogContent({
                         <div className="grid">
                           <Button
                             type="button"
+                            text="Add category"
                             variant="secondary"
                             disabled={
                               isBooleanDataType(dataType) && fields.length === 2
@@ -328,9 +325,7 @@ export function UpsertScoreConfigDialogContent({
                                     : 0,
                               })
                             }
-                          >
-                            Add category
-                          </Button>
+                          />
                         </div>
                       )}
                     </>
@@ -355,21 +350,14 @@ export function UpsertScoreConfigDialogContent({
                 </FormItem>
               )}
             />
-          </DialogBody>
-          <DialogFooter>
-            <div className="flex w-full flex-col items-end gap-4">
-              {formError ? (
-                <p className="w-full text-center">
-                  <span className="font-bold">Error:</span> {formError}
-                </p>
-              ) : null}
-              <Button type="submit" loading={isSubmitting}>
-                Submit
-              </Button>
-            </div>
-          </DialogFooter>
+            {formError && (
+              <p role="alert">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            )}
+          </Dialog.Body>
         </form>
       </Form>
-    </>
+    </Dialog>
   );
 }

@@ -1,4 +1,4 @@
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { env } from "@/src/env.mjs";
 
 type LangfuseKeys = {
