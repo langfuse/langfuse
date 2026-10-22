@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Lock, Plus } from "@langfuse/icons";
-import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
+import EvalsTemplateTable from "@/src/features/evals/components/EvalsTemplateTable";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
