@@ -30,7 +30,7 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+} from "@/src/features/evals/components/EvaluatorForm";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";

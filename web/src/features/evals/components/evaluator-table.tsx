@@ -45,7 +45,7 @@ import {
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+} from "@/src/features/evals/components/EvaluatorForm";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";

@@ -3,7 +3,7 @@ import { Card } from "@/src/components/ui/card";
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+} from "@/src/features/evals/components/EvaluatorForm";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type RunEvaluatorFormProps = {

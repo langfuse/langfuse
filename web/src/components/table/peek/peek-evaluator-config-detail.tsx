@@ -6,7 +6,7 @@ import { CardDescription } from "@/src/components/ui/card";
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+} from "@/src/features/evals/components/EvaluatorForm";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
 import {
   Tooltip,
