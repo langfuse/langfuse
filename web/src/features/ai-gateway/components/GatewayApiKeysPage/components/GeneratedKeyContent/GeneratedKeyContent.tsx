@@ -69,7 +69,7 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1">
+      <div className="flex items-baseline gap-1">
         <h3 className="font-bold">Usage instructions</h3>
         {activeEntry ? (
           <Button
