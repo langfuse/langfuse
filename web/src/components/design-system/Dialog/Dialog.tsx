@@ -171,7 +171,7 @@ function DialogRoot({
                 </DialogPrimitive.Title>
                 {docsHref ? (
                   <Button
-                    variant="ghost"
+                    variant="link"
                     size="sm"
                     text="Docs"
                     href={docsHref}
