@@ -14,10 +14,11 @@ export function useSaveGatewayIngestion(organizationId: string) {
   const [isSaving, setIsSaving] = useState(false);
 
   async function resolveProjectId(settings: GatewayIngestionSettings) {
-    if (settings.ingestionMode === "NONE") return null;
     if (settings.projectTarget === "existing") {
       return settings.existingProjectId ?? null;
     }
+    // None keeps an already linked project but never creates one.
+    if (settings.ingestionMode === "NONE") return null;
     const project = await createProject.mutateAsync({
       orgId: organizationId,
       name: settings.newProjectName.trim(),
