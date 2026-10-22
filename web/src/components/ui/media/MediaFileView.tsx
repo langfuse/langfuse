@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
-} from "@/src/components/ui/resizable-image";
+} from "@/src/components/ui/ResizableImage";
 import { type MediaContentType } from "@/src/features/media";
 import { cn } from "@/src/utils/tailwind";
 
