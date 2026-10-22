@@ -27,6 +27,11 @@ type SendGatewayInvitationEmailParams = {
   orgId: string;
 };
 
+const getUtmContent = (audience: GatewayInvitationEmailAudience) => {
+  if (audience.kind === "member") return "member";
+  return audience.hasAccount ? "invitee_existing_user" : "invitee_new_user";
+};
+
 /**
  * Tells someone the organization's AI Gateway is ready: either a new invitee
  * (paired with an organization invitation) or an existing member. Missing
@@ -59,10 +64,22 @@ export const sendGatewayInvitationEmail = async ({
   }
 
   const gatewayKeysPath = `/organization/${orgId}/settings/ai-gateway-api-keys`;
-  const link =
-    audience.kind === "invitee" && !audience.hasAccount
-      ? `${baseUrl}/auth/sign-up?targetPath=${encodeURIComponent(gatewayKeysPath)}&email=${encodeURIComponent(to)}`
-      : `${baseUrl}${gatewayKeysPath}`;
+  const isNewUser = audience.kind === "invitee" && !audience.hasAccount;
+  const link = new URL(
+    isNewUser ? `${baseUrl}/auth/sign-up` : `${baseUrl}${gatewayKeysPath}`,
+  );
+  if (isNewUser) {
+    link.searchParams.set("targetPath", gatewayKeysPath);
+    link.searchParams.set("email", to);
+  }
+  // Read by PostHog on the landing pageview to attribute clicks and sign-ups
+  // to this email; self-hosted instances run no analytics.
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    link.searchParams.set("utm_source", "langfuse");
+    link.searchParams.set("utm_medium", "email");
+    link.searchParams.set("utm_campaign", "ai_gateway_invite");
+    link.searchParams.set("utm_content", getUtmContent(audience));
+  }
 
   const html = await render(
     GatewayInvitationEmailTemplate({
@@ -72,7 +89,7 @@ export const sendGatewayInvitationEmail = async ({
       orgName,
       receiverEmail: to,
       receiverName,
-      link,
+      link: link.toString(),
       emailFromAddress: env.EMAIL_FROM_ADDRESS,
       langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     }),
