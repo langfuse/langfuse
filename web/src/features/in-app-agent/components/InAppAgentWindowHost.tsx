@@ -4,7 +4,7 @@
 import { useLayoutEffect, useRef } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
-import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
+import { DialogController } from "@/src/features/in-app-agent/components/DialogController";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";

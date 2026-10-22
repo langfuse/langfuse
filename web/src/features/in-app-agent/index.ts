@@ -4,7 +4,7 @@
 //
 // inAppAgentRouter and server helpers stay off this door. ids, display,
 // and watchFrames stay deep for server tests (rule 10).
-export { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
+export { DialogController } from "@/src/features/in-app-agent/components/DialogController";
 export { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
 export {
   InAppAiAgentProvider,
