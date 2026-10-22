@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
-import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";

@@ -14,7 +14,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Bot, Check, Code2 } from "@langfuse/icons";
 import { EvaluatorSelector } from "./evaluator-selector";
-import { EvalTemplateForm } from "./template-form";
+import { EvalTemplateForm } from "./EvalTemplateForm";
 import { showSuccessToast } from "@/src/features/notifications";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
