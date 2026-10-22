@@ -335,13 +335,22 @@ function pastTraceCount(
   if (counts) {
     // Mirrors the server: the smallest window that fills the batch, else 14 days.
     const rate = samplePercent / 100;
-    const window =
-      [counts.finished1d, counts.finished7d].find(
-        (count) => count * rate >= TOPIC_SETUP_BACKFILL_LIMIT,
-      ) ?? counts.finished14d;
+    const window = (
+      [
+        { days: 1, count: counts.finished1d },
+        { days: 7, count: counts.finished7d },
+      ] as const
+    ).find(({ count }) => count * rate >= TOPIC_SETUP_BACKFILL_LIMIT) ?? {
+      days: TOPIC_SETUP_BACKFILL_DAYS,
+      count: counts.finished14d,
+    };
     return {
       status: "ready",
-      matched: Math.min(TOPIC_SETUP_BACKFILL_LIMIT, Math.round(window * rate)),
+      days: window.days,
+      matched: Math.min(
+        TOPIC_SETUP_BACKFILL_LIMIT,
+        Math.round(window.count * rate),
+      ),
       dailyTraces: counts.finished14d / TOPIC_SETUP_BACKFILL_DAYS,
     };
   }

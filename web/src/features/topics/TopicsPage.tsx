@@ -57,7 +57,8 @@ import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialog
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
-import { summaryRunProgress } from "./topic-setup-flow";
+import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
@@ -260,12 +261,61 @@ function TopicsWorkspaceContent({
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) =>
-        query.state.data?.some((execution) => busy(execution.status))
+      refetchInterval: (query) => {
+        const data = query.state.data ?? [];
+        if (data.some((execution) => busy(execution.status))) return 3000;
+        // Keep polling through the hand-off from summaries to the topic update.
+        const run = topicSetupRun(data);
+        return run && !run.update && run.process.status !== "failed"
           ? 3000
-          : false,
+          : false;
+      },
     },
   );
+  const [mountedAt] = useState(Date.now);
+  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
+    null,
+  );
+  const setupRun = topicSetupRun(executions.data ?? []);
+  const setup = setupRun ? topicSetupStage(setupRun) : null;
+  // A run that finished before this visit is not replayed; results show instead.
+  const showSetupProgress =
+    setupRun !== null &&
+    setup !== null &&
+    setupRun.process.id !== acknowledgedSetupId &&
+    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
+      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
+  const setupRunIds =
+    setupRun?.update?.facets.flatMap((facet) =>
+      facet.runId ? [facet.runId] : [],
+    ) ?? [];
+  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
+    { projectId, runIds: setupRunIds },
+    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
+  );
+  const setupRetry = api.topics.retry.useMutation({
+    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
+  });
+  const setupFacets =
+    setupRun?.process.facets.map((facet) => {
+      const update = setupRun.update?.facets.find(
+        (item) =>
+          item.facetId === facet.facetId &&
+          item.facetVersion === facet.facetVersion,
+      );
+      return {
+        key: `${facet.facetId}:${facet.facetVersion}`,
+        name:
+          facets.data?.find((item) => item.id === facet.facetId)?.name ??
+          "Facet",
+        complete: facet.counts.complete,
+        requested: facet.counts.requested,
+        outcome: update?.outcome ?? null,
+        topicCount:
+          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
+            ?.topicCount ?? null,
+      };
+    }) ?? [];
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -422,20 +472,17 @@ function TopicsWorkspaceContent({
           openManual("update");
         }
         const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
-        const firstProcess = executions.data?.find(
-          (execution) =>
-            execution.input.operation === "process" && busy(execution.status),
-        );
         const headerFacetId = resolveTopicFacetId(
           results.data?.facets ?? [],
           selectedFacetId,
         );
-        const showOnboarding =
+        const showLanding =
           validTimeRange &&
           results.data !== undefined &&
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        const showOnboarding = showSetupProgress || showLanding;
         return (
           <Page
             headerProps={{
@@ -540,22 +587,29 @@ function TopicsWorkspaceContent({
                 notice={modelSettings.notice}
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
-                onConfigure={configured ? openConfigure : openSetup}
-                firstRun={
-                  showOnboarding && firstProcess
-                    ? summaryRunProgress(firstProcess.facets)
-                    : null
-                }
+                onStart={openSetup}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showOnboarding}
-                configured={configured}
-                canProcess={canWrite}
-                automaticEnabled={automaticProcessing.state.status === "on"}
-                running={running}
-                onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                onManualProcessing={openManualProcessing}
+                showOnboarding={showLanding && !showSetupProgress}
               />
+              {showSetupProgress && setup ? (
+                <TopicSetupProgressView
+                  stage={setup.stage}
+                  facets={setupFacets}
+                  retrying={setupRetry.isPending}
+                  onRetry={() => {
+                    if (setup.retryId)
+                      setupRetry.mutate({
+                        projectId,
+                        executionId: setup.retryId,
+                      });
+                  }}
+                  onDisplayResults={() => {
+                    setAcknowledgedSetupId(setupRun.process.id);
+                    return utils.topics.invalidate();
+                  }}
+                />
+              ) : null}
               <Sheet
                 open={historyOpen || executionId !== null}
                 onOpenChange={showExecutionList}

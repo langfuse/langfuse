@@ -230,6 +230,9 @@ vi.mock("@/src/utils/api", () => ({
               : null,
         }),
       },
+      setupTopicCounts: {
+        useQuery: () => ({ data: undefined }),
+      },
       setAutomaticProcessing: {
         useMutation: () => ({
           isPending: false,
@@ -1046,30 +1049,15 @@ it.each([
   },
 );
 
-it("guides a configured project through processing until its first stored summary exists", () => {
+it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />);
-  expect(
-    screen.getByRole("button", { name: "Summarize traces & embed" }),
-  ).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Start analyzing" })).toBeEnabled();
   expect(screen.queryByTestId("current-topics")).toBeNull();
-  fireEvent.click(
-    screen.getAllByRole("button", { name: "Automatic processing" }).at(-1)!,
-  );
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
-  fireEvent.click(
-    screen.getByRole("button", { name: "Summarize traces & embed" }),
-  );
-  expect(
-    screen.getByRole("dialog", { name: "Manual processing" }),
-  ).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "Summarize traces & embed" }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: "Start analyzing" })).toBeNull();
 });
 
 it("opens generation directly from the empty topics panel", () => {
@@ -1097,5 +1085,7 @@ it("keeps date controls reachable when a disabled results query has no data", ()
   expect(
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
-  expect(screen.queryByText("Start analyzing your traces")).toBeNull();
+  expect(
+    screen.queryByText("Thousands of traces, a few clear topics"),
+  ).toBeNull();
 });

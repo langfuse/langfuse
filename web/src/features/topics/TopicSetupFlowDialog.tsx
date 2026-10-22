@@ -19,7 +19,7 @@ import {
   type TopicSetupStep,
   type TopicSetupWaitMinutes,
 } from "./topic-setup-flow";
-import { TopicTraceFilterSection } from "./TopicAutomaticTraceScope";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 
 const STEP_TITLES: Record<TopicSetupStep, string> = {
   questions: "Set up topics",
@@ -41,7 +41,7 @@ const MODEL_ROWS = [
 
 export type TopicSetupPastCount =
   | { status: "loading" }
-  | { status: "ready"; matched: number; dailyTraces: number }
+  | { status: "ready"; matched: number; days: number; dailyTraces: number }
   | { status: "error"; message: string };
 
 export type TopicSetupFlowDialogProps = {
@@ -396,7 +396,8 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "error") return count.message;
   if (count.matched === 0)
     return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
-  return `Include about ${count.matched.toLocaleString("en-US")} past traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
+  const window = count.days === 1 ? "day" : `${count.days} days`;
+  return `Include about ${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
 }
 
 function samplePercentFromInput(value: string) {
@@ -464,6 +465,7 @@ function ModelRow({
           >
             <span className="flex min-w-0 items-center gap-2">
               <span
+                title={model?.model}
                 className={
                   model
                     ? "truncate font-mono text-xs"

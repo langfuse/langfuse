@@ -90,7 +90,7 @@ export function setupWaitMinutes(
   return TOPIC_SETUP_DEFAULT_WAIT_MINUTES;
 }
 
-export function topicModelsFor(
+function topicModelsFor(
   connection: TopicSetupConnection,
   kind: "chat" | "embedding",
   savedModel?: string | null,
@@ -154,7 +154,7 @@ function compareModelVersions(a: string, b: string) {
   return 0;
 }
 
-export function topicJudgeModel(
+function topicJudgeModel(
   slot: { llmApiKeyId: string; model: string } | null,
   connections: Array<{ id: string; provider: string }>,
 ): JudgeModel | null {
@@ -292,16 +292,58 @@ export function backfillNotice(matched: number) {
   return `Only ${matched.toLocaleString("en-US")} traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days. Topics need about ${TOPIC_SETUP_MIN_PAST_TRACES} to form, so the first topics may take longer.`;
 }
 
-export function summaryRunProgress(
-  facets: Array<{ counts: { complete: number; requested: number } }>,
-) {
-  if (facets.length === 0) return { complete: 0, requested: 0 };
-  const requested = Math.max(...facets.map((facet) => facet.counts.requested));
-  const complete = Math.round(
-    facets.reduce((sum, facet) => sum + facet.counts.complete, 0) /
-      facets.length,
+export type TopicSetupStage =
+  | "summarizing"
+  | "grouping"
+  | "naming"
+  | "done"
+  | "failed";
+
+type SetupExecution = {
+  id: string;
+  status: string;
+  phase: string;
+  input:
+    | { operation: "process"; requestId: string; thenUpdate?: unknown }
+    | { operation: "update"; requestId: string };
+};
+
+/** The newest setup backfill and the topic update it starts once summaries finish. */
+export function topicSetupRun<T extends SetupExecution>(executions: T[]) {
+  const process = executions.find(
+    (execution) =>
+      execution.input.operation === "process" &&
+      Boolean(execution.input.thenUpdate),
   );
-  return { complete: Math.min(complete, requested), requested };
+  if (!process) return null;
+  const update =
+    executions.find(
+      (execution) =>
+        execution.input.operation === "update" &&
+        execution.input.requestId === `${process.id}-topics`,
+    ) ?? null;
+  return { process, update };
+}
+
+export function topicSetupStage(run: {
+  process: SetupExecution;
+  update: SetupExecution | null;
+}): { stage: TopicSetupStage; retryId: string | null } {
+  const { process, update } = run;
+  if (process.status === "failed")
+    return { stage: "failed", retryId: process.id };
+  if (process.status === "queued" || process.status === "running")
+    return { stage: "summarizing", retryId: null };
+  if (!update || update.status === "queued")
+    return { stage: "grouping", retryId: null };
+  if (update.status === "failed")
+    return { stage: "failed", retryId: update.id };
+  if (update.status === "running")
+    return {
+      stage: update.phase === "clustering" ? "grouping" : "naming",
+      retryId: null,
+    };
+  return { stage: "done", retryId: null };
 }
 
 function topicQuestionDescription(name: string, stored: string | undefined) {

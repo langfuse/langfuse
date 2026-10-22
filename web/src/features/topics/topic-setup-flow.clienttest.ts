@@ -6,7 +6,8 @@ import {
   isRecommendedTopicModel,
   pickRecommendedTopicModel,
   setupWaitMinutes,
-  summaryRunProgress,
+  topicSetupRun,
+  topicSetupStage,
   topicConnectionCaption,
 } from "./topic-setup-flow";
 
@@ -44,7 +45,7 @@ it("recommends only the listed models for each job", () => {
   ).toBe(false);
 });
 
-it("pre-selects the highest-ranked recommended model across connections", () => {
+it("preselects the highest-ranked recommended model across connections", () => {
   expect(
     pickRecommendedTopicModel("summary", [
       ["Anthropic", ["claude-sonnet-5-5", "claude-haiku-5-5"]],
@@ -141,13 +142,45 @@ it("requires one question and all three models before the first step can save", 
   ).toBe(false);
 });
 
-it("averages summary progress across facets", () => {
+it("follows a setup run from summaries through its topic update", () => {
+  const process = (status: string) => ({
+    id: "setup",
+    status,
+    phase: status,
+    input: {
+      operation: "process" as const,
+      requestId: "r",
+      thenUpdate: { timeRange: {} },
+    },
+  });
+  const update = (status: string, phase = status) => ({
+    id: "topics",
+    status,
+    phase,
+    input: { operation: "update" as const, requestId: "setup-topics" },
+  });
+  const stage = (executions: Parameters<typeof topicSetupRun>[0]) =>
+    topicSetupStage(topicSetupRun(executions)!);
+  expect(topicSetupRun([update("completed")])).toBeNull();
+  expect(stage([process("running")]).stage).toBe("summarizing");
+  expect(stage([process("completed")]).stage).toBe("grouping");
   expect(
-    summaryRunProgress([
-      { counts: { complete: 100, requested: 200 } },
-      { counts: { complete: 50, requested: 200 } },
-    ]),
-  ).toEqual({ complete: 75, requested: 200 });
+    stage([update("running", "clustering"), process("completed")]).stage,
+  ).toBe("grouping");
+  expect(stage([update("running", "naming"), process("completed")]).stage).toBe(
+    "naming",
+  );
+  expect(
+    stage([update("completed"), process("completed_with_errors")]),
+  ).toEqual({ stage: "done", retryId: null });
+  expect(stage([process("failed")])).toEqual({
+    stage: "failed",
+    retryId: "setup",
+  });
+  expect(stage([update("failed"), process("completed")])).toEqual({
+    stage: "failed",
+    retryId: "topics",
+  });
 });
 
 it("names the connection when the project has one provider", () => {

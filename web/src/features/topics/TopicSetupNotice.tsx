@@ -1,26 +1,16 @@
-import { Sparkles } from "@langfuse/icons";
+import { ArrowRight } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
-import { TopicSetupProgressView } from "./TopicSetupProgressView";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
   canWrite: boolean;
   canConfigure: boolean;
-  onConfigure: () => void;
+  onStart: () => void;
   onKeepOff: () => void;
   onTurnBackOn: () => void;
   showOnboarding?: boolean;
-  configured?: boolean;
-  canProcess?: boolean;
-  automaticEnabled?: boolean;
-  running?: boolean;
-  onAutomaticProcessing?: () => void;
-  onManualProcessing?: () => void;
-  firstRun?: { complete: number; requested: number } | null;
 };
 
 /** Guides projects to their first summaries and surfaces paused processing. */
@@ -28,25 +18,12 @@ export function TopicSetupNotice({
   notice,
   canWrite,
   canConfigure,
-  onConfigure,
+  onStart,
   onKeepOff,
   onTurnBackOn,
   showOnboarding = notice.status?.kind === "setup",
-  configured = false,
-  canProcess = false,
-  automaticEnabled = false,
-  running = false,
-  onAutomaticProcessing,
-  onManualProcessing,
-  firstRun = null,
 }: TopicSetupNoticeProps) {
   const { status } = notice;
-  const processingChoiceDescription = automaticEnabled
-    ? "Automatic processing is on for new traces. You can also summarize existing traces in manual batches."
-    : "Enable automatic processing for incoming traces, or summarize existing traces in manual batches of up to 1,000.";
-  const processingDescription = running
-    ? "Your traces are being processed. Summaries will appear here as they become available."
-    : processingChoiceDescription;
   return (
     <>
       {status?.kind === "paused" ? (
@@ -73,86 +50,99 @@ export function TopicSetupNotice({
           </Alert.Description>
         </Alert>
       ) : null}
-      {showOnboarding && firstRun ? (
-        <TopicSetupProgressView
-          complete={firstRun.complete}
-          requested={firstRun.requested}
-        />
-      ) : null}
-      {showOnboarding && !firstRun ? (
-        <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
-          <Sparkles aria-hidden="true" size="xl" color="muted" />
-          <SplashScreen
-            title={
-              configured
-                ? "Start analyzing your traces"
-                : "Find patterns across your traces"
-            }
-            description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
-            steps={[
-              {
-                title: "Configure Topics",
-                badge: configured ? (
-                  <StatusBadge type="completed" showText={false} isLive={false}>
-                    Done
-                  </StatusBadge>
-                ) : undefined,
-                description: configured
-                  ? "Your project models and facets are ready. You can adjust them at any time."
-                  : "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
-                content: (
-                  <Button
-                    text="Configure Topics"
-                    size="sm"
-                    variant={configured ? "secondary" : "primary"}
-                    disabled={!canWrite || !canConfigure}
-                    onClick={onConfigure}
-                  />
-                ),
-              },
-              {
-                title: "Analyze traces",
-                description: processingDescription,
-                content: (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      text="Automatic processing"
-                      variant={
-                        configured && canProcess && !automaticEnabled
-                          ? "primary"
-                          : "secondary"
-                      }
-                      size="sm"
-                      disabled={!configured || !canProcess}
-                      onClick={onAutomaticProcessing}
-                    />
-                    <Button
-                      text="Summarize traces & embed"
-                      variant="secondary"
-                      size="sm"
-                      disabled={!configured || !canProcess || running}
-                      onClick={onManualProcessing}
-                    />
-                  </div>
-                ),
-              },
-              {
-                title: "Gather insights",
-                description:
-                  "Once summaries are available, generate topics to discover recurring patterns across your traces.",
-                content: (
-                  <Button
-                    text="Generate topics"
-                    variant="secondary"
-                    size="sm"
-                    disabled
-                  />
-                ),
-              },
-            ]}
+      {showOnboarding ? (
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-8 overflow-y-auto px-4 pt-12">
+          <SortingIllustration />
+          <h2 className="text-center text-2xl font-bold">
+            Thousands of traces, a few clear topics
+          </h2>
+          <Button
+            text="Start analyzing"
+            disabled={!canWrite || !canConfigure}
+            onClick={onStart}
           />
         </div>
       ) : null}
     </>
+  );
+}
+
+// Decorative: a messy pile of traces sorted into three example topics.
+const MESSY_CARDS = [
+  [10, 24, -12],
+  [78, 0, 7],
+  [150, 34, -4],
+  [24, 96, 9],
+  [112, 84, -15],
+  [166, 118, 11],
+  [0, 160, -6],
+  [86, 156, 4],
+  [150, 176, -9],
+  [62, 48, 17],
+] as const;
+const SLAB_JITTER = [0, 3, -2, 4, -3, 1, -4, 2, -1, 3, 0];
+const PILES = [
+  {
+    name: "Refund requests",
+    count: 214,
+    slabs: 11,
+    className: "bg-dark-violet/25 border-dark-violet/40",
+  },
+  {
+    name: "Order status",
+    count: 156,
+    slabs: 8,
+    className: "bg-dark-blue/20 border-dark-blue/35",
+  },
+  {
+    name: "Cancel subscription",
+    count: 61,
+    slabs: 4,
+    className: "bg-dark-teal/20 border-dark-teal/35",
+  },
+];
+
+function SortingIllustration() {
+  return (
+    <div
+      aria-hidden="true"
+      className="bg-light-violet flex w-full items-center justify-center gap-8 overflow-hidden rounded-2xl px-6 py-10"
+    >
+      <div className="relative hidden h-60 w-72 shrink-0 sm:block">
+        {MESSY_CARDS.map(([left, top, rotate]) => (
+          <div
+            key={`${left}-${top}`}
+            className="bg-card absolute flex h-16 w-28 flex-col gap-2 rounded-lg border p-2.5 shadow-sm"
+            style={{ left, top, transform: `rotate(${rotate}deg)` }}
+          >
+            <span className="bg-muted size-2 rounded-full" />
+            <span className="bg-muted h-1.5 w-4/5 rounded" />
+            <span className="bg-muted h-1.5 w-3/5 rounded" />
+          </div>
+        ))}
+      </div>
+      <ArrowRight
+        size="lg"
+        color="muted"
+        __rawClassName="hidden shrink-0 sm:block"
+      />
+      <div className="flex items-end gap-5">
+        {PILES.map((pile) => (
+          <div key={pile.name} className="flex flex-col items-center gap-1">
+            <div className="flex flex-col gap-1">
+              {SLAB_JITTER.slice(0, pile.slabs).map((offset, index) => (
+                <span
+                  key={index}
+                  className={`h-3.5 w-28 rounded border ${pile.className}`}
+                  style={{ transform: `translateX(${offset}px)` }}
+                />
+              ))}
+            </div>
+            <span className="mt-2 text-sm font-bold">{pile.name}</span>
+            <span className="text-muted-foreground text-sm">{pile.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -81,6 +81,24 @@ function checkRequest(
     );
 }
 
+// JSON storage turns time ranges into strings; restore them as dates.
+function storedInput(
+  settings: BatchMetadata["inputSettings"],
+): TopicExecutionSummary["input"] {
+  if (settings.operation === "update")
+    return {
+      ...settings,
+      timeRange: topicTimeRangeSchema.parse(settings.timeRange),
+    };
+  if (!settings.thenUpdate) return settings;
+  return {
+    ...settings,
+    thenUpdate: {
+      timeRange: topicTimeRangeSchema.parse(settings.thenUpdate.timeRange),
+    },
+  };
+}
+
 function summaryResult(row: BatchRow): TopicExecutionSummary {
   const state = batchMetadata(row);
   const status = (
@@ -95,24 +113,7 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     error: row.log,
-    input:
-      state.inputSettings.operation === "update"
-        ? {
-            ...state.inputSettings,
-            timeRange: topicTimeRangeSchema.parse(
-              state.inputSettings.timeRange,
-            ),
-          }
-        : state.inputSettings.thenUpdate
-          ? {
-              ...state.inputSettings,
-              thenUpdate: {
-                timeRange: topicTimeRangeSchema.parse(
-                  state.inputSettings.thenUpdate.timeRange,
-                ),
-              },
-            }
-          : state.inputSettings,
+    input: storedInput(state.inputSettings),
     facets: state.inputSettings.facets.map(({ facetId, version }) => {
       const facet = state.facets.find(
         (candidate) =>
