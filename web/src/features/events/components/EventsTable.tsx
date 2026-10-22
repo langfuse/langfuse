@@ -258,7 +258,10 @@ export type EventsTableProps = {
   promptVersion?: number;
   skill?: { name: string; version?: number };
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
-  hideControls?: boolean;
+  hideSearchBar?: boolean;
+  hideToolbar?: boolean;
+  hideFilterSidebar?: boolean;
+  hidePeekPanel?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -312,7 +315,10 @@ export default function ObservationsEventsTable({
   promptVersion,
   skill,
   omittedFilter = [],
-  hideControls = false,
+  hideSearchBar = false,
+  hideToolbar = false,
+  hideFilterSidebar = false,
+  hidePeekPanel = false,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -341,7 +347,7 @@ export default function ObservationsEventsTable({
     TracingSearchType[]
   >(["id"]);
   const tableStatePolicy = getEventsTableStatePolicy({
-    hideControls,
+    hideControls: hideToolbar,
     isolateTableState,
     hasParentScope: Boolean(
       peekContext || userId || sessionId || promptName || promptVersion,
@@ -772,7 +778,7 @@ export default function ObservationsEventsTable({
   // sidebar and time/refresh controls stay.
   const searchBarEnabled = useSearchBarEnabled();
   const searchBarMode =
-    searchBarEnabled && !hideControls && !externalFilterState;
+    searchBarEnabled && !hideSearchBar && !externalFilterState;
   const searchRegistry = eventsSearchRegistry(
     [
       ...(eventsFilterConfig.omittedFilterColumns ?? []),
@@ -910,7 +916,7 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideControls && !userId && !sessionId && !skill;
+  const chartEnabled = !hideToolbar && !userId && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -1013,14 +1019,13 @@ export default function ObservationsEventsTable({
 
   // Record the visible rows' metadata paths into the persisted per-project
   // suggestions map (read above into observedMetadataPaths). Same sampling as
-  // the AI context below; runs once per fetch (rows identity). Not gated on the
-  // search bar — the sidebar facet feeds from this map too — but embedded
-  // PREVIEW tables (`hideControls`: 10 rows under an arbitrary external filter)
-  // stay out: the per-key caps are drop-new-when-full, so a narrow preview's
+  // the AI context below; runs once per fetch (rows identity). Both the search
+  // bar and filter sidebar consume this map. Skip recording when both are
+  // hidden: the per-key caps are drop-new-when-full, so a narrow preview's
   // keys would crowd out the ones the project actually browses.
   useObservedMetadataRecorder({
     projectId,
-    rows: hideControls ? undefined : observations.rows,
+    rows: hideSearchBar && hideFilterSidebar ? undefined : observations.rows,
   });
 
   // Project data context for the AI filter prompt: observed values (from
@@ -1257,10 +1262,10 @@ export default function ObservationsEventsTable({
   // checkboxes would do nothing. Omit the select column on mobile until a
   // dedicated mobile action affordance exists.
   const isMobile = useIsMobile();
-  const enableSorting = !hideControls;
+  const enableSorting = !hideToolbar;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(hideControls || isMobile ? [] : [selectActionColumn]),
+    ...(hideToolbar || isMobile ? [] : [selectActionColumn]),
     createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
       header: getEventsColumnName("startTime"),
@@ -1754,13 +1759,13 @@ export default function ObservationsEventsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hideControls) return undefined;
+    if (hidePeekPanel) return undefined;
     return {
       itemType: "TRACE",
       detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
-  }, [peekNavigationProps, hideControls]);
+  }, [peekNavigationProps, hidePeekPanel]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
@@ -1874,7 +1879,7 @@ export default function ObservationsEventsTable({
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && !hideControls && !isMobile && (
+        {showControlsInPageHeader && !hideToolbar && !isMobile && (
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
@@ -1885,7 +1890,7 @@ export default function ObservationsEventsTable({
             toggle. Search, time range, preset chips, saved views and the facet
             sidebar all move INTO the sheet (same controllers, hosted there).
             Columns / row-height / export are omitted on the card list. */}
-        {!hideControls && isMobile && (
+        {(!hideSearchBar || !hideToolbar || !hideFilterSidebar) && isMobile && (
           <div className="my-2 flex items-center gap-2 px-2">
             <MobileFiltersSheet
               activeCount={mobileActiveFilterCount}
@@ -1900,7 +1905,7 @@ export default function ObservationsEventsTable({
                 });
               }}
               search={
-                searchBarMode ? (
+                hideSearchBar ? undefined : searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
                       size={showControlsInPageHeader ? "large" : "default"}
@@ -1943,26 +1948,27 @@ export default function ObservationsEventsTable({
                 )
               }
               headerControls={
-                // Compact time-range + refresh, pulled up into the sheet's
-                // header row so the body is a single uninterrupted scroll.
-                <div className="flex min-w-0 items-center gap-1">
-                  <TimeRangePicker
-                    compact
-                    timeRange={timeRange}
-                    onTimeRangeChange={setTimeRange}
-                    timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-                    className="my-0"
-                  />
-                  <DataTableRefreshButton
-                    compact
-                    onRefresh={refreshConfig.onRefresh}
-                    isRefreshing={refreshConfig.isRefreshing}
-                    interval={refreshConfig.interval}
-                    setInterval={refreshConfig.setInterval}
-                  />
-                </div>
+                !hideToolbar && (
+                  <div className="flex min-w-0 items-center gap-1">
+                    <TimeRangePicker
+                      compact
+                      timeRange={timeRange}
+                      onTimeRangeChange={setTimeRange}
+                      timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+                      className="my-0"
+                    />
+                    <DataTableRefreshButton
+                      compact
+                      onRefresh={refreshConfig.onRefresh}
+                      isRefreshing={refreshConfig.isRefreshing}
+                      interval={refreshConfig.interval}
+                      setInterval={refreshConfig.setInterval}
+                    />
+                  </div>
+                )
               }
               presets={
+                hideToolbar ||
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <CategoryPresetChips
                     projectId={projectId}
@@ -1977,6 +1983,7 @@ export default function ObservationsEventsTable({
                 )
               }
               savedViews={
+                hideToolbar ||
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <TableViewPresetsDrawer
                     viewConfig={{
@@ -1995,17 +2002,19 @@ export default function ObservationsEventsTable({
                 )
               }
               facets={
-                <DataTableControls
-                  key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-                  queryFilter={queryFilter}
-                  filterWithAI={sidebarAiFiltersEnabled}
-                  blockedColumnReason={
-                    chartActive ? chartBlockedColumnReason : undefined
-                  }
-                  // inline: flow at natural height in the sheet's single scroll
-                  // (no internal ScrollArea). Desktop sidebar stays default.
-                  layout="inline"
-                />
+                !hideFilterSidebar && (
+                  <DataTableControls
+                    key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                    queryFilter={queryFilter}
+                    filterWithAI={sidebarAiFiltersEnabled}
+                    blockedColumnReason={
+                      chartActive ? chartBlockedColumnReason : undefined
+                    }
+                    // inline: flow at natural height in the sheet's single scroll
+                    // (no internal ScrollArea). Desktop sidebar stays default.
+                    layout="inline"
+                  />
+                )
               }
             />
             {chartEnabled && (
@@ -2016,7 +2025,7 @@ export default function ObservationsEventsTable({
             )}
           </div>
         )}
-        {!hideControls && !isMobile && (
+        {(!hideSearchBar || !hideToolbar) && !isMobile && (
           <div
             className={cn(
               // This is a table-internal sticky band below PageHeader. Using
@@ -2065,183 +2074,193 @@ export default function ObservationsEventsTable({
               </div>
             )}
             {/* Toolbar spanning full width */}
-            <DataTableToolbar
-              columns={columns}
-              className={searchBarMode ? "px-3" : undefined}
-              rowClassName={searchBarMode ? "my-1" : undefined}
-              filterState={queryFilter.explicitFilterState}
-              tableName={eventsFilterConfig.tableName}
-              isV4={true}
-              searchConfig={
-                // In search-bar mode full-text search (bare text +
-                // content:/input:/output:) lives inline in the bar, so the
-                // legacy toolbar search field is hidden.
-                searchBarMode
-                  ? undefined
-                  : {
-                      metadataSearchFields: [
-                        "ID",
-                        "Name",
-                        "Trace Name",
-                        "Model",
-                      ],
-                      updateQuery: handleSearchQueryChange,
-                      currentQuery: searchQuery ?? undefined,
-                      searchType,
-                      setSearchType: handleSearchTypeChange,
-                      tableAllowsFullTextSearch: true,
-                    }
-              }
-              // In bar mode the toolbar search field is hidden, so source the
-              // saved-view search query from the live URL state (the bar writes
-              // free text there) rather than the toolbar's empty local mirror.
-              currentSearchQuery={
-                searchBarMode ? (searchQuery ?? "") : undefined
-              }
-              columnsWithCustomSelect={[
-                "providedModelName",
-                "name",
-                "promptName",
-              ]}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              orderByState={orderByState}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              customRowHeight={customRowHeightMenu(rowHeights)}
-              timeRange={showControlsInPageHeader ? undefined : timeRange}
-              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              viewModeToggle={
-                chartEnabled ? (
-                  <ViewModeToggle
-                    mode={chartViewMode}
-                    onModeChange={setChartViewMode}
-                  />
-                ) : undefined
-              }
-              refreshConfig={
-                showControlsInPageHeader ? undefined : refreshConfig
-              }
-              actionButtons={[
-                hasBatchExportAccess ? (
-                  <BatchExportTableButton
-                    {...{
-                      projectId,
-                      filterState,
-                      orderByState,
-                      searchQuery,
-                      searchType,
-                    }}
-                    tableName={BatchExportTableName.Events}
-                    key="batchExport"
-                  />
-                ) : null,
-                !chartActive &&
-                (selectedObservationIds.length > 0 || selectAll) ? (
-                  <AddTracesToAnnotationQueueDialogController
-                    key="observations-multi-select-actions"
-                    projectId={projectId}
-                    actionId={ActionId.ObservationAddToAnnotationQueue}
-                    tableName={BatchExportTableName.Events}
-                    alternateTableName={BatchExportTableName.Observations}
-                    objectLabel="observations"
-                    description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
-                    onAddToQueue={handleAddToAnnotationQueue}
-                    onSuccess={() => {
-                      setSelectedRows({});
-                      setSelectAll(false);
-                    }}
-                  >
-                    {({ openDialog }) => (
-                      <TableActionMenu
+            {!hideToolbar && (
+              <DataTableToolbar
+                columns={columns}
+                className={searchBarMode ? "px-3" : undefined}
+                rowClassName={searchBarMode ? "my-1" : undefined}
+                filterState={queryFilter.explicitFilterState}
+                tableName={eventsFilterConfig.tableName}
+                isV4={true}
+                searchConfig={
+                  // In search-bar mode full-text search (bare text +
+                  // content:/input:/output:) lives inline in the bar, so the
+                  // legacy toolbar search field is hidden.
+                  hideSearchBar || searchBarMode
+                    ? undefined
+                    : {
+                        metadataSearchFields: [
+                          "ID",
+                          "Name",
+                          "Trace Name",
+                          "Model",
+                        ],
+                        updateQuery: handleSearchQueryChange,
+                        currentQuery: searchQuery ?? undefined,
+                        searchType,
+                        setSearchType: handleSearchTypeChange,
+                        tableAllowsFullTextSearch: true,
+                      }
+                }
+                // In bar mode the toolbar search field is hidden, so source the
+                // saved-view search query from the live URL state (the bar writes
+                // free text there) rather than the toolbar's empty local mirror.
+                currentSearchQuery={
+                  hideSearchBar || searchBarMode
+                    ? (searchQuery ?? "")
+                    : undefined
+                }
+                columnsWithCustomSelect={[
+                  "providedModelName",
+                  "name",
+                  "promptName",
+                ]}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={handleColumnVisibilityChange}
+                columnOrder={columnOrder}
+                setColumnOrder={handleColumnOrderChange}
+                orderByState={orderByState}
+                rowHeight={rowHeight}
+                setRowHeight={setRowHeight}
+                customRowHeight={customRowHeightMenu(rowHeights)}
+                timeRange={showControlsInPageHeader ? undefined : timeRange}
+                setTimeRange={
+                  showControlsInPageHeader ? undefined : setTimeRange
+                }
+                viewModeToggle={
+                  chartEnabled ? (
+                    <ViewModeToggle
+                      mode={chartViewMode}
+                      onModeChange={setChartViewMode}
+                    />
+                  ) : undefined
+                }
+                refreshConfig={
+                  showControlsInPageHeader ? undefined : refreshConfig
+                }
+                actionButtons={[
+                  hasBatchExportAccess ? (
+                    <BatchExportTableButton
+                      {...{
+                        projectId,
+                        filterState,
+                        orderByState,
+                        searchQuery,
+                        searchType,
+                      }}
+                      tableName={BatchExportTableName.Events}
+                      key="batchExport"
+                    />
+                  ) : null,
+                  !chartActive &&
+                  (selectedObservationIds.length > 0 || selectAll) ? (
+                    <AddTracesToAnnotationQueueDialogController
+                      key="observations-multi-select-actions"
+                      projectId={projectId}
+                      actionId={ActionId.ObservationAddToAnnotationQueue}
+                      tableName={BatchExportTableName.Events}
+                      alternateTableName={BatchExportTableName.Observations}
+                      objectLabel="observations"
+                      description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
+                      onAddToQueue={handleAddToAnnotationQueue}
+                      onSuccess={() => {
+                        setSelectedRows({});
+                        setSelectAll(false);
+                      }}
+                    >
+                      {({ openDialog }) => (
+                        <TableActionMenu
+                          projectId={projectId}
+                          actions={tableActions}
+                          tableName={BatchExportTableName.Observations}
+                          selectedCount={selectedObservationCount}
+                          onClearSelection={() => {
+                            setSelectedRows({});
+                            setSelectAll(false);
+                          }}
+                          onCustomAction={(actionType) => {
+                            if (
+                              actionType ===
+                              ActionId.ObservationAddToAnnotationQueue
+                            ) {
+                              openDialog();
+                            }
+                            if (
+                              actionType === ActionId.ObservationBatchEvaluation
+                            ) {
+                              setShowRunEvaluationDialog(true);
+                            }
+                            if (
+                              actionType === ActionId.ObservationAddToDataset
+                            ) {
+                              setShowAddToDatasetDialog(true);
+                            }
+                          }}
+                        />
+                      )}
+                    </AddTracesToAnnotationQueueDialogController>
+                  ) : null,
+                ]}
+                // No row selection in chart mode — the table (and its select-all
+                // banner) is hidden, so a stale selection must not keep the batch
+                // menu (incl. Delete) operable. The selection is preserved and
+                // reappears on switching back to Table.
+                multiSelect={
+                  chartActive
+                    ? undefined
+                    : {
+                        selectAll,
+                        setSelectAll,
+                        selectedRowIds: selectedObservationIds,
+                        setRowSelection: setSelectedRows,
+                        totalCount,
+                        // totalCount stays null until select-all triggers the lazy
+                        // count query; hasNextPage lets the select-all banner show
+                        // without an eager count over the events table.
+                        hasNextPage: hasMore,
+                        pageSize: paginationState.limit,
+                        pageIndex: paginationState.page - 1,
+                      }
+                }
+                // Scoped registries keep AI filtering in the sidebar.
+                filterWithAI={sidebarAiFiltersEnabled}
+                // Category-preset chips + "My Views" pill share the toolbar row,
+                // left-aligned, so they sit on the same line as the right-aligned
+                // Columns/Export controls.
+                leadingControls={
+                  hideToolbar ||
+                  tableStatePolicy.disableSavedViews ? undefined : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CategoryPresetChips
                         projectId={projectId}
-                        actions={tableActions}
-                        tableName={BatchExportTableName.Observations}
-                        selectedCount={selectedObservationCount}
-                        onClearSelection={() => {
-                          setSelectedRows({});
-                          setSelectAll(false);
+                        // URL viewId only — the sessionStorage appliedViewId
+                        // can go stale under explicit URL state and light the
+                        // wrong chip (see demoteViewOnUserFilterEdit).
+                        activeViewId={viewControllers.selectedViewId}
+                        onApplyView={viewControllers.handleSetViewId}
+                        applyViewState={viewControllers.applyViewState}
+                        onPreviewView={previewViewInSearchBar}
+                      />
+                      <TableViewPresetsDrawer
+                        viewConfig={{
+                          tableName:
+                            TableViewPresetTableName.ObservationsEvents,
+                          projectId,
+                          controllers: viewControllers,
                         }}
-                        onCustomAction={(actionType) => {
-                          if (
-                            actionType ===
-                            ActionId.ObservationAddToAnnotationQueue
-                          ) {
-                            openDialog();
-                          }
-                          if (
-                            actionType === ActionId.ObservationBatchEvaluation
-                          ) {
-                            setShowRunEvaluationDialog(true);
-                          }
-                          if (actionType === ActionId.ObservationAddToDataset) {
-                            setShowAddToDatasetDialog(true);
-                          }
+                        currentState={{
+                          orderBy: orderByState ?? null,
+                          filters: queryFilter.explicitFilterState ?? [],
+                          columnOrder,
+                          columnVisibility,
+                          searchQuery: searchQuery ?? "",
                         }}
                       />
-                    )}
-                  </AddTracesToAnnotationQueueDialogController>
-                ) : null,
-              ]}
-              // No row selection in chart mode — the table (and its select-all
-              // banner) is hidden, so a stale selection must not keep the batch
-              // menu (incl. Delete) operable. The selection is preserved and
-              // reappears on switching back to Table.
-              multiSelect={
-                chartActive
-                  ? undefined
-                  : {
-                      selectAll,
-                      setSelectAll,
-                      selectedRowIds: selectedObservationIds,
-                      setRowSelection: setSelectedRows,
-                      totalCount,
-                      // totalCount stays null until select-all triggers the lazy
-                      // count query; hasNextPage lets the select-all banner show
-                      // without an eager count over the events table.
-                      hasNextPage: hasMore,
-                      pageSize: paginationState.limit,
-                      pageIndex: paginationState.page - 1,
-                    }
-              }
-              // Scoped registries keep AI filtering in the sidebar.
-              filterWithAI={sidebarAiFiltersEnabled}
-              // Category-preset chips + "My Views" pill share the toolbar row,
-              // left-aligned, so they sit on the same line as the right-aligned
-              // Columns/Export controls.
-              leadingControls={
-                tableStatePolicy.disableSavedViews ? undefined : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CategoryPresetChips
-                      projectId={projectId}
-                      // URL viewId only — the sessionStorage appliedViewId
-                      // can go stale under explicit URL state and light the
-                      // wrong chip (see demoteViewOnUserFilterEdit).
-                      activeViewId={viewControllers.selectedViewId}
-                      onApplyView={viewControllers.handleSetViewId}
-                      applyViewState={viewControllers.applyViewState}
-                      onPreviewView={previewViewInSearchBar}
-                    />
-                    <TableViewPresetsDrawer
-                      viewConfig={{
-                        tableName: TableViewPresetTableName.ObservationsEvents,
-                        projectId,
-                        controllers: viewControllers,
-                      }}
-                      currentState={{
-                        orderBy: orderByState ?? null,
-                        filters: queryFilter.explicitFilterState ?? [],
-                        columnOrder,
-                        columnVisibility,
-                        searchQuery: searchQuery ?? "",
-                      }}
-                    />
-                  </div>
-                )
-              }
-            />
+                    </div>
+                  )
+                }
+              />
+            )}
           </div>
         )}
 
@@ -2251,7 +2270,7 @@ export default function ObservationsEventsTable({
           {/* On mobile the facet sidebar moves into the Filters sheet above,
               so it is not rendered inline here (leaving only the table content
               in the layout). */}
-          {!hideControls && !isMobile && (
+          {!hideFilterSidebar && !isMobile && (
             <DataTableControls
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
@@ -2375,9 +2394,9 @@ export default function ObservationsEventsTable({
                 rowHeight={rowHeight}
                 customRowHeightPx={rowHeights.activeHeightPx}
                 onCustomRowHeightChange={
-                  hideControls ? undefined : rowHeights.setCustomPx
+                  hideToolbar ? undefined : rowHeights.setCustomPx
                 }
-                onSelectRowHeight={hideControls ? undefined : setRowHeight}
+                onSelectRowHeight={hideToolbar ? undefined : setRowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {

@@ -8,7 +8,7 @@ state remain canonical; both editors update the same state.
 
 - Each sidebar host supplies a registry derived from its exposed facets. Settings
   lists and other tables without a sidebar retain their existing controls.
-- `EventsTable` enables the bar when its controls are visible and filters are
+- `EventsTable` enables the bar when `hideSearchBar` is false and filters are
   internally owned. Embedded tables exclude fields locked by their parent.
 - `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
   Pass the host's existing search query and scope without changing their meaning.

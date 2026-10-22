@@ -248,7 +248,10 @@ const ObservationsPreview = memo(
                 {isV4 ? (
                   <EventsTable
                     projectId={projectId}
-                    hideControls
+                    hideSearchBar
+                    hideToolbar
+                    hideFilterSidebar
+                    hidePeekPanel
                     externalFilterState={filterState}
                     externalDateRange={dateRange}
                     limitRows={10}
