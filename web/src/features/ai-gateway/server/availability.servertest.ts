@@ -85,4 +85,24 @@ describe("gateway deployment", () => {
       ).toBe(false);
     },
   );
+
+  it.each(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])(
+    "treats Langfuse Cloud region %s as deployed, ignoring the deployed flag",
+    (cloudRegion) => {
+      const cloud = { nodeEnv: "production", cloudRegion, deployed: false };
+
+      expect(isGatewayEnabledForOrganization("org-1", ["org-1"], cloud)).toBe(
+        true,
+      );
+      expect(isGatewayEnabledForOrganization("org-2", ["org-1"], cloud)).toBe(
+        false,
+      );
+      expect(
+        isGatewayEnabledForOrganization("org-2", [], {
+          ...cloud,
+          enabledForAllOrganizations: true,
+        }),
+      ).toBe(true);
+    },
+  );
 });

@@ -280,7 +280,10 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it.skipIf(env.NODE_ENV === "development")(
+  it.skipIf(
+    env.NODE_ENV === "development" ||
+      Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+  )(
     "turns the gateway off for allowlisted organizations when none is deployed",
     async () => {
       const { caller, org } = await prepare();
