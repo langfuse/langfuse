@@ -31,6 +31,49 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
       },
     },
+    scoreConfigs: {
+      all: {
+        useQuery: () => ({
+          data: {
+            configs: [
+              {
+                id: "score-config-1",
+                name: "quality",
+                dataType: "BOOLEAN",
+                categories: [
+                  { label: "True", value: 1 },
+                  { label: "False", value: 0 },
+                ],
+                isArchived: false,
+              },
+              {
+                id: "score-config-2",
+                name: "latency",
+                dataType: "NUMERIC",
+                categories: null,
+                isArchived: false,
+              },
+              {
+                id: "score-config-3",
+                name: "feedback",
+                dataType: "TEXT",
+                categories: null,
+                isArchived: false,
+              },
+            ],
+          },
+          isLoading: false,
+        }),
+      },
+    },
+    annotationQueues: {
+      allNamesAndIds: {
+        useQuery: () => ({
+          data: [{ id: "queue-1", name: "Needs review" }],
+          isLoading: false,
+        }),
+      },
+    },
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },
@@ -162,5 +205,178 @@ describe("AutomationForm handleActionTypeChange", () => {
 
     expect(screen.queryByText("API Version")).toBeNull();
     expect(screen.queryByText("Select API version")).toBeNull();
+  });
+
+  it("submits multiple boolean score values with annotation queue ids", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review quality scores" },
+    });
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score name",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: "quality (boolean)" }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score value condition",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "is one of" }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select score values/i,
+      }),
+    );
+    fireEvent.click(await screen.findByText("True"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select score values/i,
+      }),
+    );
+    fireEvent.click(await screen.findByText("False"));
+
+    fireEvent.click(screen.getByText("Select annotation queues"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      eventSource: TriggerEventSource.Score,
+      eventAction: ["created", "updated"],
+      filter: [
+        { column: "name", operator: "=", value: "quality", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "BOOLEAN",
+          type: "string",
+        },
+        {
+          column: "value",
+          operator: "any of",
+          value: ["1", "0"],
+          type: "stringOptions",
+        },
+      ],
+      actionType: "ANNOTATION_QUEUE",
+      actionConfig: { type: "ANNOTATION_QUEUE", queueIds: ["queue-1"] },
+    });
+  });
+
+  it("submits an inclusive numeric score range", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review latency scores" },
+    });
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Score name" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "latency (numeric)" }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score value condition",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "in between" }));
+
+    fireEvent.change(screen.getByLabelText("Minimum score value"), {
+      target: { value: "0.25" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum score value"), {
+      target: { value: "0.75" },
+    });
+
+    fireEvent.click(screen.getByText("Select annotation queues"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      filter: [
+        { column: "name", operator: "=", value: "latency", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "NUMERIC",
+          type: "string",
+        },
+        { column: "value", operator: ">=", value: 0.25, type: "number" },
+        { column: "value", operator: "<=", value: 0.75, type: "number" },
+      ],
+    });
+  });
+
+  it("matches text scores against their populated string value", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review feedback" },
+    });
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Score name" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "feedback (text)" }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Score value condition" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "equals" }));
+    fireEvent.change(screen.getByLabelText("Score value"), {
+      target: { value: "Needs improvement" },
+    });
+    fireEvent.click(screen.getByText("Select annotation queues"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      filter: [
+        { column: "name", operator: "=", value: "feedback", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "TEXT",
+          type: "string",
+        },
+        {
+          column: "stringValue",
+          operator: "=",
+          value: "Needs improvement",
+          type: "string",
+        },
+      ],
+    });
   });
 });

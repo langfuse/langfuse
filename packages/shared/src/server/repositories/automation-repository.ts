@@ -26,6 +26,8 @@ import {
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  AnnotationQueueActionConfigSchema,
+  isAnnotationQueueActionConfig,
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
@@ -245,6 +247,15 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         action.config,
         actionType,
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
+      );
+    case "ANNOTATION_QUEUE":
+      if (isAnnotationQueueActionConfig(action.config)) {
+        return action.config;
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(AnnotationQueueActionConfigSchema.shape),
       );
     default: {
       const unhandledActionType: never = actionType;

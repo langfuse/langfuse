@@ -264,7 +264,8 @@ export class InMemoryFilterService {
     filterValues: string[],
     operator: string,
   ): boolean {
-    const strValue = fieldValue ? String(fieldValue) : "";
+    const strValue =
+      fieldValue === null || fieldValue === undefined ? "" : String(fieldValue);
 
     switch (operator) {
       case "any of":

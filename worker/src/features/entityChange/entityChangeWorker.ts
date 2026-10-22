@@ -24,12 +24,12 @@ export const entityChangeWorker = async (
     if (span) {
       span.setAttribute("entityType", event.entityType);
       span.setAttribute("projectId", event.projectId);
-      span.setAttribute("promptId", event.promptId);
       span.setAttribute("action", event.action);
     }
 
     switch (event.entityType) {
       case "prompt-version":
+        span?.setAttribute("promptId", event.promptId);
         return await promptVersionProcessor(event);
       default:
         throw new Error(

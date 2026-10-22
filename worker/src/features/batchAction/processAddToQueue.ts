@@ -12,34 +12,15 @@ const addToQueue = async ({
   objectType: AnnotationQueueObjectType;
   targetId: string;
 }) => {
-  // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
-  // conflict must be handled on query level by reading existing items and filtering out traces that already exist
-
-  // First get existing items
-  const existingItems = await prisma.annotationQueueItem.findMany({
-    where: {
+  await prisma.annotationQueueItem.createMany({
+    data: objectIds.map((objectId) => ({
       projectId,
       queueId: targetId,
-      objectId: { in: objectIds },
+      objectId,
       objectType,
-    },
-    select: { objectId: true },
+    })),
+    skipDuplicates: true,
   });
-
-  // Filter out objects that already exist
-  const existingObjectIds = new Set(existingItems.map((item) => item.objectId));
-  const newObjectIds = objectIds.filter((id) => !existingObjectIds.has(id));
-
-  if (newObjectIds.length > 0) {
-    await prisma.annotationQueueItem.createMany({
-      data: newObjectIds.map((objectId) => ({
-        projectId,
-        queueId: targetId,
-        objectId,
-        objectType,
-      })),
-    });
-  }
 };
 
 export const processAddTracesToQueue = async (
