@@ -78,7 +78,17 @@ function DialogRoot({
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
   const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
-  const acknowledgeButtonRef = React.useRef<HTMLButtonElement>(null);
+  const acknowledgeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  // Radix auto-focuses only on open; a dialog that swaps its footer to an
+  // acknowledgement while open (e.g. after a submit) would otherwise drop
+  // focus to the document body.
+  const attachAcknowledgeButton = React.useCallback(
+    (button: HTMLButtonElement | null) => {
+      acknowledgeButtonRef.current = button;
+      button?.focus();
+    },
+    [],
+  );
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -97,13 +107,13 @@ function DialogRoot({
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
           // than immediately triggering a destructive action.
-          if (text === undefined) return;
-
           if (acknowledge) {
             event.preventDefault();
             acknowledgeButtonRef.current?.focus();
             return;
           }
+
+          if (text === undefined) return;
 
           let safeActionButton: HTMLButtonElement | null = null;
           for (let index = (actions?.length ?? 0) - 1; index >= 0; index--) {
@@ -192,7 +202,7 @@ function DialogRoot({
             <DialogFooter>
               <DialogPrimitive.Close asChild>
                 <Button
-                  ref={acknowledgeButtonRef}
+                  ref={attachAcknowledgeButton}
                   variant="primary"
                   text={acknowledge.label}
                 />
