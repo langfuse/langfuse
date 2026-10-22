@@ -56,7 +56,7 @@ describe("useChatMLParser", () => {
               {
                 id: "load-refund",
                 name: "loadSkill",
-                arguments: '{"name":"refund-policy","version":3}',
+                arguments: '{"name":"refund-policy","version":"3"}',
               },
               {
                 id: "read-security",
@@ -68,6 +68,7 @@ describe("useChatMLParser", () => {
                 name: "loadSkillResource",
                 arguments: {
                   name: "refund-policy",
+                  version: "3",
                   path: "references/refunds.md",
                 },
               },
@@ -112,6 +113,14 @@ describe("useChatMLParser", () => {
       { name: "Read", arguments: { path: "/skills/shipping-policy/" } },
       {
         name: "Read",
+        arguments: { path: "/repo/shipping-policy/notes.txt" },
+      },
+      {
+        name: "readFile",
+        arguments: { path: "/repo/shipping-policy/notes.txt" },
+      },
+      {
+        name: "Read",
         arguments: { path: "/skills/shipping-policy/refund-policy/SKILL.md" },
       },
     ].map((call, index) => ({ ...call, invocationNumber: index + 1 }));
@@ -130,6 +139,21 @@ describe("useChatMLParser", () => {
       new Set(["SKILL.md"]),
     );
   });
+
+  it.each(["invalid", "0", "-1", "3.5", null, {}])(
+    "ignores an invalid requested skill version: %j",
+    (version) => {
+      const available = [{ skillName: "refund-policy", skillVersion: 3 }];
+      const call = {
+        name: "loadSkill",
+        arguments: { name: "refund-policy", version },
+        invocationNumber: 1,
+      };
+      expect(
+        getSkillLoadRequests(available, new Map([[call.name, [call]]])).size,
+      ).toBe(0);
+    },
+  );
 
   it.each([
     ["Skill", { skill: "refund-policy" }, "SKILL.md"],

@@ -248,13 +248,24 @@ export const Loaded = meta.story({
 
 export const LongListStartsCollapsed = meta.story({
   name: "(Test) Long List Starts Collapsed",
-  args: Available.input.args,
+  args: {
+    ...Available.input.args,
+    toolCallsByName: LoadRequested.input.args.toolCallsByName,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const summary = canvas.getByRole("button", { name: "Expand Skills" });
+    await expect(within(summary).getByText("10")).toBeVisible();
+    await expect(canvas.queryByRole("tab")).not.toBeInTheDocument();
+    await userEvent.click(summary);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Expand Skills" }),
+      canvas.getByRole("tab", { name: /^Not requested\s*8$/ }),
     );
     await expect(canvas.getByText("product-guide")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse Skills" }),
+    );
+    await expect(within(summary).getByText("10")).toBeVisible();
   },
 });
 

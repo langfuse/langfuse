@@ -27,6 +27,7 @@ export function SectionSkills({
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
   const [activeTab, setActiveTab] = useState("requested");
   const groups = groupSkills(skills.items);
+  const [collapsed, setCollapsed] = useState(groups.length > 5);
   const loadRequests = getSkillLoadRequests(
     skills.kind === "available" ? groups.map((group) => group.skill) : [],
     toolCallsByName,
@@ -48,9 +49,14 @@ export function SectionSkills({
   return (
     <IOSection
       title={singleLoadedSkill ? "Loaded skill" : title}
-      count={singleLoadedSkill || hasSwitch ? undefined : groups.length}
+      count={
+        singleLoadedSkill || (hasSwitch && !collapsed)
+          ? undefined
+          : groups.length
+      }
       variant="table"
-      defaultCollapsed={groups.length > 5}
+      collapsed={collapsed}
+      onCollapsedChange={setCollapsed}
       tabs={
         hasSwitch
           ? {
