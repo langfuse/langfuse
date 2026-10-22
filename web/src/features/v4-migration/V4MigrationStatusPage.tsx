@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { ArrowRight } from "@langfuse/icons";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {

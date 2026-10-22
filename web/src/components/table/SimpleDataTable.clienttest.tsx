@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { SimpleDataTable } from "./simple-data-table";
+import { SimpleDataTable } from "./SimpleDataTable";
 
 const columns: LangfuseColumnDef<{ id: string; name: string }>[] = [
   {
