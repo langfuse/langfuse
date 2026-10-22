@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* eslint-disable @repo/prefer-stories-over-client-tests -- Tests pure filter mappings, not component interactions. */
 
 import { describe, expect, it } from "vitest";
 

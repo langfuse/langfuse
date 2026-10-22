@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import {
   useEffect,

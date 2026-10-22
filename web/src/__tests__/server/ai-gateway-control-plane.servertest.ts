@@ -787,6 +787,36 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("lets only gateway managers issue service-account keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+
+    const serviceKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service key",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.find(({ apiKey }) => apiKey.id === serviceKey.id)?.apiKey
+        .user,
+    ).toBeNull();
+
+    await expect(
+      member.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        metadata: {},
+        issuedAs: "serviceAccount",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
+    ).toEqual([]);
+  });
+
   it.each(["legacy", "shadow"] as const)(
     "keeps gateway API key creation admin-only when API_AUTH_MIGRATION is %s",
     async (migration) => {
@@ -799,6 +829,8 @@ describe("AI gateway control plane", () => {
           Role.MEMBER,
         );
 
+        const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+
         await expect(
           member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
         ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -806,6 +838,22 @@ describe("AI gateway control plane", () => {
           owner.caller.aiGateway.createApiKey({
             orgId: owner.org.id,
             metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+        await expect(
+          admin.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
           }),
         ).resolves.toMatchObject({
           secretKey: expect.stringMatching(/^sk-lf-/),
@@ -850,6 +898,7 @@ describe("AI gateway control plane", () => {
     const key = await apiKeyService.create({
       organizationId: org.id,
       metadata: {},
+      issuedAs: "user",
       session,
     });
 

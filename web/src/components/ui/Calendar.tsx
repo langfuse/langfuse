@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, react/no-unstable-nested-components */
 "use client";
 
 import * as React from "react";
