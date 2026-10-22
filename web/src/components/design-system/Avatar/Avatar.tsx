@@ -27,11 +27,9 @@ const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
 
 const tintedFallbackClasses = [
   "bg-light-blue text-dark-blue",
-  "bg-light-red text-dark-red",
   "bg-light-green text-dark-green",
   "bg-light-yellow text-dark-yellow",
   "bg-light-violet text-dark-violet",
-  "bg-light-teal text-dark-teal",
 ];
 
 /** Stable per name, so the same person keeps their color across renders. */
