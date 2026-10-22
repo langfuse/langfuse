@@ -62,9 +62,11 @@ const row = (overrides: {
   projectOrgId?: string;
   withoutProject?: boolean;
   metadata?: unknown;
+  userId?: string | null;
 }) => ({
   id: "key-1",
   orgId: "org-1",
+  userId: overrides.userId === undefined ? "user-1" : overrides.userId,
   expiresAt: null,
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
@@ -122,6 +124,7 @@ describe("GatewayResolveService", () => {
         organization_id: "org-1",
         project_id: "project-1",
         key_id: "key-1",
+        user_id: "user-1",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
         provider_connection_id: "connection-1",
       },
@@ -168,6 +171,19 @@ describe("GatewayResolveService", () => {
     });
   });
 
+  it("attributes a key that is not bound to a user to no user", async () => {
+    const service = serviceWith(() => Promise.resolve(row({ userId: null })));
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      attribution: { key_id: "key-1", user_id: null },
+    });
+  });
+
   it("refuses to resolve when the ingestion project belongs to another organization", async () => {
     const service = serviceWith(() =>
       Promise.resolve(row({ projectOrgId: "org-other" })),
@@ -194,39 +210,45 @@ describe("GatewayResolveService", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  it("resolves NONE mode without an ingestion project or signing keys", async () => {
-    const signingKeys = {
-      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:
-        mockEnv.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
-      LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY:
-        mockEnv.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
-      LANGFUSE_AI_GATEWAY_JWT_KEY_ID: mockEnv.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
-    };
-    Object.assign(mockEnv, {
-      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: undefined,
-      LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: undefined,
-      LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
-    });
-    try {
-      const service = serviceWith(() =>
-        Promise.resolve(row({ ingestionMode: "NONE", withoutProject: true })),
-      );
-
-      await expect(
-        service.resolve({
-          fastHashedSecretKey: "hashed-secret-key",
-          apiFormat: "openai.responses",
-        }),
-      ).resolves.toMatchObject({
-        connection: { id: "connection-1", provider_model: "gpt-4o" },
-        attribution: { organization_id: "org-1", project_id: null },
-        ingestion_mode: "none",
-        ingestion: null,
+  it.each([
+    { withoutProject: true, projectId: null },
+    { withoutProject: false, projectId: "project-1" },
+  ])(
+    "resolves NONE mode without signing keys (project: $projectId)",
+    async ({ withoutProject, projectId }) => {
+      const signingKeys = {
+        LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:
+          mockEnv.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+        LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY:
+          mockEnv.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+        LANGFUSE_AI_GATEWAY_JWT_KEY_ID: mockEnv.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+      };
+      Object.assign(mockEnv, {
+        LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
       });
-    } finally {
-      Object.assign(mockEnv, signingKeys);
-    }
-  });
+      try {
+        const service = serviceWith(() =>
+          Promise.resolve(row({ ingestionMode: "NONE", withoutProject })),
+        );
+
+        await expect(
+          service.resolve({
+            fastHashedSecretKey: "hashed-secret-key",
+            apiFormat: "openai.responses",
+          }),
+        ).resolves.toMatchObject({
+          connection: { id: "connection-1", provider_model: "gpt-4o" },
+          attribution: { organization_id: "org-1", project_id: projectId },
+          ingestion_mode: "none",
+          ingestion: null,
+        });
+      } finally {
+        Object.assign(mockEnv, signingKeys);
+      }
+    },
+  );
 
   it("rejects an unknown or expired gateway key", async () => {
     const service = serviceWith(() => Promise.resolve(null));

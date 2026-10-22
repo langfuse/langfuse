@@ -2,13 +2,13 @@ import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { TopicsFilters } from "./TopicsFilters";
+import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 
 const controls = (
-  <TopicsFilters
+  <TopicsFacetTabs
     facets={[{ facetId: "intent", name: "Intent" }]}
-    selectedFacetId="intent"
+    selectedFacet="intent"
     onSelectFacet={fn()}
   />
 );

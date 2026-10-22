@@ -11,6 +11,12 @@ import {
   ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
+import {
+  SCORE_EXPORT_CORE_FIELDS,
+  SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
@@ -76,7 +82,13 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, notEmpty, useFinal } from "../query-ast/extensions";
+import {
+  limitBy,
+  literal,
+  mapKeys,
+  notEmpty,
+  useFinal,
+} from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -423,7 +435,7 @@ const experimentItemEventsQuery = (experimentIds: string[]) =>
     .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "");
+    .where("e.experiment_id", "!=", literal(""));
 
 const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
@@ -460,7 +472,11 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
       "e.experiment_id as experiment_id",
     ])
-    .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
@@ -2283,7 +2299,11 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
     ])
     .where("s.name", "is not", null)
-    .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      LISTABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .$if(fetchScoreRelation === "trace", (qb) =>
       qb
         .where("s.observation_id", "is", null)
@@ -2519,30 +2539,23 @@ export const getDistinctScoreNames = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// score export paths.
+// score export paths. Opt-in field group columns are appended after the base
+// columns so the base column order stays stable.
 const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[],
 ) => {
+  const columns: string[] = [
+    ...SCORE_EXPORT_CORE_FIELDS,
+    ...SCORE_EXPORT_FIELD_GROUPS.filter((group) =>
+      fieldGroups.includes(group),
+    ).flatMap((group) => SCORE_EXPORT_GROUP_FIELDS[group]),
+  ];
   const query = `
     SELECT
-      id,
-      timestamp,
-      project_id,
-      environment,
-      trace_id,
-      observation_id,
-      session_id,
-      dataset_run_id,
-      name,
-      value,
-      source,
-      comment,
-      data_type,
-      string_value,
-      created_at,
-      updated_at
+      ${columns.join(",\n      ")}
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -2571,9 +2584,15 @@ export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -2583,12 +2602,14 @@ export const getScoresForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseExecRaw({
     ...buildScoresForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
@@ -2639,8 +2660,9 @@ const buildAnalyticsScoreTraceAttributesCte = (
 //
 // Hand-written rather than eventsTracesAggregation: aggregating only
 // semantic-root rows keeps the GROUP BY state ~one row per trace (the
-// full-span aggregation OOMed the largest tenants). Trace-name selection is
-// shared with eventsTracesAggregation; the remaining field expressions keep
+// full-span aggregation OOMed the largest tenants). The trace name is
+// the latest non-empty trace_name, else the latest root-observation name; the
+// remaining field expressions keep
 // the parity fixes byte-verified against prod dual-write data in the
 // LFE-14383 benchmark (tracked in LFE-11009).
 const buildAnalyticsScoreTraceAttributesFromEventsCte = (

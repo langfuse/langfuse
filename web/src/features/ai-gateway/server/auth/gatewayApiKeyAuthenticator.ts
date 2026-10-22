@@ -148,6 +148,7 @@ export class GatewayApiKeyAuthenticator {
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
+      userId: row.userId,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)

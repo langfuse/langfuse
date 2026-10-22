@@ -5,7 +5,7 @@ import {
   InvalidRequestError,
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
-  type ObservationFieldGroupFull,
+  type ExportFieldGroup,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
   GCPServiceAccountKeySchema,
@@ -36,7 +36,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   compressed?: boolean;
 };
 

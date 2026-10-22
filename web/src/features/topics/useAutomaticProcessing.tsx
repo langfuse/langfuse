@@ -53,7 +53,5 @@ export function automaticProcessingState(
         : "Paused",
     };
   if (stored.enabled) return { status: "on" };
-  // Only turning on needs the allowlist, so a running setup can still be turned off.
-  if (!stored.processingAvailable) return { status: "unavailable" };
   return { status: "off" };
 }

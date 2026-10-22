@@ -274,7 +274,8 @@ describe("API-key deletion", () => {
       data: { email: `apikey-creator-${v4()}@example.com` },
     });
     await createApiKey(prisma, {
-      owner: ProjectId(otherProject.id),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(otherProject.id),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
     });

@@ -6,6 +6,9 @@ import { z } from "zod";
 import {
   SlackService,
   SlackApiError,
+  SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+  buildSlackLinkSection,
+  getPrivateChannelViewerSlackUserId,
   logger,
 } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -116,8 +119,31 @@ export const slackRouter = createTRPCRouter({
         const client = await slackService.getWebClientForProject(
           input.projectId,
         );
-        const { channels, hasPrivateChannelAccess, nextCursor } =
-          await slackService.getChannels(client, input.cursor);
+        const viewerSlackUserId = getPrivateChannelViewerSlackUserId(
+          integration,
+          ctx.session.user.id,
+        );
+        const [publicPage, privateChannels] = await Promise.all([
+          slackService.getChannels(client, input.cursor),
+          // Private channels are not paginated; add them to the first page only
+          !input.cursor && viewerSlackUserId
+            ? slackService
+                .getPrivateChannels(client, { slackUserId: viewerSlackUserId })
+                // A failed private lookup must not hide the public channels.
+                .catch((error) => {
+                  logger.warn("Failed to fetch private Slack channels", {
+                    error,
+                    projectId: input.projectId,
+                  });
+                  return null;
+                })
+            : null,
+        ]);
+        const channels = [
+          ...publicPage.channels,
+          ...(privateChannels?.channels ?? []),
+        ];
+        const nextCursor = publicPage.nextCursor;
 
         if (!input.cursor) {
           await auditLog({
@@ -135,7 +161,12 @@ export const slackRouter = createTRPCRouter({
 
         return {
           channels,
-          hasPrivateChannelAccess,
+          // Installs without a recorded installer can't list private channels
+          // until someone re-authenticates.
+          hasPrivateChannelAccess:
+            privateChannels?.hasPrivateChannelAccess ??
+            (Boolean(input.cursor) ||
+              Boolean(integration.installerSlackUserId)),
           nextCursor,
           teamId: integration.teamId,
           teamName: integration.teamName,
@@ -241,6 +272,25 @@ export const slackRouter = createTRPCRouter({
         const client = await SlackService.getInstance().getWebClientForProject(
           input.projectId,
         );
+
+        // Checked before posting so a private channel the viewer can't use
+        // fails exactly like a non-existent one.
+        const privateChannelAccess =
+          await SlackService.getInstance().checkPrivateChannelAccess({
+            client,
+            channel: input.channelId,
+            viewerSlackUserId: getPrivateChannelViewerSlackUserId(
+              integration,
+              ctx.session.user.id,
+            ),
+          });
+        if (privateChannelAccess.access === "denied") {
+          throw new SlackApiError(
+            "Private channel is not accessible to this user",
+            "channel_not_found",
+          );
+        }
+
         const projectUrl = new URL(
           `project/${input.projectId}`,
           getProductBaseUrl(),
@@ -283,26 +333,17 @@ export const slackRouter = createTRPCRouter({
               },
             ],
           },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "Open Langfuse",
-                  emoji: true,
-                },
-                url: projectUrl.toString(),
-                style: "primary",
-              },
-            ],
-          },
+          buildSlackLinkSection([
+            { label: "Open Langfuse", url: projectUrl.toString() },
+          ]),
         ];
 
         const result = await SlackService.getInstance().sendMessage({
           client,
-          channelId: input.channelId,
+          channelId:
+            privateChannelAccess.access === "private"
+              ? privateChannelAccess.channel.id
+              : input.channelId,
           blocks: testBlocks,
           text: "Test message from Langfuse",
         });
@@ -317,7 +358,9 @@ export const slackRouter = createTRPCRouter({
           isPrivate?: boolean;
         } = { id: result.channel };
 
-        if (input.channelId.startsWith("#")) {
+        if (privateChannelAccess.access === "private") {
+          channelInfo = privateChannelAccess.channel;
+        } else if (input.channelId.startsWith("#")) {
           const resolved = await SlackService.getInstance().getChannelInfo(
             client,
             result.channel,
@@ -370,7 +413,7 @@ export const slackRouter = createTRPCRouter({
         const userMessage = (() => {
           switch (slackError) {
             case "channel_not_found":
-              return 'Channel not found. The channel may not exist or is a private channel the bot has not been invited to. For private channels, invite the app with "/invite @Langfuse" in that channel.';
+              return SLACK_CHANNEL_NOT_FOUND_MESSAGE;
             case "not_in_channel":
               return "The bot is not a member of this channel. Please invite the bot to the channel first.";
             case "is_archived":

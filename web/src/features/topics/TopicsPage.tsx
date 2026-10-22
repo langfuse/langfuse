@@ -31,7 +31,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
   type TopicExecutionStatus,
@@ -41,7 +41,14 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
+import { cn } from "@/src/utils/tailwind";
+import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { resolveTopicFacetId } from "./topic-facet-selection";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
+import {
+  TopicsResultsViewSelect,
+  useTopicsResultsView,
+} from "./TopicsResultsViewSelect";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useRegenerateTopics } from "./useRegenerateTopics";
@@ -52,7 +59,6 @@ import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
 import { summaryRunProgress } from "./topic-setup-flow";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
-import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
@@ -106,7 +112,7 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  const topicsEnabled = useCanViewTopics(projectId);
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
@@ -217,6 +223,7 @@ function TopicsWorkspaceContent({
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [resultsView, setResultsView] = useTopicsResultsView();
   const [generationRange, setGenerationRange] = useState<{
     selection: TimeRange;
     bounds: TopicTimeRange;
@@ -419,6 +426,10 @@ function TopicsWorkspaceContent({
           (execution) =>
             execution.input.operation === "process" && busy(execution.status),
         );
+        const headerFacetId = resolveTopicFacetId(
+          results.data?.facets ?? [],
+          selectedFacetId,
+        );
         const showOnboarding =
           validTimeRange &&
           results.data !== undefined &&
@@ -429,10 +440,24 @@ function TopicsWorkspaceContent({
           <Page
             headerProps={{
               title: "Topics",
-              help: {
-                description:
-                  "Explore recurring themes across traces, one facet at a time.",
-              },
+              actionButtonsLeft: showOnboarding ? null : (
+                <div className="flex items-center gap-3">
+                  {validTimeRange && headerFacetId && (
+                    <TopicsFacetTabs
+                      facets={results.data?.facets ?? []}
+                      selectedFacet={headerFacetId}
+                      onSelectFacet={traceFilters.selectFacet}
+                    />
+                  )}
+                  <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                    Visualize as
+                    <TopicsResultsViewSelect
+                      value={resultsView}
+                      onValueChange={setResultsView}
+                    />
+                  </span>
+                </div>
+              ),
               actionButtonsRight: (
                 <TopicsHeaderActions
                   automaticProcessing={automaticProcessing}
@@ -491,7 +516,12 @@ function TopicsWorkspaceContent({
                 />
               </PageHeaderControlsPortal>
             )}
-            <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+            <div
+              className={cn(
+                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                showOnboarding && "p-2",
+              )}
+            >
               {isTimeRangeCapped && (
                 <p
                   role="status"
@@ -520,7 +550,7 @@ function TopicsWorkspaceContent({
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}
                 configured={configured}
-                canProcess={canWrite && !modelSettings.notice.unavailable}
+                canProcess={canWrite}
                 automaticEnabled={automaticProcessing.state.status === "on"}
                 running={running}
                 onAutomaticProcessing={openAutomaticProcessingFromHeader}
@@ -620,27 +650,18 @@ function TopicsWorkspaceContent({
                   widthStorageKey="topicsPeekViewWidthFraction"
                 />
                 {validTimeRange && !showOnboarding && (
-                  <TopicsFilters
-                    facets={results.data?.facets ?? []}
-                    selectedFacetId={selectedFacetId}
-                    onSelectFacet={traceFilters.selectFacet}
-                  >
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <CurrentTopics
                       projectId={projectId}
                       timeRange={currentTimeRange}
                       result={results}
                       selectedFacetId={selectedFacetId}
-                      traceFilters={traceFilters}
+                      view={resultsView}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={
-                        canWrite &&
-                        !modelSettings.notice.unavailable &&
-                        !running &&
-                        configured
-                      }
+                      canGenerateTopics={canWrite && !running && configured}
                     />
-                  </TopicsFilters>
+                  </div>
                 )}
                 {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (

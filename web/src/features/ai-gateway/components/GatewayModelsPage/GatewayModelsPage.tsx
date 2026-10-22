@@ -1,9 +1,10 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { api } from "@/src/utils/api";
 import { aggregateModels } from "./fns/aggregateModels";
 
@@ -12,10 +13,31 @@ export function GatewayModelsPage({
 }: {
   organizationId: string;
 }) {
-  const canManageGateway = useHasOrganizationAccess({
-    organizationId,
-    scope: "gateway:manage",
-  });
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+
+  if (isSetupStatusPending) {
+    return <ModelsSkeleton />;
+  }
+  /** Managers are redirected to Configuration by the settings route. */
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <GatewayNotSetUpNotice title="Models" />;
+  }
+  return (
+    <GatewayModels
+      organizationId={organizationId}
+      canManageGateway={canManageGateway}
+    />
+  );
+}
+
+function GatewayModels({
+  organizationId,
+  canManageGateway,
+}: {
+  organizationId: string;
+  canManageGateway: boolean;
+}) {
   const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
     orgId: organizationId,
   });

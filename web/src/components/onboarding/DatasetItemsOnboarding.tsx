@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "@langfuse/icons";

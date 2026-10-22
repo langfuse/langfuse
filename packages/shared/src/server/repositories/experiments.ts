@@ -8,7 +8,7 @@ import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { avgIf, dateDiff } from "../query-ast/extensions";
+import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
@@ -90,12 +90,8 @@ export const getDatasetExperimentMetricsFromEvents = async (props: {
 
   const experimentsQuery = eventsExperimentsAggregation({
     projectId: props.projectId,
-    fieldSet: "count",
+    fieldSet: "datasetMetrics",
   })
-    .selectRaw(
-      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-      "min(e.start_time) AS start_time",
-    )
     .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
       datasetIds: props.datasetIds,
     })
@@ -372,7 +368,7 @@ export const getExperimentMetricsFromEvents = async (props: {
       ).as("latency_avg"),
     ])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "")
+    .where("e.experiment_id", "!=", literal(""))
     .groupBy(["e.project_id", "e.experiment_id"]);
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 

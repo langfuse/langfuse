@@ -607,6 +607,7 @@ describe("AI gateway live end-to-end", () => {
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              user_id: expect.stringMatching(/\S/),
               key_metadata: {
                 test: true,
                 provider,

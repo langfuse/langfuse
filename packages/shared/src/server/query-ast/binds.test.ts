@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { arrayJoin, countIf, tupleIn, useFinal } from "./extensions";
+import { arrayJoin, countIf, literal, tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -58,6 +58,38 @@ describe("typed params from the column registry", () => {
       /metadata_names in \(\{p\d+:Array\(Array\(String\)\)\}\)/,
     );
     expect(sql).not.toMatch(/metadata_names in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
+  it("inlines an IN list of literals", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("name", "in", [literal("a"), literal("it's")]),
+    );
+    expect(sql).toMatch(/name in \('a', 'it''s'\)/);
+    expect(Object.values(params)).not.toContain("a");
+  });
+
+  it("binds an IN list of value expressions as one array", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) => eb("name", "in", [eb.val("a"), eb.val("b")])),
+    );
+    expect(sql).toMatch(/name in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
+  it("rejects an IN list mixing literals and bound values", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_core")
+          .select("span_id")
+          .where((eb) => eb("name", "in", [literal("a"), eb.val("b")])),
+      ),
+    ).toThrow(QueryCompileError);
   });
 
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
@@ -555,7 +587,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events_core as e").selectAll("x" as never),
             )
             .selectFrom("t as t")
             .select(db.dynamic.ref("t.span_id"))
@@ -569,7 +601,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events_core as e").selectAll("x" as never),
             )
             .selectFrom("scores as s")
             .innerJoin("t", (join) => join.onTrue())
@@ -744,9 +776,7 @@ describe("typed params from the column registry", () => {
     const db = getClickhouseKysely();
     const { sql } = compile(
       db
-        .with("t", (qb) =>
-          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
-        )
+        .with("t", (qb) => qb.selectFrom("events_core as e").selectAll("e"))
         .selectFrom("t as t")
         .select(db.dynamic.ref("t.span_id"))
         .where(db.dynamic.ref("t.start_time"), ">=", START),

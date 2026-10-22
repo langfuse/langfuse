@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -12,7 +12,6 @@ import { ChatMessageList } from "@/src/features/traces";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
@@ -700,12 +699,7 @@ export const PromptDetail = ({
               </div>
             </Tabs.Content>
             <Tabs.Content value="prompt" layout="fill">
-              <div
-                className={cn(
-                  "mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3",
-                  IO_SECTIONS_FLUSH_CLASS,
-                )}
-              >
+              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3">
                 {promptGraph.data?.graph && (
                   <div className="flex items-center justify-end py-2">
                     <Tabs

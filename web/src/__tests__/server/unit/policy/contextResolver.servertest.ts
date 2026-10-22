@@ -127,6 +127,7 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   scope: "PROJECT",
   createdByUserId: USER,
   createdByApiKeyId: null,
+  userId: null,
   ...over,
 });
 const orgKey = (over: Partial<ApiKey> = {}): ApiKey =>
