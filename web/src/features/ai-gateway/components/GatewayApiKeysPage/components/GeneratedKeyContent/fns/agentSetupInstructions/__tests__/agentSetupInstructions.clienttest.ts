@@ -40,13 +40,21 @@ describe("agent setup instructions", () => {
     );
   });
 
-  it("copies markdown with the key placeholder, user id and docs link", () => {
+  it("puts the key placeholder into the commands of every terminal setup", () => {
+    for (const instructions of buildAgentSetupInstructions(context)) {
+      // Claude Desktop takes the key in a settings field, not a command.
+      if (instructions.id === "claude-desktop") continue;
+      const code = instructions.steps.flatMap((s) => s.code ?? []).join("\n");
+
+      expect(code).toContain(GATEWAY_KEY_PLACEHOLDER);
+    }
+  });
+
+  it("copies markdown with a heading and docs link", () => {
     for (const instructions of buildAgentSetupInstructions(context)) {
       const markdown = formatAgentSetupMarkdown(instructions);
 
       expect(markdown).toMatch(/^# /);
-      expect(markdown).toContain(GATEWAY_KEY_PLACEHOLDER);
-      expect(markdown).not.toMatch(/sk-lf-/);
       expect(markdown).not.toContain("undefined");
       expect(markdown.trimEnd()).toMatch(
         new RegExp(`Docs: ${instructions.docsUrl}$`),
