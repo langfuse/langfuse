@@ -334,52 +334,38 @@ function IOPreviewContent({
   const isAdvanced = selectedView === "json-beta";
 
   const {
-    parsed: parsedInput,
-    value: effectiveInput,
-    probe: inputProbe,
-    rows: inputRows,
-    tooLarge: inputTooLarge,
-    show: showInput,
-  } = useIOPreviewField({
-    raw: input,
-    preParsed: preParsedInput,
+    fields,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    effectiveOutput,
+    outputTooLarge,
+    showOutput,
+  } = useIOPreviewFields({
+    input,
+    output,
+    metadata,
+    parsedInput: preParsedInput,
+    parsedOutput: preParsedOutput,
+    parsedMetadata: preParsedMetadata,
     selectedView,
     isParsing,
-    hidden: hideInput,
+    hideInput,
+    hideOutput,
+    hideMetadata,
     hideIfNull,
-    isMetadata: false,
-  });
-  const {
-    parsed: parsedOutput,
-    value: effectiveOutput,
-    probe: outputProbe,
-    rows: outputRows,
-    tooLarge: outputTooLarge,
-    show: showOutput,
-  } = useIOPreviewField({
-    raw: output,
-    preParsed: preParsedOutput,
-    selectedView,
-    isParsing,
-    hidden: hideOutput,
-    hideIfNull,
-    isMetadata: false,
-  });
-  const {
-    parsed: parsedMetadata,
-    value: effectiveMetadata,
-    probe: metadataProbe,
-    rows: metadataRows,
-    tooLarge: metadataTooLarge,
-    show: showMetadata,
-  } = useIOPreviewField({
-    raw: metadata,
-    preParsed: preParsedMetadata,
-    selectedView,
-    isParsing,
-    hidden: hideMetadata,
-    hideIfNull,
-    isMetadata: true,
+    inputExpansionState,
+    outputExpansionState,
+    metadataExpansionState,
+    onInputExpansionChange,
+    onOutputExpansionChange,
+    onMetadataExpansionChange,
+    jsonInputExpanded,
+    jsonOutputExpanded,
+    jsonMetadataExpanded,
+    onJsonInputExpandedChange,
+    onJsonOutputExpandedChange,
+    onJsonMetadataExpandedChange,
   });
 
   // Parse into the shared preview contract.
@@ -423,85 +409,7 @@ function IOPreviewContent({
       )
     : showOutput;
 
-  const fields = useMemo(
-    () => [
-      {
-        key: "input",
-        title: "Input",
-        show: showInput,
-        raw: input,
-        value: effectiveInput,
-        tooLarge: inputTooLarge,
-        rows: inputRows,
-        probe: inputProbe,
-        expansion: isJson ? jsonInputExpanded : inputExpansionState,
-        onExpansion: onInputExpansionChange,
-        onJsonExpansion: onJsonInputExpandedChange,
-      },
-      {
-        key: "output",
-        title: "Output",
-        show: showOutput,
-        raw: output,
-        value: effectiveOutput,
-        tooLarge: outputTooLarge,
-        rows: outputRows,
-        probe: outputProbe,
-        expansion: isJson ? jsonOutputExpanded : outputExpansionState,
-        onExpansion: onOutputExpansionChange,
-        onJsonExpansion: onJsonOutputExpandedChange,
-      },
-      {
-        key: "metadata",
-        title: "Metadata",
-        show: showMetadata,
-        raw: metadata,
-        value: effectiveMetadata,
-        tooLarge: metadataTooLarge,
-        rows: metadataRows,
-        probe: metadataProbe,
-        expansion: isJson ? jsonMetadataExpanded : metadataExpansionState,
-        onExpansion: onMetadataExpansionChange,
-        onJsonExpansion: onJsonMetadataExpandedChange,
-      },
-    ],
-    [
-      showInput,
-      showOutput,
-      showMetadata,
-      input,
-      output,
-      metadata,
-      effectiveInput,
-      effectiveOutput,
-      effectiveMetadata,
-      inputTooLarge,
-      outputTooLarge,
-      metadataTooLarge,
-      inputRows,
-      outputRows,
-      metadataRows,
-      inputProbe,
-      outputProbe,
-      metadataProbe,
-      isJson,
-      jsonInputExpanded,
-      jsonOutputExpanded,
-      jsonMetadataExpanded,
-      inputExpansionState,
-      outputExpansionState,
-      metadataExpansionState,
-      onInputExpansionChange,
-      onOutputExpansionChange,
-      onMetadataExpansionChange,
-      onJsonInputExpandedChange,
-      onJsonOutputExpandedChange,
-      onJsonMetadataExpandedChange,
-    ],
-  );
   const downloadName = observationId ?? traceId;
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const statusPresentation = useMemo(
     () => (status ? getStatusMessagePresentation(status.level) : undefined),
     [status],
@@ -521,105 +429,6 @@ function IOPreviewContent({
   useEffect(() => {
     if (isAdvanced) onVirtualizationChange?.(false);
   }, [isAdvanced, onVirtualizationChange]);
-  const dataSections = useMemo(() => {
-    if (!isAdvanced) return [];
-    const result: React.ComponentProps<
-      typeof MultiSectionJsonViewer
-    >["sections"] = [];
-    if (status && statusPresentation) {
-      const backgroundColor = (() => {
-        if (status.level === "ERROR")
-          return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
-        if (status.level === "WARNING")
-          return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
-        return "hsl(var(--surface-section))";
-      })();
-      result.push({
-        key: "status-message",
-        title: statusPresentation.title,
-        data: statusValue,
-        backgroundColor,
-        minHeight: "4px",
-      });
-    }
-    for (const field of fields) {
-      if (!field.show) continue;
-      const backgroundColor = (() => {
-        if (field.key === "input")
-          return isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)";
-        if (field.key === "metadata")
-          return isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)";
-        return "hsl(var(--surface-section))";
-      })();
-      if (field.tooLarge) {
-        // Reuse one serialization for the lazy engine and the download hatch.
-        const probe = probeJsonField(field.value);
-        result.push({
-          // Gated fields never inherit a persisted collapse that could hide the
-          // download escape hatch; they have no eager tree to collapse.
-          key: `${field.key}__oversized`,
-          title: field.title,
-          data: null,
-          hideData: true,
-          backgroundColor,
-          minHeight: "4px",
-          renderHeader: () => (
-            <div className="flex items-center px-2 py-1.5">
-              <span className="text-xs font-bold">{field.title}</span>
-            </div>
-          ),
-          renderFooter: () =>
-            probe.isString ? (
-              <LargeJsonFieldFallback
-                title={field.title}
-                hideTitle
-                serialized={probe.serialized}
-                isString
-                charCount={probe.size}
-                rowCount={field.rows}
-                downloadFileBase={`${field.key}-${downloadName}`}
-              />
-            ) : (
-              <div className="io-message-content flex flex-col gap-1">
-                <div
-                  style={{ height: 400 }}
-                  className="overflow-hidden rounded-md border"
-                >
-                  <LazyJsonViewer serialized={probe.serialized} />
-                </div>
-                <LargeJsonFieldFallback
-                  title={field.title}
-                  hideTitle
-                  serialized={probe.serialized}
-                  isString={false}
-                  charCount={probe.size}
-                  rowCount={field.rows}
-                  downloadFileBase={`${field.key}-${downloadName}`}
-                  downloadOnly
-                />
-              </div>
-            ),
-        });
-      } else {
-        result.push({
-          key: field.key,
-          title: field.title,
-          data: field.value,
-          backgroundColor,
-          minHeight: "200px",
-        });
-      }
-    }
-    return result;
-  }, [
-    isAdvanced,
-    status,
-    statusPresentation,
-    statusValue,
-    isDark,
-    fields,
-    downloadName,
-  ]);
 
   return (
     <CorrectionController
@@ -669,31 +478,53 @@ function IOPreviewContent({
         return (
           <>
             {diffDialog && <CorrectedOutputDiffDialog {...diffDialog} />}
-            {(() => {
-              const sections = [...dataSections];
-              if (isAdvanced && correctedOutputField) {
-                // Corrections stay between Output and Metadata, even when Output is hidden.
-                const metadataIndex = sections.findIndex(
-                  (section) =>
-                    section.key === "metadata" ||
-                    section.key === "metadata__oversized",
-                );
-                sections.splice(
-                  metadataIndex === -1 ? sections.length : metadataIndex,
-                  0,
-                  {
-                    key: "corrections",
-                    title: "Output correction",
-                    data: null,
-                    hideData: true,
-                    backgroundColor: "hsl(var(--surface-section))",
-                    minHeight: "4px",
-                    renderFooter: () => correctedOutputField,
-                  },
-                );
-              }
-              if (isAdvanced)
-                return (
+            {isAdvanced && (
+              <JsonSectionsController
+                fields={fields}
+                status={status}
+                statusValue={statusValue}
+                renderCorrection={
+                  correctedOutputField ? () => correctedOutputField : undefined
+                }
+                renderOversizedHeader={(field) => (
+                  <div className="flex items-center px-2 py-1.5">
+                    <span className="text-xs font-bold">{field.title}</span>
+                  </div>
+                )}
+                renderOversizedFooter={(field, probe) =>
+                  probe.isString ? (
+                    <LargeJsonFieldFallback
+                      title={field.title}
+                      hideTitle
+                      serialized={probe.serialized}
+                      isString
+                      charCount={probe.size}
+                      rowCount={field.rows}
+                      downloadFileBase={`${field.key}-${downloadName}`}
+                    />
+                  ) : (
+                    <div className="io-message-content flex flex-col gap-1">
+                      <div
+                        style={{ height: 400 }}
+                        className="overflow-hidden rounded-md border"
+                      >
+                        <LazyJsonViewer serialized={probe.serialized} />
+                      </div>
+                      <LargeJsonFieldFallback
+                        title={field.title}
+                        hideTitle
+                        serialized={probe.serialized}
+                        isString={false}
+                        charCount={probe.size}
+                        rowCount={field.rows}
+                        downloadFileBase={`${field.key}-${downloadName}`}
+                        downloadOnly
+                      />
+                    </div>
+                  )
+                }
+              >
+                {({ sections }) => (
                   <JsonSearchController>
                     {({
                       search,
@@ -877,197 +708,315 @@ function IOPreviewContent({
                       );
                     }}
                   </JsonSearchController>
-                );
-
-              return (
-                <ConversationController
-                  parserResult={parserResult}
-                  parsedInput={parsedInput}
-                  parsedOutput={parsedOutput}
-                  isPretty={isPretty}
-                  showData={showData}
-                  contentMode={contentMode}
-                  showSystemPrompt={showSystemPrompt}
-                  observationType={observationType}
-                  media={media}
-                  outputActions={outputActions}
-                >
-                  {({
-                    tools,
-                    messages,
-                    history,
-                    additionalInput,
-                    media: conversationMedia,
-                    shouldRenderMarkdown,
-                  }) => (
-                    <div className="space-y-2 pt-3">
-                      {showData &&
-                        status &&
-                        statusPresentation &&
-                        (parsedStatusMessage !== undefined ? (
-                          <IOPreviewSection
-                            kind="json"
-                            title={statusPresentation.title}
-                            jsonProps={{
-                              json: status.message,
-                              parsedJson: parsedStatusMessage,
-                              currentView: isJson ? "json" : "pretty",
-                            }}
-                            tone={statusPresentation.tone}
-                          />
-                        ) : (
-                          <IOPreviewSection
-                            kind="status"
-                            title={statusPresentation.title}
-                            tone={statusPresentation.tone}
-                            text={status.message}
-                          />
-                        ))}
-
-                      {tools && <IOPreviewSection {...tools} />}
-
-                      {isPretty &&
-                      showData &&
-                      skills &&
-                      skills.items.length > 0 ? (
+                )}
+              </JsonSectionsController>
+            )}
+            {!isAdvanced && (
+              <ConversationController
+                parserResult={parserResult}
+                parsedInput={parsedInput}
+                parsedOutput={parsedOutput}
+                isPretty={isPretty}
+                showData={showData}
+                contentMode={contentMode}
+                showSystemPrompt={showSystemPrompt}
+                observationType={observationType}
+                media={media}
+                outputActions={outputActions}
+              >
+                {({
+                  tools,
+                  messages,
+                  history,
+                  additionalInput,
+                  media: conversationMedia,
+                  shouldRenderMarkdown,
+                }) => (
+                  <div className="space-y-2 pt-3">
+                    {showData &&
+                      status &&
+                      statusPresentation &&
+                      (parsedStatusMessage !== undefined ? (
                         <IOPreviewSection
-                          kind="skills"
-                          title="Skills"
-                          skills={skills}
-                          projectId={projectId}
+                          kind="json"
+                          title={statusPresentation.title}
+                          jsonProps={{
+                            json: status.message,
+                            parsedJson: parsedStatusMessage,
+                            currentView: isJson ? "json" : "pretty",
+                          }}
+                          tone={statusPresentation.tone}
                         />
-                      ) : null}
+                      ) : (
+                        <IOPreviewSection
+                          kind="status"
+                          title={statusPresentation.title}
+                          tone={statusPresentation.tone}
+                          text={status.message}
+                        />
+                      ))}
 
-                      {shouldRenderMessages ? (
-                        <div>
+                    {tools && <IOPreviewSection {...tools} />}
+
+                    {isPretty &&
+                    showData &&
+                    skills &&
+                    skills.items.length > 0 ? (
+                      <IOPreviewSection
+                        kind="skills"
+                        title="Skills"
+                        skills={skills}
+                        projectId={projectId}
+                      />
+                    ) : null}
+
+                    {shouldRenderMessages ? (
+                      <div>
+                        <div className="flex max-h-full min-h-0 flex-col gap-2">
                           <div className="flex max-h-full min-h-0 flex-col gap-2">
-                            <div className="flex max-h-full min-h-0 flex-col gap-2">
-                              <div className="flex flex-col gap-2">
-                                {messages.map(
-                                  ({ originalIndex, props }, index) => (
-                                    <Fragment key={originalIndex}>
-                                      <IOPreviewSection {...props} />
-                                      {history.show && index === 0 && (
-                                        <button
-                                          type="button"
-                                          className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
-                                          aria-expanded={history.isOpen}
-                                          aria-label={history.label}
-                                          onClick={history.toggle}
-                                        >
-                                          {history.isOpen ? (
-                                            <ChevronDown
-                                              size="base"
-                                              color="default"
-                                              aria-hidden
-                                            />
-                                          ) : (
-                                            <ChevronRight
-                                              size="base"
-                                              color="default"
-                                              aria-hidden
-                                            />
-                                          )}
-                                          {history.label}
-                                        </button>
-                                      )}
-                                    </Fragment>
-                                  ),
-                                )}
-                              </div>
-                              {additionalInput && (
-                                <IOPreviewSection
-                                  kind="json"
-                                  title="Additional Input"
-                                  jsonProps={{
-                                    json: additionalInput,
-                                    currentView: shouldRenderMarkdown
-                                      ? "pretty"
-                                      : "json",
-                                  }}
-                                />
-                              )}
-                              {conversationMedia.length > 0 && (
-                                <IOPreviewSection
-                                  kind="media"
-                                  title="Media"
-                                  media={conversationMedia}
-                                />
+                            <div className="flex flex-col gap-2">
+                              {messages.map(
+                                ({ originalIndex, props }, index) => (
+                                  <Fragment key={originalIndex}>
+                                    <IOPreviewSection {...props} />
+                                    {history.show && index === 0 && (
+                                      <button
+                                        type="button"
+                                        className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                                        aria-expanded={history.isOpen}
+                                        aria-label={history.label}
+                                        onClick={history.toggle}
+                                      >
+                                        {history.isOpen ? (
+                                          <ChevronDown
+                                            size="base"
+                                            color="default"
+                                            aria-hidden
+                                          />
+                                        ) : (
+                                          <ChevronRight
+                                            size="base"
+                                            color="default"
+                                            aria-hidden
+                                          />
+                                        )}
+                                        {history.label}
+                                      </button>
+                                    )}
+                                  </Fragment>
+                                ),
                               )}
                             </div>
+                            {additionalInput && (
+                              <IOPreviewSection
+                                kind="json"
+                                title="Additional Input"
+                                jsonProps={{
+                                  json: additionalInput,
+                                  currentView: shouldRenderMarkdown
+                                    ? "pretty"
+                                    : "json",
+                                }}
+                              />
+                            )}
+                            {conversationMedia.length > 0 && (
+                              <IOPreviewSection
+                                kind="media"
+                                title="Media"
+                                media={conversationMedia}
+                              />
+                            )}
                           </div>
                         </div>
-                      ) : showData ? (
-                        <div className="space-y-2">
-                          {fields.map((field) => (
-                            <Fragment key={field.key}>
-                              {field.show &&
-                                (isJson && field.tooLarge && field.probe ? (
-                                  <IOPreviewSection
-                                    kind="large-json"
-                                    title={field.title}
-                                    actions={
-                                      field.key === "output"
-                                        ? outputActions
-                                        : undefined
-                                    }
-                                    fallback={{
-                                      serialized: field.probe.serialized,
-                                      isString: field.probe.isString,
-                                      charCount: field.probe.size,
-                                      downloadFileBase: `${field.key}-${downloadName}`,
-                                    }}
-                                  />
-                                ) : (
-                                  <IOPreviewSection
-                                    kind="json"
-                                    title={field.title}
-                                    actions={
-                                      field.key === "output"
-                                        ? outputActions
-                                        : undefined
-                                    }
-                                    jsonProps={{
-                                      json: isJson ? field.raw : field.value,
-                                      parsedJson: isJson
-                                        ? field.value
-                                        : undefined,
-                                      isLoading,
-                                      isParsing,
-                                      media:
-                                        media?.filter(
-                                          (item) => item.field === field.key,
-                                        ) ?? [],
-                                      currentView: isJson ? "json" : "pretty",
-                                      externalExpansionState: field.expansion,
-                                      onExternalExpansionChange: (
-                                        expansion,
-                                      ) => {
-                                        if (isJson) {
-                                          if (typeof expansion === "boolean")
-                                            field.onJsonExpansion?.(expansion);
-                                        } else field.onExpansion?.(expansion);
-                                      },
-                                    }}
-                                  />
-                                ))}
-                              {field.key === "output" && correctedOutputField}
-                            </Fragment>
-                          ))}
-                        </div>
-                      ) : null}
-                      {(shouldRenderMessages || !showData) &&
-                        correctedOutputField}
-                    </div>
-                  )}
-                </ConversationController>
-              );
-            })()}
+                      </div>
+                    ) : showData ? (
+                      <div className="space-y-2">
+                        {fields.map((field) => (
+                          <Fragment key={field.key}>
+                            {field.show &&
+                              (isJson && field.tooLarge && field.probe ? (
+                                <IOPreviewSection
+                                  kind="large-json"
+                                  title={field.title}
+                                  actions={
+                                    field.key === "output"
+                                      ? outputActions
+                                      : undefined
+                                  }
+                                  fallback={{
+                                    serialized: field.probe.serialized,
+                                    isString: field.probe.isString,
+                                    charCount: field.probe.size,
+                                    downloadFileBase: `${field.key}-${downloadName}`,
+                                  }}
+                                />
+                              ) : (
+                                <IOPreviewSection
+                                  kind="json"
+                                  title={field.title}
+                                  actions={
+                                    field.key === "output"
+                                      ? outputActions
+                                      : undefined
+                                  }
+                                  jsonProps={{
+                                    json: isJson ? field.raw : field.value,
+                                    parsedJson: isJson
+                                      ? field.value
+                                      : undefined,
+                                    isLoading,
+                                    isParsing,
+                                    media:
+                                      media?.filter(
+                                        (item) => item.field === field.key,
+                                      ) ?? [],
+                                    currentView: isJson ? "json" : "pretty",
+                                    externalExpansionState: field.expansion,
+                                    onExternalExpansionChange: (expansion) => {
+                                      if (isJson) {
+                                        if (typeof expansion === "boolean")
+                                          field.onJsonExpansion?.(expansion);
+                                      } else field.onExpansion?.(expansion);
+                                    },
+                                  }}
+                                />
+                              ))}
+                            {field.key === "output" && correctedOutputField}
+                          </Fragment>
+                        ))}
+                      </div>
+                    ) : null}
+                    {(shouldRenderMessages || !showData) &&
+                      correctedOutputField}
+                  </div>
+                )}
+              </ConversationController>
+            )}
           </>
         );
       }}
     </CorrectionController>
   );
+}
+
+type JsonSectionField = Pick<
+  ReturnType<typeof useIOPreviewField>,
+  "show" | "value" | "tooLarge" | "rows"
+> & { key: string; title: string };
+
+function JsonSectionsController({
+  fields,
+  status,
+  statusValue,
+  renderCorrection,
+  renderOversizedHeader,
+  renderOversizedFooter,
+  children,
+}: Pick<IOPreviewContentProps, "status"> & {
+  fields: JsonSectionField[];
+  statusValue: unknown;
+  renderCorrection: (() => React.ReactNode) | undefined;
+  renderOversizedHeader: (field: JsonSectionField) => React.ReactNode;
+  renderOversizedFooter: (
+    field: JsonSectionField,
+    probe: ReturnType<typeof probeJsonField>,
+  ) => React.ReactNode;
+  children: (preview: {
+    sections: React.ComponentProps<typeof MultiSectionJsonViewer>["sections"];
+  }) => React.ReactNode;
+}) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  // Render callbacks can change without reserializing oversized fields.
+  const preparedFields = useMemo(
+    () =>
+      fields
+        .filter((field) => field.show)
+        .map((field) => ({
+          field,
+          // Reuse one serialization for the lazy engine and the download hatch.
+          probe: field.tooLarge ? probeJsonField(field.value) : null,
+        })),
+    [fields],
+  );
+  const sections = useMemo(() => {
+    const result: React.ComponentProps<
+      typeof MultiSectionJsonViewer
+    >["sections"] = [];
+    if (status) {
+      const backgroundColor = (() => {
+        if (status.level === "ERROR")
+          return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
+        if (status.level === "WARNING")
+          return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
+        return "hsl(var(--surface-section))";
+      })();
+      result.push({
+        key: "status-message",
+        title: getStatusMessagePresentation(status.level).title,
+        data: statusValue,
+        backgroundColor,
+        minHeight: "4px",
+      });
+    }
+    for (const { field, probe } of preparedFields) {
+      const backgroundColor = (() => {
+        if (field.key === "input")
+          return isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)";
+        if (field.key === "metadata")
+          return isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)";
+        return "hsl(var(--surface-section))";
+      })();
+      if (probe) {
+        result.push({
+          // Gated fields never inherit a persisted collapse that could hide the
+          // download escape hatch; they have no eager tree to collapse.
+          key: `${field.key}__oversized`,
+          title: field.title,
+          data: null,
+          hideData: true,
+          backgroundColor,
+          minHeight: "4px",
+          renderHeader: () => renderOversizedHeader(field),
+          renderFooter: () => renderOversizedFooter(field, probe),
+        });
+      } else {
+        result.push({
+          key: field.key,
+          title: field.title,
+          data: field.value,
+          backgroundColor,
+          minHeight: "200px",
+        });
+      }
+    }
+    if (renderCorrection) {
+      // Corrections stay between Output and Metadata, even when Output is hidden.
+      const metadataIndex = result.findIndex(
+        (section) =>
+          section.key === "metadata" || section.key === "metadata__oversized",
+      );
+      result.splice(metadataIndex === -1 ? result.length : metadataIndex, 0, {
+        key: "corrections",
+        title: "Output correction",
+        data: null,
+        hideData: true,
+        backgroundColor: "hsl(var(--surface-section))",
+        minHeight: "4px",
+        renderFooter: renderCorrection,
+      });
+    }
+    return result;
+  }, [
+    preparedFields,
+    status,
+    statusValue,
+    isDark,
+    renderCorrection,
+    renderOversizedHeader,
+    renderOversizedFooter,
+  ]);
+  return children({ sections });
 }
 
 function ConversationController({
@@ -1380,6 +1329,194 @@ function JsonSearchController({
       onSearchResults: setMatchCount,
     },
   });
+}
+
+function useIOPreviewFields({
+  input,
+  output,
+  metadata,
+  parsedInput: preParsedInput,
+  parsedOutput: preParsedOutput,
+  parsedMetadata: preParsedMetadata,
+  selectedView,
+  isParsing,
+  hideInput,
+  hideOutput,
+  hideMetadata,
+  hideIfNull,
+  inputExpansionState,
+  outputExpansionState,
+  metadataExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+  onMetadataExpansionChange,
+  jsonInputExpanded,
+  jsonOutputExpanded,
+  jsonMetadataExpanded,
+  onJsonInputExpandedChange,
+  onJsonOutputExpandedChange,
+  onJsonMetadataExpandedChange,
+}: Pick<
+  IOPreviewContentProps,
+  | "input"
+  | "output"
+  | "metadata"
+  | "parsedInput"
+  | "parsedOutput"
+  | "parsedMetadata"
+  | "inputExpansionState"
+  | "outputExpansionState"
+  | "metadataExpansionState"
+  | "onInputExpansionChange"
+  | "onOutputExpansionChange"
+  | "onMetadataExpansionChange"
+  | "jsonInputExpanded"
+  | "jsonOutputExpanded"
+  | "jsonMetadataExpanded"
+  | "onJsonInputExpandedChange"
+  | "onJsonOutputExpandedChange"
+  | "onJsonMetadataExpandedChange"
+> &
+  Required<
+    Pick<
+      IOPreviewContentProps,
+      "isParsing" | "hideInput" | "hideOutput" | "hideMetadata" | "hideIfNull"
+    >
+  > & { selectedView: ViewMode }) {
+  const isJson = selectedView === "json";
+  const {
+    parsed: parsedInput,
+    value: effectiveInput,
+    probe: inputProbe,
+    rows: inputRows,
+    tooLarge: inputTooLarge,
+    show: showInput,
+  } = useIOPreviewField({
+    raw: input,
+    preParsed: preParsedInput,
+    selectedView,
+    isParsing,
+    hidden: hideInput,
+    hideIfNull,
+    isMetadata: false,
+  });
+  const {
+    parsed: parsedOutput,
+    value: effectiveOutput,
+    probe: outputProbe,
+    rows: outputRows,
+    tooLarge: outputTooLarge,
+    show: showOutput,
+  } = useIOPreviewField({
+    raw: output,
+    preParsed: preParsedOutput,
+    selectedView,
+    isParsing,
+    hidden: hideOutput,
+    hideIfNull,
+    isMetadata: false,
+  });
+  const {
+    parsed: parsedMetadata,
+    value: effectiveMetadata,
+    probe: metadataProbe,
+    rows: metadataRows,
+    tooLarge: metadataTooLarge,
+    show: showMetadata,
+  } = useIOPreviewField({
+    raw: metadata,
+    preParsed: preParsedMetadata,
+    selectedView,
+    isParsing,
+    hidden: hideMetadata,
+    hideIfNull,
+    isMetadata: true,
+  });
+  const fields = useMemo(
+    () => [
+      {
+        key: "input",
+        title: "Input",
+        show: showInput,
+        raw: input,
+        value: effectiveInput,
+        tooLarge: inputTooLarge,
+        rows: inputRows,
+        probe: inputProbe,
+        expansion: isJson ? jsonInputExpanded : inputExpansionState,
+        onExpansion: onInputExpansionChange,
+        onJsonExpansion: onJsonInputExpandedChange,
+      },
+      {
+        key: "output",
+        title: "Output",
+        show: showOutput,
+        raw: output,
+        value: effectiveOutput,
+        tooLarge: outputTooLarge,
+        rows: outputRows,
+        probe: outputProbe,
+        expansion: isJson ? jsonOutputExpanded : outputExpansionState,
+        onExpansion: onOutputExpansionChange,
+        onJsonExpansion: onJsonOutputExpandedChange,
+      },
+      {
+        key: "metadata",
+        title: "Metadata",
+        show: showMetadata,
+        raw: metadata,
+        value: effectiveMetadata,
+        tooLarge: metadataTooLarge,
+        rows: metadataRows,
+        probe: metadataProbe,
+        expansion: isJson ? jsonMetadataExpanded : metadataExpansionState,
+        onExpansion: onMetadataExpansionChange,
+        onJsonExpansion: onJsonMetadataExpandedChange,
+      },
+    ],
+    [
+      showInput,
+      showOutput,
+      showMetadata,
+      input,
+      output,
+      metadata,
+      effectiveInput,
+      effectiveOutput,
+      effectiveMetadata,
+      inputTooLarge,
+      outputTooLarge,
+      metadataTooLarge,
+      inputRows,
+      outputRows,
+      metadataRows,
+      inputProbe,
+      outputProbe,
+      metadataProbe,
+      isJson,
+      jsonInputExpanded,
+      jsonOutputExpanded,
+      jsonMetadataExpanded,
+      inputExpansionState,
+      outputExpansionState,
+      metadataExpansionState,
+      onInputExpansionChange,
+      onOutputExpansionChange,
+      onMetadataExpansionChange,
+      onJsonInputExpandedChange,
+      onJsonOutputExpandedChange,
+      onJsonMetadataExpandedChange,
+    ],
+  );
+  return {
+    fields,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    effectiveOutput,
+    outputTooLarge,
+    showOutput,
+  };
 }
 
 function useIOPreviewField({
