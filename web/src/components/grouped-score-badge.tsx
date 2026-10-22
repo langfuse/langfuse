@@ -115,7 +115,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="max-h-[320px] w-max max-w-[min(560px,90vw)] overflow-y-auto p-0"
+        className="ph-no-capture max-h-[320px] w-max max-w-[min(560px,90vw)] overflow-y-auto p-0"
         onClick={(event) => event.stopPropagation()}
       >
         <ScoreTable scores={scores} />
