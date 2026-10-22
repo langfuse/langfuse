@@ -45,7 +45,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -95,7 +95,7 @@ import {
   comparisonChangedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
-import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/DataTableColumnVisibilityFilter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right

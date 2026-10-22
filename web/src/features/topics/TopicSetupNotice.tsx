@@ -2,7 +2,7 @@ import { Sparkles } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
 
 type TopicSetupNoticeProps = {

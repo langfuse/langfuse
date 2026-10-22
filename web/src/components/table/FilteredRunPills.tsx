@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { api } from "@/src/utils/api";

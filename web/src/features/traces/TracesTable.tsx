@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -87,7 +87,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
@@ -115,7 +115,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";

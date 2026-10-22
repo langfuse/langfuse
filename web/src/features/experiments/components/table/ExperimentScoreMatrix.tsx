@@ -9,7 +9,7 @@ import {
   type Table as TanStackTable,
 } from "@tanstack/react-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import {
   Tooltip,
   TooltipContent,
