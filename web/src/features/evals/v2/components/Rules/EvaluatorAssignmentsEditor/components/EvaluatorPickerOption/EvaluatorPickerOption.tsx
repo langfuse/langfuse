@@ -17,7 +17,7 @@ export function EvaluatorPickerOption({
     : null;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="ph-no-capture flex min-w-0 flex-1 items-center gap-3">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="min-w-0 truncate" title={evaluator.name}>
           {evaluator.name}

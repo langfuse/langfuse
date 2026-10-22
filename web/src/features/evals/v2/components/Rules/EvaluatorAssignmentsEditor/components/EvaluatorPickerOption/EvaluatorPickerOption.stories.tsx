@@ -1,3 +1,5 @@
+import { expect } from "storybook/test";
+
 import preview from "../../../../../../../../../.storybook/preview";
 import { EvaluatorPickerOption } from "./EvaluatorPickerOption";
 
@@ -22,5 +24,18 @@ export const WithLongName = meta.story({
       defaultVariableMapping: [],
       initialVariableMapping: null,
     },
+  },
+});
+
+export const ExcludedFromRecordings = meta.story({
+  name: "(Test) Evaluator name and creator are excluded from recordings",
+  args: WithLongName.input.args,
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText("Demo User").closest(".ph-no-capture"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByTitle(/^Correctness evaluator/).closest(".ph-no-capture"),
+    ).not.toBeNull();
   },
 });

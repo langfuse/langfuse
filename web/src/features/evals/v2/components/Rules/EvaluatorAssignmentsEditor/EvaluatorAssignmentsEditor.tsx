@@ -110,7 +110,7 @@ export function EvaluatorAssignmentsEditor({
       <PopoverContent
         align="start"
         className={cn(
-          "h-80 max-w-[calc(100vw-2rem)] p-0",
+          "ph-no-capture h-80 max-w-[calc(100vw-2rem)] p-0",
           pickerWidth === "trigger"
             ? "w-(--radix-popover-trigger-width)"
             : "w-[32rem]",
