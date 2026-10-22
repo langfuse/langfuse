@@ -14,6 +14,7 @@ import {
 import { createW3CTraceId } from "../utils/traceId";
 import {
   traceBatchInputsSchema,
+  traceBatchInputsVersionSchema,
   type TraceBatchInputs,
 } from "./storage-schema";
 
@@ -34,8 +35,22 @@ export interface TraceBatchInputStorage {
     reference: TraceBatchInputReference,
     inputs: TraceBatchInputData,
   ): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }>;
-  /** Missing objects, invalid JSON and unsupported schemas propagate to the caller. */
+  /**
+   * Missing objects and invalid JSON propagate to the caller. A newer
+   * `schemaVersion` throws `UnsupportedTraceBatchInputVersionError`, which
+   * callers must treat as retryable: a later attempt can run on an updated reader.
+   */
   get(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
+}
+
+/** The object was written by a newer schema than this reader knows. */
+export class UnsupportedTraceBatchInputVersionError extends Error {
+  constructor(readonly schemaVersion: number) {
+    super(
+      `Trace batch input schema version ${schemaVersion} is not supported by this reader.`,
+    );
+    this.name = "UnsupportedTraceBatchInputVersionError";
+  }
 }
 
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
@@ -70,7 +85,13 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       const json = await getStorage().download(
         getTraceBatchInputsKey(reference),
       );
-      const inputs = traceBatchInputsSchema.parse(JSON.parse(json));
+      const stored: unknown = JSON.parse(json);
+      const envelope = traceBatchInputsVersionSchema.safeParse(stored);
+      if (envelope.success && envelope.data.schemaVersion !== 1)
+        throw new UnsupportedTraceBatchInputVersionError(
+          envelope.data.schemaVersion,
+        );
+      const inputs = traceBatchInputsSchema.parse(stored);
       return {
         transcript:
           inputs.transcript === null
@@ -82,10 +103,15 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   };
 }
 
+/** Each S3 request is bounded so a stalled upload cannot hold a Topics slot indefinitely. */
 function getStorage(): StorageService {
   if (!storage)
     storage = createEventUploadStorageService(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      {
+        s3RequestTimeoutMs:
+          env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS,
+      },
     );
   return storage;
 }

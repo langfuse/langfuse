@@ -299,8 +299,11 @@ dispatcher snapshot memory.
 When enabled, `storeInputs.ts` captures the assembled transcript for traces that
 pass the existing Topics settings and rule sampling gate. It runs inside the
 Topics concurrency limit alongside in-memory summarization. Both operations must
-settle before releasing the slot, including when summarization fails. It does
-not capture every trace admitted by experimental batching.
+settle before releasing the slot, including when summarization fails. Each S3
+request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`
+(default 10 seconds) so a stalled request cannot hold a slot indefinitely; the
+SDK attempt budget stays at its default. It does not capture every trace admitted
+by experimental batching.
 
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
@@ -336,27 +339,39 @@ with `put` and `get`; all instances share one lazily initialized provider client
 Feature gating, instrumentation and tolerated failures remain in `storeInputs`.
 
 `inputStorage.put(reference, { transcript, traceContext })` requires all context
-fields, with null for an absent session ID or name. Context uses the event-domain
-field schemas and the existing Topics selection: earliest observation start,
+fields, with null for an absent session ID or name. Context fields mirror the
+event-domain field shapes without importing the domain schema; the writer's typed
+assignment keeps them compatible. Context uses the existing Topics selection: earliest observation start,
 newest nonempty session ID, newest-event environment and first observation name.
 The transcript alone cannot reconstruct this context. The original job enqueue
 time remains execution state rather than trace context.
 
-The transcript module owns the canonical schema and typed V1 serialization
-adapters; normalized IO owns the nested message/part schemas. Message dates are
+The transcript module freezes stored V1 in `transcript/versions/v1.ts`, a copy of
+the transcript and normalized message schemas that imports no live schema, and owns
+the typed adapters between the live transcript and V1. Message dates are
 serialized as ISO strings. `inputStorage.get(reference)` returns
 `{ transcript, traceContext }`, validates nested content and restores message
 dates; `traceContext.traceTimestamp` remains an ISO string. Missing context,
-invalid JSON, unsupported versions and download errors propagate; an explicitly
-stored null transcript returns `transcript: null`. Compatible optional fields may be added to v1.
-For a breaking change, retain the old schema, deploy
-readers accepting both versions, then enable the new writer. Schema version and
-readiness revision are independent.
+invalid JSON and download errors propagate; an explicitly stored null transcript
+returns `transcript: null`. A `schemaVersion` the reader does not know throws
+`UnsupportedTraceBatchInputVersionError`, distinct from invalid data. Schema
+version and readiness revision are independent.
+
+Mixed versions happen: rolling deploys, and self-hosters updating web and worker
+at different times. A reader that meets an unknown `schemaVersion` must fail with
+the retryable `UnsupportedTraceBatchInputVersionError`, never discard the job or
+treat the object as missing. Consumers read inside retried jobs whose backoff
+spans a deploy, so the retry lands on an updated reader. Deploy readers for a new
+version before enabling its writer; if a writer ships first, the retries cover the
+gap. Compatible optional fields may be added to V1 when absent values are safe for
+old readers. A breaking change adds `versions/v2.ts`, its adapters and a read
+dispatch on `schemaVersion`; existing objects are never rewritten.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds
 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and
 does not bound assembly or serialization memory. Size skips emit an info log with identifiers,
-actual length and limit. StorageService owns upload retries and logs; exhausted
+actual length and limit. StorageService owns upload retries and logs: SlowDown at
+warning level, other failures including request timeouts at error level. Exhausted
 failures mark the `trace-batch-store-inputs` span as failed. Neither outcome stops
 Topics. The span records outcome and JSON length without transcript content;
 there are no additional outcome counters.
@@ -371,8 +386,9 @@ future consumers that require files must schedule only after a successful PUT.
 
 Like temporary span-eval inputs, these objects have no ingestion deletion
 references. Trace/project deletion and per-project retention do not immediately
-remove them; bucket expiry is the cleanup mechanism. Before enabling writes,
-explicitly accept this temporary retention or extend the deletion paths.
+remove them; bucket expiry is the accepted cleanup mechanism, and the deletion
+paths are intentionally not extended. The lifecycle rule above remains the
+precondition for enabling writes.
 
 ### Storage portability
 

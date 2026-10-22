@@ -35,10 +35,17 @@ export type JsonObject = { [key: string]: JsonValue };
 
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 
+// Part and message types are inferred from `schema.ts`, which carries the field
+// documentation; hovering a field shows it. Type-level rationale lives on the
+// schema constants.
+
+/** Shared by every part; `providerMetadata` holds what the canonical part did not consume. */
 export type NormalizedPartBase = z.infer<typeof normalizedPartBaseSchema>;
 export type TextPart = z.infer<typeof textPartSchema>;
+/** Reasoning with a discriminated payload (`text`, `redacted`, `encrypted`, `data`). */
 export type ReasoningPart = z.infer<typeof reasoningPartSchema>;
 export type ToolCallPart = z.infer<typeof toolCallPartSchema>;
+/** Content belonging to one execution; nested calls/results are not content. */
 export type ToolResultContentPart = z.infer<typeof toolResultContentPartSchema>;
 export type ToolResultOutput = z.infer<typeof toolResultOutputSchema>;
 export type ToolResultPart = z.infer<typeof toolResultPartSchema>;
@@ -47,6 +54,7 @@ export type DataPart = z.infer<typeof dataPartSchema>;
 export type CustomPart = z.infer<typeof customPartSchema>;
 export type NormalizedMessagePart = z.infer<typeof normalizedMessagePartSchema>;
 export type NormalizedMessageRole = z.infer<typeof normalizedMessageRoleSchema>;
+/** Canonical finish reason with the provider's verbatim value in `raw`. */
 export type FinishReason = z.infer<typeof finishReasonSchema>;
 export type NormalizedMessage = z.infer<typeof normalizedMessageSchema>;
 

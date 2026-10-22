@@ -93,7 +93,8 @@
   `{ transcript, traceContext }` using the same metadata selection
   as Topics; preserve nullable session ID/name in storage and apply the Topics
   name fallback only at its call site.
-  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off.
+  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off; each upload
+  request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`.
   Oversized inputs and exhausted storage errors leave in-memory Topics running;
   file-dependent consumers must require successful storage before scheduling.
   Allow one pending tokenization promise per batch while

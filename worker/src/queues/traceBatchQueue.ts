@@ -58,6 +58,10 @@ type TraceOutcome = (
   | { outcome: "failed"; reason: string }
 ) & { rows: TopicSummary[] };
 
+/** Identity of one trace within a batch; a batch spans projects. */
+const traceKey = (projectId: string, traceId: string) =>
+  JSON.stringify([projectId, traceId]);
+
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
  * A project paused mid-batch is skipped for the rest of the batch.
@@ -140,7 +144,7 @@ async function summarizeTraceBatch(
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
-  inputReference: TraceBatchInputReference | undefined,
+  revisions: ReadonlyMap<string, string>,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -154,6 +158,11 @@ async function summarizeTraceBatch(
     throw new Error(
       "Trace batch observations crossed a project or trace boundary.",
     );
+  const revision = revisions.get(traceKey(first.projectId, traceId));
+  const inputReference: TraceBatchInputReference | undefined =
+    revision === undefined
+      ? undefined
+      : { projectId: first.projectId, traceId, revision };
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
@@ -346,14 +355,10 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
-    const inputReferences = new Map(
+    const revisions = new Map(
       batch.traces.map((trace) => [
-        JSON.stringify([trace.projectId, trace.traceId]),
-        {
-          projectId: trace.projectId,
-          traceId: trace.traceId,
-          revision: trace.revision,
-        },
+        traceKey(trace.projectId, trace.traceId),
+        trace.revision,
       ]),
     );
     const topicsOutcomes: TraceOutcome[] = [];
@@ -456,12 +461,7 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
-                  inputReferences.get(
-                    JSON.stringify([
-                      observations[0]?.projectId,
-                      observations[0]?.traceId,
-                    ]),
-                  ),
+                  revisions,
                 ),
               );
           });
@@ -483,7 +483,7 @@ export const traceBatchQueueProcessor: Processor<
       let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
-        foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+        foundTraces.add(traceKey(event.project_id, event.trace_id));
         foundProjects.add(event.project_id);
         // Logical UTF-8 payload size, excluding JSON transport and compression.
         const eventInputBytes = Buffer.byteLength(event.input);
