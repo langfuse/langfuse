@@ -46,7 +46,7 @@ type DialogProps = {
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
-  /** Shown as a ghost "Docs" link next to the title. */
+  /** Shown as a muted "Learn more" link next to the title. */
   docsHref?: string;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
@@ -173,7 +173,7 @@ function DialogRoot({
                   <Button
                     variant="link"
                     size="sm"
-                    text="Docs"
+                    text="Learn more"
                     href={docsHref}
                   />
                 ) : null}

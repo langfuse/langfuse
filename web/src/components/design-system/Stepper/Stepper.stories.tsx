@@ -105,12 +105,12 @@ export const MultiStep = meta.story({
   ),
 });
 
-export const TestDocsOnlyOnCurrentStep = meta.story({
+export const TestLearnMoreOnlyOnCurrentStep = meta.story({
   ...Statuses.input,
-  name: "(Test) Docs link only on the current step",
+  name: "(Test) Learn more link only on the current step",
   play: async ({ canvasElement }) => {
     const docsLinks = within(canvasElement).getAllByRole("link", {
-      name: /Docs/,
+      name: /Learn more/,
     });
     await expect(docsLinks).toHaveLength(1);
   },
