@@ -13,8 +13,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { CredentialFields } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/CredentialFields";
-import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderSelect";
+import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/CredentialFields";
+import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderSelect";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { suggestGatewayConnectionName } from "@/src/features/ai-gateway/fns/suggestGatewayConnectionName";
@@ -27,8 +27,8 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
-import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
-import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
+import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
+import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
 export function ProviderDialogController({
   organizationId,
