@@ -11,6 +11,7 @@ import { EventType } from "@ag-ui/core";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 
@@ -98,6 +99,9 @@ const providerMocks = vi.hoisted(() => {
         },
       },
       prompts: {
+        invalidate: vi.fn(() => Promise.resolve()),
+      },
+      skills: {
         invalidate: vi.fn(() => Promise.resolve()),
       },
     },
@@ -570,6 +574,90 @@ describe("in-app agent execution", () => {
       providerMocks.utils.dashboardWidgets.invalidate,
     ).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { skillTool: "langfuse_createSkillVersion", skillRejected: false },
+    { skillTool: "langfuse_createSkillVersion", skillRejected: true },
+    { skillTool: "langfuse_updateSkillLabels", skillRejected: false },
+    { skillTool: "langfuse_updateSkillLabels", skillRejected: true },
+  ])(
+    "refreshes skills after detached $skillTool only when approved (rejected: $skillRejected)",
+    async ({ skillTool, skillRejected }) => {
+      const completedSnapshot = {
+        conversation: {
+          id: "conversation-1",
+        },
+        messages: [
+          {
+            id: "skill-call",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "skill-tool-call",
+                type: "function",
+                function: {
+                  name: skillTool,
+                  arguments: "{}",
+                },
+              },
+            ],
+          },
+          {
+            id: "skill-result",
+            role: "tool",
+            toolCallId: "skill-tool-call",
+            content: skillRejected
+              ? "Tool call was not approved by the user."
+              : '{"id":"skill-1"}',
+            ...(skillRejected
+              ? {
+                  error: JSON.stringify({
+                    code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+                  }),
+                }
+              : {}),
+          },
+          {
+            id: "summary",
+            role: "assistant",
+            content: "Skill action finished.",
+          },
+        ],
+        eventCursor: 3,
+        latestRun: {
+          id: "run-1",
+          status: InAppAgentRunStatus.SUCCEEDED,
+          errorCode: null,
+          cancelRequested: false,
+        },
+        pendingToolApprovals: [],
+      } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+      providerMocks.conversationQuery.data = {
+        ...completedSnapshot,
+        messages: [],
+      };
+      providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+        completedSnapshot,
+      );
+      window.sessionStorage.setItem(
+        "langfuse:in-app-ai-agent-selected-conversation:project-1",
+        JSON.stringify("conversation-1"),
+      );
+
+      renderExecutionUi({
+        defaultOpen: false,
+        includeReopenButton: true,
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Reopen assistant" }));
+
+      await screen.findByText("Skill action finished.");
+      expect(providerMocks.utils.skills.invalidate).toHaveBeenCalledTimes(
+        skillRejected ? 0 : 1,
+      );
+    },
+  );
 
   it("keeps a hydrated in-flight tool call visibly running", async () => {
     providerMocks.conversationQuery.data = {
