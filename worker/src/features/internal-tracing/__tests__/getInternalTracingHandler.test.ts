@@ -95,6 +95,28 @@ describe("getInternalTracingHandler", () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["GENERATION", "TOOL"] as const)(
+    "preserves available skills in published %s event inputs",
+    async (type) => {
+      const handler = getInternalTracingHandler(params);
+      const skillsAvailable = [{ name: "trace-analysis", version: 2 }];
+      handler.recordObservation(type, { ...agent, skillsAvailable });
+
+      await handler.processTracedEvents();
+
+      expect(publish).toHaveBeenCalledExactlyOnceWith({
+        projectId: params.targetProjectId,
+        eventInputs: [
+          expect.objectContaining({
+            spanId: agent.id,
+            type,
+            skillsAvailable,
+          }),
+        ],
+      });
+    },
+  );
+
   it("does not publish an empty batch", async () => {
     await getInternalTracingHandler(params).processTracedEvents();
     expect(publish).not.toHaveBeenCalled();

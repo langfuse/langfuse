@@ -4,6 +4,7 @@ import {
   type InternalTraceEventInput,
 } from "./internalTraceEvents";
 import type { ObservationType } from "../../domain/observations";
+import type { SkillsAvailableInput } from "../../features/skills/trace";
 import { stringifyValue } from "../../utils/stringChecks";
 import {
   convertCallsToArrays,
@@ -34,6 +35,7 @@ export type InternalObservation = {
   userId?: string;
   sessionId?: string;
   tags?: string[];
+  skillsAvailable?: SkillsAvailableInput;
 };
 
 export function getInternalTracingHandler(
@@ -98,6 +100,7 @@ export function getInternalTracingHandler(
       toolDefinitions: convertDefinitionsToMap(toolDefinitions),
       toolCalls: toolCalls.tool_calls,
       toolCallNames: toolCalls.tool_call_names,
+      skillsAvailable: observation.skillsAvailable,
       source: INTERNAL_TRACE_EVENT_SOURCE,
     });
   };
