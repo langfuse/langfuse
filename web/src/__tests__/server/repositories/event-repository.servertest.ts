@@ -4766,7 +4766,7 @@ describe("Clickhouse Events Repository Test", () => {
       );
 
       const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
-      expect(trace?.tags.sort()).toEqual([middleTag, sharedTag].sort());
+      expect(trace?.tags).toEqual([middleTag, sharedTag]);
 
       const traces = await getTracesFromEventsTableForPublicApi({
         projectId,

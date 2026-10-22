@@ -14,6 +14,7 @@ import {
   anyValue,
   arrayExists,
   arrayLength,
+  arraySort,
   concat,
   countIf,
   dateDiff,
@@ -337,9 +338,8 @@ function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
     error_count: countLevel(eb, "ERROR").as("error_count"),
     default_count: countLevel(eb, "DEFAULT").as("default_count"),
     debug_count: countLevel(eb, "DEBUG").as("debug_count"),
-    tags: groupUniqArrayArrayIf(
-      eb.ref("e.tags"),
-      notEmpty(eb.ref("e.tags")),
+    tags: arraySort(
+      groupUniqArrayArrayIf(eb.ref("e.tags"), notEmpty(eb.ref("e.tags"))),
     ).as("tags"),
     release: latestNonEmptyOf(eb, "e.release").as("release"),
     // Evaluator execution fields are stamped on every internal evaluation span.
