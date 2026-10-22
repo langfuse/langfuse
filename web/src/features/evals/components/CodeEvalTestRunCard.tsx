@@ -1,5 +1,5 @@
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
