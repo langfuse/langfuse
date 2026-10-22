@@ -18,9 +18,3 @@ export const EXPERIMENT_IO_TRUNCATE_LENGTH = 1000;
 
 /** Aggregate object members and array elements allowed in one MCP request body. */
 export const MAX_MCP_REQUEST_ELEMENTS = 50_000;
-
-export const MCP_REQUEST_LIMIT_INSTRUCTIONS =
-  `Langfuse MCP requests allow at most ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements combined across the entire request, including nested inputs, expected outputs, metadata, and protocol fields. ` +
-  "Split large batches into smaller requests. A request rejected for exceeding this limit executes no tools in that request. " +
-  "Do not retry the same request unchanged or truncate item data. If a single item cannot fit, explain the limit and ask the user how to proceed. " +
-  "This limit does not apply to tool responses.";

@@ -1492,9 +1492,6 @@ describe("createAgUiStream", () => {
     expect((baseInstructions as () => string)()).toContain(
       "Prompt-managed assistant instructions",
     );
-    expect((baseInstructions as () => string)()).toContain(
-      "Langfuse MCP requests allow at most 50000",
-    );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,

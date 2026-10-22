@@ -23,7 +23,6 @@ import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
-import { MCP_REQUEST_LIMIT_INSTRUCTIONS } from "@langfuse/shared";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 
@@ -36,7 +35,6 @@ const MCP_SERVER_VERSION = "0.3.0-unstable";
 const MCP_SERVER_INSTRUCTIONS = [
   "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
   "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
-  MCP_REQUEST_LIMIT_INSTRUCTIONS,
   "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
 ];
 const MCP_FEEDBACK_INSTRUCTION =
