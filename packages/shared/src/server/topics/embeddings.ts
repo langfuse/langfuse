@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getLLMErrorInfo } from "../llm/errors";
 import { embedLLMText, type LLMProviderOptions } from "../llm/llmText";
 import { LLMAdapter } from "../llm/types";

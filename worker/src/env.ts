@@ -158,6 +158,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

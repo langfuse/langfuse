@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   const actual = await vi.importActual(
     "@langfuse/shared/src/server/llm/llmText",

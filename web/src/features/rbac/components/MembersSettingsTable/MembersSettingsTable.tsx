@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo } from "react";
 import { Trash } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";

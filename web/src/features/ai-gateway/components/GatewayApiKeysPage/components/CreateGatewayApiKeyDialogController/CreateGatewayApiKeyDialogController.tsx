@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -25,6 +26,7 @@ import {
   resolveApiKeyExpiration,
 } from "@/src/features/apiKey";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   api,
   reportNonTrpcError,
@@ -35,6 +37,13 @@ type MetadataField = {
   id: number;
   key: string;
   value: string;
+};
+
+type IssuedAs = "user" | "serviceAccount";
+
+const issuedAsDescriptions: Record<IssuedAs, string> = {
+  user: "Stops working if you leave the organization.",
+  serviceAccount: "Keeps working when people leave the organization.",
 };
 
 export function CreateGatewayApiKeyDialogController({
@@ -53,6 +62,11 @@ export function CreateGatewayApiKeyDialogController({
   ]);
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [nextMetadataId, setNextMetadataId] = useState(2);
+  const [issuedAs, setIssuedAs] = useState<IssuedAs>("user");
+  const canIssueServiceAccountKeys = useHasOrganizationAccess({
+    organizationId,
+    scope: "gateway:manage",
+  });
   const [generatedKeys, setGeneratedKeys] = useState<{
     publicKey: string;
     secretKey: string;
@@ -71,6 +85,7 @@ export function CreateGatewayApiKeyDialogController({
     setIsMetadataOpen(false);
     setGeneratedKeys(null);
     setNextMetadataId(2);
+    setIssuedAs("user");
   };
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
@@ -89,6 +104,7 @@ export function CreateGatewayApiKeyDialogController({
         name: name.trim() || undefined,
         metadata: metadataObject,
         expiresAt,
+        issuedAs: canIssueServiceAccountKeys ? issuedAs : "user",
       });
       setGeneratedKeys({
         publicKey: created.publicKey,
@@ -140,6 +156,35 @@ export function CreateGatewayApiKeyDialogController({
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
+                {canIssueServiceAccountKeys ? (
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Issued as</Label>
+                    <div>
+                      <Tabs
+                        activationMode="manual"
+                        value={issuedAs}
+                        onValueChange={(value) =>
+                          setIssuedAs(value as IssuedAs)
+                        }
+                      >
+                        <Tabs.List
+                          variant="inset"
+                          size="md"
+                          aria-label="Issued as"
+                        >
+                          <Tabs.Trigger value="user" label="My user" />
+                          <Tabs.Trigger
+                            value="serviceAccount"
+                            label="Service account"
+                          />
+                        </Tabs.List>
+                      </Tabs>
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      {issuedAsDescriptions[issuedAs]}
+                    </p>
+                  </div>
+                ) : null}
                 <ApiKeyExpirationInput
                   id="gateway-key-expiry"
                   expiryPreset={expiryPreset}

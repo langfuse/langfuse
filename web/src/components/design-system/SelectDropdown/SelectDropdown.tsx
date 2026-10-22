@@ -2,14 +2,21 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDown, ChevronUp } from "@langfuse/icons";
+import { ChevronDown, ChevronUp, type IconComponent } from "@langfuse/icons";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
 
 type SelectOption<V> = {
   value: V;
   label: string;
+  icon?: IconComponent;
+  explanation?: {
+    title: string;
+    description?: string;
+    badges?: { label: string; value: string }[];
+  };
   badges?: Array<
     Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
   >;
@@ -117,26 +124,69 @@ export function SelectDropdown<V extends string>({
       );
     }
 
+    const item = (
+      <InputDropdown.Option highlight="focus">
+        <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
+          <InputDropdown.OptionContent
+            type="radio"
+            checked={value === node.value}
+            label={
+              <SelectPrimitive.ItemText>
+                <span className="flex items-center gap-2">
+                  {node.icon && <node.icon size="base" />}
+                  {node.label}
+                </span>
+              </SelectPrimitive.ItemText>
+            }
+            title={node.disabled ? node.disabledReason : node.label}
+            badges={node.badges?.map((badge, index) => (
+              <Badge key={index} {...badge} />
+            ))}
+          />
+        </SelectPrimitive.Item>
+      </InputDropdown.Option>
+    );
+
     return (
       <React.Fragment key={node.value}>
         {hasPreviousGroup && <div aria-hidden="true" className="h-4" />}
-        <InputDropdown.Option highlight="focus">
-          <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
-            <InputDropdown.OptionContent
-              type="radio"
-              checked={value === node.value}
-              label={
-                <SelectPrimitive.ItemText>
-                  {node.label}
-                </SelectPrimitive.ItemText>
-              }
-              title={node.disabled ? node.disabledReason : node.label}
-              badges={node.badges?.map((badge, index) => (
-                <Badge key={index} {...badge} />
-              ))}
-            />
-          </SelectPrimitive.Item>
-        </InputDropdown.Option>
+        {node.explanation ? (
+          <CustomTooltip
+            delay={0}
+            placement="right-start"
+            content={
+              <div>
+                <div className="mb-1 text-sm font-bold">
+                  {node.explanation.title}
+                </div>
+                {node.explanation.badges !== undefined &&
+                  node.explanation.badges.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2 text-xs">
+                      {node.explanation.badges.map((badge) => (
+                        <span
+                          key={badge.label}
+                          className="bg-muted text-muted-foreground rounded px-1.5 py-0.5"
+                        >
+                          {badge.label}: {badge.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                {node.explanation.description && (
+                  <p className="text-xs leading-snug">
+                    {node.explanation.description}
+                  </p>
+                )}
+              </div>
+            }
+          >
+            {({ getTriggerProps }) =>
+              React.cloneElement(item, getTriggerProps())
+            }
+          </CustomTooltip>
+        ) : (
+          item
+        )}
       </React.Fragment>
     );
   };

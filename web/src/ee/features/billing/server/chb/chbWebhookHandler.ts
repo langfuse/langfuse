@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import crypto from "crypto";
 
 import { type NextRequest, NextResponse } from "next/server";

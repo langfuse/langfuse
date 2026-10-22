@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";

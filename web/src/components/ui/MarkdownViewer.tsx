@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -34,7 +34,7 @@ import {
   isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";

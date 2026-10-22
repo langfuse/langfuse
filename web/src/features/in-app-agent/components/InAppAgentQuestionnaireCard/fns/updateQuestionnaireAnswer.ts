@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
 import { assertUnreachable } from "@/src/utils/types";
 import type { QuestionnaireFormAnswer } from "./createQuestionnaireFormValues";

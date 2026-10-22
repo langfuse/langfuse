@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useState, useMemo, useEffect } from "react";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
@@ -33,8 +35,14 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   ...viewProps
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Read-only roles still see the saved channel via `selectedChannel`, but
+  // may not enumerate every channel the bot can see.
+  const canListChannels = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
   const { channelsData, isLoadingChannels, error, refetchChannels } =
-    useSlackChannels(projectId);
+    useSlackChannels(projectId, canListChannels);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -56,6 +64,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   return (
     <ChannelSelectorView
       {...viewProps}
+      disabled={viewProps.disabled || !canListChannels}
       channelsData={channelsData}
       isLoading={isLoadingChannels}
       hasError={!!error}
@@ -66,7 +75,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   );
 };
 
-const useSlackChannels = (projectId: string) => {
+const useSlackChannels = (projectId: string, enabled: boolean) => {
   const {
     data: channelsPages,
     isLoading,
@@ -79,7 +88,7 @@ const useSlackChannels = (projectId: string) => {
   } = api.slack.getChannels.useInfiniteQuery(
     { projectId },
     {
-      enabled: !!projectId,
+      enabled: !!projectId && enabled,
       getNextPageParam: (lastPage, allPages) =>
         allPages.length >= MAX_SLACK_CHANNEL_PAGES
           ? undefined

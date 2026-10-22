@@ -1,11 +1,11 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {

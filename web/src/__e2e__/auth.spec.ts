@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { test, expect } from "@playwright/test";
 import { signIn } from "./utils/auth";
 

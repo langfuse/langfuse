@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ApiKey } from "@langfuse/shared/src/db";
 import {
   type InternalServerError,

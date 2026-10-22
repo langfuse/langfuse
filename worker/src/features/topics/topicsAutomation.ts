@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { InvalidRequestError } from "@langfuse/shared";

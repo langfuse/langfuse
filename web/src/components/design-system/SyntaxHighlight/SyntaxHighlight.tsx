@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, type ReactNode } from "react";
 import { Highlight, themes, type PrismTheme } from "prism-react-renderer";
 import { useTheme } from "next-themes";
