@@ -61,6 +61,7 @@ type RowData = {
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
+  totalTraces: string;
   totalTokens: string;
   totalCost: string;
 };
@@ -427,6 +428,11 @@ export function UsersTable({
         userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
     }),
     createTextTableColumn<RowData>({
+      accessorKey: "totalTraces",
+      header: "Trace Count",
+      size: 120,
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "totalEvents",
       header: "Total Events",
       headerTooltip: {
@@ -589,6 +595,9 @@ export function UsersTable({
                           return {
                             userId: t.id,
                             environment: t.environment ?? undefined,
+                            totalTraces: compactNumberFormatter(
+                              Number(t.totalTraces ?? 0),
+                            ),
                             firstEvent:
                               t.firstTrace?.toLocaleString() ?? "No event yet",
                             lastEvent:
