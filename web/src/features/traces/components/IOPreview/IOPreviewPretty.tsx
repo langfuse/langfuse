@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -10,7 +10,14 @@ import {
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
-import { FileCode2, FileText } from "@langfuse/icons";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  ChevronDown,
+  ChevronRight,
+  FileCode2,
+  FileText,
+} from "@langfuse/icons";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -27,7 +34,13 @@ import {
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ChatMessageList, type ChatMessageListProps } from "../ChatMessageList";
+import { ChatMessage } from "./components/ChatMessage";
+import { SectionMedia } from "./components/SectionMedia";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+} from "@/src/components/ui/markdown-media.utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   ToolCallDefinitionCard,
@@ -52,6 +65,8 @@ import type { ObservationStatusMessage } from "./components/statusMessagePresent
 const TOOLS_COLLAPSE_THRESHOLD = 5;
 // The user's collapse choice lasts the session, across observations.
 const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+const EXPANDED_TAIL_LENGTH = 3;
+const FOLD_ABOVE_MESSAGES = 6;
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -221,6 +236,7 @@ export function IOPreviewPretty({
 }: IOPreviewPrettyProps) {
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [othersOpen, setOthersOpen] = useState(false);
   const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
     "called",
   );
@@ -364,6 +380,45 @@ export function IOPreviewPretty({
     return shouldRender;
   }, [parsedInput, parsedOutput, allMessages, characterLimit]);
 
+  const messagesToRender = useMemo(
+    () =>
+      allMessages
+        .map((message, originalIndex) => ({ message, originalIndex }))
+        .filter(({ message }) =>
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+        ),
+    [allMessages, contentMode, showSystemPrompt],
+  );
+  const foldsMiddle = messagesToRender.length > FOLD_ABOVE_MESSAGES;
+  const foldEnd = messagesToRender.length - EXPANDED_TAIL_LENGTH;
+  const otherMessagesCount = foldEnd - 1;
+  const otherMessagesLabel = `${otherMessagesCount} other ${otherMessagesCount === 1 ? "message" : "messages"}`;
+  const HistoryCaret = othersOpen ? ChevronDown : ChevronRight;
+  const lastOutputIndex = messagesToRender.reduce(
+    (last, { originalIndex }, index) =>
+      originalIndex >= (inputMessageCount ?? 0) ? index : last,
+    -1,
+  );
+  const remainingMedia = useMemo(() => {
+    if (!shouldRenderMarkdown) return media ?? [];
+    const renderedMediaIds = new Set<string>();
+    messagesToRender.forEach(({ message }) => {
+      const content = message.content || "";
+      // JSON fallbacks do not render media inline and still need the media section.
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
+        getRenderedInlineMediaIds({
+          markdown: content,
+          audio: message.audio,
+        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
+      }
+    });
+    return filterAlreadyRenderedMedia(media, renderedMediaIds);
+  }, [media, shouldRenderMarkdown, messagesToRender, characterLimit]);
+
   // Prepare additional input (only if non-empty)
   const additionalInputToShow = useMemo(() => {
     if (!additionalInput || Object.keys(additionalInput).length === 0) {
@@ -447,10 +502,6 @@ export function IOPreviewPretty({
     input: canTitleBySide && !isChatIO(parsedInput),
     output: canTitleBySide && !isChatIO(parsedOutput),
   };
-  const messageTitle: ChatMessageListProps["getMessageTitle"] = (
-    message,
-    side,
-  ) => (titleBySide[side] ? SIDE_TITLES[side] : getMessageTitle(message));
 
   return (
     <div className="space-y-2 pt-3">
@@ -612,19 +663,85 @@ export function IOPreviewPretty({
 
       {shouldRenderMessages ? (
         <div>
-          <ChatMessageList
-            messages={allMessages}
-            shouldRenderMarkdown={shouldRenderMarkdown}
-            additionalInput={additionalInputToShow}
-            media={media ?? []}
-            currentView="pretty"
-            messageToToolCallNumbers={messageToToolCallNumbers}
-            inputMessageCount={inputMessageCount}
-            contentMode={contentMode}
-            showSystemPrompt={showSystemPrompt}
-            getMessageTitle={messageTitle}
-            outputActions={outputActions}
-          />
+          <div className="flex max-h-full min-h-0 flex-col gap-2">
+            <div className="flex max-h-full min-h-0 flex-col gap-2">
+              <div className="flex flex-col gap-2">
+                {messagesToRender.map(
+                  ({ message, originalIndex }, filteredIndex) => {
+                    const isOutputMessage =
+                      originalIndex >= (inputMessageCount ?? 0);
+                    const side = isOutputMessage ? "output" : "input";
+                    const folded =
+                      foldsMiddle &&
+                      filteredIndex > 0 &&
+                      filteredIndex < foldEnd;
+                    // Folded messages do not mount (no parsing) until the row opens.
+                    if (folded && !othersOpen) return null;
+                    const chatMessage = (
+                      <ChatMessage
+                        key={originalIndex}
+                        message={message}
+                        title={
+                          titleBySide[side] ? SIDE_TITLES[side] : getMessageTitle(message)
+                        }
+                        shouldRenderMarkdown={shouldRenderMarkdown}
+                        currentView="pretty"
+                        toolCallNumbers={messageToToolCallNumbers.get(
+                          originalIndex,
+                        )}
+                        isOutputMessage={isOutputMessage}
+                        contentMode={contentMode}
+                        defaultCollapsed={
+                          foldsMiddle
+                            ? folded
+                            : message.role !== "system" &&
+                              filteredIndex <
+                                messagesToRender.length - EXPANDED_TAIL_LENGTH
+                        }
+                        actions={
+                          filteredIndex === lastOutputIndex
+                            ? outputActions
+                            : undefined
+                        }
+                      />
+                    );
+                    if (foldsMiddle && filteredIndex === 0) {
+                      return (
+                        <Fragment key={originalIndex}>
+                          {chatMessage}
+                          <button
+                            type="button"
+                            className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                            aria-expanded={othersOpen}
+                            aria-label={otherMessagesLabel}
+                            onClick={() => setOthersOpen((open) => !open)}
+                          >
+                            <HistoryCaret
+                              size="base"
+                              color="default"
+                              aria-hidden
+                            />
+                            {otherMessagesLabel}
+                          </button>
+                        </Fragment>
+                      );
+                    }
+                    return chatMessage;
+                  },
+                )}
+              </div>
+              {showData && additionalInputToShow && (
+                <PrettyJsonView
+                  title="Additional Input"
+                  json={additionalInputToShow}
+                  currentView={shouldRenderMarkdown ? "pretty" : "json"}
+                />
+              )}
+              {remainingMedia.length > 0 && (
+                <SectionMedia media={remainingMedia} />
+              )}
+            </div>
+          </div>
           {correctedOutputField}
         </div>
       ) : showData ? (
