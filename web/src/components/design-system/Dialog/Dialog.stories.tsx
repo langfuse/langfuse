@@ -12,6 +12,7 @@ type Size = NonNullable<React.ComponentProps<typeof Dialog>["size"]>;
 const allSizes = Object.keys({
   sm: true,
   default: true,
+  md: true,
   lg: true,
   xxl: true,
 } satisfies Record<Size, true>) as Size[];
