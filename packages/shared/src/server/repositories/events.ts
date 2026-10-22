@@ -4143,7 +4143,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
 
 // Finished traces: nothing ingested within the project's idle wait (event_ts, as
 // trace-batch uses). Grouped by trace_id, so traces without a root observation count.
-const topicSetupTracesSql = (days: "1" | "7" | "14", sampled: boolean) => `
+const topicSetupTracesSql = (days: "1" | "7", sampled: boolean) => `
   SELECT trace_id, max(event_ts) AS last_ts
   FROM events_core
   WHERE project_id = {projectId: String}
@@ -4169,7 +4169,11 @@ const topicSetupParams = (projectId: string, idleMs: number, now: Date) => ({
   publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
 });
 
-/** Unsampled finished-trace counts for the Topics setup estimate. */
+// Setup reads must never hang the wizard; a timeout surfaces as a recoverable error.
+const TOPIC_SETUP_COUNT_TIMEOUT_SECONDS = 10;
+const TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS = 30;
+
+/** Unsampled finished-trace counts over at most 7 days for the Topics setup estimate. */
 export async function getTopicSetupTraceCounts(input: {
   projectId: string;
   idleMs: number;
@@ -4178,22 +4182,22 @@ export async function getTopicSetupTraceCounts(input: {
   const rows = await queryClickhouse<{
     finished1d: string;
     finished7d: string;
-    finished14d: string;
   }>({
     query: `
       SELECT
         countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 1 DAY) AS finished1d,
-        countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 7 DAY) AS finished7d,
-        count() AS finished14d
-      FROM (${topicSetupTracesSql("14", false)})`,
+        count() AS finished7d
+      FROM (${topicSetupTracesSql("7", false)})`,
     params: topicSetupParams(input.projectId, input.idleMs, input.now),
     tags: { route: "topics-setup-counts", projectId: input.projectId },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_COUNT_TIMEOUT_SECONDS,
+    },
   });
   return {
     finished1d: Number(rows[0]?.finished1d ?? 0),
     finished7d: Number(rows[0]?.finished7d ?? 0),
-    finished14d: Number(rows[0]?.finished14d ?? 0),
   };
 }
 
@@ -4202,12 +4206,12 @@ export async function getTopicSetupTraceIds(input: {
   projectId: string;
   idleMs: number;
   now: Date;
-  days: 1 | 7 | 14;
+  days: 1 | 7;
   sampling: number;
   limit: number;
 }) {
   const rows = await queryClickhouse<{ trace_id: string }>({
-    query: `${topicSetupTracesSql(String(input.days) as "1" | "7" | "14", input.sampling < 1)}
+    query: `${topicSetupTracesSql(input.days === 1 ? "1" : "7", input.sampling < 1)}
       ORDER BY last_ts DESC, trace_id
       LIMIT {limit: UInt32}`,
     params: {
@@ -4217,6 +4221,9 @@ export async function getTopicSetupTraceIds(input: {
     },
     tags: { route: "topics-setup-traces", projectId: input.projectId },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS,
+    },
   });
   return rows.map((row) => row.trace_id);
 }

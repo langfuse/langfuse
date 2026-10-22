@@ -466,7 +466,7 @@ describe("Topics execution queue state", () => {
 });
 
 describe("Topics setup follow-up", () => {
-  it("generates topics once all batches finish, in small-sample mode for a small run", async () => {
+  it("generates topics once all batches finish, with standard clustering", async () => {
     const client = new Redis({
       lazyConnect: true,
       maxRetriesPerRequest: 0,
@@ -515,12 +515,12 @@ describe("Topics setup follow-up", () => {
       await recordTopicProcessBatchProgress("0", batch);
       expect(mocks.create).toHaveBeenCalledTimes(2);
       expect(mocks.create.mock.calls[0]).toEqual(mocks.create.mock.calls[1]);
+      expect(mocks.create.mock.calls[0]![0].exploratory).toBe(false);
       expect(mocks.create.mock.calls[0]).toEqual([
         expect.objectContaining({
           operation: "update",
           requestId: `${parent.id}-topics`,
           timeRange,
-          exploratory: true,
         }),
         undefined,
         "user-1",

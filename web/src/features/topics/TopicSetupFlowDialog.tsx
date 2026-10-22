@@ -124,7 +124,8 @@ export function TopicSetupFlowDialog({
     embedding,
     clustering,
   });
-  const canStart = canWrite && !busy && pastCount.status === "ready";
+  // The server picks its own traces, so a failed estimate must not block Start.
+  const canStart = canWrite && !busy && pastCount.status !== "loading";
   const nextDisabled = nextStepDisabled({
     step,
     busy,
@@ -393,7 +394,7 @@ function dailyEstimate(dailyTraces: number, samplePercent: number) {
 
 function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
-  if (count.status === "error") return count.message;
+  if (count.status === "error") return "Could not count past traces";
   if (count.matched === 0)
     return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
   const window = count.days === 1 ? "day" : `${count.days} days`;

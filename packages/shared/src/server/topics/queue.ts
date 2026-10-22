@@ -349,9 +349,6 @@ export async function recordTopicProcessBatchProgress(
   if (done && !failed) await startFollowUpTopicUpdate(execution);
 }
 
-// Small-sample settings below this many summaries in any facet.
-const FOLLOW_UP_FULL_MINIMUM = 100;
-
 /** Idempotent: the update's request ID derives from the process execution. */
 async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
   const { input } = execution;
@@ -369,9 +366,7 @@ async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
       facets: input.facets,
       embeddingConfig: input.embeddingConfig,
       timeRange: input.thenUpdate.timeRange,
-      exploratory: execution.facets.some(
-        (facet) => facet.counts.complete < FOLLOW_UP_FULL_MINIMUM,
-      ),
+      exploratory: false,
     },
     undefined,
     userId,

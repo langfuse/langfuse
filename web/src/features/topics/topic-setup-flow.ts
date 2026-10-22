@@ -12,7 +12,7 @@ export const TOPIC_SETUP_QUESTIONS = [
 export const TOPIC_SETUP_WAIT_MINUTES = [2, 5, 10] as const;
 const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;
 // Every setup summarizes up to this many recent traces so first topics form quickly.
-export const TOPIC_SETUP_BACKFILL_DAYS = 14;
+export const TOPIC_SETUP_BACKFILL_DAYS = 7;
 export const TOPIC_SETUP_BACKFILL_LIMIT = 500;
 const TOPIC_SETUP_MIN_PAST_TRACES = 100;
 

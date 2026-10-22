@@ -100,14 +100,14 @@ export async function resolveTopicTraceSelection(
 
 // Fallback when a project has no stored idle time; the setup flow always saves one.
 const SETUP_DEFAULT_IDLE_MS = 600_000;
-const SETUP_WINDOWS = [1, 7, 14] as const;
+const SETUP_WINDOWS = [1, 7] as const;
 
 export async function topicSetupIdleMs(projectId: string) {
   const { traceIdleMs } = await getTracingReadinessSettings(projectId);
   return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
 }
 
-/** Widens 1 → 7 → 14 days until the limit is met, so busy projects scan one day. */
+/** Widens from 1 to 7 days until the limit is met, so busy projects scan one day. */
 export async function selectTopicSetupTraces(input: {
   projectId: string;
   sampling: number;

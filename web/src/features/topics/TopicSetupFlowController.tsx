@@ -332,25 +332,18 @@ function TopicSetupSession({
 }
 
 function pastTraceCount(
-  counts:
-    | { finished1d: number; finished7d: number; finished14d: number }
-    | undefined,
+  counts: { finished1d: number; finished7d: number } | undefined,
   samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
   if (counts) {
-    // Mirrors the server: the smallest window that fills the batch, else 14 days.
+    // Mirrors the server: 1 day when it fills the batch, else 7 days.
     const rate = samplePercent / 100;
-    const window = (
-      [
-        { days: 1, count: counts.finished1d },
-        { days: 7, count: counts.finished7d },
-      ] as const
-    ).find(({ count }) => count * rate >= TOPIC_SETUP_BACKFILL_LIMIT) ?? {
-      days: TOPIC_SETUP_BACKFILL_DAYS,
-      count: counts.finished14d,
-    };
+    const window =
+      counts.finished1d * rate >= TOPIC_SETUP_BACKFILL_LIMIT
+        ? { days: 1, count: counts.finished1d }
+        : { days: TOPIC_SETUP_BACKFILL_DAYS, count: counts.finished7d };
     return {
       status: "ready",
       days: window.days,
@@ -358,7 +351,7 @@ function pastTraceCount(
         TOPIC_SETUP_BACKFILL_LIMIT,
         Math.round(window.count * rate),
       ),
-      dailyTraces: counts.finished14d / TOPIC_SETUP_BACKFILL_DAYS,
+      dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
     };
   }
   if (error && !fetching) return { status: "error", message: error };
