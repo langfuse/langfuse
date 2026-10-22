@@ -181,107 +181,6 @@ export function IOPreview({
   currentView,
   observationName,
   setIsPrettyViewAvailable,
-  ...props
-}: IOPreviewProps) {
-  const capture = usePostHogClientCapture();
-  const [dismissedNotifications, setDismissedNotifications] = useLocalStorage<
-    string[]
-  >("dismissed-trace-view-notifications", []);
-  const [localView, setLocalView] = useLocalStorage<ViewMode>(
-    JSON_VIEW_PREFERENCE_STORAGE_KEY,
-    DEFAULT_JSON_VIEW_PREFERENCE,
-  );
-  const selectedView = currentView ?? normalizeJsonViewPreference(localView);
-  const [compensateScrollRef, startPreserveScroll] =
-    usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
-  useEffect(() => {
-    setIsPrettyViewAvailable?.(true);
-  }, [setIsPrettyViewAvailable]);
-  const content = (
-    <IOPreviewContent
-      key={selectedView}
-      {...props}
-      selectedView={selectedView}
-    />
-  );
-  const hasInput = props.input !== null && props.input !== undefined;
-  const hasOutput = props.output !== null && props.output !== undefined;
-  const showEmptyState =
-    !hasInput &&
-    !hasOutput &&
-    !observationName &&
-    !props.isLoading &&
-    !props.hideIfNull &&
-    !dismissedNotifications.includes("empty-io");
-  return (
-    <>
-      {currentView === undefined && (
-        <ViewModeToggle
-          selectedView={selectedView}
-          compensateScrollRef={compensateScrollRef}
-          onViewChange={(view) => {
-            startPreserveScroll();
-            capture("trace_detail:io_mode_switch", { view });
-            setLocalView(view);
-          }}
-        />
-      )}
-      <InlineCommentSelectionProvider
-        key={`${selectedView}:${!!props.enableInlineComments}`}
-      >
-        {content}
-      </InlineCommentSelectionProvider>
-      {showEmptyState && (
-        <div className="py-2">
-          <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-1.5 right-1.5 h-5 w-5 p-0"
-              title="Dismiss"
-              onClick={() => {
-                capture("notification:dismiss_notification", {
-                  notification_id: "empty-io",
-                });
-                setDismissedNotifications((previous) =>
-                  previous.includes("empty-io")
-                    ? previous
-                    : [...previous, "empty-io"],
-                );
-              }}
-            >
-              <X size="base" color="default" />
-            </Button>
-            <div className="flex w-full flex-row items-center gap-2 pr-6">
-              <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen size="base" color="muted" />
-              </div>
-              <h3 className="text-base font-bold">
-                Looks like this trace didn&apos;t receive an input or output.
-              </h3>
-            </div>
-            <p className="text-muted-foreground max-w-sm text-base">
-              Add it in your code to make debugging a lot easier.
-            </p>
-            <ActionButton
-              variant="outline"
-              size="sm"
-              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
-              trackingEventName="notification:click_link"
-              trackingProps={{ notification_id: "empty-io" }}
-            >
-              View Documentation
-            </ActionButton>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// The keyed content resets mode-local state and keeps the selection consumer
-// below its provider. Only the active mode's parsing and renderer run.
-function IOPreviewContent({
   skills,
   input,
   output,
@@ -316,7 +215,6 @@ function IOPreviewContent({
   onAddInlineComment,
   commentedPathsByField,
   onVirtualizationChange,
-  selectedView,
   hideMetadata = true,
   observationId,
   observationType,
@@ -326,7 +224,30 @@ function IOPreviewContent({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
-}: IOPreviewContentProps & { selectedView: ViewMode }) {
+}: IOPreviewProps) {
+  const capture = usePostHogClientCapture();
+  const [dismissedNotifications, setDismissedNotifications] = useLocalStorage<
+    string[]
+  >("dismissed-trace-view-notifications", []);
+  const [localView, setLocalView] = useLocalStorage<ViewMode>(
+    JSON_VIEW_PREFERENCE_STORAGE_KEY,
+    DEFAULT_JSON_VIEW_PREFERENCE,
+  );
+  const selectedView = currentView ?? normalizeJsonViewPreference(localView);
+  const [compensateScrollRef, startPreserveScroll] =
+    usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
+  useEffect(() => {
+    setIsPrettyViewAvailable?.(true);
+  }, [setIsPrettyViewAvailable]);
+  const hasInput = input !== null && input !== undefined;
+  const hasOutput = output !== null && output !== undefined;
+  const showEmptyState =
+    !hasInput &&
+    !hasOutput &&
+    !observationName &&
+    !isLoading &&
+    !hideIfNull &&
+    !dismissedNotifications.includes("empty-io");
   const isPretty = selectedView === "pretty";
   const isJson = selectedView === "json";
   const isAdvanced = selectedView === "json-beta";
@@ -419,482 +340,564 @@ function IOPreviewContent({
   const statusValue = parsedStatusMessage ?? status?.message;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
-  const selectionContext = useInlineCommentSelectionOptional();
-  const inlineCommentPositionRect = selectionContext?.selection?.anchorRect
-    ? (selectionContext.selection.startRect ??
-      selectionContext.selection.anchorRect)
-    : null;
   useEffect(() => {
     if (isAdvanced) onVirtualizationChange?.(false);
   }, [isAdvanced, onVirtualizationChange]);
 
   return (
-    <CorrectionController
-      projectId={projectId}
-      traceId={traceId}
-      observationId={observationId}
-      environment={environment}
-      outputCorrection={outputCorrection}
-      actualOutput={effectiveOutput}
-      actualOutputTooLarge={outputTooLarge}
-      showCorrections={showCorrections}
-      hasOutputHeader={hasOutputHeader}
-      isAdvanced={isAdvanced}
-      isParsing={isParsing}
-    >
-      {({ outputActions, field, diffDialog }) => {
-        const correctedOutputField = (() => {
-          if (!field) return null;
-          if (field.kind === "trigger")
-            return (
-              <div className="py-2">
-                <button
-                  type="button"
-                  onClick={field.onClick}
-                  className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
-                >
-                  <Pencil size="sm" aria-hidden />
-                  Correct output
-                </button>
-              </div>
-            );
-          return (
-            <IOPreviewSection
-              kind="correction"
-              presentation={isAdvanced ? "inline" : "section"}
-              title="Corrected output"
-              info={{
-                label: "About corrected outputs",
-                text: "Corrected outputs allow you to save the expected output for a trace or observation.",
-                docsHref:
-                  "https://langfuse.com/docs/observability/features/corrections",
-              }}
-              {...field.sectionProps}
-            />
-          );
-        })();
-        return (
-          <>
-            {diffDialog && <CorrectedOutputDiffDialog {...diffDialog} />}
-            {isAdvanced && (
-              <JsonSectionsController
-                fields={fields}
-                status={status}
-                statusValue={statusValue}
-                renderCorrection={
-                  correctedOutputField ? () => correctedOutputField : undefined
-                }
-                renderOversizedHeader={(field) => (
-                  <div className="flex items-center px-2 py-1.5">
-                    <span className="text-xs font-bold">{field.title}</span>
+    <>
+      {currentView === undefined && (
+        <ViewModeToggle
+          selectedView={selectedView}
+          compensateScrollRef={compensateScrollRef}
+          onViewChange={(view) => {
+            startPreserveScroll();
+            capture("trace_detail:io_mode_switch", { view });
+            setLocalView(view);
+          }}
+        />
+      )}
+      <InlineCommentSelectionProvider
+        key={`${selectedView}:${enableInlineComments}`}
+      >
+        <CorrectionController
+          projectId={projectId}
+          traceId={traceId}
+          observationId={observationId}
+          environment={environment}
+          outputCorrection={outputCorrection}
+          actualOutput={effectiveOutput}
+          actualOutputTooLarge={outputTooLarge}
+          showCorrections={showCorrections}
+          hasOutputHeader={hasOutputHeader}
+          isAdvanced={isAdvanced}
+          isParsing={isParsing}
+        >
+          {({ outputActions, field, diffDialog }) => {
+            const correctedOutputField = (() => {
+              if (!field) return null;
+              if (field.kind === "trigger")
+                return (
+                  <div className="py-2">
+                    <button
+                      type="button"
+                      onClick={field.onClick}
+                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
+                    >
+                      <Pencil size="sm" aria-hidden />
+                      Correct output
+                    </button>
                   </div>
-                )}
-                renderOversizedFooter={(field, probe) =>
-                  probe.isString ? (
-                    <LargeJsonFieldFallback
-                      title={field.title}
-                      hideTitle
-                      serialized={probe.serialized}
-                      isString
-                      charCount={probe.size}
-                      rowCount={field.rows}
-                      downloadFileBase={`${field.key}-${downloadName}`}
-                    />
-                  ) : (
-                    <div className="io-message-content flex flex-col gap-1">
-                      <div
-                        style={{ height: 400 }}
-                        className="overflow-hidden rounded-md border"
-                      >
-                        <LazyJsonViewer serialized={probe.serialized} />
+                );
+              return (
+                <IOPreviewSection
+                  kind="correction"
+                  presentation={isAdvanced ? "inline" : "section"}
+                  title="Corrected output"
+                  info={{
+                    label: "About corrected outputs",
+                    text: "Corrected outputs allow you to save the expected output for a trace or observation.",
+                    docsHref:
+                      "https://langfuse.com/docs/observability/features/corrections",
+                  }}
+                  {...field.sectionProps}
+                />
+              );
+            })();
+            return (
+              <>
+                {diffDialog && <CorrectedOutputDiffDialog {...diffDialog} />}
+                {isAdvanced && (
+                  <JsonSectionsController
+                    fields={fields}
+                    status={status}
+                    statusValue={statusValue}
+                    renderCorrection={
+                      correctedOutputField
+                        ? () => correctedOutputField
+                        : undefined
+                    }
+                    renderOversizedHeader={(field) => (
+                      <div className="flex items-center px-2 py-1.5">
+                        <span className="text-xs font-bold">{field.title}</span>
                       </div>
-                      <LargeJsonFieldFallback
-                        title={field.title}
-                        hideTitle
-                        serialized={probe.serialized}
-                        isString={false}
-                        charCount={probe.size}
-                        rowCount={field.rows}
-                        downloadFileBase={`${field.key}-${downloadName}`}
-                        downloadOnly
-                      />
-                    </div>
-                  )
-                }
-              >
-                {({ sections }) => (
-                  <JsonSearchController>
-                    {({
-                      search,
-                      stringWrapMode,
-                      cycleWrapMode,
-                      viewerProps,
-                    }) => {
-                      const viewerContent = !isParsing ? (
-                        <MultiSectionJsonViewer
-                          ref={viewerRef}
-                          sections={sections}
-                          virtualized={false}
-                          showLineNumbers
-                          enableCopy
-                          {...viewerProps}
-                          scrollContainerRef={
-                            scrollContainerRef as React.RefObject<HTMLDivElement>
-                          }
-                          media={media}
-                          commentedPathsByField={commentedPathsByField}
-                          externalExpansionState={advancedJsonExpansionState}
-                          onExpansionChange={onAdvancedJsonExpansionChange}
-                          theme={{
-                            fontSize: "0.7rem",
-                            lineHeight: 14,
-                            indentSize: 12,
-                          }}
+                    )}
+                    renderOversizedFooter={(field, probe) =>
+                      probe.isString ? (
+                        <LargeJsonFieldFallback
+                          title={field.title}
+                          hideTitle
+                          serialized={probe.serialized}
+                          isString
+                          charCount={probe.size}
+                          rowCount={field.rows}
+                          downloadFileBase={`${field.key}-${downloadName}`}
                         />
-                      ) : null;
-
-                      return isParsing ? (
-                        <div className="flex min-h-0 flex-1 flex-col border-t border-b">
-                          <div className="flex h-full items-center justify-center">
-                            <div className="text-muted-foreground text-base">
-                              Parsing data...
-                            </div>
-                          </div>
-                        </div>
                       ) : (
-                        <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
-                          {enableInlineComments &&
-                            inlineCommentPositionRect && (
-                              <InlineCommentBubble
-                                positionRect={inlineCommentPositionRect}
-                                onAddComment={() => {
-                                  if (selectionContext?.selection)
-                                    onAddInlineComment?.(
-                                      selectionContext.selection,
-                                    );
-                                }}
-                              />
-                            )}
-                          <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
-                            <Command className="flex-1 rounded-none border-0 bg-transparent">
-                              <CommandInput
-                                showBorder={false}
-                                placeholder="Search across all sections..."
-                                className="h-7 border-0 focus:ring-0"
-                                value={search.query}
-                                onValueChange={search.setQuery}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.preventDefault();
-                                    if (event.shiftKey) search.previousMatch();
-                                    else search.nextMatch();
-                                  } else if (event.key === "Escape")
-                                    search.clear();
-                                }}
-                              />
-                            </Command>
-                            {search.query && (
-                              <span className="text-muted-foreground text-xs whitespace-nowrap">
-                                {search.matchCount > 0
-                                  ? `${search.currentMatchIndex + 1} of ${search.matchCount}`
-                                  : "No matches"}
-                              </span>
-                            )}
-                            {search.query && search.matchCount > 0 && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={search.previousMatch}
-                                  title="Previous match (Shift+Enter)"
-                                >
-                                  <ChevronUp size="base" color="default" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={search.nextMatch}
-                                  title="Next match (Enter)"
-                                >
-                                  <ChevronDown size="base" color="default" />
-                                </Button>
-                              </>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title={`String wrap mode: ${stringWrapMode}`}
-                              onClick={cycleWrapMode}
-                            >
-                              {stringWrapMode === "truncate" && (
-                                <Minus size="base" />
-                              )}
-                              {stringWrapMode === "wrap" && (
-                                <WrapText size="base" />
-                              )}
-                              {stringWrapMode === "nowrap" && (
-                                <ChevronDown
-                                  size="base"
-                                  __rawClassName="-rotate-90"
-                                />
-                              )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title="Copy to clipboard"
-                              onClick={() => {
-                                const data: Record<string, unknown> = {};
-                                for (const field of fields) {
-                                  if (field.show)
-                                    data[field.key] = field.tooLarge
-                                      ? "<omitted: too large to render — use the field download>"
-                                      : field.value;
-                                }
-                                navigator.clipboard.writeText(
-                                  JSON.stringify(data, null, 2),
-                                );
-                              }}
-                            >
-                              <Copy size="base" color="default" />
-                            </Button>
+                        <div className="io-message-content flex flex-col gap-1">
+                          <div
+                            style={{ height: 400 }}
+                            className="overflow-hidden rounded-md border"
+                          >
+                            <LazyJsonViewer serialized={probe.serialized} />
                           </div>
-                          <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
-                            <span className="text-muted-foreground text-xs">
-                              Jump to:
-                            </span>
-                            {sections.map((section, index) => (
-                              <span
-                                key={section.key}
-                                className="flex items-center"
-                              >
-                                <button
-                                  onClick={() =>
-                                    viewerRef.current?.scrollToSection(
-                                      section.key,
+                          <LargeJsonFieldFallback
+                            title={field.title}
+                            hideTitle
+                            serialized={probe.serialized}
+                            isString={false}
+                            charCount={probe.size}
+                            rowCount={field.rows}
+                            downloadFileBase={`${field.key}-${downloadName}`}
+                            downloadOnly
+                          />
+                        </div>
+                      )
+                    }
+                  >
+                    {({ sections }) => (
+                      <JsonSearchController>
+                        {({
+                          search,
+                          stringWrapMode,
+                          cycleWrapMode,
+                          viewerProps,
+                        }) => {
+                          const viewerContent = !isParsing ? (
+                            <MultiSectionJsonViewer
+                              ref={viewerRef}
+                              sections={sections}
+                              virtualized={false}
+                              showLineNumbers
+                              enableCopy
+                              {...viewerProps}
+                              scrollContainerRef={
+                                scrollContainerRef as React.RefObject<HTMLDivElement>
+                              }
+                              media={media}
+                              commentedPathsByField={commentedPathsByField}
+                              externalExpansionState={
+                                advancedJsonExpansionState
+                              }
+                              onExpansionChange={onAdvancedJsonExpansionChange}
+                              theme={{
+                                fontSize: "0.7rem",
+                                lineHeight: 14,
+                                indentSize: 12,
+                              }}
+                            />
+                          ) : null;
+
+                          return isParsing ? (
+                            <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+                              <div className="flex h-full items-center justify-center">
+                                <div className="text-muted-foreground text-base">
+                                  Parsing data...
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
+                              {enableInlineComments && (
+                                <InlineCommentSelectionConsumer>
+                                  {(selection) =>
+                                    selection?.anchorRect && (
+                                      <InlineCommentBubble
+                                        positionRect={
+                                          selection.startRect ??
+                                          selection.anchorRect
+                                        }
+                                        onAddComment={() =>
+                                          onAddInlineComment?.(selection)
+                                        }
+                                      />
                                     )
                                   }
-                                  className="text-primary cursor-pointer text-xs hover:underline"
-                                >
-                                  {section.title}
-                                </button>
-                                {index < sections.length - 1 && (
-                                  <span className="text-muted-foreground text-xs">
-                                    ,&nbsp;
+                                </InlineCommentSelectionConsumer>
+                              )}
+                              <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+                                <Command className="flex-1 rounded-none border-0 bg-transparent">
+                                  <CommandInput
+                                    showBorder={false}
+                                    placeholder="Search across all sections..."
+                                    className="h-7 border-0 focus:ring-0"
+                                    value={search.query}
+                                    onValueChange={search.setQuery}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        if (event.shiftKey)
+                                          search.previousMatch();
+                                        else search.nextMatch();
+                                      } else if (event.key === "Escape")
+                                        search.clear();
+                                    }}
+                                  />
+                                </Command>
+                                {search.query && (
+                                  <span className="text-muted-foreground text-xs whitespace-nowrap">
+                                    {search.matchCount > 0
+                                      ? `${search.currentMatchIndex + 1} of ${search.matchCount}`
+                                      : "No matches"}
                                   </span>
                                 )}
-                              </span>
+                                {search.query && search.matchCount > 0 && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={search.previousMatch}
+                                      title="Previous match (Shift+Enter)"
+                                    >
+                                      <ChevronUp size="base" color="default" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={search.nextMatch}
+                                      title="Next match (Enter)"
+                                    >
+                                      <ChevronDown
+                                        size="base"
+                                        color="default"
+                                      />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title={`String wrap mode: ${stringWrapMode}`}
+                                  onClick={cycleWrapMode}
+                                >
+                                  {stringWrapMode === "truncate" && (
+                                    <Minus size="base" />
+                                  )}
+                                  {stringWrapMode === "wrap" && (
+                                    <WrapText size="base" />
+                                  )}
+                                  {stringWrapMode === "nowrap" && (
+                                    <ChevronDown
+                                      size="base"
+                                      __rawClassName="-rotate-90"
+                                    />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title="Copy to clipboard"
+                                  onClick={() => {
+                                    const data: Record<string, unknown> = {};
+                                    for (const field of fields) {
+                                      if (field.show)
+                                        data[field.key] = field.tooLarge
+                                          ? "<omitted: too large to render — use the field download>"
+                                          : field.value;
+                                    }
+                                    navigator.clipboard.writeText(
+                                      JSON.stringify(data, null, 2),
+                                    );
+                                  }}
+                                >
+                                  <Copy size="base" color="default" />
+                                </Button>
+                              </div>
+                              <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
+                                <span className="text-muted-foreground text-xs">
+                                  Jump to:
+                                </span>
+                                {sections.map((section, index) => (
+                                  <span
+                                    key={section.key}
+                                    className="flex items-center"
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        viewerRef.current?.scrollToSection(
+                                          section.key,
+                                        )
+                                      }
+                                      className="text-primary cursor-pointer text-xs hover:underline"
+                                    >
+                                      {section.title}
+                                    </button>
+                                    {index < sections.length - 1 && (
+                                      <span className="text-muted-foreground text-xs">
+                                        ,&nbsp;
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
+                              <div
+                                className="min-h-0 flex-1 overflow-auto"
+                                ref={scrollContainerRef}
+                              >
+                                {enableInlineComments ? (
+                                  <CommentableJsonView enabled>
+                                    {viewerContent}
+                                  </CommentableJsonView>
+                                ) : (
+                                  viewerContent
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }}
+                      </JsonSearchController>
+                    )}
+                  </JsonSectionsController>
+                )}
+                {!isAdvanced && (
+                  <ConversationController
+                    parserResult={parserResult}
+                    parsedInput={parsedInput}
+                    parsedOutput={parsedOutput}
+                    isPretty={isPretty}
+                    showData={showData}
+                    contentMode={contentMode}
+                    showSystemPrompt={showSystemPrompt}
+                    observationType={observationType}
+                    media={media}
+                    outputActions={outputActions}
+                  >
+                    {({
+                      tools,
+                      messages,
+                      history,
+                      additionalInput,
+                      media: conversationMedia,
+                      shouldRenderMarkdown,
+                    }) => (
+                      <div className="space-y-2 pt-3">
+                        {showData &&
+                          status &&
+                          statusPresentation &&
+                          (parsedStatusMessage !== undefined ? (
+                            <IOPreviewSection
+                              kind="json"
+                              title={statusPresentation.title}
+                              jsonProps={{
+                                json: status.message,
+                                parsedJson: parsedStatusMessage,
+                                currentView: isJson ? "json" : "pretty",
+                              }}
+                              tone={statusPresentation.tone}
+                            />
+                          ) : (
+                            <IOPreviewSection
+                              kind="status"
+                              title={statusPresentation.title}
+                              tone={statusPresentation.tone}
+                              text={status.message}
+                            />
+                          ))}
+
+                        {tools && <IOPreviewSection {...tools} />}
+
+                        {isPretty &&
+                        showData &&
+                        skills &&
+                        skills.items.length > 0 ? (
+                          <IOPreviewSection
+                            kind="skills"
+                            title="Skills"
+                            skills={skills}
+                            projectId={projectId}
+                          />
+                        ) : null}
+
+                        {shouldRenderMessages ? (
+                          <div>
+                            <div className="flex max-h-full min-h-0 flex-col gap-2">
+                              <div className="flex max-h-full min-h-0 flex-col gap-2">
+                                <div className="flex flex-col gap-2">
+                                  {messages.map(
+                                    ({ originalIndex, props }, index) => (
+                                      <Fragment key={originalIndex}>
+                                        <IOPreviewSection {...props} />
+                                        {history.show && index === 0 && (
+                                          <button
+                                            type="button"
+                                            className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                                            aria-expanded={history.isOpen}
+                                            aria-label={history.label}
+                                            onClick={history.toggle}
+                                          >
+                                            {history.isOpen ? (
+                                              <ChevronDown
+                                                size="base"
+                                                color="default"
+                                                aria-hidden
+                                              />
+                                            ) : (
+                                              <ChevronRight
+                                                size="base"
+                                                color="default"
+                                                aria-hidden
+                                              />
+                                            )}
+                                            {history.label}
+                                          </button>
+                                        )}
+                                      </Fragment>
+                                    ),
+                                  )}
+                                </div>
+                                {additionalInput && (
+                                  <IOPreviewSection
+                                    kind="json"
+                                    title="Additional Input"
+                                    jsonProps={{
+                                      json: additionalInput,
+                                      currentView: shouldRenderMarkdown
+                                        ? "pretty"
+                                        : "json",
+                                    }}
+                                  />
+                                )}
+                                {conversationMedia.length > 0 && (
+                                  <IOPreviewSection
+                                    kind="media"
+                                    title="Media"
+                                    media={conversationMedia}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : showData ? (
+                          <div className="space-y-2">
+                            {fields.map((field) => (
+                              <Fragment key={field.key}>
+                                {field.show &&
+                                  (isJson && field.tooLarge && field.probe ? (
+                                    <IOPreviewSection
+                                      kind="large-json"
+                                      title={field.title}
+                                      actions={
+                                        field.key === "output"
+                                          ? outputActions
+                                          : undefined
+                                      }
+                                      fallback={{
+                                        serialized: field.probe.serialized,
+                                        isString: field.probe.isString,
+                                        charCount: field.probe.size,
+                                        downloadFileBase: `${field.key}-${downloadName}`,
+                                      }}
+                                    />
+                                  ) : (
+                                    <IOPreviewSection
+                                      kind="json"
+                                      title={field.title}
+                                      actions={
+                                        field.key === "output"
+                                          ? outputActions
+                                          : undefined
+                                      }
+                                      jsonProps={{
+                                        json: isJson ? field.raw : field.value,
+                                        parsedJson: isJson
+                                          ? field.value
+                                          : undefined,
+                                        isLoading,
+                                        isParsing,
+                                        media:
+                                          media?.filter(
+                                            (item) => item.field === field.key,
+                                          ) ?? [],
+                                        currentView: isJson ? "json" : "pretty",
+                                        externalExpansionState: field.expansion,
+                                        onExternalExpansionChange: (
+                                          expansion,
+                                        ) => {
+                                          if (isJson) {
+                                            if (typeof expansion === "boolean")
+                                              field.onJsonExpansion?.(
+                                                expansion,
+                                              );
+                                          } else field.onExpansion?.(expansion);
+                                        },
+                                      }}
+                                    />
+                                  ))}
+                                {field.key === "output" && correctedOutputField}
+                              </Fragment>
                             ))}
                           </div>
-                          <div
-                            className="min-h-0 flex-1 overflow-auto"
-                            ref={scrollContainerRef}
-                          >
-                            {enableInlineComments ? (
-                              <CommentableJsonView enabled>
-                                {viewerContent}
-                              </CommentableJsonView>
-                            ) : (
-                              viewerContent
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }}
-                  </JsonSearchController>
-                )}
-              </JsonSectionsController>
-            )}
-            {!isAdvanced && (
-              <ConversationController
-                parserResult={parserResult}
-                parsedInput={parsedInput}
-                parsedOutput={parsedOutput}
-                isPretty={isPretty}
-                showData={showData}
-                contentMode={contentMode}
-                showSystemPrompt={showSystemPrompt}
-                observationType={observationType}
-                media={media}
-                outputActions={outputActions}
-              >
-                {({
-                  tools,
-                  messages,
-                  history,
-                  additionalInput,
-                  media: conversationMedia,
-                  shouldRenderMarkdown,
-                }) => (
-                  <div className="space-y-2 pt-3">
-                    {showData &&
-                      status &&
-                      statusPresentation &&
-                      (parsedStatusMessage !== undefined ? (
-                        <IOPreviewSection
-                          kind="json"
-                          title={statusPresentation.title}
-                          jsonProps={{
-                            json: status.message,
-                            parsedJson: parsedStatusMessage,
-                            currentView: isJson ? "json" : "pretty",
-                          }}
-                          tone={statusPresentation.tone}
-                        />
-                      ) : (
-                        <IOPreviewSection
-                          kind="status"
-                          title={statusPresentation.title}
-                          tone={statusPresentation.tone}
-                          text={status.message}
-                        />
-                      ))}
-
-                    {tools && <IOPreviewSection {...tools} />}
-
-                    {isPretty &&
-                    showData &&
-                    skills &&
-                    skills.items.length > 0 ? (
-                      <IOPreviewSection
-                        kind="skills"
-                        title="Skills"
-                        skills={skills}
-                        projectId={projectId}
-                      />
-                    ) : null}
-
-                    {shouldRenderMessages ? (
-                      <div>
-                        <div className="flex max-h-full min-h-0 flex-col gap-2">
-                          <div className="flex max-h-full min-h-0 flex-col gap-2">
-                            <div className="flex flex-col gap-2">
-                              {messages.map(
-                                ({ originalIndex, props }, index) => (
-                                  <Fragment key={originalIndex}>
-                                    <IOPreviewSection {...props} />
-                                    {history.show && index === 0 && (
-                                      <button
-                                        type="button"
-                                        className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
-                                        aria-expanded={history.isOpen}
-                                        aria-label={history.label}
-                                        onClick={history.toggle}
-                                      >
-                                        {history.isOpen ? (
-                                          <ChevronDown
-                                            size="base"
-                                            color="default"
-                                            aria-hidden
-                                          />
-                                        ) : (
-                                          <ChevronRight
-                                            size="base"
-                                            color="default"
-                                            aria-hidden
-                                          />
-                                        )}
-                                        {history.label}
-                                      </button>
-                                    )}
-                                  </Fragment>
-                                ),
-                              )}
-                            </div>
-                            {additionalInput && (
-                              <IOPreviewSection
-                                kind="json"
-                                title="Additional Input"
-                                jsonProps={{
-                                  json: additionalInput,
-                                  currentView: shouldRenderMarkdown
-                                    ? "pretty"
-                                    : "json",
-                                }}
-                              />
-                            )}
-                            {conversationMedia.length > 0 && (
-                              <IOPreviewSection
-                                kind="media"
-                                title="Media"
-                                media={conversationMedia}
-                              />
-                            )}
-                          </div>
-                        </div>
+                        ) : null}
+                        {(shouldRenderMessages || !showData) &&
+                          correctedOutputField}
                       </div>
-                    ) : showData ? (
-                      <div className="space-y-2">
-                        {fields.map((field) => (
-                          <Fragment key={field.key}>
-                            {field.show &&
-                              (isJson && field.tooLarge && field.probe ? (
-                                <IOPreviewSection
-                                  kind="large-json"
-                                  title={field.title}
-                                  actions={
-                                    field.key === "output"
-                                      ? outputActions
-                                      : undefined
-                                  }
-                                  fallback={{
-                                    serialized: field.probe.serialized,
-                                    isString: field.probe.isString,
-                                    charCount: field.probe.size,
-                                    downloadFileBase: `${field.key}-${downloadName}`,
-                                  }}
-                                />
-                              ) : (
-                                <IOPreviewSection
-                                  kind="json"
-                                  title={field.title}
-                                  actions={
-                                    field.key === "output"
-                                      ? outputActions
-                                      : undefined
-                                  }
-                                  jsonProps={{
-                                    json: isJson ? field.raw : field.value,
-                                    parsedJson: isJson
-                                      ? field.value
-                                      : undefined,
-                                    isLoading,
-                                    isParsing,
-                                    media:
-                                      media?.filter(
-                                        (item) => item.field === field.key,
-                                      ) ?? [],
-                                    currentView: isJson ? "json" : "pretty",
-                                    externalExpansionState: field.expansion,
-                                    onExternalExpansionChange: (expansion) => {
-                                      if (isJson) {
-                                        if (typeof expansion === "boolean")
-                                          field.onJsonExpansion?.(expansion);
-                                      } else field.onExpansion?.(expansion);
-                                    },
-                                  }}
-                                />
-                              ))}
-                            {field.key === "output" && correctedOutputField}
-                          </Fragment>
-                        ))}
-                      </div>
-                    ) : null}
-                    {(shouldRenderMessages || !showData) &&
-                      correctedOutputField}
-                  </div>
+                    )}
+                  </ConversationController>
                 )}
-              </ConversationController>
-            )}
-          </>
-        );
-      }}
-    </CorrectionController>
+              </>
+            );
+          }}
+        </CorrectionController>
+      </InlineCommentSelectionProvider>
+      {showEmptyState && (
+        <div className="py-2">
+          <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-1.5 right-1.5 h-5 w-5 p-0"
+              title="Dismiss"
+              onClick={() => {
+                capture("notification:dismiss_notification", {
+                  notification_id: "empty-io",
+                });
+                setDismissedNotifications((previous) =>
+                  previous.includes("empty-io")
+                    ? previous
+                    : [...previous, "empty-io"],
+                );
+              }}
+            >
+              <X size="base" color="default" />
+            </Button>
+            <div className="flex w-full flex-row items-center gap-2 pr-6">
+              <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
+                <BookOpen size="base" color="muted" />
+              </div>
+              <h3 className="text-base font-bold">
+                Looks like this trace didn&apos;t receive an input or output.
+              </h3>
+            </div>
+            <p className="text-muted-foreground max-w-sm text-base">
+              Add it in your code to make debugging a lot easier.
+            </p>
+            <ActionButton
+              variant="outline"
+              size="sm"
+              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+              trackingEventName="notification:click_link"
+              trackingProps={{ notification_id: "empty-io" }}
+            >
+              View Documentation
+            </ActionButton>
+          </div>
+        </div>
+      )}
+    </>
   );
+}
+
+function InlineCommentSelectionConsumer({
+  children,
+}: {
+  children: (selection: SelectionData | null) => React.ReactNode;
+}) {
+  const selectionContext = useInlineCommentSelectionOptional();
+  return children(selectionContext?.selection ?? null);
 }
 
 type JsonSectionField = Pick<
