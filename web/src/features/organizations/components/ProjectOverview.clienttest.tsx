@@ -1,0 +1,116 @@
+import { render, screen } from "@testing-library/react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/router";
+
+import { OrganizationProjectOverview } from "@/src/features/organizations/components/ProjectOverview";
+import { createProjectRoute } from "@/src/features/setup";
+
+vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+vi.mock("next/router", () => ({ useRouter: vi.fn() }));
+vi.mock("use-query-params", () => ({
+  StringParam: {},
+  useQueryParams: () => [{ search: undefined }, vi.fn()],
+}));
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+vi.mock("@/src/components/layouts/header", () => ({
+  default: ({ title }: { title: string }) => <h2>{title}</h2>,
+}));
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+vi.mock("@/src/features/developer-tools", () => ({
+  AgentToolsBanner: () => null,
+}));
+vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+  useV4UpgradeUiEnabled: () => false,
+}));
+vi.mock("@/src/features/v4-migration/V4MigrationBanner", () => ({
+  V4MigrationBanner: () => null,
+  useV4MigrationBannerState: () => ({
+    projectsNeedingMigration: 0,
+    totalProjects: 0,
+  }),
+}));
+vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
+  useAccountV4MigrationData: () => new Map(),
+}));
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    organizations: {
+      lastTraceByProject: { useQuery: () => ({ isSuccess: false }) },
+    },
+  },
+}));
+
+describe("OrganizationProjectOverview", () => {
+  beforeEach(() => {
+    vi.mocked(useRouter).mockReturnValue({
+      query: {},
+      replace: vi.fn(),
+    } as unknown as ReturnType<typeof useRouter>);
+    vi.mocked(useSession).mockReturnValue({
+      status: "authenticated",
+      update: vi.fn(),
+      data: {
+        expires: "",
+        user: {
+          id: "user-1",
+          admin: false,
+          organizations: [
+            {
+              id: "gateway-org",
+              name: "Gateway Org",
+              role: "AI_GATEWAY",
+              plan: "oss",
+              projects: [],
+            },
+            {
+              id: "owner-org",
+              name: "Owner Org",
+              role: "OWNER",
+              plan: "oss",
+              projects: [],
+            },
+            {
+              id: "project-org",
+              name: "Project Org",
+              role: "MEMBER",
+              plan: "oss",
+              projects: [
+                { id: "project-1", name: "Project 1", role: "MEMBER" },
+              ],
+            },
+          ],
+        },
+      },
+    } as unknown as ReturnType<typeof useSession>);
+  });
+
+  it("points orgs without visible projects to their settings", () => {
+    render(<OrganizationProjectOverview />);
+
+    expect(
+      screen
+        .getAllByRole("link", { name: "Organization settings" })
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/organization/gateway-org/settings",
+      "/organization/owner-org/settings",
+    ]);
+    expect(screen.getByText("Project 1")).toBeInTheDocument();
+  });
+
+  it("offers project creation only to members who can create projects", () => {
+    render(<OrganizationProjectOverview />);
+
+    expect(
+      screen
+        .getAllByRole("link", { name: "New project" })
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([createProjectRoute("owner-org")]);
+  });
+});

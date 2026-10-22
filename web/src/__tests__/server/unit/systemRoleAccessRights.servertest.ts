@@ -119,6 +119,15 @@ describe("systemRoleAccessRights", () => {
   });
 
   it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
+    "grants %s organization:settings:read",
+    (role) => {
+      expect(organizationRoleAccessRights[role]).toContain(
+        "organization:settings:read",
+      );
+    },
+  );
+
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
     "derives %s policies from the org and project access-right tables",
     (role) => {
       expect(systemRoleAccessRights[role].policies).toEqual([

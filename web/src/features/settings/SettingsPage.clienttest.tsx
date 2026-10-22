@@ -1,9 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import { buildSettingsPages } from "@/src/features/settings/SettingsPage";
+import { useQueryOrganization } from "@/src/features/organizations";
+import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import {
+  buildSettingsPages,
+  SettingsPage,
+} from "@/src/features/settings/SettingsPage";
 
 const router = vi.hoisted(() => ({
   asPath: "/account/settings",
+  query: {},
   push: vi.fn(),
 }));
 
@@ -14,8 +20,27 @@ vi.mock("@/src/features/account", () => ({
 }));
 
 vi.mock("@/src/features/organizations/OrganizationSettingsPage", () => ({
-  useOrganizationSettingsPages: () => [],
+  useOrganizationSettingsPages: vi.fn(() => []),
 }));
+
+vi.mock("@/src/features/organizations", () => ({
+  useQueryOrganization: vi.fn(),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: { user: { organizations: [] } } }),
+}));
+
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+vi.mock(
+  "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu",
+  () => ({ OrganizationDropdownMenu: () => <span>Select organization</span> }),
+);
 
 const accountPages = [
   { title: "General", slug: "index", content: "account general" },
@@ -164,5 +189,55 @@ describe("buildSettingsPages", () => {
     expect(router.push).toHaveBeenCalledWith(
       "/organization/org-1/settings/billing",
     );
+  });
+});
+
+describe("SettingsPage", () => {
+  const gatewayOnlyPages = [
+    {
+      title: "General",
+      slug: "index",
+      section: "Organization",
+      content: "org general",
+      show: false,
+    },
+    {
+      title: "Gateway keys",
+      slug: "ai-gateway-api-keys",
+      section: "AI Gateway",
+      content: "gateway keys",
+    },
+  ];
+
+  it("hides the org section header when the selected org shows none of its pages", () => {
+    vi.mocked(useQueryOrganization).mockReturnValue({
+      id: "org-1",
+    } as ReturnType<typeof useQueryOrganization>);
+    vi.mocked(useOrganizationSettingsPages).mockReturnValue(gatewayOnlyPages);
+
+    render(<SettingsPage scope="organization" />);
+
+    expect(screen.queryByText("Org Settings")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Gateway keys").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the org section header when the selected org shows one of its pages", () => {
+    vi.mocked(useQueryOrganization).mockReturnValue({
+      id: "org-1",
+    } as ReturnType<typeof useQueryOrganization>);
+    vi.mocked(useOrganizationSettingsPages).mockReturnValue(organizationPages);
+
+    render(<SettingsPage scope="organization" />);
+
+    expect(screen.getAllByText("Org Settings").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the org picker header when no org is selected", () => {
+    vi.mocked(useQueryOrganization).mockReturnValue(null);
+    vi.mocked(useOrganizationSettingsPages).mockReturnValue([]);
+
+    render(<SettingsPage scope="account" />);
+
+    expect(screen.getAllByText("Org Settings").length).toBeGreaterThan(0);
   });
 });
