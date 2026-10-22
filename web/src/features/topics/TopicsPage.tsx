@@ -569,7 +569,7 @@ function TopicsWorkspaceContent({
             <div
               className={cn(
                 "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                showOnboarding && "p-2",
+                (showOnboarding || resultsView === "map") && "p-2",
               )}
             >
               {isTimeRangeCapped && (
@@ -721,6 +721,7 @@ function TopicsWorkspaceContent({
                       result={results}
                       selectedFacetId={selectedFacetId}
                       view={resultsView}
+                      traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
                       canGenerateTopics={canWrite && !running && configured}
