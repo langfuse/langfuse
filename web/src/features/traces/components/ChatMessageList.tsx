@@ -149,7 +149,15 @@ export function ChatMessageList({
               <ChatMessage
                 key={originalIndex}
                 message={message}
-                title={titleBySide ? sideTitle : getMessageTitle(message)}
+                title={
+                  titleBySide &&
+                  !(
+                    !isOutputMessage &&
+                    (message.role === "assistant" || message.role === "system")
+                  )
+                    ? sideTitle
+                    : getMessageTitle(message)
+                }
                 shouldRenderMarkdown={shouldRenderMarkdown}
                 currentView={currentView}
                 toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}

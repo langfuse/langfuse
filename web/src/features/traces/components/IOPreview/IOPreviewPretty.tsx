@@ -31,7 +31,10 @@ import {
   useCorrectOutputAction,
 } from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
-import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
+import {
+  isChatConversation,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -337,11 +340,19 @@ export function IOPreviewPretty({
       onClosed={() => setCorrectionOpen(false)}
     />
   ) : null;
-  // Only generations hold a conversation; tools, spans, agents and the rest
-  // are titled Input / Output rather than by role. (`isGenerationLike` is
-  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
+  // Only generations hold a conversation by default; tools, spans, agents
+  // and the rest are titled Input / Output unless their I/O contains real
+  // chat messages (issue #19198).
+  const isChat = isChatConversation({
+    input: parsedInput,
+    output: parsedOutput,
+    messages: allMessages,
+    inputMessageCount,
+  });
   const titleBySide =
-    observationType !== undefined && observationType !== "GENERATION";
+    observationType !== undefined &&
+    observationType !== "GENERATION" &&
+    !isChat;
 
   return (
     <div className="space-y-2 pt-3">
