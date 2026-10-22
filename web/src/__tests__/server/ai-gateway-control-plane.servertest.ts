@@ -11,6 +11,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...actual,
     testModelCall: vi.fn().mockResolvedValue(undefined),
+    sendGatewayInvitationEmail: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -48,6 +49,10 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+const originalEmailConfig = {
+  smtpConnectionUrl: env.SMTP_CONNECTION_URL,
+  emailFromAddress: env.EMAIL_FROM_ADDRESS,
+};
 const originalGatewayJwtConfig = {
   privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
   publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
@@ -103,6 +108,8 @@ afterEach(async () => {
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
     LANGFUSE_AI_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
     LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
+    SMTP_CONNECTION_URL: originalEmailConfig.smtpConnectionUrl,
+    EMAIL_FROM_ADDRESS: originalEmailConfig.emailFromAddress,
   });
   vi.clearAllMocks();
 });
@@ -246,7 +253,7 @@ describe("AI gateway control plane", () => {
 
       try {
         await expect(
-          caller.aiGateway.getConfig({ orgId: org.id }),
+          caller.aiGateway.getClientSetup({ orgId: org.id }),
         ).resolves.toMatchObject({ gatewayBaseUrl: gatewayUrl });
       } finally {
         (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = originalNextAuthUrl;
@@ -363,7 +370,7 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("redirects gateway managers to Configuration until ingestion is set up", async () => {
+  it("redirects gateway managers to Setup until ingestion is set up", async () => {
     const owner = await prepare();
     const memberSession = {
       ...owner.session,
@@ -382,11 +389,11 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const configurationPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
 
     await expect(
-      redirectFor(owner.session, "ai-gateway-providers"),
-    ).resolves.toBe(configurationPath);
+      redirectFor(owner.session, "ai-gateway-api-keys"),
+    ).resolves.toBe(setupPath);
     await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
     await expect(
       redirectFor(memberSession, "ai-gateway-models"),
@@ -398,8 +405,71 @@ describe("AI gateway control plane", () => {
       ingestionMode: "USAGE",
     });
     await expect(
-      redirectFor(owner.session, "ai-gateway-providers"),
+      redirectFor(owner.session, "ai-gateway-api-keys"),
     ).resolves.toBeNull();
+  });
+
+  it("notifies only members who can use the gateway, and only once", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const memberEmails = await prisma.organizationMembership.findMany({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+
+    const summary = await owner.caller.aiGateway.getTeamInviteSummary({
+      orgId: owner.org.id,
+    });
+    expect(summary).toMatchObject({
+      isEmailConfigured: true,
+      membersNotifiedAt: null,
+      notifiableMemberCount: 1,
+    });
+
+    const inviteeEmail = `gateway-invitee-${randomUUID()}@example.test`;
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [inviteeEmail],
+      notifyMembers: true,
+    });
+    expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
+
+    const sendEmail = vi.mocked(SharedServer.sendGatewayInvitationEmail);
+    expect(sendEmail.mock.calls.map(([params]) => params.to).sort()).toEqual(
+      [inviteeEmail, memberEmails[0]?.user.email].sort(),
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: { kind: "member" },
+        inviterName: "Gateway tester",
+      }),
+    );
+    await expect(
+      prisma.membershipInvitation.findFirst({
+        where: { orgId: owner.org.id, email: inviteeEmail },
+        select: { orgRole: true },
+      }),
+    ).resolves.toEqual({ orgRole: Role.MEMBER });
+
+    sendEmail.mockClear();
+    await expect(
+      owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [],
+        notifyMembers: true,
+      }),
+    ).resolves.toMatchObject({ notifiedCount: 0 });
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
