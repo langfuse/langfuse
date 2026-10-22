@@ -4,7 +4,7 @@
 //
 // CommentCountIcon, MentionBadge, mentionParser, and the IOPreview
 // inline-comment components stay deep: putting them here would load the
-// drawer into SpanContent, MarkdownViewer, and IOPreviewJSON. Pages and
+// drawer into SpanContent, MarkdownViewer, and IOPreview. Pages and
 // commentsRouter stay off this door.
 export {
   CommentDrawerController,

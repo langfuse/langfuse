@@ -66,7 +66,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import type { IOPreviewPretty } from "../IOPreview/IOPreviewPretty";
+import type { IOPreview } from "../IOPreview/IOPreview";
 import {
   useInternalFeaturesEnabled,
   useIsFeatureEnabled,
@@ -616,7 +616,7 @@ function getPreviewSkills({
   observationType,
   skillsAvailable,
   skillsResourceLoaded,
-}: PreviewSkillsInput): React.ComponentProps<typeof IOPreviewPretty>["skills"] {
+}: PreviewSkillsInput): React.ComponentProps<typeof IOPreview>["skills"] {
   if (!skillManagementEnabled) return undefined;
   if (observationType === "GENERATION") {
     return { kind: "available", items: skillsAvailable ?? [] };

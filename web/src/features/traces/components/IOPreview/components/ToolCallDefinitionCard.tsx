@@ -200,7 +200,7 @@ function ToolDefinitionRow({
 /**
  * ToolCallDefinitionCard renders tools as expandable rows numbered from 1.
  * The section header, its collapse and the Called / Not called switch
- * belong to the hosting IOSection in IOPreviewPretty.
+ * belong to the hosting IOSection in IOPreview.
  */
 export function ToolCallDefinitionCard({
   tools,

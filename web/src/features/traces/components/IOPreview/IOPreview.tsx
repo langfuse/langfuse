@@ -1,39 +1,113 @@
 /* eslint-disable no-nested-ternary */
-import { useEffect } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
-  type ScoreDomain,
   type Prisma,
+  type ScoreDomain,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+  deepParseJson,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { IOSection } from "@/src/components/ui/IOSection";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileCode2,
+  FileText,
+  BookOpen,
+  X,
+  ChevronUp,
+  WrapText,
+  Minus,
+  Copy,
+} from "@langfuse/icons";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
-import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
-
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePreserveRelativeScroll } from "../../hooks/usePreserveRelativeScroll";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import {
   DEFAULT_JSON_VIEW_PREFERENCE,
   JSON_VIEW_PREFERENCE_STORAGE_KEY,
   normalizeJsonViewPreference,
 } from "@/src/components/ui/jsonViewPreference";
-import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
-import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
-import { IOPreviewPretty } from "./IOPreviewPretty";
-import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
-import { BookOpen, X } from "@langfuse/icons";
-import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useTheme } from "next-themes";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import {
+  MultiSectionJsonViewer,
+  type MultiSectionJsonViewerHandle,
+} from "../AdvancedJsonViewer/MultiSectionJsonViewer";
+import { countJsonRows } from "../AdvancedJsonViewer/utils/rowCount";
+import { useJsonViewPreferences } from "../AdvancedJsonViewer/hooks/useJsonViewPreferences";
+import { LazyJsonViewer } from "../AdvancedJsonViewer/lazy/react/LazyJsonViewer";
+import { type ExpansionState } from "../AdvancedJsonViewer/types";
+import { type CommentedPathsByField } from "../AdvancedJsonViewer/utils/commentRanges";
+import {
+  InlineCommentSelectionProvider,
+  useInlineCommentSelectionOptional,
+  type SelectionData,
+} from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
+import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
+import {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_NODES,
+} from "@/src/utils/decodeUnicodeInJson";
+import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  JSON_VIEW_RENDER_ROW_LIMIT,
+  probeJsonField,
+} from "./fns/jsonViewSizeGate";
+import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import {
+  hasRenderableChatMessages,
+  useIOPreviewParser,
+} from "../../hooks/useIOPreviewParser";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { ChatMessage } from "./components/ChatMessage";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+} from "@/src/components/ui/markdown-media.utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  ToolCallDefinitionCard,
+  type ToolDefinition,
+} from "./components/ToolCallDefinitionCard";
+import {
+  CorrectedOutputField,
+  useCorrectOutputAction,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import {
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces/fns/chatMessageUtils";
+import { StatusMessageSection } from "./components/StatusMessageSection";
+import {
+  getStatusMessagePresentation,
+  parseStructuredStatusMessage,
+  type ObservationStatusMessage,
+} from "./components/statusMessagePresentation";
 
 export type { ViewMode };
 export type IOPreviewContentMode = "all" | "conversation";
 
-const EMPTY_IO_ALERT_ID = "empty-io";
-const STORAGE_KEY = "dismissed-trace-view-notifications";
-
 export interface ExpansionStateProps {
-  // Per-field expansion state (for formatted and json views)
   inputExpansionState?: Record<string, boolean> | boolean;
   outputExpansionState?: Record<string, boolean> | boolean;
   metadataExpansionState?: Record<string, boolean> | boolean;
@@ -46,13 +120,8 @@ export interface ExpansionStateProps {
   onMetadataExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
-  // Combined expansion state (for advanced-json view only)
-  // Paths are prefixed: "input.foo", "output.bar", "metadata.baz"
-  // Input accepts ExpansionState (boolean shorthand allowed), callback receives Record (what viewer emits)
   advancedJsonExpansionState?: ExpansionState;
   onAdvancedJsonExpansionChange?: (expansion: Record<string, boolean>) => void;
-  // Simple boolean expansion state (for legacy json view only)
-  // true = expanded, false = collapsed
   jsonInputExpanded?: boolean;
   jsonOutputExpanded?: boolean;
   jsonMetadataExpanded?: boolean;
@@ -61,8 +130,16 @@ export interface ExpansionStateProps {
   onJsonMetadataExpandedChange?: (expanded: boolean) => void;
 }
 
-export interface IOPreviewProps extends ExpansionStateProps {
-  skills?: React.ComponentProps<typeof IOPreviewPretty>["skills"];
+const TOOLS_COLLAPSE_THRESHOLD = 5;
+// The user's collapse choice lasts the session, across observations.
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+const EXPANDED_TAIL_LENGTH = 3;
+const FOLD_ABOVE_MESSAGES = 6;
+
+interface IOPreviewContentProps extends ExpansionStateProps {
+  skills?:
+    | { kind: "available"; items: SkillsAvailable }
+    | { kind: "loaded"; items: SkillsResourceLoaded };
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -73,246 +150,90 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
-  observationName?: string;
-  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
-  currentView?: ViewMode;
-  contentMode?: IOPreviewContentMode;
-  showSystemPrompt?: boolean;
-  setIsPrettyViewAvailable?: (value: boolean) => void;
-  // Inline comment props (JSON Beta view only)
-  enableInlineComments?: boolean;
-  onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
-  commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Callback to inform parent if virtualization is being used (for scroll handling)
-  onVirtualizationChange?: (isVirtualized: boolean) => void;
-  // For CorrectedOutputField
   observationId?: string;
+  observationType?: ObservationType;
   projectId: string;
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
+  contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
+  hideMetadata?: boolean;
+  enableInlineComments?: boolean;
+  onAddInlineComment?: (selection: SelectionData) => void;
+  commentedPathsByField?: CommentedPathsByField;
+  onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
 
-/**
- * IOPreview - Router component for rendering observation input/output.
- *
- * Architecture:
- * - This component handles view state management and routing only
- * - Routes to IOPreviewJSON for JSON view (no ChatML parsing)
- * - Routes to IOPreviewPretty for pretty view (with ChatML parsing)
- *
- * Performance benefits:
- * - JSON view: skips ~150ms of ChatML parsing overhead
- * - Pretty view: only parses when needed for display
- * - Pre-parsed data from Web Worker eliminates duplicate parsing
- */
+export interface IOPreviewProps extends IOPreviewContentProps {
+  currentView?: ViewMode;
+  observationName?: string;
+  setIsPrettyViewAvailable?: (value: boolean) => void;
+}
+
+/** Owns view selection and the shared I/O sections; inactive renderers unmount. */
 export function IOPreview({
-  skills,
-  input,
-  output,
-  status,
-  outputCorrection,
-  metadata,
-  parsedInput,
-  parsedOutput,
-  parsedMetadata,
-  chatMLParserResult,
-  observationName,
-  observationType,
-  isLoading = false,
-  isParsing = false,
-  hideIfNull = false,
-  hideOutput = false,
-  hideInput = false,
-  media,
   currentView,
-  contentMode = "all",
-  showSystemPrompt,
-  inputExpansionState,
-  outputExpansionState,
-  metadataExpansionState,
-  onInputExpansionChange,
-  onOutputExpansionChange,
-  onMetadataExpansionChange,
-  advancedJsonExpansionState,
-  onAdvancedJsonExpansionChange,
-  jsonInputExpanded,
-  jsonOutputExpanded,
-  jsonMetadataExpanded,
-  onJsonInputExpandedChange,
-  onJsonOutputExpandedChange,
-  onJsonMetadataExpandedChange,
+  observationName,
   setIsPrettyViewAvailable,
-  enableInlineComments,
-  onAddInlineComment,
-  commentedPathsByField,
-  onVirtualizationChange,
-  observationId,
-  projectId,
-  traceId,
-  environment = "default",
-  showCorrections = true,
+  ...props
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
-  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
-    useLocalStorage<string[]>(STORAGE_KEY, []);
-
-  // View state management
-  const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
+  const [dismissedNotifications, setDismissedNotifications] = useLocalStorage<
+    string[]
+  >("dismissed-trace-view-notifications", []);
+  const [localView, setLocalView] = useLocalStorage<ViewMode>(
     JSON_VIEW_PREFERENCE_STORAGE_KEY,
     DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  const selectedView =
-    currentView ?? normalizeJsonViewPreference(localCurrentView);
-  const showViewToggle = currentView === undefined;
-
+  const selectedView = currentView ?? normalizeJsonViewPreference(localView);
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
-
-  // Notify parent about pretty view availability
-  // Always true - we always show the toggle and let components decide rendering
   useEffect(() => {
     setIsPrettyViewAvailable?.(true);
   }, [setIsPrettyViewAvailable]);
-
-  // Handle view change with analytics
-  const handleViewChange = (view: ViewMode) => {
-    startPreserveScroll();
-    capture("trace_detail:io_mode_switch", { view });
-    setLocalCurrentView(view);
-  };
-
-  // Shared props for both view components
-  const sharedProps = {
-    skills,
-    input,
-    output,
-    status,
-    outputCorrection,
-    metadata,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
-    chatMLParserResult,
-    isLoading,
-    isParsing,
-    hideIfNull,
-    hideInput,
-    hideOutput,
-    media,
-    inputExpansionState,
-    outputExpansionState,
-    metadataExpansionState,
-    onInputExpansionChange,
-    onOutputExpansionChange,
-    onMetadataExpansionChange,
-    observationId,
-    observationType,
-    projectId,
-    traceId,
-    environment,
-    showCorrections,
-  };
-
-  // Only show empty state popup for traces (not observations) when there's no input/output
-  // Check both parsed and raw props since not all callers provide parsedInput/parsedOutput
-  const hasInput = input !== null && input !== undefined;
-  const hasOutput = output !== null && output !== undefined;
+  const content = (
+    <IOPreviewContent
+      key={selectedView}
+      {...props}
+      selectedView={selectedView}
+    />
+  );
+  const hasInput = props.input !== null && props.input !== undefined;
+  const hasOutput = props.output !== null && props.output !== undefined;
   const showEmptyState =
     !hasInput &&
     !hasOutput &&
-    !observationName && // Only show for traces, not observations
-    !isLoading &&
-    !hideIfNull &&
-    !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
-
+    !observationName &&
+    !props.isLoading &&
+    !props.hideIfNull &&
+    !dismissedNotifications.includes("empty-io");
   return (
     <>
-      {showViewToggle && (
+      {currentView === undefined && (
         <ViewModeToggle
           selectedView={selectedView}
-          onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
+          onViewChange={(view) => {
+            startPreserveScroll();
+            capture("trace_detail:io_mode_switch", { view });
+            setLocalView(view);
+          }}
         />
       )}
-
-      {/*
-       * Conditional rendering based on view mode:
-       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search, inline comments)
-       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization, no comments)
-       * - Pretty view: IOPreviewPretty (with ChatML parsing, markdown, tools)
-       *
-       * Only render the active view to prevent dual DOM tree construction.
-       * Trade-off: scroll/expansion state is lost when toggling views,
-       * but this eliminates UI freeze with large observations.
-       */}
-      {selectedView === "json-beta" ? (
-        <IOPreviewJSON
-          hideMetadata
-          input={input}
-          output={output}
-          status={status}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
-          outputCorrection={outputCorrection}
-          isParsing={isParsing}
-          hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
-          expansionState={advancedJsonExpansionState}
-          onExpansionChange={onAdvancedJsonExpansionChange}
-          onVirtualizationChange={onVirtualizationChange}
-          enableInlineComments={enableInlineComments}
-          onAddInlineComment={onAddInlineComment}
-          commentedPathsByField={commentedPathsByField}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-          showCorrections={showCorrections}
-        />
-      ) : selectedView === "json" ? (
-        <IOPreviewJSONSimple
-          hideMetadata
-          input={input}
-          output={output}
-          status={status}
-          outputCorrection={outputCorrection}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
-          isLoading={isLoading}
-          isParsing={isParsing}
-          hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
-          inputExpanded={jsonInputExpanded}
-          outputExpanded={jsonOutputExpanded}
-          metadataExpanded={jsonMetadataExpanded}
-          onInputExpandedChange={onJsonInputExpandedChange}
-          onOutputExpandedChange={onJsonOutputExpandedChange}
-          onMetadataExpandedChange={onJsonMetadataExpandedChange}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-          showCorrections={showCorrections}
-        />
+      {selectedView === "json-beta" && props.enableInlineComments ? (
+        <InlineCommentSelectionProvider>
+          {content}
+        </InlineCommentSelectionProvider>
       ) : (
-        <IOPreviewPretty
-          {...sharedProps}
-          contentMode={contentMode}
-          showSystemPrompt={showSystemPrompt}
-        />
+        content
       )}
-
       {showEmptyState && (
         <div className="py-2">
           <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
@@ -320,17 +241,17 @@ export function IOPreview({
               variant="ghost"
               size="sm"
               className="absolute top-1.5 right-1.5 h-5 w-5 p-0"
+              title="Dismiss"
               onClick={() => {
                 capture("notification:dismiss_notification", {
-                  notification_id: EMPTY_IO_ALERT_ID,
+                  notification_id: "empty-io",
                 });
-                setDismissedTraceViewNotifications((prev) =>
-                  prev.includes(EMPTY_IO_ALERT_ID)
-                    ? prev
-                    : [...prev, EMPTY_IO_ALERT_ID],
+                setDismissedNotifications((previous) =>
+                  previous.includes("empty-io")
+                    ? previous
+                    : [...previous, "empty-io"],
                 );
               }}
-              title="Dismiss"
             >
               <X size="base" color="default" />
             </Button>
@@ -350,7 +271,7 @@ export function IOPreview({
               size="sm"
               href="https://langfuse.com/faq/all/empty-trace-input-and-output"
               trackingEventName="notification:click_link"
-              trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
+              trackingProps={{ notification_id: "empty-io" }}
             >
               View Documentation
             </ActionButton>
@@ -359,4 +280,1188 @@ export function IOPreview({
       )}
     </>
   );
+}
+
+// The keyed content resets mode-local state and keeps the selection consumer
+// below its provider. Only the active mode's parsing and renderer run.
+function IOPreviewContent({
+  skills,
+  input,
+  output,
+  status,
+  metadata,
+  outputCorrection,
+  parsedInput: preParsedInput,
+  parsedOutput: preParsedOutput,
+  parsedMetadata: preParsedMetadata,
+  chatMLParserResult,
+  isLoading = false,
+  isParsing = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  media,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+  metadataExpansionState,
+  onMetadataExpansionChange,
+  jsonInputExpanded,
+  jsonOutputExpanded,
+  jsonMetadataExpanded,
+  onJsonInputExpandedChange,
+  onJsonOutputExpandedChange,
+  onJsonMetadataExpandedChange,
+  advancedJsonExpansionState,
+  onAdvancedJsonExpansionChange,
+  enableInlineComments = false,
+  onAddInlineComment,
+  commentedPathsByField,
+  onVirtualizationChange,
+  selectedView,
+  hideMetadata = true,
+  observationId,
+  observationType,
+  projectId,
+  traceId,
+  environment = "default",
+  showCorrections = true,
+  contentMode = "all",
+  showSystemPrompt,
+}: IOPreviewContentProps & { selectedView: ViewMode }) {
+  const isPretty = selectedView === "pretty";
+  const isJson = selectedView === "json";
+  const isAdvanced = selectedView === "json-beta";
+  const [isSkillsExpanded, setSkillsExpanded] = useState(false);
+  const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
+    "called",
+  );
+  const [storedToolsCollapsed, setStoredToolsCollapsed] = useSessionStorage<
+    boolean | null
+  >(TOOLS_COLLAPSED_KEY, null);
+  const skillGroups = new Map<
+    string,
+    {
+      key: string;
+      skill: SkillsAvailable[number];
+      files: Set<string>;
+    }
+  >();
+  const skillItems = (() => {
+    if (!isPretty || !skills) return [];
+    if (skills.kind === "loaded")
+      return skills.items.map((skill) => ({ skill, filePath: skill.filePath }));
+    return skills.items.map((skill) => ({ skill, filePath: undefined }));
+  })();
+  for (const { skill, filePath } of skillItems) {
+    const key = JSON.stringify([
+      skill.langfuseSkillId ?? null,
+      skill.skillName,
+      skill.skillVersion ?? null,
+    ]);
+    const group = skillGroups.get(key) ?? {
+      key,
+      skill,
+      files: new Set<string>(),
+    };
+    skillGroups.set(key, group);
+    if (filePath !== undefined) group.files.add(filePath);
+  }
+
+  // Legacy JSON must probe RAW fields before parsing: its eager renderer cannot
+  // safely materialize multi-MB payloads. Other modes do not pay this cost.
+  const inputProbe = useMemo(
+    () => (isJson ? probeJsonField(input) : null),
+    [input, isJson],
+  );
+  const outputProbe = useMemo(
+    () => (isJson ? probeJsonField(output) : null),
+    [output, isJson],
+  );
+  const metadataProbe = useMemo(
+    () => (isJson && !hideMetadata ? probeJsonField(metadata) : null),
+    [metadata, isJson, hideMetadata],
+  );
+  const inputOverCharLimit =
+    (inputProbe?.size ?? 0) > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const outputOverCharLimit =
+    (outputProbe?.size ?? 0) > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const metadataOverCharLimit =
+    (metadataProbe?.size ?? 0) > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const parsedInput = useMemo(() => {
+    if (isParsing || inputOverCharLimit) return undefined;
+    if (preParsedInput !== undefined && preParsedInput !== null)
+      return preParsedInput;
+    if (isPretty)
+      return deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
+    return deepParseJson(input);
+  }, [input, preParsedInput, isParsing, inputOverCharLimit, isPretty]);
+  const parsedOutput = useMemo(() => {
+    if (isParsing || outputOverCharLimit) return undefined;
+    if (preParsedOutput !== undefined && preParsedOutput !== null)
+      return preParsedOutput;
+    if (isPretty)
+      return deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
+    return deepParseJson(output);
+  }, [output, preParsedOutput, isParsing, outputOverCharLimit, isPretty]);
+  const parsedMetadata = useMemo(() => {
+    if (isParsing || metadataOverCharLimit || (hideMetadata && !isPretty))
+      return undefined;
+    if (preParsedMetadata !== undefined && preParsedMetadata !== null)
+      return preParsedMetadata;
+    if (isPretty)
+      return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 });
+    return deepParseJson(metadata);
+  }, [
+    metadata,
+    preParsedMetadata,
+    isParsing,
+    metadataOverCharLimit,
+    hideMetadata,
+    isPretty,
+  ]);
+  // Advanced JSON gates by rows, not characters: a huge string is one leaf.
+  // Decode all-or-nothing so the viewer and download never mix decoded/raw text.
+  const inputRows = useMemo(
+    () => (isAdvanced ? countJsonRows(parsedInput) : 0),
+    [parsedInput, isAdvanced],
+  );
+  const outputRows = useMemo(
+    () => (isAdvanced ? countJsonRows(parsedOutput) : 0),
+    [parsedOutput, isAdvanced],
+  );
+  const metadataRows = useMemo(
+    () => (isAdvanced ? countJsonRows(parsedMetadata) : 0),
+    [parsedMetadata, isAdvanced],
+  );
+  const effectiveInput = useMemo(
+    () =>
+      isAdvanced && inputRows <= DECODE_UNICODE_MAX_NODES
+        ? decodeUnicodeInJson(parsedInput)
+        : parsedInput,
+    [isAdvanced, inputRows, parsedInput],
+  );
+  const effectiveOutput = useMemo(
+    () =>
+      isAdvanced && outputRows <= DECODE_UNICODE_MAX_NODES
+        ? decodeUnicodeInJson(parsedOutput)
+        : parsedOutput,
+    [isAdvanced, outputRows, parsedOutput],
+  );
+  const effectiveMetadata = useMemo(
+    () =>
+      isAdvanced && metadataRows <= DECODE_UNICODE_MAX_NODES
+        ? decodeUnicodeInJson(parsedMetadata)
+        : parsedMetadata,
+    [isAdvanced, metadataRows, parsedMetadata],
+  );
+  const inputTooLarge =
+    inputOverCharLimit || inputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const outputTooLarge =
+    outputOverCharLimit || outputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const metadataTooLarge =
+    metadataOverCharLimit || metadataRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const showInput =
+    !hideInput &&
+    (inputTooLarge ||
+      !(
+        hideIfNull &&
+        (isAdvanced ? effectiveInput === undefined : !effectiveInput)
+      ));
+  const showOutput =
+    !hideOutput &&
+    (outputTooLarge ||
+      !(
+        hideIfNull &&
+        (isAdvanced ? effectiveOutput === undefined : !effectiveOutput)
+      ));
+  const showMetadata =
+    !hideMetadata &&
+    (metadataTooLarge ||
+      !(
+        hideIfNull &&
+        (isAdvanced ? effectiveMetadata === undefined : !effectiveMetadata)
+      ));
+
+  // Parse into the shared preview contract.
+  const parserResult = useIOPreviewParser(
+    isPretty,
+    input,
+    output,
+    metadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    chatMLParserResult,
+  );
+
+  const shouldRenderMessages =
+    isPretty && hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+    enabled: isPretty,
+  });
+
+  const {
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    toolCallsByName,
+    messageToToolCallNumbers,
+    inputMessageCount,
+  } = parserResult;
+
+  const { calledTools, notCalledTools } = useMemo(
+    () =>
+      allTools.reduce(
+        (groups, tool) => {
+          if ((toolCallCounts.get(tool.name) ?? 0) > 0) {
+            groups.calledTools.push(tool);
+          } else {
+            groups.notCalledTools.push(tool);
+          }
+          return groups;
+        },
+        {
+          calledTools: [] as ToolDefinition[],
+          notCalledTools: [] as ToolDefinition[],
+        },
+      ),
+    [allTools, toolCallCounts],
+  );
+  const hasToolTabs = calledTools.length > 0 && notCalledTools.length > 0;
+  const tabTools = activeToolTab === "called" ? calledTools : notCalledTools;
+  const visibleTools = hasToolTabs ? tabTools : allTools;
+
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
+  // Determine if markdown is safe to render (content size check)
+  const shouldRenderMarkdown = useMemo(() => {
+    if (!isPretty) return false;
+    // Fast byte estimation without expensive JSON.stringify
+    // Estimate: count string lengths + rough object overhead
+    const estimateSize = (obj: unknown): number => {
+      if (obj === null || obj === undefined) return 4; // "null" or "undefined"
+      if (typeof obj === "string") return obj.length;
+      if (typeof obj === "number") return obj.toString().length;
+      if (typeof obj === "boolean") return obj ? 4 : 5; // "true" or "false"
+
+      if (Array.isArray(obj)) {
+        // Rough estimate: sum of elements + commas + brackets
+        return obj.reduce((sum, item) => sum + estimateSize(item) + 1, 2);
+      }
+
+      if (typeof obj === "object") {
+        // Rough estimate: keys + values + colons + commas + braces
+        return Object.entries(obj).reduce(
+          (sum, [key, value]) => sum + key.length + estimateSize(value) + 3, // 3 for ":", "," and quotes
+          2, // 2 for opening and closing braces
+        );
+      }
+
+      return 0;
+    };
+
+    const inputSize = estimateSize(parsedInput);
+    const outputSize = estimateSize(parsedOutput);
+    const messagesSize = estimateSize(allMessages);
+    const totalSize = inputSize + outputSize + messagesSize;
+
+    const shouldRender = totalSize <= characterLimit;
+
+    return shouldRender;
+  }, [parsedInput, parsedOutput, allMessages, characterLimit, isPretty]);
+
+  const messagesToRender = useMemo(
+    () =>
+      allMessages
+        .map((message, originalIndex) => ({ message, originalIndex }))
+        .filter(({ message }) =>
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+        ),
+    [allMessages, contentMode, showSystemPrompt],
+  );
+  const foldsMiddle = messagesToRender.length > FOLD_ABOVE_MESSAGES;
+  const foldEnd = messagesToRender.length - EXPANDED_TAIL_LENGTH;
+  const otherMessagesCount = foldEnd - 1;
+  const otherMessagesLabel = `${otherMessagesCount} other ${otherMessagesCount === 1 ? "message" : "messages"}`;
+  const HistoryCaret = othersOpen ? ChevronDown : ChevronRight;
+  const lastOutputIndex = messagesToRender.reduce(
+    (last, { originalIndex }, index) =>
+      originalIndex >= (inputMessageCount ?? 0) ? index : last,
+    -1,
+  );
+  const remainingMedia = useMemo(() => {
+    if (!isPretty) return [];
+    if (!shouldRenderMarkdown) return media ?? [];
+    const renderedMediaIds = new Set<string>();
+    messagesToRender.forEach(({ message }) => {
+      const content = message.content || "";
+      // JSON fallbacks do not render media inline and still need the media section.
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
+        getRenderedInlineMediaIds({
+          markdown: content,
+          audio: message.audio,
+        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
+      }
+    });
+    return filterAlreadyRenderedMedia(media, renderedMediaIds);
+  }, [media, shouldRenderMarkdown, messagesToRender, characterLimit, isPretty]);
+
+  // Prepare additional input (only if non-empty)
+  const additionalInputToShow = useMemo(() => {
+    if (!additionalInput || Object.keys(additionalInput).length === 0) {
+      return undefined;
+    }
+    return additionalInput;
+  }, [additionalInput]);
+
+  const showData = !isPretty || contentMode !== "conversation";
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : showOutput;
+  const correctionTrigger =
+    !isAdvanced && hasOutputHeader ? "header" : "inline";
+  const outputActions =
+    showCorrections &&
+    !isAdvanced &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const correctedOutputField = useMemo(
+    () =>
+      showCorrectionField ? (
+        <CorrectedOutputField
+          actualOutput={outputTooLarge ? undefined : effectiveOutput}
+          actualOutputTooLarge={outputTooLarge}
+          existingCorrection={outputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+          compact={isAdvanced}
+          trigger={correctionTrigger}
+          startEditing={correctionOpen && !effectiveCorrection}
+          onClosed={() => setCorrectionOpen(false)}
+        />
+      ) : null,
+    [
+      showCorrectionField,
+      outputTooLarge,
+      effectiveOutput,
+      outputCorrection,
+      observationId,
+      projectId,
+      traceId,
+      environment,
+      isAdvanced,
+      correctionTrigger,
+      correctionOpen,
+      effectiveCorrection,
+    ],
+  );
+  // Only generations hold a conversation; tools, spans, agents and the rest
+  // are titled Input / Output rather than by role. (`isGenerationLike` is
+  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
+  const titleBySide =
+    observationType !== undefined && observationType !== "GENERATION";
+
+  const fields = useMemo(
+    () => [
+      {
+        key: "input",
+        title: "Input",
+        show: showInput,
+        raw: input,
+        value: effectiveInput,
+        tooLarge: inputTooLarge,
+        rows: inputRows,
+        probe: inputProbe,
+        expansion: isJson ? jsonInputExpanded : inputExpansionState,
+        onExpansion: onInputExpansionChange,
+        onJsonExpansion: onJsonInputExpandedChange,
+      },
+      {
+        key: "output",
+        title: "Output",
+        show: showOutput,
+        raw: output,
+        value: effectiveOutput,
+        tooLarge: outputTooLarge,
+        rows: outputRows,
+        probe: outputProbe,
+        expansion: isJson ? jsonOutputExpanded : outputExpansionState,
+        onExpansion: onOutputExpansionChange,
+        onJsonExpansion: onJsonOutputExpandedChange,
+      },
+      {
+        key: "metadata",
+        title: "Metadata",
+        show: showMetadata,
+        raw: metadata,
+        value: effectiveMetadata,
+        tooLarge: metadataTooLarge,
+        rows: metadataRows,
+        probe: metadataProbe,
+        expansion: isJson ? jsonMetadataExpanded : metadataExpansionState,
+        onExpansion: onMetadataExpansionChange,
+        onJsonExpansion: onJsonMetadataExpandedChange,
+      },
+    ],
+    [
+      showInput,
+      showOutput,
+      showMetadata,
+      input,
+      output,
+      metadata,
+      effectiveInput,
+      effectiveOutput,
+      effectiveMetadata,
+      inputTooLarge,
+      outputTooLarge,
+      metadataTooLarge,
+      inputRows,
+      outputRows,
+      metadataRows,
+      inputProbe,
+      outputProbe,
+      metadataProbe,
+      isJson,
+      jsonInputExpanded,
+      jsonOutputExpanded,
+      jsonMetadataExpanded,
+      inputExpansionState,
+      outputExpansionState,
+      metadataExpansionState,
+      onInputExpansionChange,
+      onOutputExpansionChange,
+      onMetadataExpansionChange,
+      onJsonInputExpandedChange,
+      onJsonOutputExpandedChange,
+      onJsonMetadataExpandedChange,
+    ],
+  );
+  const downloadName = observationId ?? traceId;
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const statusPresentation = useMemo(
+    () => (status ? getStatusMessagePresentation(status.level) : undefined),
+    [status],
+  );
+  const statusValue = useMemo(
+    () =>
+      isAdvanced && status
+        ? (parseStructuredStatusMessage(status.message) ?? status.message)
+        : undefined,
+    [isAdvanced, status],
+  );
+  const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [searchMatchCount, setSearchMatchCount] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
+  const selectionContext = useInlineCommentSelectionOptional();
+  const inlineCommentPositionRect = selectionContext?.selection?.anchorRect
+    ? (selectionContext.selection.startRect ??
+      selectionContext.selection.anchorRect)
+    : null;
+  useEffect(() => {
+    if (!isAdvanced) return;
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentMatchIndex(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isAdvanced, searchQuery]);
+  useEffect(() => {
+    if (isAdvanced) onVirtualizationChange?.(false);
+  }, [isAdvanced, onVirtualizationChange]);
+  const handleNextMatch = () => {
+    if (searchMatchCount > 0)
+      setCurrentMatchIndex((index) => (index + 1) % searchMatchCount);
+  };
+  const handlePreviousMatch = () => {
+    if (searchMatchCount > 0)
+      setCurrentMatchIndex((index) =>
+        index === 0 ? searchMatchCount - 1 : index - 1,
+      );
+  };
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setCurrentMatchIndex(0);
+  };
+  const wrapIcon = (() => {
+    if (stringWrapMode === "truncate") return <Minus size="base" />;
+    if (stringWrapMode === "wrap") return <WrapText size="base" />;
+    return <ChevronDown size="base" __rawClassName="-rotate-90" />;
+  })();
+  const sections = useMemo(() => {
+    if (!isAdvanced) return [];
+    const result: React.ComponentProps<
+      typeof MultiSectionJsonViewer
+    >["sections"] = [];
+    if (status && statusPresentation) {
+      const backgroundColor = (() => {
+        if (status.level === "ERROR")
+          return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
+        if (status.level === "WARNING")
+          return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
+        return "hsl(var(--surface-section))";
+      })();
+      result.push({
+        key: "status-message",
+        title: statusPresentation.title,
+        data: statusValue,
+        backgroundColor,
+        minHeight: "4px",
+      });
+    }
+    for (const field of fields) {
+      // Corrections stay between Output and Metadata, even when Output is hidden.
+      if (field.key === "metadata" && correctedOutputField)
+        result.push({
+          key: "corrections",
+          title: "Output correction",
+          data: null,
+          hideData: true,
+          backgroundColor: "hsl(var(--surface-section))",
+          minHeight: "4px",
+          renderFooter: () => correctedOutputField,
+        });
+      if (!field.show) continue;
+      const backgroundColor = (() => {
+        if (field.key === "input")
+          return isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)";
+        if (field.key === "metadata")
+          return isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)";
+        return "hsl(var(--surface-section))";
+      })();
+      if (field.tooLarge) {
+        // Reuse one serialization for the lazy engine and the download hatch.
+        const probe = probeJsonField(field.value);
+        result.push({
+          // Gated fields never inherit a persisted collapse that could hide the
+          // download escape hatch; they have no eager tree to collapse.
+          key: `${field.key}__oversized`,
+          title: field.title,
+          data: null,
+          hideData: true,
+          backgroundColor,
+          minHeight: "4px",
+          renderHeader: () => (
+            <div className="flex items-center px-2 py-1.5">
+              <span className="text-xs font-bold">{field.title}</span>
+            </div>
+          ),
+          renderFooter: () =>
+            probe.isString ? (
+              <LargeJsonFieldFallback
+                title={field.title}
+                hideTitle
+                serialized={probe.serialized}
+                isString
+                charCount={probe.size}
+                rowCount={field.rows}
+                downloadFileBase={`${field.key}-${downloadName}`}
+              />
+            ) : (
+              <div className="io-message-content flex flex-col gap-1">
+                <div
+                  style={{ height: 400 }}
+                  className="overflow-hidden rounded-md border"
+                >
+                  <LazyJsonViewer serialized={probe.serialized} />
+                </div>
+                <LargeJsonFieldFallback
+                  title={field.title}
+                  hideTitle
+                  serialized={probe.serialized}
+                  isString={false}
+                  charCount={probe.size}
+                  rowCount={field.rows}
+                  downloadFileBase={`${field.key}-${downloadName}`}
+                  downloadOnly
+                />
+              </div>
+            ),
+        });
+      } else {
+        result.push({
+          key: field.key,
+          title: field.title,
+          data: field.value,
+          backgroundColor,
+          minHeight: "200px",
+        });
+      }
+    }
+    return result;
+  }, [
+    isAdvanced,
+    status,
+    statusPresentation,
+    statusValue,
+    isDark,
+    fields,
+    downloadName,
+    correctedOutputField,
+  ]);
+  const viewerContent =
+    isAdvanced && !isParsing ? (
+      <MultiSectionJsonViewer
+        ref={viewerRef}
+        sections={sections}
+        virtualized={false}
+        showLineNumbers
+        enableCopy
+        stringWrapMode={stringWrapMode}
+        truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
+        searchQuery={debouncedSearchQuery}
+        currentMatchIndex={currentMatchIndex}
+        onSearchResults={setSearchMatchCount}
+        scrollContainerRef={
+          scrollContainerRef as React.RefObject<HTMLDivElement>
+        }
+        media={media}
+        commentedPathsByField={commentedPathsByField}
+        externalExpansionState={advancedJsonExpansionState}
+        onExpansionChange={onAdvancedJsonExpansionChange}
+        theme={{ fontSize: "0.7rem", lineHeight: 14, indentSize: 12 }}
+      />
+    ) : null;
+
+  if (isAdvanced)
+    return isParsing ? (
+      <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-muted-foreground text-base">Parsing data...</div>
+        </div>
+      </div>
+    ) : (
+      <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
+        {enableInlineComments && inlineCommentPositionRect && (
+          <InlineCommentBubble
+            positionRect={inlineCommentPositionRect}
+            onAddComment={() => {
+              if (selectionContext?.selection)
+                onAddInlineComment?.(selectionContext.selection);
+            }}
+          />
+        )}
+        <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+          <Command className="flex-1 rounded-none border-0 bg-transparent">
+            <CommandInput
+              showBorder={false}
+              placeholder="Search across all sections..."
+              className="h-7 border-0 focus:ring-0"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (event.shiftKey) handlePreviousMatch();
+                  else handleNextMatch();
+                } else if (event.key === "Escape") handleClearSearch();
+              }}
+            />
+          </Command>
+          {searchQuery && (
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {searchMatchCount > 0
+                ? `${currentMatchIndex + 1} of ${searchMatchCount}`
+                : "No matches"}
+            </span>
+          )}
+          {searchQuery && searchMatchCount > 0 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handlePreviousMatch}
+                title="Previous match (Shift+Enter)"
+              >
+                <ChevronUp size="base" color="default" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleNextMatch}
+                title="Next match (Enter)"
+              >
+                <ChevronDown size="base" color="default" />
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={`String wrap mode: ${stringWrapMode}`}
+            onClick={() => {
+              if (stringWrapMode === "truncate") setStringWrapMode("wrap");
+              else if (stringWrapMode === "wrap") setStringWrapMode("nowrap");
+              else setStringWrapMode("truncate");
+            }}
+          >
+            {wrapIcon}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Copy to clipboard"
+            onClick={() => {
+              const data: Record<string, unknown> = {};
+              for (const field of fields) {
+                if (field.show)
+                  data[field.key] = field.tooLarge
+                    ? "<omitted: too large to render — use the field download>"
+                    : field.value;
+              }
+              navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+            }}
+          >
+            <Copy size="base" color="default" />
+          </Button>
+        </div>
+        <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
+          <span className="text-muted-foreground text-xs">Jump to:</span>
+          {sections.map((section, index) => (
+            <span key={section.key} className="flex items-center">
+              <button
+                onClick={() => viewerRef.current?.scrollToSection(section.key)}
+                className="text-primary cursor-pointer text-xs hover:underline"
+              >
+                {section.title}
+              </button>
+              {index < sections.length - 1 && (
+                <span className="text-muted-foreground text-xs">,&nbsp;</span>
+              )}
+            </span>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
+          {enableInlineComments ? (
+            <CommentableJsonView enabled>{viewerContent}</CommentableJsonView>
+          ) : (
+            viewerContent
+          )}
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="space-y-2 pt-3">
+      {showData && status ? (
+        <StatusMessageSection
+          status={status}
+          currentView={isJson ? "json" : "pretty"}
+        />
+      ) : null}
+
+      {showData && allTools.length > 0 ? (
+        <IOSection
+          title="Tools"
+          variant="table"
+          collapsed={
+            storedToolsCollapsed ?? allTools.length > TOOLS_COLLAPSE_THRESHOLD
+          }
+          onCollapsedChange={setStoredToolsCollapsed}
+          tabs={
+            hasToolTabs
+              ? {
+                  value: activeToolTab,
+                  onValueChange: (value) => {
+                    if (value === "called" || value === "not-called")
+                      setActiveToolTab(value);
+                  },
+                  items: [
+                    {
+                      value: "called",
+                      label: "Called",
+                      count: calledTools.length,
+                    },
+                    {
+                      value: "not-called",
+                      label: "Not called",
+                      count: notCalledTools.length,
+                    },
+                  ],
+                }
+              : undefined
+          }
+        >
+          <ToolCallDefinitionCard
+            key={activeToolTab}
+            tools={visibleTools}
+            toolCallsByName={toolCallsByName}
+          />
+        </IOSection>
+      ) : null}
+
+      {isPretty && showData && skills && skills.items.length > 0 ? (
+        <IOSection title="Skills" count={skillGroups.size}>
+          <Collapsible
+            open={isSkillsExpanded}
+            onOpenChange={setSkillsExpanded}
+            className="flex flex-col gap-2"
+          >
+            <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <FileCode2 size="base" color="muted" aria-hidden />
+                <span>
+                  {skillGroups.size}{" "}
+                  {skills.kind === "available" ? "available" : "loaded"}{" "}
+                  {skillGroups.size === 1 ? "skill" : "skills"}
+                </span>
+              </span>
+              <Badge
+                color="filled"
+                size="sm"
+                text={isSkillsExpanded ? "hide" : "show"}
+              />
+              <DropdownIndicator
+                direction={isSkillsExpanded ? "down" : "right"}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent asChild>
+              <ul className="flex flex-col gap-2">
+                {Array.from(skillGroups.values(), ({ key, skill, files }) => (
+                  <Collapsible
+                    key={key}
+                    asChild
+                    open={expandedSkillKey === key}
+                    onOpenChange={(open) =>
+                      setExpandedSkillKey(open ? key : "")
+                    }
+                  >
+                    <li className="min-w-0 overflow-hidden rounded-sm border">
+                      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+                        <FileCode2 size="base" color="muted" aria-hidden />
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                          {skill.langfuseSkillId &&
+                          skill.skillVersion != null ? (
+                            <LinkBadge
+                              href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
+                              text={skill.skillName}
+                              newTab
+                              noCapture
+                            />
+                          ) : (
+                            <Badge
+                              color="ghost"
+                              font="mono"
+                              text={skill.skillName}
+                            />
+                          )}
+                          {skill.skillVersion != null ? (
+                            <Badge
+                              color="filled"
+                              size="sm"
+                              text={`v${skill.skillVersion}`}
+                            />
+                          ) : null}
+                        </div>
+                        {files.size > 0 ? (
+                          <CollapsibleTrigger
+                            className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
+                            aria-label={`Files loaded for ${skill.skillName}`}
+                          >
+                            <Badge
+                              color="green"
+                              size="sm"
+                              text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
+                            />
+                            <DropdownIndicator
+                              direction={
+                                expandedSkillKey === key ? "down" : "right"
+                              }
+                            />
+                          </CollapsibleTrigger>
+                        ) : null}
+                      </div>
+                      {files.size > 0 ? (
+                        <CollapsibleContent asChild>
+                          <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
+                            {Array.from(files, (filePath) => (
+                              <li
+                                key={filePath}
+                                className="flex min-w-0 items-start gap-2"
+                              >
+                                <FileText
+                                  size="base"
+                                  color="muted"
+                                  __rawClassName="mt-0.5"
+                                  aria-hidden
+                                />
+                                <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
+                                  {filePath}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      ) : null}
+                    </li>
+                  </Collapsible>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </IOSection>
+      ) : null}
+
+      {shouldRenderMessages ? (
+        <div>
+          <div className="flex max-h-full min-h-0 flex-col gap-2">
+            <div className="flex max-h-full min-h-0 flex-col gap-2">
+              <div className="flex flex-col gap-2">
+                {messagesToRender.map(
+                  ({ message, originalIndex }, filteredIndex) => {
+                    const isOutputMessage =
+                      originalIndex >= (inputMessageCount ?? 0);
+                    const sideTitle = isOutputMessage ? "Output" : "Input";
+                    const folded =
+                      foldsMiddle &&
+                      filteredIndex > 0 &&
+                      filteredIndex < foldEnd;
+                    // Folded messages do not mount (no parsing) until the row opens.
+                    if (folded && !othersOpen) return null;
+                    const chatMessage = (
+                      <ChatMessage
+                        key={originalIndex}
+                        message={message}
+                        title={
+                          titleBySide ? sideTitle : getMessageTitle(message)
+                        }
+                        shouldRenderMarkdown={shouldRenderMarkdown}
+                        currentView="pretty"
+                        toolCallNumbers={messageToToolCallNumbers.get(
+                          originalIndex,
+                        )}
+                        isOutputMessage={isOutputMessage}
+                        contentMode={contentMode}
+                        defaultCollapsed={
+                          foldsMiddle
+                            ? folded
+                            : message.role !== "system" &&
+                              filteredIndex <
+                                messagesToRender.length - EXPANDED_TAIL_LENGTH
+                        }
+                        actions={
+                          filteredIndex === lastOutputIndex
+                            ? outputActions
+                            : undefined
+                        }
+                      />
+                    );
+                    if (foldsMiddle && filteredIndex === 0) {
+                      return (
+                        <Fragment key={originalIndex}>
+                          {chatMessage}
+                          <button
+                            type="button"
+                            className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                            aria-expanded={othersOpen}
+                            aria-label={otherMessagesLabel}
+                            onClick={() => setOthersOpen((open) => !open)}
+                          >
+                            <HistoryCaret
+                              size="base"
+                              color="default"
+                              aria-hidden
+                            />
+                            {otherMessagesLabel}
+                          </button>
+                        </Fragment>
+                      );
+                    }
+                    return chatMessage;
+                  },
+                )}
+              </div>
+              {showData && additionalInputToShow && (
+                <PrettyJsonView
+                  title="Additional Input"
+                  json={additionalInputToShow}
+                  currentView={shouldRenderMarkdown ? "pretty" : "json"}
+                />
+              )}
+              {remainingMedia.length > 0 && (
+                <IOSection title="Media" variant="media">
+                  <div className="flex flex-wrap gap-2">
+                    {remainingMedia.map((media) => (
+                      <LangfuseMediaView
+                        key={media.mediaId}
+                        mediaAPIReturnValue={media}
+                        variant={
+                          media.contentType.startsWith("image")
+                            ? "inline"
+                            : "icon"
+                        }
+                      />
+                    ))}
+                  </div>
+                </IOSection>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : showData ? (
+        <div className="space-y-2">
+          {fields.map((field) => (
+            <Fragment key={field.key}>
+              {field.show &&
+                (isJson && field.tooLarge && field.probe ? (
+                  <IOSection
+                    title={field.title}
+                    actions={field.key === "output" ? outputActions : undefined}
+                  >
+                    <LargeJsonFieldFallback
+                      title={field.title}
+                      hideTitle
+                      serialized={field.probe.serialized}
+                      isString={field.probe.isString}
+                      charCount={field.probe.size}
+                      downloadFileBase={`${field.key}-${downloadName}`}
+                    />
+                  </IOSection>
+                ) : (
+                  <PrettyJsonView
+                    title={field.title}
+                    json={isJson ? field.raw : field.value}
+                    parsedJson={isJson ? field.value : undefined}
+                    isLoading={isLoading}
+                    isParsing={isParsing}
+                    media={
+                      media?.filter((item) => item.field === field.key) ?? []
+                    }
+                    currentView={isJson ? "json" : "pretty"}
+                    actions={field.key === "output" ? outputActions : undefined}
+                    externalExpansionState={field.expansion}
+                    onExternalExpansionChange={(expansion) => {
+                      if (isJson) {
+                        if (typeof expansion === "boolean")
+                          field.onJsonExpansion?.(expansion);
+                      } else field.onExpansion?.(expansion);
+                    }}
+                  />
+                ))}
+              {field.key === "output" && correctedOutputField}
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
+      {(shouldRenderMessages || !showData) && correctedOutputField}
+    </div>
+  );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+  enabled,
+}: Pick<
+  IOPreviewProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean; enabled: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      !enabled ||
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    enabled,
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }

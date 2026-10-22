@@ -5,6 +5,12 @@
  * PrettyJsonView entirely, while normal fields render exactly as before.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
+import type * as Shared from "@langfuse/shared";
+
+const normalizedIo = vi.hoisted(() => ({ normalize: vi.fn() }));
+vi.mock("@langfuse/shared/src/utils/normalized-io", () => ({
+  normalizeSpanIO: normalizedIo.normalize,
+}));
 
 // PrettyJsonView is the unvirtualized render path we must NOT reach for
 // over-limit fields — mock it so its presence is observable by test id.
@@ -27,18 +33,44 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-// deepParseJson is the only runtime import from the shared barrel here; stub it
-// so the test stays light and deterministic (identity is fine for these cases).
-vi.mock("@langfuse/shared", () => ({
+// Keep gate parsing deterministic while retaining real schema exports for the renderers.
+vi.mock("@langfuse/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof Shared>()),
   deepParseJson: (value: unknown) => value,
 }));
 
-import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
+import { IOPreview } from "./IOPreview";
+function IOPreviewJSONSimple(props: React.ComponentProps<typeof IOPreview>) {
+  return (
+    <IOPreview
+      {...props}
+      currentView="json"
+      hideMetadata={false}
+      observationName="test-observation"
+    />
+  );
+}
 import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
 
 describe("IOPreviewJSONSimple size gating", () => {
+  it("does not run the formatted-view parser in legacy JSON mode", () => {
+    normalizedIo.normalize.mockClear();
+    render(
+      <IOPreviewJSONSimple
+        input={{ answer: "ok" }}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    expect(normalizedIo.normalize).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pretty-json-view")).toHaveTextContent("Input");
+  });
+
   it("renders the fallback and NOT PrettyJsonView for an over-limit field", () => {
     const huge = "x".repeat(JSON_VIEW_RENDER_CHAR_LIMIT + 1);
     render(

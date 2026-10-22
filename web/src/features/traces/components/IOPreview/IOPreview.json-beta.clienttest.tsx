@@ -9,7 +9,14 @@
  * with their data as before. (A string is 1 node, so it is never node-gated
  * here; gated ⟹ structured.)
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import type * as Shared from "@langfuse/shared";
+
+const normalizedIo = vi.hoisted(() => ({ normalize: vi.fn() }));
+vi.mock("@langfuse/shared/src/utils/normalized-io", () => ({
+  normalizeSpanIO: normalizedIo.normalize,
+}));
 
 // Mock MultiSectionJsonViewer: expose each section's key, whether it carries
 // data (hideData=false) vs. is gated (hideData=true, tree never built), and
@@ -50,6 +57,11 @@ const correctedField = vi.hoisted(() => ({
     | undefined,
 }));
 vi.mock("./components/CorrectedOutputField", () => ({
+  useCorrectOutputAction: ({ onOpen }: { onOpen: () => void }) => ({
+    icon: () => null,
+    label: "Correct output",
+    onClick: onOpen,
+  }),
   CorrectedOutputField: (props: {
     actualOutput?: unknown;
     actualOutputTooLarge?: boolean;
@@ -91,9 +103,9 @@ vi.mock(
   }),
 );
 
-// deepParseJson is the only runtime import from the shared barrel here; stub it
-// to identity so the test stays light and deterministic.
-vi.mock("@langfuse/shared", () => ({
+// Keep gate parsing deterministic while retaining real schema exports for the renderers.
+vi.mock("@langfuse/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof Shared>()),
   deepParseJson: (value: unknown) => value,
 }));
 
@@ -109,7 +121,17 @@ vi.mock("@/src/utils/decodeUnicodeInJson", () => ({
   DECODE_UNICODE_MAX_NODES: decodeMock.MAX_NODES,
 }));
 
-import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreview } from "./IOPreview";
+function IOPreviewJSON(props: React.ComponentProps<typeof IOPreview>) {
+  return (
+    <IOPreview
+      {...props}
+      currentView="json-beta"
+      hideMetadata={false}
+      observationName="test-observation"
+    />
+  );
+}
 import { JSON_VIEW_RENDER_ROW_LIMIT } from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
@@ -145,6 +167,106 @@ describe("IOPreviewJSON session recording privacy", () => {
 });
 
 describe("IOPreviewJSON node-count gating", () => {
+  it("unmounts the conversation when switching to JSON and restores it when switching back", () => {
+    const props: React.ComponentProps<typeof IOPreview> = {
+      input: { question: "How do I configure tracing?" },
+      output: { answer: "Initialize the SDK." },
+      projectId: "p",
+      traceId: "t",
+      showCorrections: false,
+      chatMLParserResult: {
+        canDisplayAsChat: true,
+        allMessages: [
+          ChatMlMessageSchema.parse({
+            role: "user",
+            name: "Question",
+            content: "How do I configure tracing?",
+          }),
+          ChatMlMessageSchema.parse({
+            role: "assistant",
+            name: "Answer",
+            content: "Initialize the SDK.",
+          }),
+        ],
+        allTools: [],
+        additionalInput: undefined,
+        toolCallCounts: new Map(),
+        toolCallsByName: new Map(),
+        messageToToolCallNumbers: new Map(),
+        inputMessageCount: 1,
+      },
+    };
+    const { rerender } = render(<IOPreview {...props} currentView="pretty" />);
+    expect(
+      screen.getByRole("button", { name: "Collapse Answer" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("multi-section-viewer"),
+    ).not.toBeInTheDocument();
+    rerender(<IOPreview {...props} currentView="json-beta" />);
+    expect(
+      screen.queryByRole("button", { name: "Collapse Answer" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("multi-section-viewer")).toBeInTheDocument();
+    rerender(<IOPreview {...props} currentView="pretty" />);
+    expect(
+      screen.getByRole("button", { name: "Collapse Answer" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("multi-section-viewer"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("owns one correction editor and resets unsaved entry state when the view changes", () => {
+    const props = {
+      output: { answer: "ok" },
+      hideInput: true,
+      hideIfNull: true,
+      projectId: "p",
+      traceId: "t",
+    };
+    const { rerender } = render(<IOPreview {...props} currentView="json" />);
+    expect(screen.queryByTestId("corrected-output")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+    expect(screen.getAllByTestId("corrected-output")).toHaveLength(1);
+    rerender(<IOPreview {...props} currentView="json-beta" />);
+    expect(screen.getAllByTestId("corrected-output")).toHaveLength(1);
+    rerender(<IOPreview {...props} currentView="json" />);
+    expect(screen.queryByTestId("corrected-output")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Correct output" }),
+    ).toBeInTheDocument();
+  });
+
+  it("skips ChatML parsing and mounts only the active renderer when switching JSON modes", () => {
+    normalizedIo.normalize.mockClear();
+    const props = {
+      input: { answer: "ok" },
+      hideOutput: true,
+      hideIfNull: true,
+      showCorrections: false,
+      projectId: "p",
+      traceId: "t",
+    };
+    const { rerender } = render(
+      <IOPreview {...props} currentView="json-beta" />,
+    );
+    expect(screen.getByTestId("multi-section-viewer")).toBeInTheDocument();
+    rerender(<IOPreview {...props} currentView="json" />);
+    expect(
+      screen.queryByTestId("multi-section-viewer"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse Input" }),
+    ).toBeInTheDocument();
+    rerender(<IOPreview {...props} currentView="json-beta" />);
+    expect(screen.getByTestId("multi-section-viewer")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Collapse Input" }),
+    ).not.toBeInTheDocument();
+    expect(normalizedIo.normalize).not.toHaveBeenCalled();
+  });
+
   it("routes a dead-zone field (thousands of rows) to the lazy viewer, not the eager tree", () => {
     render(
       <IOPreviewJSON

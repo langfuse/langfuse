@@ -22,7 +22,6 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
-import { IOPreviewJSON } from "@/src/features/traces/components/IOPreview/IOPreviewJSON";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -502,7 +501,10 @@ function LoadedTraceDetailView({
 
             <Tabs.Content value="attributes" layout="fill">
               {currentView === "json-beta" ? (
-                <IOPreviewJSON
+                <IOPreview
+                  currentView="json-beta"
+                  hideMetadata={false}
+                  observationName="Attributes"
                   key={trace.id + "-metadata"}
                   metadata={trace.metadata ?? undefined}
                   parsedMetadata={parsedMetadata}
@@ -513,8 +515,8 @@ function LoadedTraceDetailView({
                   showCorrections={false}
                   projectId={projectId}
                   traceId={trace.id}
-                  expansionState={advancedJsonExpansion}
-                  onExpansionChange={(expansion) =>
+                  advancedJsonExpansionState={advancedJsonExpansion}
+                  onAdvancedJsonExpansionChange={(expansion) =>
                     setAdvancedJsonExpansion({
                       ...Object.fromEntries(
                         Object.entries(advancedJsonExpansion).filter(

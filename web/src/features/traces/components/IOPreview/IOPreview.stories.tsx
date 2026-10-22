@@ -1,6 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
-import { IOPreviewPretty } from "./IOPreviewPretty";
+import { IOPreview } from "./IOPreview";
+import { JSON_VIEW_PREFERENCE_STORAGE_KEY } from "@/src/components/ui/jsonViewPreference";
 import type { ToolDefinition } from "./components/ToolCallDefinitionCard";
 import type {
   ChatMLParserResult,
@@ -19,7 +20,7 @@ import { MediaContentType, type MediaReturnType } from "@/src/features/media";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
 const meta = preview.meta({
-  component: IOPreviewPretty,
+  component: IOPreview,
   beforeEach: () => {
     const previousCollapsed = sessionStorage.getItem(TOOLS_COLLAPSED_KEY);
     sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
@@ -32,6 +33,8 @@ const meta = preview.meta({
     };
   },
   args: {
+    currentView: "pretty" as const,
+    observationName: "storybook-observation",
     projectId: "storybook-project",
     traceId: "storybook-trace",
     // Keep this false: the correction editor uses private tRPC APIs and is not isolated for Storybook.
@@ -49,6 +52,83 @@ export const Default = meta.story({
       recommendation: "Enable prompt caching and stream the response.",
       latencyMs: 842,
     },
+  },
+});
+
+export const RawJson = meta.story({
+  args: {
+    currentView: "json",
+    input: { question: "How do I configure tracing?" },
+    output: { answer: "Initialize the Langfuse SDK." },
+    status: {
+      level: "WARNING",
+      message: "The upstream response used a fallback model.",
+    },
+  },
+});
+
+export const OptimizedJson = meta.story({
+  args: {
+    ...RawJson.input.args,
+    currentView: "json-beta",
+  },
+});
+
+export const MetadataOnly = meta.story({
+  args: {
+    currentView: "json-beta",
+    hideInput: true,
+    hideOutput: true,
+    hideMetadata: false,
+    metadata: { region: "eu-west-1", cached: true },
+  },
+});
+
+export const SwitchingViewsUnmountsInactiveContent = meta.story({
+  name: "(Test) Switching views unmounts inactive content",
+  beforeEach: () => {
+    const previousView = localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY);
+    localStorage.setItem(
+      JSON_VIEW_PREFERENCE_STORAGE_KEY,
+      JSON.stringify("pretty"),
+    );
+    return () => {
+      if (previousView === null)
+        localStorage.removeItem(JSON_VIEW_PREFERENCE_STORAGE_KEY);
+      else localStorage.setItem(JSON_VIEW_PREFERENCE_STORAGE_KEY, previousView);
+    };
+  },
+  args: {
+    currentView: undefined,
+    input: {
+      role: "user",
+      name: "Question",
+      content: "How do I configure tracing?",
+    },
+    output: {
+      role: "assistant",
+      name: "Answer",
+      content: "Initialize the Langfuse SDK.",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Collapse Answer" }),
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("tab", { name: "Raw" }));
+    await expect(canvas.getByRole("tab", { name: "Raw" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Collapse Answer" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "Formatted" }));
+    await expect(
+      canvas.getByRole("button", { name: "Collapse Answer" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("Jump to:")).not.toBeInTheDocument();
   },
 });
 

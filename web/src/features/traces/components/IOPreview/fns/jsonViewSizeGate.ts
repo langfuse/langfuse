@@ -54,7 +54,7 @@ export const JSON_VIEW_RENDER_CHAR_LIMIT = 2_000_000;
  * this threshold we ALWAYS render lazily; below it a field is small enough to
  * render eagerly inline. The raw download stays available as a secondary hatch.
  *
- * Keep in sync with `VIRTUALIZATION_THRESHOLD` in IOPreviewJSON (imported there).
+ * IOPreview uses this directly to choose eager versus lazy rendering.
  */
 export const JSON_VIEW_RENDER_ROW_LIMIT = 3_333;
 

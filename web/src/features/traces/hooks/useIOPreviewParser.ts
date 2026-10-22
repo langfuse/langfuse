@@ -15,6 +15,7 @@ export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
 
 /**
  * Parses observation I/O into the contract rendered by the Formatted view.
+ * Disabled modes return an empty contract without parsing or normalization.
  *
  * A precomputed result wins so surfaces that already parsed (the session
  * feed) are not parsed twice. Parsing is best-effort: a payload the parser
@@ -23,6 +24,7 @@ export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
  * Sentry issue, and the view still falls back to JSON.
  */
 export function useIOPreviewParser(
+  enabled: boolean,
   input: Prisma.JsonValue | undefined,
   output: Prisma.JsonValue | undefined,
   metadata: Prisma.JsonValue | undefined,
@@ -32,6 +34,7 @@ export function useIOPreviewParser(
   preParsedResult?: ChatMLParserResult,
 ): ChatMLParserResult {
   const parsedInput = (() => {
+    if (!enabled) return undefined;
     if (preParsedResult) {
       return undefined;
     }
@@ -41,6 +44,7 @@ export function useIOPreviewParser(
     return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
   })();
   const parsedOutput = (() => {
+    if (!enabled) return undefined;
     if (preParsedResult) {
       return undefined;
     }
@@ -50,6 +54,7 @@ export function useIOPreviewParser(
     return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
   })();
   const parsedMetadata = (() => {
+    if (!enabled) return undefined;
     if (preParsedResult) {
       return undefined;
     }
@@ -60,6 +65,17 @@ export function useIOPreviewParser(
   })();
 
   return useMemo<ChatMLParserResult>(() => {
+    if (!enabled)
+      return {
+        canDisplayAsChat: false,
+        allMessages: [],
+        additionalInput: undefined,
+        allTools: [],
+        toolCallCounts: new Map(),
+        toolCallsByName: new Map(),
+        messageToToolCallNumbers: new Map(),
+        inputMessageCount: 0,
+      };
     if (preParsedResult) return preParsedResult;
 
     const span = {
@@ -73,5 +89,5 @@ export function useIOPreviewParser(
       reportError(error, { area: "io-preview-parser" });
       return toIOPreview({ messages: [], toolDefinitions: [], span });
     }
-  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata]);
+  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata, enabled]);
 }
