@@ -26,14 +26,12 @@ import {
 export function TopicSetupFlowController({
   canWrite,
   children,
-  configured,
   onSaveSampling,
   projectId,
   settings,
 }: {
   projectId: string;
   canWrite: boolean;
-  configured: boolean;
   settings: ConfigureTopicsSettingsInput | null;
   onSaveSampling: (input: {
     enabled: boolean;
@@ -41,18 +39,13 @@ export function TopicSetupFlowController({
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
-  const [dismissed, setDismissed] = useState(false);
-  const [heldOpen, setHeldOpen] = useState(false);
-  const [source, setSource] = useState<"automatic" | "reopened">("automatic");
-  const open = Boolean(settings) && !dismissed && (!configured || heldOpen);
+  // Opens only from Start analyzing, never on its own, so the landing shows first.
+  const [open, setOpen] = useState(false);
   function openSetup() {
-    setSource("reopened");
-    setDismissed(false);
-    setHeldOpen(true);
+    setOpen(true);
   }
   function closeSetup() {
-    setDismissed(true);
-    setHeldOpen(false);
+    setOpen(false);
   }
   return (
     <>
@@ -66,9 +59,7 @@ export function TopicSetupFlowController({
               projectId={projectId}
               canWrite={canWrite}
               settings={settings}
-              source={source}
               onSaveSampling={onSaveSampling}
-              onHoldOpen={() => setHeldOpen(true)}
               closeDialog={closeDialog}
             />
           )}
@@ -83,21 +74,17 @@ export function TopicSetupFlowController({
 function TopicSetupSession({
   canWrite,
   closeDialog,
-  onHoldOpen,
   onSaveSampling,
   projectId,
   settings,
-  source,
 }: {
   projectId: string;
   canWrite: boolean;
   settings: ConfigureTopicsSettingsInput;
-  source: "automatic" | "reopened";
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
   }) => Promise<unknown>;
-  onHoldOpen: () => void;
   closeDialog: () => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -134,8 +121,8 @@ function TopicSetupSession({
   const [requestId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
   useEffect(() => {
-    capture("topics:setup_opened", { source });
-  }, [capture, source]);
+    capture("topics:setup_opened", { source: "start_analyzing" });
+  }, [capture]);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
     { projectId },
@@ -149,7 +136,6 @@ function TopicSetupSession({
   );
 
   async function saveQuestions() {
-    onHoldOpen();
     const summary = resolveTopicModelSlot(
       draft.summary,
       connections,
@@ -208,7 +194,6 @@ function TopicSetupSession({
   }
 
   async function startAnalyzing() {
-    onHoldOpen();
     await persistSampling(true);
     const facets = await utils.topics.facets.fetch({ projectId });
     const enabled = new Set<string>(

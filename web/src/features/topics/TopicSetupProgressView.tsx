@@ -44,6 +44,7 @@ const NO_TOPICS = new Set([
 export function TopicSetupProgressView({
   canRetry,
   facets,
+  onViewDetails,
   onDisplayResults,
   onRetry,
   retrying,
@@ -54,6 +55,8 @@ export function TopicSetupProgressView({
   retrying: boolean;
   canRetry: boolean;
   onDisplayResults: () => void;
+  // Opens the run in History; set when a run or one of its facets failed.
+  onViewDetails?: () => void;
   onRetry: () => void;
 }) {
   const requested = Math.max(0, ...facets.map((facet) => facet.requested));
@@ -153,6 +156,13 @@ export function TopicSetupProgressView({
       ) : null}
       {stage === "failed" && canRetry ? (
         <Button text="Retry" loading={retrying} onClick={onRetry} />
+      ) : null}
+      {onViewDetails ? (
+        <Button
+          text="See run details"
+          variant="ghost"
+          onClick={onViewDetails}
+        />
       ) : null}
     </div>
   );

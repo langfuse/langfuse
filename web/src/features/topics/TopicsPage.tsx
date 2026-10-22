@@ -135,17 +135,11 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
-  const configured = Boolean(
-    modelSettings.configure.settings?.stored.summary &&
-    modelSettings.configure.settings.stored.embedding &&
-    modelSettings.configure.settings.stored.clustering,
-  );
   return (
     <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
       <TopicSetupFlowController
         projectId={projectId}
         canWrite={canWrite}
-        configured={configured}
         settings={modelSettings.configure.settings}
         onSaveSampling={modelSettings.automaticProcessing.save}
       >
@@ -298,6 +292,9 @@ function TopicsWorkspaceContent({
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
+  // A run worth inspecting: the one that failed, or a topic run with failed facets.
+  const setupDetailsId =
+    setupRun && setup ? detailsRunId(setupRun, setup) : null;
   const setupFacets =
     setupRun?.process.facets.map((facet) => {
       const update = setupRun.update?.facets.find(
@@ -605,6 +602,11 @@ function TopicsWorkspaceContent({
                   facets={setupFacets}
                   retrying={setupRetry.isPending}
                   canRetry={setup.retryId !== null}
+                  onViewDetails={
+                    setupDetailsId
+                      ? () => openExecution(setupDetailsId)
+                      : undefined
+                  }
                   onRetry={() => {
                     if (setup.retryId)
                       setupRetry.mutate({
@@ -1036,4 +1038,18 @@ function startBlockedReason(running: boolean, automaticOn: boolean) {
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
+}
+
+function detailsRunId(
+  run: {
+    process: { id: string };
+    update: { id: string; facets: Array<{ outcome: string }> } | null;
+  },
+  setup: { stage: string; retryId: string | null },
+) {
+  if (setup.stage === "failed")
+    return setup.retryId ?? run.update?.id ?? run.process.id;
+  return run.update?.facets.some((facet) => facet.outcome === "failed")
+    ? run.update.id
+    : null;
 }
