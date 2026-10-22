@@ -46,6 +46,42 @@ export class OrganizationMembersService {
     );
   }
 
+  /**
+   * Finds the members among `emails` (lowercase, as stored) and whether their
+   * role grants `scope`.
+   */
+  async findMembersByEmail(params: {
+    organizationId: string;
+    emails: string[];
+    scope: OrganizationScope;
+  }) {
+    if (params.emails.length === 0) return [];
+    const memberships = await this.prisma.organizationMembership.findMany({
+      where: {
+        orgId: params.organizationId,
+        user: { email: { in: params.emails } },
+      },
+      select: {
+        role: true,
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return memberships.flatMap(({ role, user }) =>
+      user.email
+        ? [
+            {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              hasScope: organizationRoleAccessRights[role].includes(
+                params.scope,
+              ),
+            },
+          ]
+        : [],
+    );
+  }
+
   private membersWithScopeWhere(params: MembersWithScopeParams) {
     const roles = Object.values(Role).filter((role) =>
       organizationRoleAccessRights[role].includes(params.scope),

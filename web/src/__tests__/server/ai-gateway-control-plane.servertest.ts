@@ -486,35 +486,72 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ orgRole: Role.MEMBER });
   });
 
-  it("still notifies an existing member whose invite fails", async () => {
+  it.each([false, true])(
+    "announces the gateway once to a typed address of a member (notifyMembers: %s)",
+    async (notifyMembers) => {
+      const owner = await prepare();
+      Object.assign(env, {
+        SMTP_CONNECTION_URL: "smtp://localhost:1025",
+        EMAIL_FROM_ADDRESS: "gateway@example.test",
+      });
+      await createCallerForOrganizationRole(owner, Role.MEMBER);
+      const membership = await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: owner.org.id, role: Role.MEMBER },
+        select: { user: { select: { email: true } } },
+      });
+      const memberEmail = membership.user.email!;
+
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [memberEmail.toUpperCase()],
+        notifyMembers,
+      });
+
+      expect(result).toEqual({
+        invitedCount: 0,
+        failed: [],
+        notifiedCount: 1,
+      });
+      expect(queuedNotifications()).toEqual([
+        expect.objectContaining({
+          audience: { kind: "member" },
+          to: memberEmail.toLowerCase(),
+          receiverName: "Gateway member",
+        }),
+      ]);
+    },
+  );
+
+  it("reports typed members who cannot use the gateway and skips the sender", async () => {
     const owner = await prepare();
     Object.assign(env, {
       SMTP_CONNECTION_URL: "smtp://localhost:1025",
       EMAIL_FROM_ADDRESS: "gateway@example.test",
     });
-    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
     const membership = await prisma.organizationMembership.findFirstOrThrow({
-      where: { orgId: owner.org.id, role: Role.MEMBER },
+      where: { orgId: owner.org.id, role: Role.VIEWER },
       select: { user: { select: { email: true } } },
     });
-    const memberEmail = membership.user.email!;
+    const viewerEmail = membership.user.email!;
 
     const result = await owner.caller.aiGateway.inviteTeam({
       orgId: owner.org.id,
-      emails: [memberEmail],
-      notifyMembers: true,
+      emails: [viewerEmail, owner.user.email!],
+      notifyMembers: false,
     });
 
-    expect(result).toMatchObject({ invitedCount: 0, notifiedCount: 1 });
-    expect(result.failed.map(({ email }) => email)).toEqual([
-      memberEmail.toLowerCase(),
-    ]);
-    expect(queuedNotifications()).toEqual([
-      expect.objectContaining({
-        audience: { kind: "member" },
-        to: memberEmail.toLowerCase(),
-      }),
-    ]);
+    expect(result).toEqual({
+      invitedCount: 0,
+      failed: [
+        {
+          email: viewerEmail,
+          message: "Already a member, but their role can't use the AI Gateway",
+        },
+      ],
+      notifiedCount: 0,
+    });
+    expect(queuedNotifications()).toEqual([]);
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {

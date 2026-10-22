@@ -88,11 +88,48 @@ export class GatewayTeamService {
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
 
+    const emails = [
+      ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
+    ];
+    const existingMembers = new Map(
+      (
+        await this.members.findMembersByEmail({
+          organizationId,
+          emails,
+          scope: GATEWAY_USER_SCOPE,
+        })
+      ).map((member) => [member.email.toLowerCase(), member]),
+    );
+
     const invited = new Set<string>();
+    const notified = new Set<string>();
     const failed: Array<{ email: string; message: string }> = [];
-    for (const email of new Set(
-      params.emails.map((email) => email.trim().toLowerCase()),
-    )) {
+    for (const email of emails) {
+      const member = existingMembers.get(email);
+      // Typing a member's address means "tell them", so they get the member
+      // announcement rather than an "already a member" invitation error.
+      if (member) {
+        if (member.id === ctx.session.user.id) continue;
+        if (!member.hasScope) {
+          failed.push({
+            email,
+            message:
+              "Already a member, but their role can't use the AI Gateway",
+          });
+          continue;
+        }
+        if (sendsEmail) {
+          emailJobs.push({
+            ...sender,
+            to: email,
+            receiverName: member.name ?? undefined,
+            audience: { kind: "member" },
+          });
+          notified.add(email);
+        }
+        continue;
+      }
+
       try {
         await inviteOrganizationMember({
           ctx,
@@ -114,7 +151,6 @@ export class GatewayTeamService {
       }
     }
 
-    let notifiedCount = 0;
     if (params.notifyMembers && sendsEmail) {
       const members = await this.members.findMembersWithScope({
         organizationId,
@@ -123,14 +159,14 @@ export class GatewayTeamService {
       });
       for (const { email, name } of members) {
         const to = email.toLowerCase();
-        if (invited.has(to)) continue;
+        if (invited.has(to) || notified.has(to)) continue;
         emailJobs.push({
           ...sender,
           to,
           receiverName: name ?? undefined,
           audience: { kind: "member" },
         });
-        notifiedCount++;
+        notified.add(to);
       }
     }
 
@@ -152,6 +188,10 @@ export class GatewayTeamService {
       );
     }
 
-    return { invitedCount: invited.size, failed, notifiedCount };
+    return {
+      invitedCount: invited.size,
+      failed,
+      notifiedCount: notified.size,
+    };
   }
 }
