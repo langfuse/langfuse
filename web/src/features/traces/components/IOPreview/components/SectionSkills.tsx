@@ -5,7 +5,6 @@ import {
 } from "@langfuse/shared";
 import { FileCode2, FileText } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
@@ -17,37 +16,55 @@ import {
 import { IOSection } from "@/src/components/ui/IOSection";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
-  const [showAll, setShowAll] = useState(false);
+  const [isGroupExpanded, setGroupExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
   const groups = groupSkills(skills.items);
-  const visibleGroups = showAll ? groups : groups.slice(0, 3);
+  const isAvailable = skills.kind === "available";
+
+  function handleGroupChange(open: boolean) {
+    setGroupExpanded(open);
+  }
+
+  function handleSkillChange(value: string) {
+    setExpandedSkillKey(value);
+  }
 
   return (
-    <IOSection
-      title={skills.kind === "available" ? "Available skills" : "Loaded skills"}
-      count={groups.length}
-    >
-      <ul className="ph-no-capture flex flex-col gap-2">
-        {visibleGroups.map((group) => (
-          <SkillRow
-            key={group.key}
-            projectId={projectId}
-            group={group}
-            expanded={expandedSkillKey === group.key}
-            onExpandedChange={setExpandedSkillKey}
-          />
-        ))}
-      </ul>
-      {groups.length > 3 ? (
-        <div className="pt-2">
-          <Button
-            text={showAll ? "Show fewer" : `Show all ${groups.length} skills`}
-            variant="ghost"
+    <IOSection title="Skills" count={groups.length}>
+      <Collapsible
+        open={isGroupExpanded}
+        onOpenChange={handleGroupChange}
+        className="flex flex-col gap-2"
+      >
+        <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <FileCode2 size="base" color="muted" aria-hidden />
+            <span>
+              {groups.length} {isAvailable ? "available" : "loaded"}{" "}
+              {groups.length === 1 ? "skill" : "skills"}
+            </span>
+          </span>
+          <Badge
+            color="filled"
             size="sm"
-            onClick={() => setShowAll((value) => !value)}
+            text={isGroupExpanded ? "hide" : "show"}
           />
-        </div>
-      ) : null}
+          <DropdownIndicator direction={isGroupExpanded ? "down" : "right"} />
+        </CollapsibleTrigger>
+        <CollapsibleContent asChild>
+          <ul className="flex flex-col gap-2">
+            {groups.map((group) => (
+              <SkillRow
+                key={group.key}
+                projectId={projectId}
+                group={group}
+                expanded={expandedSkillKey === group.key}
+                onExpandedChange={handleSkillChange}
+              />
+            ))}
+          </ul>
+        </CollapsibleContent>
+      </Collapsible>
     </IOSection>
   );
 }
@@ -90,7 +107,7 @@ function SkillRow({
               aria-label={`Files loaded for ${skill.skillName}`}
             >
               <Badge
-                color="filled"
+                color="green"
                 size="sm"
                 text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
               />

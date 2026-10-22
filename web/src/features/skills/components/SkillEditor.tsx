@@ -374,6 +374,32 @@ export function SkillEditor({
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      {canReadMetrics ? (
+        <SkillAnalytics
+          projectId={projectId}
+          skillId={view.skillId}
+          name={name}
+          version={baseVersion}
+          paths={Object.keys(store.getState().files).toSorted()}
+        />
+      ) : (
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={baseVersion}
+        />
+      )}
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
     openDialog: (
       state:
@@ -419,13 +445,9 @@ export function SkillEditor({
             {
               type: "item",
               id: "download",
-              title: isDownloading
-                ? "Downloading…"
-                : `Download v${baseVersion} as ZIP`,
+              title: downloadTitle,
               icon: Download,
-              disabled: isDownloading
-                ? { reason: "Download in progress" }
-                : undefined,
+              disabled: downloadDisabled,
               onClick: download,
             },
             {
@@ -706,27 +728,7 @@ export function SkillEditor({
                         disabled={isDraft}
                       />
                     </Tabs.List>
-                    {view.kind === "version" && baseVersion !== null ? (
-                      <Tabs.Content value="usage" layout="fill">
-                        {canReadMetrics ? (
-                          <SkillAnalytics
-                            projectId={projectId}
-                            skillId={view.skillId}
-                            name={name}
-                            version={baseVersion}
-                            paths={Object.keys(
-                              store.getState().files,
-                            ).toSorted()}
-                          />
-                        ) : (
-                          <SkillLinkedTraces
-                            projectId={projectId}
-                            name={name}
-                            version={baseVersion}
-                          />
-                        )}
-                      </Tabs.Content>
-                    ) : null}
+                    {usageTab}
                     <Tabs.Content value="files" layout="fill">
                       <ResizablePanelGroup
                         key={isDesktop ? "desktop" : "mobile"}

@@ -69,10 +69,20 @@ export const Loaded = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const summary = canvas.getByRole("button", {
+      name: "3 loaded skills show",
+    });
+
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(summary);
     const refundFiles = canvas.getByRole("button", {
       name: "Files loaded for refund-policy",
     });
     await userEvent.click(refundFiles);
+    await expect(canvas.getByText("references/refunds.md")).toBeVisible();
+
+    await userEvent.click(summary);
+    await userEvent.click(summary);
     await expect(canvas.getByText("references/refunds.md")).toBeVisible();
 
     await userEvent.click(

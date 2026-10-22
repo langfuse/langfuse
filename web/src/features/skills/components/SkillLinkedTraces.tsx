@@ -25,34 +25,17 @@ export function SkillLinkedTraces({
     onClear: () => void;
   };
 }) {
-  const [usage, setUsage] = useState<"both" | "available" | "loaded">("both");
+  const [usage, setUsage] = useState<SkillUsage>("both");
   const selectedUsage = fileFilter ? "loaded" : usage;
   const { timeRange: localTimeRange, setTimeRange } =
     useTableDateRange(projectId);
   const timeRange = parentTimeRange ?? localTimeRange;
-  const column = {
-    both: version === undefined ? "skillNames" : "skillVersions",
-    available:
-      version === undefined ? "skillNamesAvailable" : "skillVersionsAvailable",
-    loaded:
-      version === undefined ? "skillsNamesLoaded" : "skillsVersionsLoaded",
-  }[selectedUsage];
-  const filters: FilterState = [
-    {
-      column,
-      type: "arrayOptions",
-      operator: "any of",
-      value: [version === undefined ? name : `${name}@${version}`],
-    },
-  ];
-  if (fileFilter) {
-    filters.push({
-      column: "skillFilesLoaded",
-      type: "arrayOptions",
-      operator: "any of",
-      value: [`${fileFilter.skillId}/${fileFilter.path}`],
-    });
-  }
+  const filters = buildSkillUsageFilters({
+    name,
+    version,
+    usage: selectedUsage,
+    fileFilter,
+  });
 
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-lg border pt-4">
@@ -132,3 +115,45 @@ export function SkillLinkedTraces({
     </section>
   );
 }
+
+function buildSkillUsageFilters({
+  name,
+  version,
+  usage,
+  fileFilter,
+}: {
+  name: string;
+  version: number | undefined;
+  usage: SkillUsage;
+  fileFilter: { skillId: string; path: string } | undefined;
+}): FilterState {
+  const column = {
+    both: version === undefined ? "skillNames" : "skillVersions",
+    available:
+      version === undefined ? "skillNamesAvailable" : "skillVersionsAvailable",
+    loaded:
+      version === undefined ? "skillsNamesLoaded" : "skillsVersionsLoaded",
+  }[usage];
+  const skillFilters: FilterState = [
+    {
+      column,
+      type: "arrayOptions",
+      operator: "any of",
+      value: [version === undefined ? name : `${name}@${version}`],
+    },
+  ];
+
+  return fileFilter
+    ? [
+        ...skillFilters,
+        {
+          column: "skillFilesLoaded",
+          type: "arrayOptions",
+          operator: "any of",
+          value: [`${fileFilter.skillId}/${fileFilter.path}`],
+        },
+      ]
+    : skillFilters;
+}
+
+type SkillUsage = "both" | "available" | "loaded";
