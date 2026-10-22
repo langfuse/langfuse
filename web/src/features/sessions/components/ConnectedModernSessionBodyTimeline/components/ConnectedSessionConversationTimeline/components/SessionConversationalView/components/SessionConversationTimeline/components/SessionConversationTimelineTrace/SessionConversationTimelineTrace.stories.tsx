@@ -1,6 +1,6 @@
 import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
@@ -151,6 +151,39 @@ function transcriptState({
 const weatherState = transcriptState({
   messages: result.transcript?.threads[0]?.currentTurn.messages ?? [],
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
+});
+
+export const CollapsibleTrace = meta.story({
+  name: "(Test) Collapsible Trace",
+  args: { ...commonArgs, state: { type: "empty" } },
+  render: function Render(args) {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    return (
+      <SessionConversationTimelineTrace
+        {...args}
+        isCollapsed={isCollapsed}
+        onToggleCollapsed={() => setIsCollapsed((current) => !current)}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", {
+      name: "Collapse trace Weather assistant",
+    });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await expect(
+      canvas.queryByText("This trace has no messages."),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("Weather assistant")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand trace Weather assistant" }),
+    );
+    await expect(
+      canvas.getByText("This trace has no messages."),
+    ).toBeInTheDocument();
+  },
 });
 
 function toolPreviewState(
