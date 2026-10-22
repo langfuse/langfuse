@@ -38,7 +38,10 @@ export const ImportScopes = meta.story({
       const singleCommand = `langfuse skills push 'team'"'"'s skills/review-code'`;
       await expect(canvas.getByText(singleCommand)).toBeVisible();
       await userEvent.click(
-        canvas.getByRole("button", { name: "Copy prompt" }),
+        within(canvas.getByRole("group", { name: "Setup prompt" })).getByRole(
+          "button",
+          { name: "Copy code" },
+        ),
       );
       await expect(writeText).toHaveBeenLastCalledWith(
         expect.stringContaining(singleCommand),
@@ -72,7 +75,7 @@ export const EmptyPath = meta.story({
       "Enter a folder path",
     );
     await expect(
-      canvas.queryByRole("button", { name: "Copy prompt" }),
+      canvas.queryByRole("group", { name: "Setup prompt" }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByText(/langfuse skills push/),

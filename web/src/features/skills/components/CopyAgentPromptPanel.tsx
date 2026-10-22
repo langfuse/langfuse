@@ -16,7 +16,11 @@ export function CopyAgentPromptPanel({
           agent.
         </p>
       </div>
-      <div className="min-w-0 [&_pre]:max-h-24 [&_pre]:break-words [&_pre]:whitespace-pre-wrap">
+      <div
+        role="group"
+        aria-label="Setup prompt"
+        className="min-w-0 [&_pre]:max-h-24 [&_pre]:break-words [&_pre]:whitespace-pre-wrap"
+      >
         <Codeblock
           language="text"
           label="Setup prompt"
