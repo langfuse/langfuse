@@ -1,5 +1,9 @@
-import { IOSection } from "@/src/components/ui/IOSection";
+import { Button } from "@/src/components/ui/button";
 import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
   FileIcon,
   Wrench,
   FoldVertical,
@@ -40,6 +44,8 @@ export function SessionTimelinePart({
   const copyRef = useRef<(() => void) | null>(null);
   const [variant, setVariant] = useState<"text" | "table">("text");
   const [canExpand, setCanExpand] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   if (part.type === "text") {
     if (part.refusal) {
@@ -107,36 +113,90 @@ export function SessionTimelinePart({
 
   if (part.type === "custom") {
     return (
-      <IOSection
-        title={part.kind}
-        variant={variant}
-        onCopy={() => copyRef.current?.()}
-        actions={
-          canExpand
-            ? [
-                {
-                  icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
-                  label: allRowsExpanded
-                    ? "Collapse all rows"
-                    : "Expand all rows",
-                  onClick: () => expandAllRef.current?.(),
-                },
-              ]
-            : undefined
-        }
-      >
-        <PrettyJsonView
-          json={part.value}
-          currentView="pretty"
-          borderless
-          downloadLabel={part.kind}
-          expandAllRef={expandAllRef}
-          onExpandStateChange={setAllRowsExpanded}
-          copyRef={copyRef}
-          onDisplayModeChange={setVariant}
-          onExpandabilityChange={setCanExpand}
-        />
-      </IOSection>
+      <div className="group/custom-part flex flex-col overflow-clip">
+        <div className="flex h-8 items-center justify-between text-sm font-bold capitalize">
+          <button
+            type="button"
+            className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left capitalize focus-visible:ring-2 focus-visible:outline-hidden"
+            aria-expanded={!isCollapsed}
+            aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${part.kind}`}
+            onClick={() => setIsCollapsed((current) => !current)}
+          >
+            {isCollapsed ? (
+              <ChevronRight size="base" color="default" aria-hidden />
+            ) : (
+              <ChevronDown size="base" color="default" aria-hidden />
+            )}
+            {part.kind}
+          </button>
+          {!isCollapsed && (
+            <div className="mr-1 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/custom-part:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+              {canExpand && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  type="button"
+                  title={
+                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                  }
+                  aria-label={
+                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                  }
+                  onClick={() => expandAllRef.current?.()}
+                  className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+                >
+                  {allRowsExpanded ? (
+                    <FoldVertical size="base" color="default" />
+                  ) : (
+                    <UnfoldVertical size="base" color="default" />
+                  )}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                type="button"
+                title="Copy to clipboard"
+                aria-label="Copy to clipboard"
+                onClick={() => {
+                  setIsCopied(true);
+                  copyRef.current?.();
+                  setTimeout(() => setIsCopied(false), 1000);
+                }}
+                className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+              >
+                {isCopied ? (
+                  <Check size="base" color="default" />
+                ) : (
+                  <Copy size="base" color="default" />
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+        {!isCollapsed && (
+          <div className="ph-no-capture pt-1">
+            <div
+              className={cn(
+                "bg-surface-section overflow-hidden rounded-md px-3",
+                variant === "table" ? "py-1" : "py-2",
+              )}
+            >
+              <PrettyJsonView
+                json={part.value}
+                currentView="pretty"
+                borderless
+                downloadLabel={part.kind}
+                expandAllRef={expandAllRef}
+                onExpandStateChange={setAllRowsExpanded}
+                copyRef={copyRef}
+                onDisplayModeChange={setVariant}
+                onExpandabilityChange={setCanExpand}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
