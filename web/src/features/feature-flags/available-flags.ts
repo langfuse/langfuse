@@ -111,7 +111,6 @@ export const availableFlags = [
   ...adminOnlyFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
-  "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
