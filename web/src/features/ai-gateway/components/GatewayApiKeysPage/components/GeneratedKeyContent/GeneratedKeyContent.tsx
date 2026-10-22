@@ -73,7 +73,7 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
         <h3 className="font-bold">Usage instructions</h3>
         {activeEntry ? (
           <Button
-            variant="ghost"
+            variant="text"
             size="sm"
             text="Docs"
             href={activeEntry.docsUrl}
