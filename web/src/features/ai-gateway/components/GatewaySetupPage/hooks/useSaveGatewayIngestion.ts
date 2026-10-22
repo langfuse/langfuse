@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
@@ -9,6 +10,8 @@ export function useSaveGatewayIngestion(organizationId: string) {
   const utils = api.useUtils();
   const createProject = api.projects.create.useMutation();
   const updateConfig = api.aiGateway.updateConfig.useMutation();
+  // Spans every request and the refetch, so callers stay busy until the saved config is shown.
+  const [isSaving, setIsSaving] = useState(false);
 
   async function resolveProjectId(settings: GatewayIngestionSettings) {
     if (settings.ingestionMode === "NONE") return null;
@@ -25,6 +28,7 @@ export function useSaveGatewayIngestion(organizationId: string) {
   }
 
   async function saveIngestion(settings: GatewayIngestionSettings) {
+    setIsSaving(true);
     try {
       await updateConfig.mutateAsync({
         orgId: organizationId,
@@ -39,11 +43,13 @@ export function useSaveGatewayIngestion(organizationId: string) {
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-configuration");
       return false;
+    } finally {
+      setIsSaving(false);
     }
   }
 
   return {
     saveIngestion,
-    isSaving: createProject.isPending || updateConfig.isPending,
+    isSaving,
   };
 }
