@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type DateRange as RDPDateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
-import { TimePicker } from "@/src/components/ui/time-picker";
+import { TimePicker } from "@/src/components/ui/TimePicker";
 import { DashboardDateRangeDropdown } from "@/src/components/DashboardDateRangeDropdown";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,

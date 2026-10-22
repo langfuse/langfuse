@@ -36,7 +36,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 export type PromptVersionTableRow = {
   version: number;

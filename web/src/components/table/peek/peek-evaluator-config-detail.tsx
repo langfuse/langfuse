@@ -23,7 +23,7 @@ import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
-import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
 import {
   requiresLegacyMigrationAction,
   isLegacyEvalTarget,

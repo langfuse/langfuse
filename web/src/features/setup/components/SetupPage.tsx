@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import {
   Breadcrumb,
   BreadcrumbItem,

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import { Toaster as Sonner } from "sonner";

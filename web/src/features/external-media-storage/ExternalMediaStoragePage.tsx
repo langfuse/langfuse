@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import Header from "@/src/components/layouts/header";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";

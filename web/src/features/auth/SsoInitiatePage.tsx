@@ -3,7 +3,7 @@ import Head from "next/head";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/layouts/Spinner";
 
 export default function SsoInitiatePage() {
   const router = useRouter();

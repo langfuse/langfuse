@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";

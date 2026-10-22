@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { encodeFiltersGeneric } from "@langfuse/shared";
-import { LevelCountsDisplay } from "@/src/components/level-counts-display";
+import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -48,7 +48,7 @@ import {
 } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
