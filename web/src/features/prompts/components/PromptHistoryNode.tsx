@@ -8,6 +8,8 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { toPromptLabelListItems } from "@/src/features/prompts/utils";
+import { PromotePromptVersionIconButton } from "@/src/features/prompts/components/PromotePromptVersionIconButton";
+import { PRODUCTION_LABEL } from "@langfuse/shared";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -133,6 +135,16 @@ const PromptHistoryTraceNode = (props: {
               </div>
             </div>
           </div>
+          {!prompt.labels.includes(PRODUCTION_LABEL) ? (
+            <span className="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+              <PromotePromptVersionIconButton
+                projectId={prompt.projectId}
+                promptId={prompt.id}
+                labels={prompt.labels}
+                version={prompt.version}
+              />
+            </span>
+          ) : null}
           {props.currentPrompt &&
           props.currentPromptVersion !== prompt.version ? (
             <DialogController

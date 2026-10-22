@@ -185,6 +185,7 @@ const events = {
     "test_in_playground_button_click",
     "add_label_submit",
     "apply_labels",
+    "promote_to_production",
     "version_delete_open",
     "version_delete_submit",
     "duplicate_button_click",
