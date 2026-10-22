@@ -15,7 +15,7 @@ import {
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -53,7 +53,7 @@ import {
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 type RowData = {
   userId: string;
@@ -400,7 +400,7 @@ export function UsersTable({
         };
       },
     }),
-    createBadgeTableColumn<RowData>({
+    createTagTableColumn<RowData>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -527,6 +527,7 @@ export function UsersTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}

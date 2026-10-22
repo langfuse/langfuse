@@ -1,9 +1,24 @@
 import { env } from "@/src/env.mjs";
 import { getBaseUrl } from "@/src/utils/base-url";
-import { ForbiddenError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  MAX_MCP_REQUEST_ELEMENTS,
+  PayloadTooLargeError,
+} from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
+
+/** Validates MCP requests and preserves CORS headers on allowed-origin body errors. */
+export function validateMcpRequestSecurity(
+  req: NextApiRequest,
+  res: NextApiResponse,
+): string | null {
+  const allowedOrigin = validateMcpRequestOrigin(req);
+  applyMcpCorsHeaders(res, allowedOrigin);
+  validateMcpRequestBody(req.body);
+  return allowedOrigin;
+}
 
 function parseAllowedMcpHostEntry(
   entry: string,
@@ -67,7 +82,7 @@ function getAllowedMcpOriginsAndHostnames() {
   return { allowedHostnames, allowedOrigins };
 }
 
-export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
+function validateMcpRequestOrigin(req: NextApiRequest): string | null {
   const originHeader = Array.isArray(req.headers.origin)
     ? req.headers.origin[0]
     : req.headers.origin;
@@ -115,7 +130,7 @@ export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
   return origin;
 }
 
-export function applyMcpCorsHeaders(
+function applyMcpCorsHeaders(
   res: NextApiResponse,
   allowedOrigin: string | null,
 ): void {
@@ -130,4 +145,29 @@ export function applyMcpCorsHeaders(
     "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
   );
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+}
+
+/** Bounds structure before SDK schema validation; the route separately caps bytes. */
+function validateMcpRequestBody(body: unknown): void {
+  const pending: unknown[] = [body];
+  let elements = 0;
+
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (value === null || typeof value !== "object") continue;
+
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      if (++elements > MAX_MCP_REQUEST_ELEMENTS) {
+        throw new PayloadTooLargeError(
+          `MCP request exceeds ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements across the entire request. ` +
+            "No tools in this request were executed. Split batches into smaller requests before retrying. " +
+            "If a single item cannot fit, ask the user how to proceed. Do not truncate data or retry the same request unchanged.",
+        );
+      }
+
+      const child = (value as Record<string, unknown>)[key];
+      if (child !== null && typeof child === "object") pending.push(child);
+    }
+  }
 }

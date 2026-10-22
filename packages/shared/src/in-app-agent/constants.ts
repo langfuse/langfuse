@@ -1,42 +1,13 @@
-import { InAppAgentRunStatus } from "../features/inAppAgent/types";
-
 // Avoid renaming this as the FE is aware of this when rendering, renaming it would cause history issues
 export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
+
+// Persisted in transcripts like the redirect tool name; do not rename.
+export const IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME = "langfuse_askUserQuestions";
 
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
   "An error occurred. Please try again or start a new conversation.";
-
-/** Runs that are not yet in a terminal state, including parked approvals. */
-export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
-  InAppAgentRunStatus.QUEUED,
-  InAppAgentRunStatus.RUNNING,
-  InAppAgentRunStatus.AWAITING_APPROVAL,
-] as const;
-
-export type UnsettledInAppAgentRunStatus =
-  (typeof IN_APP_AGENT_UNSETTLED_RUN_STATUSES)[number];
-
-/** Complement of `IN_APP_AGENT_UNSETTLED_RUN_STATUSES`. */
-export type SettledInAppAgentRunStatus = Exclude<
-  InAppAgentRunStatus,
-  UnsettledInAppAgentRunStatus
->;
-
-export function isUnsettledInAppAgentRunStatus(
-  status: InAppAgentRunStatus,
-): status is UnsettledInAppAgentRunStatus {
-  return (
-    IN_APP_AGENT_UNSETTLED_RUN_STATUSES as readonly InAppAgentRunStatus[]
-  ).includes(status);
-}
-
-export function isSettledInAppAgentRunStatus(
-  status: InAppAgentRunStatus,
-): status is SettledInAppAgentRunStatus {
-  return !isUnsettledInAppAgentRunStatus(status);
-}
 
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE = "silent-mcp-output";
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE =

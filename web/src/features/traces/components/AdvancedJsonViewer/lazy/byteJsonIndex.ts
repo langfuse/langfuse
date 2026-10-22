@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /**
  * Lazy UTF-8 JSON byte indexer (LFE-11082, spike LFE-11079).
  *
@@ -729,7 +728,8 @@ export class ByteJsonIndexEngine {
     if (sliceEnd < node.valueEnd) {
       while (
         sliceEnd > node.valueStart &&
-        (this.bytes[sliceEnd]! & 0xc0) === 0x80
+        this.bytes[sliceEnd]! >= 0x80 &&
+        this.bytes[sliceEnd]! <= 0xbf
       ) {
         sliceEnd--;
       }

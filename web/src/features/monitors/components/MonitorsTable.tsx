@@ -1,6 +1,11 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
+import {
+  MoreVertical,
+  PauseCircle,
+  PlayCircle,
+  SquarePen,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -30,6 +35,7 @@ import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import {
@@ -83,6 +89,8 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation:
+          variables.status === "PAUSED" ? "monitor.pause" : "monitor.resume",
         title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
@@ -90,7 +98,12 @@ export function MonitorsTable() {
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) => showErrorToast("Failed to update alert status", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to update alert status",
+        e.message,
+        classifyTrpcToastError(e, "monitor.status_update"),
+      ),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
@@ -233,7 +246,6 @@ export function MonitorsTable() {
                   selectedTags={row.original.tags ?? []}
                   isLoading={false}
                   viewOnly
-                  isTableCell
                 />
               </div>
             ),
@@ -308,6 +320,7 @@ export function MonitorsTable() {
       <SearchableTableFilterLayout
         search={
           <TableSearchBar
+            size="large"
             key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
             projectId={projectId}
             tableName="monitors"
@@ -422,7 +435,7 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
+        <SquarePen size="base" color="default" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -442,9 +455,9 @@ function MonitorRowActions({
       }}
     >
       {isPaused ? (
-        <PlayCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PlayCircle size="lg" color="default" aria-hidden="true" />
       ) : (
-        <PauseCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PauseCircle size="lg" color="default" aria-hidden="true" />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -470,7 +483,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical size="sm" color="default" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">

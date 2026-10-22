@@ -119,7 +119,7 @@ export const promptRouter = createTRPCRouter({
 
       const orderByCondition = orderByToPrismaSql(
         normalizeOrderByForTable({
-          orderBy: input.orderBy,
+          orderBy: input.orderBy ?? { column: "createdAt", order: "DESC" },
           expectedTimeColumn: "createdAt",
         }),
         promptsTableCols,
@@ -136,7 +136,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -229,7 +229,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -267,7 +267,8 @@ export const promptRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          promptNames: z.array(z.string()),
+          // Allow longer legacy names when fetching metrics; new names are limited to 255 characters.
+          promptNames: z.array(z.string().max(1500)).max(50),
           ...promptMetricsTimeWindow,
         })
         .refine(isValidPromptMetricsTimeWindow, {
@@ -637,7 +638,15 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        // The deletion has committed; a cache failure must not skip webhooks.
+        try {
+          await promptService.invalidateCache({ projectId });
+        } catch (error) {
+          logger.error(
+            `Failed to invalidate prompt cache after deleting prompts in project ${projectId}`,
+            error,
+          );
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(

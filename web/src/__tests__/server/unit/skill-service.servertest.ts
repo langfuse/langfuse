@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 import { auditLog } from "@/src/features/audit-logs/server";
 
@@ -104,7 +106,7 @@ describe("SkillService versions", () => {
           .mockResolvedValue({ id: "membership", role: "MEMBER" }),
       },
       projectMembership: { findFirst: vi.fn().mockResolvedValue(null) },
-      skillFile: { findFirst: vi.fn().mockResolvedValue(skill.files[0]) },
+      skillBlob: { findMany: vi.fn().mockResolvedValue(blobs) },
       $transaction: transaction,
       skill: {
         findFirst: vi.fn().mockResolvedValue(skill),
@@ -131,6 +133,29 @@ describe("SkillService versions", () => {
         orgId: "org",
         apiKeyId: "api-key",
         accessLevel: "project" as const,
+        ctx: {
+          principal: {
+            kind: "apiKey",
+            apiKeyId: "api-key",
+            userId: "user",
+            isInAppAgentKey: false,
+            publicKey: "pk-lf-test",
+            scope: "PROJECT",
+            presentation: "privateKey",
+            organizations: [],
+            boundResource: { orgId: "org", projectId: "project" },
+          },
+          policies: [
+            {
+              id: "system/LEGACY_PROJECT_API_KEY:project",
+              roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+              tenantId: OrganizationId("org"),
+              effect: "ALLOW",
+              actions: ["promptProtectedLabels:CUD"],
+              resources: [ProjectId("project")],
+            },
+          ],
+        } satisfies AuthorizationContext,
       },
     };
     return {
@@ -144,6 +169,33 @@ describe("SkillService versions", () => {
       db,
     };
   }
+
+  it("includes labels from older versions without counting their tags", async () => {
+    const test = setup();
+    test.db.skill.findMany
+      .mockResolvedValueOnce([
+        { ...test.skill, labels: ["latest"], tags: ["support"] },
+      ])
+      .mockResolvedValueOnce([
+        { labels: ["latest"] },
+        { labels: ["staging", "canary"] },
+        { labels: ["production", "staging"] },
+      ]);
+
+    await expect(
+      test.service.filterOptions({ projectId: "project" }),
+    ).resolves.toEqual({
+      names: ["test-skill"],
+      tags: [{ value: "support", count: 1 }],
+      labels: ["canary", "latest", "production", "staging"],
+    });
+    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { projectId: "project", labels: { isEmpty: false } },
+      }),
+    );
+  });
 
   it.each(["setLabels", "deleteVersion", "deleteSkill"] as const)(
     "checks labels added before the mutation lock during %s",
@@ -522,27 +574,83 @@ describe("SkillService versions", () => {
     expect(test.transaction).not.toHaveBeenCalled();
   });
 
-  it("returns persisted text only after a project-scoped file lookup", async () => {
+  it("only looks up latest when the default production version is missing", async () => {
     const test = setup();
+    const input = {
+      projectId: "project",
+      name: "test-skill",
+      selector: {},
+      fallbackToLatest: true,
+    };
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 1,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
+    test.db.skill.findFirst.mockClear();
+    test.db.skill.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...test.skill, version: 2, labels: ["latest"] });
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 2,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledTimes(2);
+    for (const [index, label] of ["production", "latest"].entries()) {
+      expect(test.db.skill.findFirst).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.objectContaining({
+          where: {
+            projectId: "project",
+            name: "test-skill",
+            labels: { has: label },
+          },
+        }),
+      );
+    }
+  });
+
+  it("keeps the default production lookup strict unless fallback is enabled", async () => {
+    const test = setup();
+    test.db.skill.findFirst.mockResolvedValueOnce(null);
+
     await expect(
-      test.service.getFileContent({ projectId: "project", fileId: "file-0" }),
-    ).resolves.toEqual({ content: test.blobs[0]!.content });
-    expect(test.db.skillFile.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { projectId: "project", id: "file-0" },
+      test.service.get({
+        projectId: "project",
+        name: "test-skill",
+        selector: {},
       }),
-    );
-    test.db.skillFile.findFirst.mockResolvedValue(null);
+    ).rejects.toThrow("Skill version not found");
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
+  });
+
+  it("loads a resource through the batch lookup using its manifest hash", async () => {
+    const test = setup();
+    const getFileContents = vi
+      .spyOn(test.service, "getFileContents")
+      .mockResolvedValue({
+        data: [
+          {
+            sha256Hash: test.blobs[1]!.sha256Hash,
+            content: test.blobs[1]!.content,
+          },
+        ],
+      });
+    const input = {
+      projectId: "project",
+      name: "test-skill",
+      selector: { version: 1 },
+    };
     await expect(
-      test.service.getFileContent({
-        projectId: "other-project",
-        fileId: "file-0",
-      }),
-    ).rejects.toThrow("Skill file not found");
-    expect(test.db.skillFile.findFirst).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: { projectId: "other-project", id: "file-0" },
-      }),
-    );
+      test.service.loadResource({ ...input, path: "reference.txt" }),
+    ).resolves.toBe(test.blobs[1]!.content);
+    expect(getFileContents).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project",
+      sha256Hashes: [test.blobs[1]!.sha256Hash],
+    });
+    await expect(
+      test.service.loadResource({ ...input, path: "missing.txt" }),
+    ).rejects.toThrow("Skill resource not found");
+    expect(getFileContents).toHaveBeenCalledOnce();
   });
 });

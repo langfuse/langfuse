@@ -4,7 +4,7 @@ import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/Da
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
-import { Columns3, MoreVertical, Trash } from "lucide-react";
+import { Columns3, MoreVertical, Trash } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
@@ -70,7 +70,7 @@ function DatasetRunLegacy() {
               }}
             >
               <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 size="base" color="default" __rawClassName="mr-2" />
                 <span>Compare</span>
               </Button>
             </Link>
@@ -108,7 +108,7 @@ function DatasetRunLegacy() {
                       size="icon"
                       {...getTriggerProps()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical size="base" color="default" />
                     </Button>
                   )}
                 </DropdownMenu>

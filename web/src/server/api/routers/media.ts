@@ -12,8 +12,42 @@ import {
   type MediaReturnType,
 } from "@/src/features/media/server";
 import { type MediaEnabledFields } from "@/src/features/media/validation";
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { InvalidRequestError } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 export const mediaRouter = createTRPCRouter({
+  resolveExternalMedia: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), uri: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const projectId = ctx.session.projectId;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "project:read",
+      });
+
+      try {
+        return await createExternalMediaStorageService(ctx.prisma).resolveUrl({
+          projectId,
+          uri: input.uri,
+        });
+      } catch (error) {
+        if (!(error instanceof InvalidRequestError)) {
+          logger.error("Unexpected external media resolution failure", {
+            projectId,
+            operation: "media.resolveExternalMedia",
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "External media is not available",
+        });
+      }
+    }),
+
   getById: protectedProjectProcedure
     .input(z.object({ mediaId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {

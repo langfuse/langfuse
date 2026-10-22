@@ -30,15 +30,15 @@ const OPENAI_PROMPT_CACHE_BREAKPOINT = { mode: "explicit" as const };
  * Stamp only the matching provider field. Bedrock Converse ignores Anthropic
  * `cacheControl`; Anthropic Messages ignores Bedrock `cachePoint`.
  *
- * Three checkpoints, each for a different prefix:
+ * Up to four checkpoints, each for a different prefix:
  *
- * 1. Last leading system — tools + compiled system. Must stay byte-stable
- *    across turns (user, screen, and clock live on a trailing suffix that
- *    is not persisted).
+ * 1. Last leading system — tools + instructions + stable user context. Also
+ *    checkpoint immediately before user context so shared instructions can
+ *    be reused when identity or language differs between users. Dynamic
+ *    request context is returned by a tool, not inserted in this prefix.
  * 2. Last conversation message — grows as this turn adds tool results so
- *    the next in-loop step can read it. A trailing `<current_time>` suffix
- *    is excluded: that clock changes every request and must not steal this
- *    checkpoint or the previous-turn walk.
+ *    the next in-loop step can read it. Run context stays frozen across these
+ *    requests. A legacy trailing `<current_time>` suffix is excluded.
  * 3. Previous-turn prefix — only when the last conversation message is a
  *    new user turn. The previous write sat on a tool result or prior user,
  *    not the closing assistant (that was model output). Skip trailing
@@ -84,9 +84,16 @@ export function applyPromptCachePoints(
   }
 
   let lastLeadingSystemIndex = -1;
+  let sharedSystemIndex = -1;
   for (let i = 0; i < prompt.length; i++) {
-    if (getMessageRole(prompt[i]) !== "system") {
+    if (
+      getMessageRole(prompt[i]) !== "system" ||
+      messageStartsWith(prompt[i], "<current_time")
+    ) {
       break;
+    }
+    if (messageStartsWith(prompt[i], "<user_context>")) {
+      sharedSystemIndex = i - 1;
     }
     lastLeadingSystemIndex = i;
   }
@@ -102,6 +109,9 @@ export function applyPromptCachePoints(
 
   if (lastConversationIndex >= 0) {
     addCheckpoint(lastConversationIndex);
+  }
+  if (sharedSystemIndex >= 0) {
+    addCheckpoint(sharedSystemIndex);
   }
   if (lastLeadingSystemIndex >= 0) {
     addCheckpoint(lastLeadingSystemIndex);
@@ -188,19 +198,20 @@ function getLastConversationIndex(prompt: unknown[]) {
     return -1;
   }
 
-  return isTrailingCurrentTimeMessage(prompt[lastIndex])
+  return getMessageRole(prompt[lastIndex]) === "user" &&
+    messageStartsWith(prompt[lastIndex], "<current_time")
     ? lastIndex - 1
     : lastIndex;
 }
 
-function isTrailingCurrentTimeMessage(message: unknown) {
-  if (getMessageRole(message) !== "user" || !isRecord(message)) {
+function messageStartsWith(message: unknown, prefix: string) {
+  if (!isRecord(message)) {
     return false;
   }
 
   const content = message.content;
   if (typeof content === "string") {
-    return content.startsWith("<current_time");
+    return content.trimStart().startsWith(prefix);
   }
 
   if (!Array.isArray(content)) {
@@ -212,7 +223,7 @@ function isTrailingCurrentTimeMessage(message: unknown) {
       isRecord(part) && part.type === "text" && typeof part.text === "string",
   );
   return isRecord(text) && typeof text.text === "string"
-    ? text.text.startsWith("<current_time")
+    ? text.text.trimStart().startsWith(prefix)
     : false;
 }
 
@@ -230,6 +241,9 @@ function findPreviousTurnCacheIndex(
   }
 
   for (let i = lastConversationIndex - 1; i > lastLeadingSystemIndex; i--) {
+    if (getMessageRole(prompt[i]) === "system") {
+      break;
+    }
     if (getMessageRole(prompt[i]) !== "assistant") {
       return i;
     }

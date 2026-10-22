@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
+import { FilteredRunPills } from "@/src/components/table/FilteredRunPills";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -12,7 +12,10 @@ import { useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import {
   DatasetCompareFieldsProvider,
@@ -22,7 +25,7 @@ import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -46,7 +49,7 @@ function DatasetCompareRunsTableInternal(props: {
     convertToColumnFilterList,
   } = useColumnFilterState();
   const { setDetailPageList } = useDetailPageLists();
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "datasetCompareRuns",
     "m",
   );
@@ -198,6 +201,7 @@ function DatasetCompareRunsTableInternal(props: {
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         additionalColumnSettings={{
           isDefault:
             isFieldSelected("output") &&
@@ -268,6 +272,9 @@ function DatasetCompareRunsTableInternal(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
         customRowHeights={{
           s: "h-48",
           m: "h-64",

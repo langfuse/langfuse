@@ -21,23 +21,46 @@ export const redactUrlCredentials = (text: string): string =>
   text.replace(URL_CREDENTIALS, "://***@");
 
 /**
+ * Scheme, host, and path for logs and persisted errors. Query strings and
+ * fragments are dropped because webhook destinations put shared secrets there
+ * (`sig`, SAS tokens). Userinfo is dropped too. Built from protocol and host
+ * because `URL.origin` is the string "null" for non-special schemes.
+ */
+export const urlForLog = (urlString: string): string => {
+  try {
+    const url = new URL(urlString);
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    const withoutFragment = urlString.split("#")[0] ?? urlString;
+    const withoutQuery = withoutFragment.split("?")[0] ?? withoutFragment;
+    return redactUrlCredentials(withoutQuery);
+  }
+};
+
+/**
  * Custom error for redirect validation failures. `cause` is required so the
  * inner error's typed `code` survives for classification, and goes through the
  * options bag so it stays non-enumerable — a structured logger serializes every
  * enumerable field, and the rejected target may carry credentials.
  */
 export class RedirectValidationError extends Error {
+  readonly redirectUrl: string;
+  readonly redirectDepth: number;
+
   constructor(
     message: string,
-    public redirectUrl: string,
-    public redirectDepth: number,
+    redirectUrl: string,
+    redirectDepth: number,
     cause: unknown,
   ) {
+    const loggedUrl = urlForLog(redirectUrl);
     super(
-      `Redirect validation failed at depth ${redirectDepth} for url ${redirectUrl}: ${message}`,
+      `Redirect validation failed at depth ${redirectDepth} for url ${loggedUrl}: ${message}`,
       { cause },
     );
     this.name = "RedirectValidationError";
+    this.redirectUrl = loggedUrl;
+    this.redirectDepth = redirectDepth;
   }
 }
 
@@ -45,14 +68,17 @@ export class RedirectValidationError extends Error {
  * Custom error for exceeding maximum redirect depth
  */
 export class MaxRedirectsExceededError extends Error {
-  constructor(
-    public maxRedirects: number,
-    public redirectChain: string[],
-  ) {
+  readonly maxRedirects: number;
+  readonly redirectChain: string[];
+
+  constructor(maxRedirects: number, redirectChain: string[]) {
+    const chainForLog = redirectChain.map(urlForLog);
     super(
-      `Maximum redirects (${maxRedirects}) exceeded. Chain: ${redirectChain.join(" → ")}`,
+      `Maximum redirects (${maxRedirects}) exceeded. Chain: ${chainForLog.join(" → ")}`,
     );
     this.name = "MaxRedirectsExceededError";
+    this.maxRedirects = maxRedirects;
+    this.redirectChain = chainForLog;
   }
 }
 
@@ -60,9 +86,13 @@ export class MaxRedirectsExceededError extends Error {
  * Custom error for circular redirect detection
  */
 export class CircularRedirectError extends Error {
-  constructor(public redirectChain: string[]) {
-    super(`Circular redirect detected: ${redirectChain.join(" → ")}`);
+  readonly redirectChain: string[];
+
+  constructor(redirectChain: string[]) {
+    const chainForLog = redirectChain.map(urlForLog);
+    super(`Circular redirect detected: ${chainForLog.join(" → ")}`);
     this.name = "CircularRedirectError";
+    this.redirectChain = chainForLog;
   }
 }
 
@@ -89,6 +119,7 @@ interface RedirectValidationOptions {
   validateUrl: RedirectUrlValidator;
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
+  addressAttemptTimeoutMs?: number;
 }
 
 /**
@@ -161,7 +192,7 @@ export async function fetchWithSecureRedirects(
 
   while (redirectDepth <= maxRedirects) {
     logger.debug("Fetching URL with manual redirect handling", {
-      url: currentUrl,
+      url: urlForLog(currentUrl),
       redirectDepth,
       maxRedirects,
     });
@@ -178,7 +209,7 @@ export async function fetchWithSecureRedirects(
     if (!isRedirect) {
       // This is the final response, return it
       logger.debug("Received non-redirect response", {
-        url: currentUrl,
+        url: urlForLog(currentUrl),
         status: response.status,
         redirectDepth,
       });
@@ -195,7 +226,7 @@ export async function fetchWithSecureRedirects(
 
     if (!location) {
       throw new Error(
-        `Redirect response (${response.status}) missing Location header at ${currentUrl}`,
+        `Redirect response (${response.status}) missing Location header at ${urlForLog(currentUrl)}`,
       );
     }
 
@@ -206,13 +237,13 @@ export async function fetchWithSecureRedirects(
       redirectUrl = resolvedUrl.toString();
     } catch (error) {
       throw new Error(
-        `Invalid redirect URL "${location}" at ${currentUrl}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Invalid redirect URL "${urlForLog(location)}" at ${urlForLog(currentUrl)}: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
 
     logger.debug("Redirect detected", {
-      from: currentUrl,
-      to: redirectUrl,
+      from: urlForLog(currentUrl),
+      to: urlForLog(redirectUrl),
       status: response.status,
       redirectDepth,
     });
@@ -244,8 +275,8 @@ export async function fetchWithSecureRedirects(
         );
       } catch (error) {
         logger.warn("Redirect validation failed", {
-          from: redactUrlCredentials(currentUrl),
-          to: redactUrlCredentials(redirectUrl),
+          from: urlForLog(currentUrl),
+          to: urlForLog(redirectUrl),
           redirectDepth,
           error:
             error instanceof Error
@@ -311,6 +342,8 @@ function addConnectionTimeValidation(
   return addSecureOutboundConnectionValidation(options, {
     whitelist: redirectOptions.redirectValidation.whitelist,
     logContext: redirectOptions.redirectValidation.logContext,
+    addressAttemptTimeoutMs:
+      redirectOptions.redirectValidation.addressAttemptTimeoutMs,
   });
 }
 

@@ -16,6 +16,9 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { SkillService } from "./index";
 
+import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
+import { SkillListOrderBySchema } from "../constants/skillsSorting";
+
 const projectInput = z.object({ projectId: z.string() });
 
 export const skillRouter = createTRPCRouter({
@@ -23,6 +26,7 @@ export const skillRouter = createTRPCRouter({
     .input(
       projectInput
         .extend({
+          orderBy: SkillListOrderBySchema.optional(),
           filter: singleFilterList
             .refine((filters) => filters.length <= 50, "Too many filters")
             .optional(),
@@ -86,15 +90,15 @@ export const skillRouter = createTRPCRouter({
       });
     }),
 
-  fileContent: protectedProjectProcedure
-    .input(projectInput.extend({ fileId: z.string().min(1) }))
+  fileContents: protectedProjectProcedure
+    .input(projectInput.and(GetSkillFileContentsInputSchema))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "skills:read",
       });
-      return new SkillService(prisma).getFileContent(input);
+      return new SkillService(prisma).getFileContents(input);
     }),
 
   skillVersions: protectedProjectProcedure

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
@@ -18,7 +18,7 @@ import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -55,17 +55,20 @@ const BreadcrumbComponent = ({
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none"
+                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
                 {...getTriggerProps()}
               >
                 {organization?.name ?? "Organization"}
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge className="ml-1" variant="secondary">
-                      {planLabels[organization.plan]}
-                    </Badge>
+                    <Badge
+                      color="filled"
+                      font="mono"
+                      size="sm"
+                      text={planLabels[organization.plan]}
+                    />
                   )}
-                <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+                <DropdownIndicator size="sm" nudge />
               </button>
             )}
           </OrganizationDropdownMenu>
@@ -91,11 +94,11 @@ const BreadcrumbComponent = ({
               {({ getTriggerProps }) => (
                 <button
                   type="button"
-                  className="text-primary flex h-5 items-center gap-1 p-0 leading-none"
+                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
                   {project.name}
-                  <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+                  <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>

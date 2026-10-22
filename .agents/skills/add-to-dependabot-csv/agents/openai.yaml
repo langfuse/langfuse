@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add to Dependabot CSV"
+  short_description: "Verify GitHub alerts and append them to the CSV"
+  default_prompt: "Use $add-to-dependabot-csv to verify these GitHub alerts and append them to the current Dependabot CSV."

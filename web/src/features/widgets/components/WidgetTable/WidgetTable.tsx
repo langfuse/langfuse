@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { useCallback, useMemo } from "react";
-import { Copy, CopyPlus, FileJson, Trash } from "lucide-react";
+import { Copy, CopyPlus, FileJson, Trash } from "@langfuse/icons";
 import startCase from "lodash/startCase";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
@@ -87,6 +88,7 @@ export function DashboardWidgetTable({
   | "onRowClick"
   | "orderBy"
   | "setOrderBy"
+  | "topBorder"
 > & {
   projectId: string | undefined;
   hasCUDAccess: boolean;

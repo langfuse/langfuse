@@ -277,6 +277,39 @@ export function CartesianChart({
   activeX?: { key: string; x: number; label: string };
   children: ReactNode;
 }) {
+  // D3's tick count is a hint, not a limit. Reserve the endpoint labels first;
+  // their inward-facing baselines need more room than centered labels.
+  const visibleYTicks = yTicks
+    .map((tick, index) => {
+      const position = y(tick);
+      let top = position - 6;
+      if (index === 0) top = position - 12;
+      else if (index === yTicks.length - 1) top = position;
+      return { tick, index, top, bottom: top + 12 };
+    })
+    .sort((left, right) => {
+      const leftEndpoint = left.index === 0 || left.index === yTicks.length - 1;
+      const rightEndpoint =
+        right.index === 0 || right.index === yTicks.length - 1;
+      return Number(rightEndpoint) - Number(leftEndpoint);
+    })
+    .reduce<
+      Array<{ tick: number; index: number; top: number; bottom: number }>
+    >((visible, label) => {
+      if (
+        visible.some(
+          (other) =>
+            label.top < other.bottom + 4 && label.bottom + 4 > other.top,
+        )
+      ) {
+        return visible;
+      }
+      visible.push(label);
+      return visible;
+    }, [])
+    .sort((left, right) => left.index - right.index)
+    .map(({ tick }) => tick);
+
   return (
     <svg
       width={width}
@@ -290,7 +323,7 @@ export function CartesianChart({
       }
     >
       <ChartGrid
-        yTicks={yTicks}
+        yTicks={visibleYTicks}
         y={y}
         left={plot.left}
         top={plot.top}
@@ -312,7 +345,7 @@ export function CartesianChart({
         />
       ) : null}
       <ChartYAxis
-        ticks={yTicks}
+        ticks={visibleYTicks}
         y={y}
         left={plot.left}
         valueFormatter={valueFormatter}

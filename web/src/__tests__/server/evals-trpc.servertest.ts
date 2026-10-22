@@ -114,6 +114,76 @@ describe("legacy evaluator compatibility service", () => {
     expect(config?.evalTemplate?.name).toBe("Legacy score");
   });
 
+  it("keeps facet rules out of legacy evaluator reads and writes", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id);
+    await prisma.evaluator.updateMany({
+      where: { projectId: project.id },
+      data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+    });
+
+    await expect(service.counts(project.id)).resolves.toEqual({
+      configCount: 0,
+      configActiveCount: 0,
+      templateCount: 0,
+      legacyConfigCount: 0,
+    });
+    await expect(
+      service.listConfigs({ projectId: project.id }),
+    ).resolves.toEqual({
+      configs: [],
+      totalCount: 0,
+    });
+    await expect(service.getConfig(project.id, rule.id)).resolves.toBeNull();
+    await expect(
+      service.listConfigsByTemplateName(project.id, "Legacy score"),
+    ).resolves.toEqual([]);
+    await expect(
+      service.updateConfig({
+        projectId: project.id,
+        ruleId: rule.id,
+        data: { status: JobConfigState.INACTIVE },
+      }),
+    ).rejects.toThrow("Evaluation rule not found");
+    await expect(service.deleteConfig(project.id, rule.id)).resolves.toBe(
+      false,
+    );
+  });
+
+  it("rejects activation when a built-in evaluator remains blocked", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id);
+    await prisma.evaluationRule.update({
+      where: { id: rule.id },
+      data: { status: JobConfigState.INACTIVE },
+    });
+    await prisma.evaluator.updateMany({
+      where: { projectId: project.id },
+      data: { isBuiltIn: true, blockedAt: new Date() },
+    });
+
+    await expect(
+      service.updateConfig({
+        projectId: project.id,
+        ruleId: rule.id,
+        data: { status: JobConfigState.ACTIVE },
+      }),
+    ).rejects.toThrow("Blocked built-in evaluators cannot be activated");
+    await expect(
+      service.setConfigStatuses({
+        projectId: project.id,
+        ruleIds: [rule.id],
+        status: JobConfigState.ACTIVE,
+      }),
+    ).rejects.toThrow("Blocked built-in evaluators cannot be activated");
+    await expect(
+      prisma.evaluationRule.findUnique({
+        where: { id: rule.id },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: JobConfigState.INACTIVE });
+  });
+
   it("projects an unassigned legacy-target rule for its read-only view", async () => {
     const { project, service } = await prepare();
     const rule = await createLegacyRule(project.id);

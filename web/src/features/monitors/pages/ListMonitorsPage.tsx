@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
@@ -101,7 +101,9 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
-                icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+                icon={
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
+                }
                 hasAccess={hasCUDAccess}
                 usageLimit={
                   typeof monitorEntitlementLimit === "number"

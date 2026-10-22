@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
@@ -7,7 +7,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
-const TOOLTIP_DELAY_MS = 300;
+const TOOLTIP_DELAY_MS = 150;
 
 /** Nested providers reset the delay, so every provider carries the app default. */
 const TooltipProvider = ({
@@ -17,10 +17,19 @@ const TooltipProvider = ({
   <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
 );
 
+/**
+ * @deprecated Use Tooltip from design-system/Tooltip/Tooltip or CustomTooltip from design-system/CustomTooltip/CustomTooltip.
+ */
 const Tooltip = TooltipPrimitive.Root;
 
+/**
+ * @deprecated Use the render-prop getTriggerProps API of design-system/Tooltip/Tooltip or design-system/CustomTooltip/CustomTooltip.
+ */
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
+/**
+ * @deprecated Use the label prop of design-system/Tooltip/Tooltip or the content prop of design-system/CustomTooltip/CustomTooltip.
+ */
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>

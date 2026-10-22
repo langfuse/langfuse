@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, waitFor } from "@testing-library/react";
 
 import { PromptVariableEditor } from "./PromptVariableEditor";

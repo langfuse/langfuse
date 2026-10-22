@@ -17,6 +17,8 @@ type InputProps = Pick<
   | "id"
   | "inputMode"
   | "maxLength"
+  | "max"
+  | "min"
   | "minLength"
   | "name"
   | "onBlur"

@@ -1,11 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   Pencil,
   TextCursorInput,
   Trash2,
   TriangleAlert,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
@@ -40,7 +40,7 @@ function VariableMappingCardHeaderContent({
       </span>
       {isUnmapped ? (
         <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
-          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <TriangleAlert size="base" />
           <span>nothing yet</span>
         </span>
       ) : (
@@ -52,7 +52,7 @@ function VariableMappingCardHeaderContent({
               aria-label={`Warning: ${warningMessage}`}
               title={warningMessage}
             >
-              <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+              <TriangleAlert size="base" aria-hidden="true" />
             </span>
           ) : null}
         </span>
@@ -143,7 +143,7 @@ function VariableMappingCardShell({
               title={`Rename ${variable}`}
               onClick={() => rename.onRenamingChange(true)}
             >
-              <TextCursorInput className="h-3.5 w-3.5" />
+              <TextCursorInput size="sm" color="default" />
             </Button>
           ) : null}
           <Button
@@ -160,9 +160,9 @@ function VariableMappingCardShell({
             onClick={() => onEditingChange(!isEditing)}
           >
             {isEditing ? (
-              <X className="h-3.5 w-3.5" />
+              <X size="sm" color="default" />
             ) : (
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil size="sm" color="default" />
             )}
           </Button>
           {onDelete ? (
@@ -178,7 +178,7 @@ function VariableMappingCardShell({
               }
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 size="sm" />
             </Button>
           ) : null}
         </span>

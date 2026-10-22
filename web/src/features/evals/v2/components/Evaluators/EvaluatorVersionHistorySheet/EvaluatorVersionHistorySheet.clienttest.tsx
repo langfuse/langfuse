@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
@@ -55,7 +56,7 @@ describe("EvaluatorVersionHistorySheet", () => {
     );
 
     expect(screen.getByText("Version 1").parentElement).toHaveClass(
-      "items-baseline",
+      "items-center",
     );
     expect(
       screen.queryByRole("button", { name: "Restore version 2" }),

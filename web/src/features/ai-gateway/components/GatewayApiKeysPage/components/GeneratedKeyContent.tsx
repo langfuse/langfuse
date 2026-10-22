@@ -1,4 +1,5 @@
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { DialogBody } from "@/src/components/ui/dialog";
 
 export function GeneratedKeyContent({
@@ -13,7 +14,9 @@ export function GeneratedKeyContent({
           This key can only be viewed once. You can always create new keys in
           the organization settings.
         </p>
-        <CodeView content={generatedKeys.secretKey} className="mt-2" />
+        <div className="mt-2">
+          <CodeSection variant="outline" content={generatedKeys.secretKey} />
+        </div>
       </div>
     </DialogBody>
   );

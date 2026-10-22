@@ -1,13 +1,15 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
 import { TraceDeleteQueue } from "./redis/traceDelete";
-import { QueueJobs } from "./queues";
+import { type Actor, QueueJobs } from "./queues";
 import { logger } from "./logger";
 import { env } from "../env";
 import { shouldSkipDeletionFor } from "./deletionGuard";
+import { formatSubmittedPublicKeyForLog } from "./auth/apiKeys";
 
 export interface TraceDeletionProcessorOptions {
   delayMs?: number; // Default from LANGFUSE_TRACE_DELETE_DELAY_MS env var
+  actor?: Actor; // Who requested the deletion, logged in web and worker
 }
 
 /**
@@ -28,7 +30,7 @@ export async function traceDeletionProcessor(
   traceIds: string[],
   options: TraceDeletionProcessorOptions = {},
 ): Promise<void> {
-  const { delayMs = env.LANGFUSE_TRACE_DELETE_DELAY_MS } = options;
+  const { delayMs = env.LANGFUSE_TRACE_DELETE_DELAY_MS, actor } = options;
 
   if (traceIds.length === 0) {
     logger.warn("traceDeletionProcessor called with empty traceIds array", {
@@ -38,11 +40,14 @@ export async function traceDeletionProcessor(
   }
 
   logger.info(
-    `Processing trace deletion for ${traceIds.length} traces in project ${projectId}`,
+    `Processing trace deletion for ${traceIds.length} traces in project ${projectId}${
+      actor ? ` requested by ${formatActor(actor)}` : ""
+    }`,
     {
       projectId,
       traceIds,
       delayMs,
+      actor: getActorLogMetadata(actor),
     },
   );
 
@@ -78,6 +83,7 @@ export async function traceDeletionProcessor(
         payload: {
           projectId,
           traceIds,
+          actor,
         },
       },
       {
@@ -92,4 +98,21 @@ export async function traceDeletionProcessor(
     });
     throw error;
   }
+}
+
+export function formatActor(actor: Actor): string {
+  if (actor.type === "API_KEY") {
+    if (actor.publicKey) {
+      return `API key ${formatSubmittedPublicKeyForLog(actor.publicKey)}`;
+    }
+    return `API key ${actor.apiKeyId ?? "unknown"}`;
+  }
+  return `user ${actor.userId ?? "unknown"}`;
+}
+
+// The submitted public key is client-controlled, so log metadata only carries
+// the database ids; formatActor prints the sanitized public key.
+export function getActorLogMetadata(actor: Actor | undefined) {
+  if (!actor) return undefined;
+  return { type: actor.type, userId: actor.userId, apiKeyId: actor.apiKeyId };
 }

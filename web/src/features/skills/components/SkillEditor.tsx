@@ -1,25 +1,37 @@
-import { type ComponentProps, useState } from "react";
-import { useStore } from "zustand";
+import {
+  type ComponentProps,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { MAX_SKILL_FILES } from "@langfuse/shared";
+import { useStore } from "zustand";
 import {
   Download,
+  ChevronDown,
+  ExternalLink,
   Loader2,
-  Plus,
+  Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
-} from "lucide-react";
+  Terminal,
+} from "@langfuse/icons";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
@@ -27,9 +39,21 @@ import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkil
 import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
 import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
 import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
-import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
-import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import {
+  SkillFileExplorer,
+  type SkillFileExplorerState,
+} from "@/src/features/skills/components/SkillFileExplorer";
+import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
+import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import {
+  createSkillDraftFile,
   type SkillDraftFile,
   type SkillEditorInitialValue,
   type SkillEditorStore,
@@ -39,17 +63,27 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
+import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
 
 export function SkillEditor({
   projectId,
   store,
   canCreate,
+  view,
   onCreated,
   history,
   metadataOptions,
@@ -59,6 +93,14 @@ export function SkillEditor({
   projectId: string;
   store: SkillEditorStore;
   canCreate: boolean;
+  view:
+    | { kind: "draft"; onDiscard: () => Promise<void> }
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -73,6 +115,8 @@ export function SkillEditor({
           creator: string | null | undefined;
         }>;
         selectedVersion: number;
+        draftStore: SkillEditorStore | null;
+        onSelectDraft: () => Promise<void>;
         hasMore: boolean;
         isLoadingMore: boolean;
         loadMoreError: boolean;
@@ -86,6 +130,8 @@ export function SkillEditor({
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
+  const labels = useStore(store, (state) => state.labels);
+  const tags = useStore(store, (state) => state.tags);
   const skillMarkdown = useStore(
     store,
     (state) => state.files["SKILL.md"]?.content,
@@ -95,12 +141,12 @@ export function SkillEditor({
       ? null
       : parseSkillFrontmatterMetadata(skillMarkdown);
   const draftName = metadata?.name.trim() ?? name;
-  let nameError: string | null = null;
-  if (skillMarkdown !== undefined) {
-    nameError = metadata
+  const nameError = useMemo(() => {
+    if (skillMarkdown === undefined) return null;
+    return metadata
       ? metadata.nameError
       : `Add valid YAML frontmatter with a name in SKILL.md. ${SKILL_NAME_RULES}`;
-  }
+  }, [skillMarkdown, metadata]);
   const hasNameChanged =
     baseVersion !== null &&
     skillMarkdown !== undefined &&
@@ -112,15 +158,22 @@ export function SkillEditor({
   );
   const isCheckingName =
     createsNewSkill && !nameError && nameAvailability.isPending;
-  let createDisabledReason = nameError;
-  if (createsNewSkill && !nameError) {
+  const createDisabledReason = useMemo(() => {
+    if (!createsNewSkill || nameError) return nameError;
     if (nameAvailability.data?.data.length) {
-      createDisabledReason = `A skill named "${draftName}" already exists. Choose a different name.`;
-    } else if (nameAvailability.isError) {
-      createDisabledReason =
-        "Could not check whether this skill name is available. Please try again.";
+      return `A skill named "${draftName}" already exists. Choose a different name.`;
     }
-  }
+    if (nameAvailability.isError) {
+      return "Could not check whether this skill name is available. Please try again.";
+    }
+    return nameError;
+  }, [
+    createsNewSkill,
+    nameError,
+    nameAvailability.data,
+    nameAvailability.isError,
+    draftName,
+  ]);
   const nameWarning = [
     hasNameChanged
       ? `Versions must keep the name "${name}". Reset the name or create a new skill.`
@@ -136,9 +189,42 @@ export function SkillEditor({
   const capture = usePostHogClientCapture();
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isDraft, setIsDraft] = useState(baseVersion === null);
+  const isDraft = view.kind === "draft";
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "tab",
+    withDefault(StringParam, "files"),
+  );
+  const activeTab =
+    !isDraft && ["usage", "linked-traces", "metrics"].includes(selectedTab)
+      ? "usage"
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
+    selectedFolder: "",
+    expandedFolders: new Set(store.getState().folders),
+    pendingEntry: null,
+  }));
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const showUpload = canEditFiles && isUploadOpen;
+  const uploadPanelRef = useRef<HTMLElement | null>(null);
+  const focusUploadPanel = useCallback((node: HTMLElement | null) => {
+    uploadPanelRef.current = node;
+    if (!node) return;
+    const previousFocus = document.activeElement;
+    node.focus();
+    return () => {
+      uploadPanelRef.current = null;
+      requestAnimationFrame(() => {
+        if (previousFocus instanceof HTMLElement) previousFocus.focus();
+      });
+    };
+  }, []);
+  const cancelUpload = () => {
+    if (!store.getState().isImporting) setIsUploadOpen(false);
+  };
   const createButtonTitle = canCreate
     ? (createDisabledReason ??
       (baseVersion !== null && !dirty
@@ -157,6 +243,7 @@ export function SkillEditor({
       (!createNew && (hasNameChanged || !store.getState().dirty))
     )
       return false;
+    setIsUploadOpen(false);
     setIsSaving(true);
     try {
       const created = await createSkillVersionFromDraft({
@@ -169,6 +256,7 @@ export function SkillEditor({
         isFirstVersion: createNew,
       });
       showSuccessToast({
+        operation: "skill_version.create",
         title: "Skill version created",
         description: `Version ${created.version} is now available.`,
       });
@@ -178,6 +266,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to create skill version",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_version.create"),
       );
       return false;
     } finally {
@@ -213,6 +302,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_labels.update",
         title: "Skill labels updated",
         description: `Version ${version} now uses the selected labels.`,
       });
@@ -221,6 +311,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill labels",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_labels.update"),
       );
       return false;
     }
@@ -245,6 +336,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_tags.update",
         title: "Skill tags updated",
         description: "All versions now use the selected tags.",
       });
@@ -253,6 +345,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill tags",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_tags.update"),
       );
       return false;
     }
@@ -267,21 +360,53 @@ export function SkillEditor({
         name,
         version: baseVersion,
         getVersion: (input) => utils.client.skills.byName.query(input),
-        getFileContent: (input) => utils.skills.fileContent.fetch(input),
+        getFileContents: (input) => utils.skills.fileContents.fetch(input),
       });
       capture("skills:version_download", { fileCount: result.fileCount });
-    } catch {
+    } catch (error) {
       showErrorToast(
         "Download failed",
         "Could not download this skill version. Please try again.",
+        classifyTrpcToastError(error, "skill_version.download"),
       );
     } finally {
       setIsDownloading(false);
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      {canReadMetrics ? (
+        <SkillAnalytics
+          projectId={projectId}
+          skillId={view.skillId}
+          name={name}
+          version={baseVersion}
+          paths={Object.keys(store.getState().files).toSorted()}
+        />
+      ) : (
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={baseVersion}
+        />
+      )}
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
-    openDialog: (createNew: boolean) => void,
+    openDialog: (
+      state:
+        | { kind: "save"; createNew: boolean }
+        | { kind: "discard" }
+        | { kind: "install" },
+    ) => void,
     closeMenu?: () => void,
   ) => (
     <div className="flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
@@ -303,21 +428,47 @@ export function SkillEditor({
           <div className="bg-border hidden h-6 w-px sm:block" />
         </>
       ) : null}
-      {baseVersion !== null ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={download}
-          disabled={isDownloading}
-          aria-label={`Download version ${baseVersion}`}
+      {baseVersion !== null && !isDraft ? (
+        <DropdownMenu
+          ariaLabel="Use skill"
+          items={[
+            {
+              type: "item",
+              id: "install",
+              title: "Install with CLI",
+              icon: Terminal,
+              onClick: () => {
+                closeMenu?.();
+                openDialog({ kind: "install" });
+              },
+            },
+            {
+              type: "item",
+              id: "download",
+              title: downloadTitle,
+              icon: Download,
+              disabled: downloadDisabled,
+              onClick: download,
+            },
+            {
+              type: "item",
+              id: "api",
+              title: "API",
+              icon: ExternalLink,
+              href: "https://api.reference.langfuse.com/#tag/skills",
+              linkTarget: "_blank",
+            },
+          ]}
         >
-          {isDownloading ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-1.5 h-4 w-4" />
+          {({ getTriggerProps }) => (
+            <DesignSystemButton
+              text="Use skill"
+              variant="secondary"
+              icon={ChevronDown}
+              {...getTriggerProps()}
+            />
           )}
-          Download
-        </Button>
+        </DropdownMenu>
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -328,7 +479,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="h-4 w-4" />
+              <TriangleAlert size="base" />
             </button>
           )}
         </Tooltip>
@@ -350,56 +501,109 @@ export function SkillEditor({
         <Button
           disabled={!canCreate}
           title={!canCreate ? "You do not have write access" : undefined}
-          onClick={() => {
+          onClick={async () => {
             closeMenu?.();
-            setIsDraft(true);
+            if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Plus className="mr-1.5 h-4 w-4" />
-          New version
+          <Pencil size="base" __rawClassName="mr-1.5" />
+          {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
-        <Button
-          onClick={() => {
-            closeMenu?.();
-            openDialog(createsNewSkill);
-          }}
-          disabled={
-            !canCreate ||
-            isSaving ||
-            isImporting ||
-            (!createsNewSkill && !dirty) ||
-            Boolean(createDisabledReason) ||
-            isCheckingName
-          }
-          title={createButtonTitle}
-        >
-          <Save className="mr-1.5 h-4 w-4" />
-          Save
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            disabled={isSaving || isImporting}
+            onClick={async () => {
+              closeMenu?.();
+              if (view.kind !== "draft") return;
+              if (dirty) openDialog({ kind: "discard" });
+              else await view.onDiscard();
+            }}
+          >
+            Discard draft
+          </Button>
+          <Button
+            onClick={() => {
+              closeMenu?.();
+              openDialog({ kind: "save", createNew: createsNewSkill });
+            }}
+            disabled={
+              !canCreate ||
+              isSaving ||
+              isImporting ||
+              (!createsNewSkill && !dirty) ||
+              Boolean(createDisabledReason) ||
+              isCheckingName
+            }
+            title={createButtonTitle}
+          >
+            <Save size="base" __rawClassName="mr-1.5" />
+            Publish
+          </Button>
+        </>
       )}
     </div>
   );
 
   return (
-    <DialogController<boolean>
-      renderDialog={({ state: createNew, closeDialog }) => (
-        <CreateSkillVersionDialog
-          store={store}
-          name={createNew ? draftName : name}
-          isFirstVersion={createNew}
-          isSaving={isSaving}
-          disabled={
-            isImporting ||
-            Boolean(createDisabledReason) ||
-            isCheckingName ||
-            (!createNew && (hasNameChanged || !dirty))
-          }
-          onConfirm={async () => {
-            if (await save(createNew)) closeDialog();
-          }}
-        />
-      )}
+    <DialogController<
+      | { kind: "save"; createNew: boolean }
+      | { kind: "discard" }
+      | { kind: "install" }
+    >
+      renderDialog={({ state, closeDialog }) => {
+        if (state.kind === "install") {
+          if (baseVersion === null) return null;
+          return (
+            <InstallSkillDialog
+              projectId={projectId}
+              initialValues={{
+                by: "all",
+                name,
+                version: baseVersion,
+                label: labels.includes("production") ? "production" : "latest",
+                tag: tags[0] ?? "my-tag",
+              }}
+              labels={labels}
+              tags={tags}
+            />
+          );
+        }
+        return state.kind === "discard" ? (
+          <Dialog
+            title="Discard draft?"
+            text="Your unsaved file changes and commit note will be lost."
+            actions={[
+              {
+                label: "Discard draft",
+                variant: "destructive",
+                onClick: async () => {
+                  if (view.kind === "draft") await view.onDiscard();
+                  closeDialog();
+                },
+              },
+            ]}
+          />
+        ) : (
+          <CreateSkillVersionDialog
+            projectId={projectId}
+            store={store}
+            name={state.createNew ? draftName : name}
+            isFirstVersion={state.createNew}
+            isSaving={isSaving}
+            disabled={
+              isImporting ||
+              Boolean(createDisabledReason) ||
+              isCheckingName ||
+              (!state.createNew && (hasNameChanged || !dirty))
+            }
+            onConfirm={async () => {
+              if (await save(state.createNew)) closeDialog();
+            }}
+          />
+        );
+      }}
     >
       {({ openDialog }) => (
         <Page
@@ -412,49 +616,154 @@ export function SkillEditor({
               ),
           }}
         >
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
-            <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
-              {history.kind === "versions" ? (
-                <SkillVersionHistory
-                  {...history}
-                  dirty={dirty}
-                  isDraft={isDraft}
-                  canEdit={canCreate}
-                  labelOptions={metadataOptions.labels}
-                  isSavingLabels={setVersionLabels.isPending}
-                  onSaveLabels={saveLabels}
-                />
-              ) : (
-                <SkillVersionHistory kind="new" />
+          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
+            {showUpload ? (
+              <section
+                ref={focusUploadPanel}
+                tabIndex={-1}
+                aria-label="Upload files"
+                aria-busy={isImporting}
+                className="bg-background flex min-h-0 flex-col gap-3 p-4 outline-none [grid-area:1/1]"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cancelUpload();
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold">Upload files or folders</p>
+                    {isImporting ? (
+                      <p
+                        role="status"
+                        className="text-muted-foreground text-sm"
+                      >
+                        Adding files to draft…
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={isImporting}
+                    onClick={cancelUpload}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <div className="flex min-h-0 flex-1">
+                  <Dropzone
+                    src={undefined}
+                    variant="panel"
+                    accept={undefined}
+                    maxFiles={MAX_SKILL_FILES}
+                    maxSize={undefined}
+                    minSize={undefined}
+                    isDisabled={isImporting}
+                    onError={(error) => {
+                      showErrorToast("Could not add files", error.message, {
+                        operation: "skill_files.add",
+                        errorOrigin: "frontend",
+                        errorCategory: "user_input",
+                      });
+                      uploadPanelRef.current?.focus();
+                    }}
+                    onDrop={async (files) => {
+                      store.setState({ isImporting: true });
+                      try {
+                        const paths = await importSkillFiles(store, files);
+                        setTreeState((current) => ({
+                          selectedFolder: "",
+                          pendingEntry: null,
+                          expandedFolders: new Set([
+                            ...current.expandedFolders,
+                            ...getParentFolderPaths(paths),
+                          ]),
+                        }));
+                        setIsUploadOpen(false);
+                      } finally {
+                        store.setState({ isImporting: false });
+                      }
+                    }}
+                  />
+                </div>
+              </section>
+            ) : null}
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col overflow-y-auto [grid-area:1/1] md:overflow-hidden",
+                showUpload && "invisible",
               )}
-              <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
-                <ResizablePanelGroup
-                  key={isDesktop ? "desktop" : "mobile"}
-                  orientation={isDesktop ? "horizontal" : "vertical"}
-                >
-                  <ResizablePanel
-                    defaultSize={isDesktop ? "28%" : "32%"}
-                    minSize={isDesktop ? "20%" : "24%"}
-                    maxSize={isDesktop ? "42%" : "50%"}
+              inert={showUpload}
+              aria-hidden={showUpload}
+            >
+              <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
+                {history.kind === "versions" ? (
+                  <SkillVersionHistory
+                    projectId={projectId}
+                    name={name}
+                    {...history}
+                    isDraft={isDraft}
+                    canEdit={canCreate}
+                    labelOptions={metadataOptions.labels}
+                    isSavingLabels={setVersionLabels.isPending}
+                    onSaveLabels={saveLabels}
+                  />
+                ) : (
+                  <SkillVersionHistory kind="new" />
+                )}
+                <div className="flex min-h-[720px] min-w-0 flex-1 flex-col md:min-h-0">
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={(value) => setSelectedTab(value)}
+                    layout="fill"
                   >
-                    <SkillFileExplorer
-                      store={store}
-                      readOnly={!isDraft || !canCreate}
-                      disabled={isSaving}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel
-                    defaultSize={isDesktop ? "72%" : "68%"}
-                    minSize={isDesktop ? "45%" : "42%"}
-                  >
-                    <SkillFileEditor
-                      projectId={projectId}
-                      store={store}
-                      editable={canEditFiles}
-                    />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
+                    <Tabs.List variant="underline">
+                      <Tabs.Trigger value="files" label="Files" />
+                      <Tabs.Trigger
+                        value="usage"
+                        label="Usage"
+                        disabled={isDraft}
+                      />
+                    </Tabs.List>
+                    {usageTab}
+                    <Tabs.Content value="files" layout="fill">
+                      <ResizablePanelGroup
+                        key={isDesktop ? "desktop" : "mobile"}
+                        orientation={isDesktop ? "horizontal" : "vertical"}
+                      >
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "28%" : "32%"}
+                          minSize={isDesktop ? "20%" : "24%"}
+                          maxSize={isDesktop ? "42%" : "50%"}
+                        >
+                          <SkillFileExplorer
+                            store={store}
+                            readOnly={!isDraft || !canCreate}
+                            disabled={isSaving}
+                            state={treeState}
+                            onStateChange={setTreeState}
+                            onUpload={() => setIsUploadOpen(true)}
+                          />
+                        </ResizablePanel>
+                        <ResizableHandle withHandle />
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "72%" : "68%"}
+                          minSize={isDesktop ? "45%" : "42%"}
+                        >
+                          <SkillFileEditor
+                            projectId={projectId}
+                            store={store}
+                            isDraft={isDraft}
+                            editable={canEditFiles}
+                          />
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
+                    </Tabs.Content>
+                  </Tabs>
+                </div>
               </div>
             </div>
           </div>
@@ -514,10 +823,12 @@ function SkillMetadataFields({
 function SkillFileEditor({
   projectId,
   store,
+  isDraft,
   editable,
 }: {
   projectId: string;
   store: SkillEditorStore;
+  isDraft: boolean;
   editable: boolean;
 }) {
   const activePath = useStore(store, (state) => state.activePath);
@@ -527,55 +838,49 @@ function SkillFileEditor({
     (state) => state.actions.updateActiveFile,
   );
   const fileContents = useSkillFileContents(projectId, activeFile);
+  const { refetch } = fileContents;
   const content = activeFile.content ?? fileContents.data?.content;
 
-  let editorContent;
-  if (content === undefined && fileContents.isError) {
-    editorContent = (
-      <div className="flex flex-col items-start gap-2 text-sm">
-        <p>{fileContents.error.message}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            fileContents.refetch();
-          }}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  } else if (content === undefined) {
-    editorContent = (
-      <div role="status" className="flex items-center gap-2 text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
-      </div>
-    );
-  } else {
-    editorContent = (
-      <CodeMirrorEditor
-        key={activePath}
-        value={content}
-        onChange={editable ? updateActiveFile : undefined}
-        editable={editable}
-        mode="text"
-        extensions={getSkillFileLanguageExtensions(activePath)}
-        minHeight="500px"
-        lineNumbers
-        className="h-full"
-      />
-    );
-  }
+  const placeholder = useMemo(() => {
+    if (content === undefined && fileContents.isError) {
+      return (
+        <div className="flex flex-col items-start gap-2 text-sm">
+          <p>{fileContents.error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      );
+    }
+    if (content === undefined) {
+      return (
+        <div role="status" className="flex items-center gap-2 text-sm">
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
+        </div>
+      );
+    }
+    return null;
+  }, [content, fileContents.isError, fileContents.error, refetch]);
 
   return (
-    <section className="ph-no-capture flex h-full min-w-0 flex-col">
-      <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-        <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
-          {activePath}
-        </span>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
-    </section>
+    <SkillFileView
+      key={isDraft ? "draft" : "version"}
+      path={activePath}
+      content={content}
+      mode={
+        isDraft
+          ? { kind: "draft", editable, onChange: updateActiveFile }
+          : { kind: "view" }
+      }
+    >
+      {placeholder}
+    </SkillFileView>
   );
 }
 
@@ -585,12 +890,10 @@ export const NEW_SKILL_INITIAL_VALUE: SkillEditorInitialValue = {
   labels: [],
   tags: [],
   files: [
-    {
-      path: "SKILL.md",
-      content:
-        "---\nname: my-skill\ndescription: Describe when and how to use this skill.\n---\n\n# Instructions\n\nAdd instructions for the agent here.\n",
-      contentType: "text/markdown",
-    },
+    createSkillDraftFile(
+      "SKILL.md",
+      "---\nname: my-skill\ndescription: Describe when and how to use this skill.\n---\n\n# Instructions\n\nAdd instructions for the agent here.\n",
+    ),
   ],
 };
 

@@ -13,7 +13,9 @@ cleanup() {
 trap cleanup EXIT
 port="$(docker port "$container" 8080/tcp)"
 for route in health ready; do
-  body="$(curl --fail --silent --show-error --retry 20 --retry-connrefused \
+  # Docker's port proxy can accept and then reset connections until the
+  # gateway listens, which --retry-connrefused alone does not retry.
+  body="$(curl --fail --silent --show-error --retry 20 --retry-all-errors \
     --retry-delay 1 --max-time 2 "http://$port/$route")"
   case "$route:$body" in
     'health:{"status":"ok"}'|'ready:{"status":"ready"}') ;;
@@ -22,10 +24,11 @@ for route in health ready; do
 done
 docker exec "$container" sh -c 'wget -qO /dev/null http://localhost:8080/health || exit 1'
 [[ "$(docker exec "$container" id -u)" != 0 ]]
+docker exec "$container" test -s /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --max-time 2 -X POST "http://$port/openai/v1/responses")" == 401 ]]
 docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
 docker logs "$container" 2>&1 | grep -q 'gateway draining'
 docker logs "$container" 2>&1 | grep -q 'gateway stopped'
-printf '%s\n' 'Image smoke: non-root, probes, ECS health command, unauthenticated inference, SIGTERM passed'
+printf '%s\n' 'Image smoke: non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'

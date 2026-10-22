@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
-import { Zap } from "lucide-react";
+import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -83,7 +83,7 @@ export function V4MigrationBanner({
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">
-              <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+              <Zap size="base" __rawClassName="mt-0.5 sm:mt-0" />
               <span>
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.

@@ -1,7 +1,12 @@
-import { type Prisma, Role } from "@langfuse/shared/src/db";
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
+import { type Prisma, Role } from "@langfuse/shared/src/db";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+import { env } from "@/src/env.mjs";
+import {
+  type AuthorizationContext,
+  type Decision,
+} from "@/src/features/auth/policy/types";
 import { shadowAuthorize } from "@/src/features/public-api/server";
 import { checkHasProtectedLabels } from "./checkHasProtectedLabels";
 
@@ -115,7 +120,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
   }
 }
 
-/** Authorize protected-label mutations for project API keys and their creators. */
+/** authorizeProtectedLabelMutation checks key and creator permissions for protected labels. */
 export async function authorizeProtectedLabelMutation(params: {
   prisma: Prisma.TransactionClient;
   context: ApiKeyProjectContext;
@@ -135,18 +140,55 @@ export async function authorizeProtectedLabelMutation(params: {
     return;
   }
 
-  const decision = shadowAuthorize({
-    ctx: params.ctx,
-    action: "promptProtectedLabels:CUD",
-    resource: { projectId: params.context.projectId },
-    accessLevel: params.context.accessLevel,
-  });
-  if (!decision.success) throw decision.error;
-
-  await assertInAppAgentMayMutateProtectedLabels({
+  const legacyParams = {
     prisma: params.prisma,
     context: params.context,
     protectedLabels,
     forbiddenErrorMessage: params.forbiddenErrorMessage,
+  };
+  const legacyDecision =
+    env.API_AUTH_MIGRATION === "shadow"
+      ? await protectedLabelLegacyDecision(legacyParams)
+      : { success: true as const };
+  assertProtectedLabelPolicy(params, legacyDecision);
+  await assertProtectedLabelLegacyDecision(legacyParams, legacyDecision);
+}
+
+function assertProtectedLabelPolicy(
+  params: Parameters<typeof authorizeProtectedLabelMutation>[0],
+  legacyDecision: Decision,
+): void {
+  const decision = shadowAuthorize({
+    ctx: params.ctx,
+    action: "promptProtectedLabels:CUD",
+    resource: { projectId: params.context.projectId },
+    legacyDecision: legacyDecision.success
+      ? { success: true, scope: { accessLevel: params.context.accessLevel } }
+      : legacyDecision,
   });
+  if (!decision.success) throw decision.error;
+}
+
+/** assertProtectedLabelLegacyDecision reuses the creator check captured for comparison. */
+async function assertProtectedLabelLegacyDecision(
+  params: Parameters<typeof assertInAppAgentMayMutateProtectedLabels>[0],
+  legacyDecision: Decision,
+): Promise<void> {
+  if (!legacyDecision.success) throw legacyDecision.error;
+  if (env.API_AUTH_MIGRATION !== "shadow") {
+    await assertInAppAgentMayMutateProtectedLabels(params);
+  }
+}
+
+/** protectedLabelLegacyDecision captures creator permission denials for shadow comparison. */
+async function protectedLabelLegacyDecision(
+  params: Parameters<typeof assertInAppAgentMayMutateProtectedLabels>[0],
+): Promise<Decision> {
+  try {
+    await assertInAppAgentMayMutateProtectedLabels(params);
+    return { success: true };
+  } catch (error) {
+    if (error instanceof ForbiddenError) return { success: false, error };
+    throw error;
+  }
 }

@@ -1,14 +1,9 @@
-import { useId, useState } from "react";
-import {
-  CircleCheckIcon,
-  CircleFadingArrowUp,
-  CircleIcon,
-  Plus,
-  TagIcon,
-  X,
-} from "lucide-react";
+/* eslint-disable @repo/component-file-structure */
+import { useId, useMemo, useState } from "react";
+import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "@langfuse/icons";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -54,11 +49,11 @@ export function SkillLabelsSelect({
     !value.includes("production") && pendingLabels.includes("production");
   const isDemotingFromProduction =
     value.includes("production") && !pendingLabels.includes("production");
-  let saveButtonCopy = "Save labels";
-  if (isPromotingToProduction)
-    saveButtonCopy = "Save and promote to production";
-  else if (isDemotingFromProduction)
-    saveButtonCopy = "Save and remove from production";
+  const saveButtonCopy = useMemo(() => {
+    if (isPromotingToProduction) return "Save and promote to production";
+    if (isDemotingFromProduction) return "Save and remove from production";
+    return "Save labels";
+  }, [isPromotingToProduction, isDemotingFromProduction]);
 
   const toggleLabel = (label: string) => {
     setPendingLabels(
@@ -172,7 +167,7 @@ export function SkillLabelsSelect({
               disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
             )}
           >
-            <TruncatedLabels labels={value} maxVisibleLabels={5} />
+            <LabelList labels={toPromptLabelListItems(value)} maxVisible={5} />
             <Button
               type="button"
               variant="outline"
@@ -186,7 +181,7 @@ export function SkillLabelsSelect({
                   "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
               )}
             >
-              <CircleFadingArrowUp className="h-3.5 w-3.5" />
+              <Plus size="base" color="default" />
             </Button>
           </div>
         </Trigger>
@@ -269,7 +264,7 @@ export function SkillTagsSelect({
                 }
               >
                 {tag}
-                <X className="ml-1 h-3 w-3" />
+                <X size="base" __rawClassName="ml-1" />
               </Button>
             ))}
             <Input
@@ -294,7 +289,7 @@ export function SkillTagsSelect({
                 className="w-full justify-start px-2 font-normal"
                 onClick={() => setPendingTags([...pendingTags, tag])}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 {tag}
               </Button>
             ))}
@@ -333,14 +328,14 @@ export function SkillTagsSelect({
           >
             {value.map((tag) => (
               <Badge key={tag} variant="tertiary" className="h-6 gap-1">
-                <TagIcon className="h-3 w-3" />
+                <TagIcon size="sm" />
                 <span className="max-w-36 truncate" title={tag}>
                   {tag}
                 </span>
               </Badge>
             ))}
             <Badge variant="tertiary" className="h-6">
-              <TagIcon className="h-3.5 w-3.5" />
+              <TagIcon size="sm" />
             </Badge>
           </div>
         </Trigger>
@@ -369,9 +364,13 @@ function SelectionRow({
       onClick={onSelect}
     >
       {selected ? (
-        <CircleCheckIcon className="mr-2 h-4 w-4" />
+        <CircleCheckIcon size="base" color="default" __rawClassName="mr-2" />
       ) : (
-        <CircleIcon className="mr-2 h-4 w-4 opacity-20" />
+        <CircleIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-2 opacity-20"
+        />
       )}
       {value}
     </Button>
@@ -392,7 +391,7 @@ function CreateRow({
       className="text-muted-foreground w-full justify-start px-2 font-normal"
       onClick={onCreate}
     >
-      <Plus className="mr-2 h-4 w-4" />
+      <Plus size="base" color="default" __rawClassName="mr-2" />
       Create new: “{value}”
     </Button>
   );

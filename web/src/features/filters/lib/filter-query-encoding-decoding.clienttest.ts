@@ -644,5 +644,38 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
       expect(deserialized).toEqual(mixedFilters);
     });
+
+    it("round-trips an optional target as a sixth field without changing untargeted URLs", () => {
+      const untargeted: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ];
+      expect(encodeFilters(untargeted)).toBe(
+        "level;stringOptions;;any of;ERROR",
+      );
+      expect(decodeFilters("level;stringOptions;;any of;ERROR")).toEqual(
+        untargeted,
+      );
+
+      const targeted: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+          target: "run-b",
+        },
+      ];
+      expect(encodeFilters(targeted)).toBe(
+        "level;stringOptions;;any of;ERROR;run-b",
+      );
+      expect(decodeFilters("level;stringOptions;;any of;ERROR;run-b")).toEqual(
+        targeted,
+      );
+    });
   });
 });

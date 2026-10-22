@@ -1,15 +1,20 @@
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { type NextApiRequest, type NextApiResponse } from "next";
+
 import {
+  handleDeleteMembership,
   handleGetMemberships,
   handleUpdateMembership,
-  handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
-
-import { type NextApiRequest, type NextApiResponse } from "next";
+import { authenticator } from "@/src/features/apiKey/server";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { BaseError } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
+
+/** handler serves project memberships for authenticated API keys. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -84,22 +89,39 @@ export default async function handler(
 
   // Route to the appropriate handler based on HTTP method
   try {
+    if (req.method === "GET") {
+      return await handleGetMemberships(
+        req,
+        res,
+        projectId,
+        authCheck.scope.orgId,
+      );
+    }
+    const authentication = await authenticateMembershipMutation(
+      req,
+      authCheck.ctx,
+    );
+    if (!authentication.success)
+      return writeOrgError(res, authentication.error);
+    const context = authentication.context;
     switch (req.method) {
-      case "GET":
-        return handleGetMemberships(req, res, projectId, authCheck.scope.orgId);
       case "PUT":
-        return handleUpdateMembership(
+        return await handleUpdateMembership(
           req,
           res,
           projectId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          context,
         );
       case "DELETE":
-        return handleDeleteMembership(
+        return await handleDeleteMembership(
           req,
           res,
           projectId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          context,
         );
       default:
         // This should never happen due to the check at the beginning
@@ -108,6 +130,9 @@ export default async function handler(
         });
     }
   } catch (error) {
+    if (error instanceof BaseError) {
+      return res.status(error.httpCode).json({ error: error.message });
+    }
     logger.error(
       `Error handling project memberships for ${req.method} on project ${projectId}`,
       error,
@@ -116,4 +141,13 @@ export default async function handler(
       error: "Internal server error",
     });
   }
+}
+
+/** authenticateMembershipMutation reuses the route context when available. */
+async function authenticateMembershipMutation(
+  req: NextApiRequest,
+  context: AuthorizationContext | undefined,
+) {
+  if (context) return { success: true as const, context };
+  return authenticator.authenticate({ headers: req.headers });
 }

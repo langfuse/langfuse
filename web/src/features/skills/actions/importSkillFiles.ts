@@ -7,6 +7,7 @@ import { unzipSync } from "fflate";
 import { type FileWithPath } from "react-dropzone";
 import { getParentFolderPaths } from "../components/skillFileTree";
 import {
+  createSkillDraftFile,
   type SkillDraftFile,
   type SkillEditorStore,
 } from "../components/skillEditorStore";
@@ -44,7 +45,7 @@ export async function importSkillFiles(
     if (!result.success) {
       throw new Error(`${path}: ${result.error.issues[0]!.message}`);
     }
-    imports.push({ ...result.data, contentType: "text/plain" });
+    imports.push(createSkillDraftFile(result.data.path, result.data.content));
   };
   for (const file of files) {
     // file-selector prefixes dropped paths with "/" or "./".
@@ -96,10 +97,11 @@ export async function importSkillFiles(
   if (!imports.length) return [];
   const state = store.getState();
   const nextFiles = { ...state.files };
+  const nextDeletedFiles = { ...state.deletedFiles };
   for (const file of imports) {
     if (
       state.folders.includes(file.path) ||
-      Object.keys(nextFiles).some(
+      [...Object.keys(nextFiles), ...Object.keys(nextDeletedFiles)].some(
         (path) =>
           path.startsWith(`${file.path}/`) || file.path.startsWith(`${path}/`),
       )
@@ -108,7 +110,13 @@ export async function importSkillFiles(
         `A file or folder already exists at ${file.path}. No files were added.`,
       );
     }
-    nextFiles[file.path] = file;
+    const existing = nextFiles[file.path] ?? nextDeletedFiles[file.path];
+    nextFiles[file.path] = {
+      ...file,
+      sourceSha: existing?.sourceSha ?? null,
+      sourceContentLength: existing?.sourceContentLength ?? null,
+    };
+    delete nextDeletedFiles[file.path];
   }
   if (Object.keys(nextFiles).length > MAX_SKILL_FILES) {
     throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
@@ -116,8 +124,9 @@ export async function importSkillFiles(
   const totalBytes = Object.values(nextFiles).reduce(
     (total, file) =>
       total +
-      (file.source?.contentLength ??
-        new TextEncoder().encode(file.content).byteLength),
+      (file.content === undefined
+        ? (file.sourceContentLength ?? 0)
+        : new TextEncoder().encode(file.content).byteLength),
     0,
   );
   if (totalBytes > MAX_SKILL_BYTES) {
@@ -126,11 +135,13 @@ export async function importSkillFiles(
   const paths = imports.map((file) => file.path);
   store.setState({
     files: nextFiles,
+    deletedFiles: nextDeletedFiles,
     folders: [
       ...new Set([...state.folders, ...getParentFolderPaths(paths)]),
     ].toSorted(),
     activePath: imports[0]!.path,
     dirty: true,
   });
+  store.getState().actions.hashPendingFiles();
   return paths;
 }

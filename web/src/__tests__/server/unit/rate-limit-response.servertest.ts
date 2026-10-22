@@ -149,6 +149,23 @@ describe("sendRateLimitResponse", () => {
     expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
+  it("sends X-RateLimit-Reset as epoch seconds, rounded up", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.400Z"));
+    try {
+      const res = createResponse();
+
+      sendRateLimitResponse(res, rateLimitResult);
+
+      // 00:00:00.400 + 2500ms = 00:00:02.900 -> next full second
+      expect(res.getHeader("X-RateLimit-Reset")).toBe(
+        Date.parse("2026-01-01T00:00:03.000Z") / 1000,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("returns upgrade guidance for stable responses with an upgrade path", () => {
     const res = createResponse();
 

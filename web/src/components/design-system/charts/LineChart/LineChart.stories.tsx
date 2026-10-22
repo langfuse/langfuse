@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -6,6 +7,7 @@ import {
   type LineChartSeries,
   type LineChartThreshold,
 } from "./LineChart";
+import { chartColors } from "../constants";
 
 type LineChartStoryProps = {
   legend?: LineChartLegend;
@@ -26,15 +28,26 @@ type LineChartStoryProps = {
 };
 
 const LineChartDemo = (props: LineChartStoryProps) => {
+  const chartData = useMemo(() => {
+    if (props.variant === "many-lines") return manyLinesData;
+    if (props.variant === "boundary-points") return boundaryPointData;
+    if (props.variant === "negative-values") return negativeData;
+    if (props.variant === "intermittent") return intermittentData;
+    if (props.variant === "intraday") return intradayData;
+    if (props.variant === "year-boundary") return yearBoundaryData;
+    if (props.variant === "monthly") return monthlyData;
+    if (props.variant === "empty") return [];
+    return data;
+  }, [props.variant]);
   if (
     props.variant === "category-short-labels" ||
     props.variant === "category-long-labels" ||
     props.variant === "category-hidden-labels"
   ) {
-    let categoryChartData = categoryData;
-    if (props.variant === "category-short-labels") {
-      categoryChartData = shortCategoryData;
-    }
+    const categoryChartData =
+      props.variant === "category-short-labels"
+        ? shortCategoryData
+        : categoryData;
     return (
       <LineChart
         data={categoryChartData}
@@ -48,18 +61,6 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  let chartData: Array<{
-    x: Date;
-    values: Record<string, number | null>;
-  }> = data;
-  if (props.variant === "many-lines") chartData = manyLinesData;
-  if (props.variant === "boundary-points") chartData = boundaryPointData;
-  if (props.variant === "negative-values") chartData = negativeData;
-  if (props.variant === "intermittent") chartData = intermittentData;
-  if (props.variant === "intraday") chartData = intradayData;
-  if (props.variant === "year-boundary") chartData = yearBoundaryData;
-  if (props.variant === "monthly") chartData = monthlyData;
-  if (props.variant === "empty") chartData = [];
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
   return (
@@ -76,8 +77,8 @@ const LineChartDemo = (props: LineChartStoryProps) => {
 };
 
 const series = [
-  { id: "api", label: "API", color: "#3a3dee" },
-  { id: "worker", label: "Worker", color: "#07b9d5" },
+  { id: "api", label: "API", color: chartColors[0] },
+  { id: "worker", label: "Worker", color: chartColors[1] },
 ];
 
 const data = Array.from({ length: 14 }, (_, index) => ({
@@ -124,7 +125,7 @@ const manyLinesSeries: LineChartSeries[] = Array.from(
   (_, index) => ({
     id: `series-${index + 1}`,
     label: `Series ${index + 1}`,
-    color: `hsl(${Math.round((index / 24) * 360)} 70% 50%)`,
+    color: chartColors[index % chartColors.length],
   }),
 );
 
@@ -152,7 +153,7 @@ const shortCategoryData = Array.from({ length: 6 }, (_, index) => ({
 }));
 
 const categorySeries: LineChartSeries[] = [
-  { id: "cost", label: "Cost", color: "#3a3dee" },
+  { id: "cost", label: "Cost", color: chartColors[0] },
 ];
 
 const meta = preview.meta({
@@ -239,7 +240,7 @@ export const BoundaryPoints = meta.story({
   args: { variant: "boundary-points" },
   play: async ({ canvasElement }) => {
     const points = canvasElement.querySelectorAll<SVGCircleElement>(
-      'circle[fill="#3a3dee"][r="4"]',
+      `circle[fill="${chartColors[0]}"][r="3"]`,
     );
     await expect(points).toHaveLength(2);
     for (const point of points) {
@@ -463,19 +464,20 @@ export const KeyboardFocus = meta.story({
 
     firstPoint.focus();
 
-    const activeLabel = await waitFor(() => {
+    await waitFor(() => {
       const label = canvasElement.querySelector("[data-active-x-axis-label]");
       expect(label).toHaveTextContent("Sep 1");
-      return label;
+      expect(label).toHaveAttribute("font-weight", "700");
+      expect(
+        canvasElement.querySelector("[data-active-x-axis-label-background]"),
+      ).not.toBeInTheDocument();
     });
-    await expect(activeLabel).toHaveAttribute("font-weight", "700");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).not.toBeInTheDocument();
 
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
+    const tooltipHeading = await within(
+      canvasElement.ownerDocument.body,
+    ).findByText("Sep 1, 2026");
+    const tooltip = tooltipHeading.closest('[role="tooltip"]');
+    if (!tooltip) throw new Error("Tooltip not found");
     await expect(tooltip).toHaveTextContent("API");
     await expect(tooltip).toHaveTextContent("$18.00");
 

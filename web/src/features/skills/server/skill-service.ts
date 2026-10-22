@@ -19,6 +19,11 @@ import {
   type SkillSelector,
 } from "@langfuse/shared";
 import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
+import {
+  SkillCacheService,
+  escapeSqlLikePattern,
+  redis,
+} from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -28,6 +33,7 @@ import {
   authorizeProtectedLabelMutation,
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
+import { type SkillListOrderBy } from "../constants/skillsSorting";
 
 type SkillActor =
   | Pick<ProjectAuthedContext, "session">
@@ -123,7 +129,11 @@ function serializeVersion(skill: SkillWithRelations) {
 }
 
 export class SkillService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly skillCacheService: SkillCacheService;
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.skillCacheService = new SkillCacheService(prisma, redis);
+  }
 
   async skillVersions(params: {
     projectId: string;
@@ -250,40 +260,92 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    /** Use latest when no selector is supplied and production is unset. */
+    fallbackToLatest?: boolean;
+    includeContent?: boolean;
   }) {
     const skill = await this.findSkillVersion(params);
-    return serializeVersion(skill);
+    const version = serializeVersion(skill);
+    if (!params.includeContent) return version;
+
+    const { data } = await this.getFileContents({
+      projectId: params.projectId,
+      sha256Hashes: version.files.map((file) => file.sha256Hash),
+    });
+    const contentByHash = new Map(
+      data.map(({ sha256Hash, content }) => [sha256Hash, content]),
+    );
+    return {
+      ...version,
+      files: version.files.map((file) => ({
+        ...file,
+        content: contentByHash.get(file.sha256Hash),
+      })),
+    };
   }
 
   async loadResource(params: {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    /** Use latest when no selector is supplied and production is unset. */
+    fallbackToLatest?: boolean;
     path: string;
   }): Promise<string> {
     const skill = await this.findSkillVersion(params);
     const file = skill.files.find(({ path }) => path === params.path);
     if (!file) throw new LangfuseNotFoundError("Skill resource not found");
-    return (
-      await this.getFileContent({
-        projectId: params.projectId,
-        fileId: file.id,
-      })
-    ).content;
+    const { data } = await this.getFileContents({
+      projectId: params.projectId,
+      sha256Hashes: [file.blob.sha256Hash],
+    });
+    return data[0]!.content;
   }
 
-  async getFileContent(params: { projectId: string; fileId: string }) {
-    const file = await this.prisma.skillFile.findFirst({
-      where: { projectId: params.projectId, id: params.fileId },
-      select: { blob: { select: { content: true } } },
+  async getFileContents(params: { projectId: string; sha256Hashes: string[] }) {
+    const hashes = [...new Set(params.sha256Hashes)];
+    const where = {
+      projectId: params.projectId,
+      sha256Hash: { in: hashes },
+      files: { some: { projectId: params.projectId } },
+    } satisfies Prisma.SkillBlobWhereInput;
+    const blobs = await this.prisma.skillBlob.findMany({
+      where,
+      select: { contentLength: true },
     });
-    if (!file) throw new LangfuseNotFoundError("Skill file not found");
-    return { content: file.blob.content };
+    if (blobs.length !== hashes.length) {
+      throw new LangfuseNotFoundError("One or more skill files not found");
+    }
+    // Check metadata before loading text so oversized batches stay bounded.
+    if (
+      blobs.reduce((total, blob) => total + blob.contentLength, 0) > 10_000_000
+    ) {
+      throw new InvalidRequestError(
+        "Skill file contents must not exceed 10000000 UTF-8 bytes per batch. Request fewer hashes.",
+      );
+    }
+    const data = await this.prisma.skillBlob.findMany({
+      where,
+      select: { sha256Hash: true, content: true },
+    });
+    if (data.length !== hashes.length) {
+      throw new LangfuseNotFoundError("One or more skill files not found");
+    }
+    const byHash = new Map(data.map((blob) => [blob.sha256Hash, blob]));
+    return {
+      data: hashes.map((sha256Hash) => ({
+        sha256Hash,
+        content: byHash.get(sha256Hash)!.content,
+      })),
+    };
   }
 
   async list(params: {
     projectId: string;
-    input: ListSkillsQuery & { filter?: FilterState };
+    input: ListSkillsQuery & {
+      filter?: FilterState;
+      orderBy?: SkillListOrderBy;
+    };
   }) {
     const filters = this.listFilterConditions(params.input.filter ?? []);
     const where: Prisma.SkillWhereInput = {
@@ -295,13 +357,13 @@ export class SkillService {
             OR: [
               {
                 name: {
-                  contains: params.input.search,
+                  contains: escapeSqlLikePattern(params.input.search),
                   mode: "insensitive" as const,
                 },
               },
               {
                 description: {
-                  contains: params.input.search,
+                  contains: escapeSqlLikePattern(params.input.search),
                   mode: "insensitive" as const,
                 },
               },
@@ -323,10 +385,23 @@ export class SkillService {
           }
         : {}),
     };
+    const sortFields = {
+      name: "name",
+      latestVersion: "version",
+      tags: "tags",
+      latestVersionCreatedAt: "createdAt",
+    } satisfies Record<
+      SkillListOrderBy["column"],
+      keyof Prisma.SkillOrderByWithRelationInput
+    >;
+    const sortField = params.input.orderBy
+      ? sortFields[params.input.orderBy.column]
+      : "updatedAt";
+    const sortOrder = params.input.orderBy?.order === "ASC" ? "asc" : "desc";
     const [latestVersions, totalItems] = await Promise.all([
       this.prisma.skill.findMany({
         where,
-        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+        orderBy: [{ [sortField]: sortOrder }, { name: "asc" }],
         skip: (params.input.page - 1) * params.input.limit,
         take: params.input.limit,
         select: {
@@ -395,13 +470,19 @@ export class SkillService {
   }
 
   async filterOptions(params: { projectId: string }) {
-    const skills = await this.prisma.skill.findMany({
-      where: {
-        projectId: params.projectId,
-        labels: { has: SKILL_LATEST_LABEL },
-      },
-      select: { tags: true },
-    });
+    const [skills, labeledVersions] = await Promise.all([
+      this.prisma.skill.findMany({
+        where: {
+          projectId: params.projectId,
+          labels: { has: SKILL_LATEST_LABEL },
+        },
+        select: { name: true, tags: true },
+      }),
+      this.prisma.skill.findMany({
+        where: { projectId: params.projectId, labels: { isEmpty: false } },
+        select: { labels: true },
+      }),
+    ]);
     const counts = new Map<string, number>();
     for (const skill of skills) {
       for (const tag of new Set(skill.tags)) {
@@ -409,6 +490,12 @@ export class SkillService {
       }
     }
     return {
+      labels: [
+        ...new Set(labeledVersions.flatMap(({ labels }) => labels)),
+      ].sort((a, b) => a.localeCompare(b)),
+      names: [...new Set(skills.map(({ name }) => name))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
       tags: [...counts]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => a.value.localeCompare(b.value)),
@@ -533,7 +620,7 @@ export class SkillService {
     actor: SkillActor;
   }): Promise<void> {
     const where = { projectId: params.projectId, name: params.name };
-    await this.prisma.$transaction(async (tx) => {
+    const versions = await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const versions = await tx.skill.findMany({
         where,
@@ -564,6 +651,11 @@ export class SkillService {
         tx,
       );
       await tx.skill.deleteMany({ where });
+      return versions.map(({ version }) => ({ name: params.name, version }));
+    });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+      versions,
     });
   }
 
@@ -633,6 +725,10 @@ export class SkillService {
           );
         }
       }
+    });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+      versions: [{ name: params.name, version: params.version }],
     });
   }
 
@@ -852,6 +948,7 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    fallbackToLatest?: boolean;
   }): Promise<SkillWithRelations> {
     const selectorWhere: Prisma.SkillWhereInput = params.selector.version
       ? { version: params.selector.version }
@@ -866,6 +963,17 @@ export class SkillService {
       orderBy: { version: "desc" },
       include: skillFilesInclude,
     });
+    if (
+      !skill &&
+      params.fallbackToLatest &&
+      params.selector.version === undefined &&
+      params.selector.label === undefined
+    ) {
+      return this.findSkillVersion({
+        ...params,
+        selector: { label: SKILL_LATEST_LABEL },
+      });
+    }
     if (!skill) throw new LangfuseNotFoundError("Skill version not found");
     return skill;
   }

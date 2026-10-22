@@ -1,6 +1,7 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Webhook } from "lucide-react";
+import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import {
 } from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { useWebCalloutAction } from "@/src/features/web-callouts";
 
 type IdItem = {
@@ -239,6 +241,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
+            badge: <InternalFeatureBadge />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

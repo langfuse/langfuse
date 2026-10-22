@@ -22,6 +22,8 @@ export type LineChartSeries = {
   id: string;
   label: string;
   color: string;
+  /** Area fill; falls back to `color`. */
+  fillColor?: string;
 };
 
 type ConfiguredLineChartSeries = LineChartSeries & {
@@ -87,7 +89,7 @@ type NormalizedDatum = LineChartValues & {
 
 const CATEGORY_TICK_GAP = 16;
 const SERIES_HOVER_DISTANCE = 10;
-const MAX_VISIBLE_POINT_RADIUS = 5;
+const MAX_VISIBLE_POINT_RADIUS = 4;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
 
 const getSeriesSummaries = (
@@ -195,19 +197,21 @@ function useLineChartLegend(
       hiddenSeriesIds: new Set(hidden ? series.map((item) => item.id) : []),
     });
   };
-  const configuredSeries: ConfiguredLineChartSeries[] = series.flatMap(
-    (item) => {
-      if (hiddenSeriesIds.has(item.id)) return [];
-      let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
-      if (highlightedSeriesId === undefined) emphasis = "default";
-      else if (highlightedSeriesId === item.id) emphasis = "emphasized";
-      return [
-        {
-          ...item,
-          emphasis,
-        },
-      ];
-    },
+  const configuredSeries = useMemo(
+    () =>
+      series.flatMap<ConfiguredLineChartSeries>((item) => {
+        if (hiddenSeriesIds.has(item.id)) return [];
+        let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
+        if (highlightedSeriesId === undefined) emphasis = "default";
+        else if (highlightedSeriesId === item.id) emphasis = "emphasized";
+        return [
+          {
+            ...item,
+            emphasis,
+          },
+        ];
+      }),
+    [series, hiddenSeriesIds, highlightedSeriesId],
   );
 
   return {
@@ -329,14 +333,20 @@ export function SeriesChartCore(
           items={series.map((item) => {
             const hidden = hiddenSeriesIds.has(item.id);
             const focused = highlightedSeriesId === item.id;
-            let label = `Show only ${item.label}`;
-            if (legend.interaction === "toggle") {
-              label = hidden ? `Show ${item.label}` : `Hide ${item.label}`;
-            } else if (focused) label = "Show all series";
+            const toggleLabel = hidden
+              ? `Show ${item.label}`
+              : `Hide ${item.label}`;
+            const highlightLabel = focused
+              ? "Show all series"
+              : `Show only ${item.label}`;
+            const label =
+              legend.interaction === "toggle" ? toggleLabel : highlightLabel;
             return {
               id: item.id,
               label: item.label,
-              color: item.color,
+              color: props.areaVariant
+                ? (item.fillColor ?? item.color)
+                : item.color,
               value:
                 legend.summary === "sum" && summaries.get(item.id) !== null
                   ? {
@@ -698,15 +708,16 @@ function LineChartContent(
   const hasConfiguredEmphasis = series.some(
     (item) => item.emphasis && item.emphasis !== "default",
   );
-  const configuredEmphasizedSeries = series.filter(
-    (item) => item.emphasis === "emphasized",
-  );
-  let activeSeriesId: string | undefined;
-  if (configuredEmphasizedSeries.length === 1) {
-    activeSeriesId = configuredEmphasizedSeries[0]?.id;
-  } else if (!hasConfiguredEmphasis) {
-    activeSeriesId = hoveredSeriesId;
-  }
+  const activeSeriesId = useMemo(() => {
+    const configuredEmphasizedSeries = series.filter(
+      (item) => item.emphasis === "emphasized",
+    );
+    if (configuredEmphasizedSeries.length === 1) {
+      return configuredEmphasizedSeries[0]?.id;
+    }
+    if (!hasConfiguredEmphasis) return hoveredSeriesId;
+    return undefined;
+  }, [series, hasConfiguredEmphasis, hoveredSeriesId]);
 
   if (width <= 0 || height <= 0 || plotWidth <= 0 || plotHeight <= 0) {
     return <svg width={width} height={height} aria-hidden="true" />;
@@ -840,11 +851,11 @@ function LineChartContent(
                       >
                         <stop
                           offset="0"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${item.fillColor ?? item.color} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
                         />
                         <stop
                           offset="1"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${item.fillColor ?? item.color} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
                         />
                       </linearGradient>
                     </defs>
@@ -862,8 +873,8 @@ function LineChartContent(
                   strokeOpacity={areaVariant && dimmed ? 0.2 : undefined}
                   strokeWidth={
                     item.emphasis === "emphasized" || proximityEmphasized
-                      ? 3.5
-                      : 2.5
+                      ? 3
+                      : 2
                   }
                   strokeLinejoin="round"
                   strokeLinecap="round"
@@ -887,7 +898,7 @@ function LineChartContent(
                       data-active-data-point={activeForSeries ? "" : undefined}
                       cx={getX(datum)}
                       cy={yScale(value)}
-                      r={activeForSeries ? 5 : 4}
+                      r={activeForSeries ? 4 : 3}
                       fill={item.color}
                       pointerEvents="none"
                     />
@@ -915,11 +926,13 @@ function LineChartContent(
               .sort((left, right) => right.value - left.value);
             const first = values[0];
             const heading = formatXTooltip(datum);
+            const swatchColor = (item: LineChartSeries) =>
+              areaVariant ? (item.fillColor ?? item.color) : item.color;
             const tooltipItems = values.map(({ item, value }) => ({
               id: item.id,
               label: item.label,
               value: valueFormatter(value),
-              color: hasDistinctColors ? item.color : undefined,
+              color: hasDistinctColors ? swatchColor(item) : undefined,
             }));
             const referenceProps = getReferenceProps(
               first

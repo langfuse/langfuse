@@ -2,7 +2,7 @@ use std::{
     future::{Future, IntoFuture},
     io,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -11,6 +11,10 @@ use std::{
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use serde::Serialize;
 use tokio::{net::TcpListener, sync::oneshot};
+
+mod connection;
+
+pub(crate) use connection::ConnectionId;
 
 #[derive(Clone, Default)]
 pub struct GatewayLifecycleState {
@@ -21,14 +25,11 @@ pub struct GatewayLifecycleState {
 
 impl GatewayLifecycleState {
     /// Deadline shared by connection draining and telemetry delivery.
-    ///
-    /// # Panics
-    /// Panics if the lifecycle lock was poisoned.
     pub fn drain_deadline(&self) -> Option<tokio::time::Instant> {
         *self
             .drain_deadline
             .lock()
-            .expect("gateway drain lock poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn is_ready(&self) -> bool {
@@ -79,9 +80,6 @@ async fn readiness(State(state): State<GatewayLifecycleState>) -> (StatusCode, J
 /// # Errors
 /// Returns the server's I/O error, or [`io::ErrorKind::TimedOut`] if connections
 /// do not finish draining within `shutdown_timeout`.
-///
-/// # Panics
-/// Panics if the lifecycle lock was poisoned.
 pub async fn serve(
     listener: TcpListener,
     app: Router,
@@ -91,19 +89,22 @@ pub async fn serve(
 ) -> io::Result<()> {
     let (draining_tx, draining_rx) = oneshot::channel();
     let shutdown_state = state.clone();
-    let server = axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            shutdown.await;
-            shutdown_state.ready.store(false, Ordering::Release);
-            *shutdown_state
-                .drain_deadline
-                .lock()
-                .expect("gateway drain lock poisoned") =
-                Some(tokio::time::Instant::now() + shutdown_timeout);
-            tracing::info!("gateway draining");
-            let _ = draining_tx.send(());
-        })
-        .into_future();
+    let server = axum::serve(
+        connection::ObservedListener(listener),
+        app.into_make_service_with_connect_info::<ConnectionId>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown.await;
+        shutdown_state.ready.store(false, Ordering::Release);
+        *shutdown_state
+            .drain_deadline
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            Some(tokio::time::Instant::now() + shutdown_timeout);
+        tracing::info!("gateway draining");
+        let _ = draining_tx.send(());
+    })
+    .into_future();
     tokio::pin!(server);
     state.ready.store(true, Ordering::Release);
     let result = tokio::select! {

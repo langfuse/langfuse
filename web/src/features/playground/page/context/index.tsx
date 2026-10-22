@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { showErrorToast } from "@/src/features/notifications";
 import React, {
   createContext,
@@ -476,7 +477,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "An error occurred";
-        showErrorToast("Error", errorMessage);
+        showErrorToast("Error", errorMessage, {
+          operation: "playground.execute",
+          errorOrigin: err instanceof TypeError ? "network" : "backend",
+          errorCategory: err instanceof TypeError ? "transient" : "internal",
+        });
       } finally {
         setIsStreaming(false);
       }

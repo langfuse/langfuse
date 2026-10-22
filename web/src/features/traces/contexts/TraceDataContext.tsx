@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * TraceDataContext - Provides read-only trace data and derived structures.
  *
@@ -77,6 +78,8 @@ interface TraceDataContextValue {
   detachedObservationIsMisplaced: boolean;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  /** This is the previous trace, kept on screen while the next one loads. */
+  isPlaceholderData: boolean;
   comments: Map<string, number>;
 }
 
@@ -99,6 +102,7 @@ interface TraceDataProviderProps {
   detachedObservationId?: string | null;
   detachedObservationIsMisplaced?: boolean;
   truncatedAtObservations?: number;
+  isPlaceholderData?: boolean;
   children: ReactNode;
 }
 
@@ -115,6 +119,7 @@ export function TraceDataProvider({
   detachedObservationId = null,
   detachedObservationIsMisplaced = false,
   truncatedAtObservations,
+  isPlaceholderData = false,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -201,6 +206,7 @@ export function TraceDataProvider({
       detachedObservationId,
       detachedObservationIsMisplaced,
       truncatedAtObservations,
+      isPlaceholderData,
       comments,
     }),
     [
@@ -216,6 +222,7 @@ export function TraceDataProvider({
       detachedObservationId,
       detachedObservationIsMisplaced,
       truncatedAtObservations,
+      isPlaceholderData,
       uiData.nodeMap,
       uiData.metricEmphasis,
       comments,

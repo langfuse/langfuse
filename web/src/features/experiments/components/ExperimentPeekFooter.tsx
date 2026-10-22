@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentPeekNavigation } from "../hooks/useExperimentPeekNavigation";
@@ -52,7 +52,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           onClick={goToPrev}
           title="Previous experiment"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft size="base" color="default" />
         </Button>
         <span className="text-muted-foreground px-1 font-mono text-[10px] tabular-nums">
           {currentIndex + 1}/{total}
@@ -64,7 +64,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           onClick={goToNext}
           title="Next experiment"
         >
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight size="base" color="default" />
         </Button>
       </div>
     </div>

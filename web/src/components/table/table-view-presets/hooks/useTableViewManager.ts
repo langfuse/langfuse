@@ -23,6 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /** How a saved view / preset apply was initiated — the `trigger` analytics
  * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
@@ -361,6 +362,11 @@ export function useTableViewManager({
         showErrorToast(
           "Outdated view",
           "This view is outdated. Some old filters or ordering may have been ignored. Please update your view.",
+          {
+            operation: "saved_view.apply",
+            errorOrigin: "frontend",
+            errorCategory: "product_state",
+          },
           "WARNING",
         );
       }
@@ -610,12 +616,14 @@ export function useTableViewManager({
       showErrorToast(
         "View no longer available",
         "This suggested view was retired — showing the default view instead.",
+        classifyTrpcToastError(selectedViewError, "saved_view.apply"),
         "WARNING",
       );
     } else {
       showErrorToast(
         "Error applying view",
         selectedViewError.message,
+        classifyTrpcToastError(selectedViewError, "saved_view.apply"),
         "WARNING",
       );
     }

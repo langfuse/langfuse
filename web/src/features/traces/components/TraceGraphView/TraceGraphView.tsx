@@ -16,9 +16,15 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
-import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
+import { useSelection } from "../../contexts/SelectionContext";
 
 export function TraceGraphView() {
+  const {
+    defaultObservationId,
+    selectedNodeId,
+    setSelectedNodeId,
+    selectNode,
+  } = useSelection();
   const { agentGraphData, isLoading } = useTraceGraphData();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
   // The trace panel's search box, resolved by the same hook the Timeline reads.
@@ -27,11 +33,6 @@ export function TraceGraphView() {
   const search = useTraceSearchMatches();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on desktop): jump to the Info tab when a canvas click selects
-  // an observation. The graph writes `?observation=` directly, so the tab effect
-  // already covers a genuine change; this also handles cycling a repeated node
-  // back to the same id, where the URL param wouldn't change.
-  const mobileLayout = useMobileLayoutContextOptional();
   // Analytics live here (not in the feature component) so the feature module
   // stays free of trace-view context dependencies.
   const handleObservationSelect = useCallback(() => {
@@ -40,8 +41,7 @@ export function TraceGraphView() {
       graphViewMode,
       ...analyticsDimensions,
     });
-    mobileLayout?.switchToInfoTab();
-  }, [capture, graphViewMode, analyticsDimensions, mobileLayout]);
+  }, [capture, graphViewMode, analyticsDimensions]);
   const handleViewModeChange = useCallback(
     (mode: GraphViewMode) => {
       // Clicking the already-active segment is a no-op — don't count it.
@@ -54,6 +54,17 @@ export function TraceGraphView() {
       setGraphViewMode(mode);
     },
     [capture, graphViewMode, setGraphViewMode, analyticsDimensions],
+  );
+  const handleSelectedObservationChange = useCallback(
+    (id: string | null) => {
+      // Synthetic graph nodes clear selection without opening details.
+      if (id === null) {
+        setSelectedNodeId(null);
+        return;
+      }
+      selectNode(id);
+    },
+    [setSelectedNodeId, selectNode],
   );
 
   if (isLoading) {
@@ -70,6 +81,9 @@ export function TraceGraphView() {
 
   return (
     <TraceGraphViewComponent
+      selectedObservationId={selectedNodeId}
+      defaultObservationId={defaultObservationId}
+      onSelectedObservationChange={handleSelectedObservationChange}
       agentGraphData={agentGraphData}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}

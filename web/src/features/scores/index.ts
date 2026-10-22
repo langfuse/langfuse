@@ -2,9 +2,6 @@
 // only — the list is exactly what other features already imported, nothing
 // added for the future.
 //
-// score-configs/ScoreConfigDetails stays on the deep path: routing it through
-// this index would close a runtime cycle (scores -> score-configs -> scores).
-//
 // Dual-use modules (aggregateScores, scoreColumns, helpers, scoresSearchRegistry)
 // stay a deep import for server callers. This door already carries React UI
 // (AnnotationForm, ScoresTable), and routing those files through here would
@@ -20,7 +17,7 @@ export {
 export { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 export { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 export { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-export { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+export { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSelectKeyValues";
 export {
   ScoreCacheProvider,
   type CachedScore,
@@ -40,6 +37,7 @@ export {
   type ScoreToAggregate,
 } from "@/src/features/scores/lib/aggregateScores";
 export {
+  formatScoreRange,
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,

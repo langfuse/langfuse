@@ -3,6 +3,7 @@ import { type IncomingHttpHeaders } from "http";
 import {
   type ForbiddenError,
   type InternalServerError,
+  type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 
@@ -31,14 +32,14 @@ export class Authenticator {
     private readonly cache: AuthenticatorCache = new AuthenticatorCache(),
   ) {}
 
-  /** authenticate runs the full pipeline read-through the context cache and enforces route settings on the resolved principal on every path, returning a typed failure rather than throwing. */
+  /** authenticate resolves credentials and enforces route settings on cache hits and misses. */
   async authenticate(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
       return unauthorizedError(invalidCredentials);
     }
 
-    let authResult = await this.cache.get(credential);
+    let authResult: ApiKeyAuthResults | null = await this.cache.get(credential);
     if (!authResult) {
       authResult = await this.verifyAndResolve(credential);
     }
@@ -53,7 +54,7 @@ export class Authenticator {
     return authResult;
   }
 
-  /** verifyAndResolve authenticates and materializes on a cache miss, writing every cacheable outcome back to the cache. */
+  /** verifyAndResolve resolves and caches verified credentials. */
   private async verifyAndResolve(
     credential: Credential,
   ): Promise<ApiKeyAuthResults> {
@@ -63,7 +64,14 @@ export class Authenticator {
       return verified;
     }
     const resolved = await this.authz.resolve(verified);
-    await this.cache.set(credential, resolved);
+    const expiresAt = "apiKey" in verified ? verified.apiKey.expiresAt : null;
+    // Revocation requires the persisted fast hash.
+    if (
+      verified.authorization !== "privateKey" ||
+      verified.apiKey.fastHashedSecretKey
+    ) {
+      await this.cache.set(credential, resolved, expiresAt);
+    }
     return resolved;
   }
 }
@@ -108,7 +116,12 @@ export type ApiKeyAuthParams = {
 /** ApiKeyAuthResults is the pipeline's outcome: the resolved context, or a typed failure. */
 export type ApiKeyAuthResults =
   | Authenticated
-  | ErrorResult<UnauthorizedError | ForbiddenError | InternalServerError>;
+  | ErrorResult<
+      | UnauthorizedError
+      | ForbiddenError
+      | InternalServerError
+      | ServiceUnavailableError
+    >;
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };

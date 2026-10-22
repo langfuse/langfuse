@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import * as z from "zod";
@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import {
   useState,
   useMemo,
@@ -189,6 +189,7 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
     enabled: datasets.data !== undefined,
     staleTime: Infinity,
     gcTime: 0,
+    meta: { toastOperation: "dataset_item.prepare" },
   });
 
   if (datasets.isError && !datasets.data) {
@@ -283,6 +284,11 @@ function InitializedNewDatasetItemForm({
         showErrorToast(
           "Select a dataset first",
           "Choose a dataset before attaching media.",
+          {
+            operation: "dataset_item_media.upload",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return null;
       }

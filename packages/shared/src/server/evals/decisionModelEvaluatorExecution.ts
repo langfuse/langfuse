@@ -12,26 +12,33 @@ import {
   type InternalTraceEventInput,
 } from "../llm/internalTraceEvents";
 import {
+  isOpenAIDecisionModel,
   LangfuseInternalTraceEnvironment,
+  LLMAdapter,
   type InternalTraceWriteInput,
 } from "../llm/types";
 import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
+/** OpenAI Decisions question shape. TypeSafe inference projects this down. */
 export type DecisionModelRequestQuestion =
   | {
       type: "choice";
       instructions: DecisionModelEntry;
-      criteria: Record<string, DecisionModelEntry | null>;
+      choices: Array<{
+        value: string;
+        description?: DecisionModelEntry | null;
+      }>;
     }
   | {
       type: "score";
       instructions: DecisionModelEntry;
-      criteria: DecisionModelEntry[];
+      levels: Array<{ description: DecisionModelEntry }>;
     }
   | {
-      type: "boolean";
+      type: "predicate";
       instructions: DecisionModelEntry;
+      /** Yes/no notes from a saved TypeSafe question. Each SDK attaches them. */
       criteria?: {
         true?: DecisionModelEntry | null;
         false?: DecisionModelEntry | null;
@@ -97,28 +104,32 @@ export function toDecisionModelRequestQuestion(
       return {
         type: "choice",
         instructions: question.instructions,
-        criteria: Object.fromEntries(
-          question.options.map((option) => [
-            option.value,
-            option.description ?? null,
-          ]),
-        ),
+        choices: question.options.map((option) => ({
+          value: option.value,
+          ...(option.description != null
+            ? { description: option.description }
+            : {}),
+        })),
       };
     case DecisionModelQuestionType.SCORE:
       return {
         type: "score",
         instructions: question.instructions,
-        criteria: question.levels.map((level) => level.description),
+        levels: question.levels,
       };
     case DecisionModelQuestionType.NOUL:
       return {
-        type: "boolean",
+        type: "predicate",
         instructions: question.instructions,
-        ...(question.criteria
+        ...(question.criteria?.true != null || question.criteria?.false != null
           ? {
               criteria: {
-                true: question.criteria.true ?? null,
-                false: question.criteria.false ?? null,
+                ...(question.criteria.true != null
+                  ? { true: question.criteria.true }
+                  : {}),
+                ...(question.criteria.false != null
+                  ? { false: question.criteria.false }
+                  : {}),
               },
             }
           : {}),
@@ -184,13 +195,15 @@ export function formatDecisionModelComment(params: {
         ? question.levels.length - 1
         : 0,
     );
-    const levelDescription =
+    const level =
       question.type === DecisionModelQuestionType.SCORE
-        ? question.levels[nearestLevel]?.description
+        ? question.levels[nearestLevel]
         : undefined;
+    const levelName =
+      typeof level?.description === "string" ? level.description : undefined;
     parts.push(
-      typeof levelDescription === "string"
-        ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelDescription}"`
+      levelName != null
+        ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelName}"`
         : `${formatNumber(answer.score)} ≈ level ${nearestLevel}`,
     );
     if (answer.confidence !== null) {
@@ -202,6 +215,11 @@ export function formatDecisionModelComment(params: {
   return parts.join("; ");
 }
 
+/** Score details are namespaced by the API that produced them. */
+function decisionScoreMetadataKey(model: string) {
+  return isOpenAIDecisionModel(model) ? LLMAdapter.OpenAI : LLMAdapter.TypeSafe;
+}
+
 function toScoreMetadata(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
@@ -209,10 +227,11 @@ function toScoreMetadata(params: {
 }): Record<string, unknown> {
   const { question, answer, model } = params;
   const base = { questionId: question.id, type: question.type, model };
+  const key = decisionScoreMetadataKey(model);
   switch (answer.type) {
     case "choice":
       return {
-        typesafe: {
+        [key]: {
           ...base,
           choice: answer.choice,
           confidence: answer.confidence,
@@ -221,7 +240,7 @@ function toScoreMetadata(params: {
       };
     case "score":
       return {
-        typesafe: {
+        [key]: {
           ...base,
           confidence: answer.confidence,
           probabilities: answer.probabilities,
@@ -230,14 +249,16 @@ function toScoreMetadata(params: {
               ? Object.fromEntries(
                   question.levels.map((level, index) => [
                     String(index),
-                    level.description,
+                    typeof level.description === "string"
+                      ? level.description
+                      : JSON.stringify(level.description),
                   ]),
                 )
               : undefined,
         },
       };
     case "boolean":
-      return { typesafe: base };
+      return { [key]: base };
   }
 }
 

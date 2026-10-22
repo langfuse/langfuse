@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { WidgetForm } from "@/src/features/widgets";
+import { ConnectedWidgetForm } from "@/src/features/widgets";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
@@ -12,11 +12,12 @@ import { useReadPath } from "@/src/features/events";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   asSingleQueryParam,
-  RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 
 export default function NewWidgetPage() {
   const route = useReadyRouteParams(["projectId"]);
@@ -52,6 +53,7 @@ function NewWidgetView({ projectId }: { projectId: string }) {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
+        operation: "widget.create",
         title: "Widget created successfully",
         description: "Your widget has been created.",
       });
@@ -79,13 +81,21 @@ function NewWidgetView({ projectId }: { projectId: string }) {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to save widget", error.message);
+      showErrorToast(
+        "Failed to save widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.create"),
+      );
     },
   });
 
   const handleSaveWidget = (widgetData: WidgetSavePayload) => {
     if (!widgetData.name.trim()) {
-      showErrorToast("Error", "Widget name is required");
+      showErrorToast("Error", "Widget name is required", {
+        operation: "widget.create",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
 
@@ -137,7 +147,7 @@ function NewWidgetView({ projectId }: { projectId: string }) {
         },
       }}
     >
-      <WidgetForm
+      <ConnectedWidgetForm
         // No `key` on the beta flag: WidgetForm derives viewVersion (and its
         // available views/measures/filter columns) reactively from isV4
         // + the selected view, so a live beta toggle re-derives them without a

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 /** @vitest-environment jsdom */
 import {
   act,
@@ -49,11 +50,18 @@ vi.mock("react-resizable-panels", () => ({
   Separator: () => <div />,
 }));
 
-function Harness({ open = true }: { open?: boolean }) {
+function Harness({
+  open = true,
+  collapseNavigationOnEntry,
+}: {
+  open?: boolean;
+  collapseNavigationOnEntry?: boolean;
+}) {
   return (
     <div data-peek-content>
       <TraceReviewLayout
         open={open}
+        collapseNavigationOnEntry={collapseNavigationOnEntry}
         review={<input aria-label="Review draft" />}
       >
         {({ collapsed, toggle }) => (
@@ -196,4 +204,20 @@ describe("trace review responsive workspace", () => {
       "vertical",
     );
   });
+});
+
+it("collapses on annotation entry while preserving manual expansion until the next entry", () => {
+  localStorage.setItem("trace-review-navigation-collapsed", "false");
+  const view = render(<Harness collapseNavigationOnEntry />);
+  fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
+  view.rerender(<Harness collapseNavigationOnEntry />);
+  expect(
+    screen.getByRole("button", { name: "Hide navigation" }),
+  ).toBeInTheDocument();
+
+  view.rerender(<Harness open={false} />);
+  view.rerender(<Harness collapseNavigationOnEntry />);
+  expect(
+    screen.getByRole("button", { name: "Show navigation" }),
+  ).toBeInTheDocument();
 });

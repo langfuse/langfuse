@@ -1,15 +1,12 @@
-import { useState, type ComponentProps } from "react";
-import { Button } from "@/src/components/ui/button";
-import { expect, fn, userEvent } from "storybook/test";
+import type { ComponentProps } from "react";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewayProvidersTable } from "./GatewayProvidersTable";
-import { ConnectedGatewayProvidersTable } from "./ConnectedGatewayProvidersTable";
 
 const meta = preview.meta({ component: GatewayProvidersTable });
 
 const onCredentialAction = fn();
-const onReorder = fn(async () => true);
 
 const connections = [
   {
@@ -20,7 +17,7 @@ const connections = [
     status: "ENABLED",
     organizationId: "org-1",
     createdById: "user-1",
-    routingPriority: 0,
+    allowedModels: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -32,7 +29,7 @@ const connections = [
     status: "ERROR",
     organizationId: "org-1",
     createdById: "user-1",
-    routingPriority: 1,
+    allowedModels: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -48,41 +45,34 @@ const manyConnections = Array.from({ length: 30 }, (_, index) => ({
   status: statuses[index % statuses.length]!,
   organizationId: "org-1",
   createdById: "user-1",
-  routingPriority: index,
+  allowedModels: null,
   createdAt: new Date(Date.UTC(2026, 8, 30 - index)),
   updatedAt: new Date("2026-09-30T12:00:00.000Z"),
 })) satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];
 
 const manyModelCounts = Object.fromEntries(
-  manyConnections.map((connection, index) => [connection.id, index * 7 + 1]),
+  manyConnections.map((connection, index) => [
+    connection.id,
+    { enabled: index * 7 + 1, total: index * 7 + 1 },
+  ]),
 );
 
 const actions = {
-  getModelsUrl: (connection) =>
-    `/organization/org-1/settings/ai-gateway-models?connection=${connection.id}`,
+  onSelect: (connection) => onCredentialAction(connection.id),
   onRetry: (connection) => onCredentialAction(connection.id),
   onEdit: (connection) => onCredentialAction(connection.id),
   onDelete: (connection) => onCredentialAction(connection.id),
-  canReorder: true,
-  pageOffset: 0,
-  onMove: fn(),
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersTable>,
-  | "getModelsUrl"
-  | "onRetry"
-  | "onEdit"
-  | "onDelete"
-  | "canReorder"
-  | "onMove"
-  | "pageOffset"
+  "onSelect" | "onRetry" | "onEdit" | "onDelete"
 >;
 
 export const OrderedCredentials = meta.story({
   args: {
     connections,
     modelCounts: {
-      "connection-openai": 42,
-      "connection-anthropic": 18,
+      "connection-openai": { enabled: 42, total: 42 },
+      "connection-anthropic": { enabled: 18, total: 20 },
     },
     ...actions,
   },
@@ -103,79 +93,3 @@ export const Empty = meta.story({
     ...actions,
   },
 });
-
-export const MovesImmediately = meta.story({
-  name: "(Test) Moves Immediately",
-  args: {
-    connections,
-    modelCounts: {},
-    ...actions,
-  },
-  render: (args) => (
-    <ConnectedGatewayProvidersTable {...args} onReorder={onReorder} />
-  ),
-  play: async ({ canvas }) => {
-    onReorder.mockClear();
-    await userEvent.click(
-      canvas.getAllByRole("button", { name: "Move credential down" })[0]!,
-    );
-
-    const rows = canvas.getAllByRole("row").slice(1);
-    await expect(rows[0]).toHaveTextContent("Fallback");
-    await expect(rows[1]).toHaveTextContent("Primary");
-    await expect(onReorder).toHaveBeenCalledWith(
-      "connection-openai",
-      "connection-anthropic",
-    );
-  },
-});
-
-export const ResetsWhenServerOrderChanges = meta.story({
-  name: "(Test) Resets When Server Order Changes",
-  args: {
-    connections: [
-      ...connections,
-      {
-        ...connections[0]!,
-        id: "connection-third",
-        name: "Third",
-        routingPriority: 2,
-      },
-    ],
-    modelCounts: {},
-    ...actions,
-  },
-  render: (args) => <ServerOrderExample {...args} />,
-  play: async ({ canvas }) => {
-    await userEvent.click(
-      canvas.getAllByRole("button", { name: "Move credential down" })[0]!,
-    );
-    await expect(canvas.getAllByRole("row")[1]).toHaveTextContent("Fallback");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Update server order" }),
-    );
-    await expect(canvas.getAllByRole("row")[1]).toHaveTextContent("Third");
-    await expect(canvas.getAllByRole("row")[2]).toHaveTextContent("Fallback");
-    await expect(canvas.getAllByRole("row")[3]).toHaveTextContent("Primary");
-  },
-});
-
-function ServerOrderExample(
-  args: ComponentProps<typeof GatewayProvidersTable>,
-) {
-  const [serverConnections, setServerConnections] = useState(args.connections);
-  return (
-    <div>
-      <Button
-        onClick={() => setServerConnections([...args.connections].reverse())}
-      >
-        Update server order
-      </Button>
-      <ConnectedGatewayProvidersTable
-        {...args}
-        connections={serverConnections}
-        onReorder={async () => true}
-      />
-    </div>
-  );
-}

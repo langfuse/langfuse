@@ -5,7 +5,7 @@ import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -137,7 +137,7 @@ export function BatchActionsTable({
                   {...getTriggerProps()}
                   className="flex items-center gap-1 text-left"
                 >
-                  <InfoIcon className="text-muted-foreground h-3 w-3" />
+                  <InfoIcon size="sm" color="muted" />
                   <span className="max-w-[250px] truncate text-xs" title={log}>
                     {log}
                   </span>

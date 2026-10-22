@@ -27,27 +27,6 @@ const expectedContext = {
   instrumentationScopes: ["opentelemetry.instrumentation.openai"],
 };
 
-// Crash site: convertValueToPlainJavascript reads `value.stringValue` on undefined
-const batchWithAttributeWithoutValue = [
-  {
-    scopeSpans: [
-      {
-        scope: { name: "opentelemetry.instrumentation.openai" },
-        spans: [
-          {
-            traceId: "0123456789abcdef0123456789abcdef",
-            spanId: "0123456789abcdef",
-            name: "chat openai",
-            attributes: [{ key: "gen_ai.system" }],
-            startTimeUnixNano: "1752384000000000000",
-            endTimeUnixNano: "1752384001000000000",
-          },
-        ],
-      },
-    ],
-  },
-];
-
 // Crash site: parseId calls Buffer.from(undefined) when traceId is missing
 const batchWithSpanWithoutTraceId = [
   {
@@ -71,23 +50,6 @@ const batchWithSpanWithoutTraceId = [
 describe("OtelIngestionProcessor conversion failure logging", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it("logs attribution context when processToIngestionEvents fails on an attribute without value", async () => {
-    const errorSpy = vi.spyOn(logger, "error");
-
-    const result = await createProcessor().processToIngestionEvents(
-      batchWithAttributeWithoutValue,
-    );
-
-    expect(result).toEqual([]);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "Error processing OTEL spans:",
-      expect.objectContaining({
-        ...expectedContext,
-        error: expect.any(Error),
-      }),
-    );
   });
 
   it("logs attribution context when processToIngestionEvents fails on a span without traceId", async () => {

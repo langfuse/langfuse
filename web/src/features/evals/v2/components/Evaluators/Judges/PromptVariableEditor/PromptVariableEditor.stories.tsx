@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical } from "lucide-react";
+import { ChevronDown, MoreVertical } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -113,7 +113,7 @@ export const MessageHeader = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          <ChevronDown size="sm" color="default" />
         </Button>
         <Badge variant="tertiary" className="h-5 shrink-0 leading-none">
           User
@@ -127,7 +127,7 @@ export const MessageHeader = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical size="sm" color="default" />
       </Button>
     ),
   },
@@ -150,7 +150,11 @@ export const CollapsedMessage = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 -translate-x-0.5 -rotate-90" />
+          <ChevronDown
+            size="sm"
+            color="default"
+            __rawClassName="-translate-x-0.5 -rotate-90"
+          />
         </Button>
         <Badge variant="tertiary" className="h-5 shrink-0 leading-none">
           User
@@ -167,7 +171,7 @@ export const CollapsedMessage = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical size="sm" color="default" />
       </Button>
     ),
   },

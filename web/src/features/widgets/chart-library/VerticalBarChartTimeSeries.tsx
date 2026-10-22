@@ -15,7 +15,7 @@ import {
 } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
-  seriesColor,
+  seriesFillColor,
   SeriesOverflowNote,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -73,25 +73,26 @@ export function VerticalBarChartTimeSeries({
         label:
           getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
           dimension,
-        color: seriesColor(index),
+        color: seriesFillColor(index),
       })),
     [visibleSeries, config],
   );
-  let chartLegend: LineChartLegend = { visibility: "hidden" };
-  if (legendPosition !== "none" && legendInteraction === "toggle") {
-    chartLegend = {
-      visibility: legendPosition === "auto" ? "auto" : "visible",
-      interaction: "toggle",
-      summary: legendSummary,
-      maxVisibleSeries,
-    };
-  } else if (legendPosition !== "none") {
-    chartLegend = {
+  const chartLegend = useMemo<LineChartLegend>(() => {
+    if (legendPosition === "none") return { visibility: "hidden" };
+    if (legendInteraction === "toggle") {
+      return {
+        visibility: legendPosition === "auto" ? "auto" : "visible",
+        interaction: "toggle",
+        summary: legendSummary,
+        maxVisibleSeries,
+      };
+    }
+    return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
     };
-  }
+  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
 
   return (
     <div className="flex size-full min-w-0 flex-col">

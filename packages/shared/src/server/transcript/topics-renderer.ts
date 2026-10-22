@@ -119,7 +119,9 @@ export function renderTranscript(
       case "tool-call":
         return `${part.toolName} ${json(part.input)}`;
       case "tool-result":
-        return json(part.output);
+        return part.output.type === "content"
+          ? toolResultContent(part.output.value)
+          : json(part.output.value);
       case "file":
         return `[${part.mediaType ?? "file"} omitted]`;
       case "data":
@@ -128,6 +130,15 @@ export function renderTranscript(
         return json({ [part.kind]: part.value });
     }
   };
+  const toolResultContent = (parts: NormalizedMessagePart[]): string =>
+    parts
+      .map((part) => {
+        if (part.type === "reasoning" && !config.reasoning.include) return "";
+        if (part.type === "file" && part.reasoning) return "";
+        return partContent(part);
+      })
+      .filter(Boolean)
+      .join("\n");
   const rootContent = (
     observation: Observation,
     source: "input" | "output",
@@ -379,7 +390,7 @@ export function renderTranscript(
         return config.toolResults.include
           ? labeled(
               `${resultLabel}${part.isError ? " ERROR" : ""}`,
-              json(part.output),
+              partContent(part),
               config.toolResults.maxChars,
               "tool_results",
             )

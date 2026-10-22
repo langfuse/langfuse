@@ -30,6 +30,7 @@
 
 .Streamdown pre {
   @apply bg-muted text-foreground dark:bg-card leading-tight;
+  padding-right: 2.75rem;
 }
 
 .Streamdown code {

@@ -11,6 +11,7 @@ type FernAvailability =
 
 type FernDefinition = {
   "base-path"?: string;
+  types?: Record<string, string | { properties?: FernProperties }>;
   service?: {
     "base-path"?: string;
     endpoints?: Record<
@@ -20,6 +21,7 @@ type FernDefinition = {
         "base-path"?: string;
         method?: string;
         path?: string;
+        request?: string | { body?: string | { properties?: FernProperties } };
       }
     >;
   };
@@ -113,3 +115,65 @@ export function getFernDeprecatedOperations(
     });
   });
 }
+
+/** getFernDeprecatedProperties locates named-type and inline-request properties in the exported schema. */
+export function getFernDeprecatedProperties(
+  definitionDirectory: string,
+): string[][] {
+  const apiDefinition = parse(
+    fs.readFileSync(path.join(definitionDirectory, "api.yml"), "utf8"),
+  ) as FernDefinition;
+
+  return listYamlFiles(definitionDirectory).flatMap((definitionPath) => {
+    const definition = parse(
+      fs.readFileSync(definitionPath, "utf8"),
+    ) as FernDefinition;
+    const typeProperties = Object.entries(definition.types ?? {}).flatMap(
+      ([name, type]) =>
+        deprecatedPropertyPaths(
+          typeof type === "string" ? undefined : type.properties,
+          ["components", "schemas", name, "properties"],
+        ),
+    );
+    const service = definition.service;
+    const requestProperties = Object.values(service?.endpoints ?? {}).flatMap(
+      (endpoint) => {
+        const request = endpoint.request;
+        const body = typeof request === "object" ? request.body : undefined;
+        if (typeof body !== "object" || !endpoint.method) return [];
+        return deprecatedPropertyPaths(body.properties, [
+          "paths",
+          joinApiPath(
+            apiDefinition["base-path"],
+            service?.["base-path"],
+            endpoint["base-path"],
+            endpoint.path,
+          ),
+          endpoint.method.toLowerCase(),
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+        ]);
+      },
+    );
+    return [...typeProperties, ...requestProperties];
+  });
+}
+
+function deprecatedPropertyPaths(
+  properties: FernProperties | undefined,
+  prefix: string[],
+): string[][] {
+  return Object.entries(properties ?? {}).flatMap(([name, property]) =>
+    typeof property === "object" && isDeprecated(property.availability)
+      ? [[...prefix, name]]
+      : [],
+  );
+}
+
+type FernProperties = Record<
+  string,
+  string | { availability?: FernAvailability }
+>;

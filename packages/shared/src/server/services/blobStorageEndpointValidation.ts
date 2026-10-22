@@ -89,6 +89,44 @@ export async function validateBlobStorageEndpoint(
   }
 }
 
+// Rejection of a keyless GCS export. The worker classifies it by name as a
+// bucket fault, so the integration is disabled instead of retried.
+class GcsBucketNotAllowedError extends Error {
+  constructor(
+    readonly code: "gcs-bucket-not-allowed" | "gcs-not-allowed",
+    message: string,
+  ) {
+    super(message);
+    this.name = "GcsBucketNotAllowedError";
+  }
+}
+
+/**
+ * Keyless GOOGLE_CLOUD_STORAGE blob exports (no service account key stored)
+ * authenticate as the deployment's own GCP identity (ADC), so the bucket is the
+ * only thing a project owner controls. Restrict it to operator-approved buckets.
+ * Self-hosted only: on Langfuse Cloud the ADC identity is Langfuse's own.
+ * Exports with a customer service account key are scoped by that key instead,
+ * like the Vertex AI LLM connection, and need no allowlist.
+ */
+export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw new GcsBucketNotAllowedError(
+      "gcs-not-allowed",
+      "Google Cloud Storage exports with default credentials are only available on self-hosted deployments. Provide a service account key instead.",
+    );
+  }
+  const allowed = env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS ?? [];
+  if (!allowed.includes(bucketName.toLowerCase().trim())) {
+    throw new GcsBucketNotAllowedError(
+      "gcs-bucket-not-allowed",
+      allowed.length === 0
+        ? "Google Cloud Storage exports with default credentials are disabled. Set LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS to enable them, or provide a service account key."
+        : `Bucket "${bucketName}" is not in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS. Use an allowed bucket or provide a service account key.`,
+    );
+  }
+}
+
 export function blobStorageEndpointConnectionValidationOptions(
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
 ): OutboundUrlConnectionValidationOptions | undefined {

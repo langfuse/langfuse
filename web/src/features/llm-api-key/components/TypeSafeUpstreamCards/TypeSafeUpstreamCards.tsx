@@ -1,7 +1,7 @@
 "use client";
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 import type { ComponentPropsWithoutRef } from "react";
 import { TYPESAFE_UPSTREAMS, type TypeSafeUpstream } from "@langfuse/shared";
 
@@ -47,7 +47,7 @@ export function TypeSafeUpstreamCards({
             className="focus-visible:ring-ring data-[state=checked]:border-foreground data-[state=checked]:bg-background data-[state=unchecked]:bg-muted/30 data-[state=unchecked]:hover:bg-muted/50 relative flex min-w-0 flex-col items-start gap-1 rounded-md border p-3 pr-7 text-left transition-colors focus:outline-hidden focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RadioGroupPrimitive.Indicator className="bg-foreground text-background absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full">
-              <Check className="h-3 w-3" aria-hidden="true" />
+              <Check size="sm" aria-hidden="true" />
             </RadioGroupPrimitive.Indicator>
             <span className="text-sm leading-none font-bold">{label}</span>
             <span className="text-muted-foreground text-xs">

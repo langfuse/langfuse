@@ -146,7 +146,6 @@ langfuse/
     (client tests: `pnpm --filter web run test-client <file>`)
   - worker: `pnpm --filter worker run test <file>`
   - shared: `pnpm --filter @langfuse/shared run test <file>`
-- Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Shared agent/worktree bootstrap: `bash scripts/agents/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
@@ -265,7 +264,6 @@ Do not hand-edit generated or build artifacts:
 
 - `generated/*`
 - `web/.next/*`
-- `web/.next-check/*`
 - `*/dist/*`
 - `packages/shared/prisma/generated/*`
 

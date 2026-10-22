@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { useState, type ReactNode } from "react";
+import type * as ResizablePanels from "react-resizable-panels";
 import {
   act,
   cleanup,
@@ -22,7 +23,9 @@ const { groupRef, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
-vi.mock("react-resizable-panels", () => ({
+vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("react-resizable-panels", async (importOriginal) => ({
+  ...(await importOriginal<typeof ResizablePanels>()),
   useGroupRef: () => groupRef,
   Group: ({
     children,

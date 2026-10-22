@@ -146,10 +146,13 @@ export class SecondaryIngestionQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
-            attempts: 5,
+            attempts: 8,
             backoff: {
               type: "exponential",
               delay: 5000,
+              // Spreads retries of jobs that failed together (e.g. one S3
+              // throttling episode) so they don't hit the prefix in lockstep.
+              jitter: 0.5,
             },
           },
         })

@@ -162,7 +162,11 @@ const CREDENTIALED_URL = "http://exporter:hunter2@127.0.0.1/";
 
 describe("negative-suite premise", () => {
   it("runs with a genuinely empty allowlist", () => {
-    expect(whitelistFromEnv()).toEqual({ hosts: [], ips: [], ip_ranges: [] });
+    expect(whitelistFromEnv()).toEqual({
+      hosts: [],
+      ips: [],
+      ip_ranges: [],
+    });
   });
 });
 

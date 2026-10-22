@@ -104,24 +104,27 @@ describe("Admin API Key Authentication", () => {
   });
 
   describe("Admin API Key Auth (isAdminApiKeyAuthAllowed = true)", () => {
-    it("should successfully authenticate with valid admin API key", async () => {
-      const mockReq = {
-        headers: {
-          authorization: `Bearer ${ADMIN_API_KEY}`,
-          "x-langfuse-admin-api-key": ADMIN_API_KEY,
-          "x-langfuse-project-id": projectId,
-        },
-      } as unknown as NextApiRequest;
+    it.each(["x-langfuse-project-id", "langfuse-project-id"])(
+      "should authenticate an admin API key with %s",
+      async (projectIdHeader) => {
+        const mockReq = {
+          headers: {
+            authorization: `Bearer ${ADMIN_API_KEY}`,
+            "x-langfuse-admin-api-key": ADMIN_API_KEY,
+            [projectIdHeader]: projectId,
+          },
+        } as unknown as NextApiRequest;
 
-      const result = await verifyAuth(mockReq, true);
+        const result = await verifyAuth(mockReq, true);
 
-      expect(result.validKey).toBe(true);
-      expect(result.scope.projectId).toBe(projectId);
-      expect(result.scope.orgId).toBe(orgId);
-      expect(result.scope.apiKeyId).toBe("ADMIN_API_KEY");
-      expect(result.scope.publicKey).toBe("ADMIN_API_KEY");
-      expect(result.scope.accessLevel).toBe("project");
-    });
+        expect(result.validKey).toBe(true);
+        expect(result.scope.projectId).toBe(projectId);
+        expect(result.scope.orgId).toBe(orgId);
+        expect(result.scope.apiKeyId).toBe("ADMIN_API_KEY");
+        expect(result.scope.publicKey).toBe("ADMIN_API_KEY");
+        expect(result.scope.accessLevel).toBe("project");
+      },
+    );
 
     it("should fall back to basic auth when no Bearer header", async () => {
       const mockReq = {
@@ -233,7 +236,7 @@ describe("Admin API Key Authentication", () => {
       });
     });
 
-    it("should fail without x-langfuse-project-id header", async () => {
+    it("should fail without either project ID header", async () => {
       const mockReq = {
         headers: {
           authorization: `Bearer ${ADMIN_API_KEY}`,
@@ -244,7 +247,7 @@ describe("Admin API Key Authentication", () => {
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 400,
         message:
-          "x-langfuse-project-id header is required for admin API key authentication",
+          "langfuse-project-id header is required for admin API key authentication",
       });
     });
 

@@ -51,6 +51,7 @@ const manyUsers = Array.from(
 );
 
 const defaultArgs = {
+  dividerTone: "default",
   projectId: "project-1",
   countTraces: 24,
   minTimestamp: new Date("2026-09-11T10:00:00Z"),
@@ -108,7 +109,7 @@ export const ConfiguredMetadata = meta.story({
       source: {
         state: "ready",
         metadata: {
-          langfuse_user_email: "danielm@nexite.io",
+          langfuse_user_email: "daniel.mueller-schmidt@enterprise.nexite.io",
           cloud_region: "EU",
         },
         metadataTruncated: false,
@@ -162,7 +163,7 @@ export const TestSearchesHiddenPills = meta.story({
       ),
     ).toBeLessThanOrEqual(0.5);
     const trailingButton = canvas.getByRole("button", {
-      name: "Add metadata JSONPath",
+      name: "Edit Metadata",
     });
     const trailingGap =
       trailingButton.getBoundingClientRect().left -
@@ -231,7 +232,7 @@ export const TestBoundsManyUsers = meta.story({
     await userEvent.type(searchInput, "user-999@example.com");
     await expect(
       within(results).getByRole("link", {
-        name: "user user-999@example.com",
+        name: "user: user-999@example.com",
       }),
     ).toBeInTheDocument();
   },
@@ -272,9 +273,7 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     const openEditor = () =>
-      userEvent.click(
-        canvas.getByRole("button", { name: "Add metadata JSONPath" }),
-      );
+      userEvent.click(canvas.getByRole("button", { name: "Edit Metadata" }));
 
     await openEditor();
     let input = body.getByLabelText("Metadata JSONPath");

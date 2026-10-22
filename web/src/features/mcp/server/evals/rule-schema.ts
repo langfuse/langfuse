@@ -15,6 +15,11 @@ import {
 } from "@/src/features/public-api/server";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 
+export const McpEvaluatorType = z.enum([
+  ...PublicEvaluatorType.options,
+  "decision_model",
+]);
+
 const RuleFilterBaseSchema = McpAdvancedFilterBaseSchema.describe(
   'Observation filter condition, e.g. {"column":"version","operator":"=","value":"1.0.0","type":"string"}. Use `key` for object columns such as `metadata`.',
 );
@@ -33,7 +38,7 @@ const EvaluationRuleEvaluatorInputBase = {
 const VariableMappingSchema = z
   .array(ObservationPromptVariableMappingInput)
   .describe(
-    "Optional rule-specific variable mapping for LLM evaluators. Omit for code evaluators, whose mapping is managed by Langfuse.",
+    "Optional rule-specific variable mapping for LLM-as-a-judge and decision-model evaluators. Omit for code evaluators, whose mapping is managed by Langfuse.",
   );
 
 export const AttachEvaluatorToEvaluationRuleBaseSchema = z.object({
@@ -158,7 +163,7 @@ export const EvaluationRuleResponseSchema = z
       z.object({
         evaluatorId: z.string(),
         evaluatorName: z.string(),
-        evaluatorType: PublicEvaluatorType,
+        evaluatorType: McpEvaluatorType,
         variableMapping: z.array(PromptVariableMappingRead).nullable(),
       }),
     ),

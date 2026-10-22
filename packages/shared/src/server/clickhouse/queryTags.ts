@@ -1,4 +1,4 @@
-import { context, propagation } from "@opentelemetry/api";
+import { context, createContextKey, propagation } from "@opentelemetry/api";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
 const UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE = "unknown" as const;
@@ -43,6 +43,17 @@ export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
   userAgent: "langfuse.clickhouse.user_agent",
 } as const;
 
+/**
+ * Holds the route the entrypoint set. The route is mirrored into baggage for
+ * span attributes but never read back from it: inbound requests can carry
+ * `langfuse.clickhouse.*` baggage, and a caller-chosen route would make the
+ * outcome metric's `route` tag unbounded. Inbound headers cannot set a context
+ * key.
+ */
+export const CLICKHOUSE_ROUTE_CONTEXT_KEY = createContextKey(
+  "langfuse.clickhouse.route",
+);
+
 const surfaceSet = new Set<string>(clickHouseQuerySurfaces);
 
 const isClickHouseQuerySurface = (
@@ -60,7 +71,7 @@ export function normalizeClickHouseQueryTags(
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value;
   const route =
     providedTags?.route ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value;
+    context.active().getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
   const projectId =
     providedTags?.projectId ??
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId)?.value;

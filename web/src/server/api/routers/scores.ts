@@ -64,6 +64,7 @@ import {
   deleteScores,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
@@ -120,6 +121,7 @@ export const scoresRouter = createTRPCRouter({
         offset: input.page * input.limit,
         excludeMetadata: true,
         includeHasMetadataFlag: true,
+        preferredClickhouseService: "ReadOnly",
       });
 
       const [jobExecutions, users] = await Promise.all([
@@ -178,6 +180,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
+        preferredClickhouseService: "ReadOnly",
       });
       if (!score) {
         throw new TRPCError({
@@ -577,7 +580,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       const inflatedParams = isTraceScore(input.scoreTarget)
@@ -633,6 +636,7 @@ export const scoresRouter = createTRPCRouter({
         input.configId,
         input.dataType,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp ?? new Date();
 
@@ -708,8 +712,10 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
+
+      throwIfScoreEditsDisabled(input.projectId);
 
       let updatedScore: ScoreDomain | null | undefined = null;
 
@@ -970,15 +976,19 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:delete",
       });
 
-      // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById({
+      // Corrections can be ingested via the API and are still deletable in the UI
+      const fetchedScore = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSourceEnum.ANNOTATION,
       });
+      const clickhouseScore =
+        fetchedScore?.source === ScoreSourceEnum.ANNOTATION ||
+        fetchedScore?.dataType === ScoreDataTypeEnum.CORRECTION
+          ? fetchedScore
+          : undefined;
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
@@ -1017,7 +1027,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -1044,6 +1054,7 @@ export const scoresRouter = createTRPCRouter({
         undefined,
         ScoreDataTypeEnum.CORRECTION,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp;
 
@@ -1176,7 +1187,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await hasAnyScore(input.projectId);
+      return await hasAnyScore(input.projectId, "ReadOnly");
     }),
   getScoreMetadataById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
@@ -1184,3 +1195,14 @@ export const scoresRouter = createTRPCRouter({
       return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
 });
+
+// Projects that read scores without dedup must not rewrite an existing score
+// id: every rewrite is a new row and would surface as a duplicate.
+function throwIfScoreEditsDisabled(projectId: string) {
+  if (shouldSkipScoresDedup(projectId)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Existing scores cannot be edited in this project.",
+    });
+  }
+}

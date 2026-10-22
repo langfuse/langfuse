@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { TriangleAlert, X } from "lucide-react";
+import { TriangleAlert, X } from "@langfuse/icons";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
 export function TraceTruncationNotice() {
@@ -60,7 +60,7 @@ export function TraceTruncationNotice() {
 
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">
-      <TriangleAlert className="text-foreground-tertiary mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <TriangleAlert size="base" color="tertiary" __rawClassName="mt-0.5" />
       <p className="min-w-0 flex-1">
         {/* No total: the server stops counting at the cap, so we know "more than
             this", never how many. */}
@@ -78,7 +78,7 @@ export function TraceTruncationNotice() {
         onClick={() => setDismissedRank(rank)}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >
-        <X className="h-3.5 w-3.5" />
+        <X size="base" />
       </button>
     </div>
   );

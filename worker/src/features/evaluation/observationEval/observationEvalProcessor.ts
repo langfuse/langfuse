@@ -24,6 +24,11 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
+import {
+  EvalFailureError,
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../evalFailureErrors";
 import { buildEvalExecutionData } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
@@ -174,8 +179,9 @@ export async function processObservationEval(
     );
   } catch (e) {
     // S3 download failures are retryable (network issues, temporary unavailability)
-    throw new Error(
+    throw new EvalFailureError(
       `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
+      EvalFailureReason.ObservationDownload,
     );
   }
 
@@ -185,8 +191,9 @@ export async function processObservationEval(
     observationData = observationForEvalSchema.parse(parsedJson);
   } catch (e) {
     // JSON parse errors are permanent - the data won't change on retry
-    throw new UnrecoverableError(
+    throw new UnrecoverableEvalFailureError(
       `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
+      EvalFailureReason.InvalidObservationData,
     );
   }
 
@@ -303,6 +310,7 @@ export async function processObservationEval(
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
     environment: executionParams.environment,
+    executionType: params.executionType,
     deps: executionParams.deps,
     result: executionResult,
   });
@@ -493,6 +501,8 @@ function normalizeEvalTemplate(
         sourceCodeLanguage: null,
         questions: template.questions,
       };
+    case EvalTemplateType.FACET:
+      throw new UnrecoverableError("Facets cannot run as evaluators");
   }
 }
 

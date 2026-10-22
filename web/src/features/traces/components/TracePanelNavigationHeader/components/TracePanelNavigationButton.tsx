@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -30,9 +30,9 @@ export function TracePanelNavigationButton({
       className="h-7 w-7 shrink-0"
     >
       {isPanelCollapsed ? (
-        <PanelLeftOpen className="h-3.5 w-3.5" />
+        <PanelLeftOpen size="base" color="default" />
       ) : (
-        <PanelLeftClose className="h-3.5 w-3.5" />
+        <PanelLeftClose size="base" color="default" />
       )}
     </Button>
   );

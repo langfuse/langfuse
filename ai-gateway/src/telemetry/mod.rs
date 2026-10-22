@@ -9,7 +9,7 @@ mod worker;
 use std::{
     io::{self, Write},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -27,13 +27,14 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::{
     capture::{InferenceFacts, InputOmissionReason},
-    resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
+    resolution::{ControlPlaneConfig, ProjectId, ResolutionError, ResolvedRequestContext},
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
+use secrecy::{ExposeSecret, SecretString};
 use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
@@ -47,8 +48,8 @@ pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
 
 struct Grant {
-    project_id: String,
-    access_token: String,
+    project_id: ProjectId,
+    access_token: SecretString,
     expires_at: u64,
 }
 
@@ -67,18 +68,27 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(
+    /// `None` when the request has nothing to deliver to, as in ingestion mode `none`.
+    pub(crate) fn from_resolved(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
-    ) -> Self {
-        Self {
+    ) -> Option<Self> {
+        let (project_id, ingestion) = context.delivery_target()?;
+        Some(Self {
             grant: Grant {
-                project_id: context.attribution().project_id().to_owned(),
-                access_token: context.ingestion().access_token().to_owned(),
-                expires_at: context.ingestion().expires_at(),
+                project_id: project_id.clone(),
+                access_token: ingestion.access_token().clone(),
+                expires_at: ingestion.expires_at(),
             },
             generation: GenerationContext::from_request(headers, client_metadata),
+        })
+    }
+
+    pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
+        crate::correlation::GenerationIds {
+            trace_id: self.generation.trace_id.clone(),
+            observation_id: self.generation.observation_id.clone(),
         }
     }
 }
@@ -188,12 +198,12 @@ impl Telemetry {
             .span_context()
             .clone();
         let mut span = mapping::span(facts, &context.generation);
-        let credentials = context.grant.access_token.len() + context.grant.project_id.len();
+        let credentials = context.grant.access_token.expose_secret().len()
+            + context.grant.project_id.as_str().len();
         let limit = self.0.record_limit.saturating_sub(credentials);
         let acquire = |bytes: usize| {
-            self.0.retained.clone().try_acquire_many_owned(
-                u32::try_from(bytes + credentials).expect("bounded record bytes"),
-            )
+            let permits = u32::try_from(bytes + credentials).ok()?;
+            self.0.retained.clone().try_acquire_many_owned(permits).ok()
         };
         let mut size = serialized_size(&span, limit);
         if size.is_none() && mapping::omit_input(&mut span, InputOmissionReason::RecordLimit) {
@@ -203,13 +213,13 @@ impl Telemetry {
             self.0.stats.record_dropped(1, "size");
             return;
         };
-        let mut retained = acquire(bytes).ok();
+        let mut retained = acquire(bytes);
         if retained.is_none()
             && mapping::omit_input(&mut span, InputOmissionReason::TelemetryBuffer)
             && let Some(reduced) = serialized_size(&span, limit)
         {
             bytes = reduced;
-            retained = acquire(bytes).ok();
+            retained = acquire(bytes);
         }
         let Some(retained) = retained else {
             self.0.stats.record_dropped(1, "bytes");
@@ -225,15 +235,12 @@ impl Telemetry {
 
     /// Stop accepting work, flush open batches, and finish uploads within the existing
     /// process drain deadline.
-    ///
-    /// # Panics
-    /// Panics if the worker handle lock was poisoned.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0
             .worker
             .lock()
-            .expect("telemetry worker lock poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
             .take();
         let Some(worker) = worker else {
             return;
