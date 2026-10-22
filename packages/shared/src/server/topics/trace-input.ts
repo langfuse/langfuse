@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isRootObservation } from "../../eventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {

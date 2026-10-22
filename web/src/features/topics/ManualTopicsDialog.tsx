@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 import { Info } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";

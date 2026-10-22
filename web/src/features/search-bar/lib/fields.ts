@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 // Field registry — the single source of truth for autocomplete, validation,
 // operator choice, and lowering into the flat Langfuse `FilterState`.
 //

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useRef } from "react";
 import { Upload } from "@langfuse/icons";
 

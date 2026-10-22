@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import ipaddr from "ipaddr.js";
 import { parseBlockedCidr } from "./parseBlockedCidr";
 

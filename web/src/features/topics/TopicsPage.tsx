@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components */
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";

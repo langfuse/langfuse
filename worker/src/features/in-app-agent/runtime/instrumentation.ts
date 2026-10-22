@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";

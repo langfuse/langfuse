@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";

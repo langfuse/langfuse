@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { X } from "@langfuse/icons";

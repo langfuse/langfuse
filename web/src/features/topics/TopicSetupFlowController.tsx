@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useState, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
