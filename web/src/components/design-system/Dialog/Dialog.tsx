@@ -46,6 +46,8 @@ type DialogProps = {
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
+  /** Shown as a muted "Docs" link next to the title. */
+  docsHref?: string;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
@@ -63,6 +65,7 @@ function DialogRoot({
   children,
   closeLabel,
   closeOnInteractionOutside = false,
+  docsHref,
   stopPropagationOnEnterSpace = true,
   size,
   text,
@@ -85,6 +88,7 @@ function DialogRoot({
   const hasActions = Boolean(actions?.length);
   const isCloseOnly = !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const headerRef = React.useRef<HTMLElement | null>(null);
 
   return (
     <DialogPrimitive.Portal container={container}>
@@ -108,7 +112,14 @@ function DialogRoot({
             return;
           }
 
-          if (text === undefined) return;
+          if (text === undefined) {
+            // Radix would focus the first tabbable, which is the docs link.
+            if (docsHref) {
+              event.preventDefault();
+              focusFirstTabbableAfter(headerRef.current);
+            }
+            return;
+          }
 
           let safeActionButton: HTMLButtonElement | null = null;
           for (let index = (actions?.length ?? 0) - 1; index >= 0; index--) {
@@ -149,11 +160,24 @@ function DialogRoot({
         }}
       >
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
-          <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
+          <header
+            ref={headerRef}
+            className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4"
+          >
             <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
-              </DialogPrimitive.Title>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                <DialogPrimitive.Title className="min-w-0 text-lg leading-none font-bold tracking-tight">
+                  {title}
+                </DialogPrimitive.Title>
+                {docsHref ? (
+                  <Button
+                    variant="text"
+                    size="sm"
+                    text="Docs"
+                    href={docsHref}
+                  />
+                ) : null}
+              </div>
               <DialogPrimitive.Close
                 className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
                 tabIndex={-1}
@@ -210,6 +234,23 @@ function DialogRoot({
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );
+}
+
+const TABBABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusFirstTabbableAfter(element: HTMLElement | null) {
+  const content = element?.parentElement;
+  if (!element || !content) return;
+  if (content.contains(document.activeElement)) return;
+  const target = Array.from(
+    content.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR),
+  ).find(
+    (candidate) =>
+      !element.contains(candidate) &&
+      candidate.getAttribute("tabindex") !== "-1",
+  );
+  target?.focus();
 }
 
 function DialogBody({ children }: { children: React.ReactNode }) {
