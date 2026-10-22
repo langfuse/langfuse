@@ -1,19 +1,16 @@
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
-import { TeamInviteForm } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/TeamInviteForm";
+import {
+  TeamInviteForm,
+  type TeamInviteFormProps,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/TeamInviteForm";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 
-export type TeamInviteStepProps = {
+export type TeamInviteStepProps = TeamInviteFormProps & {
   status: ReturnType<typeof getSetupStepStatus>;
-  organizationId: string;
-  onFinish: () => void;
 };
 
-export function TeamInviteStep({
-  status,
-  organizationId,
-  onFinish,
-}: TeamInviteStepProps) {
+export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
   return (
     <Stepper
       number={3}
@@ -24,9 +21,7 @@ export function TeamInviteStep({
       docsHref={GATEWAY_SETUP.docsUrl}
       description="Members can create their own gateway keys and use the models you enabled. New people join as Member."
     >
-      {status === "current" ? (
-        <TeamInviteForm organizationId={organizationId} onFinish={onFinish} />
-      ) : null}
+      {status === "current" ? <TeamInviteForm {...formProps} /> : null}
     </Stepper>
   );
 }

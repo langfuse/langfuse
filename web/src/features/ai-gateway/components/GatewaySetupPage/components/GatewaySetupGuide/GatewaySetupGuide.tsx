@@ -1,53 +1,55 @@
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { CredentialStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/CredentialStep";
 import { IngestionStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/IngestionStep";
-import { TeamInviteStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/TeamInviteStep";
+import {
+  TeamInviteStep,
+  type TeamInviteStepProps,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/TeamInviteStep";
 import { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
-import { useGatewaySetupProgress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/hooks/useGatewaySetupProgress";
 import type {
   GatewayConfig,
+  GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-export type GatewaySetupGuideProps = {
-  organizationId: string;
+export type GatewaySetupGuideProps = Omit<TeamInviteStepProps, "status"> & {
+  /** The open step: 1 ingestion, 2 credential, 3 team. */
+  activeStep: 1 | 2 | 3;
   config: GatewayConfig | null;
   projects: GatewayProject[];
-  onFinish: () => void;
+  firstConnection: Pick<GatewayConnection, "provider"> | undefined;
+  isSavingIngestion: boolean;
+  onSaveIngestion: (settings: GatewayIngestionSettings) => Promise<unknown>;
+  onAddCredential: () => void;
 };
 
 export function GatewaySetupGuide({
-  organizationId,
+  activeStep,
   config,
   projects,
-  onFinish,
+  firstConnection,
+  isSavingIngestion,
+  onSaveIngestion,
+  onAddCredential,
+  ...teamInviteProps
 }: GatewaySetupGuideProps) {
-  const { activeStep, firstConnection, isPending } = useGatewaySetupProgress({
-    organizationId,
-    config,
-  });
-
-  if (isPending) {
-    return <Skeleton className="h-64 w-full max-w-3xl" />;
-  }
-
   return (
     <div className="flex max-w-3xl flex-col">
       <IngestionStep
         status={getSetupStepStatus(1, activeStep)}
-        organizationId={organizationId}
         config={config}
         projects={projects}
+        isSaving={isSavingIngestion}
+        onContinue={onSaveIngestion}
       />
       <CredentialStep
         status={getSetupStepStatus(2, activeStep)}
-        organizationId={organizationId}
         firstConnection={firstConnection}
+        onAddCredential={onAddCredential}
       />
       <TeamInviteStep
         status={getSetupStepStatus(3, activeStep)}
-        organizationId={organizationId}
-        onFinish={onFinish}
+        {...teamInviteProps}
       />
     </div>
   );

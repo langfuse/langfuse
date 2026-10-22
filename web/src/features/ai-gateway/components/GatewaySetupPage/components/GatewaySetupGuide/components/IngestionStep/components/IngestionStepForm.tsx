@@ -4,30 +4,30 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/IngestionSettingsFields";
 import { getInitialIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/getInitialIngestionSettings";
 import { isIngestionSettingsValid } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isIngestionSettingsValid";
-import { useSaveGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useSaveGatewayIngestion";
 import type {
   GatewayConfig,
+  GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 
 export type IngestionStepFormProps = {
-  organizationId: string;
   config: GatewayConfig | null;
   projects: GatewayProject[];
+  isSaving: boolean;
+  onContinue: (settings: GatewayIngestionSettings) => Promise<unknown>;
 };
 
 export function IngestionStepForm({
-  organizationId,
   config,
   projects,
+  isSaving,
+  onContinue,
 }: IngestionStepFormProps) {
   const [settings, setSettings] = useState(() =>
     getInitialIngestionSettings({ config, projects }),
   );
-  const { saveIngestion, isSaving } = useSaveGatewayIngestion(organizationId);
-
   async function handleContinue() {
-    await saveIngestion(settings);
+    await onContinue(settings);
   }
 
   return (

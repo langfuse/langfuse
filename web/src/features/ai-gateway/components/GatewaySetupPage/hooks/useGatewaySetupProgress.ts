@@ -16,7 +16,7 @@ export function useGatewaySetupProgress({
   });
   const firstConnection = connectionsQuery.data?.data[0];
 
-  let activeStep = 3;
+  let activeStep: 1 | 2 | 3 = 3;
   if (!isGatewayConfigComplete(config)) activeStep = 1;
   else if (firstConnection === undefined) activeStep = 2;
 

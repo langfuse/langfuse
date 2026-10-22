@@ -5,21 +5,24 @@ import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetup
 import { describeGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/fns/describeGatewayIngestion";
 import type {
   GatewayConfig,
+  GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 
 export type IngestionStepProps = {
   status: ReturnType<typeof getSetupStepStatus>;
-  organizationId: string;
   config: GatewayConfig | null;
   projects: GatewayProject[];
+  isSaving: boolean;
+  onContinue: (settings: GatewayIngestionSettings) => Promise<unknown>;
 };
 
 export function IngestionStep({
   status,
-  organizationId,
   config,
   projects,
+  isSaving,
+  onContinue,
 }: IngestionStepProps) {
   const description =
     status === "complete" && config ? (
@@ -42,9 +45,10 @@ export function IngestionStep({
     >
       {status === "current" ? (
         <IngestionStepForm
-          organizationId={organizationId}
           config={config}
           projects={projects}
+          isSaving={isSaving}
+          onContinue={onContinue}
         />
       ) : null}
     </Stepper>

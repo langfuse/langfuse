@@ -5,19 +5,29 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/TeamInviteFields";
 import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/isEmailAddress";
-import { useGatewayTeamInvite } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/hooks/useGatewayTeamInvite";
+import type {
+  GatewayNotifiableMembers,
+  GatewayTeamInviteResult,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 
 export type TeamInviteFormProps = {
-  organizationId: string;
+  /** Undefined while loading. */
+  notifiableMembers: GatewayNotifiableMembers | undefined;
+  isInviting: boolean;
+  /** Resolves to null when the request failed and was already reported. */
+  onInvite: (params: {
+    emails: string[];
+    notifyMembers: boolean;
+  }) => Promise<GatewayTeamInviteResult | null>;
   onFinish: () => void;
 };
 
 export function TeamInviteForm({
-  organizationId,
+  notifiableMembers,
+  isInviting,
+  onInvite,
   onFinish,
 }: TeamInviteFormProps) {
-  const { notifiableMembers, inviteTeam, isInviting } =
-    useGatewayTeamInvite(organizationId);
   const [emails, setEmails] = useState<string[]>([]);
   const [notifyMembers, setNotifyMembers] = useState(true);
   const [failures, setFailures] = useState<
@@ -40,7 +50,7 @@ export function TeamInviteForm({
       : "Notify members";
 
   async function handleSend() {
-    const result = await inviteTeam({ emails, notifyMembers: willNotify });
+    const result = await onInvite({ emails, notifyMembers: willNotify });
     if (!result) return;
     if (willNotify) setHaveMembersBeenNotified(true);
     if (result.failed.length > 0) {

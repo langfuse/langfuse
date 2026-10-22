@@ -4,20 +4,19 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
-import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type CredentialStepProps = {
   status: ReturnType<typeof getSetupStepStatus>;
-  organizationId: string;
   firstConnection: Pick<GatewayConnection, "provider"> | undefined;
+  onAddCredential: () => void;
 };
 
 export function CredentialStep({
   status,
-  organizationId,
   firstConnection,
+  onAddCredential,
 }: CredentialStepProps) {
   const description =
     status === "complete" && firstConnection
@@ -36,15 +35,7 @@ export function CredentialStep({
     >
       {status === "current" ? (
         <div className="flex flex-col items-start pt-1">
-          <ProviderDialogController organizationId={organizationId}>
-            {({ openAddDialog }) => (
-              <Button
-                text="Add credential"
-                icon={Plus}
-                onClick={openAddDialog}
-              />
-            )}
-          </ProviderDialogController>
+          <Button text="Add credential" icon={Plus} onClick={onAddCredential} />
         </div>
       ) : null}
     </Stepper>

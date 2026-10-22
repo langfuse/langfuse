@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import Header from "@/src/components/layouts/header";
 import { GatewayCredentialsOverview } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/GatewayCredentialsOverview";
-import { GatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/GatewaySetupGuide";
+import { ConnectedGatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ConnectedGatewaySetupGuide";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { isGatewayConfigComplete } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isGatewayConfigComplete";
 import type {
@@ -56,7 +56,7 @@ export function GatewaySetupContent({
           {GATEWAY_SETUP.description}
         </p>
       </div>
-      <GatewaySetupGuide
+      <ConnectedGatewaySetupGuide
         organizationId={organizationId}
         config={config}
         projects={projects}
