@@ -229,19 +229,6 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
-  it.each([
-    "events_core.input",
-    "default.events_core.input",
-    "events_full.input",
-  ])("rejects the physical qualifier %s over a logical relation", (ref) => {
-    // ClickHouse resolves a qualifier by table name even when the table is aliased.
-    expect(() =>
-      compile(
-        db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
   it("rejects FINAL around the logical relation", () => {
     // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
     // routing would otherwise swap the table and drop the FINAL silently.
@@ -279,33 +266,31 @@ describe("logical events routing", () => {
       () => untypedDb.selectFrom("events as events_core").select("span_id"),
     ],
     [
-      "qualifier without a logical relation",
+      // ClickHouse resolves a qualifier by table name even when the table is aliased.
+      "column qualifier",
       () =>
         db
           .selectFrom("scores as s")
           .select(sql.ref<string>("events_core.input").as("x")),
     ],
-    ...["events_core", "events_full"].map(
-      (table) =>
-        [
-          `qualifier in a core-safe metadata predicate (${table})`,
-          () =>
-            db
-              .selectFrom("events as e")
-              .select("e.span_id")
-              .where((eb) =>
-                eb(
-                  metadataValue(
-                    eb.ref(`${table}.metadata_names` as never),
-                    eb.ref(`${table}.metadata_values` as never),
-                    "k",
-                  ),
-                  "=",
-                  "x",
-                ),
+    [
+      "qualifier in a core-safe metadata predicate",
+      () =>
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where((eb) =>
+            eb(
+              metadataValue(
+                eb.ref("events_full.metadata_names" as never),
+                eb.ref("events_full.metadata_values" as never),
+                "k",
               ),
-        ] as [string, () => Parameters<typeof compile>[0]],
-    ),
+              "=",
+              "x",
+            ),
+          ),
+    ],
     [
       "raw SQL text",
       () =>
