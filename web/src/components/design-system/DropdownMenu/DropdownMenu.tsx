@@ -220,6 +220,7 @@ function DropdownMenuNode({
   const tree = useFloatingTree();
   const isNested = parentId !== null;
   const layerContainer = useLayerContainer("popover");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<Array<HTMLElement | null>>([]);
   const labelsRef = React.useRef<Array<string | null>>([]);
   const closeMenu = React.useCallback(() => {
@@ -361,6 +362,7 @@ function DropdownMenuNode({
                 <div className="border-border bg-popover sticky top-0 z-1 border-b p-1.5">
                   <div className="relative">
                     <input
+                      ref={searchInputRef}
                       type="search"
                       value={searchQuery}
                       placeholder={search.placeholder}
@@ -397,19 +399,21 @@ function DropdownMenuNode({
                       <button
                         type="button"
                         aria-label="Clear search"
-                        // Keep the action out of the tab order so Tab moves
-                        // between inputs.
+                        // Not a tab stop, matching the native control it
+                        // replaces.
                         tabIndex={-1}
-                        // The button unmounts as the value clears, so hold
-                        // focus in the field.
-                        onMouseDown={(event) => event.preventDefault()}
+                        // The button unmounts as soon as the query clears, so
+                        // hand focus back to the field. That also keeps DOM
+                        // focus and the cleared activeIndex in agreement when
+                        // the list had been arrowed into.
                         onClick={() => {
                           setSearchQuery("");
                           setActiveIndex(null);
+                          searchInputRef.current?.focus();
                         }}
-                        className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center justify-center"
+                        className="text-muted-foreground hover:bg-accent hover:text-accent-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm"
                       >
-                        <X size="base" color="muted" />
+                        <X size="base" aria-hidden />
                       </button>
                     )}
                   </div>

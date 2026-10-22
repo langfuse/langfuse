@@ -74,6 +74,7 @@ export const WithDropdown = meta.story({
 export const Disabled = meta.story({
   args: {
     disabled: true,
+    value: "Prompt name",
     dropdown,
   },
 });
@@ -116,5 +117,11 @@ export const TestClearsTheValue = meta.story({
     await expect(
       canvas.queryByRole("button", { name: "Clear search" }),
     ).not.toBeInTheDocument();
+    // Clearing is a draft change, like typing — applying it stays with Enter
+    // and the search button.
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+    // The field keeps focus so the next query can be typed straight away,
+    // even though the button that was clicked has gone.
+    await expect(input).toHaveFocus();
   },
 });
