@@ -120,7 +120,6 @@ export function SkillLinkedTraces({
                 projectId={projectId}
                 skill={{ name, version }}
                 externalFilterState={filters}
-                embeddedPageSize={10}
                 isolateTableState
                 showSearchBar={false}
                 showToolbar={false}
