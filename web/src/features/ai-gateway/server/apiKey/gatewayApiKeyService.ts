@@ -18,6 +18,8 @@ import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gatewa
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
+type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
+
 export class GatewayApiKeyService {
   private readonly repository: GatewayApiKeyRepository;
 
@@ -44,6 +46,8 @@ export class GatewayApiKeyService {
     name?: string;
     metadata: GatewayMetadata;
     expiresAt?: Date | null;
+    /** `user` keys are revoked with the creator's gateway access; `serviceAccount` keys belong to the organization. */
+    issuedAs: GatewayApiKeyIssuedAs;
     session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(
@@ -51,7 +55,10 @@ export class GatewayApiKeyService {
         await assertCreatorCanInvokeGateway(tx, params);
         const key = await createApiKey(tx, {
           tenant: OrganizationId(params.organizationId),
-          scope: UserId(params.session.user.id),
+          scope:
+            params.issuedAs === "serviceAccount"
+              ? OrganizationId(params.organizationId)
+              : UserId(params.session.user.id),
           role: SystemRoleId("AI_GATEWAY"),
           createdBy: UserId(params.session.user.id),
           name: params.name,
@@ -79,6 +86,7 @@ export class GatewayApiKeyService {
           displaySecretKey: key.displaySecretKey,
           note: key.note,
           expiresAt: params.expiresAt ?? null,
+          issuedAs: params.issuedAs,
         },
       },
       this.prisma,

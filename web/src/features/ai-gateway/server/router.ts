@@ -379,12 +379,14 @@ export const aiGatewayRouter = createTRPCRouter({
           .refine((date) => date == null || date.getTime() > Date.now(), {
             message: "Expiration date must be in the future",
           }),
+        issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       // Legacy public API auth ignores key roles, so a gateway key passes as an
       // organization admin key there; only managers may mint one outside enforce.
-      if (env.API_AUTH_MIGRATION === "enforce") {
+      // Service-account keys outlive their creator, so only managers may mint them.
+      if (env.API_AUTH_MIGRATION === "enforce" && input.issuedAs === "user") {
         requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
       } else {
         requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
@@ -394,6 +396,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: input.name,
         metadata: input.metadata,
         expiresAt: input.expiresAt,
+        issuedAs: input.issuedAs,
         session: ctx.session,
       });
       return key;
