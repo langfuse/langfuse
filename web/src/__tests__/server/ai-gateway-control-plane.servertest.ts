@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
-const { addNotificationJobs } = vi.hoisted(() => ({
+const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
+  getNotificationJob: vi.fn<(jobId: string) => Promise<unknown>>(),
   addNotificationJobs:
     vi.fn<
       (
@@ -21,7 +22,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     ...actual,
     testModelCall: vi.fn().mockResolvedValue(undefined),
     NotificationQueue: {
-      getInstance: () => ({ addBulk: addNotificationJobs }),
+      getInstance: () => ({
+        addBulk: addNotificationJobs,
+        getJob: getNotificationJob,
+      }),
     },
   };
 });
@@ -521,6 +525,39 @@ describe("AI gateway control plane", () => {
       ]);
     },
   );
+
+  it("re-sends an email whose earlier job failed", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmail = membership.user.email!.toLowerCase();
+    const removeFailedJob = vi.fn().mockResolvedValue(undefined);
+    getNotificationJob.mockResolvedValueOnce({
+      isFailed: () => Promise.resolve(true),
+      remove: removeFailedJob,
+    });
+
+    await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [memberEmail],
+      notifyMembers: false,
+    });
+
+    expect(getNotificationJob).toHaveBeenCalledWith(
+      `ai-gateway-invitation-${owner.org.id}-member-${memberEmail}`,
+    );
+    expect(removeFailedJob).toHaveBeenCalledOnce();
+    expect(removeFailedJob.mock.invocationCallOrder[0]).toBeLessThan(
+      addNotificationJobs.mock.invocationCallOrder[0]!,
+    );
+  });
 
   it("reports typed members who cannot use the gateway and skips the sender", async () => {
     const owner = await prepare();

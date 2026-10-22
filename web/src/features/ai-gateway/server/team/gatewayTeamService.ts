@@ -171,21 +171,27 @@ export class GatewayTeamService {
     }
 
     if (queue && emailJobs.length > 0) {
-      await queue.addBulk(
-        emailJobs.map((payload) => ({
-          name: QueueJobs.NotificationJob,
-          data: {
-            timestamp: new Date(),
-            id: randomUUID(),
-            payload,
-            name: QueueJobs.NotificationJob,
-          },
-          // A repeated send while the same email is still queued is dropped.
-          opts: {
-            jobId: `ai-gateway-invitation-${organizationId}-${payload.audience.kind}-${payload.to}`,
-          },
-        })),
+      const jobs = emailJobs.map((payload) => ({
+        name: QueueJobs.NotificationJob,
+        data: {
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload,
+          name: QueueJobs.NotificationJob as const,
+        },
+        // A repeated send while the same email is still queued is dropped.
+        opts: {
+          jobId: `ai-gateway-invitation-${organizationId}-${payload.audience.kind}-${payload.to}`,
+        },
+      }));
+      // Failed jobs are kept for inspection, and a kept id would swallow the re-send.
+      await Promise.all(
+        jobs.map(async ({ opts }) => {
+          const existing = await queue.getJob(opts.jobId);
+          if (existing && (await existing.isFailed())) await existing.remove();
+        }),
       );
+      await queue.addBulk(jobs);
     }
 
     return {
