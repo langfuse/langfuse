@@ -174,7 +174,7 @@ const ScoreItem = ({
       placement="bottom-start"
       onClick={(event) => event.stopPropagation()}
       content={
-        <div className="max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
+        <div className="ph-no-capture max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
           <div className="flex flex-col gap-3">
             <span className="font-bold">{name}</span>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
