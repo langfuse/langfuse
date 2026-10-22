@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
-import { PromptTable } from "@/src/features/prompts/components/prompts-table";
+import { PromptTable } from "@/src/features/prompts/components/PromptTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
