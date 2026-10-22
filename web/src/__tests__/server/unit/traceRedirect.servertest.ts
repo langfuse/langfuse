@@ -68,7 +68,7 @@ describe("trace redirect /trace/[traceId]", () => {
 
     expect(result).toEqual({
       redirect: {
-        destination: `/auth/sign-in?callbackUrl=${encodeURIComponent("/trace/trace-123")}`,
+        destination: `/auth/sign-in?targetPath=${encodeURIComponent("/trace/trace-123")}`,
         permanent: false,
       },
     });

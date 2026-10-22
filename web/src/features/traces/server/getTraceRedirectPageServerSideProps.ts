@@ -12,7 +12,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   if (!session?.user) {
     return {
       redirect: {
-        destination: `/auth/sign-in?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`,
+        destination: `/auth/sign-in?targetPath=${encodeURIComponent(context.resolvedUrl)}`,
         permanent: false,
       },
     };
