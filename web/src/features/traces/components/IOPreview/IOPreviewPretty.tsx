@@ -32,7 +32,8 @@ import {
 } from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import {
-  isChatConversation,
+  isInputChat,
+  isOutputChat,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
@@ -342,17 +343,29 @@ export function IOPreviewPretty({
   ) : null;
   // Only generations hold a conversation by default; tools, spans, agents
   // and the rest are titled Input / Output unless their I/O contains real
-  // chat messages (issue #19198).
-  const isChat = isChatConversation({
+  // chat messages (issue #19198). For mixed I/O (e.g. guardrails span where input
+  // is chat but output is plain text), titles are evaluated per side.
+  const isNonGeneration =
+    observationType !== undefined && observationType !== "GENERATION";
+
+  const isInputChatSide = isInputChat({
     input: parsedInput,
+    messages: allMessages,
+    inputMessageCount,
+  });
+
+  const isOutputChatSide = isOutputChat({
     output: parsedOutput,
     messages: allMessages,
     inputMessageCount,
   });
-  const titleBySide =
-    observationType !== undefined &&
-    observationType !== "GENERATION" &&
-    !isChat;
+
+  const titleBySide = isNonGeneration
+    ? {
+        input: !isInputChatSide,
+        output: !isOutputChatSide,
+      }
+    : false;
 
   return (
     <div className="space-y-2 pt-3">

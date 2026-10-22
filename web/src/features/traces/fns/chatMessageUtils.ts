@@ -187,6 +187,64 @@ export function isExplicitChatMessage(value: unknown): boolean {
 }
 
 /**
+ * Determine if the input side of an observation represents a chat conversation/messages.
+ */
+export function isInputChat({
+  input,
+  messages,
+  inputMessageCount,
+}: {
+  input?: unknown;
+  messages?: ChatMlMessage[];
+  inputMessageCount?: number;
+}): boolean {
+  if ((inputMessageCount ?? 0) > 1) {
+    return true;
+  }
+
+  if (messages && messages.length > 0) {
+    const inputMessages = messages.slice(0, inputMessageCount ?? 0);
+    if (
+      inputMessages.some(
+        (m) =>
+          m.role === "assistant" ||
+          m.role === "system" ||
+          m.role === "tool" ||
+          (m.tool_calls && m.tool_calls.length > 0),
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return isExplicitChatMessage(input);
+}
+
+/**
+ * Determine if the output side of an observation represents chat messages.
+ */
+export function isOutputChat({
+  output,
+  messages,
+  inputMessageCount,
+}: {
+  output?: unknown;
+  messages?: ChatMlMessage[];
+  inputMessageCount?: number;
+}): boolean {
+  const outputMessages = (messages ?? []).slice(inputMessageCount ?? 0);
+  if (outputMessages.length > 1) {
+    return true;
+  }
+
+  if (outputMessages.some((m) => m.tool_calls && m.tool_calls.length > 0)) {
+    return true;
+  }
+
+  return isExplicitChatMessage(output);
+}
+
+/**
  * Determine if an observation's I/O represents a chat conversation
  * (as opposed to non-chat JSON or plain string I/O).
  */
@@ -201,25 +259,8 @@ export function isChatConversation({
   messages?: ChatMlMessage[];
   inputMessageCount?: number;
 }): boolean {
-  if ((inputMessageCount ?? 0) > 1) {
-    return true;
-  }
-
-  if (messages && messages.length > 0) {
-    const inputMessages = messages.slice(0, inputMessageCount ?? 0);
-    if (
-      inputMessages.some(
-        (m) =>
-          m.role === "assistant" || m.role === "system" || m.role === "tool",
-      )
-    ) {
-      return true;
-    }
-  }
-
-  if (isExplicitChatMessage(input) || isExplicitChatMessage(output)) {
-    return true;
-  }
-
-  return false;
+  return (
+    isInputChat({ input, messages, inputMessageCount }) ||
+    isOutputChat({ output, messages, inputMessageCount })
+  );
 }
