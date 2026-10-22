@@ -5,39 +5,34 @@ import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/Ga
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { getInitialIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/getInitialIngestionSettings";
 import { isIngestionSettingsValid } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isIngestionSettingsValid";
-import { useSaveGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useSaveGatewayIngestion";
 import type {
   GatewayConfig,
+  GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import { showSuccessToast } from "@/src/features/notifications";
 
 export type IngestionDialogProps = {
-  organizationId: string;
   config: GatewayConfig | null;
   projects: GatewayProject[];
+  isSaving: boolean;
+  /** Resolves to whether the settings were saved; the dialog closes only then. */
+  onSave: (settings: GatewayIngestionSettings) => Promise<boolean>;
   onSaved: () => void;
 };
 
 export function IngestionDialog({
-  organizationId,
   config,
   projects,
+  isSaving,
+  onSave,
   onSaved,
 }: IngestionDialogProps) {
   const [settings, setSettings] = useState(() =>
     getInitialIngestionSettings({ config, projects }),
   );
-  const { saveIngestion, isSaving } = useSaveGatewayIngestion(organizationId);
 
   async function handleSave() {
-    if (!(await saveIngestion(settings))) return;
-    showSuccessToast({
-      operation: "aiGateway.updateConfig",
-      title: "Ingestion settings saved",
-      description: "New gateway requests use these settings.",
-    });
-    onSaved();
+    if (await onSave(settings)) onSaved();
   }
 
   return (
