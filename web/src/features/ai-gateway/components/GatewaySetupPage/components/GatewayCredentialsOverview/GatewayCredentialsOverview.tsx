@@ -216,39 +216,41 @@ export function GatewayCredentialsOverview({
           {GATEWAY_SETUP.description}
         </p>
       </div>
-      <Header title="Provider credentials" />
-      <ConfirmationDialogController<GatewayConnection>
-        title="Delete provider credential"
-        text={(connection) =>
-          `Delete “${connection.name}”? Requests will immediately stop using it.`
-        }
-        confirmLabel="Delete credential"
-        variant="destructive"
-        loading={remove.isPending}
-        onConfirm={deleteConnection}
-      >
-        {({ openDialog: openDeleteDialog }) => (
-          <ProviderDialogController organizationId={organizationId}>
-            {({ openEditDialog }) => (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <GatewayProvidersTable
-                  connections={allConnections}
-                  modelCounts={modelCounts}
-                  onSelect={selectConnection}
-                  onRetry={retryConnection}
-                  retryDisabled={
-                    retry.isPending
-                      ? { reason: "Validation in progress" }
-                      : undefined
-                  }
-                  onEdit={openEditDialog}
-                  onDelete={openDeleteDialog}
-                />
-              </div>
-            )}
-          </ProviderDialogController>
-        )}
-      </ConfirmationDialogController>
+      <section className="flex min-h-0 flex-1 flex-col">
+        <Header title="Provider credentials" />
+        <ConfirmationDialogController<GatewayConnection>
+          title="Delete provider credential"
+          text={(connection) =>
+            `Delete “${connection.name}”? Requests will immediately stop using it.`
+          }
+          confirmLabel="Delete credential"
+          variant="destructive"
+          loading={remove.isPending}
+          onConfirm={deleteConnection}
+        >
+          {({ openDialog: openDeleteDialog }) => (
+            <ProviderDialogController organizationId={organizationId}>
+              {({ openEditDialog }) => (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <GatewayProvidersTable
+                    connections={allConnections}
+                    modelCounts={modelCounts}
+                    onSelect={selectConnection}
+                    onRetry={retryConnection}
+                    retryDisabled={
+                      retry.isPending
+                        ? { reason: "Validation in progress" }
+                        : undefined
+                    }
+                    onEdit={openEditDialog}
+                    onDelete={openDeleteDialog}
+                  />
+                </div>
+              )}
+            </ProviderDialogController>
+          )}
+        </ConfirmationDialogController>
+      </section>
       {connectionsQuery.hasNextPage ? (
         <Button
           className="w-fit self-center"
