@@ -7,16 +7,13 @@ import {
   safeBlobKeySegment,
 } from "../services/safeBlobKeySegment";
 import type { Transcript } from "../transcript/types";
-import {
-  toStoredTranscriptV1,
-  fromStoredTranscriptV1,
-} from "../transcript/serialization";
 import { createW3CTraceId } from "../utils/traceId";
+import { toStoredTranscriptV1, fromStoredTranscriptV1 } from "./serialization";
+import { traceBatchInputsVersionSchema } from "./storage-schema";
 import {
-  traceBatchInputsSchema,
-  traceBatchInputsVersionSchema,
-  type TraceBatchInputs,
-} from "./storage-schema";
+  traceBatchInputsV1Schema,
+  type TraceBatchInputsV1,
+} from "./versions/v1";
 
 export type TraceBatchInputReference = {
   projectId: string;
@@ -26,7 +23,7 @@ export type TraceBatchInputReference = {
 
 export type TraceBatchInputData = {
   transcript: Transcript | null;
-  traceContext: TraceBatchInputs["traceContext"];
+  traceContext: TraceBatchInputsV1["traceContext"];
 };
 
 export interface TraceBatchInputStorage {
@@ -62,7 +59,7 @@ let storage: StorageService | undefined;
 export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   return {
     async put(reference, { transcript, traceContext }) {
-      const inputs: TraceBatchInputs = {
+      const inputs: TraceBatchInputsV1 = {
         schemaVersion: 1,
         transcript:
           transcript === null ? null : toStoredTranscriptV1(transcript),
@@ -91,7 +88,7 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
         throw new UnsupportedTraceBatchInputVersionError(
           envelope.data.schemaVersion,
         );
-      const inputs = traceBatchInputsSchema.parse(stored);
+      const inputs = traceBatchInputsV1Schema.parse(stored);
       return {
         transcript:
           inputs.transcript === null
@@ -109,6 +106,7 @@ function getStorage(): StorageService {
     storage = createEventUploadStorageService(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       {
+        // This timeout applies only to S3; Azure, GCS, and OCI retain their provider defaults.
         s3RequestTimeoutMs:
           env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS,
       },

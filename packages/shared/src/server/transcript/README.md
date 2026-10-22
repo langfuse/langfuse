@@ -82,32 +82,18 @@ remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
 
-## Schema and stored representations
+## Schema
 
 `schema.ts` owns the current transcript shape and composes the message/part schemas
 from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from those
 schemas; assembly inputs and options remain separate. Assembly does not parse
 each intermediate object at runtime.
 
-`versions/v1.ts` freezes stored V1: a self-contained copy of the transcript and
-normalized message schemas with message dates as ISO strings, importing no live
-schema. `serialization.ts` owns the typed `toStoredTranscriptV1` /
-`fromStoredTranscriptV1` adapters between the live transcript and V1. A
-compile-time JSON constraint on V1 rejects non-JSON fields. Trace-batch storage
-owns only the enclosing version tag and nullable transcript.
-
-Live schema changes do not change V1. When the adapters stop compiling or the
-fixture round trip fails, decide: a compatible optional field may be added to V1
-if absent values are safe for old readers; anything else starts `versions/v2.ts`
-with its own adapters and a read dispatch on the envelope's `schemaVersion`.
-Historical versions never import changing current schemas. Deploy readers
-accepting both versions before enabling new writers; a reader that meets an
-unknown version fails with a retryable error so mixed-version deployments resolve
-on retry. Retain the old reader until old objects have expired; no rewrite of
-existing objects is required.
-
-The fixture suite validates assembled transcripts and their serialized round trip.
-The trace-batch storage suite retains a literal V1 JSON fixture to pin the saved format.
+Persisted trace-batch inputs have their own frozen schemas and serialization
+adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+complete storage envelope, including the transcript and trace context.
+The transcript fixture suite validates the current assembled shape independently
+of that storage format.
 
 ## Character limit
 
@@ -307,10 +293,7 @@ transcript/
 ├── threads.ts             thread selection and message appending
 ├── tool-calls.ts          tool matching and response association
 ├── schema.ts              current transcript shape, composing normalized message schemas
-├── serialization.ts       typed adapters between the live transcript and stored V1
 ├── types.ts               inferred output types, assembly inputs and options
-├── versions/
-│   └── v1.ts              frozen stored V1 schema, importing no live schema
 └── fixtures/
     ├── fixture-types.ts   TranscriptFixture
     ├── index.ts           registry of fixtures

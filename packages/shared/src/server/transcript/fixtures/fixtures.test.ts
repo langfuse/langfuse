@@ -5,11 +5,7 @@ import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
 import { transcriptSchema } from "../schema";
-import {
-  toStoredTranscriptV1,
-  fromStoredTranscriptV1,
-  storedTranscriptV1Schema,
-} from "../serialization";
+
 describe("transcript fixtures", () => {
   const traceId = "trace";
   const generation = (id: string, input: string[], output: string[]) => ({
@@ -482,14 +478,6 @@ describe("transcript fixtures", () => {
     const transcript = assembleTranscript(orderObservations(observations));
     expect(transcript).toEqual(fixture.expected);
     expect(transcriptSchema.nullable().parse(transcript)).toEqual(transcript);
-    if (transcript !== null) {
-      const stored = JSON.parse(
-        JSON.stringify(toStoredTranscriptV1(transcript)),
-      );
-      expect(
-        fromStoredTranscriptV1(storedTranscriptV1Schema.parse(stored)),
-      ).toEqual(transcript);
-    }
     expect(observations).toEqual(snapshot);
   });
 });

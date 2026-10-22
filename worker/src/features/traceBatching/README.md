@@ -297,7 +297,9 @@ dispatcher snapshot memory.
 
 `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
 When enabled, `storeInputs.ts` captures the assembled transcript for traces that
-pass the existing Topics settings and rule sampling gate. It runs inside the
+pass the internal-environment exclusion, Topics settings and rule sampling gate.
+The latest event's environment determines eligibility for both capture and Topics.
+It runs inside the
 Topics concurrency limit alongside in-memory summarization. Both operations must
 settle before releasing the slot, including when summarization fails. Each S3
 request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`
@@ -346,9 +348,10 @@ newest nonempty session ID, newest-event environment and first observation name.
 The transcript alone cannot reconstruct this context. The original job enqueue
 time remains execution state rather than trace context.
 
-The transcript module freezes stored V1 in `transcript/versions/v1.ts`, a copy of
-the transcript and normalized message schemas that imports no live schema, and owns
-the typed adapters between the live transcript and V1. Message dates are
+The trace-batch module freezes the complete stored V1 envelope in
+`traceBatch/versions/v1.ts`, including trace context and copies of the transcript
+and normalized message schemas without importing live schemas. Its serialization
+module owns the typed adapters between the live transcript and V1. Message dates are
 serialized as ISO strings. `inputStorage.get(reference)` returns
 `{ transcript, traceContext }`, validates nested content and restores message
 dates; `traceContext.traceTimestamp` remains an ISO string. Missing context,

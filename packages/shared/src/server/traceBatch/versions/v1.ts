@@ -2,17 +2,17 @@ import { z } from "zod";
 import type { JsonValue } from "../../../utils/normalized-io/types";
 
 /**
- * Stored transcript format V1: a frozen copy of the transcript and normalized
- * message schemas as they were when V1 was introduced, with message dates as
- * ISO strings. This file imports no live schema, so the live shape can change
- * without changing what V1 accepts. V1 may only gain optional fields whose
+ * Trace-batch input format V1: a frozen envelope and copy of the transcript
+ * and normalized message schemas, with message dates as ISO strings. This file
+ * imports no live schema, so the live shape can change without changing what V1
+ * accepts. V1 may only gain optional fields whose
  * absence is safe for old readers; anything else starts `v2.ts`.
  */
 
 const jsonValue: z.ZodType<JsonValue, JsonValue> = z.json();
 
 /** ISO 8601 timestamp as produced by `Date.prototype.toISOString`. */
-export const isoTimestampSchema = z.iso.datetime();
+const isoTimestampSchema = z.iso.datetime();
 
 const partBase = z.object({
   providerMetadata: z.record(z.string(), jsonValue).optional(),
@@ -148,9 +148,25 @@ const thread = z.object({
 });
 
 /** The stored V1 transcript; the JSON constraint rejects any non-JSON field. */
-export const storedTranscriptV1Schema = z.object({
+const storedTranscriptV1Schema = z.object({
   threads: z.array(thread),
   truncated: z.literal(true).optional(),
 }) satisfies z.ZodType<JsonValue>;
 
 export type StoredTranscriptV1 = z.infer<typeof storedTranscriptV1Schema>;
+
+// Add breaking versions alongside v1; deploy readers before enabling new writers.
+export const traceBatchInputsV1Schema = z.object({
+  schemaVersion: z.literal(1),
+  transcript: storedTranscriptV1Schema.nullable(),
+  // Mirrors the event observation domain fields without importing the domain
+  // schema; the writer's typed assignment keeps both compatible.
+  traceContext: z.object({
+    sessionId: z.string().nullable(),
+    traceTimestamp: isoTimestampSchema,
+    environment: z.string(),
+    traceName: z.string().nullable(),
+  }),
+}) satisfies z.ZodType<JsonValue>;
+
+export type TraceBatchInputsV1 = z.infer<typeof traceBatchInputsV1Schema>;

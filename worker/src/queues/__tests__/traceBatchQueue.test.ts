@@ -1446,7 +1446,8 @@ describe("trace batch queue", () => {
     }));
   });
 
-  it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {
+  it("uses the latest environment to exclude internal traces from Topics and storage", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
@@ -1522,9 +1523,9 @@ describe("trace batch queue", () => {
         projectId: input.projectId,
         environment: input.environment,
       })),
-    ).toEqual([
-      { projectId: "a", environment: "langfuse-topics" },
-      { projectId: "b", environment: "production" },
+    ).toEqual([{ projectId: "b", environment: "production" }]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual([
+      { projectId: "b", traceId: "shared-trace", revision: "r" },
     ]);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);
@@ -1537,7 +1538,9 @@ describe("trace batch queue", () => {
     ]) {
       expect(serializedTranscript.split(content)).toHaveLength(2);
     }
-    const spans = exporter.getFinishedSpans();
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === "trace-batch-transcript");
     expect(spans).toHaveLength(2);
     for (const [index, projectId] of ["a", "b"].entries()) {
       const span = spans[index];

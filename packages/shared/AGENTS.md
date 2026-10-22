@@ -154,11 +154,6 @@
   The optional cap bounds `JSON.stringify(result).length`; see its README.
   `schema.ts` owns the current transcript shape; `types.ts` infers its output
   types. Message/part types come from `src/utils/normalized-io/schema.ts`.
-  `src/server/transcript/versions/v1.ts` freezes stored V1 without importing
-  live schemas; `serialization.ts` owns the typed adapters between the live
-  transcript and V1. Compatible optional additions may extend V1; anything else
-  starts a new version module beside it with its own adapters; see the
-  transcript README.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
@@ -170,10 +165,13 @@
   stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates, and
   throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
-  callers treat as retryable. Same-revision PUTs may overwrite. `storage-schema.ts`
-  owns only the versioned envelope, with trace-context fields defined literally
-  rather than picked from the domain schema; schema versions and readiness
-  revisions are independent.
+  callers treat as retryable. Same-revision PUTs may overwrite.
+  `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
+  transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
+  transcript adapters and `storage-schema.ts` only probes the version. Compatible
+  optional additions may extend V1; anything else starts a new version module
+  with its own adapters. Schema versions and readiness revisions are independent;
+  see the trace-batch README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt

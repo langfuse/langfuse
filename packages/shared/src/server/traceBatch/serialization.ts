@@ -1,10 +1,5 @@
-import type { Transcript } from "./types";
-import {
-  storedTranscriptV1Schema,
-  type StoredTranscriptV1,
-} from "./versions/v1";
-
-export { storedTranscriptV1Schema, type StoredTranscriptV1 };
+import type { Transcript } from "../transcript/types";
+import type { StoredTranscriptV1 } from "./versions/v1";
 
 /**
  * Encode the live transcript as stored V1. Only message dates need conversion;

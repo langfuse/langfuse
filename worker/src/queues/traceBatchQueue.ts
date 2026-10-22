@@ -8,6 +8,7 @@ import {
   createTraceBatchInputStorage,
   getCurrentSpan,
   getTraceBatchEventStream,
+  isInternalEvalEnvironment,
   logger,
   recordDistribution,
   recordGauge,
@@ -158,6 +159,10 @@ async function summarizeTraceBatch(
     throw new Error(
       "Trace batch observations crossed a project or trace boundary.",
     );
+  // Match manual processing and discovery, preserving event_ts microseconds.
+  const latest = newestEvent(observations)!;
+  if (isInternalEvalEnvironment(latest.environment))
+    return { outcome: "disabled", rows: [] };
   const revision = revisions.get(traceKey(first.projectId, traceId));
   const inputReference: TraceBatchInputReference | undefined =
     revision === undefined
@@ -166,8 +171,6 @@ async function summarizeTraceBatch(
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
-  // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = newestEvent(observations)!;
   const sessionId = newestSessionId(observations);
   const traceContext = {
     sessionId,
