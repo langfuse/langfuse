@@ -12,11 +12,13 @@ const scopeOrg = {
   rateLimitOverrides: [],
   projectIds: ["prj_1"],
   isIngestionSuspended: false,
+  accessAuditLogEnabled: false,
 };
 
 const apiKeyPrincipal = (
   scope: "ORGANIZATION" | "PROJECT",
   presentation: "privateKey" | "publicKey" = "privateKey",
+  org = scopeOrg,
 ): Principal => ({
   kind: "apiKey",
   apiKeyId: "key_1",
@@ -25,7 +27,7 @@ const apiKeyPrincipal = (
   publicKey: "pk-lf-1",
   scope,
   presentation,
-  organizations: [scopeOrg],
+  organizations: [org],
   boundResource:
     scope === "ORGANIZATION"
       ? { orgId: "org_1" }
@@ -43,6 +45,7 @@ const projectScope = {
   publicKey: "pk-lf-1",
   isIngestionSuspended: false,
   isInAppAgentKey: false,
+  accessAuditLogEnabled: false,
 };
 
 describe("toApiAccessScope", () => {
@@ -63,6 +66,7 @@ describe("toApiAccessScope", () => {
       publicKey: "pk-lf-1",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      accessAuditLogEnabled: false,
     });
   });
 
@@ -100,7 +104,29 @@ describe("toApiAccessScope", () => {
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      accessAuditLogEnabled: false,
     });
+  });
+
+  it("carries the api key's organization access-audit opt-in", () => {
+    expect(
+      toApiAccessScope(
+        apiKeyPrincipal("PROJECT", "privateKey", {
+          ...scopeOrg,
+          accessAuditLogEnabled: true,
+        }),
+        { orgId: "org_1", projectId: "prj_1" },
+      ).accessAuditLogEnabled,
+    ).toBe(true);
+  });
+
+  it("carries the admin target's access-audit opt-in", () => {
+    expect(
+      toApiAccessScope(
+        { kind: "admin", userId: null },
+        { orgId: "org_1", projectId: "prj_1", accessAuditLogEnabled: true },
+      ).accessAuditLogEnabled,
+    ).toBe(true);
   });
 
   it("500s an unmappable principal kind", () => {

@@ -621,6 +621,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -738,6 +739,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -860,6 +862,7 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
         isInAppAgentKey: false,
         createdByUserId: null,
         createdByApiKeyId: null,
@@ -869,6 +872,37 @@ describe("Authenticate API calls", () => {
         plan: "cloud:hobby",
         scope: "PROJECT",
         organizationCreatedAt: expect.any(String),
+      });
+    });
+
+    it("carries the org's access-audit opt-in through the cached key", async () => {
+      await prisma.organization.update({
+        where: { id: testApiKey.orgId },
+        data: { accessAuditLogEnabled: true },
+      });
+      const mockPrisma = { apiKey: { findUnique: vi.fn() } };
+
+      // first auth generates the fast hashed api key, second caches it
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      const fromDb = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+      const fromCache = await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+      expect(fromDb).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
+      });
+      expect(fromCache).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
       });
     });
 
@@ -999,6 +1033,7 @@ describe("Authenticate API calls", () => {
         organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(

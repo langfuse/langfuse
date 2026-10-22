@@ -97,7 +97,7 @@ async function enforceAdminAuthz(
   );
   if (!decision.success) return decision;
 
-  return access(context, org.orgId, projectId);
+  return access(context, org.orgId, projectId, org.accessAuditLogEnabled);
 }
 
 /** enforceApiKeyAuthz records key metadata and dispatches authorization by action scope. */
@@ -214,18 +214,28 @@ function getProjectId(
   return { success: true, projectId };
 }
 
-/** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
+/** lookupProjectOrgId reads a project's org and its access-audit opt-in from the database, 404ing when the project is absent. */
 async function lookupProjectOrgId(
   projectId: string,
-): Promise<ResolvedOrg | ErrorResult<LangfuseNotFoundError>> {
+): Promise<
+  | (ResolvedOrg & { accessAuditLogEnabled: boolean })
+  | ErrorResult<LangfuseNotFoundError>
+> {
   const project = await prisma.project.findUnique({
     where: { id: projectId, deletedAt: null },
-    select: { orgId: true },
+    select: {
+      orgId: true,
+      organization: { select: { accessAuditLogEnabled: true } },
+    },
   });
   if (!project) {
     return notFoundError("Project not found");
   }
-  return { success: true, orgId: project.orgId };
+  return {
+    success: true,
+    orgId: project.orgId,
+    accessAuditLogEnabled: project.organization.accessAuditLogEnabled,
+  };
 }
 
 /** ownsProject reports whether the project belongs to one of the key's organizations. */
@@ -309,12 +319,14 @@ function access(
   context: AuthorizationContext,
   orgId: string,
   projectId?: string,
+  accessAuditLogEnabled?: boolean,
 ): AccessResult {
   return {
     success: true,
     scope: toApiAccessScope(context.principal, {
       orgId: orgId,
       projectId: projectId ?? null,
+      accessAuditLogEnabled,
     }),
     ctx: context,
   };

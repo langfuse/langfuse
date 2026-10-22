@@ -69,6 +69,7 @@ const apiKey = (
         plan: "oss",
         rateLimitOverrides: [],
         isIngestionSuspended: false,
+        accessAuditLogEnabled: false,
       },
     ],
     boundResource,
@@ -406,7 +407,10 @@ describe("enforceAuth span metadata", () => {
       vi.mocked(prisma.project.findUnique).mockResolvedValue(
         missing
           ? null
-          : ({ orgId: ORG } as Awaited<
+          : ({
+              orgId: ORG,
+              organization: { accessAuditLogEnabled: false },
+            } as unknown as Awaited<
               ReturnType<typeof prisma.project.findUnique>
             >),
       );

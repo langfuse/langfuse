@@ -247,6 +247,7 @@ function toPrincipalOrganization(
     rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
     projectIds: org.projects.map((p) => p.id),
     isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+    accessAuditLogEnabled: org.accessAuditLogEnabled,
   };
 }
 

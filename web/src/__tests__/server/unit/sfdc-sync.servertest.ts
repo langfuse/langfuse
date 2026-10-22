@@ -961,6 +961,7 @@ describe("call site: admin API handleUpdateMembership", () => {
           rateLimitOverrides: [],
           projectIds: [],
           isIngestionSuspended: false,
+          accessAuditLogEnabled: false,
         },
       ],
       boundResource: { orgId: "org-1" },

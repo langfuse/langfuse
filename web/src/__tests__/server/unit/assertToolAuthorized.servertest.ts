@@ -67,6 +67,7 @@ const serverContext = (auth?: AuthorizationContext): ServerContext => ({
   publicKey: "pk-lf-1",
   plan: "cloud:hobby",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
   auth,
 });
 

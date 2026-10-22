@@ -1,7 +1,9 @@
-import Header from "@/src/components/layouts/header";
+import Header, { SubHeader } from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { AccessLoggingSwitch } from "@/src/ee/features/access-audit-log";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
@@ -10,6 +12,8 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     scope: "orgAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
+  // Internal until read access is recorded on every surface.
+  const showAccessLogging = useInternalFeaturesEnabled() && hasEntitlement;
 
   const body = (() => {
     if (!hasEntitlement) {
@@ -41,6 +45,12 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
         organization settings, project creation/deletion, and membership changes
         over time.
       </p>
+      {showAccessLogging && (
+        <div className="mb-4">
+          <SubHeader title="Access logging" labelBadge="Internal" />
+          <AccessLoggingSwitch orgId={props.orgId} />
+        </div>
+      )}
       {body}
     </>
   );

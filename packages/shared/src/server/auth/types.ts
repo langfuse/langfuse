@@ -21,6 +21,7 @@ const ApiKeyBaseSchema = z.object({
   isInAppAgentKey: z.boolean().default(false),
   // nullish for backward compatibility with cache entries written before
   // these columns existed
+  accessAuditLogEnabled: z.boolean().nullish(),
   createdByUserId: z.string().nullish(),
   createdByApiKeyId: z.string().nullish(),
   userId: z.string().nullish(),
@@ -77,6 +78,9 @@ type ApiAccessScopeMetadata = {
   publicKey: string;
   isIngestionSuspended: boolean | null | undefined;
   isInAppAgentKey?: boolean;
+  // The org's opt-in for read-access audit events, carried here so recording
+  // a read needs no extra query.
+  accessAuditLogEnabled: boolean;
 };
 
 export type ApiAccessScopeIngestion = BaseApiAccessScope &

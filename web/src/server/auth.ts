@@ -904,6 +904,7 @@ export async function getAuthOptions(
               apiKeyOrgRoleSelectionEnabled:
                 env.API_AUTH_MIGRATION === "enforce" &&
                 env.API_KEY_ORG_ROLES_ENABLE === "true",
+              accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
             },
             user:
               dbUser !== null
@@ -963,6 +964,8 @@ export async function getAuthOptions(
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          accessAuditLogEnabled:
+                            orgMembership.organization.accessAuditLogEnabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,

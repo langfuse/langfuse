@@ -33,6 +33,7 @@ function adminScope(target: TargetResource): ApiAccessScope {
     publicKey: "ADMIN_API_KEY",
     isIngestionSuspended: false,
     isInAppAgentKey: false,
+    accessAuditLogEnabled: target.accessAuditLogEnabled ?? false,
   };
 }
 
@@ -52,6 +53,7 @@ function apiKeyScope(
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
+    accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
     accessLevel: apiKeyAccessLevel(principal, target.projectId),
   };
 }
@@ -71,7 +73,12 @@ function apiKeyAccessLevel(
 }
 
 /** TargetResource is the resolved org and optional project a seam maps the principal onto. */
-export type TargetResource = { orgId: string; projectId: string | null };
+export type TargetResource = {
+  orgId: string;
+  projectId: string | null;
+  /** The target org's access-audit opt-in, read only for admin principals: an api-key principal carries its own org's. */
+  accessAuditLogEnabled?: boolean;
+};
 
 /** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */
 type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;

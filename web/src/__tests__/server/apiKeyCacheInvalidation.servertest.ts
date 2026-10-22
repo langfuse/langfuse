@@ -371,6 +371,21 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
+  it("accessAuditLog.setEnabled evicts the org's cached keys", async () => {
+    const orgId = await createOrg();
+    const user = await createUserInOrgs([orgId]);
+    const keys = await seedOrgScopedKey(orgId);
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
+    });
+    await caller.accessAuditLog.setEnabled({ orgId, enabled: true });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
   it("admin project deletion keeps the ingestion project and its keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);

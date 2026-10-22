@@ -15,6 +15,7 @@ export type McpPublicApiAuth = {
     rateLimitOverrides: [];
     isIngestionSuspended: false;
     isInAppAgentKey: boolean;
+    accessAuditLogEnabled: boolean;
   };
 };
 
@@ -42,6 +43,7 @@ export const getMcpPublicApiAuth = async (
       rateLimitOverrides: [],
       isIngestionSuspended: false,
       isInAppAgentKey: context.inAppAgent !== undefined,
+      accessAuditLogEnabled: context.accessAuditLogEnabled,
     },
   };
 };
