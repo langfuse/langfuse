@@ -170,7 +170,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "AI Gateway",
       description: "Route model requests through the AI Gateway.",
       policies: [allow("organization", ["gateway:invoke"])],
-      tags: ["principal:apiKey"],
+      tags: ["principal:user", "principal:apiKey"],
     },
   };
 

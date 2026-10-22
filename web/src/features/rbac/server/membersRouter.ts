@@ -185,7 +185,7 @@ export const membersRouter = createTRPCRouter({
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.enum(Role).optional(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -827,7 +827,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.enum(Role).nullable(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

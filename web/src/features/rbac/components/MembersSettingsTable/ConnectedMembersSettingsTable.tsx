@@ -279,7 +279,7 @@ export function ConnectedMembersSettingsTable({
             );
           }}
           onUpdateProjectRole={(member, projectRole) => {
-            if (!project) return;
+            if (!project || projectRole === "AI_GATEWAY") return;
             if (
               member.meta.userId === session.data?.user?.id &&
               !confirm(

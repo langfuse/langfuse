@@ -23,13 +23,14 @@ const roleValues = {
   ADMIN: "ADMIN",
   MEMBER: "MEMBER",
   VIEWER: "VIEWER",
+  AI_GATEWAY: "AI_GATEWAY",
   NONE: "NONE",
 } as const satisfies Record<Role, Role>;
 
 const formSchema = z.object({
   email: z.string().trim().pipe(z.email()),
   orgRole: z.enum(roleValues),
-  projectRole: z.enum(roleValues),
+  projectRole: z.enum(roleValues).exclude([roleValues.AI_GATEWAY]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -146,8 +147,9 @@ export function CreateProjectMemberDialog({
                       canManageOwnership={canManageProjectOwnership}
                       roles={Object.values(roleValues).filter(
                         (role) =>
-                          !hasOnlySingleProjectAccess ||
-                          role !== roleValues.NONE,
+                          role !== roleValues.AI_GATEWAY &&
+                          (!hasOnlySingleProjectAccess ||
+                            role !== roleValues.NONE),
                       )}
                       value={field.value}
                       onValueChange={field.onChange}
