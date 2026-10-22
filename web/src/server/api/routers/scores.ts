@@ -651,6 +651,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             timestamp,
+            updatedAt: new Date(),
           }
         : {
             id: input.id ?? v4(),
@@ -905,6 +906,8 @@ export const scoresRouter = createTRPCRouter({
           }
         }
 
+        const updatedAt = new Date();
+
         await upsertScore({
           id: input.id,
           project_id: input.projectId,
@@ -923,12 +926,13 @@ export const scoresRouter = createTRPCRouter({
           session_id: score.sessionId,
           environment: score.environment,
           created_at: convertDateToClickhouseDateTime(score.createdAt),
-          updated_at: convertDateToClickhouseDateTime(score.updatedAt),
+          updated_at: convertDateToClickhouseDateTime(updatedAt),
           metadata: score.metadata as Record<string, string>,
         });
 
         const baseScore = {
           ...score,
+          updatedAt,
           value: input.value,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
@@ -1069,6 +1073,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             longStringValue: input.value,
+            updatedAt: new Date(),
           }
         : {
             id: input.id,
