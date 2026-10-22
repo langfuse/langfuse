@@ -56,9 +56,34 @@ describe("MCP route in-app-agent context", () => {
     });
   });
 
-  // Accept continuations queued by workers that still emit one tool.
-  it("still resolves the pre-allowlist single-tool header", () => {
-    const req = createRequest('{"toolName":"upsertDataset"}');
+  it("rejects unsigned plain JSON headers and defaults to read permissions", () => {
+    const singleToolReq = createRequest('{"toolName":"upsertDataset"}');
+    const allowlistReq = createRequest('{"toolNames":["upsertDataset"]}');
+
+    expect(getInAppAgentContext(singleToolReq, true)).toEqual({
+      permissions: "read",
+    });
+    expect(getInAppAgentContext(allowlistReq, true)).toEqual({
+      permissions: "read",
+    });
+  });
+
+  it("rejects tampered override tokens", async () => {
+    const validHeader = await createInAppAgentMcpRunOverride({
+      toolNames: ["upsertDataset"],
+    });
+    const tamperedReq = createRequest(validHeader + "tampered");
+
+    expect(getInAppAgentContext(tamperedReq, true)).toEqual({
+      permissions: "read",
+    });
+  });
+
+  it("still resolves a signed single-tool header", async () => {
+    const overrideHeader = await createInAppAgentMcpRunOverride({
+      toolNames: ["upsertDataset"],
+    });
+    const req = createRequest(overrideHeader);
 
     expect(getInAppAgentContext(req, true)).toEqual({
       permissions: "tool-allowlist",

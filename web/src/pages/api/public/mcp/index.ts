@@ -43,7 +43,7 @@ import {
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { verifyInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -214,14 +214,12 @@ export function getInAppAgentContext(
     return { permissions: "read" };
   }
 
-  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
-    safeJsonParse(headerValue),
-  );
+  const verifiedOverride = verifyInAppAgentMcpRunOverride(headerValue);
 
-  return parsedOverride.success
+  return verifiedOverride
     ? {
         permissions: "tool-allowlist",
-        allowedToolNames: parsedOverride.data.toolNames,
+        allowedToolNames: verifiedOverride.toolNames,
       }
     : { permissions: "read" };
 }
