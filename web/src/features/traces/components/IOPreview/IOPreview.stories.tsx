@@ -67,6 +67,60 @@ export const RawJson = meta.story({
   },
 });
 
+export const DefaultStatus = meta.story({
+  args: {
+    status: {
+      level: "DEFAULT",
+      message: "The observation completed with additional status details.",
+    },
+  },
+});
+
+export const DebugStatus = meta.story({
+  args: {
+    status: {
+      level: "DEBUG",
+      message: "Detailed diagnostic information for this observation.",
+    },
+  },
+});
+
+export const WarningStatus = meta.story({
+  args: {
+    status: {
+      level: "WARNING",
+      message: "The observation completed with a recoverable warning.",
+    },
+  },
+});
+
+export const ErrorStatus = meta.story({
+  name: "(Test) Renders Error Message",
+  args: {
+    status: {
+      level: "ERROR",
+      message: "Upstream model request timed out after 30 seconds.",
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Error")).toBeVisible();
+    await expect(
+      canvas.getByText("Upstream model request timed out after 30 seconds."),
+    ).toBeVisible();
+  },
+});
+
+export const StructuredStatus = meta.story({
+  name: "(Test) Renders Structured Status",
+  args: {
+    status: { level: "ERROR", message: '{"error":"timeout","retryable":true}' },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Error")).toBeVisible();
+    await expect(canvas.getByText("retryable", { exact: false })).toBeVisible();
+  },
+});
+
 export const OptimizedJson = meta.story({
   args: {
     ...RawJson.input.args,

@@ -97,7 +97,7 @@ import {
   getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { StatusMessageSection } from "./components/StatusMessageSection";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   getStatusMessagePresentation,
   parseStructuredStatusMessage,
@@ -792,13 +792,11 @@ function IOPreviewContent({
     () => (status ? getStatusMessagePresentation(status.level) : undefined),
     [status],
   );
-  const statusValue = useMemo(
-    () =>
-      isAdvanced && status
-        ? (parseStructuredStatusMessage(status.message) ?? status.message)
-        : undefined,
-    [isAdvanced, status],
+  const parsedStatusMessage = useMemo(
+    () => (status ? parseStructuredStatusMessage(status.message) : undefined),
+    [status],
   );
+  const statusValue = parsedStatusMessage ?? status?.message;
   const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -1101,12 +1099,26 @@ function IOPreviewContent({
 
   return (
     <div className="space-y-2 pt-3">
-      {showData && status ? (
-        <StatusMessageSection
-          status={status}
-          currentView={isJson ? "json" : "pretty"}
-        />
-      ) : null}
+      {showData &&
+        status &&
+        statusPresentation &&
+        (parsedStatusMessage !== undefined ? (
+          <PrettyJsonView
+            title={statusPresentation.title}
+            json={status.message}
+            parsedJson={parsedStatusMessage}
+            currentView={isJson ? "json" : "pretty"}
+            tone={statusPresentation.tone}
+          />
+        ) : (
+          <IOSection
+            title={statusPresentation.title}
+            onCopy={() => copyTextToClipboard(status.message)}
+            tone={statusPresentation.tone}
+          >
+            {status.message}
+          </IOSection>
+        ))}
 
       {showData && allTools.length > 0 ? (
         <IOSection
