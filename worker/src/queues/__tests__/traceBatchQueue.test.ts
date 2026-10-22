@@ -1524,9 +1524,9 @@ describe("trace batch queue", () => {
         environment: input.environment,
       })),
     ).toEqual([{ projectId: "b", environment: "production" }]);
-    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual([
-      { projectId: "b", traceId: "shared-trace", revision: "r" },
-    ]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [{ projectId: "b", traceId: "shared-trace", revision: "r" }],
+    );
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);
     const serializedTranscript = JSON.stringify(estimates[0][0].text);
