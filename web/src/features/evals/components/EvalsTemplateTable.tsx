@@ -11,7 +11,7 @@ import { Copy, MoreVertical, Pen, Trash } from "@langfuse/icons";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
+import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorTemplateDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { Button } from "@/src/components/ui/button";
