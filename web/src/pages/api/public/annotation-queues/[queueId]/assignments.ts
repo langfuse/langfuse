@@ -10,7 +10,7 @@ import {
 import {
   createAnnotationQueueAssignmentForApi,
   deleteAnnotationQueueAssignmentForApi,
-} from "@/src/features/annotation-queues/server";
+} from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Annotation Queue Assignment",

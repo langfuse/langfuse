@@ -5,7 +5,7 @@ import {
   toQueryChartConfig,
   type QueryType,
 } from "@langfuse/shared/query";
-import { isTimeSeriesChart } from "@/src/features/widgets";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 
 /**

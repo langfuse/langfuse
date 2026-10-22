@@ -5,7 +5,7 @@ import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 import { authorize } from "@/src/features/rbac/authorize";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {

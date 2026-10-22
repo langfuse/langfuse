@@ -13,7 +13,7 @@ import {
   JobConfigState,
   JobExecutionStatus,
 } from "@langfuse/shared";
-import { createW3CTraceId } from "../../../utils";
+import { createW3CTraceId } from "../../../utils/utilities";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (

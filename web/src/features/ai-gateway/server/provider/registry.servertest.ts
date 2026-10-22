@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
-} from ".";
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";

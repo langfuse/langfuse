@@ -11,21 +11,20 @@ import {
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
-import type {
-  QueryType,
-  ViewDeclarationType,
-  metricAggregations,
-  granularities,
-  ViewVersion,
-  views,
-} from "../types";
 import {
+  type QueryType,
+  type ViewDeclarationType,
+  type metricAggregations,
+  type granularities,
+  type ViewVersion,
+  type views,
   query as queryModel,
   getValidAggregationsForMeasureType,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
+
 import { getViewDeclaration } from "../dataModel";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 import {

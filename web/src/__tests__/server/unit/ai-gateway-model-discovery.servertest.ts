@@ -3,7 +3,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
 
-import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 

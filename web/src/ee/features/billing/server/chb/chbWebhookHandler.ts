@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
   isoDateTime,

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React from "react";
 import {
   Card,
@@ -48,11 +49,12 @@ import {
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
 } from "@langfuse/shared/pagerduty";
-import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { ActionHandlerRegistry } from "./actions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ActionHandlerRegistry } from "@/src/features/automations/components/actions/ActionHandlerRegistry";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

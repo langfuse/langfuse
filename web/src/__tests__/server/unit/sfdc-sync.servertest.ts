@@ -126,8 +126,8 @@ import {
   getSfdcService,
   resetSfdcServiceCacheForTests,
   toSfdcPlan,
-  syncOrgPlanChangeToSfdc,
-} from "@/src/ee/features/sfdc-sync/server";
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";

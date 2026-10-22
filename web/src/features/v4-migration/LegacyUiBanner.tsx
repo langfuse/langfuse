@@ -1,7 +1,7 @@
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useV4PreviewToggle } from "@/src/features/events/hooks/useV4PreviewToggle";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LegacyUiBannerView } from "@/src/features/v4-migration/LegacyUiBannerView";
 import { useIsForceV3ExperienceSettled } from "@/src/features/v4-migration/useForceV3Experience";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";

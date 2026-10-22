@@ -14,9 +14,10 @@ import { useMemo, Fragment, useState } from "react";
 import {
   type BaselineDiff,
   calculateNumericDiff,
-  computeScoreDiffs,
-  DiffLabel,
-} from "@/src/features/datasets";
+} from "@/src/features/datasets/lib/calculateBaselineDiff";
+
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
@@ -32,7 +33,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { type ScoreLevel } from "@/src/components/ScoreTag";

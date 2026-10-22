@@ -13,7 +13,7 @@ import {
   singleRunToExperimentsUrl,
   toExperimentsResultsUrl,
 } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 
 function asSingleValue(value: string | string[] | undefined) {

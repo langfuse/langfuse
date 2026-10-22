@@ -16,7 +16,7 @@ import {
 import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
