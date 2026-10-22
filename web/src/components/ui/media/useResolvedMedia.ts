@@ -8,19 +8,22 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 /**
  * Resolves the previewable URL for a media descriptor.
  *
- * - Langfuse refs fetch a presigned S3 URL via tRPC, but only once `enabled`
- *   flips true (the peek opens) — this is what keeps a JSON view with N media
- *   leaves from firing N `getById` requests on render. Query config mirrors
- *   `LangfuseMediaView` (55-min staleTime ≈ S3 link TTL), so re-hovers are
- *   served from cache.
+ * URLs are resolved lazily when media opens, so a JSON view with N media leaves
+ * does not fetch N URLs on render. Cached URLs are reused until their returned
+ * expiry; callers check for renewal when opening media.
  */
 export function useResolvedMedia(
   descriptor: LangfuseRefDescriptor,
   { enabled }: { enabled: boolean },
-): { status: MediaTagStatus; url?: string; contentLength?: number } {
+): {
+  status: MediaTagStatus;
+  url?: string;
+  contentLength?: number;
+  refreshIfNeeded: () => Promise<void>;
+} {
   const projectId = useProjectIdFromURL();
 
-  const query = api.media.getById.useQuery(
+  const { data, isError, isFetching, refetch } = api.media.getById.useQuery(
     {
       mediaId: descriptor.mediaId,
       projectId: projectId as string,
@@ -31,17 +34,33 @@ export function useResolvedMedia(
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000, // S3 links expire after 1 hour
+      staleTime: 55 * 60 * 1000,
     },
   );
 
-  if (!enabled || !projectId) return { status: "idle" };
-  if (query.isError) return { status: "error" };
-  if (query.data?.url)
+  const refreshIfNeeded = async () => {
+    if (!projectId || (!isError && !isExpired(data?.urlExpiry))) return;
+    await refetch({ cancelRefetch: false });
+  };
+
+  if (!enabled || !projectId) return { status: "idle", refreshIfNeeded };
+  if (isExpired(data?.urlExpiry)) {
+    return {
+      status: isFetching ? "loading" : "error",
+      refreshIfNeeded,
+    };
+  }
+  if (isError) return { status: "error", refreshIfNeeded };
+  if (data?.url)
     return {
       status: "ready",
-      url: query.data.url,
-      contentLength: query.data.contentLength,
+      url: data.url,
+      contentLength: data.contentLength,
+      refreshIfNeeded,
     };
-  return { status: "loading" };
+  return { status: "loading", refreshIfNeeded };
+}
+
+function isExpired(urlExpiry?: string) {
+  return urlExpiry !== undefined && new Date(urlExpiry).getTime() <= Date.now();
 }

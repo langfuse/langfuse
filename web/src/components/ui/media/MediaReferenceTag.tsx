@@ -109,14 +109,18 @@ function LangfuseRefMediaTag({
 }) {
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
-  const { status, url, contentLength } = useResolvedMedia(descriptor, {
-    enabled: armed,
-  });
+  const { status, url, contentLength, refreshIfNeeded } = useResolvedMedia(
+    descriptor,
+    { enabled: armed },
+  );
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) setArmed(true);
+    if (!nextOpen) return;
+
+    refreshIfNeeded().catch(() => undefined);
+    setArmed(true);
   };
 
   return (
