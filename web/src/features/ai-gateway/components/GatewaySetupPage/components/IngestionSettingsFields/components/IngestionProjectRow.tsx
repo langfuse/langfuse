@@ -52,7 +52,7 @@ export function IngestionProjectRow({
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span>{isNewProject ? "Record in a" : "Record in an"}</span>
-      <div className="w-28">
+      <div className="w-fit">
         <SelectInput
           aria-label="New or existing project"
           placeholder="new"
@@ -72,7 +72,7 @@ export function IngestionProjectRow({
           />
         </div>
       ) : (
-        <div className="w-56">
+        <div className="w-fit">
           <SelectInput
             noCapture
             aria-label="Ingestion project"
