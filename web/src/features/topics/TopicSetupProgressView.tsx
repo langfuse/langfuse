@@ -47,11 +47,13 @@ export function TopicSetupProgressView({
   onDisplayResults,
   onRetry,
   retrying,
+  canRetry,
   stage,
 }: {
   facets: TopicSetupProgressFacet[];
   stage: TopicSetupStage;
   retrying: boolean;
+  canRetry: boolean;
   onDisplayResults: () => void;
   onRetry: () => void;
 }) {
@@ -62,7 +64,11 @@ export function TopicSetupProgressView({
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 overflow-y-auto px-4 pt-12">
       <div className="flex flex-col items-center gap-1 text-center">
         <h2 className="text-2xl font-bold">{COPY[stage].title}</h2>
-        <p className="text-muted-foreground text-sm">{COPY[stage].detail}</p>
+        <p className="text-muted-foreground text-sm">
+          {stage === "failed" && !canRetry
+            ? "Topics could not start. Use Generate topics in the menu."
+            : COPY[stage].detail}
+        </p>
       </div>
       <div className="bg-light-violet grid w-full grid-cols-2 gap-6 rounded-2xl px-6 py-8 sm:grid-cols-4">
         {facets.map((facet, index) => (
@@ -82,7 +88,7 @@ export function TopicSetupProgressView({
       {stage === "done" ? (
         <Button text="Display results" onClick={onDisplayResults} />
       ) : null}
-      {stage === "failed" ? (
+      {stage === "failed" && canRetry ? (
         <Button text="Retry" loading={retrying} onClick={onRetry} />
       ) : null}
     </div>

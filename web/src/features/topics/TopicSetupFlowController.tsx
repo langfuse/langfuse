@@ -130,6 +130,9 @@ function TopicSetupSession({
     }),
   );
   const [error, setError] = useState<string | null>(null);
+  // One request per session, so a repeated Start resolves to the same backfill.
+  const [requestId] = useState(() => crypto.randomUUID());
+  const [pending, setPending] = useState(false);
   useEffect(() => {
     capture("topics:setup_opened", { source });
   }, [capture, source]);
@@ -222,7 +225,7 @@ function TopicSetupSession({
       throw new Error("Save at least one question before starting.");
     const { traceCount: backfillCount } = await startSetup.mutateAsync({
       projectId,
-      requestId: crypto.randomUUID(),
+      requestId,
       sampling: draft.samplePercent / 100,
       facets: refs,
     });
@@ -235,6 +238,8 @@ function TopicSetupSession({
   }
 
   async function handleNext() {
+    if (pending) return;
+    setPending(true);
     setError(null);
     try {
       if (draft.step === "questions") {
@@ -256,13 +261,15 @@ function TopicSetupSession({
       setError(
         cause instanceof Error ? cause.message : "Could not save Topics.",
       );
+    } finally {
+      setPending(false);
     }
   }
 
   return (
     <TopicSetupFlowDialog
       step={draft.step}
-      busy={save.isPending || startSetup.isPending}
+      busy={pending}
       canWrite={canWrite}
       error={error}
       questions={draft.questions}

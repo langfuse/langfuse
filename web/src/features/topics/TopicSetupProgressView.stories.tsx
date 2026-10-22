@@ -17,6 +17,7 @@ const meta = preview.meta({
     stage: "summarizing" as const,
     facets,
     retrying: false,
+    canRetry: true,
     onDisplayResults: fn(),
     onRetry: fn(),
   },

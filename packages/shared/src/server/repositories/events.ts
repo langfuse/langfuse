@@ -4141,10 +4141,10 @@ export const getTracesIdentifierForSessionFromEvents = async (
   }));
 };
 
-// Finished traces: no event within the project's idle wait. Grouped by trace_id, so
-// traces without a root observation (OTel default) still count.
+// Finished traces: nothing ingested within the project's idle wait (event_ts, as
+// trace-batch uses). Grouped by trace_id, so traces without a root observation count.
 const topicSetupTracesSql = (days: "1" | "7" | "14", sampled: boolean) => `
-  SELECT trace_id, max(start_time) AS last_ts
+  SELECT trace_id, max(event_ts) AS last_ts
   FROM events_core
   WHERE project_id = {projectId: String}
     AND start_time >= {now: DateTime64(3)} - INTERVAL ${days} DAY

@@ -143,10 +143,12 @@ it("requires one question and all three models before the first step can save", 
 });
 
 it("follows a setup run from summaries through its topic update", () => {
-  const process = (status: string) => ({
+  const now = Date.parse("2026-10-22T08:00:00Z");
+  const process = (status: string, updatedAt = now) => ({
     id: "setup",
     status,
     phase: status,
+    updatedAt: new Date(updatedAt).toISOString(),
     input: {
       operation: "process" as const,
       requestId: "r",
@@ -157,13 +159,18 @@ it("follows a setup run from summaries through its topic update", () => {
     id: "topics",
     status,
     phase,
+    updatedAt: new Date(now).toISOString(),
     input: { operation: "update" as const, requestId: "setup-topics" },
   });
   const stage = (executions: Parameters<typeof topicSetupRun>[0]) =>
-    topicSetupStage(topicSetupRun(executions)!);
+    topicSetupStage(topicSetupRun(executions)!, now);
   expect(topicSetupRun([update("completed")])).toBeNull();
   expect(stage([process("running")]).stage).toBe("summarizing");
   expect(stage([process("completed")]).stage).toBe("grouping");
+  expect(stage([process("completed", now - 5 * 60_000)])).toEqual({
+    stage: "failed",
+    retryId: null,
+  });
   expect(
     stage([update("running", "clustering"), process("completed")]).stage,
   ).toBe("grouping");

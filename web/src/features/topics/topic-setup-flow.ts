@@ -303,6 +303,7 @@ type SetupExecution = {
   id: string;
   status: string;
   phase: string;
+  updatedAt: string;
   input:
     | { operation: "process"; requestId: string; thenUpdate?: unknown }
     | { operation: "update"; requestId: string };
@@ -325,15 +326,20 @@ export function topicSetupRun<T extends SetupExecution>(executions: T[]) {
   return { process, update };
 }
 
-export function topicSetupStage(run: {
-  process: SetupExecution;
-  update: SetupExecution | null;
-}): { stage: TopicSetupStage; retryId: string | null } {
+// The worker starts the topic update right after the last batch; longer means it failed to start.
+const FOLLOW_UP_GRACE_MS = 2 * 60_000;
+
+export function topicSetupStage(
+  run: { process: SetupExecution; update: SetupExecution | null },
+  now: number,
+): { stage: TopicSetupStage; retryId: string | null } {
   const { process, update } = run;
   if (process.status === "failed")
     return { stage: "failed", retryId: process.id };
   if (process.status === "queued" || process.status === "running")
     return { stage: "summarizing", retryId: null };
+  if (!update && now - Date.parse(process.updatedAt) > FOLLOW_UP_GRACE_MS)
+    return { stage: "failed", retryId: null };
   if (!update || update.status === "queued")
     return { stage: "grouping", retryId: null };
   if (update.status === "failed")

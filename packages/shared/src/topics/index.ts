@@ -197,7 +197,14 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
         topicProcessingConfigSchema.parse({}),
       ),
       // Generate topics over this range once every batch has finished.
-      thenUpdate: z.object({ timeRange: topicTimeRangeSchema }).optional(),
+      thenUpdate: z
+        .object({
+          timeRange: topicTimeRangeSchema.refine(
+            ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+            "Select a time range of at most 93 days.",
+          ),
+        })
+        .optional(),
     })
     .strict(),
   z

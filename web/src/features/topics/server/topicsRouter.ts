@@ -69,6 +69,8 @@ import { currentTopicResults } from "./currentResults";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
+// Covers the gap between a trace's first and last event (p99 is about 4 minutes).
+const SETUP_TRACE_SPAN_MARGIN_MS = 5 * 60_000;
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const resultInput = projectInput.extend({
   timeRange: topicTimeRangeSchema.refine(
@@ -493,6 +495,29 @@ export const topicsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { summary, embedding } = await requireTopicsModels(input.projectId);
+      // Hash only the caller's input: a retry must find this run, not re-select traces.
+      const requestHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            input,
+            summaryModel: summary.model,
+            embeddingModel: embedding.model,
+          }),
+        )
+        .digest("hex");
+      const existing = await readTopicExecutionForRequest(
+        input.projectId,
+        input.requestId,
+        requestHash,
+      );
+      if (existing) {
+        if (existing.status === "queued")
+          await enqueueTopicExecution(input.projectId, existing.id);
+        return {
+          id: existing.id,
+          traceCount: existing.facets[0]?.counts.requested ?? 0,
+        };
+      }
       await requireFacetVersions(input.projectId, input.facets);
       const now = new Date();
       const { traceIds, days } = await selectTopicSetupTraces({
@@ -501,7 +526,7 @@ export const topicsRouter = createTRPCRouter({
         limit: TOPIC_SETUP_BACKFILL_LIMIT,
         now,
       });
-      if (traceIds.length === 0) return { id: null, traceCount: 0, days };
+      if (traceIds.length === 0) return { id: null, traceCount: 0 };
       const execution = await createTopicExecution(
         {
           operation: "process",
@@ -518,18 +543,21 @@ export const topicsRouter = createTRPCRouter({
             summaryModel: summary.model,
           }),
           thenUpdate: {
+            // Summaries date from a trace's first event, which can precede the window.
             timeRange: {
-              from: new Date(now.getTime() - days * 86_400_000),
+              from: new Date(
+                now.getTime() - days * 86_400_000 - SETUP_TRACE_SPAN_MARGIN_MS,
+              ),
               to: now,
             },
           },
         },
-        undefined,
+        requestHash,
         ctx.session.user.id,
       );
       if (execution.status === "queued")
         await enqueueTopicExecution(input.projectId, execution.id, traceIds);
-      return { id: execution.id, traceCount: traceIds.length, days };
+      return { id: execution.id, traceCount: traceIds.length };
     }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)

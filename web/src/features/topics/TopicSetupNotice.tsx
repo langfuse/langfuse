@@ -8,6 +8,8 @@ type TopicSetupNoticeProps = {
   canWrite: boolean;
   canConfigure: boolean;
   onStart: () => void;
+  // Set when analysis is already running, so setup cannot start a second backfill.
+  startBlockedReason?: string | null;
   onKeepOff: () => void;
   onTurnBackOn: () => void;
   showOnboarding?: boolean;
@@ -19,6 +21,7 @@ export function TopicSetupNotice({
   canWrite,
   canConfigure,
   onStart,
+  startBlockedReason = null,
   onKeepOff,
   onTurnBackOn,
   showOnboarding = notice.status?.kind === "setup",
@@ -56,11 +59,17 @@ export function TopicSetupNotice({
           <h2 className="text-center text-2xl font-bold">
             Thousands of traces, a few clear topics
           </h2>
-          <Button
-            text="Start analyzing"
-            disabled={!canWrite || !canConfigure}
-            onClick={onStart}
-          />
+          {startBlockedReason ? (
+            <p role="status" className="text-muted-foreground text-sm">
+              {startBlockedReason}
+            </p>
+          ) : (
+            <Button
+              text="Start analyzing"
+              disabled={!canWrite || !canConfigure}
+              onClick={onStart}
+            />
+          )}
         </div>
       ) : null}
     </>

@@ -266,7 +266,9 @@ function TopicsWorkspaceContent({
         if (data.some((execution) => busy(execution.status))) return 3000;
         // Keep polling through the hand-off from summaries to the topic update.
         const run = topicSetupRun(data);
-        return run && !run.update && run.process.status !== "failed"
+        return run &&
+          !run.update &&
+          topicSetupStage(run, Date.now()).stage === "grouping"
           ? 3000
           : false;
       },
@@ -277,7 +279,7 @@ function TopicsWorkspaceContent({
     null,
   );
   const setupRun = topicSetupRun(executions.data ?? []);
-  const setup = setupRun ? topicSetupStage(setupRun) : null;
+  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
   // A run that finished before this visit is not replayed; results show instead.
   const showSetupProgress =
     setupRun !== null &&
@@ -374,6 +376,10 @@ function TopicsWorkspaceContent({
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
+  const setupBlockedReason = startBlockedReason(
+    running,
+    modelSettings.automaticProcessing.state.status === "on",
+  );
   const results = useCurrentTopics({
     projectId,
     running,
@@ -588,6 +594,7 @@ function TopicsWorkspaceContent({
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
                 onStart={openSetup}
+                startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showLanding && !showSetupProgress}
@@ -597,6 +604,7 @@ function TopicsWorkspaceContent({
                   stage={setup.stage}
                   facets={setupFacets}
                   retrying={setupRetry.isPending}
+                  canRetry={setup.retryId !== null}
                   onRetry={() => {
                     if (setup.retryId)
                       setupRetry.mutate({
@@ -1020,4 +1028,12 @@ function ErrorMessage({ message }: { message: string }) {
       </Alert.Description>
     </Alert>
   );
+}
+
+function startBlockedReason(running: boolean, automaticOn: boolean) {
+  if (running)
+    return "Analysis is running. Topics appear here when it finishes.";
+  if (automaticOn)
+    return "Automatic processing is on. Topics appear here as traces are summarized.";
+  return null;
 }
