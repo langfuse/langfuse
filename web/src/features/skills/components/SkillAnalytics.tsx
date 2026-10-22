@@ -1,4 +1,7 @@
-import { RefreshCw } from "@langfuse/icons";
+import { useState } from "react";
+import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { SkillLinkedTraces } from "./SkillLinkedTraces";
+import { Filter, RefreshCw } from "@langfuse/icons";
 import {
   Table,
   type AsyncTableData,
@@ -16,6 +19,8 @@ import { useSkillAnalytics } from "@/src/features/skills/hooks/useSkillAnalytics
 type SkillAnalyticsProps = {
   projectId: string;
   skillId: string;
+  name: string;
+  version: number;
   paths: string[];
 };
 type FileUsage = {
@@ -29,7 +34,7 @@ export function SkillAnalytics(props: SkillAnalyticsProps) {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
       <SkillAnalyticsDashboard
-        key={rangeToString(timeRange)}
+        key={`${props.skillId}:${rangeToString(timeRange)}`}
         {...props}
         timeRange={timeRange}
       />
@@ -40,9 +45,13 @@ export function SkillAnalytics(props: SkillAnalyticsProps) {
 function SkillAnalyticsDashboard({
   projectId,
   skillId,
+  name,
+  version,
   paths,
   timeRange,
 }: SkillAnalyticsProps & { timeRange: TimeRange }) {
+  const [filePage, setFilePage] = useState(0);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const { available, loaded, files, handleRefresh } = useSkillAnalytics({
     projectId,
     skillId,
@@ -61,10 +70,14 @@ function SkillAnalyticsDashboard({
     })
     .toSorted((a, b) => b.loads - a.loads || a.path.localeCompare(b.path));
   const error = available.error ?? loaded.error ?? files.error;
+  const pageIndex = Math.min(
+    filePage,
+    Math.max(0, Math.ceil(fileRows.length / 10) - 1),
+  );
   const fileTableData = prepareFileTableData(
     files.isPending,
     files.error,
-    fileRows,
+    fileRows.slice(pageIndex * 10, (pageIndex + 1) * 10),
   );
   return (
     <>
@@ -80,7 +93,7 @@ function SkillAnalyticsDashboard({
           }
         />
       </PageHeaderControlsPortal>
-      <div className="flex flex-col gap-5 p-4">
+      <div className="flex flex-col gap-3 p-4">
         {error ? (
           <StatusMessage
             level="ERROR"
@@ -108,11 +121,11 @@ function SkillAnalyticsDashboard({
             description="Observations loading one or more files"
           />
         </div>
-        <section className="flex flex-col gap-3 rounded-lg border pt-4">
-          <div className="flex flex-col gap-1 px-4">
+        <section className="flex flex-col gap-2 rounded-lg border pt-2">
+          <div className="px-3">
             <h3 className="text-sm font-bold">File usage</h3>
           </div>
-          <div className="ph-no-capture max-h-80 min-h-32 overflow-auto">
+          <div className="ph-no-capture overflow-auto [&_tbody>tr]:h-8 [&_tbody>tr>td:not([colspan])]:py-1 [&_tbody>tr>td:not([colspan])>div]:h-6">
             <Table<FileUsage>
               tableName="Skill file usage"
               columns={[
@@ -120,6 +133,12 @@ function SkillAnalyticsDashboard({
                   accessorKey: "path",
                   header: "File",
                   size: 320,
+                  trailingAction: {
+                    type: "custom",
+                    icon: Filter,
+                    label: "Filter observations by this file",
+                    onClick: ({ row }) => setSelectedFile(row.original.path),
+                  },
                 }),
                 createNumberTableColumn<FileUsage>({
                   accessorKey: "loads",
@@ -129,9 +148,35 @@ function SkillAnalyticsDashboard({
                 }),
               ]}
               data={fileTableData}
+              onRowClick={(file) => setSelectedFile(file.path)}
+              loadingRowCount={Math.min(paths.length, 10)}
             />
           </div>
+          {fileRows.length > 10 ? (
+            <PaginationBar
+              mode="offset"
+              totalCount={fileRows.length}
+              state={{ pageIndex, pageSize: 10 }}
+              pageSizeOptions={[10]}
+              onChange={(state) => setFilePage(state.pageIndex)}
+            />
+          ) : null}
         </section>
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={version}
+          timeRange={timeRange}
+          fileFilter={
+            selectedFile !== null
+              ? {
+                  skillId,
+                  path: selectedFile,
+                  onClear: () => setSelectedFile(null),
+                }
+              : undefined
+          }
+        />
       </div>
     </>
   );
@@ -150,13 +195,15 @@ function Metric({
 }) {
   const displayValue = value === null ? "—" : formatCount(value);
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      {loading ? (
-        <Skeleton className="h-8 w-24" />
-      ) : (
-        <p className="text-2xl font-bold tabular-nums">{displayValue}</p>
-      )}
+    <div className="flex flex-col gap-1 rounded-lg border px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm">{label}</p>
+        {loading ? (
+          <Skeleton className="h-6 w-12" />
+        ) : (
+          <p className="text-lg font-bold tabular-nums">{displayValue}</p>
+        )}
+      </div>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
