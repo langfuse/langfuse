@@ -29,7 +29,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { showSuccessToast } from "@/src/features/notifications";

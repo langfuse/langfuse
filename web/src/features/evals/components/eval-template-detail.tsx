@@ -18,7 +18,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "@langfuse/icons";
 
