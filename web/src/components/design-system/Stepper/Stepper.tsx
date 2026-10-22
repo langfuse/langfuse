@@ -167,7 +167,11 @@ export function Stepper({
             </div>
           )}
           {docsHref ? (
-            <Button variant="ghost" size="sm" text="Docs" href={docsHref} />
+            // Negative margin keeps the taller button from growing the header row,
+            // which would push the title away from the step indicator.
+            <span className="-my-1 inline-flex">
+              <Button variant="ghost" size="sm" text="Docs" href={docsHref} />
+            </span>
           ) : null}
         </div>
         {expanded && hasBody ? (
