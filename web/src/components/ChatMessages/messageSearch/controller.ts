@@ -11,7 +11,7 @@ import {
   applyCodeMirrorSearchQuery,
   unsetActiveSearchMarkCodeMirrorRange,
   setActiveSearchMarkCodeMirrorRange,
-} from "@/src/components/editor";
+} from "@/src/components/editor/CodeMirrorEditor";
 
 type MessageSearchMatch = {
   key: string;

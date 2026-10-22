@@ -1,7 +1,7 @@
-import type { FilterConfig } from "@/src/features/filters";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 function facetColumns(config: FilterConfig) {
   const exposed = new Set(config.facets.map((facet) => facet.column));

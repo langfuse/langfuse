@@ -8,14 +8,14 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/features/traces";
+import { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -24,14 +24,18 @@ import {
   extractVariables,
   PRODUCTION_LABEL,
   PromptType,
+  ChatMlArraySchema,
 } from "@langfuse/shared";
-import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
+import {
+  getPromptTabs,
+  PROMPT_TABS,
+} from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./PromptHistoryNode";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
-import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+
+import { default as LegacyGenerations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import EventsTable from "@/src/features/events/components/EventsTable";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   FlaskConical,
   History,
@@ -42,18 +46,18 @@ import {
   Terminal,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/page";
 import {
@@ -63,19 +67,19 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
-import { TagPromptDetailsPopover } from "@/src/features/tag";
+import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { createBreadcrumbItems } from "@/src/features/folders";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import {
   Drawer,

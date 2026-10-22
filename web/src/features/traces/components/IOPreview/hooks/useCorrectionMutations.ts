@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { api } from "@/src/utils/api";
-import { useCorrectionCache } from "@/src/features/corrections";
+import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheProvider";
 import { type ScoreDomain } from "@langfuse/shared";
 import { v4 } from "uuid";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 interface UseCorrectionMutationsParams {

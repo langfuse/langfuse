@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "../../env";
+import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import {
-  type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "Blob storage endpoint";

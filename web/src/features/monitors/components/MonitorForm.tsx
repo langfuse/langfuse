@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
@@ -40,13 +41,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useProject } from "@/src/features/projects";
-import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
+import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
+import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   resolveMonitorNameForSave,
   type MonitorNameResolution,
@@ -74,7 +75,7 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
-import { TagManager } from "@/src/features/tag";
+import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";

@@ -6,12 +6,12 @@ import {
   AnnotationQueueItemMenuContent,
   type AnnotationQueueItemMenuQueue,
 } from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { type ReactNode, useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type AnalyticsData } from "@/src/features/scores/types";
 
 type AnnotationQueueItemDropdownMenuControllerProps = {

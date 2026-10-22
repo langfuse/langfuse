@@ -11,8 +11,8 @@ import {
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
-import { processObservationEval } from "../features/evaluation/observationEval";
-import { createW3CTraceId } from "../features/utils";
+import { processObservationEval } from "../features/evaluation/observationEval/observationEvalProcessor";
+import { createW3CTraceId } from "../features/utils/utilities";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import {
   getCodeEvalTerminalErrorOutcome,

@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { hasInternalAccess } from "../utils";
 import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";

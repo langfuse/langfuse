@@ -6,10 +6,11 @@ import {
   ObservationType,
   type FilterState,
   getGenerationLikeTypes,
+  truncate,
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { truncate } from "@/src/utils/string";
+
 import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";

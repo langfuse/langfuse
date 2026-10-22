@@ -9,7 +9,7 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 
-import { getMonitorFilterConfig } from "@/src/features/filters";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { __test } from "./MonitorsTable";
 
 const { filterStateToListMonitorFilter, buildStatusToggleUpdate } = __test;

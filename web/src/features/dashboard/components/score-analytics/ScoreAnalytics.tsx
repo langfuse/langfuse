@@ -7,10 +7,12 @@ import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range
 import {
   convertScoreColumnsToAnalyticsData,
   getScoreDataTypeIcon,
+} from "@/src/features/scores/lib/scoreColumns";
+import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/helpers";
 import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";

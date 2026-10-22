@@ -9,7 +9,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({ push: routerPush }),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 

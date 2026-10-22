@@ -9,12 +9,12 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   listScoresV3ForPublicApi,
   EncodedScoresCursorV3,
-} from "@/src/features/public-api/server";
-import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
+  buildScoreSubjectUrl,
+} from "@langfuse/shared/src/server";
 
 const ListScoresBaseSchema = z
   .object({

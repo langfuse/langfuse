@@ -26,18 +26,17 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
-  buildAiContext,
   EVENTS_FIELD_REGISTRY,
-  EventsSearchBarRow,
   type FieldRegistry,
-  observedScoreNamesFromOptions,
-  useEventsSearchBar,
-} from "@/src/features/search-bar";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+} from "@/src/features/search-bar/lib/fields";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+
+import { observedScoreNamesFromOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
@@ -53,7 +52,7 @@ import {
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];

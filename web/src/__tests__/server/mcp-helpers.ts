@@ -16,7 +16,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 
 /**
  * Creates a complete MCP test setup including:

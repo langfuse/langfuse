@@ -28,11 +28,11 @@ import {
   EncodedObservationsCursorV2,
   EncodedObservationsCursorV2String,
   encodeCursor,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   ExpandMetadataKeysSchema,

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { type MediaContentType } from "@/src/features/media";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import type { MediaContentType } from "@/src/features/media/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { MediaFileView } from "./MediaFileView";
 import { type MediaDescriptor } from "./mediaUtils";

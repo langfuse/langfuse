@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { runHealthCheck } from "@/src/features/public-api/server/health-service";

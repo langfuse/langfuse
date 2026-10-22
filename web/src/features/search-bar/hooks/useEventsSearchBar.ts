@@ -44,7 +44,7 @@ import {
   createSearchBarStore,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
 type SearchCommitTrigger = "enter" | "blur" | "pick";

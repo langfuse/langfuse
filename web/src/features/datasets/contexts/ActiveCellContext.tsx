@@ -3,7 +3,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 
 type ActiveCell = {
   datasetRunId: string;

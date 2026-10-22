@@ -35,7 +35,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
@@ -54,10 +54,8 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
-import {
-  SESSIONS_FIELD_REGISTRY,
-  USERS_FIELD_REGISTRY,
-} from "@/src/features/filters";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
 
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 

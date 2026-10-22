@@ -15,11 +15,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { DiffLabel } from "@/src/features/datasets";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import {
   getScoreDataTypeExplanation,
   splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
 import {
   formatScoreColumnAggregate,
   formatScoreValue,

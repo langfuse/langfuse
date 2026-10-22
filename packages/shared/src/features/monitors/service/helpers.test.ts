@@ -3,7 +3,8 @@ import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
-import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import { singleFilter } from "../../../interfaces/filters";
 import {
   MonitorNoDataModeSchema,

@@ -1,9 +1,7 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  listScoreConfigs,
-  GetScoreConfigsQuery,
-} from "@/src/features/public-api/server";
+import { listScoreConfigs } from "@/src/features/public-api/server/score-configs-api-service";
+import { GetScoreConfigsQuery } from "@/src/features/public-api/types/score-configs";
 
 export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
   name: "listScoreConfigs",

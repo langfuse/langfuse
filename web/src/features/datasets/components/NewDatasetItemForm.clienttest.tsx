@@ -45,10 +45,10 @@ vi.mock("@/src/utils/api", () => ({
 vi.mock("../lib/generateSchemaExample", () => ({
   generateSchemaExample: generateExample,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: ({
     id,
     value,

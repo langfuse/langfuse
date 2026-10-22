@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Copy } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogBody,
@@ -14,8 +14,8 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useState } from "react";
 import {
   Form,

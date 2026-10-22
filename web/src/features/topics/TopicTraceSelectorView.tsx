@@ -14,7 +14,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Table } from "@/src/components/design-system/table/Table";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { TableSearchBar } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";

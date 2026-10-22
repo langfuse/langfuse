@@ -1,8 +1,6 @@
 import { env } from "@/src/env.mjs";
-import {
-  getSelfHostedInstancePlanServerSide,
-  hasEntitlementBasedOnPlan,
-} from "@/src/features/entitlements/server";
+import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 /**
  * Whether audit log records may be persisted on this instance.

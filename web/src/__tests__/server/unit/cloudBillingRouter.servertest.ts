@@ -13,19 +13,22 @@ vi.mock("@/src/ee/features/billing/server/resolveBillingService", () => ({
   resolveBillingService: mocks.resolveBillingService,
 }));
 
-vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    throwIfNoEntitlement: mocks.throwIfNoEntitlement,
-  };
-});
+vi.mock(
+  "@/src/features/entitlements/server/hasEntitlement",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      throwIfNoEntitlement: mocks.throwIfNoEntitlement,
+    };
+  },
+);
 
 vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   throwIfNoOrganizationAccess: mocks.throwIfNoOrganizationAccess,
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
 

@@ -30,7 +30,7 @@ import {
 } from "../fns/treeBuilding";
 import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "./ViewPreferencesContext";
-import { useMergedScores } from "@/src/features/scores";
+import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
 
 type TraceType = Omit<

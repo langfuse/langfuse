@@ -3,7 +3,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
 import {
   TURNSTILE_ACTIONS,

@@ -4,7 +4,7 @@ import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
   PostHogIntegrationForm,
@@ -19,10 +19,10 @@ import {
 import {
   buildExportSourceContext,
   getExportSourceFormValue,
-  IntegrationSettingsSkeleton,
-} from "@/src/features/analytics-integrations";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects";
+} from "@/src/features/analytics-integrations/exportSource";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { usePostHogIntegration } from "@/src/features/posthog-integration/usePostHogIntegration";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";

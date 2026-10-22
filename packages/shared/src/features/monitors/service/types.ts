@@ -1,7 +1,7 @@
 /** service/types.ts contains the DTOs, schemas, and errors for the MonitorService. */
 import { z } from "zod";
 
-import { LangfuseNotFoundError } from "../../../errors";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import { paginationZod } from "../../../utils/zod";
 
 import {

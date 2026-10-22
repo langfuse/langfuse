@@ -11,9 +11,10 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import type { DashboardPlacement } from "@/src/features/widgets";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**

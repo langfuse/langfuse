@@ -1,5 +1,6 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { EvaluationRule, Evaluator } from "@/src/features/public-api";
+import { EvaluationRule } from "@/src/features/public-api/types/evaluation/evaluationRules";
+import { Evaluator } from "@/src/features/public-api/types/evaluation/evaluators";
 
 export const codeDefinition = (sourceCode: string) => ({
   type: "code" as const,

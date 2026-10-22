@@ -18,7 +18,7 @@ import {
   getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { type IOSectionAction } from "@/src/components/ui/IOSection";
 

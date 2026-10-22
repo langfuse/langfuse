@@ -6,8 +6,11 @@ import {
 } from "./clickhouse";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
-import { DateTimeFilter, FilterList } from "../queries";
-import { dashboardColumnDefinitions } from "../tableMappings";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,

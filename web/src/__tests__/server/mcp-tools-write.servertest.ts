@@ -64,7 +64,7 @@ import {
 import { handleCreateTextPrompt } from "@/src/features/mcp/server/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/server/prompts/tools/updatePromptLabels";
-import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
 import {
   createEvaluatorTool,
   handleCreateEvaluator,

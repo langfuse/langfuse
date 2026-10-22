@@ -11,7 +11,7 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
-import { orderByToClickhouseSql } from "../queries";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import {
   shouldSkipObservationsFinal,
@@ -32,7 +32,10 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
-import { UiColumnMappings, ColumnDefinition } from "../../tableDefinitions";
+import {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions/types";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import {
   convertDateToClickhouseDateTime,
@@ -49,11 +52,11 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordDistribution } from "../instrumentation";
+import { recordDistribution, traceException } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
-import { traceException } from "../instrumentation";
+
 import { prisma } from "../../db";
 
 /**

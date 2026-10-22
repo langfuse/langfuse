@@ -39,7 +39,7 @@ vi.mock("../hooks/useCorrectionEditor", () => ({
   },
 }));
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => access.hasAccess,
 }));
 
@@ -47,7 +47,7 @@ vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
   useScoreEditsDisabled: () => access.scoreEditsDisabled,
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 

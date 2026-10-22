@@ -1,11 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import {
-  hasEntitlementLimit,
-  throwIfNoEntitlement,
-} from "@/src/features/entitlements/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -49,7 +47,7 @@ import {
   getAggregatedScoresForPromptsFromEvents,
   postgresSearchCondition,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 

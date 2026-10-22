@@ -5,7 +5,7 @@ import { ForbiddenError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { authorize } from "@/src/features/rbac/authorize";
 import {
   __dangerouslySkipAuthz,
@@ -23,7 +23,7 @@ const { authSpan } = vi.hoisted(() => ({
   authSpan: { setAttribute: vi.fn() },
 }));
 
-vi.mock("@/src/features/apiKey/server", () => ({
+vi.mock("@/src/features/apiKey/authenticator", () => ({
   authenticator: { authenticate: vi.fn() },
 }));
 vi.mock("@/src/features/rbac/authorize", () => ({ authorize: vi.fn() }));

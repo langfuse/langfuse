@@ -1,7 +1,7 @@
 import {
   transformCategoricalScoresToChartData,
   uniqueAndSort,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/score-analytics-utils";
 import {
   type ChartBin,
   type ChartData,

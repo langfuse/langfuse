@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 import {
   ConnectedSessionConversationTimeline,

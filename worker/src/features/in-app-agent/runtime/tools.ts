@@ -4,8 +4,14 @@ import {
   toStandardSchema,
 } from "@mastra/core/schema";
 import { createTool, Tool } from "@mastra/core/tools";
-import type { InAppAgentSandbox } from "./sandbox";
-import { isoDateTime, assertUnreachable } from "@langfuse/shared";
+import type { InAppAgentSandbox } from "./sandbox/types";
+import {
+  isoDateTime,
+  assertUnreachable,
+  ObservationLevelDomain,
+  TABLE_AGGREGATION_OPTIONS,
+  TracingSearchType,
+} from "@langfuse/shared";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import {
   buildDashboardsPath,
@@ -26,11 +32,7 @@ import {
   buildTracesPath,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import {
-  ObservationLevelDomain,
-  TABLE_AGGREGATION_OPTIONS,
-  TracingSearchType,
-} from "@langfuse/shared";
+
 import {
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,

@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { SkillFilePreview } from "./SkillFilePreview";
 import { getSkillFileLanguageExtensions } from "../utils/getSkillFileLanguageExtensions";
 

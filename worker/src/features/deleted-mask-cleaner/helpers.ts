@@ -3,7 +3,7 @@ import {
   qualifiedClickhouseTableName,
   quoteClickhouseIdentifier,
   quoteClickhouseString,
-} from "../../utils/clickhouseIdentifiers";
+} from "@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers";
 
 export const DELETED_MASK_CLEANER_TABLES = [
   "events_core",

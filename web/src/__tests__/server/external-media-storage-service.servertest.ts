@@ -9,7 +9,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");

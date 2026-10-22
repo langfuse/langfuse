@@ -1,4 +1,4 @@
-import type { FilterConfig } from "@/src/features/filters";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { renderLevelIcon } from "@/src/components/level-colors";
 import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
 

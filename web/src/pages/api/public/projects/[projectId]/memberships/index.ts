@@ -6,10 +6,11 @@ import {
   handleGetMemberships,
   handleUpdateMembership,
 } from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeOrgError } from "@/src/features/public-api/server/writeError";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { BaseError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";

@@ -13,10 +13,10 @@ import {
   ChartTypePicker,
   GranularitySelect,
   MetricSelect,
-  ChartCanvas,
-  ChartViewPanel,
-  ViewModeToggle,
-} from "@/src/features/chart-view";
+} from "@/src/features/chart-view/components/ConfigControls";
+import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
+import { ChartViewPanel } from "@/src/features/chart-view/components/ChartViewPanel";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import {
   coerceConfig,
   DEFAULT_CONFIG,

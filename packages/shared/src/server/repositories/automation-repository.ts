@@ -27,7 +27,7 @@ import {
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
 } from "../../domain/automations";
-import { InternalServerError } from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 

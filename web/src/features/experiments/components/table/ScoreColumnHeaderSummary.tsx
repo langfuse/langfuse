@@ -1,6 +1,6 @@
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { DiffLabel } from "@/src/features/datasets";
-import { splitScoreDataTypeIcon } from "@/src/features/scores";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { splitScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,

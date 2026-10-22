@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import {
   getContextualFeatureFlags,
   hasInternalAccess,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -51,7 +51,8 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/features/trace-graph-view/types";
+
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({

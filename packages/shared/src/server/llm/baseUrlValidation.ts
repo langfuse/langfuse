@@ -4,7 +4,7 @@ import {
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 

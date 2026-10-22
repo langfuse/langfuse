@@ -9,10 +9,10 @@ import React, {
   memo,
 } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { deepParseJson } from "@langfuse/shared";
+import { deepParseJson, ChatMlArraySchema } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -39,7 +39,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
-import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
+
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
   filterAlreadyRenderedMedia,

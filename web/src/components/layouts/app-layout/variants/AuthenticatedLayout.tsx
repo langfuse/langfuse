@@ -12,10 +12,8 @@ import {
   type PropsWithChildren,
 } from "react";
 import Head from "next/head";
-import {
-  useInternalViewMode,
-  InternalViewModeDialog,
-} from "@/src/features/feature-flags/internal-view-mode";
+import { useInternalViewMode } from "@/src/features/feature-flags/hooks/useInternalViewMode";
+import { InternalViewModeDialog } from "@/src/features/feature-flags/components/InternalViewModeDialog";
 import { useRouter, type NextRouter } from "next/router";
 import {
   SidebarProvider,
@@ -26,17 +24,15 @@ import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
 import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
-import {
-  VersionUpdateBanner,
-  useVersionUpdatePrompt,
-} from "@/src/features/version-update";
+import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdateBanner";
+import { useVersionUpdatePrompt } from "@/src/features/version-update/useVersionUpdatePrompt";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
-  useLangfuseCloudRegion,
-} from "@/src/features/organizations";
+} from "@/src/features/organizations/cloudRegions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -48,22 +44,20 @@ import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
-import { usePlan } from "@/src/features/entitlements";
+import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import {
-  PaymentBannerView,
-  usePaymentBanner,
-} from "@/src/features/payment-banner";
-import { useTopBannerHeight } from "@/src/features/top-banner";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
+import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
+import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -79,9 +73,11 @@ const CommandMenu = dynamic(
 
 const PreviewDeploymentBanner = dynamic(
   () =>
-    import("@/src/features/preview-deployment-banner").then((mod) => ({
-      default: mod.PreviewDeploymentBanner,
-    })),
+    import("@/src/features/preview-deployment-banner/PreviewDeploymentBanner").then(
+      (mod) => ({
+        default: mod.PreviewDeploymentBanner,
+      }),
+    ),
   {
     ssr: false,
   },

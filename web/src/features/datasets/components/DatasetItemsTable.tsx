@@ -19,28 +19,27 @@ import {
   BatchExportTableName,
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useQueryFilterState } from "@/src/features/filters";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useFullTextSearch, TableSearchBar } from "@/src/features/search-bar";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";

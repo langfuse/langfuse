@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {

@@ -2,9 +2,9 @@ import type * as React from "react";
 import { useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useEmptyScoreConfigs } from "@/src/features/scores";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { api } from "@/src/utils/api";
 
 export type ArchiveScoreConfigState = {

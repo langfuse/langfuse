@@ -9,7 +9,11 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
+import {
+  GatewayApiFormatSchema,
+  type GatewayApiFormat,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 

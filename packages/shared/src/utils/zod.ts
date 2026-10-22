@@ -1,6 +1,6 @@
 import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
 
 /** ISO datetimes with minutes, seconds, or fractional seconds; timezone required. */
 export function isoDateTime({

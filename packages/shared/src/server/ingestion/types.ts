@@ -4,8 +4,8 @@ import { z } from "zod";
 
 import { isoDateTime, NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ScoreSourceType } from "../../domain";
-import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
+import { ScoreSourceType, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
+
 import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z

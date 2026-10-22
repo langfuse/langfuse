@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { getAvailableCloudRegionOptions } from "@/src/features/organizations";
+import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 import { useState } from "react";
 import { CloudRegionPicker } from "./CloudRegionPicker";
 

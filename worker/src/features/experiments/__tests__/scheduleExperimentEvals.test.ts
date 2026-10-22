@@ -8,7 +8,7 @@ import {
   materializeInternalTrace,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import type { ObservationForEval } from "../../evaluation/observationEval";
+import type { ObservationForEval } from "../../evaluation/observationEval/types";
 import { IngestionService } from "../../../services/IngestionService";
 import * as clickhouseWriterExports from "../../../services/ClickhouseWriter";
 import { scheduleExperimentObservationEvals } from "../scheduleExperimentEvals";
@@ -37,15 +37,45 @@ vi.mock("../../../services/ClickhouseWriter", async (importOriginal) => {
   };
 });
 
-vi.mock("../../evaluation/observationEval", async (importOriginal) => {
-  const original = (await importOriginal()) as object;
-  return {
-    ...original,
-    fetchObservationEvalRules: mockFetchObservationEvalRules,
-    createObservationEvalSchedulerDeps: mockCreateObservationEvalSchedulerDeps,
-    scheduleObservationEvals: mockScheduleObservationEvals,
-  };
-});
+vi.mock(
+  "../../evaluation/observationEval/fetchObservationEvalRules",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
+vi.mock(
+  "../../evaluation/observationEval/createSchedulerDeps",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
+vi.mock(
+  "../../evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
 
 const mockClickhouseClient = {
   query: async () => ({

@@ -3,7 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type CustomHeights } from "@/src/components/table/data-table-row-height-switch";
-import { useColumnVisibility } from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorTemplateDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
 import {
@@ -30,9 +30,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
@@ -40,8 +40,8 @@ import {
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useEntitlementLimit } from "@/src/features/entitlements";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import {

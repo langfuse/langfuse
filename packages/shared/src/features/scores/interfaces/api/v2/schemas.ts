@@ -3,7 +3,7 @@ import {
   CategoricalData,
   NumericData,
   ScoreSchemaExclReferencesAndDates,
-} from "../../../../../domain";
+} from "../../../../../domain/scores";
 import z from "zod";
 
 // Response-only schemas without input validation constraints (e.g. length limits).

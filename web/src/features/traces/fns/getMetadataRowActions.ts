@@ -9,7 +9,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 
 /** Walks up to the top-level (level 0) ancestor key for a metadata row. */
 function resolveTopLevelMetadataKey(row: Row<JsonTableRow>): string {

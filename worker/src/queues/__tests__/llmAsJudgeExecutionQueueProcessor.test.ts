@@ -8,7 +8,10 @@ import {
   type Mock,
 } from "vitest";
 import { Job } from "bullmq";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  UnrecoverableError,
+  isUnrecoverableError,
+} from "../../errors/UnrecoverableError";
 import {
   EvalFailureError,
   EvalFailureReason,
@@ -51,9 +54,12 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 // Mock processObservationEval
-vi.mock("../../features/evaluation/observationEval", () => ({
-  processObservationEval: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/observationEval/observationEvalProcessor",
+  () => ({
+    processObservationEval: vi.fn(),
+  }),
+);
 
 // Mock logger and span
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -102,7 +108,11 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 // Mock retryLLMRateLimitError
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/utilities", () => ({
+  createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
+  retryLLMRateLimitError: vi.fn(),
+}));
+vi.mock("../../features/utils/retry-handler", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
   retryLLMRateLimitError: vi.fn(),
 }));
@@ -117,7 +127,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval";
+import { processObservationEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   LLMAsJudgeExecutionQueue,
   classifyEvaluatorLlmError,
@@ -126,8 +136,7 @@ import {
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { retryLLMRateLimitError } from "../../features/utils";
-import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+import { retryLLMRateLimitError } from "../../features/utils/retry-handler";
 
 function mockLlmError(error: Error, isRetryable: boolean): void {
   vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
@@ -664,7 +673,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       (processObservationEval as Mock).mockRejectedValue(error);
       vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
-      const { createW3CTraceId } = await import("../../features/utils");
+      const { createW3CTraceId } =
+        await import("../../features/utils/utilities");
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);

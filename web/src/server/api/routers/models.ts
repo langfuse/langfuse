@@ -1,15 +1,23 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  isPrismaRecordNotFoundError,
+  clearModelCacheForProject,
+  queryClickhouse,
+  findModel,
+  hasPricingTierUsageDetails,
+  matchPricingTier,
+  escapeSqlLikePattern,
+} from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
   ModelLastUsedQueryResult,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,14 +28,7 @@ import {
   paginationZod,
   Prisma,
 } from "@langfuse/shared";
-import {
-  clearModelCacheForProject,
-  queryClickhouse,
-  findModel,
-  hasPricingTierUsageDetails,
-  matchPricingTier,
-  escapeSqlLikePattern,
-} from "@langfuse/shared/src/server";
+
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({

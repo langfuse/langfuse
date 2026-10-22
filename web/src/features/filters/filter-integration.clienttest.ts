@@ -25,7 +25,7 @@ import {
   sessionEventsFilterConfig,
   sessionFilterConfig,
 } from "./config/sessions-config";
-import { observationEventsFilterConfig } from "@/src/features/events";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
@@ -33,7 +33,7 @@ import {
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
-} from "@/src/features/sessions";
+} from "@/src/features/sessions/session-detail-presets";
 import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
@@ -41,11 +41,9 @@ import {
   canonicalizeExplicitEnvironmentFilters,
   toSearchBarEnvironmentFilters,
 } from "./lib/managedEnvironmentPolicy";
-import {
-  astToFilterState,
-  filterStateToQueryText,
-  validateQuery,
-} from "@/src/features/search-bar";
+import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { validateQuery } from "@/src/features/search-bar/lib/validate";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {

@@ -2,15 +2,19 @@
 import { useRouter } from "next/router";
 import { useMemo, useEffect, useRef } from "react";
 import Page from "@/src/components/layouts/page";
-import { getScoresTabs, SCORES_TABS } from "@/src/features/navigation";
 import {
-  useAnalyticsUrlState,
-  type ScoreOption,
+  getScoresTabs,
+  SCORES_TABS,
+} from "@/src/features/navigation/utils/scores-tabs";
+import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
+import type { ScoreOption } from "@/src/features/score-analytics/components/charts/ScoreCombobox";
+import {
   ScoreAnalyticsProvider,
   type DataType,
-  ScoreAnalyticsHeader,
-  ScoreAnalyticsDashboard,
-} from "@/src/features/score-analytics";
+} from "@/src/features/score-analytics/components/ScoreAnalyticsProvider";
+
+import { ScoreAnalyticsHeader } from "@/src/features/score-analytics/components/ScoreAnalyticsHeader";
+import { ScoreAnalyticsDashboard } from "@/src/features/score-analytics/components/ScoreAnalyticsDashboard";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,

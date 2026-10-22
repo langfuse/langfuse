@@ -3,7 +3,7 @@ import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import { type views, type ViewVersion } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { api } from "@/src/utils/api";
-import { useMetadataValueOptions } from "@/src/features/events";
+import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
 import {
   getMetricsColumnsWithCustomSelect,
   getMetricsFilterColumns,

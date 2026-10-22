@@ -115,12 +115,15 @@ vi.mock("../features/topics/models", () => ({
   embedTopicSummaries: vi.fn(),
 }));
 
-vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../features/evaluation/observationEval")
-  >()),
-  fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
-}));
+vi.mock(
+  "../features/evaluation/observationEval/fetchObservationEvalRules",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../features/evaluation/observationEval/fetchObservationEvalRules")
+    >()),
+    fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
+  }),
+);
 
 describe("trace batch selection", () => {
   const minute = 60_000;

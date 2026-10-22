@@ -1,4 +1,8 @@
-import { type DateTimeFilter, FilterList } from "../queries";
+import {
+  type DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+
 import { queryClickhouse } from "./clickhouse";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";

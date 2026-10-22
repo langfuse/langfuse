@@ -25,11 +25,13 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
 vi.mock("@/src/hooks/use-mobile", () => ({
   useIsMobile: () => mocks.isMobile,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 vi.mock("./QueueScoreConfigFields", () => ({

@@ -24,7 +24,7 @@ import { LazyJsonList } from "./LazyJsonList";
 import { createRowModelStore, type LazyViewerMetric } from "./rowModelStore";
 import { TreeRowModel } from "../treeRowModel";
 import { sourceFromSerialized } from "../asyncJsonSource";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { reportError } from "@/src/utils/reportError";
 
 // Provisional main-thread budgets (LFE-14419) — the telemetry exists to LEARN

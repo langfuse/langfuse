@@ -10,14 +10,12 @@ import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "@langfuse/icons";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
-import {
-  type ScoreColumn,
-  ScoreRow,
-  useMergedAggregates,
-  useMergeScoreColumns,
-} from "@/src/features/scores";
+import type { ScoreColumn } from "@/src/features/scores/types";
+import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
+import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
+import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
@@ -26,7 +24,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const DatasetAggregateCellContent = ({
   projectId,

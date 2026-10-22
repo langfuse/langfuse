@@ -25,7 +25,7 @@ import {
   logger,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,

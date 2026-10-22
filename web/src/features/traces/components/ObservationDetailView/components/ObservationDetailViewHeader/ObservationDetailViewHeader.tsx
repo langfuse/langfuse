@@ -23,7 +23,7 @@ import {
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
-import { AnnotateDrawerController } from "@/src/features/scores";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
@@ -50,7 +50,7 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import {

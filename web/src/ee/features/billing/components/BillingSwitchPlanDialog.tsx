@@ -14,7 +14,7 @@ import {
   DialogTrigger,
   DialogBody,
 } from "@/src/components/ui/dialog";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // planLabels used inside StripeSwitchPlanButton
@@ -23,7 +23,7 @@ import {
   isUpgrade,
 } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
 import { StripeCancellationButton } from "./StripeCancellationButton";

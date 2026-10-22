@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -24,11 +24,9 @@ import {
   escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import {
-  createWithinEntitlementLimit,
-  hasEntitlement,
-} from "@/src/features/entitlements/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -41,10 +39,8 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import {
-  userFeaturePreviewFlags,
-  setUserFeaturePreviewWithAuthorization,
-} from "@/src/features/feature-flags/server";
+import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {

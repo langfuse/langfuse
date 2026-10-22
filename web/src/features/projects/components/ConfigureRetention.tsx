@@ -13,14 +13,14 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "@langfuse/icons";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { projectRetentionSchema } from "@/src/features/auth";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();

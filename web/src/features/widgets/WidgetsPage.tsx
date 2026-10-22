@@ -1,10 +1,13 @@
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Page from "@/src/components/layouts/page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "@langfuse/icons";
-import { ConnectedDashboardWidgetTable } from "@/src/features/widgets";
-import { getDashboardTabs, DASHBOARD_TABS } from "@/src/features/navigation";
+import { ConnectedDashboardWidgetTable } from "@/src/features/widgets/components/WidgetTable/ConnectedWidgetTable";
+import {
+  getDashboardTabs,
+  DASHBOARD_TABS,
+} from "@/src/features/navigation/utils/dashboard-tabs";
 
 export default function WidgetsPage() {
   const router = useRouter();

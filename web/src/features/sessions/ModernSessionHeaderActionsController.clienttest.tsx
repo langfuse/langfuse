@@ -18,9 +18,12 @@ const {
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
-vi.mock("@/src/features/feature-flags", () => ({
-  useInternalFeaturesEnabled: mockInternalFeaturesEnabled,
-}));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: mockInternalFeaturesEnabled,
+  }),
+);
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/", push: vi.fn() }),

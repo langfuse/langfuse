@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../../repositories", () => ({
+vi.mock("../../repositories/clickhouse", () => ({
   clickhouseCompliantRandomCharacters: () => "test",
 }));
 

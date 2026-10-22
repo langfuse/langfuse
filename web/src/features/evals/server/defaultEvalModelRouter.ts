@@ -1,5 +1,13 @@
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  isPrismaRecordNotFoundError,
+  blockEvaluatorsUsingDefaultModel,
+  DefaultEvalModelService,
+  EvaluatorBlockSource,
+  finalizeEvaluatorBlocks,
+  invalidateProjectEvalConfigCaches,
+  unblockEvaluatorsUsingDefaultModel,
+} from "@langfuse/shared/src/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -11,14 +19,6 @@ import {
   LangfuseNotFoundError,
   ZodModelConfig,
 } from "@langfuse/shared";
-import {
-  blockEvaluatorsUsingDefaultModel,
-  DefaultEvalModelService,
-  EvaluatorBlockSource,
-  finalizeEvaluatorBlocks,
-  invalidateProjectEvalConfigCaches,
-  unblockEvaluatorsUsingDefaultModel,
-} from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure

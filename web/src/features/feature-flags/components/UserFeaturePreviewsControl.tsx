@@ -1,4 +1,5 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useId, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
@@ -12,7 +13,7 @@ import {
   userFeaturePreviewFlags,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 

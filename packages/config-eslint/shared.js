@@ -49,6 +49,18 @@ export default [
   },
 
   {
+    name: "langfuse/shared/no-internal-barrel-files",
+    files: ["**/index.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+    ignores: [
+      "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+      "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+    ],
+    rules: {
+      "@repo/no-internal-barrel-files": "error",
+    },
+  },
+
+  {
     name: "langfuse/shared/typescript-rules",
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
     plugins: {

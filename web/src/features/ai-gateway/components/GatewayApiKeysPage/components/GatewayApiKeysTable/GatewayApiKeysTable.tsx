@@ -9,7 +9,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 
 type GatewayApiKey = {
   metadata: unknown;

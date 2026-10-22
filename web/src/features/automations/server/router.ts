@@ -13,7 +13,7 @@ import {
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
@@ -30,7 +30,7 @@ import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),

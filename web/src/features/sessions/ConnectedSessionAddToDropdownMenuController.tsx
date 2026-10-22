@@ -2,7 +2,7 @@ import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type ComponentProps, type ReactNode } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues";
+import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
 import { type AnalyticsData } from "@/src/features/scores/types";
 
 type TriggerControls = Parameters<

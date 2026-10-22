@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useState } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -29,7 +30,7 @@ import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";

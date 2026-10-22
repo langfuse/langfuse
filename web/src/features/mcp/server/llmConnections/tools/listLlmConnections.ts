@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { LLMApiKeySchema, LLMConnectionConfigSchema } from "@langfuse/shared";
 
-import { LlmConnectionService } from "@/src/features/llm-api-key/server";
-import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key";
+import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key/types";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 

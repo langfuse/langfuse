@@ -4,7 +4,7 @@ import { z } from "zod";
 import { isoDateTime } from "@langfuse/shared";
 import { mockServerContext } from "../mcp-helpers";
 
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 import type { ServerContext } from "../../../features/mcp/types";
 

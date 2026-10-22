@@ -11,7 +11,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 import { VirtualizedList } from "./VirtualizedList";

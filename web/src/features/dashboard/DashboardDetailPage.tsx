@@ -1,12 +1,17 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
+
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
@@ -25,25 +30,30 @@ import {
   MoreVertical,
   PencilIcon,
 } from "@langfuse/icons";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type DashboardPlacement,
+  DashboardGrid,
+} from "@/src/features/widgets/components/DashboardGrid";
+import {
   parsePastedWidget,
   toWidgetCreateFields,
   type PastedWidgetParseResult,
   type WidgetExportSource,
-  pushDownForInsertion,
-  useClipboardWidgetProbe,
-} from "@/src/features/widgets";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+} from "@/src/features/widgets/utils/import-export-utils";
+
+import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
@@ -59,7 +69,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 
 import {

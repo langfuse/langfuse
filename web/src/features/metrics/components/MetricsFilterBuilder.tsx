@@ -17,12 +17,10 @@ import {
   displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard";
-import {
-  InlineFilterBuilder,
-  normalizeSingleValueOptions,
-  sortOptionValues,
-} from "@/src/features/filters";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { type GetMetricsFilterColumnsParams } from "@/src/features/metrics/metricsFilterColumns";
 
 const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({

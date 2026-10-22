@@ -5,7 +5,7 @@ import {
   ScoreSchema,
   ScoreDataTypeType,
   ScoresByDataTypes,
-} from "../../../../domain";
+} from "../../../../domain/scores";
 
 type ValidatedScore<
   IncludeHasMetadata extends boolean,

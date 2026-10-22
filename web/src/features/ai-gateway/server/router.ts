@@ -4,7 +4,7 @@ import type { Session } from "next-auth";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-} from "@/src/features/rbac";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -29,11 +29,9 @@ import {
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 import { GatewayConfigService } from "./config/gatewayConfigService";
-import {
-  GatewayMetadataSchema,
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "./provider";
+import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */

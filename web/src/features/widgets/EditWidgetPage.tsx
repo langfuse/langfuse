@@ -3,11 +3,12 @@ import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath } from "@/src/features/events";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {

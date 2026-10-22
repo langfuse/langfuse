@@ -1,1 +1,1 @@
-export { evaluationRuleApiHandler as default } from "@/src/features/public-api/server";
+export { evaluationRuleApiHandler as default } from "@/src/features/public-api/server/evaluation/evaluationRuleApiHandler";

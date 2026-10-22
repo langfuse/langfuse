@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { Observation } from "../../domain";
+import type { Observation } from "../../domain/observations";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
 } from "../../utils/normalized-io";
-import { normalizeIO } from "../normalized-io";
+import { normalizeIO } from "../normalized-io/parser";
 import { orderObservations } from "./ordering";
 import { assembleTranscript } from "./transcript";
 import type { Transcript } from "./types";

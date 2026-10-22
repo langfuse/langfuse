@@ -4,24 +4,22 @@ import {
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import {
-  SessionIO,
-  LazyTraceEventsRow,
-  asCommentCounts,
-} from "@/src/features/sessions";
+import { SessionIO } from "@/src/features/sessions/SessionPages";
+import { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
+import { asCommentCounts } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/features/traces";
+import { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 

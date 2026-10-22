@@ -5,15 +5,13 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import {
-  throwIfNoOrganizationAccess,
-  throwIfNoProjectAccess,
-} from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { ApiAuthService } from "@/src/features/public-api/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   QueueJobs,
   redis,
@@ -27,8 +25,8 @@ import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/se
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { buildAdminOrgContext } from "@/src/features/organizations/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure

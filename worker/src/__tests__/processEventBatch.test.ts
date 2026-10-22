@@ -1,7 +1,7 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
-import { ServiceUnavailableError } from "../../../packages/shared/src/errors";
+import { ServiceUnavailableError } from "../../../packages/shared/src/errors/ServiceUnavailableError";
 import { logger } from "../../../packages/shared/src/server/logger";
 import {
   createUnknownSdkIngestionAttribution,

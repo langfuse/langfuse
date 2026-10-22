@@ -40,7 +40,7 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
-import { hasInternalAccess } from "@/src/features/feature-flags/server";
+import { hasInternalAccess } from "@/src/features/feature-flags/utils";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,

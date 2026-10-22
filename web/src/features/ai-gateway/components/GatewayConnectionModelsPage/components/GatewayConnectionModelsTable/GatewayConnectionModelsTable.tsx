@@ -7,7 +7,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import type { CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { TableSelectionManager } from "@/src/features/table";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnectionModelsSelectionBar";
