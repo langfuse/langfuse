@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useMemo, useCallback, useState } from "react";
 
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";

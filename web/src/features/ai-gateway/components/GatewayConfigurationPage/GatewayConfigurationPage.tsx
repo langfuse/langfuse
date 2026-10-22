@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * One-off backfill of pre-existing orgs, users, and memberships into SFDC via
  * the live Mulesoft sync service — processed one organization at a time.
