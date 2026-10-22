@@ -9,6 +9,7 @@ import {
   type QueryType,
 } from "../types";
 import { QueryBuilder } from "./queryBuilder";
+import { shouldSkipScoresDedup } from "../../../server/queries/clickhouse-sql/query-options";
 
 // QueryBuilder.build checks the OTEL FINAL optimization before filter lowering.
 // Mock it so this stays unit-level and does not need ClickHouse.
@@ -70,4 +71,29 @@ describe("scores-listable-count view (internal-only, powers ScoresOutlierStrip's
     expect(dataTypeParam).toEqual([...LISTABLE_SCORE_TYPES]);
     expect(dataTypeParam).not.toContain("CORRECTION");
   });
+});
+
+describe("scores views for projects that skip scores dedup", () => {
+  it.each([
+    ["v1", "scores-numeric", "scores_numeric"],
+    ["v1", "scores-categorical", "scores_categorical"],
+    ["v1", "scores-boolean", "scores_boolean"],
+    ["v1", SCORES_LISTABLE_COUNT_VIEW, "scores_listable_count"],
+    ["v2", "scores-numeric", "scores_numeric"],
+    ["v2", "scores-categorical", "scores_categorical"],
+    ["v2", "scores-boolean", "scores_boolean"],
+  ] as const)(
+    "%s %s reads the scores table without FINAL",
+    async (version, view, alias) => {
+      vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(true);
+
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        version,
+      ).build({ ...baseQuery, view }, "test-project");
+
+      expect(compiledQuery).toContain(`FROM scores ${alias}`);
+      expect(compiledQuery).not.toMatch(/\bFINAL\b/);
+    },
+  );
 });
