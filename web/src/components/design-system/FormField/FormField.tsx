@@ -44,16 +44,9 @@ type StandaloneFormFieldProps = {
     inputDescribedById: string | undefined;
   }) => ReactElement;
   description?: string;
-  /** For fields validated outside react-hook-form. */
-  errorMessage?: string;
   label: string;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
 };
-
-function joinDescribedByIds(ids: Array<string | undefined>) {
-  const joined = ids.filter((id) => id !== undefined).join(" ");
-  return joined.length > 0 ? joined : undefined;
-}
 
 function FormFieldLayout({
   label,
@@ -136,10 +129,12 @@ export function FormField<
         name={name}
         render={({ field, fieldState }) => {
           const errorMessage = fieldState.error?.message;
-          const inputDescribedById = joinDescribedByIds([
+          const inputDescribedById = [
             errorMessage ? errorId : undefined,
             description ? descriptionId : undefined,
-          ]);
+          ]
+            .filter((value) => value !== undefined)
+            .join(" ");
           return (
             <FormFieldLayout
               label={label}
@@ -154,7 +149,7 @@ export function FormField<
                 ...field,
                 error: fieldState.error,
                 id: controlId,
-                inputDescribedById,
+                inputDescribedById: inputDescribedById || undefined,
               })}
             </FormFieldLayout>
           );
@@ -163,24 +158,18 @@ export function FormField<
     );
   }
 
-  const { errorMessage } = props;
-  const inputDescribedById = joinDescribedByIds([
-    errorMessage ? errorId : undefined,
-    description ? descriptionId : undefined,
-  ]);
   return (
     <FormFieldLayout
       label={label}
       controlId={controlId}
       description={description}
       descriptionId={descriptionId}
-      errorMessage={errorMessage}
       errorId={errorId}
       registerLabelTooltip={registerLabelTooltip}
     >
       {props.children({
         id: controlId,
-        inputDescribedById,
+        inputDescribedById: description ? descriptionId : undefined,
       })}
     </FormFieldLayout>
   );
