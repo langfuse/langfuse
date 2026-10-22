@@ -10,7 +10,8 @@ const markerVariants = cva(
     variants: {
       variant: {
         filled: "bg-primary text-primary-foreground",
-        outline: "bg-background text-foreground border font-bold",
+        outline:
+          "bg-background text-foreground border-border-contrast border font-bold",
       },
       size: {
         default: "size-7 text-sm",
