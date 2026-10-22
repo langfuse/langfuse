@@ -358,7 +358,11 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && skills && skills.items.length > 0 ? (
-        <SectionSkills projectId={projectId} skills={skills} />
+        <SectionSkills
+          projectId={projectId}
+          skills={skills}
+          toolCallsByName={toolCallsByName}
+        />
       ) : null}
 
       {shouldRenderMessages ? (
