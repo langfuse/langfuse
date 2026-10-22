@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useRef } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type z } from "zod";

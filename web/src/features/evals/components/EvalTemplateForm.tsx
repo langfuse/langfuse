@@ -74,7 +74,7 @@ import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeE
 import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
-} from "@/src/features/evals/components/eval-template-type-selector";
+} from "@/src/features/evals/components/EvalTemplateTypeSelector";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
