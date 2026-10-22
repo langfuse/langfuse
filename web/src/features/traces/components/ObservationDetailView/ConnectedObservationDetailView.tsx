@@ -34,7 +34,10 @@ import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
 import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
+import {
+  getCorrectionsForObservation,
+  getMostRecentCorrection,
+} from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
@@ -266,8 +269,13 @@ export function ConnectedObservationDetailView({
     [scores, observation.id],
   );
   const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+    () =>
+      getCorrectionsForObservation(
+        corrections,
+        observation.id,
+        ownsTraceLevelScores,
+      ),
+    [corrections, observation.id, ownsTraceLevelScores],
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);

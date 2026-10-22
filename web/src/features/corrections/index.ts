@@ -6,3 +6,4 @@ export {
   useCorrectionCacheOptional,
 } from "@/src/features/corrections/contexts/CorrectionCacheProvider";
 export { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+export { getCorrectionsForObservation } from "@/src/features/corrections/utils/getCorrectionsForObservation";
