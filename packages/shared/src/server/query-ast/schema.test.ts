@@ -13,6 +13,7 @@ describe("table registry derivation", () => {
       "events",
       "events_core",
       "events_full",
+      "events_truncated",
       "observations",
       "scores",
       "traces",

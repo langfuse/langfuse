@@ -40,7 +40,7 @@ describe("typed params from the column registry", () => {
   it("binds a number compared to total_cost as Decimal(18, 12)", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where("total_cost", ">", 1),
     );
@@ -50,7 +50,7 @@ describe("typed params from the column registry", () => {
   it("wraps an IN list against an Array column as Array(Array(...))", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where("metadata_names", "in", [["a"], ["b"]]),
     );
@@ -63,7 +63,7 @@ describe("typed params from the column registry", () => {
   it("inlines an IN list of literals", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where("name", "in", [literal("a"), literal("it's")]),
     );
@@ -74,7 +74,7 @@ describe("typed params from the column registry", () => {
   it("binds an IN list of value expressions as one array", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where((eb) => eb("name", "in", [eb.val("a"), eb.val("b")])),
     );
@@ -85,7 +85,7 @@ describe("typed params from the column registry", () => {
     expect(() =>
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("span_id")
           .where((eb) => eb("name", "in", [literal("a"), eb.val("b")])),
       ),
@@ -95,7 +95,7 @@ describe("typed params from the column registry", () => {
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
     const { sql: minuteSql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where((eb) =>
           eb(
@@ -131,7 +131,7 @@ describe("typed params from the column registry", () => {
   it("binds a Date as the UTC wall-clock string ingestion writes", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where("start_time", ">=", new Date(-1000))
         .where("start_time", "<=", START),
@@ -148,7 +148,7 @@ describe("typed params from the column registry", () => {
   it("binds a shared column name with the type of the table it is read from", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .where("e.start_time", ">=", START)
         .where("e.trace_id", "in", (qb) =>
@@ -178,7 +178,7 @@ describe("typed params from the column registry", () => {
   it("resolves a qualifier declared in an enclosing select", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .where((eb) =>
           eb.exists(
@@ -199,7 +199,7 @@ describe("typed params from the column registry", () => {
       () =>
         getClickhouseKysely()
           .with("recent", (db) =>
-            db.selectFrom("events_core as e").select("e.start_time as ts"),
+            db.selectFrom("events as e").select("e.start_time as ts"),
           )
           .selectFrom("recent as r")
           .select("r.ts")
@@ -209,9 +209,7 @@ describe("typed params from the column registry", () => {
       "a CTE reading an earlier CTE",
       () =>
         getClickhouseKysely()
-          .with("first", (db) =>
-            db.selectFrom("events_core").select("start_time"),
-          )
+          .with("first", (db) => db.selectFrom("events").select("start_time"))
           .with("second", (db) => db.selectFrom("first").selectAll())
           .selectFrom("second")
           .select("start_time")
@@ -222,7 +220,7 @@ describe("typed params from the column registry", () => {
       () =>
         getClickhouseKysely()
           .selectFrom((db) =>
-            db.selectFrom("events_core").select("start_time").as("sub"),
+            db.selectFrom("events").select("start_time").as("sub"),
           )
           .select("sub.start_time")
           .where("sub.start_time", ">=", START),
@@ -233,7 +231,7 @@ describe("typed params from the column registry", () => {
         getClickhouseKysely()
           .with("bounds", (db) =>
             db
-              .selectFrom("events_core")
+              .selectFrom("events")
               .select((eb) => eb.fn.max("start_time").as("start_time")),
           )
           .selectFrom("bounds")
@@ -246,7 +244,7 @@ describe("typed params from the column registry", () => {
         getClickhouseKysely()
           .with("bounds", (db) =>
             db
-              .selectFrom("events_core")
+              .selectFrom("events")
               .select((eb) =>
                 eb.fn<Date>("max", ["start_time"]).as("start_time"),
               ),
@@ -261,7 +259,7 @@ describe("typed params from the column registry", () => {
         getClickhouseKysely()
           .with("latest", (db) =>
             db
-              .selectFrom("events_core")
+              .selectFrom("events")
               .select((eb) =>
                 eb
                   .fn<Date>("argMax", ["start_time", "event_ts"])
@@ -278,7 +276,7 @@ describe("typed params from the column registry", () => {
         getClickhouseKysely()
           .with("latest", (db) =>
             db
-              .selectFrom("events_core")
+              .selectFrom("events")
               .select((eb) => eb.fn<Date>("anyLast", ["start_time"]).as("ts")),
           )
           .selectFrom("latest")
@@ -290,7 +288,7 @@ describe("typed params from the column registry", () => {
       () =>
         getClickhouseKysely()
           .with("rows", (db) =>
-            db.selectFrom("events_core as e").selectAll("e"),
+            db.selectFrom("events_truncated as e").selectAll("e"),
           )
           .selectFrom("rows")
           .select("start_time")
@@ -307,7 +305,7 @@ describe("typed params from the column registry", () => {
   describe("CTE name resolution", () => {
     const db = getClickhouseKysely();
     const withX = db.with("x", (qb) =>
-      qb.selectFrom("events_core").select("start_time"),
+      qb.selectFrom("events").select("start_time"),
     );
 
     it("types a subquery's read of an enclosing CTE from its body", () => {
@@ -333,11 +331,11 @@ describe("typed params from the column registry", () => {
           db
             .with("y", (qb) =>
               qb
-                .selectFrom("events_core")
+                .selectFrom("events")
                 .select("span_id")
                 .where(db.dynamic.ref("o.start_time"), ">=", START),
             )
-            .selectFrom("events_core as o")
+            .selectFrom("events as o")
             .select("o.span_id"),
         ),
       ).toThrow(/no relation in scope is named "o"/);
@@ -347,7 +345,7 @@ describe("typed params from the column registry", () => {
   it("propagates the source column type through a JOIN to an aliased subquery", () => {
     const db = getClickhouseKysely();
     const sub = db
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select(["trace_id", "start_time"])
       .as("sub");
     const { sql } = compile(
@@ -364,7 +362,7 @@ describe("typed params from the column registry", () => {
   it("binds a select alias with the type of the column it names", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .innerJoin("observations as o", "o.trace_id", "e.trace_id")
         .select((eb) => eb.fn.max("e.start_time").as("start_time"))
         .groupBy("e.trace_id")
@@ -389,7 +387,7 @@ describe("typed params from the column registry", () => {
   it("types a comparison inside an aggregate aliased to the column's name", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select((eb) => countIf(eb("total_cost", ">", 1)).as("total_cost"))
         .groupBy("trace_id"),
     );
@@ -414,7 +412,7 @@ describe("typed params from the column registry", () => {
   it("binds an ARRAY JOIN alias by value, not as the column it shadows", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .$call(arrayJoin((eb) => ({ start_time: eb.ref("e.metadata_names") })))
         .where(sql_.ref("start_time"), "=", "x"),
@@ -426,7 +424,7 @@ describe("typed params from the column registry", () => {
   it("binds a tuple element of an ARRAY JOIN alias by value", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .$call(arrayJoin((eb) => ({ kv: eb.ref("e.metadata_names") })))
         .where(sql_.ref("kv.1"), "=", "a"),
@@ -438,7 +436,7 @@ describe("typed params from the column registry", () => {
   it("binds a raw expression around a sql.ref column by value", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events_truncated as e")
         .select("e.span_id")
         .where(sql_<number>`length(${sql_.ref("e.input")})`, ">", 5),
     );
@@ -500,7 +498,7 @@ describe("typed params from the column registry", () => {
         db
           .with("t", (qb) =>
             qb
-              .selectFrom("events_core")
+              .selectFrom("events_truncated")
               .select(sql_`is_deleted`.as("is_deleted")),
           )
           .selectFrom("t")
@@ -514,7 +512,7 @@ describe("typed params from the column registry", () => {
     it("binds by value a column the CTE does not output", () => {
       const { sql } = compile(
         db
-          .with("t", (qb) => qb.selectFrom("events_core").select("span_id"))
+          .with("t", (qb) => qb.selectFrom("events").select("span_id"))
           .selectFrom("t")
           .select("span_id")
           .where(db.dynamic.ref("is_deleted"), "=", 0),
@@ -526,7 +524,7 @@ describe("typed params from the column registry", () => {
     it("compiles an unresolvable column compared to an inlined constant", () => {
       const { sql } = compile(
         db
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("span_id")
           .where((eb) => eb(db.dynamic.ref("x.is_deleted"), "=", eb.lit(0))),
       );
@@ -539,7 +537,7 @@ describe("typed params from the column registry", () => {
         "a qualifier declared nowhere",
         () =>
           db
-            .selectFrom("events_core")
+            .selectFrom("events")
             .select("span_id")
             .where(db.dynamic.ref("x.is_deleted"), "=", 0),
         /no relation in scope is named "x"/,
@@ -549,7 +547,7 @@ describe("typed params from the column registry", () => {
         "an unqualified column the joined relations type differently",
         () =>
           db
-            .selectFrom("events_core as e")
+            .selectFrom("events as e")
             .innerJoin("observations as o", "o.trace_id", "e.trace_id")
             .select("e.span_id")
             .where("start_time", ">=", START),
@@ -577,7 +575,7 @@ describe("typed params from the column registry", () => {
         "a sql.ref column whose qualifier is declared nowhere",
         () =>
           db
-            .selectFrom("events_core")
+            .selectFrom("events")
             .select("span_id")
             .where(sql_.ref("x.is_deleted"), "=", 0),
         /no relation in scope is named "x"/,
@@ -587,7 +585,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events as e").selectAll("x" as never),
             )
             .selectFrom("t as t")
             .select(db.dynamic.ref("t.span_id"))
@@ -601,7 +599,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events as e").selectAll("x" as never),
             )
             .selectFrom("scores as s")
             .innerJoin("t", (join) => join.onTrue())
@@ -614,7 +612,7 @@ describe("typed params from the column registry", () => {
         "a TupleParam whose tuple has a column declared nowhere",
         () =>
           db
-            .selectFrom("events_core as e")
+            .selectFrom("events as e")
             .select("e.span_id")
             .where((eb) =>
               tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), [
@@ -628,7 +626,7 @@ describe("typed params from the column registry", () => {
         "a tuple of values against a tuple with a column declared nowhere",
         () =>
           db
-            .selectFrom("events_core as e")
+            .selectFrom("events as e")
             .select("e.span_id")
             .where((eb) =>
               eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
@@ -642,7 +640,7 @@ describe("typed params from the column registry", () => {
         "an empty TupleParam list whose tuple has a column declared nowhere",
         () =>
           db
-            .selectFrom("events_core as e")
+            .selectFrom("events as e")
             .select("e.span_id")
             .where((eb) =>
               tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), []),
@@ -654,7 +652,7 @@ describe("typed params from the column registry", () => {
         "an IN list against a qualifier declared nowhere",
         () =>
           db
-            .selectFrom("events_core")
+            .selectFrom("events")
             .select("span_id")
             .where(db.dynamic.ref("x.trace_id"), "in", ["a", "b"]),
         /no relation in scope is named "x"/,
@@ -670,7 +668,7 @@ describe("typed params from the column registry", () => {
       getClickhouseKysely()
         .with("totals", (db) =>
           db
-            .selectFrom("events_core")
+            .selectFrom("events")
             .select((eb) => eb.fn.count("prompt_version").as("prompt_version")),
         )
         .selectFrom("totals")
@@ -683,7 +681,7 @@ describe("typed params from the column registry", () => {
   it("does not type extra date-wrapper arguments as the column", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .where((eb) =>
           eb(
@@ -699,7 +697,7 @@ describe("typed params from the column registry", () => {
   it("does not type a subquery LIMIT from an outer column comparison", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("trace_id")
         .where(
           "trace_id",
@@ -714,7 +712,7 @@ describe("typed params from the column registry", () => {
   it("binds a TupleParam list as Array(Tuple(...)) for a tuple IN", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .where((eb) =>
           tupleIn(eb.refTuple("e.trace_id", "e.span_id"), [
@@ -777,7 +775,7 @@ describe("typed params from the column registry", () => {
     const { sql } = compile(
       db
         .with("t", (qb) =>
-          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
+          qb.selectFrom("events_truncated as e").selectAll("e"),
         )
         .selectFrom("t as t")
         .select(db.dynamic.ref("t.span_id"))
@@ -793,7 +791,7 @@ describe("typed params from the column registry", () => {
       db
         .with("t", (qb) =>
           qb
-            .selectFrom("events_core as e")
+            .selectFrom("events_truncated as e")
             .innerJoin("observations as o", "o.trace_id", "e.trace_id")
             .selectAll(),
         )
@@ -817,7 +815,7 @@ describe("typed params from the column registry", () => {
   it("binds distinct bare TupleParams as separate Tuple(...) placeholders", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select((eb) => [
           eb.val(new TupleParam(["a", 1])).as("first"),
           eb.val(new TupleParam(["b", 2])).as("second"),

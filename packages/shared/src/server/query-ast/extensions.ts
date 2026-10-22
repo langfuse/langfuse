@@ -422,6 +422,22 @@ export function anyValue<T>(value: Expression<T>): ChExpression<T> {
   return aggregate("any", [value]);
 }
 
+/** ClickHouse `anyIf(value, condition)`: some value among the matching rows. */
+export function anyIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("anyIf", [value, condition]);
+}
+
+/** ClickHouse `argMax(value, by)`: `value` of the row with the largest `by`. */
+export function argMax<T>(
+  value: Expression<T>,
+  by: Expression<unknown>,
+): ChExpression<T> {
+  return aggregate("argMax", [value, by]);
+}
+
 /** ClickHouse `countIf(condition)`. */
 export function countIf(condition: Expression<SqlBool>): ChExpression<number> {
   return aggregate("countIf", [condition]);
@@ -459,6 +475,13 @@ export function groupUniqArrayIf<T>(
   condition: Expression<SqlBool>,
 ): ChExpression<T[]> {
   return aggregate("groupUniqArrayIf", [value, condition]);
+}
+
+/** ClickHouse `groupUniqArrayArray(array)`: the distinct elements of all arrays. */
+export function groupUniqArrayArray<T>(
+  array: Expression<T[]>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayArray", [array]);
 }
 
 /** ClickHouse `groupUniqArrayArrayIf(array, condition)`. */
@@ -530,13 +553,20 @@ export function toStartOfMinute(
   return functionCall("toStartOfMinute", [dateArg(value)]);
 }
 
+/** ClickHouse `tuple(a, b, …)`. */
+export function tuple<T extends unknown[]>(
+  ...values: { [K in keyof T]: Expression<T[K]> }
+): ChExpression<T> {
+  return functionCall("tuple", values);
+}
+
 /** ClickHouse `arrayReverse(array)`. */
 function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayReverse", [array]);
 }
 
 /** ClickHouse `mapFromArrays(keys, values)`. */
-function mapFromArrays<V>(
+export function mapFromArrays<V>(
   keys: Expression<string[]>,
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {
@@ -815,7 +845,7 @@ class FinalPlugin implements KyselyPlugin {
 /**
  * `FROM <table> FINAL` / `JOIN <table> AS alias FINAL` as a `$call` step:
  * `qb.$call(useFinal(["scores"]))`. Tables declared `dedup: none` (immutable
- * at read time, including `events_core`) cannot take FINAL.
+ * at read time, including the events relations) cannot take FINAL.
  */
 export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   for (const table of tables) {

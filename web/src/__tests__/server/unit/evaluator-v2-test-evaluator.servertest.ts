@@ -227,6 +227,7 @@ describe("testEvaluator", () => {
       metadata: { customerTier: "pro" },
       tool_calls: [],
       tool_call_names: [],
+      experiment_id: "experiment-1",
       experiment_item_expected_output: "It arrives tomorrow.",
       experiment_item_metadata: { source: "test" },
     } as never);
@@ -271,6 +272,7 @@ describe("testEvaluator", () => {
           },
           { var: "experimentItemMetadata", value: { source: "test" } },
         ],
+        hasExperimentContext: true,
         evaluationContext: {
           evaluatorId: "evaluator-1",
           evaluatorExecutionIsTest: true,

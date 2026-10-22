@@ -2660,8 +2660,9 @@ const buildAnalyticsScoreTraceAttributesCte = (
 //
 // Hand-written rather than eventsTracesAggregation: aggregating only
 // semantic-root rows keeps the GROUP BY state ~one row per trace (the
-// full-span aggregation OOMed the largest tenants). Trace-name selection is
-// shared with eventsTracesAggregation; the remaining field expressions keep
+// full-span aggregation OOMed the largest tenants). The trace name is
+// the latest non-empty trace_name, else the latest root-observation name; the
+// remaining field expressions keep
 // the parity fixes byte-verified against prod dual-write data in the
 // LFE-14383 benchmark (tracked in LFE-11009).
 const buildAnalyticsScoreTraceAttributesFromEventsCte = (

@@ -650,6 +650,12 @@ export const env = createEnv({
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
       .datetime()
       .default("2026-09-16T00:00:00.000Z"),
+    // Organizations created at or after this instant take the v4 events_only
+    // path on legacy ingestion. Unset leaves that API unchanged. Read on the
+    // web request path; the worker never re-checks event types.
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
+      .datetime()
+      .optional(),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1268,6 +1274,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF:
+      process.env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

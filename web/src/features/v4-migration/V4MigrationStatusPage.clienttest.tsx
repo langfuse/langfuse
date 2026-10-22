@@ -59,7 +59,7 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
