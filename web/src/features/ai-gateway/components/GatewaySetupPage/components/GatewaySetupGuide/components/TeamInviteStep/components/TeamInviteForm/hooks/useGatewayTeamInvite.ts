@@ -1,5 +1,3 @@
-import { describeTeamInviteResult } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/describeTeamInviteResult";
-import { showSuccessToast } from "@/src/features/notifications";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function useGatewayTeamInvite(organizationId: string) {
@@ -21,13 +19,6 @@ export function useGatewayTeamInvite(organizationId: string) {
       await utils.aiGateway.getTeamInviteSummary.invalidate({
         orgId: organizationId,
       });
-      if (result.invitedCount > 0 || result.notifiedCount > 0) {
-        showSuccessToast({
-          operation: "aiGateway.inviteTeam",
-          title: "Team invited",
-          description: describeTeamInviteResult(result),
-        });
-      }
       return result;
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-team-invite");
