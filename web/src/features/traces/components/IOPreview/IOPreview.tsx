@@ -226,13 +226,11 @@ export function IOPreview({
           }}
         />
       )}
-      {selectedView === "json-beta" && props.enableInlineComments ? (
-        <InlineCommentSelectionProvider>
-          {content}
-        </InlineCommentSelectionProvider>
-      ) : (
-        content
-      )}
+      <InlineCommentSelectionProvider
+        key={`${selectedView}:${!!props.enableInlineComments}`}
+      >
+        {content}
+      </InlineCommentSelectionProvider>
       {showEmptyState && (
         <div className="py-2">
           <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
