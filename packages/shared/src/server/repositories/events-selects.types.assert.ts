@@ -7,6 +7,7 @@ import {
   eventsMetricsSecondsSelects,
   eventsTraceName,
   scopedToEvents,
+  TRACE_AGGREGATION_FIELDS,
   traceAggregationSelects,
 } from "./events-selects";
 
@@ -19,27 +20,28 @@ import {
  */
 export function eventsSelectsScopeTypeAssertions(): void {
   const db = getClickhouseKysely();
+  const allTraceAggregates = traceAggregationSelects(TRACE_AGGREGATION_FIELDS);
 
-  db.selectFrom("events_core as e").select(traceAggregationSelects);
-  db.selectFrom("events_full as e").select(traceAggregationSelects);
-  db.selectFrom("events as e").select(traceAggregationSelects);
+  db.selectFrom("events_core as e").select(allTraceAggregates);
+  db.selectFrom("events_full as e").select(allTraceAggregates);
+  db.selectFrom("events as e").select(allTraceAggregates);
 
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
     // @ts-expect-error a join
-    .select(traceAggregationSelects);
+    .select(allTraceAggregates);
   db.with("e", (qb) => qb.selectFrom("events_core").selectAll())
     .selectFrom("traces as t")
     // @ts-expect-error a CTE named `e` is not read in FROM
-    .select(traceAggregationSelects);
+    .select(allTraceAggregates);
 
   db.selectFrom("traces as t")
     // @ts-expect-error no `e` in scope
-    .select(traceAggregationSelects);
+    .select(allTraceAggregates);
 
   db.selectFrom("events_core")
     // @ts-expect-error the events table is not aliased `e`
-    .select(traceAggregationSelects);
+    .select(allTraceAggregates);
 
   db.selectFrom("traces as t")
     .selectAll()

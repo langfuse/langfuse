@@ -48,6 +48,7 @@ export default withMiddlewares(
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
+      isLegacyTraceWrite: true,
       deprecation: LEGACY_WRITES_DEPRECATION,
       fn: async ({ body, auth, req, res }) => {
         await telemetry();

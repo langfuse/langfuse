@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { type GetServerSidePropsContext } from "next";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -987,6 +988,9 @@ export async function getAuthOptions(
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
+                                topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<

@@ -1,7 +1,11 @@
 import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
+import {
+  compileClickhouseQuery,
+  renderClickhouseExpression,
+  renderClickhouseSelections,
+} from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
@@ -21,6 +25,7 @@ import {
   medianExact,
   metadataMap,
   metadataValue,
+  startsWith,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -57,6 +62,16 @@ describe("schema-typed selection (condition 7)", () => {
       TypeCompatibilityError,
     );
     expect(() => compileClickhouseQuery(qb, projectId)).toThrow(/environment/);
+  });
+
+  it("does not type a column named like an Object prototype key", () => {
+    // `constructor` is no registry column, so the pass has no type to reject.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("scores")
+      .select((eb) => [eb.fn.sum(db.dynamic.ref("constructor")).as("s")]);
+
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
   });
 });
 
@@ -345,6 +360,63 @@ describe("renderClickhouseExpression", () => {
   });
 });
 
+describe("renderClickhouseSelections", () => {
+  const events = getClickhouseKysely().selectFrom("events_core as e");
+
+  it("keys each select by its output name, in select order", () => {
+    const rendered = renderClickhouseSelections(
+      events.select((eb) => [
+        "e.span_id as id",
+        "e.trace_id",
+        eb.fn.min("e.start_time").as("start"),
+      ]),
+    );
+    expect(Object.entries(rendered)).toEqual([
+      ["id", "e.span_id as id"],
+      ["trace_id", "e.trace_id"],
+      ["start", "min(e.start_time) as start"],
+    ]);
+    expectTypeOf(rendered).toEqualTypeOf<
+      Record<"id" | "trace_id" | "start", string>
+    >();
+  });
+
+  it("keys an output name that is also an Object prototype key", () => {
+    expect(
+      renderClickhouseSelections(
+        events.select((eb) => eb.ref("e.trace_id").as("constructor")),
+      ),
+    ).toEqual({ constructor: "e.trace_id as constructor" });
+  });
+
+  it("rejects a select without an output name", () => {
+    expect(() => renderClickhouseSelections(events.selectAll())).toThrow(
+      QueryCompileError,
+    );
+  });
+
+  it("rejects two selects with one output name", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) => [
+          "e.trace_id",
+          eb.ref("e.span_id").as("trace_id"),
+        ]),
+      ),
+    ).toThrow(/share the output name "trace_id"/);
+  });
+
+  it("rejects a select containing a subquery", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) =>
+          eb.selectFrom("events_core as x").select("x.trace_id").as("t"),
+        ),
+      ),
+    ).toThrow(UnscopedRelationError);
+  });
+});
+
 describe("64-bit results", () => {
   const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
   const isError = eb("e.level", "=", literal("ERROR"));
@@ -377,5 +449,21 @@ describe("literal", () => {
 
   it("rejects a backslash, which ClickHouse reads as an escape", () => {
     expect(() => literal("a\\")).toThrow(QueryCompileError);
+  });
+});
+
+describe("startsWith", () => {
+  it("binds a string prefix and inlines a literal one", () => {
+    const { sql, params } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) => startsWith(eb.ref("e.name"), "caller"))
+        .where((eb) => startsWith(eb.ref("e.user_id"), literal("const"))),
+      projectId,
+    );
+    expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
+    expect(sql).toContain("startsWith(e.user_id, 'const')");
+    expect(Object.values(params)).toContain("caller");
   });
 });

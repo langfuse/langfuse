@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.64.0",
+  "version": "4.67.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -16,7 +16,7 @@
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- eslint --cache --cache-location .next/cache/eslint/ --max-warnings 0 --concurrency 2",
     "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --fix --concurrency 2",
-    "analyze": "dotenv -e ../.env -- next experimental-analyze",
+    "analyze": "dotenv -e ../.env -- next analyze",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
     "test": "vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --project in-source",
@@ -118,6 +118,7 @@
     "core-js": "^3.38.1",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.2",
+    "d3-hierarchy": "^3.1.2",
     "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",
     "d3-shape": "^3.2.0",
@@ -194,6 +195,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/chroma-js": "^3.1.2",
     "@types/cors": "^2.8.19",
+    "@types/d3-hierarchy": "^3.1.7",
     "@types/d3-scale": "^4.0.9",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.2.0",
@@ -226,7 +228,7 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.20.5",
     "typescript": "^7.0.2",
-    "vite": "^7.3.5",
+    "vite": "^7.3.7",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"

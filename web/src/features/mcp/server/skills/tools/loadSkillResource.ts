@@ -22,7 +22,7 @@ const LoadSkillResourceInputSchema = z
 export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
   name: "loadSkillResource",
   description:
-    "Read a skill file as text by path (see getSkill). Select a version or label; defaults to production. Reuse the version returned by getSkill when loading multiple files.",
+    "Read a skill file as text by path (see getSkill). Version and label are optional; defaults to production, or latest if no production label is set. Reuse the version returned by getSkill when loading multiple files.",
   action: "skills:read",
   baseSchema: LoadSkillResourceBaseSchema,
   inputSchema: LoadSkillResourceInputSchema,
@@ -35,6 +35,7 @@ export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
           projectId: context.projectId,
           name,
           selector,
+          fallbackToLatest: true,
           path,
         }),
     }),

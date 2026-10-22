@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import {

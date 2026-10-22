@@ -21,6 +21,8 @@ changing how it emits SQL.
 
 - `compile.ts` — the one supported entry point,
   `compileClickhouseQuery(query, projectId)`.
+- `ctes.ts` — the first pass: rejects CTE and FROM/JOIN names that could
+  mean two relations, so later passes read every registry name as its table.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
@@ -93,14 +95,26 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, an unqualified truncated column, and a CTE named `events_core` /
-  `events_full` are compile errors while `events` is in scope. Name
-  `events_core` to read the truncated copy on purpose; `events_core` /
-  `events_full` stay selectable by name, which is also the override for a
-  shape the pass rejects.
-- **Function and aggregate names must be plain identifiers.**
-  The compiler writes them verbatim, so anything else fails to compile.
-  `collate` is not supported.
+  it, and an unqualified truncated column are compile errors while `events`
+  is in scope. Name `events_core` to read the truncated copy on purpose;
+  `events_core` / `events_full` stay selectable by name, which is also the
+  override for a shape the pass rejects.
+- **Give each CTE (and view) its own plain name.** A CTE name is a plain
+  identifier that is not a registry table (`traces`, `events_core`, the
+  logical `events`, …) and doesn't reuse the name of a sibling or an
+  enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
+  name is an unqualified registry table or a CTE in scope; schema-qualified
+  names (`default.traces`) are rejected, since the registry describes tables
+  by name only. A CTE body sees only the CTEs declared before it, so
+  recursive and cyclic CTEs are out. The passes then read every registry
+  name as its table. Rename or reorder the CTEs when the compile rejects
+  them; add a physical table to the registry to read it.
+- **Identifiers, function and aggregate names must be plain identifiers**
+  (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
+  else fails to compile. This covers columns, tables, aliases, CTE names,
+  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  columns instead. A positive integer after a qualifier (`x.1`) is tuple
+  element access and compiles as is. `collate` is not supported.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -141,7 +155,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Inline code constants with `literal(...)`, bind everything else.**
   `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
   comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
-  rejects backslashes and must never receive user input.
+  rejects backslashes and must never receive user input. For a constant `IN`
+  list, wrap each item: `eb("data_type", "in", TYPES.map((t) => literal(t)))`
+  renders `data_type in ('A', 'B')`. A list that mixes `literal(...)` items
+  with bound values is rejected.
 - **Registry types are logical, not wire types.** `DateTime64` is `Date` and
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do
@@ -149,8 +166,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Build shared expressions from the calling query's expression builder.**
   A reusable events expression or select list is wrapped in
   `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects)` or called inside
-  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join, no
   narrower `e`. Columns inside such a helper are written `e.…`, so an alias
   of the same name in the calling query can't shadow them. A helper typed
@@ -262,6 +283,10 @@ and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
+   `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
+   before every other pass. A FROM/JOIN name that resolves to no registry
+   table or CTE in scope, and a schema-qualified name, throw
+   `UnscopedRelationError`; naming errors throw `QueryCompileError`.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
@@ -291,8 +316,9 @@ and it is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-6. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`, as
+6. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
+   inside raw SQL in any position throw `UnscopedRelationError`, as
    does any FROM/JOIN source that is neither a table reference nor a subquery
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.

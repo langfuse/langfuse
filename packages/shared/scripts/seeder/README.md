@@ -51,6 +51,7 @@ programmatic calls from the dx seed chain.
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
 | `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
+| `assistant-skills` | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused | `--tag`, `--demo` |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
 | `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
@@ -77,6 +78,47 @@ is nine configs, and the supported range is 9–500. Use a fresh project and
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
+
+### Managed assistant skills
+
+With the seeded local web app running, import the checked-in assistant catalog:
+
+```bash
+pnpm run seed -- assistant-skills
+```
+
+This writes `SKILL.md` files through `/api/public/skills` using the synthetic
+seed API key, adds the `in-app-agent` tag, and labels each imported version
+`production`. Re-running reuses unchanged versions. Names match the bundled
+skills, so `--seed` and `--id-prefix` do not create independent copies. The
+scenario verifies the production contents through the API and prints UI links.
+Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to
+select a different catalog tag.
+
+For a distinct end-to-end check, run `pnpm run seed -- assistant-skills --demo`.
+It also creates an instructions-only `local-assistant-check` skill. Open the
+seeded project, open the assistant, start a new chat and send:
+"Run the local assistant check skill." The expected response is exactly
+"Hosted skills are connected." Open Skills → local-assistant-check to inspect
+its `SKILL.md` instructions.
+
+To use these skills in the local assistant, set the following worker environment
+and restart the worker:
+
+```dotenv
+LANGFUSE_AI_FEATURES_HOST=http://localhost:3000
+LANGFUSE_AI_FEATURES_PUBLIC_KEY=pk-lf-1234567890
+LANGFUSE_AI_FEATURES_SECRET_KEY=sk-lf-1234567890
+LANGFUSE_IN_APP_AGENT_SKILLS_TAG=in-app-agent
+```
+
+The keys above are the public synthetic development fixtures. The assistant
+merges tagged production versions from this project with the bundled catalog;
+remote skills take precedence on an exact name match. Edit an imported skill
+in Skills, create a version and assign `production`, then start a new assistant
+run to use it. Leaving the tag setting unset keeps the bundled catalog.
+If managed loading fails, the worker logs a warning and uses the complete
+bundled catalog for that run.
 
 ### Experiment filter fixture
 

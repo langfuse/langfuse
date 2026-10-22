@@ -33,6 +33,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -393,36 +394,41 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi(
-          {
-            projectId: context.projectId,
-            page: 0,
-            limit: input.limit,
-            traceId: input.traceId,
-            userId: input.userId,
-            level: input.level,
-            name: input.name,
-            type: input.type,
-            environment: input.environment,
-            parentObservationId: input.parentObservationId,
-            isRootObservation: input.isRootObservation,
-            fromStartTime:
-              dataAccessWindow.effectiveFromTimestamp?.toISOString(),
-            toStartTime: input.toStartTime,
-            version: input.version,
-            advancedFilters,
-            cursor: input.cursor
-              ? EncodedObservationsCursorV2.parse(input.cursor)
-              : undefined,
-            fields: fieldGroups,
-            expandMetadataKeys: getMetadataExpansionForProjection(
-              projectionFields,
-              input.expandMetadataKeys,
-            ),
-          },
-          {
-            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
-          },
+        const query = () =>
+          getObservationsV2FromEventsTableForPublicApi(
+            {
+              projectId: context.projectId,
+              page: 0,
+              limit: input.limit,
+              traceId: input.traceId,
+              userId: input.userId,
+              level: input.level,
+              name: input.name,
+              type: input.type,
+              environment: input.environment,
+              parentObservationId: input.parentObservationId,
+              isRootObservation: input.isRootObservation,
+              fromStartTime:
+                dataAccessWindow.effectiveFromTimestamp?.toISOString(),
+              toStartTime: input.toStartTime,
+              version: input.version,
+              advancedFilters,
+              cursor: input.cursor
+                ? EncodedObservationsCursorV2.parse(input.cursor)
+                : undefined,
+              fields: fieldGroups,
+              expandMetadataKeys: getMetadataExpansionForProjection(
+                projectionFields,
+                input.expandMetadataKeys,
+              ),
+            },
+            {
+              clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
+            },
+          );
+        const items = await RateLimitService.getInstance().withMcpQueryCooldown(
+          context.projectId,
+          query,
         );
 
         const hasMore = items.length > input.limit;

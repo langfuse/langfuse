@@ -2,6 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { Agent } from "@mastra/core/agent";
+import type { InlineSkill } from "@mastra/core/skills";
 import { RequestContext } from "@mastra/core/request-context";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
@@ -54,7 +55,6 @@ import {
   withInAppAgentToolApproval,
   withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
@@ -265,6 +265,7 @@ type CreateAgUiStreamOptions = {
   };
   langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
+  skills: InlineSkill[];
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
@@ -278,6 +279,7 @@ export async function createAgUiStream(params: {
 }) {
   const encoder = new TextEncoder();
   const awsProfile = params.options.awsProfile;
+  const skills = params.options.skills;
   const runContext = formatRunContext(params.input.context);
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
@@ -336,7 +338,7 @@ export async function createAgUiStream(params: {
     }
   };
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
-    instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
+    instrumentation.recordAvailableSkills?.(skills),
   );
   const stepLimitState: StepLimitState = {
     iteration: 0,
@@ -636,6 +638,7 @@ export async function createAgUiStream(params: {
         options: params.options,
         awsProfile,
         instructions,
+        skills,
         onToolsAvailable: (tools) =>
           recordInstrumentation("recordAvailableTools", (instrumentation) =>
             instrumentation.recordAvailableTools?.(tools),
@@ -717,6 +720,7 @@ export async function createAgUiStream(params: {
               },
               awsProfile,
               instructions,
+              skills,
               onModelCallStart,
               onModelStreamPart,
               onToolExecutionStart,
@@ -1083,6 +1087,7 @@ async function createMastraAdapter(params: {
   options: CreateAgUiStreamOptions;
   awsProfile?: string;
   instructions: string;
+  skills: InlineSkill[];
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
   onModelCallStart?: (options: unknown) => void;
   onModelStreamPart?: (part: unknown) => void;
@@ -1244,7 +1249,7 @@ async function createMastraAdapter(params: {
           .filter(Boolean)
           .join("\n\n"),
       model,
-      skills: LANGFUSE_IN_APP_AGENT_SKILLS,
+      skills: params.skills,
       tools,
       maxRetries: 2,
       inputProcessors: [

@@ -1,12 +1,11 @@
-/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { ListTree, Pencil, RefreshCw, Route, Trash2 } from "@langfuse/icons";
-import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";
+import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { GatewayProviderMark } from "@/src/features/ai-gateway/components/GatewayProviderMark";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type {
   GatewayConnection,
@@ -139,20 +138,9 @@ function ModelCount({
 }
 
 function ProviderName({ provider }: { provider: GatewayProvider }) {
-  const icon =
-    provider === "OPENAI" ? (
-      <SiOpenai size="base" aria-hidden="true" />
-    ) : provider === "ANTHROPIC" ? (
-      <SiAnthropic size="base" aria-hidden="true" />
-    ) : (
-      <Route size="base" aria-hidden="true" />
-    );
-
   return (
     <div className="flex items-center gap-2">
-      <span className="bg-muted flex size-7 items-center justify-center rounded-md border">
-        {icon}
-      </span>
+      <GatewayProviderMark provider={provider} />
       <span>{providerLabels[provider]}</span>
     </div>
   );

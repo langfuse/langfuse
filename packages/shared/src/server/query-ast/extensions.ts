@@ -241,15 +241,16 @@ function subscript<V>(
  * Sum of the map values whose key contains `needle`, case-insensitively:
  * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
+ * Pass a code constant as `literal(...)` so it is inlined.
  */
 export function sumMapValuesWhereKeyContains(
   map: Expression<Record<string, unknown>>,
-  needle: string,
+  needle: Expression<string>,
 ): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
-      ValueNode.create(needle),
+      needle.toOperationNode(),
     ]),
     OperatorNode.create(">"),
     ValueNode.createImmediate(0),
@@ -379,12 +380,18 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
 }
 
-/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+/**
+ * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
+ * `literal(...)` for a code constant so it is inlined.
+ */
 export function startsWith(
   haystack: Expression<string>,
-  prefix: string,
+  prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
-  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
+  return functionCall("startsWith", [
+    haystack,
+    typeof prefix === "string" ? ValueNode.create(prefix) : prefix,
+  ]);
 }
 
 /** ClickHouse `length(array)`. */
@@ -413,6 +420,22 @@ export function arrayExists<T>(
 /** ClickHouse `any(value)`: some value of the group. */
 export function anyValue<T>(value: Expression<T>): ChExpression<T> {
   return aggregate("any", [value]);
+}
+
+/** ClickHouse `anyIf(value, condition)`: some value among the matching rows. */
+export function anyIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("anyIf", [value, condition]);
+}
+
+/** ClickHouse `argMax(value, by)`: `value` of the row with the largest `by`. */
+export function argMax<T>(
+  value: Expression<T>,
+  by: Expression<unknown>,
+): ChExpression<T> {
+  return aggregate("argMax", [value, by]);
 }
 
 /** ClickHouse `countIf(condition)`. */
@@ -452,6 +475,13 @@ export function groupUniqArrayIf<T>(
   condition: Expression<SqlBool>,
 ): ChExpression<T[]> {
   return aggregate("groupUniqArrayIf", [value, condition]);
+}
+
+/** ClickHouse `groupUniqArrayArray(array)`: the distinct elements of all arrays. */
+export function groupUniqArrayArray<T>(
+  array: Expression<T[]>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayArray", [array]);
 }
 
 /** ClickHouse `groupUniqArrayArrayIf(array, condition)`. */
@@ -523,13 +553,20 @@ export function toStartOfMinute(
   return functionCall("toStartOfMinute", [dateArg(value)]);
 }
 
+/** ClickHouse `tuple(a, b, …)`. */
+export function tuple<T extends unknown[]>(
+  ...values: { [K in keyof T]: Expression<T[K]> }
+): ChExpression<T> {
+  return functionCall("tuple", values);
+}
+
 /** ClickHouse `arrayReverse(array)`. */
 function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayReverse", [array]);
 }
 
 /** ClickHouse `mapFromArrays(keys, values)`. */
-function mapFromArrays<V>(
+export function mapFromArrays<V>(
   keys: Expression<string[]>,
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {

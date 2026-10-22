@@ -25,6 +25,7 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
+  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -34,8 +35,6 @@ import {
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
-  isTopicsEnabled,
-  isTopicsProjectEnabled,
   getTopicsModels,
   readTopicsModelSettings,
   checkTopicsModelSettings,
@@ -52,7 +51,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
@@ -74,18 +73,13 @@ const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (
-      !isTopicsEnabled() ||
-      getContextualFeatureFlags(ctx.session.user, {
-        projectId: input.projectId,
-      })?.langfuseTopics !== true
-    )
+    // The allowlist comes from env here, so admins outside the project are covered too.
+    const project = {
+      id: input.projectId,
+      topicsEnabled: isTopicsProjectEnabled(input.projectId),
+    };
+    if (!canViewTopics(ctx.session, project))
       throw new LangfuseNotFoundError("Topics is not available.");
-    throwIfNoProjectAccess({
-      session: ctx.session,
-      projectId: input.projectId,
-      scope: "topics:read",
-    });
     return next();
   });
 const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
@@ -360,10 +354,9 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(async ({ input }) => ({
-    ...(await readTopicsModelSettings(input.projectId)),
-    processingAvailable: isTopicsProjectEnabled(input.projectId),
-  })),
+  modelSettings: topicsProcedure.query(({ input }) =>
+    readTopicsModelSettings(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -390,10 +383,6 @@ export const topicsRouter = createTRPCRouter({
   setAutomaticProcessing: topicsWriteProcedure
     .input(topicsAutomaticProcessingSchema.extend({ projectId: topicIdSchema }))
     .mutation(async ({ input: { projectId, ...input }, ctx }) => {
-      if (input.enabled && !isTopicsProjectEnabled(projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { ruleBefore, ruleAfter } = await auditedTopicConfigSave(
         ctx,
         projectId,
@@ -469,10 +458,6 @@ export const topicsRouter = createTRPCRouter({
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { summary, embedding } = await requireTopicsModels(input.projectId);
       const models = {
         summaryModel: summary.model,
@@ -554,10 +539,6 @@ export const topicsRouter = createTRPCRouter({
   retry: topicsWriteProcedure
     .input(executionInput)
     .mutation(async ({ input }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const execution = await executionWithRecovery(
         input.projectId,
         input.executionId,

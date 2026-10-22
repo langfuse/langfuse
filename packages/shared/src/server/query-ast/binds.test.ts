@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, countIf, tupleIn, useFinal } from "./extensions";
+import { QueryCompileError } from "./errors";
+import { arrayJoin, countIf, literal, tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -58,6 +58,38 @@ describe("typed params from the column registry", () => {
       /metadata_names in \(\{p\d+:Array\(Array\(String\)\)\}\)/,
     );
     expect(sql).not.toMatch(/metadata_names in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
+  it("inlines an IN list of literals", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("name", "in", [literal("a"), literal("it's")]),
+    );
+    expect(sql).toMatch(/name in \('a', 'it''s'\)/);
+    expect(Object.values(params)).not.toContain("a");
+  });
+
+  it("binds an IN list of value expressions as one array", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) => eb("name", "in", [eb.val("a"), eb.val("b")])),
+    );
+    expect(sql).toMatch(/name in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
+  it("rejects an IN list mixing literals and bound values", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_core")
+          .select("span_id")
+          .where((eb) => eb("name", "in", [literal("a"), eb.val("b")])),
+      ),
+    ).toThrow(QueryCompileError);
   });
 
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
@@ -162,17 +194,6 @@ describe("typed params from the column registry", () => {
 
   // A CTE or subquery column keeps the type of the column it selects.
   it.each([
-    [
-      "a CTE named like a registry table",
-      () =>
-        getClickhouseKysely()
-          .with("observations", (db) =>
-            db.selectFrom("events_core").select("start_time"),
-          )
-          .selectFrom("observations")
-          .select("start_time")
-          .where("start_time", ">=", START),
-    ],
     [
       "an aliased CTE column read through a table alias",
       () =>
@@ -280,119 +301,46 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/(start_time|ts) >= \{p\d+:DateTime64\(6\)\}/);
   });
 
-  // `observations.start_time` is DateTime64(3); `events_core.start_time` is
-  // DateTime64(6). Which one a bind gets shows which relation a name resolved to.
+  // `events_core.start_time` is DateTime64(6); a Date bound against a column
+  // the compiler can't type binds as DateTime64(3). Which one a bind gets
+  // shows which relation a name resolved to.
   describe("CTE name resolution", () => {
     const db = getClickhouseKysely();
-    const eventsAsObservations = db.with("observations", (qb) =>
+    const withX = db.with("x", (qb) =>
       qb.selectFrom("events_core").select("start_time"),
     );
 
-    it("resolves a later sibling CTE name to the CTE", () => {
+    it("types a subquery's read of an enclosing CTE from its body", () => {
       const { sql } = compile(
-        db
-          .with("early", (qb) =>
-            qb.selectFrom("observations").select("start_time"),
-          )
-          .with("observations", (qb) =>
-            qb.selectFrom("events_core").select("start_time"),
-          )
-          .selectFrom("early")
-          .select("start_time")
-          .where("start_time", ">=", START),
-      );
-      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}$/);
-    });
-
-    it("resolves a CTE body's read of its own name to the table", () => {
-      const { sql } = compile(
-        db
-          .with("observations", (qb) =>
+        withX
+          .selectFrom((qb) =>
             qb
-              .selectFrom("events_core as e")
-              .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-              .select("e.start_time")
-              .where("o.start_time", ">=", START),
-          )
-          .selectFrom("observations")
-          .select("start_time"),
-      );
-      expect(sql).toMatch(/o\.start_time >= \{p\d+:DateTime64\(3\)\}/);
-    });
-
-    it("types a CTE that reads its own name when it is first read in a subquery", () => {
-      const { sql } = compile(
-        db
-          .with("observations", (qb) =>
-            qb.selectFrom("observations").select(["trace_id", "start_time"]),
-          )
-          .selectFrom("traces")
-          .select("id")
-          .where(
-            "id",
-            "in",
-            db
-              .selectFrom("observations")
-              .select("trace_id")
-              .where("start_time", ">=", START),
-          ),
-      );
-      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
-    });
-
-    it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
-      const { sql } = compile(
-        eventsAsObservations
-          .selectFrom(
-            db
-              .with("observations", (qb) =>
-                qb.selectFrom("observations").select("start_time"),
-              )
-              .selectFrom("observations")
+              .selectFrom("x")
               .select("start_time")
+              .where("start_time", ">=", START)
               .as("sub"),
           )
-          .select("sub.start_time")
-          .where("sub.start_time", ">=", START),
+          .select("sub.start_time"),
       );
-      expect(sql).toMatch(/sub\.start_time >= \{p\d+:DateTime64\(6\)\}$/);
+      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}\) as sub$/);
     });
 
-    it("resolves a schema-qualified table to the table, not a CTE of its name", () => {
-      const { sql } = compile(
-        eventsAsObservations
-          .selectFrom("observations")
-          .select("start_time")
-          .where(
-            "start_time",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("observations")
-              .select("start_time")
-              .where("start_time", ">=", START),
-          ),
-      );
-      expect(sql).toMatch(
-        /from default\.observations where project_id = \{p\d+:String\} and start_time >= \{p\d+:DateTime64\(3\)\}/,
-      );
-    });
-
-    it("rejects CTEs that read each other", () => {
+    it("does not let a CTE body see the declaring select's FROM aliases", () => {
+      // Inside the body, `o` names nothing, so binding against `o.start_time`
+      // is rejected instead of taking the outer `events_core as o` type.
       expect(() =>
         compile(
           db
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("timestamp as start_time"),
+            .with("y", (qb) =>
+              qb
+                .selectFrom("events_core")
+                .select("span_id")
+                .where(db.dynamic.ref("o.start_time"), ">=", START),
             )
-            .with("traces", (qb) =>
-              qb.selectFrom("observations").select("start_time as timestamp"),
-            )
-            .selectFrom("traces")
-            .select("timestamp")
-            .where("timestamp", ">=", START),
+            .selectFrom("events_core as o")
+            .select("o.span_id"),
         ),
-      ).toThrow(UnscopedRelationError);
+      ).toThrow(/no relation in scope is named "o"/);
     });
   });
 
@@ -499,10 +447,6 @@ describe("typed params from the column registry", () => {
 
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
-    // A table outside the registry: the compiler can't see its columns.
-    const unregistered = db.withTables<{
-      unregistered: { trace_id: string; start_time: Date };
-    }>();
 
     it("binds by value when no relation in scope has the column", () => {
       const { sql } = compile(
@@ -512,6 +456,43 @@ describe("typed params from the column registry", () => {
           .where(db.dynamic.ref("total_cost"), ">", 1),
       );
       expect(sql).toMatch(/total_cost > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a column named like an Object prototype key", () => {
+      // `scores` has no `constructor` column; the lookup must not find
+      // `Object.prototype.constructor` instead.
+      const { sql } = compile(
+        db
+          .selectFrom("scores as s")
+          .select("s.id")
+          .where(db.dynamic.ref("s.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/s\.constructor > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a CTE column named like an Object prototype key", () => {
+      // The CTE's output columns are typed from its body, which has no
+      // `constructor` column either.
+      const { sql } = compile(
+        db
+          .with("c", (qb) => qb.selectFrom("traces").select("id"))
+          .selectFrom("c")
+          .select("c.id")
+          .where(db.dynamic.ref("c.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a column named like an Object prototype key through a CTE *", () => {
+      // The `*` expands to the columns of `traces`, which has no `constructor`.
+      const { sql } = compile(
+        db
+          .with("c", (qb) => qb.selectFrom("traces").selectAll())
+          .selectFrom("c")
+          .select("c.id")
+          .where(db.dynamic.ref("c.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
     });
 
     it("binds a named raw-SQL CTE column by value", () => {
@@ -564,16 +545,6 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
-        // `u` is declared, but its table is not in the registry.
-        "a qualified column of a table outside the registry",
-        () =>
-          unregistered
-            .selectFrom("unregistered as u")
-            .select("u.trace_id")
-            .where("u.start_time", ">=", START),
-        /"unregistered" is not a registered table/,
-      ],
-      [
         // start_time is DateTime64(3) on observations, DateTime64(6) on events.
         "an unqualified column the joined relations type differently",
         () =>
@@ -583,68 +554,6 @@ describe("typed params from the column registry", () => {
             .select("e.span_id")
             .where("start_time", ">=", START),
         /joined relations give it different types/,
-      ],
-      [
-        // span_id is only on events_core in the registry, but `u` may have it.
-        "an unqualified column next to a table outside the registry",
-        () =>
-          unregistered
-            .selectFrom("events_core as e")
-            .innerJoin("unregistered as u", "u.trace_id", "e.trace_id")
-            .select("e.trace_id")
-            .where("span_id", "=", "s"),
-        /may come from a relation whose columns are unknown\. "unregistered" is not a registered table/,
-      ],
-      [
-        // The CTE column carries the unknown type of `u.start_time`.
-        "a CTE column selected from a table outside the registry",
-        () =>
-          unregistered
-            .with("t", (qb) =>
-              qb.selectFrom("unregistered as u").select("u.start_time"),
-            )
-            .selectFrom("t")
-            .select("start_time")
-            .where("start_time", ">=", START),
-        /"unregistered" is not a registered table/,
-      ],
-      [
-        // `t.start_time` is unknown, so the join can't settle the type either.
-        "an unqualified CTE column of unknown type next to a registry relation",
-        () =>
-          unregistered
-            .with("t", (qb) =>
-              qb.selectFrom("unregistered as u").select("u.start_time"),
-            )
-            .selectFrom("t")
-            .innerJoin("observations as o", "o.start_time", "t.start_time")
-            .select("o.trace_id")
-            .where("start_time", ">=", START),
-        /"unregistered" is not a registered table/,
-      ],
-      [
-        // `*` over an unregistered table yields unknown columns.
-        "a CTE * over a table outside the registry",
-        () =>
-          unregistered
-            .with("t", (qb) => qb.selectFrom("unregistered").selectAll())
-            .selectFrom("t")
-            .select("trace_id")
-            .where("start_time", ">=", START),
-        /may come from a relation whose columns are unknown\. "unregistered" is not a registered table/,
-      ],
-      [
-        // Same, through a qualified `u.*`.
-        "a CTE qualified * over a table outside the registry",
-        () =>
-          unregistered
-            .with("t", (qb) =>
-              qb.selectFrom("unregistered as u").selectAll("u"),
-            )
-            .selectFrom("t as t")
-            .select("t.trace_id")
-            .where("t.start_time", ">=", START),
-        /"unregistered" is not a registered table/,
       ],
       [
         // `t` outputs value computed (UInt64); scores types it Float64.
@@ -678,12 +587,27 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events_core as e").selectAll("x" as never),
             )
             .selectFrom("t as t")
             .select(db.dynamic.ref("t.span_id"))
             .where(db.dynamic.ref("t.start_time"), ">=", START),
         /It selects x\.\* but no relation in that select is named "x"/,
+      ],
+      [
+        // `t` selects `x.*` over no relation named `x`, so its columns are
+        // unknown and may include trace_id.
+        "an unqualified column next to a CTE whose columns are unknown",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb.selectFrom("events_core as e").selectAll("x" as never),
+            )
+            .selectFrom("scores as s")
+            .innerJoin("t", (join) => join.onTrue())
+            .select("s.id")
+            .where("trace_id", "=", "x"),
+        /may come from a relation whose columns are unknown/,
       ],
       [
         // Each tuple position takes its column's type; `x.a` has none.
@@ -852,9 +776,7 @@ describe("typed params from the column registry", () => {
     const db = getClickhouseKysely();
     const { sql } = compile(
       db
-        .with("t", (qb) =>
-          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
-        )
+        .with("t", (qb) => qb.selectFrom("events_core as e").selectAll("e"))
         .selectFrom("t as t")
         .select(db.dynamic.ref("t.span_id"))
         .where(db.dynamic.ref("t.start_time"), ">=", START),

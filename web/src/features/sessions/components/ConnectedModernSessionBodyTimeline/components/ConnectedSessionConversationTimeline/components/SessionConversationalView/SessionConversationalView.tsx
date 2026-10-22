@@ -199,15 +199,21 @@ export function SessionConversationalView(
             ];
           });
       })();
+      const matchesTraceName =
+        props.searchQuery.length > 0 &&
+        (item.trace.name ?? "")
+          .toLowerCase()
+          .includes(props.searchQuery.toLowerCase());
       const matchingRows =
-        props.searchQuery && transcriptRows
+        props.searchQuery && !matchesTraceName && transcriptRows
           ? transcriptRows.filter((row) =>
               `${row.role} ${row.label}`
                 .toLowerCase()
                 .includes(props.searchQuery.toLowerCase()),
             )
           : transcriptRows;
-      if (props.searchQuery && matchingRows?.length === 0) continue;
+      if (props.searchQuery && !matchesTraceName && matchingRows?.length === 0)
+        continue;
       const threadVisibility =
         item.state.type === "transcript"
           ? getSessionTranscriptThreads(item.state.result.transcript)

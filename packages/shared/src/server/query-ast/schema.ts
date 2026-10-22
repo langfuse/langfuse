@@ -42,7 +42,16 @@ export type ChColumnType =
   | "Array(String)"
   | "Map(String, UInt64)"
   | "Map(String, Decimal(18,12))"
-  | "Map(String, String)";
+  | "Map(String, String)"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))";
+
+/** One `skills_available` element, read as an object keyed by tuple name. */
+type SkillRef = {
+  langfuseSkillId: string | null;
+  skillVersion: number | null;
+  skillName: string;
+};
 
 /**
  * Logical TS type of a column: the value a caller binds, and what a result
@@ -76,7 +85,11 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
                     ? Record<string, number>
                     : T extends "Map(String, String)"
                       ? Record<string, string>
-                      : never;
+                      : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+                        ? SkillRef[]
+                        : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))"
+                          ? (SkillRef & { filePath: string })[]
+                          : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -99,6 +112,10 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Map(String, UInt64)": "map",
   "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "array",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "array",
 };
 
 /**
@@ -227,6 +244,10 @@ const EVENTS_COLUMNS = {
   created_at: "DateTime64(6)",
   updated_at: "DateTime64(6)",
   ingestion_api_key: "String",
+  skills_available:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  skills_resource_loaded:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 } as const satisfies Record<string, ChColumnType>;
 
 /**
@@ -336,7 +357,7 @@ export type ClickHouseDatabase = {
 export const TABLE_COLUMN_TYPES: Record<
   string,
   Record<string, ChColumnType>
-> = Object.fromEntries(
+> = lookupTable(
   Object.entries(TABLE_REGISTRY)
     .filter(([table]) => table !== "events")
     .map(([table, spec]) => [table, spec.columns]),
@@ -347,15 +368,19 @@ export const TABLE_COLUMN_TYPES: Record<
  * the aggregate type-check pass. Column names are consistent across tables in
  * this schema, so a flat map is unambiguous.
  */
-export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> =
-  Object.fromEntries(
-    Object.values(TABLE_REGISTRY).flatMap((table) =>
-      Object.entries(table.columns).map(([name, chType]) => [
-        name,
-        RUNTIME_TYPE[chType],
-      ]),
-    ),
-  );
+export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
+  Object.values(TABLE_REGISTRY).flatMap((table) =>
+    Object.entries(table.columns).map(([name, chType]) => [
+      name,
+      RUNTIME_TYPE[chType],
+    ]),
+  ),
+);
+
+/** Every registry relation name, the logical `events` included. */
+export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
+  Object.keys(TABLE_REGISTRY),
+);
 
 /** Derived set of relations the tenancy pass must scope. */
 export const TENANTED_TABLES = new Set<string>(
@@ -365,14 +390,14 @@ export const TENANTED_TABLES = new Set<string>(
 );
 
 /** Derived per-table read idioms, keyed by table name. */
-export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
+export const DEDUP_SPECS: Record<string, DedupSpec> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
   ),
 );
 
 /** Derived soft-delete flag column, keyed by table name. */
-export const SOFT_DELETE_COLUMNS: Record<string, string> = Object.fromEntries(
+export const SOFT_DELETE_COLUMNS: Record<string, string> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.softDelete ? [[name, spec.softDelete]] : [],
   ),
@@ -401,16 +426,20 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Map(String, UInt64)": "Map(String, UInt64)",
   "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 };
 
 /** Bind type per column, per registry table. */
 export const TABLE_BIND_TYPES: Record<
   string,
   Record<string, string>
-> = Object.fromEntries(
+> = lookupTable(
   Object.entries(TABLE_REGISTRY).map(([table, spec]) => [
     table,
-    Object.fromEntries(
+    lookupTable(
       Object.entries(spec.columns).map(([name, chType]) => [
         name,
         BIND_TYPE[chType],
@@ -418,3 +447,14 @@ export const TABLE_BIND_TYPES: Record<
     ),
   ]),
 );
+
+/**
+ * `Object.fromEntries` without `Object.prototype`, so a lookup by a name such
+ * as `constructor` or `toString` finds nothing instead of an inherited
+ * function: `lookupTable([["traces", 1]]).constructor` → undefined.
+ */
+export function lookupTable<V>(
+  entries: Iterable<readonly [string, V]>,
+): Record<string, V> {
+  return Object.assign(Object.create(null), Object.fromEntries(entries));
+}

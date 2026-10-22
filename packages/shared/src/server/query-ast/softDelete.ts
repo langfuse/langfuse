@@ -10,7 +10,7 @@
  * and is wrapped in an outer select that filters on its output instead.
  *
  * Runs before tenancy, so the tenancy pass prepends `project_id` ahead of the
- * flag: `where project_id = … and is_deleted = … and <caller predicates>`.
+ * flag: `where project_id = … and is_deleted = 0 and <caller predicates>`.
  */
 import {
   AliasNode,
@@ -38,7 +38,7 @@ import { QueryCompileError } from "./errors";
 import { type ClickHouseSelectQueryNode } from "./nodes";
 import { describeRelation } from "./relations";
 import { SOFT_DELETE_COLUMNS } from "./schema";
-import { CteScopedTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
 const AFTER_LIMIT_ALIAS = "latest";
@@ -56,23 +56,21 @@ export class SoftDeleteFilterPlugin implements KyselyPlugin {
   }
 }
 
-class SoftDeleteFilterTransformer extends CteScopedTransformer {
+class SoftDeleteFilterTransformer extends SelectRewriteTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return filterSelect(node, (table) => this.isCte(table));
+    return filterSelect(node);
   }
 }
 
 function filterSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const describe = (item: OperationNode) => softDeleteRelation(item, isCte);
-  const froms = (node.from?.froms ?? []).map(describe);
+  const froms = (node.from?.froms ?? []).map(softDeleteRelation);
   const joins = (node.joins ?? []).map((join) => ({
     join,
-    relation: describe(join.table),
+    relation: softDeleteRelation(join.table),
   }));
 
   const readsSoftDelete =
@@ -267,13 +265,12 @@ function outputName(node: OperationNode): string | undefined {
   return undefined;
 }
 
-/** The soft-delete table `item` reads, unless it reads a CTE. */
+/** The soft-delete table `item` reads. */
 function softDeleteRelation(
   item: OperationNode,
-  isCte: (table: TableNode) => boolean,
 ): SoftDeleteRelation | undefined {
   const { table, alias } = describeRelation(item);
-  if (!table || isCte(table)) return undefined;
+  if (!table) return undefined;
   const tableName = table.table.identifier.name;
   const flag = SOFT_DELETE_COLUMNS[tableName];
   return flag ? { tableName, alias, flag } : undefined;
@@ -287,7 +284,7 @@ function notDeleted(relation: SoftDeleteRelation): OperationNode {
   return BinaryOperationNode.create(
     qualifiedFlag(relation),
     OperatorNode.create("="),
-    ValueNode.create(0),
+    ValueNode.createImmediate(0),
   );
 }
 

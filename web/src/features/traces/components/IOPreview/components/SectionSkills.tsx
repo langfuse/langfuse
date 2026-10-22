@@ -13,6 +13,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
+import { IOSection } from "@/src/components/ui/IOSection";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   const [isGroupExpanded, setGroupExpanded] = useState(false);
@@ -29,15 +30,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   }
 
   return (
-    <section
-      className="ph-no-capture border-border border-b pb-4"
-      aria-label="Skills"
-    >
-      <div className="flex items-center gap-2 px-1 py-1">
-        <h3 className="io-message-header text-base font-bold">Skills</h3>
-        <Badge color="filled" size="sm" text={String(groups.length)} />
-        <Badge text="Beta" color="blue" size="sm" />
-      </div>
+    <IOSection title="Skills" count={groups.length}>
       <Collapsible
         open={isGroupExpanded}
         onOpenChange={handleGroupChange}
@@ -72,7 +65,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
           </ul>
         </CollapsibleContent>
       </Collapsible>
-    </section>
+    </IOSection>
   );
 }
 

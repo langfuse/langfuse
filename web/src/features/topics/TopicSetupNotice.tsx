@@ -41,12 +41,9 @@ export function TopicSetupNotice({
   const processingChoiceDescription = automaticEnabled
     ? "Automatic processing is on for new traces. You can also summarize existing traces in manual batches."
     : "Enable automatic processing for incoming traces, or summarize existing traces in manual batches of up to 1,000.";
-  const availableProcessingDescription = running
+  const processingDescription = running
     ? "Your traces are being processed. Summaries will appear here as they become available."
     : processingChoiceDescription;
-  const processingDescription = notice.unavailable
-    ? "Topics processing is not enabled for this project. You can configure Topics, but an administrator needs to enable processing before you can analyze traces."
-    : availableProcessingDescription;
   return (
     <>
       {status?.kind === "paused" ? (
@@ -72,12 +69,6 @@ export function TopicSetupNotice({
             </div>
           </Alert.Description>
         </Alert>
-      ) : null}
-      {notice.unavailable && !showOnboarding ? (
-        <p role="status" className="text-muted-foreground text-sm">
-          Topics processing is not enabled for this project. Existing summaries
-          and topics remain available.
-        </p>
       ) : null}
       {showOnboarding ? (
         <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
@@ -152,18 +143,6 @@ export function TopicSetupNotice({
             ]}
           />
         </div>
-      ) : null}
-      {status?.kind === "models" && !showOnboarding ? (
-        <Alert variant="info">
-          <Alert.Title>Choose the models Topics runs on</Alert.Title>
-          <Alert.Description>
-            <p>
-              Topics uses your LLM connections for three jobs: facet summaries,
-              embeddings, and topic clustering. Open Configure Topics to set all
-              three.
-            </p>
-          </Alert.Description>
-        </Alert>
       ) : null}
     </>
   );
