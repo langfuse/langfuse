@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   Action,
   ActionExecutionStatus,
@@ -29,7 +28,11 @@ import {
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
-import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
+import {
+  createDisplayHeaders,
+  decryptSecretHeaders,
+  mergeHeaders,
+} from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -52,20 +55,12 @@ export const getActionByIdWithSecrets = async ({
   if (isWebhookActionConfig(actionConfig.config)) {
     const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
-    // Decrypt secret headers for webhook execution using new structure
-    const decryptedHeaders = config.requestHeaders
-      ? decryptSecretHeaders(
-          mergeHeaders(config.headers, config.requestHeaders),
-        )
-      : config.headers
-        ? Object.entries(config.headers).reduce(
-            (acc, [key, value]) => {
-              acc[key] = { secret: false, value };
-              return acc;
-            },
-            {} as Record<string, { secret: boolean; value: string }>,
-          )
-        : {};
+    // Legacy headers are plaintext but flagged secret, so they are merged in
+    // after decryption.
+    const decryptedHeaders = mergeHeaders(
+      config.headers,
+      decryptSecretHeaders(config.requestHeaders ?? {}),
+    );
 
     return {
       ...actionConfig,
@@ -161,19 +156,24 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   };
 };
 
+/**
+ * Display headers are readable by every project role. Legacy plaintext
+ * `headers` that `requestHeaders` does not override are always masked, even if
+ * a stored `displayHeaders` entry lists them unmasked.
+ */
 const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
-  let displayHeaders = config.displayHeaders;
-  if (!displayHeaders && config.headers) {
-    // Convert legacy headers to displayHeaders format
-    displayHeaders = Object.entries(config.headers).reduce(
-      (acc, [key, value]) => {
-        acc[key] = { secret: false, value };
-        return acc;
-      },
-      {} as Record<string, { secret: boolean; value: string }>,
-    );
+  const legacyHeaders = Object.fromEntries(
+    Object.entries(config.headers ?? {}).filter(
+      ([key]) => !(key in (config.requestHeaders ?? {})),
+    ),
+  );
+  if (!config.displayHeaders && Object.keys(legacyHeaders).length === 0) {
+    return config.displayHeaders;
   }
-  return displayHeaders;
+  return {
+    ...config.displayHeaders,
+    ...createDisplayHeaders(mergeHeaders(legacyHeaders)),
+  };
 };
 
 /**
