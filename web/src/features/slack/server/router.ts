@@ -100,7 +100,7 @@ export const slackRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "automations:read",
+        scope: "automations:CUD",
       });
 
       const integration = await ctx.prisma.slackIntegration.findUnique({
