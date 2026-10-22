@@ -48,7 +48,8 @@ export function GatewaySetupContent({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    // The settings page is locked to the screen height for the overview's table, so the guide scrolls itself.
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto">
       <div>
         <Header title={GATEWAY_SETUP.title} />
         <p className="text-muted-foreground text-sm">
