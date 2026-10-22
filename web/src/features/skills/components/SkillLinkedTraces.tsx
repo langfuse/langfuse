@@ -20,9 +20,9 @@ export function SkillLinkedTraces({
         projectId={projectId}
         skill={{ name, version }}
         isolateTableState
-        hideSearchBar
-        hideToolbar
-        hideFilterSidebar
+        showSearchBar={false}
+        showToolbar={false}
+        showFilterSidebar={false}
       />
     </div>
   );

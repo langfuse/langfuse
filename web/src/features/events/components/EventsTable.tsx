@@ -258,10 +258,10 @@ export type EventsTableProps = {
   promptVersion?: number;
   skill?: { name: string; version?: number };
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
-  hideSearchBar?: boolean;
-  hideToolbar?: boolean;
-  hideFilterSidebar?: boolean;
-  hidePeekPanel?: boolean;
+  showSearchBar?: boolean;
+  showToolbar?: boolean;
+  showFilterSidebar?: boolean;
+  showPeekPanel?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -315,10 +315,10 @@ export default function ObservationsEventsTable({
   promptVersion,
   skill,
   omittedFilter = [],
-  hideSearchBar = false,
-  hideToolbar = false,
-  hideFilterSidebar = false,
-  hidePeekPanel = false,
+  showSearchBar = true,
+  showToolbar = true,
+  showFilterSidebar = true,
+  showPeekPanel = true,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -347,7 +347,7 @@ export default function ObservationsEventsTable({
     TracingSearchType[]
   >(["id"]);
   const tableStatePolicy = getEventsTableStatePolicy({
-    hideControls: hideToolbar,
+    hideControls: !showToolbar,
     isolateTableState,
     hasParentScope: Boolean(
       peekContext || userId || sessionId || promptName || promptVersion,
@@ -778,7 +778,7 @@ export default function ObservationsEventsTable({
   // sidebar and time/refresh controls stay.
   const searchBarEnabled = useSearchBarEnabled();
   const searchBarMode =
-    searchBarEnabled && !hideSearchBar && !externalFilterState;
+    searchBarEnabled && showSearchBar && !externalFilterState;
   const searchRegistry = eventsSearchRegistry(
     [
       ...(eventsFilterConfig.omittedFilterColumns ?? []),
@@ -916,7 +916,7 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideToolbar && !userId && !sessionId && !skill;
+  const chartEnabled = showToolbar && !userId && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -1025,7 +1025,7 @@ export default function ObservationsEventsTable({
   // keys would crowd out the ones the project actually browses.
   useObservedMetadataRecorder({
     projectId,
-    rows: hideSearchBar && hideFilterSidebar ? undefined : observations.rows,
+    rows: showSearchBar || showFilterSidebar ? observations.rows : undefined,
   });
 
   // Project data context for the AI filter prompt: observed values (from
@@ -1262,10 +1262,10 @@ export default function ObservationsEventsTable({
   // checkboxes would do nothing. Omit the select column on mobile until a
   // dedicated mobile action affordance exists.
   const isMobile = useIsMobile();
-  const enableSorting = !hideToolbar;
+  const enableSorting = showToolbar;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(hideToolbar || isMobile ? [] : [selectActionColumn]),
+    ...(showToolbar && !isMobile ? [selectActionColumn] : []),
     createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
       header: getEventsColumnName("startTime"),
@@ -1759,13 +1759,13 @@ export default function ObservationsEventsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hidePeekPanel) return undefined;
+    if (!showPeekPanel) return undefined;
     return {
       itemType: "TRACE",
       detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
-  }, [peekNavigationProps, hidePeekPanel]);
+  }, [peekNavigationProps, showPeekPanel]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
@@ -1879,7 +1879,7 @@ export default function ObservationsEventsTable({
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && !hideToolbar && !isMobile && (
+        {showControlsInPageHeader && showToolbar && !isMobile && (
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
@@ -1890,7 +1890,7 @@ export default function ObservationsEventsTable({
             toggle. Search, time range, preset chips, saved views and the facet
             sidebar all move INTO the sheet (same controllers, hosted there).
             Columns / row-height / export are omitted on the card list. */}
-        {(!hideSearchBar || !hideToolbar || !hideFilterSidebar) && isMobile && (
+        {(showSearchBar || showToolbar || showFilterSidebar) && isMobile && (
           <div className="my-2 flex items-center gap-2 px-2">
             <MobileFiltersSheet
               activeCount={mobileActiveFilterCount}
@@ -1905,7 +1905,7 @@ export default function ObservationsEventsTable({
                 });
               }}
               search={
-                !hideSearchBar &&
+                showSearchBar &&
                 (searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
@@ -1949,7 +1949,7 @@ export default function ObservationsEventsTable({
                 ))
               }
               headerControls={
-                !hideToolbar && (
+                showToolbar && (
                   <div className="flex min-w-0 items-center gap-1">
                     <TimeRangePicker
                       compact
@@ -1969,7 +1969,7 @@ export default function ObservationsEventsTable({
                 )
               }
               presets={
-                hideToolbar ||
+                !showToolbar ||
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <CategoryPresetChips
                     projectId={projectId}
@@ -1984,7 +1984,7 @@ export default function ObservationsEventsTable({
                 )
               }
               savedViews={
-                hideToolbar ||
+                !showToolbar ||
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <TableViewPresetsDrawer
                     viewConfig={{
@@ -2003,7 +2003,7 @@ export default function ObservationsEventsTable({
                 )
               }
               facets={
-                !hideFilterSidebar && (
+                showFilterSidebar && (
                   <DataTableControls
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     queryFilter={queryFilter}
@@ -2026,7 +2026,7 @@ export default function ObservationsEventsTable({
             )}
           </div>
         )}
-        {(!hideSearchBar || !hideToolbar) && !isMobile && (
+        {(showSearchBar || showToolbar) && !isMobile && (
           <div
             className={cn(
               // This is a table-internal sticky band below PageHeader. Using
@@ -2075,7 +2075,7 @@ export default function ObservationsEventsTable({
               </div>
             )}
             {/* Toolbar spanning full width */}
-            {!hideToolbar && (
+            {showToolbar && (
               <DataTableToolbar
                 columns={columns}
                 className={searchBarMode ? "px-3" : undefined}
@@ -2087,7 +2087,7 @@ export default function ObservationsEventsTable({
                   // In search-bar mode full-text search (bare text +
                   // content:/input:/output:) lives inline in the bar, so the
                   // legacy toolbar search field is hidden.
-                  hideSearchBar || searchBarMode
+                  !showSearchBar || searchBarMode
                     ? undefined
                     : {
                         metadataSearchFields: [
@@ -2107,7 +2107,7 @@ export default function ObservationsEventsTable({
                 // saved-view search query from the live URL state (the bar writes
                 // free text there) rather than the toolbar's empty local mirror.
                 currentSearchQuery={
-                  hideSearchBar || searchBarMode
+                  !showSearchBar || searchBarMode
                     ? (searchQuery ?? "")
                     : undefined
                 }
@@ -2229,7 +2229,7 @@ export default function ObservationsEventsTable({
                 // left-aligned, so they sit on the same line as the right-aligned
                 // Columns/Export controls.
                 leadingControls={
-                  hideToolbar ||
+                  !showToolbar ||
                   tableStatePolicy.disableSavedViews ? undefined : (
                     <div className="flex flex-wrap items-center gap-2">
                       <CategoryPresetChips
@@ -2271,7 +2271,7 @@ export default function ObservationsEventsTable({
           {/* On mobile the facet sidebar moves into the Filters sheet above,
               so it is not rendered inline here (leaving only the table content
               in the layout). */}
-          {!hideFilterSidebar && !isMobile && (
+          {showFilterSidebar && !isMobile && (
             <DataTableControls
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
@@ -2395,9 +2395,9 @@ export default function ObservationsEventsTable({
                 rowHeight={rowHeight}
                 customRowHeightPx={rowHeights.activeHeightPx}
                 onCustomRowHeightChange={
-                  hideToolbar ? undefined : rowHeights.setCustomPx
+                  showToolbar ? rowHeights.setCustomPx : undefined
                 }
-                onSelectRowHeight={hideToolbar ? undefined : setRowHeight}
+                onSelectRowHeight={showToolbar ? setRowHeight : undefined}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {
