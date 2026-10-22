@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  OutboundUrlValidationError,
   StorageServiceFactory,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
@@ -57,6 +58,17 @@ async function auditConfigurationChange({
 function isKeyWithinPrefix(key: string, prefix: string | null) {
   const normalizedPrefix = prefix?.trim().replace(/\/+$/, "");
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
+}
+
+async function validateEndpoint(endpoint: string) {
+  try {
+    await validateExternalMediaStorageEndpoint(endpoint);
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new InvalidRequestError(error.message);
+    }
+    throw error;
+  }
 }
 
 function createStorageService(integration: ExternalMediaStorageRecord) {
@@ -138,7 +150,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       if (endpoint) {
-        await validateExternalMediaStorageEndpoint(endpoint);
+        await validateEndpoint(endpoint);
       }
 
       let region: string;
@@ -217,7 +229,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);
@@ -264,7 +276,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);
