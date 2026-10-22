@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "../parsers/toIOPreview";
 import { hasThinkingContent } from "../fns/chatMessageUtils";
+import { getSkillLoadRequests } from "../fns/getSkillLoadRequests";
 import {
   parseChatML,
   type ChatMLParserResult,
@@ -27,6 +28,138 @@ const parserImplementations = [
 ] as const;
 
 describe("useChatMLParser", () => {
+  it.each(parserImplementations)(
+    "$name parser highlights only skills requested by the current generation",
+    ({ parse }) => {
+      const available = [
+        { skillName: "refund-policy", skillVersion: 3 },
+        { skillName: "shipping-policy", skillVersion: 1 },
+        { skillName: "account-security" },
+      ];
+      const result = parse(
+        [
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "historical",
+                name: "loadSkill",
+                arguments: { name: "shipping-policy" },
+              },
+            ],
+          },
+        ],
+        [
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "load-refund",
+                name: "loadSkill",
+                arguments: '{"name":"refund-policy","version":3}',
+              },
+              {
+                id: "read-security",
+                name: "Read",
+                arguments: { file_path: "/skills/account-security/SKILL.md" },
+              },
+              {
+                id: "read-refund-resource",
+                name: "loadSkillResource",
+                arguments: {
+                  name: "refund-policy",
+                  path: "references/refunds.md",
+                },
+              },
+            ],
+          },
+        ],
+      );
+
+      const requests = getSkillLoadRequests(available, result.toolCallsByName);
+      expect(requests.has(available[1])).toBe(false);
+      expect(requests.get(available[0])).toEqual(
+        new Set(["SKILL.md", "references/refunds.md"]),
+      );
+      expect(requests.get(available[2])).toEqual(
+        new Set(["/skills/account-security/SKILL.md"]),
+      );
+    },
+  );
+
+  it("does not infer a skill load from malformed, unrelated, or ambiguous calls", () => {
+    const available = [
+      { skillName: "refund-policy", skillVersion: 2 },
+      { skillName: "refund-policy", skillVersion: 3 },
+      { skillName: "shipping-policy" },
+    ];
+    const calls = [
+      { name: "loadSkill", arguments: { name: "refund-policy" } },
+      { name: "loadSkill", arguments: { name: "refund-policy", version: 4 } },
+      { name: "loadSkill", arguments: '{"name":' },
+      { name: "loadSkill", arguments: ["shipping-policy"] },
+      { name: "loadSkill", arguments: { name: "unknown-skill" } },
+      { name: "loadSkillResource", arguments: { name: "shipping-policy" } },
+      { name: "search", arguments: { name: "shipping-policy" } },
+      {
+        name: "Read",
+        arguments: { path: "/skills/shipping-policy-backup/SKILL.md" },
+      },
+      {
+        name: "Read",
+        arguments: { path: "/skills/shipping-policy/../other/SKILL.md" },
+      },
+      { name: "Read", arguments: { path: "/skills/shipping-policy/" } },
+      {
+        name: "Read",
+        arguments: { path: "/skills/shipping-policy/refund-policy/SKILL.md" },
+      },
+    ].map((call, index) => ({ ...call, invocationNumber: index + 1 }));
+    const byName = new Map<string, typeof calls>();
+    for (const call of calls)
+      byName.set(call.name, [...(byName.get(call.name) ?? []), call]);
+
+    expect(getSkillLoadRequests(available, byName).size).toBe(0);
+    const explicitVersion = {
+      name: "loadSkill",
+      arguments: { name: "refund-policy", version: 3 },
+      invocationNumber: 12,
+    };
+    byName.set("loadSkill", [explicitVersion]);
+    expect(getSkillLoadRequests(available, byName).get(available[1])).toEqual(
+      new Set(["SKILL.md"]),
+    );
+  });
+
+  it.each([
+    ["Skill", { skill: "refund-policy" }, "SKILL.md"],
+    ["skill", { name: "refund-policy" }, "SKILL.md"],
+    [
+      "skill_read",
+      { skillName: "refund-policy", path: "references/refunds.md" },
+      "references/refunds.md",
+    ],
+    [
+      "readFile",
+      { path: "/skills/refund-policy/SKILL.md" },
+      "/skills/refund-policy/SKILL.md",
+    ],
+    ["langfuse_loadSkill", { name: "refund-policy" }, "SKILL.md"],
+    [
+      "langfuse_loadSkillResource",
+      { name: "refund-policy", path: "SKILL.md" },
+      "SKILL.md",
+    ],
+  ])("recognizes the %s skill-loading adapter", (name, args, filePath) => {
+    const available = [{ skillName: "refund-policy" }];
+    const call = { name, arguments: args, invocationNumber: 1 };
+    expect(
+      getSkillLoadRequests(available, new Map([[name, [call]]])).get(
+        available[0],
+      ),
+    ).toEqual(new Set([filePath]));
+  });
+
   it.each(parserImplementations)(
     "$name parser groups output-side tool call arguments by tool name",
     ({ parse, expectedArguments }) => {
