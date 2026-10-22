@@ -41,15 +41,18 @@ export async function loadTraceTranscript(trace: {
   timestamp: Date;
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
+  transcriptSource?: "generations" | "root";
 }): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
   const [structure, content] = await Promise.all([
     getObservationsForTraceFromEventsTable(trace),
-    getObservationsForTraceFromEventsTable({
-      ...trace,
-      selectIOAndMetadata: true,
-      types: ["GENERATION", "TOOL"],
-      limit: MAX_TRANSCRIPT_OBSERVATIONS,
-    }),
+    trace.transcriptSource === "root"
+      ? Promise.resolve({ observations: [], totalCount: 0 })
+      : getObservationsForTraceFromEventsTable({
+          ...trace,
+          selectIOAndMetadata: true,
+          types: ["GENERATION", "TOOL"],
+          limit: MAX_TRANSCRIPT_OBSERVATIONS,
+        }),
   ]);
   const contentById = new Map(content.observations.map((o) => [o.id, o]));
   // Generations and tools past the content cap have no I/O to show; leaving
@@ -90,8 +93,14 @@ export async function loadTraceTranscript(trace: {
     }
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
-  let transcript = assembleTranscript(orderObservations(observations));
-  if (!transcript && trace.fallbackToRootIO) {
+  let transcript =
+    trace.transcriptSource === "root"
+      ? null
+      : assembleTranscript(orderObservations(observations));
+  if (
+    !transcript &&
+    (trace.transcriptSource === "root" || trace.fallbackToRootIO)
+  ) {
     const root = structure.observations.find(
       (observation) =>
         observation.isRootObservation === true ||
