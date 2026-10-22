@@ -16,7 +16,7 @@ import {
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorConfigDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   customRowHeightMenu,

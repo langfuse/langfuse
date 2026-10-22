@@ -28,7 +28,7 @@ import { useOrderByState } from "@/src/features/orderBy";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "@langfuse/icons";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorConfigDetail";
 import {
   evalConfigTargetValues,
   evalConfigTimeScopeValues,
