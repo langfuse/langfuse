@@ -266,6 +266,9 @@ const EnvSchema = z.object({
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME: z
     .string()
     .default("code-based-eval-executor-python"),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_DEFER_PAYLOAD_PARSING: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_CODE_EVAL_LOCAL_TIMEOUT_MS: z.coerce
     .number()
     .int()

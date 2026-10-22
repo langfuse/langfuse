@@ -146,6 +146,45 @@ function getSharedLambdaClient(endpoint?: string): LambdaClient {
   return sharedLambdaClient;
 }
 
+/**
+ * The Lambda runtime JSON-parses the whole event before the handler runs, so a
+ * large observation input is materialized in the 128 MB sandbox even when the
+ * evaluator never reads it. Sending each user-data field as a JSON string
+ * keeps it a single flat string until the runner parses it on first access.
+ * Wire shape: `payload` is replaced by `payloadJson`, whose data fields are
+ * JSON strings; `toolCalls` stays structured.
+ */
+function serializeDispatchInputWithDeferredPayload(
+  input: DispatchInput,
+): string {
+  const { payload, ...rest } = input;
+  return JSON.stringify({
+    ...rest,
+    payloadJson: {
+      observation: {
+        input: toDeferredJson(payload.observation.input),
+        output: toDeferredJson(payload.observation.output),
+        metadata: toDeferredJson(payload.observation.metadata),
+        toolCalls: payload.observation.toolCalls,
+      },
+      ...(payload.experiment
+        ? {
+            experiment: {
+              itemExpectedOutput: toDeferredJson(
+                payload.experiment.itemExpectedOutput,
+              ),
+              itemMetadata: toDeferredJson(payload.experiment.itemMetadata),
+            },
+          }
+        : {}),
+    },
+  });
+}
+
+function toDeferredJson(value: unknown): string {
+  return JSON.stringify(value ?? null);
+}
+
 export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "aws-lambda";
   private readonly lambdaClient: LambdaClient;
@@ -153,11 +192,14 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
     CodeEvalRuntimeLanguage,
     string
   >;
+  private readonly deferPayloadParsing: boolean;
 
   constructor(params?: {
     lambdaClient?: LambdaClient;
     endpoint?: string;
     functionNameByLanguage?: Partial<Record<CodeEvalRuntimeLanguage, string>>;
+    // Requires runners that understand `payloadJson`; deploy those first.
+    deferPayloadParsing?: boolean;
   }) {
     this.lambdaClient =
       params?.lambdaClient ?? getSharedLambdaClient(params?.endpoint);
@@ -165,6 +207,7 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
       ...DEFAULT_LAMBDA_FUNCTION_BY_LANGUAGE,
       ...params?.functionNameByLanguage,
     };
+    this.deferPayloadParsing = params?.deferPayloadParsing ?? false;
   }
 
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
@@ -214,11 +257,19 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
     });
 
     try {
-      const serializedPayload = assertDispatchInputWithinLimits(input);
-      span.setAttribute(
-        "langfuse.code_eval.payload.bytes",
-        Buffer.byteLength(serializedPayload, "utf8"),
+      const serializedPayload = assertDispatchInputWithinLimits(
+        input,
+        this.deferPayloadParsing
+          ? serializeDispatchInputWithDeferredPayload
+          : JSON.stringify,
       );
+      span.setAttributes({
+        "langfuse.code_eval.payload.bytes": Buffer.byteLength(
+          serializedPayload,
+          "utf8",
+        ),
+        "langfuse.code_eval.payload.deferred": this.deferPayloadParsing,
+      });
 
       const commandInput: InvokeCommandInput = {
         FunctionName: functionName,

@@ -213,6 +213,77 @@ def evaluate(ctx):
     FLOCI_TEST_TIMEOUT_MS,
   );
 
+  describe("with deferred payload parsing", () => {
+    const deferringDispatcher = new AwsLambdaCodeEvalDispatcher({
+      endpoint,
+      deferPayloadParsing: true,
+    });
+
+    it.each<CodeEvalRuntimeLanguage>(["TYPESCRIPT", "PYTHON"])(
+      "passes the payload and returns all score types for the %s runner",
+      async (language) => {
+        await expect(
+          deferringDispatcher.dispatch({
+            ...baseInput,
+            runtime: { language },
+            code: { source: sources[language] },
+          }),
+        ).resolves.toEqual({ scores: expectedScores });
+      },
+      FLOCI_TEST_TIMEOUT_MS,
+    );
+
+    // Multi-MB chat histories are the inputs this encoding exists for.
+    const largeInput = Array.from({ length: 4_000 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      parts: [{ type: "text", content: `message "${index}" `.repeat(60) }],
+    }));
+    const largeInputSources: Record<CodeEvalRuntimeLanguage, string> = {
+      TYPESCRIPT: `
+function evaluate(ctx: any) {
+  const input = ctx.observation.input;
+  return { scores: [
+    { name: "messages", value: input.length, dataType: "NUMERIC" },
+    { name: "last", value: input[input.length - 1].parts[0].content.slice(0, 15), dataType: "TEXT" },
+  ] };
+}
+`,
+      PYTHON: `
+def evaluate(ctx):
+    messages = ctx.observation.input
+    return {"scores": [
+        {"name": "messages", "value": len(messages), "dataType": "NUMERIC"},
+        {"name": "last", "value": messages[-1]["parts"][0]["content"][:15], "dataType": "TEXT"},
+    ]}
+`,
+    };
+
+    it.each<CodeEvalRuntimeLanguage>(["TYPESCRIPT", "PYTHON"])(
+      "round-trips a multi-megabyte input to the %s runner",
+      async (language) => {
+        await expect(
+          deferringDispatcher.dispatch({
+            ...baseInput,
+            runtime: { language },
+            code: { source: largeInputSources[language] },
+            payload: {
+              observation: {
+                ...baseInput.payload.observation,
+                input: largeInput,
+              },
+            },
+          }),
+        ).resolves.toEqual({
+          scores: [
+            { name: "messages", value: 4_000, dataType: "NUMERIC" },
+            { name: "last", value: 'message "3999" ', dataType: "TEXT" },
+          ],
+        });
+      },
+      FLOCI_TEST_TIMEOUT_MS,
+    );
+  });
+
   it(
     "prefixes non-generic error names from the Node runner",
     async () => {

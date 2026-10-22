@@ -184,7 +184,10 @@ export class CodeEvalDispatcherError extends Error {
 
 export type CodeEvalDispatcherName = "insecure-local" | "aws-lambda";
 
-export function assertDispatchInputWithinLimits(input: DispatchInput): string {
+export function assertDispatchInputWithinLimits(
+  input: DispatchInput,
+  serialize: (input: DispatchInput) => string = JSON.stringify,
+): string {
   const sourceBytes = Buffer.byteLength(input.code.source, "utf8");
   if (sourceBytes > CODE_EVAL_SOURCE_MAX_BYTES) {
     throw new CodeEvalDispatcherError(
@@ -193,7 +196,7 @@ export function assertDispatchInputWithinLimits(input: DispatchInput): string {
     );
   }
 
-  const serializedInput = JSON.stringify(input);
+  const serializedInput = serialize(input);
   const payloadBytes = Buffer.byteLength(serializedInput, "utf8");
   if (payloadBytes > CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES) {
     throw new CodeEvalDispatcherError(

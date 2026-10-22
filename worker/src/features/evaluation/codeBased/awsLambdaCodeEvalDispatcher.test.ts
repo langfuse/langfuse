@@ -107,6 +107,95 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     expect(lambdaPayload.payload).toEqual(input.payload);
   });
 
+  it("sends data fields as JSON strings when payload parsing is deferred", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Payload: Buffer.from(
+        JSON.stringify({
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+        }),
+      ),
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+      deferPayloadParsing: true,
+    });
+    const toolCalls = [
+      { id: "call-1", name: "search", arguments: { q: "x" }, type: "function" },
+    ];
+    const input: DispatchInput = {
+      ...baseInput,
+      payload: {
+        observation: {
+          input: { question: "2+2" },
+          output: "4",
+          metadata: null,
+          toolCalls,
+        },
+        experiment: {
+          itemExpectedOutput: "4",
+          itemMetadata: { difficulty: "easy" },
+        },
+      },
+    };
+
+    await dispatcher.dispatch(input);
+
+    const lambdaPayload = JSON.parse(
+      Buffer.from(send.mock.calls[0][0].input.Payload).toString("utf8"),
+    );
+    expect(lambdaPayload).not.toHaveProperty("payload");
+    expect(lambdaPayload.code).toEqual(input.code);
+    expect(lambdaPayload.payloadJson).toEqual({
+      observation: {
+        input: '{"question":"2+2"}',
+        output: '"4"',
+        metadata: "null",
+        toolCalls,
+      },
+      experiment: {
+        itemExpectedOutput: '"4"',
+        itemMetadata: '{"difficulty":"easy"}',
+      },
+    });
+  });
+
+  it("checks the payload limit against the deferred wire encoding", async () => {
+    // Each "" element grows from 3 to 5 wire bytes once escaped inside a
+    // JSON string, pushing this input past the limit only when deferred.
+    const input: DispatchInput = {
+      ...baseInput,
+      payload: {
+        observation: {
+          ...baseInput.payload.observation,
+          input: Array.from({ length: 1_500_000 }, () => ""),
+        },
+      },
+    };
+    const send = vi.fn().mockResolvedValue({
+      Payload: Buffer.from(
+        JSON.stringify({
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+        }),
+      ),
+    });
+
+    await expect(
+      new AwsLambdaCodeEvalDispatcher({
+        lambdaClient: { send } as any,
+        deferPayloadParsing: true,
+      }).dispatch(input),
+    ).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    expect(send).not.toHaveBeenCalled();
+
+    await expect(
+      new AwsLambdaCodeEvalDispatcher({
+        lambdaClient: { send } as any,
+      }).dispatch(input),
+    ).resolves.toEqual({
+      scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+    });
+  });
+
   it("prefers a valid dispatch result over an injected error envelope", async () => {
     // Defense in depth against runners that try to smuggle an `error`
     // envelope alongside valid scores to force a retry or mask the

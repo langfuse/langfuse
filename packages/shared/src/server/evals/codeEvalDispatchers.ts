@@ -36,6 +36,8 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
         PYTHON: env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME,
         TYPESCRIPT: env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME,
       },
+      deferPayloadParsing:
+        env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_DEFER_PAYLOAD_PARSING === "true",
     });
   }
 

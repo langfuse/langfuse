@@ -37,12 +37,63 @@ return evaluate;`,
 
   let result;
   try {
-    result = await evaluate(event.payload);
+    result = await evaluate(buildEvaluationContext(event));
   } catch (error) {
     return runnerError("USER_CODE_ERROR", formatError(error));
   }
 
   return normalizeResult(result);
+}
+
+// `payloadJson` carries the data fields as JSON strings so the runtime's event
+// parse keeps them flat; each is parsed on first access. `payload` is the
+// fully parsed shape sent by dispatchers that do not defer parsing.
+function buildEvaluationContext(event) {
+  const deferred = event.payloadJson;
+  if (!deferred) return event.payload;
+
+  return {
+    observation: withLazyJsonFields(deferred.observation, [
+      "input",
+      "output",
+      "metadata",
+    ]),
+    ...(deferred.experiment
+      ? {
+          experiment: withLazyJsonFields(deferred.experiment, [
+            "itemExpectedOutput",
+            "itemMetadata",
+          ]),
+        }
+      : {}),
+  };
+}
+
+function withLazyJsonFields(section, keys) {
+  const target = { ...section };
+  for (const key of keys) {
+    let raw = section[key];
+    let value;
+    let parsed = false;
+    Object.defineProperty(target, key, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        if (!parsed) {
+          value = raw === undefined ? null : JSON.parse(raw);
+          parsed = true;
+          raw = undefined;
+        }
+        return value;
+      },
+      set(next) {
+        value = next;
+        parsed = true;
+        raw = undefined;
+      },
+    });
+  }
+  return target;
 }
 
 function normalizeResult(result) {

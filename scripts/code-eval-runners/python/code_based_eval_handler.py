@@ -68,6 +68,81 @@ class EvaluationContext:
         )
 
 
+class _DeferredJson:
+    __slots__ = ("raw",)
+
+    def __init__(self, raw: Any):
+        self.raw = raw
+
+
+class _LazyJsonField:
+    """Data descriptor that parses a `_DeferredJson` value on first read."""
+
+    def __set_name__(self, owner, name):
+        self._slot = f"_lazy_{name}"
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        value = instance.__dict__.get(self._slot)
+        if isinstance(value, _DeferredJson):
+            value = None if value.raw is None else json.loads(value.raw)
+            instance.__dict__[self._slot] = value
+        return value
+
+    def __set__(self, instance, value):
+        instance.__dict__[self._slot] = value
+
+
+# Undecorated subclasses inherit the dataclass __init__/__repr__/fields, so
+# evaluator code sees the same public types while the descriptors defer
+# parsing. __qualname__ keeps repr() identical to the public class.
+class _LazyObservationContext(ObservationContext):
+    input = _LazyJsonField()
+    output = _LazyJsonField()
+    metadata = _LazyJsonField()
+
+
+_LazyObservationContext.__qualname__ = ObservationContext.__qualname__
+
+
+class _LazyExperimentContext(ExperimentContext):
+    item_expected_output = _LazyJsonField()
+    item_metadata = _LazyJsonField()
+
+
+_LazyExperimentContext.__qualname__ = ExperimentContext.__qualname__
+
+
+def build_evaluation_context(event: dict[str, Any]) -> EvaluationContext:
+    # `payloadJson` carries the data fields as JSON strings so the runtime's
+    # event parse keeps them flat. `payload` is the fully parsed shape sent by
+    # dispatchers that do not defer parsing.
+    deferred = event.get("payloadJson")
+    if not isinstance(deferred, dict):
+        return EvaluationContext.from_payload(event.get("payload", {}))
+
+    observation = deferred.get("observation") or {}
+    experiment = deferred.get("experiment")
+    return EvaluationContext(
+        observation=_LazyObservationContext(
+            input=_DeferredJson(observation.get("input")),
+            output=_DeferredJson(observation.get("output")),
+            metadata=_DeferredJson(observation.get("metadata")),
+            tool_calls=[
+                ToolCall.from_payload(call)
+                for call in observation.get("toolCalls") or []
+            ],
+        ),
+        experiment=_LazyExperimentContext(
+            item_expected_output=_DeferredJson(experiment.get("itemExpectedOutput")),
+            item_metadata=_DeferredJson(experiment.get("itemMetadata")),
+        )
+        if isinstance(experiment, dict)
+        else None,
+    )
+
+
 # Public dataclasses exposed to user evaluator code. Field names are Pythonic
 # (snake_case); they are translated to the camelCase wire format (`dataType`,
 # `configId`) by `to_jsonable` so users can return an `EvaluationResult`
@@ -119,7 +194,7 @@ def handler(event, context):
         )
 
     try:
-        result = evaluate(EvaluationContext.from_payload(event.get("payload", {})))
+        result = evaluate(build_evaluation_context(event))
         if asyncio.iscoroutine(result):
             result = asyncio.run(result)
     except Exception as error:
