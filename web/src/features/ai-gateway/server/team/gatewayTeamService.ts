@@ -3,17 +3,15 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { sendGatewayInvitationEmail } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { organizationRoleAccessRights } from "@/src/features/rbac";
-import { inviteOrganizationMember } from "@/src/features/rbac/server";
+import {
+  inviteOrganizationMember,
+  OrganizationMembersService,
+} from "@/src/features/rbac/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_PREVIEW_LIMIT = 4;
 const EMAIL_SEND_CONCURRENCY = 10;
-
-/** Org roles whose members can create their own gateway keys. */
-const GATEWAY_USER_ROLES = Object.values(Role).filter((role) =>
-  organizationRoleAccessRights[role].includes("gateway:invoke"),
-);
+const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
@@ -27,29 +25,29 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
  * the gateway.
  */
 export class GatewayTeamService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly members: OrganizationMembersService;
+
+  constructor(prisma: PrismaClient) {
+    this.members = new OrganizationMembersService(prisma);
+  }
 
   async getNotifiableMembers(params: {
     organizationId: string;
     currentUserId: string;
   }) {
-    const where = this.notifiableMembersWhere(params);
-    const [memberCount, previewMembers] = await Promise.all([
-      this.prisma.organizationMembership.count({ where }),
-      this.prisma.organizationMembership.findMany({
-        where,
-        orderBy: { createdAt: "asc" },
-        take: MEMBER_PREVIEW_LIMIT,
-        select: {
-          user: { select: { id: true, name: true, email: true, image: true } },
-        },
+    const query = {
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      excludeUserId: params.currentUserId,
+    } as const;
+    const [count, preview] = await Promise.all([
+      this.members.countMembersWithScope(query),
+      this.members.findMembersWithScope({
+        ...query,
+        limit: MEMBER_PREVIEW_LIMIT,
       }),
     ]);
-    return {
-      isEmailConfigured: isEmailConfigured(),
-      count: memberCount,
-      preview: previewMembers.map(({ user }) => user),
-    };
+    return { isEmailConfigured: isEmailConfigured(), count, preview };
   }
 
   async inviteTeam(params: {
@@ -59,10 +57,7 @@ export class GatewayTeamService {
     notifyMembers: boolean;
   }) {
     const { ctx, organizationId } = params;
-    const organization = await this.prisma.organization.findUniqueOrThrow({
-      where: { id: organizationId },
-      select: { name: true },
-    });
+    const orgName = await this.members.getOrganizationName(organizationId);
     const inviter = {
       inviterName: ctx.session.user.name ?? ctx.session.user.email ?? "",
       inviterEmail: ctx.session.user.email ?? "",
@@ -78,7 +73,7 @@ export class GatewayTeamService {
         await inviteOrganizationMember({
           ctx,
           input: { orgId: organizationId, email, orgRole: Role.MEMBER },
-          sendInvitationEmail: ({ to, orgName, userExists }) =>
+          sendInvitationEmail: ({ to, userExists }) =>
             sendGatewayInvitationEmail({
               env,
               audience: { kind: "invitee", hasAccount: userExists },
@@ -101,7 +96,7 @@ export class GatewayTeamService {
       ? await this.notifyMembers({
           ctx,
           organizationId,
-          orgName: organization.name,
+          orgName,
           excludeEmails: invited,
           inviter,
         })
@@ -123,19 +118,14 @@ export class GatewayTeamService {
   }) {
     if (!isEmailConfigured()) return 0;
 
-    const memberships = await this.prisma.organizationMembership.findMany({
-      where: this.notifiableMembersWhere({
-        organizationId: params.organizationId,
-        currentUserId: params.ctx.session.user.id,
-      }),
-      select: { user: { select: { email: true } } },
+    const members = await this.members.findMembersWithScope({
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      excludeUserId: params.ctx.session.user.id,
     });
-    const recipients = memberships
-      .map(({ user }) => user.email?.toLowerCase())
-      .filter(
-        (email): email is string =>
-          email !== undefined && !params.excludeEmails.has(email),
-      );
+    const recipients = members
+      .map(({ email }) => email.toLowerCase())
+      .filter((email) => !params.excludeEmails.has(email));
 
     for (let i = 0; i < recipients.length; i += EMAIL_SEND_CONCURRENCY) {
       await Promise.all(
@@ -152,17 +142,5 @@ export class GatewayTeamService {
       );
     }
     return recipients.length;
-  }
-
-  private notifiableMembersWhere(params: {
-    organizationId: string;
-    currentUserId: string;
-  }) {
-    return {
-      orgId: params.organizationId,
-      role: { in: GATEWAY_USER_ROLES },
-      userId: { not: params.currentUserId },
-      user: { email: { not: null } },
-    };
   }
 }
