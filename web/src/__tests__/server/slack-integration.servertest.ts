@@ -1,7 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type { Mock } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -76,7 +76,10 @@ const createIntegration = (
     },
   });
 
-const prepare = async () => {
+const prepare = async ({
+  projectRole = "ADMIN",
+  admin = true,
+}: { projectRole?: Role; admin?: boolean } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -98,7 +101,7 @@ const prepare = async () => {
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
@@ -110,7 +113,7 @@ const prepare = async () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -324,6 +327,23 @@ describe("Slack Integration", () => {
         });
         expect(JSON.stringify(asOtherUser)).not.toContain("private");
       });
+
+      it.each(["MEMBER", "VIEWER"] as const)(
+        "should reject %s, who can read automations but not manage them",
+        async (projectRole) => {
+          const { caller, project } = await prepare({
+            projectRole,
+            admin: false,
+          });
+          await createIntegration(project.id, null);
+          mockSlackService.getChannels.mockClear();
+
+          await expect(
+            caller.slack.getChannels({ projectId: project.id }),
+          ).rejects.toMatchObject({ code: "FORBIDDEN" });
+          expect(mockSlackService.getChannels).not.toHaveBeenCalled();
+        },
+      );
 
       it("should throw NOT_FOUND for missing integration", async () => {
         const { caller, project } = await prepare();
