@@ -5,7 +5,7 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { TracesTable } from "@/src/features/traces";
 import { ScoresTable } from "@/src/features/scores";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";

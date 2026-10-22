@@ -7,6 +7,7 @@ import { QueryBuilder } from "./queryBuilder";
 
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 /** windowBucketCases maps each window token to its expected ClickHouse interval. */

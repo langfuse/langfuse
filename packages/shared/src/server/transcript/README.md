@@ -82,6 +82,19 @@ remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
 
+## Schema
+
+`schema.ts` owns the current transcript shape and composes the message/part schemas
+from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from those
+schemas; assembly inputs and options remain separate. Assembly does not parse
+each intermediate object at runtime.
+
+Persisted trace-batch inputs have their own frozen schemas and serialization
+adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+complete storage envelope, including the transcript and trace context.
+The transcript fixture suite validates the current assembled shape independently
+of that storage format.
+
 ## Character limit
 
 `assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
@@ -279,7 +292,8 @@ transcript/
 ├── replay.ts              createMessageDeduplicator
 ├── threads.ts             thread selection and message appending
 ├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, Turn, ThreadMessage
+├── schema.ts              current transcript shape, composing normalized message schemas
+├── types.ts               inferred output types, assembly inputs and options
 └── fixtures/
     ├── fixture-types.ts   TranscriptFixture
     ├── index.ts           registry of fixtures

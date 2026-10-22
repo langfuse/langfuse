@@ -845,7 +845,7 @@ class FinalPlugin implements KyselyPlugin {
 /**
  * `FROM <table> FINAL` / `JOIN <table> AS alias FINAL` as a `$call` step:
  * `qb.$call(useFinal(["scores"]))`. Tables declared `dedup: none` (immutable
- * at read time, including `events_core`) cannot take FINAL.
+ * at read time, including the events relations) cannot take FINAL.
  */
 export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   for (const table of tables) {

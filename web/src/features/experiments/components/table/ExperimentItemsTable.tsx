@@ -42,7 +42,7 @@ import {
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
-import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,

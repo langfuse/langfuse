@@ -74,7 +74,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Slider } from "@/src/components/ui/slider";
+import { Slider } from "@/src/components/ui/Slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -96,7 +96,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
+import { DataTableAIFilters } from "@/src/components/table/DataTableAIFilters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type FilterState } from "@langfuse/shared";
 

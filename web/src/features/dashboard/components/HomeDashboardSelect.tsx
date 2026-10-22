@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { LayoutDashboard } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";

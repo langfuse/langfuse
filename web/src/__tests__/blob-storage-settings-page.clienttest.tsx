@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
   default: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
   default: ({
     children,
     headerProps,

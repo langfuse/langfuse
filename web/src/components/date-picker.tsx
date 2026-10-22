@@ -7,7 +7,7 @@ import { Calendar as CalendarIcon, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
-import { Calendar } from "@/src/components/ui/calendar";
+import { Calendar } from "@/src/components/ui/Calendar";
 import {
   Popover,
   PopoverContent,
@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type DateRange as RDPDateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
-import { TimePicker } from "@/src/components/ui/time-picker";
+import { TimePicker } from "@/src/components/ui/TimePicker";
 import { DashboardDateRangeDropdown } from "@/src/components/DashboardDateRangeDropdown";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,

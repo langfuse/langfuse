@@ -4,7 +4,7 @@ import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 
 const DynamicMobileRightDrawer = dynamic(
   () =>
