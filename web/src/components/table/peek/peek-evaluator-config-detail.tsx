@@ -16,7 +16,7 @@ import {
 import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
+import { DeactivateEvalConfig } from "@/src/features/evals/components/DeactivateEvalConfig";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
