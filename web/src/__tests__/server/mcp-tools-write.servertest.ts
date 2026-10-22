@@ -2044,6 +2044,42 @@ describe("MCP Write Tools", () => {
         }),
       ).resolves.toBeDefined();
     });
+
+    it("rejects a loopback endpoint without persisting it", async () => {
+      const setup = await createMcpTestSetup();
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+      });
+      const input = {
+        type: "S3_COMPATIBLE" as const,
+        bucketName: "media-bucket",
+        region: "us-east-1",
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        forcePathStyle: true,
+      };
+
+      // Cloud rejects plain HTTP before the address check, so the HTTPS
+      // variant pins the loopback block in both deployment modes.
+      await expect(
+        handleConfigureExternalMediaStorage(
+          { ...input, endpoint: "http://127.0.0.1:9000" },
+          setup.context,
+        ),
+      ).rejects.toThrow();
+      await expect(
+        handleConfigureExternalMediaStorage(
+          { ...input, endpoint: "https://127.0.0.1:9000" },
+          setup.context,
+        ),
+      ).rejects.toThrow("Blocked IP address detected");
+      await expect(
+        prisma.externalMediaStorageIntegration.findUnique({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBeNull();
+    });
   });
 
   describe("in-app-agent protected prompt labels", () => {

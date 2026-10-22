@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  OutboundUrlValidationError,
   StorageServiceFactory,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
@@ -138,7 +139,14 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       if (endpoint) {
-        await validateExternalMediaStorageEndpoint(endpoint);
+        try {
+          await validateExternalMediaStorageEndpoint(endpoint);
+        } catch (error) {
+          if (error instanceof OutboundUrlValidationError) {
+            throw new InvalidRequestError(error.message);
+          }
+          throw error;
+        }
       }
 
       let region: string;
