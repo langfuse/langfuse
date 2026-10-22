@@ -32,7 +32,7 @@ export function NotifyMembersToggle({
       <label htmlFor={id} className="cursor-pointer">
         Notify the {memberCount} existing member{memberCount === 1 ? "" : "s"}
       </label>
-      <div className="flex items-center -space-x-1.5">
+      <div className="ph-no-capture flex items-center -space-x-1.5">
         {previewMembers.map((member) => (
           <Avatar
             key={member.id}

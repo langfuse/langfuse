@@ -33,6 +33,8 @@ type SelectInputProps<V extends string> = Pick<
   search?: { placeholder: string };
   error?: boolean;
   muted?: boolean;
+  /** Keeps the selected value and option labels out of session recordings. */
+  noCapture?: boolean;
 };
 
 function isSelectGroup<V extends string>(
@@ -51,6 +53,7 @@ function SelectInputInner<V extends string>(
     search,
     error,
     muted,
+    noCapture,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -77,6 +80,7 @@ function SelectInputInner<V extends string>(
             aria-controls={listId}
             aria-expanded={open}
             title={selectedOption?.label}
+            className={noCapture ? "ph-no-capture" : undefined}
             {...triggerProps}
           >
             <span
@@ -96,6 +100,7 @@ function SelectInputInner<V extends string>(
             <PopoverPrimitive.Content
               align="start"
               sideOffset={4}
+              className={noCapture ? "ph-no-capture" : undefined}
               onWheel={stopScrollPropagation()}
               onTouchMove={stopScrollPropagation()}
             >
@@ -179,11 +184,16 @@ function SelectInputInner<V extends string>(
       onValueChange={onValueChange}
       emptyMessage={emptyMessage}
       ref={ref}
+      noCapture={noCapture}
       {...triggerProps}
     >
       {({ getTriggerProps, selectedLabel }) => (
         <InputControl contentLayout="spread" error={error}>
-          <button {...getTriggerProps()}>
+          <button
+            {...getTriggerProps({
+              className: noCapture ? "ph-no-capture" : undefined,
+            })}
+          >
             <span
               className={cn(
                 "min-w-0 flex-1 truncate text-left",

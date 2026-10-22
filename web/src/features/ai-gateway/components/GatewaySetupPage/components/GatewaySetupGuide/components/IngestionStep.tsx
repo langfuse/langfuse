@@ -22,9 +22,11 @@ export function IngestionStep({
   projects,
 }: IngestionStepProps) {
   const summary =
-    status === "complete" && config
-      ? describeGatewayIngestion({ config, projects })
-      : undefined;
+    status === "complete" && config ? (
+      <span className="ph-no-capture">
+        {describeGatewayIngestion({ config, projects })}
+      </span>
+    ) : undefined;
 
   return (
     <Stepper

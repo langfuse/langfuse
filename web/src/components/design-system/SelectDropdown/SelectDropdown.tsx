@@ -83,6 +83,7 @@ export function SelectDropdown<V extends string>({
   emptyMessage = "No options available.",
   children,
   ref,
+  noCapture,
   ...triggerProps
 }: {
   value: V;
@@ -93,6 +94,8 @@ export function SelectDropdown<V extends string>({
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
   ref?: React.Ref<HTMLButtonElement>;
+  /** Keeps the option labels out of session recordings. */
+  noCapture?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
@@ -207,7 +210,11 @@ export function SelectDropdown<V extends string>({
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
-          <SelectPrimitive.Content position="popper" sideOffset={4}>
+          <SelectPrimitive.Content
+            position="popper"
+            sideOffset={4}
+            className={noCapture ? "ph-no-capture" : undefined}
+          >
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"

@@ -73,7 +73,7 @@ export function TeamInviteForm({
         <Alert variant="destructive">
           <Alert.Title>Some invitations were not sent</Alert.Title>
           <Alert.Description>
-            <ul>
+            <ul className="ph-no-capture">
               {failures.map((failure) => (
                 <li key={failure.email}>
                   {failure.email}: {failure.message}

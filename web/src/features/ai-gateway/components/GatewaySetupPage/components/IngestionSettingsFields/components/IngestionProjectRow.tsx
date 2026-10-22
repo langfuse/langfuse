@@ -72,8 +72,9 @@ export function IngestionProjectRow({
           />
         </div>
       ) : (
-        <div className="ph-no-capture w-56">
+        <div className="w-56">
           <SelectInput
+            noCapture
             aria-label="Ingestion project"
             placeholder="Select a project"
             search={{ placeholder: "Search projects" }}
