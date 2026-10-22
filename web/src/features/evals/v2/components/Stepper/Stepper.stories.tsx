@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
 
-import preview from "../../../../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { Stepper } from "./Stepper";
 
 const meta = preview.meta({ component: Stepper });
