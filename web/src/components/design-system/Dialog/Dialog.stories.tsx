@@ -94,6 +94,43 @@ export const Autofocus = meta.story({
   },
 });
 
+export const Acknowledge = meta.story({
+  name: "(Test) Acknowledge",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Import finished"
+          text="All prompts were imported."
+          acknowledge={{ label: "Done" }}
+        />
+      )}
+    >
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog()}>
+          Open dialog
+        </button>
+      )}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const doneButton = await body.findByRole("button", { name: "Done" });
+    await waitFor(() => expect(doneButton).toHaveFocus());
+    await expect(
+      body.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(doneButton);
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
 export const DestructiveAutofocus = meta.story({
   name: "(Test) Destructive autofocus",
   render: () => (

@@ -42,7 +42,6 @@ type DialogAction = {
 };
 
 type DialogProps = {
-  actions?: ReadonlyArray<DialogAction>;
   closeOnInteractionOutside?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
@@ -51,9 +50,22 @@ type DialogProps = {
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
-);
+) &
+  (
+    | {
+        /** Decision footer: a Cancel button is added before these actions. */
+        actions?: ReadonlyArray<DialogAction>;
+        acknowledge?: never;
+      }
+    | {
+        actions?: never;
+        /** Acknowledgement footer: a single button that closes the dialog. */
+        acknowledge: { label: string };
+      }
+  );
 
 function DialogRoot({
+  acknowledge,
   actions,
   children,
   closeOnInteractionOutside = false,
@@ -66,6 +78,7 @@ function DialogRoot({
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
   const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
+  const acknowledgeButtonRef = React.useRef<HTMLButtonElement>(null);
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -85,6 +98,12 @@ function DialogRoot({
           // Prefer the rightmost safe action, falling back to Cancel rather
           // than immediately triggering a destructive action.
           if (text === undefined) return;
+
+          if (acknowledge) {
+            event.preventDefault();
+            acknowledgeButtonRef.current?.focus();
+            return;
+          }
 
           let safeActionButton: HTMLButtonElement | null = null;
           for (let index = (actions?.length ?? 0) - 1; index >= 0; index--) {
@@ -167,6 +186,17 @@ function DialogRoot({
                   />
                 ),
               )}
+            </DialogFooter>
+          ) : null}
+          {acknowledge ? (
+            <DialogFooter>
+              <DialogPrimitive.Close asChild>
+                <Button
+                  ref={acknowledgeButtonRef}
+                  variant="primary"
+                  text={acknowledge.label}
+                />
+              </DialogPrimitive.Close>
             </DialogFooter>
           ) : null}
         </div>
