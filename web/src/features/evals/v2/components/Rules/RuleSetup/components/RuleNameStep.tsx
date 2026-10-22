@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
 export function RuleNameStep({
