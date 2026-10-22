@@ -31,7 +31,7 @@ import {
   createProjectRoute,
 } from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { AgentToolsBanner } from "@/src/features/developer-tools";

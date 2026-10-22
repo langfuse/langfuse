@@ -26,6 +26,7 @@ import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAn
 import { prepareAnnotationFormData } from "@/src/features/scores/lib/prepareAnnotationFormData";
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
+import { useScoreEditsDisabled } from "@/src/features/scores/hooks/useScoreEditsDisabled";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { useAnnotationKeyboard } from "@/src/features/scores/hooks/useAnnotationKeyboard";
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
@@ -157,6 +158,7 @@ export function AnnotationFormContent({
   });
   const { createMutation, updateMutation, deleteMutation } =
     useScoreMutations();
+  const scoreEditsDisabled = useScoreEditsDisabled(scoreMetadata.projectId);
   const [actions] = useState(() =>
     createAnnotationFormActions({
       form,
@@ -167,6 +169,7 @@ export function AnnotationFormContent({
       createScore: createMutation.mutateAsync,
       updateScore: updateMutation.mutateAsync,
       deleteScore: deleteMutation.mutateAsync,
+      editsDisabled: scoreEditsDisabled,
     }),
   );
   const formRootRef = useRef<HTMLDivElement | null>(null);
@@ -407,6 +410,7 @@ export function AnnotationFormContent({
                 showTarget={showSelectedTargets}
                 formRootRef={formRootRef}
                 commentSaving={updateMutation.isPending}
+                editsDisabled={scoreEditsDisabled}
                 targetOptions={
                   target.configControl.allowManualSelection
                     ? targets

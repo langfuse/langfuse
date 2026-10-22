@@ -51,6 +51,7 @@ declare module "next-auth" {
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
               topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
+              scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
               metadata: Record<string, unknown>;
               role: Role; // include only projects where user has a role
               createdAt: string; // iso datetime string — JWT does not support Date objects

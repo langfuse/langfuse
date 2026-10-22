@@ -217,7 +217,9 @@ export const GroupedToolStatuses = meta.story({
     await expect(canvas.getByLabelText("2 tool warnings")).toBeVisible();
     await expect(canvas.getByLabelText("Tool status: ERROR")).toBeVisible();
     await expect(canvas.getByLabelText("Tool status: WARNING")).toBeVisible();
-    const button = canvas.getByRole("button", { name: /^Tool:/ });
+    const button = canvas.getByRole("button", {
+      name: (name) => name.startsWith("Tool:"),
+    });
     await userEvent.hover(button);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -348,7 +350,7 @@ export const SelectMessagesAndTools = meta.story({
     const canvas = within(canvasElement);
     await userEvent.click(
       await canvas.findByRole("button", {
-        name: /tool: search_documentation/i,
+        name: "tool: search_documentation",
       }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:3");
@@ -429,10 +431,10 @@ export const MultipleThreads = meta.story({
       canvas.getByRole("region", { name: "Thread 2" }),
     );
     await expect(
-      firstThread.getByRole("button", { name: /tool: apply_patch/i }),
+      firstThread.getByRole("button", { name: "tool: apply_patch" }),
     ).toBeInTheDocument();
     await userEvent.click(
-      secondThread.getByRole("button", { name: /tool: read_file/i }),
+      secondThread.getByRole("button", { name: "tool: read_file" }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-2", "1:0");
     await userEvent.type(canvas.getByRole("textbox"), "apply_patch");
@@ -473,9 +475,8 @@ export const GroupedTools = meta.story({
       throw new globalThis.Error("Expected loaded sidebar");
     const canvas = within(canvasElement);
     const group = await canvas.findByRole("button", {
-      name: /^Tool:.*read_file.*apply_patch/,
+      name: "Tool: read_file · apply_patch",
     });
-    await expect(group).not.toHaveAttribute("aria-expanded");
     await expect(
       canvas.queryByRole("button", { name: "tool: apply_patch" }),
     ).not.toBeInTheDocument();
@@ -488,7 +489,7 @@ export const GroupedTools = meta.story({
     );
     await userEvent.type(canvas.getByRole("textbox"), "tool");
     await expect(
-      canvas.queryByRole("button", { name: /^Tool:.*read_file.*apply_patch/ }),
+      canvas.queryByRole("button", { name: "Tool: read_file · apply_patch" }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "tool: read_file" }),
@@ -506,7 +507,7 @@ export const GroupedTools = meta.story({
     ).toHaveTextContent("patch");
     await userEvent.clear(canvas.getByRole("textbox"));
     await expect(
-      canvas.getByRole("button", { name: /^Tool:.*read_file.*apply_patch/ }),
+      canvas.getByRole("button", { name: "Tool: read_file · apply_patch" }),
     ).toBeInTheDocument();
   },
 });

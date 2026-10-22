@@ -8,7 +8,7 @@ import {
 import { Home, Settings } from "@langfuse/icons";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
-import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
+import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";

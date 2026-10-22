@@ -29,7 +29,7 @@ import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { ModelsSettings } from "@/src/features/models";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { ProtectedLabelsSettings } from "@/src/features/prompts";
 import { SiSlack } from "@langfuse/icons/si";

@@ -88,6 +88,47 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+const issueTopics = [
+  { name: "Incomplete runs with undelivered results", count: 40 },
+  { name: "Research halted before handback report", count: 35 },
+  { name: "Unfinished work with unverified checks", count: 35 },
+  { name: "Run stopped before delivering final report", count: 18 },
+  { name: "Run halted before delivering requested report", count: 18 },
+  { name: "Partial answers without follow-up", count: 16 },
+].map((topic, index) => ({ ...topic, id: `issue-${index}`, description: "" }));
+
+export const LongNamesOnShortTiles = meta.story({
+  name: "Long names on short tiles",
+  args: {
+    facet: {
+      ...facet,
+      facetId: "issues",
+      name: "Issues",
+      topics: issueTopics,
+      rows: [
+        ...issueTopics.flatMap((topic) =>
+          Array.from({ length: topic.count }, (_, index) => ({
+            ...assignedRows[0],
+            traceId: `${topic.id}-trace-${index}`,
+            summary: `${topic.name} ${index + 1}`,
+            topicId: topic.id,
+            topicName: topic.name,
+          })),
+        ),
+        ...Array.from({ length: 261 }, (_, index) => ({
+          ...rows[rows.length - 1],
+          traceId: `issues-unassigned-${index}`,
+        })),
+      ],
+    },
+  },
+  render: (args) => (
+    <div className="flex flex-col" style={{ width: 1736, height: 1000 }}>
+      <TopicTreemapView {...args} />
+    </div>
+  ),
+});
+
 export const SelectTopic = meta.story({
   name: "(Test) Selecting a tile lists its traces",
   play: async ({ canvasElement }) => {

@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -78,7 +78,7 @@ import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {

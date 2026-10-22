@@ -9,7 +9,7 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import {
   DataTableColumnVisibilityFilter,
   type ColumnGroupTogglePayload,
-} from "@/src/components/table/data-table-column-visibility-filter";
+} from "@/src/components/table/DataTableColumnVisibilityFilter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import {
   InlineFilterBuilder,

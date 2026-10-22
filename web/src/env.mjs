@@ -368,6 +368,9 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    // Enables the gateway for every organization, e.g. on self-hosted
+    // deployments. When false, LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST applies.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()
@@ -647,6 +650,12 @@ export const env = createEnv({
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
       .datetime()
       .default("2026-09-16T00:00:00.000Z"),
+    // Organizations created at or after this instant take the v4 events_only
+    // path on legacy ingestion. Unset leaves that API unchanged. Read on the
+    // web request path; the worker never re-checks event types.
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
+      .datetime()
+      .optional(),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1144,6 +1153,7 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_ENABLED: process.env.LANGFUSE_AI_GATEWAY_ENABLED,
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
       process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
@@ -1264,6 +1274,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF:
+      process.env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

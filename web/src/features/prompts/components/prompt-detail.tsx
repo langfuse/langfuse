@@ -44,7 +44,7 @@ import {
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   Dialog,

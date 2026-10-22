@@ -38,7 +38,7 @@ import {
   useSingleTemplateValidation,
 } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";

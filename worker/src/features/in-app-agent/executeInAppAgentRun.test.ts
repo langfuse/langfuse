@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
+import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./runtime/skills";
 
 const createConversationId = () => `aconv_${randomUUID()}`;
 const createRunId = () => `arun_${randomUUID()}`;
@@ -24,6 +25,7 @@ vi.hoisted(() => {
   // provider. Keep its provider selection explicit rather than inheriting the
   // developer's root .env.
   delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
+  delete process.env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG;
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
     process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   }
@@ -63,6 +65,7 @@ type AgentScenario = (ctx: {
     awsProfile?: string;
     langfuseClient?: unknown;
     useLocalPrompt: boolean;
+    skills: Array<{ name: string }>;
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -356,6 +359,19 @@ describe("executeInAppAgentRun", () => {
     scenarioRef.instanceEnabled = true;
     scenarioRef.failFinishClaimedRun = false;
     observabilityRef.traceException.mockClear();
+  });
+
+  it("passes bundled skills from the loader when no managed tag is configured", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+    let selectedSkills: unknown;
+    scenarioRef.current = async (params) => {
+      selectedSkills = params.options.skills;
+      await completingScenario(params);
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect(selectedSkills).toBe(LANGFUSE_IN_APP_AGENT_SKILLS);
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {

@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import Link from "next/link";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";

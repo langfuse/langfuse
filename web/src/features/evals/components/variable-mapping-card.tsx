@@ -27,7 +27,7 @@ import { VariableMappingDescription } from "@/src/features/evals/components/eval
 import {
   EvaluationPromptPreview,
   getVariableColor,
-} from "@/src/features/evals/components/evaluation-prompt-preview";
+} from "@/src/features/evals/components/EvaluationPromptPreview";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,

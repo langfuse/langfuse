@@ -1,13 +1,21 @@
 import {
+  AliasNode,
   createQueryId,
+  IdentifierNode,
+  ReferenceNode,
+  ColumnNode,
   type Expression,
   type KyselyPlugin,
+  type OperationNode,
   type RootOperationNode,
+  type SelectionNode,
+  type SelectQueryBuilder,
 } from "kysely";
 
 import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
+import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
@@ -76,7 +84,54 @@ export function compileClickhouseQuery(
 export function renderClickhouseExpression(
   expression: Expression<unknown>,
 ): string {
-  const node = expression.toOperationNode();
+  return renderNode(expression.toOperationNode());
+}
+
+/**
+ * SQL text of each select of `query`, keyed by output name in select order,
+ * for raw-SQL builders that share AST selects: `.select(["e.span_id as id",
+ * eb.fn.min("e.start_time").as("start")])` → `{ id: "e.span_id as id",
+ * start: "min(e.start_time) as start" }`. Only the select list is read; the
+ * FROM just types its columns. Throws like {@link renderClickhouseExpression},
+ * on a select without an output name (`*`, raw SQL), and on two selects
+ * sharing one.
+ */
+export function renderClickhouseSelections<O>(
+  query: SelectQueryBuilder<any, any, O>,
+): Record<keyof O & string, string> {
+  const rendered = (query.toOperationNode().selections ?? []).map(
+    (selection) => [selectionName(selection), renderNode(selection)] as const,
+  );
+  assertDistinctOutputNames(rendered.map(([name]) => name));
+  return Object.fromEntries(rendered) as Record<keyof O & string, string>;
+}
+
+function renderNode(node: OperationNode): string {
   assertRelationFree(node);
   return new ClickHouseQueryCompiler().compileExpression(node);
+}
+
+function assertDistinctOutputNames(names: readonly string[]): void {
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new QueryCompileError(
+        `Two rendered selects share the output name "${name}".`,
+      );
+    }
+    seen.add(name);
+  }
+}
+
+/** `expr as name` → `name`; an unaliased `e.col` → `col`. */
+function selectionName({ selection }: SelectionNode): string {
+  if (AliasNode.is(selection) && IdentifierNode.is(selection.alias)) {
+    return selection.alias.name;
+  }
+  if (ReferenceNode.is(selection) && ColumnNode.is(selection.column)) {
+    return selection.column.column.name;
+  }
+  throw new QueryCompileError(
+    "A rendered select needs an output name: alias it, or select a column.",
+  );
 }

@@ -62,9 +62,11 @@ const row = (overrides: {
   projectOrgId?: string;
   withoutProject?: boolean;
   metadata?: unknown;
+  userId?: string | null;
 }) => ({
   id: "key-1",
   orgId: "org-1",
+  userId: overrides.userId === undefined ? "user-1" : overrides.userId,
   expiresAt: null,
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
@@ -122,6 +124,7 @@ describe("GatewayResolveService", () => {
         organization_id: "org-1",
         project_id: "project-1",
         key_id: "key-1",
+        user_id: "user-1",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
         provider_connection_id: "connection-1",
       },
@@ -165,6 +168,19 @@ describe("GatewayResolveService", () => {
       }),
     ).resolves.toMatchObject({
       attribution: { key_id: "key-1", key_metadata: {} },
+    });
+  });
+
+  it("attributes a key that is not bound to a user to no user", async () => {
+    const service = serviceWith(() => Promise.resolve(row({ userId: null })));
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      attribution: { key_id: "key-1", user_id: null },
     });
   });
 

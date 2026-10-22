@@ -80,6 +80,7 @@ import {
   logger,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -989,6 +990,9 @@ export async function getAuthOptions(
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
+                                scoreEditsDisabled: shouldSkipScoresDedup(
                                   project.id,
                                 ),
                                 deletedAt: project.deletedAt,

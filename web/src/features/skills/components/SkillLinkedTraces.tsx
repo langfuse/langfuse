@@ -1,5 +1,5 @@
 import EventsTable from "@/src/features/events/components/EventsTable";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export function SkillLinkedTraces({
@@ -20,7 +20,9 @@ export function SkillLinkedTraces({
         projectId={projectId}
         skill={{ name, version }}
         isolateTableState
-        hideControls
+        showSearchBar={false}
+        showToolbar={false}
+        showFilterSidebar={false}
       />
     </div>
   );

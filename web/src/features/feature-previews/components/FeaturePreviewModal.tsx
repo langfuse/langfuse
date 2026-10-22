@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Image from "next/image";
 import { useState } from "react";
 
@@ -148,11 +148,7 @@ export function FeaturePreviewModal({
                         {featurePreviewLabels[item.flag]}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
-                        {state[item.flag]?.disabled
-                          ? "Unavailable"
-                          : state[item.flag]?.enabled
-                            ? "Enabled"
-                            : "Available"}
+                        {getPreviewStatusLabel(state[item.flag])}
                       </span>
                     </span>
                   </button>
@@ -244,6 +240,12 @@ export function FeaturePreviewModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getPreviewStatusLabel(state: PreviewState | undefined) {
+  if (state?.enabled) return "Enabled";
+  if (state?.disabled) return "Unavailable";
+  return "Available";
 }
 
 function PreviewMockupPanel({
