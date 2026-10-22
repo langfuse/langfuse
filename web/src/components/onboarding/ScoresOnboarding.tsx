@@ -1,7 +1,7 @@
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 import { ThumbsUp, Star, LineChart, Code } from "@langfuse/icons";
 
 export function ScoresOnboarding() {

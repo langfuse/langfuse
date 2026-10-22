@@ -1,12 +1,12 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
-import { TimePickerInput } from "./time-picker-input";
-import { TimePeriodSelect } from "./time-period-select";
+import { TimePickerInput } from "./TimePickerInput";
+import { TimePeriodSelect } from "./TimePeriodSelect";
 import { type Period } from "./time-picker-utils";
 import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
-import { TimeIcon } from "@/src/components/ui/time-icon";
+import { TimeIcon } from "@/src/components/ui/TimeIcon";
 import { cn } from "@/src/utils/tailwind";
 import {
   Tooltip,
