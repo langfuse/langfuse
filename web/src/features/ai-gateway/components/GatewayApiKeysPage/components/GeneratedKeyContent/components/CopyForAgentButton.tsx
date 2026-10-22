@@ -1,7 +1,7 @@
 import { Check, Copy } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { formatAgentSetupMarkdown } from "@/src/features/ai-gateway/fns/agentSetupInstructions/formatAgentSetupMarkdown";
+import { formatAgentSetupMarkdown } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/fns/agentSetupInstructions/formatAgentSetupMarkdown";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 

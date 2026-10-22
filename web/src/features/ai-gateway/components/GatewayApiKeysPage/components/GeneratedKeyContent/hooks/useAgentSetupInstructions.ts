@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
 
 import { GATEWAY_USER_ID_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
-import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/fns/agentSetupInstructions/buildAgentSetupInstructions";
+import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/fns/agentSetupInstructions/buildAgentSetupInstructions";
 import { api } from "@/src/utils/api";
 
 /** Characters that would need escaping in a shell, TOML or JSON string. */

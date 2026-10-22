@@ -1,8 +1,8 @@
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
-import { buildAgentSetupInstructions } from "./buildAgentSetupInstructions";
-import { buildApiInstructions } from "./buildApiInstructions";
-import { buildOpenCodeInstructions } from "./buildOpenCodeInstructions";
-import { formatAgentSetupMarkdown } from "./formatAgentSetupMarkdown";
+import { buildAgentSetupInstructions } from "../buildAgentSetupInstructions";
+import { buildApiInstructions } from "../buildApiInstructions";
+import { buildOpenCodeInstructions } from "../buildOpenCodeInstructions";
+import { formatAgentSetupMarkdown } from "../formatAgentSetupMarkdown";
 
 const context = {
   gatewayOrigin: "https://gateway.example.com",
