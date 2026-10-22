@@ -45,6 +45,48 @@ function normalize(observation: OrderedObservation) {
   );
 }
 
+/** Check if an observation's level and status message belong in `levelEvents`. */
+export function hasReportableLevel(
+  observation: Pick<TranscriptObservation, "level" | "statusMessage">,
+): boolean {
+  return (
+    observation.level === "ERROR" ||
+    (observation.level === "WARNING" && Boolean(observation.statusMessage))
+  );
+}
+
+function toLevelEvent(observation: OrderedObservation): TranscriptLevelEvent {
+  return {
+    observationId: observation.id,
+    traceId: observation.traceId,
+    type: observation.type,
+    name: observation.name ?? null,
+    level: observation.level === "ERROR" ? "ERROR" : "WARNING",
+    statusMessage: observation.statusMessage
+      ? observation.statusMessage.slice(0, LEVEL_STATUS_MAX_CHARACTERS)
+      : null,
+    startTime: observation.startTime,
+  };
+}
+
+function collectLevelEvents(
+  observations: OrderedObservation[],
+): TranscriptLevelEvent[] {
+  const levelEvents: TranscriptLevelEvent[] = [];
+  for (const observation of observations)
+    if (hasReportableLevel(observation))
+      levelEvents.push(toLevelEvent(observation));
+  return levelEvents;
+}
+
+function withLevelEvents(
+  transcript: Transcript | null,
+  levelEvents: TranscriptLevelEvent[],
+): Transcript | null {
+  if (levelEvents.length === 0) return transcript;
+  return { ...(transcript ?? { threads: [] }), levelEvents };
+}
+
 /**
  * Assemble threads from observations: normalize their I/O, reconcile replayed
  * history, and retain first-seen provenance. The caller supplies the
@@ -97,46 +139,4 @@ export function assembleTranscript(
       ? limitTranscript(conversation, maxCharacters)
       : conversation;
   return withLevelEvents(limited, collectLevelEvents(orderedObservations));
-}
-
-/** Check if an observation's level and status message belong in `levelEvents`. */
-export function hasReportableLevel(
-  observation: Pick<TranscriptObservation, "level" | "statusMessage">,
-): boolean {
-  return (
-    observation.level === "ERROR" ||
-    (observation.level === "WARNING" && Boolean(observation.statusMessage))
-  );
-}
-
-function collectLevelEvents(
-  observations: OrderedObservation[],
-): TranscriptLevelEvent[] {
-  const levelEvents: TranscriptLevelEvent[] = [];
-  for (const observation of observations)
-    if (hasReportableLevel(observation))
-      levelEvents.push(toLevelEvent(observation));
-  return levelEvents;
-}
-
-function toLevelEvent(observation: OrderedObservation): TranscriptLevelEvent {
-  return {
-    observationId: observation.id,
-    traceId: observation.traceId,
-    type: observation.type,
-    name: observation.name ?? null,
-    level: observation.level === "ERROR" ? "ERROR" : "WARNING",
-    statusMessage: observation.statusMessage
-      ? observation.statusMessage.slice(0, LEVEL_STATUS_MAX_CHARACTERS)
-      : null,
-    startTime: observation.startTime,
-  };
-}
-
-function withLevelEvents(
-  transcript: Transcript | null,
-  levelEvents: TranscriptLevelEvent[],
-): Transcript | null {
-  if (levelEvents.length === 0) return transcript;
-  return { ...(transcript ?? { threads: [] }), levelEvents };
 }
