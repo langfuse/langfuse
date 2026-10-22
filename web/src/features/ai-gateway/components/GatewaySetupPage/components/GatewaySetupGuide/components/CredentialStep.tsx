@@ -2,7 +2,7 @@ import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
-import { StepDocsLink } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/StepDocsLink";
+import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupDocsUrl";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
@@ -31,7 +31,7 @@ export function CredentialStep({
       size="sm"
       status={status}
       isCollapsible={false}
-      titleAction={<StepDocsLink />}
+      docsHref={GATEWAY_SETUP_DOCS_URL}
       description={summary}
     >
       {status === "current" ? (

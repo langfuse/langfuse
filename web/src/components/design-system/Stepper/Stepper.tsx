@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -66,8 +67,8 @@ type StepperProps = {
   size?: "default" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
-  /** Shown after the title, e.g. a docs link. */
-  titleAction?: ReactNode;
+  /** Renders a "Docs" link after the title. */
+  docsHref?: string;
   compactBottomSpacing?: boolean;
   children?: ReactNode;
 } & (
@@ -100,7 +101,7 @@ export function Stepper({
   variant = "filled",
   size = "default",
   status = "current",
-  titleAction,
+  docsHref,
   compactBottomSpacing = false,
   isCollapsible = true,
   defaultOpen = true,
@@ -161,7 +162,9 @@ export function Stepper({
               <span className={titleVariants({ size, status })}>{title}</span>
             </div>
           )}
-          {titleAction}
+          {docsHref ? (
+            <Button variant="text" size="sm" text="Docs" href={docsHref} />
+          ) : null}
         </div>
         {expanded && hasBody ? (
           <div

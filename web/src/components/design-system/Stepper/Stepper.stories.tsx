@@ -72,9 +72,7 @@ export const Statuses = meta.story({
         title="Add a provider credential"
         size="sm"
         isCollapsible={false}
-        titleAction={
-          <span className="text-muted-foreground text-xs">Docs</span>
-        }
+        docsHref="https://langfuse.com/docs"
       >
         <div className="rounded-md border p-3 text-sm">Add credential</div>
       </Stepper>

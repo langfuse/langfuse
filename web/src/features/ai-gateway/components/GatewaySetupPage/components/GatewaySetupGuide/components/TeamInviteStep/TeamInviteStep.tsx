@@ -1,5 +1,5 @@
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
-import { StepDocsLink } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/StepDocsLink";
+import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupDocsUrl";
 import { TeamInviteForm } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 
@@ -21,7 +21,7 @@ export function TeamInviteStep({
       size="sm"
       status={status}
       isCollapsible={false}
-      titleAction={<StepDocsLink />}
+      docsHref={GATEWAY_SETUP_DOCS_URL}
     >
       {status === "current" ? (
         <TeamInviteForm organizationId={organizationId} onFinish={onFinish} />
