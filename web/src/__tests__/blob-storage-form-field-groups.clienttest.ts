@@ -12,7 +12,9 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
   EXPORT_FIELD_GROUP_OPTIONS,
+  type ExportSourceContext,
 } from "@langfuse/shared";
+import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 
 const VALID_BASE: BlobStorageIntegrationFormSchema = {
   type: BlobStorageIntegrationType.S3,
@@ -160,5 +162,36 @@ describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
         option.value !== "trace_context",
       );
     }
+  });
+});
+
+describe("buildBlobStorageFormValues — trace field groups", () => {
+  const ctx: ExportSourceContext = {
+    isCloud: false,
+    enrichedAvailable: true,
+    legacyWritesActive: true,
+  };
+
+  it.each([
+    // no stored trace group = full traces export, so every trace group is shown
+    [
+      ["core", "io"],
+      ["core", "io", "trace_core", "trace_io", "trace_metadata"],
+    ],
+    [
+      ["core", "trace_core"],
+      ["core", "trace_core"],
+    ],
+    // trace_core is locked in the form and kept once any trace group is stored
+    [
+      ["core", "trace_io"],
+      ["core", "trace_io", "trace_core"],
+    ],
+  ])("maps stored groups %j to form groups %j", (stored, expected) => {
+    const values = buildBlobStorageFormValues(
+      { exportFieldGroups: stored },
+      ctx,
+    );
+    expect(values.exportFieldGroups).toEqual(expected);
   });
 });

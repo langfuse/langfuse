@@ -1313,6 +1313,116 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       },
     );
 
+    const TRACE_CORE_COLUMNS = [
+      "id",
+      "timestamp",
+      "name",
+      "environment",
+      "project_id",
+      "user_id",
+      "session_id",
+      "release",
+      "version",
+      "public",
+      "bookmarked",
+      "tags",
+      "created_at",
+      "updated_at",
+    ];
+
+    it.each([
+      // no trace group stored: every trace column, in the original order
+      [
+        ["core", "io", "metadata"],
+        [
+          "id",
+          "timestamp",
+          "name",
+          "environment",
+          "project_id",
+          "metadata",
+          "user_id",
+          "session_id",
+          "release",
+          "version",
+          "public",
+          "bookmarked",
+          "tags",
+          "input",
+          "output",
+          "created_at",
+          "updated_at",
+        ],
+      ],
+      [["core", "io", "metadata", "trace_core"], TRACE_CORE_COLUMNS],
+      [
+        ["core", "trace_core", "trace_io"],
+        [...TRACE_CORE_COLUMNS.slice(0, 12), "input", "output"].concat(
+          TRACE_CORE_COLUMNS.slice(12),
+        ),
+      ],
+      // trace_core is implied once any trace group is stored
+      [
+        ["core", "trace_metadata"],
+        [...TRACE_CORE_COLUMNS.slice(0, 5), "metadata"].concat(
+          TRACE_CORE_COLUMNS.slice(5),
+        ),
+      ],
+    ])(
+      "should export trace columns for field groups %j",
+      async (exportFieldGroups, expectedColumns) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+        const now = new Date();
+        const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            exportFieldGroups,
+            nextSyncAt: twoHoursAgo,
+            lastSyncAt: twoHoursAgo,
+            compressed: false,
+            fileType: BlobStorageIntegrationFileType.JSONL,
+          },
+        });
+
+        await createTracesCh([
+          createTrace({
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000,
+            input: JSON.stringify({ q: "trace input" }),
+            output: JSON.stringify({ a: "trace output" }),
+            metadata: { source: "trace" },
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const traceFile = files.find((f) => f.file.includes("/traces/"));
+        expect(traceFile).toBeDefined();
+        const content = await s3StorageService.download(traceFile!.file);
+        const traceRow = JSON.parse(content.trim().split("\n")[0]);
+
+        expect(Object.keys(traceRow)).toEqual(expectedColumns);
+      },
+    );
+
     it("should respect export frequency when setting nextSyncAt", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

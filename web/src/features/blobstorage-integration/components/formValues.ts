@@ -5,6 +5,8 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
+  TRACE_EXPORT_FIELD_GROUPS,
+  hasTraceFieldGroups,
   type BlobStorageIntegration,
   type ExportFieldGroup,
   type ExportSourceContext,
@@ -27,6 +29,16 @@ export type BlobStorageFormControl = Control<
   unknown,
   BlobStorageIntegrationFormSchema
 >;
+
+// Without a stored trace group the traces export is full, so show every trace
+// group as selected; saving then stores the same full selection explicitly.
+// trace_core is locked in the form and always kept in the selection.
+function withTraceFieldGroups(groups: ExportFieldGroup[]): ExportFieldGroup[] {
+  if (!hasTraceFieldGroups(groups)) {
+    return [...groups, ...TRACE_EXPORT_FIELD_GROUPS];
+  }
+  return groups.includes("trace_core") ? groups : [...groups, "trace_core"];
+}
 
 export function buildBlobStorageFormValues(
   state:
@@ -62,9 +74,11 @@ export function buildBlobStorageFormValues(
     ),
     // Empty array in the DB means "export everything" (the worker falls back
     // to all groups), so surface it as the full selection in the form.
-    exportFieldGroups: state?.exportFieldGroups?.length
-      ? (state.exportFieldGroups as ExportFieldGroup[])
-      : [...OBSERVATION_FIELD_GROUPS_FULL],
+    exportFieldGroups: withTraceFieldGroups(
+      state?.exportFieldGroups?.length
+        ? (state.exportFieldGroups as ExportFieldGroup[])
+        : [...OBSERVATION_FIELD_GROUPS_FULL],
+    ),
     compressed: state?.compressed ?? true,
   };
 }
