@@ -4,6 +4,7 @@ import { type Prisma } from "@langfuse/shared/src/db";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  JobExecutionStatus,
   type ObservationForEval,
   EvalTargetObject,
 } from "@langfuse/shared";
@@ -30,6 +31,9 @@ type MockProcessorDeps = ObservationEvalProcessorDeps & {
     ObservationEvalProcessorDeps["downloadObservationFromS3"]
   >;
   evalExecutionDeps: EvalExecutionDeps;
+  processEvaluatorResultRules: Mock<
+    NonNullable<ObservationEvalProcessorDeps["processEvaluatorResultRules"]>
+  >;
 };
 
 /**
@@ -147,7 +151,10 @@ export function createMockSchedulerDeps(
       overrides.upsertJobExecution ??
       vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+        .mockResolvedValue({
+          id: `job-exec-${randomUUID()}`,
+          status: JobExecutionStatus.PENDING,
+        }),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi
@@ -170,6 +177,9 @@ export function createMockProcessorDeps(
       ObservationEvalProcessorDeps["downloadObservationFromS3"]
     >;
     evalExecutionDeps: EvalExecutionDeps;
+    processEvaluatorResultRules: Mock<
+      NonNullable<ObservationEvalProcessorDeps["processEvaluatorResultRules"]>
+    >;
   }> = {},
 ): MockProcessorDeps {
   const defaultObservation = createTestObservation();
@@ -182,6 +192,15 @@ export function createMockProcessorDeps(
         .mockResolvedValue(JSON.stringify(defaultObservation)),
     evalExecutionDeps:
       overrides.evalExecutionDeps ?? createMockEvalExecutionDeps(),
+    processEvaluatorResultRules:
+      overrides.processEvaluatorResultRules ??
+      vi
+        .fn<
+          NonNullable<
+            ObservationEvalProcessorDeps["processEvaluatorResultRules"]
+          >
+        >()
+        .mockResolvedValue(undefined),
   };
 }
 
@@ -352,7 +371,10 @@ export function createFullyMockedEvalPipeline(
   const schedulerDeps: MockSchedulerDeps = {
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-      .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+      .mockResolvedValue({
+        id: `job-exec-${randomUUID()}`,
+        status: JobExecutionStatus.PENDING,
+      }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockImplementation(async (params) => {
@@ -398,6 +420,7 @@ export function createFullyMockedEvalPipeline(
         return JSON.stringify(observation);
       }),
     evalExecutionDeps: executionDeps,
+    processEvaluatorResultRules: vi.fn().mockResolvedValue(undefined),
   };
 
   return {

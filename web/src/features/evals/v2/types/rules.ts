@@ -1,7 +1,10 @@
-import type {
-  EvalTemplateType,
-  FilterState,
-  ObservationVariableMapping,
+import {
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+  type EvalTemplateType,
+  type FilterState,
+  type ObservationVariableMapping,
+  type ScoreResultTrigger,
 } from "@langfuse/shared";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -22,7 +25,25 @@ export type RuleDraft = {
   filter: FilterState;
   sampling: number;
   assignments: RuleDraftAssignment[];
+  targetObject: Extract<
+    EvalTargetObjectType,
+    "event" | "experiment" | "score_result"
+  >;
+  scoreResultTrigger: ScoreResultTrigger | null;
 };
+
+export function toRuleDraftTargetObject(
+  targetObject: EvalTargetObjectType,
+): RuleDraft["targetObject"] {
+  switch (targetObject) {
+    case EvalTargetObject.SCORE_RESULT:
+      return EvalTargetObject.SCORE_RESULT;
+    case EvalTargetObject.EXPERIMENT:
+      return EvalTargetObject.EXPERIMENT;
+    default:
+      return EvalTargetObject.EVENT;
+  }
+}
 
 export type RuleEvaluatorOption = {
   id: string;
@@ -59,11 +80,17 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
+  setTargetObject: (targetObject: RuleDraft["targetObject"]) => void;
+  setScoreResultTrigger: (trigger: ScoreResultTrigger | null) => void;
+  setPreviewSourceRuleId: (ruleId: string | null) => void;
+  setPreviewFilter: (filter: FilterState) => void;
 };
 
 type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
+  previewSourceRuleId: string | null;
+  previewFilter: FilterState;
   actions: RuleSetupStoreActions;
 };
 

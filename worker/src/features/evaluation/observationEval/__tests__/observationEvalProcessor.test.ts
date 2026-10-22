@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { EvalTargetObject } from "@langfuse/shared";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -1031,6 +1032,52 @@ describe("processObservationEval", () => {
           executionTraceId: mockEvalExecutionResult.executionTraceId,
         }),
       });
+      expect(deps.processEvaluatorResultRules).toHaveBeenCalledWith({
+        projectId,
+        evaluatorId: expect.any(String),
+        observation,
+        scores: mockEvalExecutionResult.scores,
+        upstreamJobExecutionId: jobExecutionId,
+      });
+    });
+
+    it("does not trigger evaluator result rules from a score-result rule", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+        jobInputTraceId: "trace-abc",
+        jobInputObservationId: "obs-xyz",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        variableMapping: [],
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
+        environment: "production",
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      mockMigratedAssignment(config);
+      const deps = createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+      });
+
+      await processObservationEval({
+        event: baseEvent,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(deps.processEvaluatorResultRules).not.toHaveBeenCalled();
     });
 
     it("should call the code executor for code templates", async () => {

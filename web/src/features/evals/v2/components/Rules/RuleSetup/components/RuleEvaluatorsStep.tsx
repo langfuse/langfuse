@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
@@ -60,7 +61,12 @@ export function RuleEvaluatorsStep({
     eventDetails: selectedObservationDetails.data,
   });
   const assignments = useStore(store, (state) => state.assignments);
-  const costEstimate = useRuleCostEstimate({ projectId, store });
+  const targetObject = useStore(store, (state) => state.targetObject);
+  const costEstimate = useRuleCostEstimate({
+    projectId,
+    store,
+    enabled: targetObject !== EvalTargetObject.SCORE_RESULT,
+  });
   const availableEstimates = costEstimate.estimates.filter(
     (estimate) => estimate.estimatedCostUsd !== null,
   );
@@ -69,7 +75,7 @@ export function RuleEvaluatorsStep({
     0,
   );
   const total =
-    assignments.length > 0 ? (
+    assignments.length > 0 && targetObject !== EvalTargetObject.SCORE_RESULT ? (
       <div className="w-48 border-t pt-2 text-right text-sm">
         {availableEstimates.length > 0 ? (
           <div>
@@ -98,13 +104,13 @@ export function RuleEvaluatorsStep({
         )}
       </div>
     ) : null;
+  const description =
+    targetObject === EvalTargetObject.SCORE_RESULT
+      ? "Run on the observation each matching score belongs to. Results from these evaluators do not trigger other evaluator result rules."
+      : "Choose which evaluators should run on matching observations.";
 
   return (
-    <Stepper
-      number={2}
-      title="Attach evaluators"
-      description="Choose which evaluators should run on matching observations."
-    >
+    <Stepper number={2} title="Attach evaluators" description={description}>
       <EvaluatorAssignmentsEditor
         evaluatorOptions={evaluatorOptions}
         store={store}
@@ -115,7 +121,9 @@ export function RuleEvaluatorsStep({
         estimatingEvaluatorIds={costEstimate.estimatingEvaluatorIds}
         footerTrailing={total}
       />
-      {costEstimate.status === "error" && assignments.length > 0 ? (
+      {costEstimate.status === "error" &&
+      assignments.length > 0 &&
+      targetObject !== EvalTargetObject.SCORE_RESULT ? (
         <p className="text-muted-foreground text-xs">
           Cost estimates are temporarily unavailable.
         </p>

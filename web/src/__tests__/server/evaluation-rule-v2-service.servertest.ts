@@ -76,9 +76,15 @@ function createEvaluator(
           prompt: "Judge {{output}}",
           vars: ["output"],
           variableMapping: variableMapping as Prisma.InputJsonValue,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
         },
       },
     },
+    include: { versions: true },
   });
 }
 
@@ -137,7 +143,8 @@ function createInput(evaluatorId: string | null = defaultEvaluatorId) {
 
 const createService = (
   audit: ConstructorParameters<typeof RuleService>[1] = async () => undefined,
-) => new RuleService(prisma, audit);
+  options?: ConstructorParameters<typeof RuleService>[2],
+) => new RuleService(prisma, audit, options);
 
 describe("RuleService", () => {
   describe("createOrAttachFromEvaluatorFilters", () => {
@@ -372,6 +379,56 @@ describe("RuleService", () => {
       );
       expect(result.totalItems).toBe(2);
     });
+
+    it("can restrict legacy clients to non-result target objects", async () => {
+      const evaluator = await createEvaluator();
+      const service = createService();
+      const observationRule = await service.create(
+        createInput(evaluator.id),
+        null,
+      );
+      const resultRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Evaluator result rule",
+          status: "INACTIVE",
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          filter: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC",
+              operator: ">=",
+              value: 0.8,
+            },
+          ],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          triggerEvaluatorId: evaluator.id,
+        },
+      });
+      const legacySurfaceService = createService(undefined, {
+        visibleTargetObjects: [
+          EvalTargetObject.TRACE,
+          EvalTargetObject.DATASET,
+          EvalTargetObject.EVENT,
+          EvalTargetObject.EXPERIMENT,
+        ],
+      });
+
+      await expect(
+        legacySurfaceService.list({ projectId, page: 1, limit: 50 }),
+      ).resolves.toMatchObject({
+        rules: [{ id: observationRule.id }],
+        totalItems: 1,
+      });
+      await expect(
+        legacySurfaceService.get(projectId, resultRule.id),
+      ).rejects.toThrow("Evaluation rule not found");
+      await expect(
+        legacySurfaceService.delete(projectId, resultRule.id),
+      ).rejects.toThrow("Evaluation rule not found");
+    });
   });
 
   describe("telemetry", () => {
@@ -459,6 +516,48 @@ describe("RuleService", () => {
           null,
         ),
       ).resolves.toMatchObject({ enabled: false });
+    });
+
+    it("creates evaluator result rules", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(projectId, "quality"),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const scoreResultTrigger = {
+        evaluatorId: sourceEvaluator.id,
+        predicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC" as const,
+            operator: ">=" as const,
+            value: 0.8,
+          },
+        ],
+      };
+
+      const createdRule = await service.create(
+        {
+          ...createInput(targetEvaluator.id),
+          filter: [],
+          sampling: 1,
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          scoreResultTrigger,
+        },
+        null,
+      );
+      expect(createdRule).toMatchObject({
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        scoreResultTrigger,
+        filter: [],
+        sampling: 1,
+      });
+      await expect(
+        prisma.evaluationRule.findUniqueOrThrow({
+          where: { id: createdRule.id },
+          select: { filter: true },
+        }),
+      ).resolves.toEqual({ filter: scoreResultTrigger.predicates });
     });
 
     it("creates an experiment rule with experiment filters and mappings", async () => {
@@ -1021,6 +1120,27 @@ describe("RuleService", () => {
         ).rejects.toThrow(
           "Legacy evaluation rules can only be deactivated or deleted",
         );
+        await expect(
+          service.update({
+            projectId,
+            ruleId: legacyRule.id,
+            enabled: false,
+            targetObject: EvalTargetObject.SCORE_RESULT,
+            scoreResultTrigger: {
+              evaluatorId: otherEvaluator.id,
+              predicates: [
+                {
+                  scoreName: "quality",
+                  dataType: "NUMERIC",
+                  operator: ">",
+                  value: 0.5,
+                },
+              ],
+            },
+          }),
+        ).rejects.toThrow(
+          "Legacy evaluation rules can only be deactivated or deleted",
+        );
         await service.setEnabled({
           projectId,
           ruleId: legacyRule.id,
@@ -1264,6 +1384,141 @@ describe("RuleService", () => {
       ).rejects.toThrow(
         "An enabled evaluation rule requires at least one evaluator assignment",
       );
+    });
+
+    it("requires invalid evaluator result rules to be reviewed before enabling", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(projectId, "quality"),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const scoreResultTrigger = {
+        evaluatorId: sourceEvaluator.id,
+        predicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC" as const,
+            operator: ">=" as const,
+            value: 0.8,
+          },
+        ],
+      };
+      const rule = await service.create(
+        {
+          ...createInput(targetEvaluator.id),
+          filter: [],
+          sampling: 1,
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          scoreResultTrigger,
+        },
+        null,
+      );
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: {
+          status: "INACTIVE",
+          ruleInvalidReason: "The trigger evaluator changed.",
+        },
+      });
+
+      await expect(
+        service.setEnabled({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow("must be reviewed");
+      await expect(
+        service.update({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow("must be reviewed");
+      await prisma.evaluatorVersion.update({
+        where: { id: sourceEvaluator.versions[0]!.id },
+        data: {
+          outputDefinition: {
+            dataType: "CATEGORICAL",
+            score: {
+              description: "Quality",
+              categories: ["good", "bad"],
+              shouldAllowMultipleMatches: false,
+            },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      });
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          enabled: true,
+          scoreResultTrigger,
+        }),
+      ).rejects.toThrow("no longer match");
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          enabled: true,
+          scoreResultTrigger: {
+            evaluatorId: sourceEvaluator.id,
+            predicates: [
+              {
+                scoreName: "quality",
+                dataType: "CATEGORICAL",
+                operator: "=",
+                value: "good",
+              },
+            ],
+          },
+        }),
+      ).resolves.toMatchObject({
+        enabled: true,
+        ruleInvalidReason: null,
+      });
+    });
+
+    it("allows partial updates after the trigger evaluator is deleted", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(projectId, "quality"),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const rule = await service.create(
+        {
+          ...createInput(targetEvaluator.id),
+          filter: [],
+          sampling: 1,
+          enabled: false,
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          scoreResultTrigger: {
+            evaluatorId: sourceEvaluator.id,
+            predicates: [
+              {
+                scoreName: "quality",
+                dataType: "NUMERIC",
+                operator: ">=",
+                value: 0.8,
+              },
+            ],
+          },
+        },
+        null,
+      );
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: { ruleInvalidReason: "The trigger evaluator was deleted." },
+      });
+      await prisma.evaluator.delete({ where: { id: sourceEvaluator.id } });
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          name: "Renamed invalid rule",
+        }),
+      ).resolves.toMatchObject({
+        name: "Renamed invalid rule",
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        scoreResultTrigger: null,
+        ruleInvalidReason: "The trigger evaluator was deleted.",
+      });
     });
 
     it("rejects an unavailable rule", async () => {

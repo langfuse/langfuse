@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications";
 import {
+  EvalTargetObject,
   EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
@@ -11,11 +12,15 @@ import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleD
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import {
+  toRuleDraftTargetObject,
+  type RuleEvaluatorOption,
+} from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { prepareRuleDraftForSave } from "@/src/features/evals/v2/fns/prepareRuleDraftForSave";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -43,6 +48,8 @@ export function EditRuleDialogContent({
       name: rule.name,
       filter: singleFilterList.catch([]).parse(rule.filter),
       sampling: rule.sampling,
+      targetObject: toRuleDraftTargetObject(rule.targetObject),
+      scoreResultTrigger: rule.scoreResultTrigger,
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(
           assignment.evaluator.latestVersion?.variableMapping,
@@ -69,7 +76,7 @@ export function EditRuleDialogContent({
   });
 
   const save = async () => {
-    const draft = ruleSetupStore.getState();
+    const draft = prepareRuleDraftForSave(ruleSetupStore.getState());
     const initialIds = new Set(
       rule.assignments.map((assignment) => assignment.evaluator.id),
     );
@@ -82,12 +89,22 @@ export function EditRuleDialogContent({
     const detachedCount = rule.assignments.filter(
       (assignment) => !nextIds.has(assignment.evaluator.id),
     ).length;
+    const preservesInvalidMissingTrigger =
+      Boolean(rule.ruleInvalidReason) &&
+      draft.targetObject === EvalTargetObject.SCORE_RESULT &&
+      draft.scoreResultTrigger === null;
     await update.mutateAsync({
       projectId,
       ruleId: rule.id,
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
+      ...(preservesInvalidMissingTrigger
+        ? {}
+        : {
+            targetObject: draft.targetObject,
+            scoreResultTrigger: draft.scoreResultTrigger,
+          }),
       evaluatorMappings: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -98,6 +115,7 @@ export function EditRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: rule.enabled,
+      targetObject: draft.targetObject,
     });
     if (attachedCount > 0) {
       capture("evaluation_rules:attach_evaluator", {
@@ -145,6 +163,11 @@ export function EditRuleDialogContent({
         mutationPending={update.isPending}
         nameGenerationPending={false}
         isEditing
+        allowUnchangedSave={Boolean(rule.ruleInvalidReason)}
+        allowMissingScoreResultTrigger={
+          Boolean(rule.ruleInvalidReason) && rule.scoreResultTrigger === null
+        }
+        requireAssignments={rule.enabled}
         canEdit={hasWriteAccess}
         nameAIAssistanceAvailable={false}
         onCancel={onClose}

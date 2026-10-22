@@ -34,7 +34,9 @@ export const shouldShowEvalTemplate = (
 export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
   "Close code editor? Unsaved changes will be lost.";
 
-export function resolveCodeEvalTarget(target: EvalTargetObject) {
+export function resolveCodeEvalTarget(
+  target: Exclude<EvalTargetObject, "score_result">,
+) {
   if (target === EvalTargetObject.TRACE) return EvalTargetObject.EVENT;
   if (target === EvalTargetObject.DATASET) return EvalTargetObject.EXPERIMENT;
   return target;

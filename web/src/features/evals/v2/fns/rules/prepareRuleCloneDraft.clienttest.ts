@@ -15,6 +15,8 @@ describe("prepareRuleCloneDraft", () => {
         },
       ],
       sampling: 0.25,
+      targetObject: "event",
+      scoreResultTrigger: null,
       assignments: [
         {
           evaluator: {
@@ -46,6 +48,8 @@ describe("prepareRuleCloneDraft", () => {
       name: "Production quality copy",
       filter: rule.filter,
       sampling: 0.25,
+      targetObject: "event",
+      scoreResultTrigger: null,
       assignments: [
         {
           evaluatorId: "evaluator-1",
