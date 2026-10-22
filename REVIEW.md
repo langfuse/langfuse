@@ -62,6 +62,7 @@ Use their technical rules, not their implementation or handoff workflows.
 ### Security and performance
 
 - Verify auth and RBAC on every changed read/write path. Check for bypasses and privilege escalation through roles, resource IDs, and tenant context. Upstream checks must cover every entry point.
+- Elements containing customer data must use `ph-no-capture` to prevent capture by cloud session replay. Reuse protected renderers such as `JSONView` where appropriate. See [client telemetry privacy](.agents/skills/security-review/references/client-telemetry-privacy.md).
 - Ingestion changes must not worsen throughput, latency, or resource cost per event, including downstream jobs and writes. Check per-event work, batching, concurrency, and backpressure. Compare changed execution under equivalent, representative loads: throughput, tail latency, CPU, memory, and I/O as relevant.
 - ClickHouse queries must be fast at representative volumes and cardinalities. Follow the ClickHouse skill. Check schema and query plans; measure runtime, rows/bytes read, and peak memory, including broad supported filters. Tiny fixtures or cached results are insufficient.
 - Compare performance before/after; assess new queries against documented budgets. Do not invent budgets or results. Missing measurements require verification before merge, not an unsupported claim of safety or regression.
