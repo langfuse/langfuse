@@ -47,7 +47,7 @@ vi.mock(
   }),
 );
 
-// Capture the props CorrectedOutputField receives — the diff dialog it mounts
+// Capture the props the diff dialog receives — it
 // JSON.stringifies `actualOutput` unmemoized on every render, so an oversized
 // output must NOT be handed to it. `vi.hoisted` so the holder exists when the
 // hoisted mock factory runs.
@@ -56,13 +56,21 @@ const correctedField = vi.hoisted(() => ({
     | { actualOutput?: unknown; actualOutputTooLarge?: boolean }
     | undefined,
 }));
-vi.mock("./components/CorrectedOutputField", () => ({
-  useCorrectOutputAction: ({ onOpen }: { onOpen: () => void }) => ({
-    icon: () => null,
-    label: "Correct output",
-    onClick: onOpen,
+vi.mock("./hooks/useCorrectionMutations", () => ({
+  useCorrectionMutations: () => ({
+    saveStatus: "idle",
+    setSaveStatus: vi.fn(),
+    handleSave: vi.fn(),
+    handleDelete: vi.fn(),
   }),
-  CorrectedOutputField: (props: {
+}));
+vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
+  CodeMirrorEditor: () => <div data-testid="correction-editor" />,
+}));
+vi.mock("./components/CorrectedOutputDiffDialog", () => ({
+  CorrectedOutputDiffDialog: (props: {
+    isOpen: boolean;
     actualOutput?: unknown;
     actualOutputTooLarge?: boolean;
   }) => {
@@ -72,7 +80,9 @@ vi.mock("./components/CorrectedOutputField", () => ({
       actualOutput: props.actualOutput,
       actualOutputTooLarge: props.actualOutputTooLarge,
     };
-    return <div data-testid="corrected-output" />;
+    return props.isOpen ? (
+      <div role="dialog" aria-label="Output Correction Diff" />
+    ) : null;
   },
 }));
 
@@ -167,6 +177,39 @@ describe("IOPreviewJSON session recording privacy", () => {
 });
 
 describe("IOPreviewJSON node-count gating", () => {
+  it("keeps the correction diff open when the advanced viewer rerenders", () => {
+    const props = {
+      output: { answer: "ok" },
+      hideInput: true,
+      projectId: "p",
+      traceId: "t",
+    };
+    const { rerender } = render(
+      <IOPreview {...props} currentView="json-beta" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "View diff between original and corrected output",
+      }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Output Correction Diff" }),
+    ).toBeInTheDocument();
+    rerender(
+      <IOPreview
+        {...props}
+        currentView="json-beta"
+        metadata={{ updated: true }}
+        hideMetadata={false}
+      />,
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Output Correction Diff" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("correction-editor")).toHaveLength(1);
+  });
+
   it("unmounts the conversation when switching to JSON and restores it when switching back", () => {
     const props: React.ComponentProps<typeof IOPreview> = {
       input: { question: "How do I configure tracing?" },
@@ -226,13 +269,16 @@ describe("IOPreviewJSON node-count gating", () => {
       traceId: "t",
     };
     const { rerender } = render(<IOPreview {...props} currentView="json" />);
-    expect(screen.queryByTestId("corrected-output")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("correction-editor")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
-    expect(screen.getAllByTestId("corrected-output")).toHaveLength(1);
+    expect(screen.getAllByTestId("correction-editor")).toHaveLength(1);
     rerender(<IOPreview {...props} currentView="json-beta" />);
-    expect(screen.getAllByTestId("corrected-output")).toHaveLength(1);
+    expect(screen.queryByTestId("correction-editor")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Correct output" }),
+    ).toBeInTheDocument();
     rerender(<IOPreview {...props} currentView="json" />);
-    expect(screen.queryByTestId("corrected-output")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("correction-editor")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Correct output" }),
     ).toBeInTheDocument();
@@ -408,12 +454,9 @@ describe("IOPreviewJSON node-count gating", () => {
   });
 
   it("does not hand an oversized output to the correction diff (avoids per-render re-stringify)", () => {
-    // Regression (LFE-10847 review 🔴): CorrectedOutputField always mounts the
-    // diff dialog, which JSON.stringifies `actualOutput` unmemoized in its
-    // render body — so handing it the full oversized output re-serializes
-    // megabytes on every render/keystroke. A gated output must reach it as
-    // undefined (actualOutputTooLarge=true drives the "too large to diff"
-    // branch); the decoded value still feeds the lazy viewer/probe separately.
+    // A gated output must not reach the diff formatter. The flag distinguishes
+    // "too large to diff" from "no original output" while the lazy viewer
+    // still receives the full value.
     render(
       <IOPreviewJSON
         output={manyRows()}
@@ -424,6 +467,7 @@ describe("IOPreviewJSON node-count gating", () => {
         traceId="t"
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
     expect(correctedField.props?.actualOutputTooLarge).toBe(true);
     expect(correctedField.props?.actualOutput).toBeUndefined();
   });
@@ -439,6 +483,7 @@ describe("IOPreviewJSON node-count gating", () => {
         traceId="t"
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
     expect(correctedField.props?.actualOutputTooLarge).toBe(false);
     expect(correctedField.props?.actualOutput).toEqual({ answer: "ok" });
   });

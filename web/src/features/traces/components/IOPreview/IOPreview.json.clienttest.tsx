@@ -8,6 +8,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type * as Shared from "@langfuse/shared";
 
 const normalizedIo = vi.hoisted(() => ({ normalize: vi.fn() }));
+vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => false }));
 vi.mock("@langfuse/shared/src/utils/normalized-io", () => ({
   normalizeSpanIO: normalizedIo.normalize,
 }));
@@ -20,13 +21,16 @@ vi.mock("@/src/components/ui/PrettyJsonView", () => ({
   ),
 }));
 
-vi.mock("./components/CorrectedOutputField", () => ({
-  CorrectedOutputField: () => <div data-testid="corrected-output" />,
-  useCorrectOutputAction: () => ({
-    icon: () => null,
-    label: "Correct output",
-    onClick: vi.fn(),
+vi.mock("./hooks/useCorrectionMutations", () => ({
+  useCorrectionMutations: () => ({
+    saveStatus: "idle",
+    setSaveStatus: vi.fn(),
+    handleSave: vi.fn(),
+    handleDelete: vi.fn(),
   }),
+}));
+vi.mock("./components/CorrectedOutputDiffDialog", () => ({
+  CorrectedOutputDiffDialog: () => null,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

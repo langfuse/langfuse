@@ -18,9 +18,79 @@ import { MarkdownRenderCharacterLimitContext } from "@/src/components/MarkdownRe
 import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import { MediaContentType, type MediaReturnType } from "@/src/features/media";
 import { MediaEnabledFields } from "@/src/features/media/validation";
+import { CorrectionCacheProvider } from "@/src/features/corrections";
+import { SessionProvider } from "next-auth/react";
+import type { Session } from "next-auth";
+import { type ScoreDomain } from "@langfuse/shared";
+
+const correctionSession: Session = {
+  expires: "2099-01-01T00:00:00.000Z",
+  user: {
+    id: "storybook-user",
+    admin: true,
+    canCreateOrganizations: false,
+    organizations: [],
+    featureFlags: {
+      langfuseTopics: false,
+      excludeClickhouseRead: false,
+      experimentsV4Enabled: false,
+      observationEvals: false,
+      searchBar: false,
+      templateFlag: false,
+      v4BetaToggleVisible: false,
+    },
+  },
+  environment: {
+    enableExperimentalFeatures: false,
+    selfHostedInstancePlan: null,
+  },
+};
+
+function CorrectionStoryProviders({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [client] = useState(() =>
+    createTRPCClient<AppRouter>({
+      links: [
+        () =>
+          ({ op }) =>
+            observable((observer) => {
+              if (
+                op.path === "scores.upsertCorrection" ||
+                op.path === "scores.deleteAnnotationScore"
+              ) {
+                observer.next({ result: { data: null } });
+                observer.complete();
+                return;
+              }
+              observer.error(
+                new TRPCClientError<AppRouter>(
+                  `Unexpected API request: ${op.path}`,
+                ),
+              );
+            }),
+      ],
+    }),
+  );
+  return (
+    <storyApi.Provider client={client} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <CorrectionCacheProvider>{children}</CorrectionCacheProvider>
+      </QueryClientProvider>
+    </storyApi.Provider>
+  );
+}
 
 const meta = preview.meta({
   component: IOPreview,
+  decorators: [
+    (Story) => (
+      <CorrectionStoryProviders>
+        <Story />
+      </CorrectionStoryProviders>
+    ),
+  ],
   beforeEach: () => {
     const previousCollapsed = sessionStorage.getItem(TOOLS_COLLAPSED_KEY);
     sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
@@ -64,6 +134,155 @@ export const RawJson = meta.story({
       level: "WARNING",
       message: "The upstream response used a fallback model.",
     },
+  },
+});
+
+const existingOutputCorrection: ScoreDomain = {
+  id: "storybook-correction",
+  projectId: "storybook-project",
+  traceId: "storybook-trace",
+  observationId: null,
+  sessionId: null,
+  datasetRunId: null,
+  environment: "default",
+  name: "output",
+  value: 0,
+  dataType: "CORRECTION",
+  source: "ANNOTATION",
+  authorUserId: null,
+  comment: null,
+  metadata: {},
+  configId: null,
+  queueId: null,
+  executionTraceId: null,
+  stringValue: null,
+  longStringValue: "Corrected response",
+  createdAt: new Date("2026-01-01"),
+  updatedAt: new Date("2026-01-01"),
+  timestamp: new Date("2026-01-01"),
+};
+
+export const CorrectionInlineReader = meta.story({
+  name: "(Test) Reader can open correction placeholder but cannot edit",
+  args: { showCorrections: true, hideOutput: true },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.queryByText("Click to add corrected output"),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Correct output" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Click to add corrected output" }),
+    ).toBeDisabled();
+  },
+});
+
+export const CorrectionHeaderReader = meta.story({
+  name: "(Test) Reader cannot create a correction from the Output header",
+  args: { showCorrections: true, output: "Original response" },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("button", { name: "Correct output" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.queryByText("Corrected output"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const ExistingCorrection = meta.story({
+  name: "(Test) Existing correction is visible without opening",
+  args: { showCorrections: true, outputCorrection: existingOutputCorrection },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Corrected output")).toBeVisible();
+    await expect(canvas.getByText("Corrected response")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const EmptyCorrection = meta.story({
+  name: "(Test) Existing empty correction remains visible",
+  args: {
+    showCorrections: true,
+    outputCorrection: { ...existingOutputCorrection, longStringValue: "" },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Corrected output")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const CreateCorrection = meta.story({
+  name: "(Test) Output header opens a prefilled correction editor",
+  decorators: [
+    (Story) => (
+      <SessionProvider session={correctionSession}>
+        <Story />
+      </SessionProvider>
+    ),
+  ],
+  args: { showCorrections: true, output: "Original response" },
+  play: async ({ canvas }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Correct output" }),
+    );
+    await expect(canvas.getByText("Corrected output")).toBeVisible();
+    await expect(canvas.getByRole("textbox")).toHaveTextContent(
+      "Original response",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const CreateInlineCorrection = meta.story({
+  name: "(Test) Inline correction opens directly into editing",
+  decorators: [
+    (Story) => (
+      <SessionProvider session={correctionSession}>
+        <Story />
+      </SessionProvider>
+    ),
+  ],
+  args: { showCorrections: true, hideOutput: true },
+  play: async ({ canvas }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Correct output" }),
+    );
+    await expect(canvas.getByRole("textbox")).toBeVisible();
+  },
+});
+
+export const DeleteCorrection = meta.story({
+  name: "(Test) Deleting a correction restores the inline entry point",
+  decorators: [
+    (Story) => (
+      <SessionProvider session={correctionSession}>
+        <Story />
+      </SessionProvider>
+    ),
+  ],
+  args: {
+    showCorrections: true,
+    hideOutput: true,
+    outputCorrection: existingOutputCorrection,
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Delete corrected output" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Correct output" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByText("Corrected output"),
+    ).not.toBeInTheDocument();
   },
 });
 

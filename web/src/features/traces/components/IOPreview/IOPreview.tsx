@@ -1,5 +1,12 @@
 /* eslint-disable no-nested-ternary */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -9,7 +16,19 @@ import {
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { IOSection } from "@/src/components/ui/IOSection";
+import {
+  IOSection,
+  type IOSectionAction,
+  type IOSectionStatus,
+  type IOSectionInfo,
+  type IOSectionToggle,
+} from "@/src/components/ui/IOSection";
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
+import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
+import { CorrectedOutputDiffDialog } from "./components/CorrectedOutputDiffDialog";
 import {
   ChevronDown,
   ChevronRight,
@@ -21,6 +40,9 @@ import {
   WrapText,
   Minus,
   Copy,
+  Pencil,
+  Trash,
+  FileDiff,
 } from "@langfuse/icons";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -88,10 +110,6 @@ import {
   ToolCallDefinitionCard,
   type ToolDefinition,
 } from "./components/ToolCallDefinitionCard";
-import {
-  CorrectedOutputField,
-  useCorrectOutputAction,
-} from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import {
   getMessageTitle,
@@ -637,11 +655,12 @@ function IOPreviewContent({
   // opens into its editor from there. Without an Output header (no output
   // message rendered) the field keeps its own inline trigger.
   const [correctionOpen, setCorrectionOpen] = useState(false);
-  const correctOutputAction = useCorrectOutputAction({
+  const capture = usePostHogClientCapture();
+  const hasCorrectionAccess = useHasProjectAccess({
     projectId,
-    onOpen: () => setCorrectionOpen(true),
+    scope: "scores:save",
   });
-  const { effectiveCorrection } = useCorrectionData(
+  const { effectiveCorrection, correctionValue } = useCorrectionData(
     outputCorrection,
     observationId,
     traceId,
@@ -659,6 +678,51 @@ function IOPreviewContent({
     : showOutput;
   const correctionTrigger =
     !isAdvanced && hasOutputHeader ? "header" : "inline";
+  const [strictJsonMode, setStrictJsonMode] = useLocalStorage(
+    "correctionStrictJsonMode",
+    false,
+  );
+  const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
+  const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+  const focusEditor = useCallback(() => {
+    requestAnimationFrame(() => editorRef.current?.view?.focus());
+  }, []);
+  const { saveStatus, setSaveStatus, handleSave, handleDelete } =
+    useCorrectionMutations({
+      projectId,
+      traceId,
+      observationId,
+      environment,
+      effectiveCorrection,
+    });
+  const {
+    isEditing,
+    setIsEditing,
+    value: correctionEditorValue,
+    isValidJson,
+    handleEdit,
+    handleChange,
+  } = useCorrectionEditor({
+    correctionValue,
+    actualOutput: outputTooLarge ? undefined : effectiveOutput,
+    onSave: handleSave,
+    setSaveStatus,
+    strictJsonMode,
+  });
+  const openCorrection = () => {
+    capture("trace_detail:io_section_collapse_toggle", {
+      section: "corrected_output",
+      collapsed: false,
+    });
+    setCorrectionOpen(true);
+    if (hasCorrectionAccess) handleEdit();
+  };
+  const correctOutputAction: IOSectionAction = {
+    icon: Pencil,
+    label: "Correct output",
+    disabled: !hasCorrectionAccess,
+    onClick: openCorrection,
+  };
   const outputActions =
     showCorrections &&
     !isAdvanced &&
@@ -667,42 +731,176 @@ function IOPreviewContent({
     !effectiveCorrection
       ? [correctOutputAction]
       : undefined;
-  // In header mode the field mounts only while open or with a correction.
+  // Without an Output header, keep the inline entry point available.
   const showCorrectionField =
     showCorrections &&
     (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
-  const correctedOutputField = useMemo(
-    () =>
-      showCorrectionField ? (
-        <CorrectedOutputField
-          actualOutput={outputTooLarge ? undefined : effectiveOutput}
-          actualOutputTooLarge={outputTooLarge}
-          existingCorrection={outputCorrection}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-          compact={isAdvanced}
-          trigger={correctionTrigger}
-          startEditing={correctionOpen && !effectiveCorrection}
-          onClosed={() => setCorrectionOpen(false)}
+  const hasCorrectionContent = isEditing
+    ? correctionEditorValue.trim().length > 0
+    : correctionValue.trim().length > 0;
+  const correctionDisplayValue = useMemo(() => {
+    if (!correctionEditorValue) return "";
+    try {
+      const parsed: unknown = JSON.parse(correctionEditorValue);
+      if (!strictJsonMode && typeof parsed === "string") return parsed;
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return correctionEditorValue;
+    }
+  }, [correctionEditorValue, strictJsonMode]);
+  const correctionStatus: IOSectionStatus | undefined = (() => {
+    if (!isValidJson) {
+      if (!isEditing || !hasCorrectionContent) return undefined;
+      return {
+        kind: "error",
+        text: strictJsonMode
+          ? "Invalid JSON - fix to save"
+          : "Cannot save empty content",
+      };
+    }
+    if (saveStatus === "saving") return { kind: "saving", text: "Saving" };
+    if (saveStatus === "saved") return { kind: "saved", text: "Saved" };
+    return undefined;
+  })();
+  const correctionActions: IOSectionAction[] = hasCorrectionContent
+    ? [
+        {
+          icon: FileDiff,
+          label: "View diff between original and corrected output",
+          onClick: () => setIsDiffDialogOpen(true),
+        },
+        ...(!isEditing
+          ? [
+              {
+                icon: Pencil,
+                label: "Edit corrected output",
+                onClick: handleEdit,
+                disabled: !hasCorrectionAccess,
+              },
+            ]
+          : []),
+        {
+          icon: Trash,
+          label: "Delete corrected output",
+          disabled: !hasCorrectionAccess,
+          onClick: () => {
+            handleDelete();
+            setIsEditing(false);
+            setCorrectionOpen(false);
+          },
+        },
+      ]
+    : [];
+  const correctionJsonToggle: IOSectionToggle = {
+    label: "JSON",
+    checked: strictJsonMode,
+    disabled: !isEditing,
+    onCheckedChange: (strict) => {
+      setStrictJsonMode(strict);
+      if (!isEditing || !correctionEditorValue.trim() || !strict) return;
+      try {
+        JSON.parse(correctionEditorValue);
+      } catch {
+        handleChange(JSON.stringify(correctionEditorValue));
+      }
+    },
+  };
+  const correctionInfo: IOSectionInfo = {
+    label: "About corrected outputs",
+    text: "Corrected outputs allow you to save the expected output for a trace or observation.",
+    docsHref: "https://langfuse.com/docs/observability/features/corrections",
+  };
+  const correctionBody = (() => {
+    if (!hasCorrectionContent && !isEditing)
+      return (
+        <button
+          type="button"
+          onClick={handleEdit}
+          disabled={!hasCorrectionAccess}
+          className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
+        >
+          Click to add corrected output
+        </button>
+      );
+    if (isEditing)
+      return (
+        <CodeMirrorEditor
+          value={correctionDisplayValue}
+          onChange={handleChange}
+          mode={strictJsonMode ? "json" : "text"}
+          minHeight={200}
+          placeholder="Enter corrected output..."
+          editorRef={editorRef}
+          onEditorMount={focusEditor}
+          appearance="flat"
+          className="focus-within:ring-ring focus-within:ring-2"
         />
-      ) : null,
-    [
-      showCorrectionField,
-      outputTooLarge,
-      effectiveOutput,
-      outputCorrection,
-      observationId,
-      projectId,
-      traceId,
-      environment,
-      isAdvanced,
-      correctionTrigger,
-      correctionOpen,
-      effectiveCorrection,
-    ],
-  );
+      );
+    return (
+      <CodeMirrorEditor
+        value={correctionDisplayValue}
+        mode={strictJsonMode ? "json" : "text"}
+        editable={false}
+        appearance="flat"
+      />
+    );
+  })();
+  const correctedOutputField = (() => {
+    if (!showCorrectionField) return null;
+    if (!correctionOpen && !effectiveCorrection)
+      return (
+        <div className="py-2">
+          <button
+            type="button"
+            onClick={openCorrection}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
+          >
+            <Pencil size="sm" aria-hidden />
+            Correct output
+          </button>
+        </div>
+      );
+    if (isAdvanced)
+      return (
+        <div className="group pt-2">
+          <div className="flex items-center justify-between py-1.5">
+            <IOSection.InfoButton info={correctionInfo} />
+            <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <IOSection.Controls
+                status={correctionStatus}
+                actions={correctionActions}
+                toggle={correctionJsonToggle}
+              />
+            </div>
+          </div>
+          {correctionBody}
+        </div>
+      );
+    return (
+      <div className="pt-2">
+        <IOSection
+          title="Corrected output"
+          info={correctionInfo}
+          status={correctionStatus}
+          actions={correctionActions.length > 0 ? correctionActions : undefined}
+          toggle={correctionJsonToggle}
+        >
+          {correctionBody}
+        </IOSection>
+      </div>
+    );
+  })();
+  const correctionDiffDialog =
+    showCorrections && (correctionOpen || effectiveCorrection) ? (
+      <CorrectedOutputDiffDialog
+        isOpen={isDiffDialogOpen}
+        setIsOpen={setIsDiffDialogOpen}
+        actualOutput={outputTooLarge ? undefined : effectiveOutput}
+        actualOutputTooLarge={outputTooLarge}
+        correctedOutput={correctionEditorValue}
+        strictJsonMode={strictJsonMode}
+      />
+    ) : null;
   // Only generations hold a conversation; tools, spans, agents and the rest
   // are titled Input / Output rather than by role. (`isGenerationLike` is
   // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
@@ -984,6 +1182,7 @@ function IOPreviewContent({
       </div>
     ) : (
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
+        {correctionDiffDialog}
         {enableInlineComments && inlineCommentPositionRect && (
           <InlineCommentBubble
             positionRect={inlineCommentPositionRect}
@@ -1099,6 +1298,7 @@ function IOPreviewContent({
 
   return (
     <div className="space-y-2 pt-3">
+      {correctionDiffDialog}
       {showData &&
         status &&
         statusPresentation &&
