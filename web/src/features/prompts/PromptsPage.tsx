@@ -7,7 +7,7 @@ import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
+import { PromptDetail } from "@/src/features/prompts/components/PromptDetail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";
