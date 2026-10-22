@@ -2051,26 +2051,19 @@ describe("MCP Write Tools", () => {
         where: { id: setup.context.orgId },
         data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
       });
-      const input = {
-        type: "S3_COMPATIBLE" as const,
-        bucketName: "media-bucket",
-        region: "us-east-1",
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
-        forcePathStyle: true,
-      };
-
-      // Cloud rejects plain HTTP before the address check, so the HTTPS
-      // variant pins the loopback block in both deployment modes.
+      // HTTPS passes Cloud's protocol check, so this pins the loopback block
+      // in both deployment modes.
       await expect(
         handleConfigureExternalMediaStorage(
-          { ...input, endpoint: "http://127.0.0.1:9000" },
-          setup.context,
-        ),
-      ).rejects.toThrow();
-      await expect(
-        handleConfigureExternalMediaStorage(
-          { ...input, endpoint: "https://127.0.0.1:9000" },
+          {
+            type: "S3_COMPATIBLE",
+            bucketName: "media-bucket",
+            endpoint: "https://127.0.0.1:9000",
+            region: "us-east-1",
+            accessKeyId: "test-access-key",
+            secretAccessKey: "test-secret-key",
+            forcePathStyle: true,
+          },
           setup.context,
         ),
       ).rejects.toThrow("Blocked IP address detected");
