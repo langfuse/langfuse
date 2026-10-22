@@ -16,7 +16,7 @@ import {
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
 import { InvalidRequestError } from "../../errors";
-import { EvalTargetObject } from "../../features/evals/types";
+import { TopicsTargetObject } from "../../features/evals/types";
 import {
   invalidateTopicsProcessingActive,
   topicRuleWhere,
@@ -274,7 +274,7 @@ export async function writeTopicRule(
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
     sampling: config.sampling,
     delay: 0,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: TopicsTargetObject,
     timeScope: ["NEW"],
     status: "ACTIVE" as const,
   };
