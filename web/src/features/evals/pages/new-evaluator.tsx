@@ -11,7 +11,7 @@ import { Check, Info } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/SelectEvaluatorList";
-import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
+import { RunEvaluatorForm } from "@/src/features/evals/components/RunEvaluatorForm";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
