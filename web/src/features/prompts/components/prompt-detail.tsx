@@ -65,6 +65,7 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
 import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { PromotePromptVersionButton } from "@/src/features/prompts/components/PromotePromptVersionButton";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -529,6 +530,14 @@ export const PromptDetail = ({
                   isOpen={isLabelPopoverOpen}
                   setIsOpen={setIsLabelPopoverOpen}
                 />
+                {prompt.labels.includes(PRODUCTION_LABEL) ? null : (
+                  <PromotePromptVersionButton
+                    projectId={prompt.projectId}
+                    promptId={prompt.id}
+                    labels={prompt.labels}
+                    version={prompt.version}
+                  />
+                )}
               </div>
               <div className="flex flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundDropdownMenuController

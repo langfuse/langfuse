@@ -5,6 +5,15 @@ export const isReservedPromptLabel = (label: string) => {
   return [PRODUCTION_LABEL, LATEST_PROMPT_LABEL].includes(label);
 };
 
+/**
+ * Full label set for a one-click production promotion.
+ * Production moves onto this version; every other label stays.
+ */
+export const labelsWithProduction = (labels: readonly string[]): string[] =>
+  labels.includes(PRODUCTION_LABEL)
+    ? [...labels]
+    : [...labels, PRODUCTION_LABEL];
+
 /** Production first, then latest, then the rest alphabetically. */
 export const toPromptLabelListItems = (labels: string[]): LabelListItem[] =>
   [...labels]
