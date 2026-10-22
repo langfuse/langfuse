@@ -291,7 +291,8 @@ function ExistingSkillSession({
                 projectId,
                 skillName,
                 version: selectedVersion,
-                ...(router.query.tab === "linked-traces" ||
+                ...(router.query.tab === "usage" ||
+                router.query.tab === "linked-traces" ||
                 router.query.tab === "metrics"
                   ? {
                       tab: router.query.tab,

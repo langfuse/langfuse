@@ -47,7 +47,7 @@ export interface TableProps<TData> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
-  rowHeight?: "s" | "m" | "l";
+  rowHeight?: "xs" | "s" | "m" | "l";
   /** `false` for a table that sits directly under a divider, such as page tabs. */
   topBorder?: boolean;
 }
@@ -70,6 +70,7 @@ export function Table<TData extends object>({
   rowHeight,
   topBorder = true,
 }: TableProps<TData>) {
+  const cellPaddingClass = rowHeight === "xs" ? "px-2 py-1" : "p-2";
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
 
@@ -296,6 +297,7 @@ export function Table<TData extends object>({
                   key={`loading-row-${rowIndex}`}
                   className={cn(
                     "h-12",
+                    rowHeight === "xs" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                   )}
@@ -310,7 +312,7 @@ export function Table<TData extends object>({
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.columnDef.cellPadding === "none"
                             ? "p-0"
-                            : "p-2",
+                            : cellPaddingClass,
                           column.columnDef.cellClassName,
                           column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
@@ -353,6 +355,7 @@ export function Table<TData extends object>({
                   key={row.id}
                   className={cn(
                     "group/row hover:bg-accent h-12 transition-colors",
+                    rowHeight === "xs" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
@@ -375,7 +378,9 @@ export function Table<TData extends object>({
                         key={cell.id}
                         className={cn(
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
-                          column.cellPadding === "none" ? "p-0" : "p-2",
+                          column.cellPadding === "none"
+                            ? "p-0"
+                            : cellPaddingClass,
                           column.cellClassName,
                           column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
@@ -384,6 +389,7 @@ export function Table<TData extends object>({
                         <div
                           className={cn(
                             "flex min-w-0 items-center overflow-hidden",
+                            rowHeight === "xs" && "h-6",
                             rowHeight === "s" && "h-8",
                             rowHeight === "m" && "h-20",
                             rowHeight === "l" && "h-60",

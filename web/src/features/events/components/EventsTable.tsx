@@ -266,6 +266,8 @@ export type EventsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /** Fixed page size with local pagination for an embedded, paginated table. */
+  embeddedPageSize?: number;
   sessionId?: string;
   /**
    * When true, render the time-range picker and auto-refresh button in the
@@ -322,6 +324,7 @@ export default function ObservationsEventsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  embeddedPageSize,
   sessionId,
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
@@ -372,7 +375,14 @@ export default function ObservationsEventsTable({
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
-  const [paginationState, setPaginationState] = usePaginationState(1, 50);
+  const [urlPaginationState, setUrlPaginationState] = usePaginationState(1, 50);
+  const [embeddedPage, setEmbeddedPage] = useState(1);
+  const paginationState = embeddedPageSize
+    ? { page: embeddedPage, limit: embeddedPageSize }
+    : urlPaginationState;
+  const setPaginationState = embeddedPageSize
+    ? (value: { page: number; limit: number }) => setEmbeddedPage(value.page)
+    : setUrlPaginationState;
 
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "observations",
@@ -2344,7 +2354,8 @@ export default function ObservationsEventsTable({
                   ) : undefined
                 }
                 pagination={
-                  limitRows
+                  limitRows ||
+                  (embeddedPageSize && !hasMore && paginationState.page === 1)
                     ? undefined
                     : {
                         totalCount,
@@ -2380,7 +2391,9 @@ export default function ObservationsEventsTable({
                           pageIndex: paginationState.page - 1,
                           pageSize: paginationState.limit,
                         },
-                        options: TRACING_PAGE_SIZE_OPTIONS,
+                        options: embeddedPageSize
+                          ? [embeddedPageSize]
+                          : TRACING_PAGE_SIZE_OPTIONS,
                       }
                 }
                 rowSelection={selectedRows}
