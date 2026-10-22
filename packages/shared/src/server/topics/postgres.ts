@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,

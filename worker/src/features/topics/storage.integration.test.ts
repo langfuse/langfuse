@@ -212,105 +212,133 @@ describe("Topics eval-backed configuration", () => {
     ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
-  it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Intent",
-      description: "Custom facet with a built-in name",
-      prompt: "Describe the original request.",
-    });
-    const next = {
-      projectId,
-      facetId: facet.id,
-      prompt: " Describe the result. ",
-    };
-    const versions = await Promise.all([
-      createTopicFacetVersion(next),
-      createTopicFacetVersion(next),
-    ]);
-    expect(versions.map((version) => version.version)).toEqual([2, 2]);
-    expect(await getTopicFacetVersion(projectId, facet.id, 1)).toMatchObject({
-      prompt: "Describe the original request.",
-    });
-    const foreign = await createTopicFacet({
-      projectId: otherProjectId,
-      name: "Foreign facet",
-      description: "",
-      prompt: "Describe another project's request.",
-    });
-    const evaluator = await prisma.evaluator.create({
-      data: {
+  it.each(["trace", "trace_transcript"])(
+    "reads and saves %s Topics rules while keeping FACET assignments project-scoped",
+    async (targetObject) => {
+      const { id: projectId } = await prisma.project.create({
+        data: { orgId, name: `Topics ${targetObject}` },
+      });
+      const facet = await createTopicFacet({
         projectId,
-        name: "Ordinary evaluator",
-        type: "LLM_AS_JUDGE",
-        versions: { create: { version: 1, prompt: "Grade the answer." } },
-      },
-    });
-    for (const id of [foreign.id, evaluator.id]) {
-      expect(await getTopicFacetVersion(projectId, id, 1)).toBeNull();
-      await expect(
-        createTopicFacetVersion({ ...next, facetId: id }),
-      ).rejects.toThrow(/project/);
-      await expect(
-        saveTopicRule({
+        name: "Intent",
+        description: "Custom facet with a built-in name",
+        prompt: "Describe the original request.",
+      });
+      const next = {
+        projectId,
+        facetId: facet.id,
+        prompt: " Describe the result. ",
+      };
+      const versions = await Promise.all([
+        createTopicFacetVersion(next),
+        createTopicFacetVersion(next),
+      ]);
+      expect(versions.map((version) => version.version)).toEqual([2, 2]);
+      expect(await getTopicFacetVersion(projectId, facet.id, 1)).toMatchObject({
+        prompt: "Describe the original request.",
+      });
+      const foreign = await createTopicFacet({
+        projectId: otherProjectId,
+        name: "Foreign facet",
+        description: "",
+        prompt: "Describe another project's request.",
+      });
+      const evaluator = await prisma.evaluator.create({
+        data: {
           projectId,
-          name: "Invalid",
-          filter: [],
-          facetIds: [id],
-        }),
-      ).rejects.toThrow(/project/);
-    }
-    const visible = await listTopicFacets(projectId);
-    expect(visible.find((value) => value.id === facet.id)).toMatchObject({
-      isBuiltIn: false,
-    });
-    expect(visible.map((value) => value.id)).not.toContain(evaluator.id);
-    const rule = await saveTopicRule({
-      projectId,
-      name: "Saved selection",
-      filter: [],
-      facetIds: [facet.id, facet.id],
-    });
-    expect(rule.facetIds).toEqual([facet.id]);
-    const second = { projectId, filter: [], facetIds: [facet.id] };
-    await expect(saveTopicRule(second)).rejects.toThrow(
-      /already has a Topics rule/,
-    );
-    expect(
-      await saveTopicRule({
-        ...second,
-        id: rule.id,
-        name: "Second selection",
-      }),
-    ).toMatchObject({ id: rule.id, name: "Second selection" });
-    expect(
-      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
-    ).toMatchObject({
-      targetObject: "trace_transcript",
-      delay: 0,
-      timeScope: ["NEW"],
-      status: "ACTIVE",
-    });
-    const ordinaryRule = await prisma.evaluationRule.create({
-      data: {
+          name: "Ordinary evaluator",
+          type: "LLM_AS_JUDGE",
+          versions: { create: { version: 1, prompt: "Grade the answer." } },
+        },
+      });
+      for (const id of [foreign.id, evaluator.id]) {
+        expect(await getTopicFacetVersion(projectId, id, 1)).toBeNull();
+        await expect(
+          createTopicFacetVersion({ ...next, facetId: id }),
+        ).rejects.toThrow(/project/);
+        await expect(
+          saveTopicRule({
+            projectId,
+            name: "Invalid",
+            filter: [],
+            facetIds: [id],
+          }),
+        ).rejects.toThrow(/project/);
+      }
+      const visible = await listTopicFacets(projectId);
+      expect(visible.find((value) => value.id === facet.id)).toMatchObject({
+        isBuiltIn: false,
+      });
+      expect(visible.map((value) => value.id)).not.toContain(evaluator.id);
+      const rule = await saveTopicRule({
         projectId,
-        name: "Evaluation rule",
+        name: "Saved selection",
         filter: [],
-        sampling: 1,
+        facetIds: [facet.id, facet.id],
+      });
+      expect(rule.facetIds).toEqual([facet.id]);
+      await prisma.evaluationRule.update({
+        where: { id: rule.id, projectId },
+        data: { targetObject },
+      });
+      expect(await getTopicRule(projectId, rule.id)).toMatchObject({
+        id: rule.id,
+        facetIds: [facet.id],
+      });
+      expect(
+        (await listTopicRules(projectId)).map((value) => value.id),
+      ).toEqual([rule.id]);
+      const second = { projectId, filter: [], facetIds: [facet.id] };
+      await expect(saveTopicRule(second)).rejects.toThrow(
+        /already has a Topics rule/,
+      );
+      expect(
+        await saveTopicRule({
+          ...second,
+          id: rule.id,
+          name: "Second selection",
+        }),
+      ).toMatchObject({ id: rule.id, name: "Second selection" });
+      expect(
+        await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+      ).toMatchObject({
+        targetObject: "trace_transcript",
         delay: 0,
-        targetObject: "trace",
-        assignments: { create: { projectId, evaluatorId: evaluator.id } },
-      },
-    });
-    expect(await getTopicRule(otherProjectId, rule.id)).toBeNull();
-    expect(await getTopicRule(projectId, ordinaryRule.id)).toBeNull();
-    expect(
-      (await listTopicRules(projectId)).map((value) => value.id),
-    ).not.toContain(ordinaryRule.id);
-    await expect(
-      saveTopicRule({ ...rule, id: ordinaryRule.id }),
-    ).rejects.toThrow(/not found/);
-  });
+        timeScope: ["NEW"],
+        status: "ACTIVE",
+      });
+      expect(await getTopicRule(otherProjectId, rule.id)).toBeNull();
+      for (const assignments of [
+        [{ projectId, evaluatorId: evaluator.id }],
+        [
+          { projectId, evaluatorId: facet.id },
+          { projectId, evaluatorId: evaluator.id },
+        ],
+        [],
+        [{ projectId, evaluatorId: foreign.id }],
+        [{ projectId: otherProjectId, evaluatorId: facet.id }],
+      ]) {
+        const excludedRule = await prisma.evaluationRule.create({
+          data: {
+            projectId,
+            name: "Not a Topics rule",
+            filter: [],
+            sampling: 1,
+            delay: 0,
+            targetObject,
+            assignments: { create: assignments },
+          },
+        });
+        expect(await getTopicRule(projectId, excludedRule.id)).toBeNull();
+        await expect(
+          saveTopicRule({ ...rule, id: excludedRule.id }),
+        ).rejects.toThrow(/not found/);
+      }
+      expect(
+        (await listTopicRules(projectId)).map((value) => value.id),
+      ).toEqual([rule.id]);
+    },
+  );
 
   it("rejects foreign run versions and atomically creates one journal and run on replay", async () => {
     const facet = await createTopicFacet({
