@@ -29,8 +29,7 @@ export function TeamInviteForm({
   const canNotify =
     summary !== undefined &&
     summary.isEmailConfigured &&
-    summary.notifiableMemberCount > 0 &&
-    summary.membersNotifiedAt === null;
+    summary.notifiableMemberCount > 0;
   const willNotify = canNotify && notifyMembers;
   const hasInvalidEmail = emails.some((email) => !isEmailAddress(email));
   const sendLabel =

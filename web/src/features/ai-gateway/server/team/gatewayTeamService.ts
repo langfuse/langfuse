@@ -3,7 +3,6 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { sendGatewayInvitationEmail } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
 import { organizationRoleAccessRights } from "@/src/features/rbac";
 import { inviteOrganizationMember } from "@/src/features/rbac/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -24,8 +23,8 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 
 /**
  * Owns every email the gateway setup sends: invitations for new people (as
- * organization members) and the one-time announcement to existing members
- * who can use the gateway.
+ * organization members) and the announcement to existing members who can use
+ * the gateway.
  */
 export class GatewayTeamService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -35,11 +34,7 @@ export class GatewayTeamService {
     currentUserId: string;
   }) {
     const where = this.notifiableMembersWhere(params);
-    const [config, memberCount, previewMembers] = await Promise.all([
-      this.prisma.gatewayConfig.findUnique({
-        where: { organizationId: params.organizationId },
-        select: { membersNotifiedAt: true },
-      }),
+    const [memberCount, previewMembers] = await Promise.all([
       this.prisma.organizationMembership.count({ where }),
       this.prisma.organizationMembership.findMany({
         where,
@@ -52,7 +47,6 @@ export class GatewayTeamService {
     ]);
     return {
       isEmailConfigured: isEmailConfigured(),
-      membersNotifiedAt: config?.membersNotifiedAt ?? null,
       notifiableMemberCount: memberCount,
       notifiableMemberPreview: previewMembers.map(({ user }) => user),
     };
@@ -102,7 +96,7 @@ export class GatewayTeamService {
     }
 
     const notifiedCount = params.notifyMembers
-      ? await this.notifyMembersOnce({
+      ? await this.notifyMembers({
           ctx,
           organizationId,
           orgName: organization.name,
@@ -118,8 +112,7 @@ export class GatewayTeamService {
     };
   }
 
-  /** Claims `membersNotifiedAt` first so concurrent or repeated requests cannot send twice. */
-  private async notifyMembersOnce(params: {
+  private async notifyMembers(params: {
     ctx: GatewayTeamContext;
     organizationId: string;
     orgName: string;
@@ -127,25 +120,6 @@ export class GatewayTeamService {
     inviter: { inviterName: string; inviterEmail: string };
   }) {
     if (!isEmailConfigured()) return 0;
-
-    const notifiedAt = new Date();
-    const claim = await this.prisma.gatewayConfig.updateMany({
-      where: { organizationId: params.organizationId, membersNotifiedAt: null },
-      data: { membersNotifiedAt: notifiedAt },
-    });
-    if (claim.count === 0) return 0;
-
-    await auditLog(
-      {
-        session: params.ctx.session,
-        resourceType: "gatewayConfig",
-        resourceId: params.organizationId,
-        action: "update",
-        before: { membersNotifiedAt: null },
-        after: { membersNotifiedAt: notifiedAt },
-      },
-      this.prisma,
-    );
 
     const memberships = await this.prisma.organizationMembership.findMany({
       where: this.notifiableMembersWhere({

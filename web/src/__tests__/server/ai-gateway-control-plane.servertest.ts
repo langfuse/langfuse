@@ -409,7 +409,7 @@ describe("AI gateway control plane", () => {
     ).resolves.toBeNull();
   });
 
-  it("notifies only members who can use the gateway, and only once", async () => {
+  it("notifies only members who can use the gateway", async () => {
     const owner = await prepare();
     Object.assign(env, {
       SMTP_CONNECTION_URL: "smtp://localhost:1025",
@@ -432,7 +432,6 @@ describe("AI gateway control plane", () => {
     });
     expect(summary).toMatchObject({
       isEmailConfigured: true,
-      membersNotifiedAt: null,
       notifiableMemberCount: 1,
     });
 
@@ -460,16 +459,6 @@ describe("AI gateway control plane", () => {
         select: { orgRole: true },
       }),
     ).resolves.toEqual({ orgRole: Role.MEMBER });
-
-    sendEmail.mockClear();
-    await expect(
-      owner.caller.aiGateway.inviteTeam({
-        orgId: owner.org.id,
-        emails: [],
-        notifyMembers: true,
-      }),
-    ).resolves.toMatchObject({ notifiedCount: 0 });
-    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
