@@ -7,7 +7,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewaySetupContent } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupContent";
 import { GATEWAY_SETUP_COPY } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupCopy";
 import type { GatewayProject } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import { api } from "@/src/utils/api";
+import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
 
 export type GatewaySetupPageProps = {
   organizationId: string;
@@ -23,15 +23,9 @@ export function GatewaySetupPage({
     typeof router.query.connectionId === "string"
       ? router.query.connectionId
       : undefined;
-  const configQuery = api.aiGateway.getConfig.useQuery({
-    orgId: organizationId,
-  });
+  const gatewayConfig = useGatewayConfig(organizationId);
 
-  function handleRetry() {
-    configQuery.refetch();
-  }
-
-  if (configQuery.isPending) {
+  if (gatewayConfig.status === "pending") {
     return (
       <div className="flex flex-col gap-6" data-testid="gateway-setup-loading">
         <Skeleton className="h-7 w-64" />
@@ -40,7 +34,7 @@ export function GatewaySetupPage({
     );
   }
 
-  if (configQuery.isError) {
+  if (gatewayConfig.status === "error") {
     return (
       <div className="flex flex-col items-start gap-4">
         <Header title={GATEWAY_SETUP_COPY.title} />
@@ -50,7 +44,11 @@ export function GatewaySetupPage({
             Retry the request to continue setting up the gateway.
           </Alert.Description>
         </Alert>
-        <Button text="Retry" variant="secondary" onClick={handleRetry} />
+        <Button
+          text="Retry"
+          variant="secondary"
+          onClick={gatewayConfig.retry}
+        />
       </div>
     );
   }
@@ -59,7 +57,7 @@ export function GatewaySetupPage({
     <GatewaySetupContent
       organizationId={organizationId}
       connectionId={connectionId}
-      config={configQuery.data.config}
+      config={gatewayConfig.config}
       projects={projects.filter((project) => !project.deletedAt)}
     />
   );
