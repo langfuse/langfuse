@@ -22,15 +22,14 @@ export function eventsSelectsScopeTypeAssertions(): void {
   const db = getClickhouseKysely();
   const allTraceAggregates = traceAggregationSelects(TRACE_AGGREGATION_FIELDS);
 
-  db.selectFrom("events_core as e").select(allTraceAggregates);
-  db.selectFrom("events_full as e").select(allTraceAggregates);
   db.selectFrom("events as e").select(allTraceAggregates);
+  db.selectFrom("events_truncated as e").select(allTraceAggregates);
 
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
     // @ts-expect-error a join
     .select(allTraceAggregates);
-  db.with("e", (qb) => qb.selectFrom("events_core").selectAll())
+  db.with("e", (qb) => qb.selectFrom("events").selectAll())
     .selectFrom("traces as t")
     // @ts-expect-error a CTE named `e` is not read in FROM
     .select(allTraceAggregates);
@@ -39,7 +38,7 @@ export function eventsSelectsScopeTypeAssertions(): void {
     // @ts-expect-error no `e` in scope
     .select(allTraceAggregates);
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     // @ts-expect-error the events table is not aliased `e`
     .select(allTraceAggregates);
 
@@ -59,7 +58,7 @@ export function eventsSelectsScopeTypeAssertions(): void {
     // @ts-expect-error the subquery `e` lacks `completion_start_time`
     .select(eventsMetricsSecondsSelects);
 
-  db.with("e", (qb) => qb.selectFrom("events_core").selectAll())
+  db.with("e", (qb) => qb.selectFrom("events").selectAll())
     // @ts-expect-error no FROM: `e` is never read
     .selectNoFrom((eb) => [eventsTraceName(eb).as("name")]);
 
@@ -67,8 +66,8 @@ export function eventsSelectsScopeTypeAssertions(): void {
   const traceNameSelect = scopedToEvents((eb) =>
     eventsTraceName(eb).as("name"),
   );
-  db.selectFrom("events_core as e").select(traceNameSelect);
-  db.selectFrom("events_core as e")
+  db.selectFrom("events as e").select(traceNameSelect);
+  db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
     // @ts-expect-error a join, through a composed helper
     .select(traceNameSelect);
@@ -80,7 +79,7 @@ export function eventsSelectsScopeTypeAssertions(): void {
   // scope of the builder it was made from, and Kysely's `select()` accepts any
   // aliased expression. Build shared expressions from the query's builder.
   const detached = expressionBuilder<
-    { e: ClickHouseDatabase["events_core"] },
+    { e: ClickHouseDatabase["events"] },
     "e"
   >();
   db.selectFrom("traces as t").select(
@@ -90,11 +89,11 @@ export function eventsSelectsScopeTypeAssertions(): void {
   // Intentionally valid too: upcasting the query's builder to the plain events
   // builder (here, under a join) drops what the guard checks. Use
   // scopedToEvents instead of typing a parameter as `ExpressionBuilder`.
-  db.selectFrom("events_core as e")
+  db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
     .select((eb) => {
       const events: ExpressionBuilder<
-        { e: ClickHouseDatabase["events_core"] },
+        { e: ClickHouseDatabase["events"] },
         "e"
       > = eb;
       return [eventsTraceName(events).as("name")];

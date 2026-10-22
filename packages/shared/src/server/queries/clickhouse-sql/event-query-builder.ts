@@ -26,10 +26,7 @@ import {
   type ClickhouseFilter,
 } from "./clickhouse-filter";
 
-const eventsRef = expressionBuilder<
-  { e: ClickHouseDatabase["events_core"] },
-  "e"
->();
+const eventsRef = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
 
 const eventsMetadataMap = metadataMap(
   eventsRef.ref("e.metadata_names"),
