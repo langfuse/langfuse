@@ -60,6 +60,17 @@ function isKeyWithinPrefix(key: string, prefix: string | null) {
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
 }
 
+async function validateEndpoint(endpoint: string) {
+  try {
+    await validateExternalMediaStorageEndpoint(endpoint);
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new InvalidRequestError(error.message);
+    }
+    throw error;
+  }
+}
+
 function createStorageService(integration: ExternalMediaStorageRecord) {
   return StorageServiceFactory.getInstance({
     accessKeyId: integration.accessKeyId ?? undefined,
@@ -139,14 +150,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       if (endpoint) {
-        try {
-          await validateExternalMediaStorageEndpoint(endpoint);
-        } catch (error) {
-          if (error instanceof OutboundUrlValidationError) {
-            throw new InvalidRequestError(error.message);
-          }
-          throw error;
-        }
+        await validateEndpoint(endpoint);
       }
 
       let region: string;
@@ -225,7 +229,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);
@@ -272,7 +276,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);

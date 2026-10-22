@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 
+import { InvalidRequestError } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -176,6 +177,25 @@ describe("external media storage service", () => {
         uri,
       }),
     ).rejects.toThrow("External media is not available");
+    expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+  });
+
+  it("reports a stored endpoint that fails validation as an invalid request", async () => {
+    const project = await prepareIntegration({ prefix: null });
+    await prisma.externalMediaStorageIntegration.update({
+      where: { projectId: project.id },
+      data: { type: "S3_COMPATIBLE", endpoint: "https://127.0.0.1:9000" },
+    });
+    const service = createExternalMediaStorageService(prisma);
+
+    for (const call of [service.testObject, service.resolveUrl]) {
+      const rejection = call({
+        projectId: project.id,
+        uri: "s3://media-bucket/image.png",
+      });
+      await expect(rejection).rejects.toBeInstanceOf(InvalidRequestError);
+      await expect(rejection).rejects.toThrow("Blocked IP address detected");
+    }
     expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
   });
 
