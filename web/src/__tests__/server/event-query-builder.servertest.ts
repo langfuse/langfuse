@@ -470,7 +470,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("'level' AS column");
-    expect(built.query).toContain("toString(e.level) AS value");
+    expect(built.query).toContain("toString(ifNull(e.level, '')) AS value");
     expect(built.query).toContain("e.level IS NOT NULL");
     expect(built.query).toContain("GROUP BY value");
     expect(built.query).not.toContain("GROUP BY e.level");
@@ -485,6 +485,27 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       limit: 10,
       offset: 20,
     });
+  });
+
+  // traceName has no includeWhen (an unnamed trace is a real, filterable
+  // value, unlike other scalar columns). Without the ifNull wrap, an unnamed
+  // trace's computed name surfaces as SQL NULL in `value`, which the MCP
+  // filter-values tool's normalizer silently drops, making unnamed traces
+  // invisible in the paginated value listing and burning a pagination slot.
+  it("coalesces an unnamed trace's NULL computed name to '' instead of leaking SQL NULL", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "traceName",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain(
+      "toString(ifNull(COALESCE(nullIf(e.trace_name",
+    );
   });
 
   it("samples the grouped column scan and scales its counts", () => {
@@ -533,7 +554,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     if (!built) throw new Error("expected query");
 
     expect(built.query).toContain("'release' AS column");
-    expect(built.query).toContain("toString(e.release) AS value");
+    expect(built.query).toContain("toString(ifNull(e.release, '')) AS value");
     expect(built.query).toContain("e.release IS NOT NULL");
   });
 
@@ -549,7 +570,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     if (!built) throw new Error("expected query");
 
     expect(built.query).toContain("'ingestionApiKey' AS column");
-    expect(built.query).toContain("toString(e.ingestion_api_key) AS value");
+    expect(built.query).toContain(
+      "toString(ifNull(e.ingestion_api_key, '')) AS value",
+    );
     expect(built.query).toContain("length(e.ingestion_api_key) > 0");
     expect(built.query).not.toContain("FINAL");
   });
@@ -575,7 +598,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       if (!built) throw new Error("expected query");
 
       expect(built.query).toContain(`'${column}' AS column`);
-      expect(built.query).toContain(`toString(${expression}) AS value`);
+      expect(built.query).toContain(
+        `toString(ifNull(${expression}, '')) AS value`,
+      );
       expect(built.query).toContain(`length(${expression}) > 0`);
       if (excludesUnknownPlaceholder) {
         expect(built.query).toContain(`${expression} != 'unknown'`);
