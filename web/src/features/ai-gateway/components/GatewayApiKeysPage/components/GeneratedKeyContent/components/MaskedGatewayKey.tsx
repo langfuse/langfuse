@@ -24,7 +24,9 @@ export function MaskedGatewayKey({ secretKey }: MaskedGatewayKeyProps) {
     try {
       await copy(secretKey);
     } catch {
-      // Clipboard writes can be rejected when the browser denies permission.
+      // The key is shown only once, so a denied clipboard write must leave
+      // it selectable by hand.
+      setIsRevealed(true);
     }
   };
 
