@@ -59,6 +59,7 @@ import { TopicSetupNotice } from "./TopicSetupNotice";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
+import { TopicsResultsSkeleton } from "./TopicsResultsSkeleton";
 import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
@@ -100,11 +101,14 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   no_topics: "No topics found",
   failed: "Facet failed",
 };
-const loadingPage = (
-  <Page headerProps={{ title: "Topics" }} withPadding>
-    <p>Loading topics…</p>
-  </Page>
-);
+function TopicsLoadingPage() {
+  const [view] = useTopicsResultsView();
+  return (
+    <Page headerProps={{ title: "Topics" }}>
+      <TopicsResultsSkeleton view={view} />
+    </Page>
+  );
+}
 
 export default function TopicsPage() {
   const router = useRouter();
@@ -119,14 +123,17 @@ export default function TopicsPage() {
   return projectId ? (
     <TopicsWorkspace key={projectId} projectId={projectId} />
   ) : (
-    loadingPage
+    <TopicsLoadingPage />
   );
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+    <TopicsWorkspaceGate
+      isLoading={facets.isLoading}
+      fallback={<TopicsLoadingPage />}
+    >
       <TopicsWorkspaceView
         key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
         projectId={projectId}
@@ -625,7 +632,6 @@ function TopicsWorkspaceContent({
                     />
                   </div>
                 )}
-                {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
                   <ErrorMessage message={facets.error.message} />
                 )}
