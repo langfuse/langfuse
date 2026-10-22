@@ -29,7 +29,7 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 export class GatewayTeamService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getInviteSummary(params: {
+  async getNotifiableMembers(params: {
     organizationId: string;
     currentUserId: string;
   }) {
@@ -47,8 +47,8 @@ export class GatewayTeamService {
     ]);
     return {
       isEmailConfigured: isEmailConfigured(),
-      notifiableMemberCount: memberCount,
-      notifiableMemberPreview: previewMembers.map(({ user }) => user),
+      count: memberCount,
+      preview: previewMembers.map(({ user }) => user),
     };
   }
 

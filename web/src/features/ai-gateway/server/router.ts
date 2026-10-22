@@ -170,11 +170,11 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  getTeamInviteSummary: protectedOrganizationProcedure
+  getNotifiableMembers: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayTeamService(ctx.prisma).getInviteSummary({
+      return new GatewayTeamService(ctx.prisma).getNotifiableMembers({
         organizationId: input.orgId,
         currentUserId: ctx.session.user.id,
       });

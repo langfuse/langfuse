@@ -2,7 +2,7 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function useGatewayTeamInvite(organizationId: string) {
   const utils = api.useUtils();
-  const summaryQuery = api.aiGateway.getTeamInviteSummary.useQuery({
+  const notifiableMembersQuery = api.aiGateway.getNotifiableMembers.useQuery({
     orgId: organizationId,
   });
   const mutation = api.aiGateway.inviteTeam.useMutation();
@@ -16,7 +16,7 @@ export function useGatewayTeamInvite(organizationId: string) {
         orgId: organizationId,
         ...params,
       });
-      await utils.aiGateway.getTeamInviteSummary.invalidate({
+      await utils.aiGateway.getNotifiableMembers.invalidate({
         orgId: organizationId,
       });
       return result;
@@ -27,7 +27,7 @@ export function useGatewayTeamInvite(organizationId: string) {
   }
 
   return {
-    summary: summaryQuery.data,
+    notifiableMembers: notifiableMembersQuery.data,
     inviteTeam,
     isInviting: mutation.isPending,
   };

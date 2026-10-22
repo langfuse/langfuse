@@ -427,12 +427,14 @@ describe("AI gateway control plane", () => {
       select: { user: { select: { email: true } } },
     });
 
-    const summary = await owner.caller.aiGateway.getTeamInviteSummary({
-      orgId: owner.org.id,
-    });
-    expect(summary).toMatchObject({
+    const notifiableMembers = await owner.caller.aiGateway.getNotifiableMembers(
+      {
+        orgId: owner.org.id,
+      },
+    );
+    expect(notifiableMembers).toMatchObject({
       isEmailConfigured: true,
-      notifiableMemberCount: 1,
+      count: 1,
     });
 
     const inviteeEmail = `gateway-invitee-${randomUUID()}@example.test`;

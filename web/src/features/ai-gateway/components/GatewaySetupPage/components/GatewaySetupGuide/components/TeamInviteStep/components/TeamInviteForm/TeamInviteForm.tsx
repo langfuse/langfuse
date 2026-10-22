@@ -15,7 +15,7 @@ export function TeamInviteForm({
   organizationId,
   onFinish,
 }: TeamInviteFormProps) {
-  const { summary, inviteTeam, isInviting } =
+  const { notifiableMembers, inviteTeam, isInviting } =
     useGatewayTeamInvite(organizationId);
   const [emails, setEmails] = useState<string[]>([]);
   const [notifyMembers, setNotifyMembers] = useState(true);
@@ -24,9 +24,9 @@ export function TeamInviteForm({
   >([]);
 
   const canNotify =
-    summary !== undefined &&
-    summary.isEmailConfigured &&
-    summary.notifiableMemberCount > 0;
+    notifiableMembers !== undefined &&
+    notifiableMembers.isEmailConfigured &&
+    notifiableMembers.count > 0;
   const willNotify = canNotify && notifyMembers;
   const hasInvalidEmail = emails.some((email) => !isEmailAddress(email));
   const sendLabel =
@@ -53,8 +53,8 @@ export function TeamInviteForm({
         notifyMembers={
           canNotify
             ? {
-                memberCount: summary.notifiableMemberCount,
-                previewMembers: summary.notifiableMemberPreview,
+                memberCount: notifiableMembers.count,
+                previewMembers: notifiableMembers.preview,
                 checked: notifyMembers,
                 onCheckedChange: setNotifyMembers,
               }

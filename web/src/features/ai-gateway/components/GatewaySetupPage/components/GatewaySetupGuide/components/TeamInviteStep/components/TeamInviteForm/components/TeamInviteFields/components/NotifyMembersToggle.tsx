@@ -6,7 +6,7 @@ import type { RouterOutputs } from "@/src/utils/api";
 
 export type NotifyMembersToggleProps = {
   memberCount: number;
-  previewMembers: RouterOutputs["aiGateway"]["getTeamInviteSummary"]["notifiableMemberPreview"];
+  previewMembers: RouterOutputs["aiGateway"]["getNotifiableMembers"]["preview"];
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 };
