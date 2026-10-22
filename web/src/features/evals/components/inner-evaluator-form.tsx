@@ -109,7 +109,7 @@ import {
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
-import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
+import { VariableMappingCard } from "@/src/features/evals/components/VariableMappingCard";
 import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
