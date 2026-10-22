@@ -9,7 +9,7 @@ import { api } from "@/src/utils/api";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {

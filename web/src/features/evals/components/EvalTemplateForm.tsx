@@ -51,7 +51,7 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "@langfuse/icons";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
