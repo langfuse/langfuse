@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/IngestionSettingsFields";
 import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupDocsUrl";
@@ -45,6 +44,7 @@ export function IngestionDialog({
     <Dialog
       title="Gateway ingestion"
       size="md"
+      docsHref={GATEWAY_SETUP_DOCS_URL}
       actions={[
         {
           label: "Save",
@@ -60,14 +60,6 @@ export function IngestionDialog({
           projects={projects}
           onChange={setSettings}
         />
-        <div>
-          <Button
-            variant="text"
-            size="sm"
-            text="Docs"
-            href={GATEWAY_SETUP_DOCS_URL}
-          />
-        </div>
       </Dialog.Body>
     </Dialog>
   );
