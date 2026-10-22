@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
 
@@ -21,10 +21,13 @@ const names = [
   "Langfuse trace export",
   "Recommendation requests",
 ];
+const LONG_DESCRIPTION =
+  "Users asked the in-app assistant how to instrument their application, read traces and observations, configure evaluations and datasets, and interpret dashboard metrics. Many follow-ups asked for step-by-step guidance tailored to a specific SDK, framework, or self-hosted deployment, and several conversations combined product questions with troubleshooting of missing or delayed traces.";
 const topics = names.map((name, index) => ({
   id: `topic-${index}`,
   name,
-  description: "",
+  description:
+    index === 0 ? LONG_DESCRIPTION : `Requests about ${name.toLowerCase()}.`,
   count: counts[index],
 }));
 const assignedRows = topics.flatMap((topic) =>
@@ -142,5 +145,37 @@ export const SelectTopic = meta.story({
     await expect(
       within(list).getByRole("heading", { name: /Trace cost analysis/ }),
     ).toBeVisible();
+  },
+});
+
+export const DescriptionTooltipWhenClipped = meta.story({
+  name: "(Test) Hover shows the full text only when clipped",
+  render: (args) => (
+    <div className="flex flex-col" style={{ width: 720, height: 900 }}>
+      <TopicTreemapView {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const clipped = within(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).getByText(LONG_DESCRIPTION);
+    await userEvent.hover(clipped);
+    await waitFor(() =>
+      expect(clipped).toHaveAttribute("title", LONG_DESCRIPTION),
+    );
+
+    await userEvent.click(
+      await canvas.findByRole("button", {
+        name: "Trace cost analysis, 21 traces",
+      }),
+    );
+    const list = within(canvas.getByRole("region", { name: "Topic traces" }));
+    const fitting = list.getByText("Requests about trace cost analysis.");
+    const title = list.getByText("Trace cost analysis");
+    await userEvent.hover(fitting);
+    await userEvent.hover(title);
+    await expect(fitting).not.toHaveAttribute("title");
+    await expect(title).not.toHaveAttribute("title");
   },
 });
