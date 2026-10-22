@@ -655,6 +655,28 @@ describe("Topics definition persistence", () => {
       },
     ]);
     expect(
+      await Promise.all(
+        [[summary.traceId], ["other-trace"]].map((traceIds) =>
+          getLatestFacetSummaries(
+            projectId,
+            "facet",
+            undefined,
+            oldRange,
+            traceIds,
+          ),
+        ),
+      ),
+    ).toEqual([
+      [
+        {
+          ...displaySummary,
+          facetVersion: newerVersion.facetVersion,
+          processedAt: newerVersion.processedAt,
+        },
+      ],
+      [],
+    ]);
+    expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, newRange),
     ).toEqual([]);
     expect(

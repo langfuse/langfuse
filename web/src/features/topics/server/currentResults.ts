@@ -3,6 +3,7 @@ import type {
   TopicSummary,
   TopicTimeRange,
 } from "@langfuse/shared/topics";
+import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "@langfuse/shared/src/server";
 import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
@@ -46,6 +47,7 @@ function resolveTopicResult(
 export async function currentTopicResults(
   projectId: string,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ) {
   const facets = await listTopicFacets(projectId);
   const hasStoredSummaries =
@@ -60,8 +62,14 @@ export async function currentTopicResults(
       .map(async (facet) => {
         const version = facet.versions[0];
         const [storedAssignments, storedSummaries, run] = await Promise.all([
-          readLatestTopicAssignments(projectId, facet.id, timeRange),
-          getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
+          readLatestTopicAssignments(projectId, facet.id, timeRange, traceIds),
+          getLatestFacetSummaries(
+            projectId,
+            facet.id,
+            undefined,
+            timeRange,
+            traceIds,
+          ),
           getPublishedTopicRun(projectId, facet.id),
         ]);
         const latestSummaries = storedSummaries.filter(
@@ -175,4 +183,38 @@ export async function currentTopicResults(
       }),
   );
   return { hasStoredSummaries, facets: currentFacets };
+}
+
+/** Current result per facet for one trace; summaries start within a few days of the trace. */
+export async function traceFacetResults(
+  projectId: string,
+  traceId: string,
+  timestamp: Date,
+) {
+  const slackMs = OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 86_400_000;
+  const { facets } = await currentTopicResults(
+    projectId,
+    {
+      from: new Date(timestamp.getTime() - slackMs),
+      to: new Date(timestamp.getTime() + slackMs),
+    },
+    [traceId],
+  );
+  return facets.flatMap((facet) => {
+    const row = facet.rows.find((item) => item.traceId === traceId);
+    if (!row) return [];
+    return [
+      {
+        facetId: facet.facetId,
+        name: facet.name,
+        summary: row.summary,
+        outcome: row.outcome,
+        topicName: row.topicName,
+        // Same color slot as the topic's position in the published map.
+        topicIndex:
+          facet.map?.topics.findIndex((topic) => topic.id === row.topicId) ??
+          -1,
+      },
+    ];
+  });
 }
