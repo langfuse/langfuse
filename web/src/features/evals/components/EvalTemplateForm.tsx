@@ -63,7 +63,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/CodeEvalTemplateFormBody";
 import {
   type CodeEvalSourceCodeLanguage,
   getCodeEvalSourceForEditor,

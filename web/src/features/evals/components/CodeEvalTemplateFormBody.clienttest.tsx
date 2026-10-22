@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CodeEvalTemplateFormBody } from "./code-eval-template-form-body";
+import { CodeEvalTemplateFormBody } from "./CodeEvalTemplateFormBody";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 const mocks = vi.hoisted(() => ({
