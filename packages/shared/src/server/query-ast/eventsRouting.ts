@@ -111,13 +111,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     if (lookup) {
       // The lookup's columns read no truncated value, but their qualifiers
       // must still not name a physical table.
-      walkNodes(lookup.array, (child) => {
-        if (!ReferenceNode.is(child)) return;
-        const qualifier = child.table?.table.identifier.name;
-        if (qualifier !== undefined && PHYSICAL_EVENTS_TABLES.has(qualifier)) {
-          throw physicalNameError(qualifier);
-        }
-      });
+      rejectPhysicalQualifiers(lookup.array);
       this.transformNode(lookup.index, queryId);
       return node;
     }
@@ -147,9 +141,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     _queryId?: QueryId,
   ): ReferenceNode {
     const qualifier = node.table?.table.identifier.name;
-    if (qualifier !== undefined && PHYSICAL_EVENTS_TABLES.has(qualifier)) {
-      throw physicalNameError(qualifier);
-    }
+    rejectPhysicalName(qualifier);
     // `sql.ref("e.*")` parses the star as a column named `*`.
     if (SelectAllNode.is(node.column) || node.column.column.name === "*") {
       if (qualifier === undefined) this.rejectStar("*");
@@ -212,16 +204,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   protected override transformRaw(node: RawNode, queryId?: QueryId): RawNode {
-    for (const fragment of node.sqlFragments) {
-      const physical = PHYSICAL_EVENT_NAME.exec(fragment);
-      if (physical) throw physicalNameError(physical[0]);
-    }
-    for (const parameter of node.parameters) {
-      const name = rawParameterName(parameter);
-      if (name !== undefined && PHYSICAL_EVENTS_TABLES.has(name)) {
-        throw physicalNameError(name);
-      }
-    }
+    rejectPhysicalRawNames(node);
     if (
       this.readsLogicalInScope() &&
       (node.sqlFragments.some((fragment) => fragment.trim() !== "") ||
@@ -277,10 +260,30 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 }
 
-function physicalNameError(name: string): QueryCompileError {
-  return new QueryCompileError(
+function rejectPhysicalName(name: string | undefined): void {
+  if (name === undefined || !PHYSICAL_EVENTS_TABLES.has(name)) return;
+  throw new QueryCompileError(
     `Read the logical "${LOGICAL_EVENTS}" relation instead of "${name}": the routing pass picks events_core or events_full from the columns read. Read "events_truncated" to get the truncated events_core copy on purpose.`,
   );
+}
+
+/** Column qualifiers anywhere under `node`. */
+function rejectPhysicalQualifiers(node: OperationNode): void {
+  walkNodes(node, (child) => {
+    if (ReferenceNode.is(child)) {
+      rejectPhysicalName(child.table?.table.identifier.name);
+    }
+  });
+}
+
+/** Raw SQL text, and `sql.table` / `sql.id` parameters. */
+function rejectPhysicalRawNames(node: RawNode): void {
+  for (const fragment of node.sqlFragments) {
+    rejectPhysicalName(PHYSICAL_EVENT_NAME.exec(fragment)?.[0]);
+  }
+  for (const parameter of node.parameters) {
+    rejectPhysicalName(rawParameterName(parameter));
+  }
 }
 
 /** The name a `sql.table` / `sql.id` parameter writes into raw SQL. */
@@ -292,11 +295,8 @@ function rawParameterName(node: OperationNode): string | undefined {
 
 /** A physical events table as FROM/JOIN table or alias. */
 function rejectPhysicalRelation({ table, alias }: Relation): void {
-  for (const name of [table?.table.identifier.name, alias]) {
-    if (name !== undefined && PHYSICAL_EVENTS_TABLES.has(name)) {
-      throw physicalNameError(name);
-    }
-  }
+  rejectPhysicalName(table?.table.identifier.name);
+  rejectPhysicalName(alias);
 }
 
 function starError(star: string): QueryCompileError {
