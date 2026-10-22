@@ -64,7 +64,7 @@ vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "US" }),
 }));
 
-import { AutomationForm } from "./automationForm";
+import { AutomationForm } from "./AutomationForm";
 
 describe("AutomationForm handleActionTypeChange", () => {
   beforeAll(() => {

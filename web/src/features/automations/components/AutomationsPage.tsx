@@ -5,7 +5,7 @@ import { AutomationDetails } from "@/src/features/automations/components/Automat
 import {
   AutomationForm,
   parseCreateAutomationPrefill,
-} from "@/src/features/automations/components/automationForm";
+} from "@/src/features/automations/components/AutomationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
