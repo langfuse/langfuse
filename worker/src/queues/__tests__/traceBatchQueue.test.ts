@@ -1032,8 +1032,8 @@ describe("trace batch queue", () => {
               content: "private output",
             }),
             metadata: {},
-            level: "WARNING",
-            status_message: "Rate limited, retried",
+            level: "DEFAULT",
+            status_message: null,
             tool_definitions: {},
             tool_calls: [],
             tool_call_names: [],
@@ -1079,13 +1079,7 @@ describe("trace batch queue", () => {
           {
             transcript: vi.mocked(summarizeAssembledTrace).mock.calls[0][0]
               .transcript,
-            executionIssues: [
-              expect.objectContaining({
-                observationId: "span",
-                level: "WARNING",
-                statusMessage: "Rate limited, retried",
-              }),
-            ],
+            executionIssues: [],
             traceContext: {
               sessionId: null,
               traceTimestamp: "2026-09-11T00:00:00.000Z",
@@ -1117,6 +1111,64 @@ describe("trace batch queue", () => {
       }
     },
   );
+
+  it("stores execution issues next to the transcript", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "project",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "Hi" }]),
+        output: JSON.stringify({ role: "assistant", content: "Hello" }),
+        metadata: {},
+        level: "WARNING",
+        status_message: "Rate limited, retried",
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    const job = {
+      data: {
+        id: "issues",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "queued-revision",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        executionIssues: [
+          expect.objectContaining({
+            observationId: "span",
+            level: "WARNING",
+            statusMessage: "Rate limited, retried",
+          }),
+        ],
+      }),
+    );
+  });
 
   it.each([false, true])(
     "runs Topics alongside capture and holds the slot until both settle (Topics rejects: %s)",

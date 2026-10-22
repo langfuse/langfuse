@@ -10,22 +10,24 @@ import type {
 const STATUS_MESSAGE_MAX_CHARACTERS = 1_000;
 
 /** Check if an observation's level and status message make it an execution issue. */
-export function isExecutionIssue(
-  observation: Pick<TranscriptObservation, "level" | "statusMessage">,
-): boolean {
+export function isExecutionIssue<
+  T extends Pick<TranscriptObservation, "level" | "statusMessage">,
+>(observation: T): observation is T & { level: ExecutionIssue["level"] } {
   return (
     observation.level === "ERROR" ||
     (observation.level === "WARNING" && Boolean(observation.statusMessage))
   );
 }
 
-function toExecutionIssue(observation: OrderedObservation): ExecutionIssue {
+function toExecutionIssue(
+  observation: OrderedObservation & { level: ExecutionIssue["level"] },
+): ExecutionIssue {
   return {
     observationId: observation.id,
     traceId: observation.traceId,
     type: observation.type,
     name: observation.name ?? null,
-    level: observation.level === "ERROR" ? "ERROR" : "WARNING",
+    level: observation.level,
     statusMessage: observation.statusMessage
       ? observation.statusMessage.slice(0, STATUS_MESSAGE_MAX_CHARACTERS)
       : null,
@@ -34,7 +36,7 @@ function toExecutionIssue(observation: OrderedObservation): ExecutionIssue {
 }
 
 /** Execution issues of all supplied observations, in the given order. */
-export function collectExecutionIssues(
+function collectExecutionIssues(
   observations: OrderedObservation[],
 ): ExecutionIssue[] {
   const issues: ExecutionIssue[] = [];

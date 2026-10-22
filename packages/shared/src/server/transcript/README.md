@@ -85,7 +85,7 @@ duplicate conversation messages.
 ## Execution issues
 
 `assembleTranscriptContext(orderedObservations, options?)` composes
-`assembleTranscript` with `collectExecutionIssues` over the same observations
+`assembleTranscript` with execution-issue collection over the same observations
 and returns `{ transcript, executionIssues }`, or `null` when there is no
 transcript. `Transcript` stays purely conversational.
 
