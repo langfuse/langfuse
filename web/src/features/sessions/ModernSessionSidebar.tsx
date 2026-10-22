@@ -230,7 +230,7 @@ const TurnCard = React.memo(
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
-    onFilterObservationByName: (
+    onFilterObservationByName?: (
       name: string,
       operator: "any of" | "none of",
     ) => void;
@@ -343,7 +343,7 @@ export function ModernSessionSidebar(
         onLoadMoreObservations: () => void;
         onViewportUnderfilled?: () => void;
         filterControls?: ModernSessionSidebarFilterControls;
-        onFilterObservationByName: (
+        onFilterObservationByName?: (
           name: string,
           operator: "any of" | "none of",
         ) => void;

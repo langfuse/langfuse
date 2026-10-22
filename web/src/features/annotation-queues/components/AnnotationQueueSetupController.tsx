@@ -12,6 +12,8 @@ import {
 } from "./AnnotationQueueSetupForm";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { UserAssignmentSection } from "./UserAssignmentSection";
+import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
+import { ConnectedAnnotationQueueSessionViewDialogController } from "./ConnectedAnnotationQueueSessionViewDialogController";
 
 export function AnnotationQueueSetupController({
   projectId,
@@ -98,6 +100,7 @@ export function AnnotationQueueSetupController({
         description: queue.data.description ?? "",
         scoreConfigIds: queue.data.scoreConfigs.map((config) => config.id),
         newAssignmentUserIds: [],
+        sessionViewId: queue.data.sessionViewId ?? null,
       }}
       queueNames={(queues.data ?? [])
         .filter((candidate) => candidate.id !== queueId)
@@ -106,6 +109,45 @@ export function AnnotationQueueSetupController({
       isSubmitting={update.isPending || assign.isPending}
       hasAssignments={hasAssignments}
       renderLayout={renderLayout}
+      renderSessionViewSettings={({ value, onChange, disabled }) => (
+        <ConnectedAnnotationQueueSessionViewDialogController
+          projectId={projectId}
+          onChange={onChange}
+          disabled={disabled}
+        >
+          {({ openDialog }) => (
+            <ConnectedAnnotationQueueSessionViewSettings
+              projectId={projectId}
+              value={value ?? null}
+              onChange={onChange}
+              disabled={disabled}
+            >
+              {({ selectedView, canReadViews, canSaveViews }) => (
+                <>
+                  <Button
+                    text="Create view"
+                    variant="secondary"
+                    disabled={disabled || !canSaveViews || !canReadViews}
+                    onClick={() => openDialog({ type: "create" })}
+                  />
+                  {selectedView && (
+                    <Button
+                      text="Edit view"
+                      variant="ghost"
+                      disabled={
+                        disabled || !canSaveViews || !selectedView.canEdit
+                      }
+                      onClick={() =>
+                        openDialog({ type: "edit", view: selectedView })
+                      }
+                    />
+                  )}
+                </>
+              )}
+            </ConnectedAnnotationQueueSessionViewSettings>
+          )}
+        </ConnectedAnnotationQueueSessionViewDialogController>
+      )}
       onSubmit={(values, dirty) =>
         saveQueueSetup({
           projectId,
@@ -170,7 +212,12 @@ async function saveQueueSetup({
   ) => Promise<unknown>;
   onSaved: () => Promise<void>;
 }) {
-  if (dirty.name || dirty.description || dirty.scoreConfigIds) {
+  if (
+    dirty.name ||
+    dirty.description ||
+    dirty.scoreConfigIds ||
+    dirty.sessionViewId
+  ) {
     await updateQueue({
       projectId,
       queueId,
@@ -178,6 +225,9 @@ async function saveQueueSetup({
       ...(dirty.description ? { description: values.description } : {}),
       ...(dirty.scoreConfigIds
         ? { scoreConfigIds: values.scoreConfigIds }
+        : {}),
+      ...(dirty.sessionViewId
+        ? { sessionViewId: values.sessionViewId ?? null }
         : {}),
     });
   }

@@ -1,6 +1,6 @@
 import { type ReactNode, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   CreateQueueWithAssignmentsData,
@@ -8,11 +8,14 @@ import {
 } from "@langfuse/shared";
 
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
+import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
+import { ConnectedAnnotationQueueSessionViewDialogController } from "./ConnectedAnnotationQueueSessionViewDialogController";
 
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
@@ -149,17 +152,62 @@ export function AnnotationQueueFormDialogContent({
               )}
             </Form.Field>
           )}
+          <Controller
+            control={form.control}
+            name="sessionViewId"
+            render={({ field }) => (
+              <ConnectedAnnotationQueueSessionViewDialogController
+                projectId={projectId}
+                onChange={field.onChange}
+                disabled={isSubmitting}
+              >
+                {({ openDialog }) => (
+                  <ConnectedAnnotationQueueSessionViewSettings
+                    projectId={projectId}
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    disabled={isSubmitting}
+                  >
+                    {({ selectedView, canReadViews, canSaveViews }) => (
+                      <>
+                        <Button
+                          text="Create view"
+                          variant="secondary"
+                          disabled={
+                            isSubmitting || !canSaveViews || !canReadViews
+                          }
+                          onClick={() => openDialog({ type: "create" })}
+                        />
+                        {selectedView && (
+                          <Button
+                            text="Edit view"
+                            variant="ghost"
+                            disabled={
+                              isSubmitting ||
+                              !canSaveViews ||
+                              !selectedView.canEdit
+                            }
+                            onClick={() =>
+                              openDialog({ type: "edit", view: selectedView })
+                            }
+                          />
+                        )}
+                      </>
+                    )}
+                  </ConnectedAnnotationQueueSessionViewSettings>
+                )}
+              </ConnectedAnnotationQueueSessionViewDialogController>
+            )}
+          />
           {hasQueueAssignmentsReadAccess ? (
-            <Form.Field
+            <Controller
               control={form.control}
               name="newAssignmentUserIds"
-              label="Advanced Settings"
-            >
-              {(field) => (
+              render={({ field }) => (
                 <Accordion type="single" collapsible>
                   <Accordion.Item value="assignments">
                     <Accordion.Trigger size="sm">
-                      User Assignment
+                      User assignments
                     </Accordion.Trigger>
                     <Accordion.Content>
                       <div className="py-3">
@@ -174,7 +222,7 @@ export function AnnotationQueueFormDialogContent({
                   </Accordion.Item>
                 </Accordion>
               )}
-            </Form.Field>
+            />
           ) : null}
         </Form>
       </Dialog.Body>

@@ -12,6 +12,7 @@ const { create, update, assign, notify, draft } = vi.hoisted(() => ({
     description: "Initial description",
     scoreConfigIds: ["first-config"],
     newAssignmentUserIds: ["reviewer"],
+    sessionViewId: "first-view",
   },
 }));
 
@@ -85,6 +86,7 @@ it("saves edited queue fields when retrying a failed assignment without duplicat
     name: "Edited name",
     description: "Edited description",
     scoreConfigIds: ["second-config"],
+    sessionViewId: "second-view",
   });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("created-queue"));
@@ -95,6 +97,7 @@ it("saves edited queue fields when retrying a failed assignment without duplicat
     name: "Edited name",
     description: "Edited description",
     scoreConfigIds: ["second-config"],
+    sessionViewId: "second-view",
   });
   expect(assign).toHaveBeenCalledTimes(2);
 });

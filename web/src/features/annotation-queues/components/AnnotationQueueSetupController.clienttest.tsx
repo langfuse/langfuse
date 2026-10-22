@@ -55,6 +55,9 @@ vi.mock("./QueueScoreConfigFields", () => ({
 vi.mock("./UserAssignmentSection", () => ({
   UserAssignmentSection: () => null,
 }));
+vi.mock("./ConnectedAnnotationQueueSessionViewDialogController", () => ({
+  ConnectedAnnotationQueueSessionViewDialogController: () => null,
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
