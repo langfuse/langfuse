@@ -73,6 +73,7 @@ do not load dotenv files:
 | ---------------------------------------------- | -------------- | -------------------------------------------------- |
 | `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
 | `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
+| `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL` | `false` | `true`, `false`; `true` also accepts a plain `http://` Web URL on any host. Only for internal traffic, such as Web's in-cluster Kubernetes Service (`http://<release>-web.<namespace>.svc.cluster.local:3000`) or another private network; never for a URL that crosses the public internet, because resolve responses carry provider API keys and requests carry the service key and ingestion tokens unencrypted. Resolution, model catalogs and trace uploads all use this URL. The gateway logs a warning at startup when it is used |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
@@ -864,7 +865,9 @@ the file locally: `cargo about generate --locked --fail about.hbs`.
 base URL. The binary initializes it when a Web URL is configured. The
 caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
 base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
-development. URLs cannot contain credentials, a query or fragment. Include the
+development; `ControlPlaneConfig::with_plain_http`, which the binary uses when
+`LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for
+internal traffic only. URLs cannot contain credentials, a query or fragment. Include the
 Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
 `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 

@@ -78,7 +78,8 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
-    /// or missing/blank service key. Error messages never include supplied values.
+    /// or missing/blank service key, or a non-boolean HTTP Web URL opt-in. Error
+    /// messages never include supplied values.
     pub fn from_env() -> Result<Self, GatewayConfigError> {
         let mut config = Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
@@ -99,20 +100,11 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
-        if let Some(web_url) =
-            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
-        {
-            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
-            ))?;
-            config.control_plane = Some(ControlPlaneConfig::new(&web_url, &service_key).map_err(
-                |_| {
-                    GatewayConfigError(
-                        "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
-                    )
-                },
-            )?);
-        }
+        config.control_plane = control_plane(
+            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -182,6 +174,30 @@ impl GatewayConfig {
             execution_limits: ExecutionLimits::default(),
         })
     }
+}
+
+fn control_plane(
+    web_url: Option<&str>,
+    service_key: Option<&str>,
+    allow_http_web_url: Option<&str>,
+) -> Result<Option<ControlPlaneConfig>, GatewayConfigError> {
+    let allow_http_web_url = parse_boolean(allow_http_web_url.unwrap_or("false")).ok_or(
+        GatewayConfigError("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"),
+    )?;
+    let Some(web_url) = web_url.filter(|url| !url.is_empty()) else {
+        return Ok(None);
+    };
+    let service_key = service_key.ok_or(GatewayConfigError(
+        "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
+    ))?;
+    let control_plane = if allow_http_web_url {
+        ControlPlaneConfig::with_plain_http(web_url, service_key)
+    } else {
+        ControlPlaneConfig::new(web_url, service_key)
+    };
+    control_plane.map(Some).map_err(|_| {
+        GatewayConfigError("invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY")
+    })
 }
 
 fn request_limits(
@@ -407,6 +423,44 @@ mod tests {
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
             assert!(!format!("{error:?}").contains(sensitive_input));
+        }
+    }
+
+    #[test]
+    fn plain_http_web_url_requires_the_explicit_opt_in() {
+        let in_cluster = Some("http://langfuse-web.langfuse.svc.cluster.local:3000");
+        let key = Some("service-key");
+        for opt_in in [None, Some("false")] {
+            let error = control_plane(in_cluster, key, opt_in).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY"
+            );
+        }
+        let allowed = control_plane(in_cluster, key, Some("true"))
+            .unwrap()
+            .unwrap();
+        assert!(allowed.is_plain_http());
+        assert_eq!(
+            allowed
+                .endpoint("/api/internal/ai-gateway/v1/ingestion")
+                .as_str(),
+            "http://langfuse-web.langfuse.svc.cluster.local:3000/api/internal/ai-gateway/v1/ingestion"
+        );
+        for (url, opt_in) in [
+            ("https://cloud.langfuse.com", Some("true")),
+            ("http://localhost:3000", None),
+        ] {
+            let config = control_plane(Some(url), key, opt_in).unwrap().unwrap();
+            assert!(!config.is_plain_http(), "{url}");
+        }
+        assert!(control_plane(None, None, Some("true")).unwrap().is_none());
+        for value in ["", "TRUE", "1", "secret-that-must-not-appear"] {
+            let error = control_plane(in_cluster, key, Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"
+            );
         }
     }
 
