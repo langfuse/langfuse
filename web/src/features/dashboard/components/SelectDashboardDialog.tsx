@@ -10,7 +10,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 

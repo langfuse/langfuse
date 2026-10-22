@@ -360,6 +360,65 @@ it("returns the shared transcript unchanged without fetching root I/O", async ()
   expect(mocks.root).not.toHaveBeenCalled();
 });
 
+it("uses only root I/O in root mode even when generations exist", async () => {
+  const root = {
+    id: "root",
+    parentObservationId: null,
+    startTime: new Date(0),
+    endTime: new Date(1),
+    input: "Root question",
+    output: "Root answer",
+    metadata: {},
+  };
+  mocks.observations.mockResolvedValue({
+    observations: [root, { id: "generation", type: "GENERATION" }],
+    totalCount: 2,
+  });
+  mocks.root.mockResolvedValue(root);
+
+  const result = await loadTraceTranscript({
+    ...trace,
+    transcriptSource: "root",
+  });
+
+  expect(mocks.observations).toHaveBeenCalledTimes(1);
+  expect(mocks.assemble).not.toHaveBeenCalled();
+  expect(result.cutoff).toBe(false);
+  expect(result.transcript?.threads[0]?.currentTurn.messages).toMatchObject([
+    { observationId: "root", parts: [{ type: "text", text: "Root question" }] },
+    { observationId: "root", parts: [{ type: "text", text: "Root answer" }] },
+  ]);
+});
+
+it.each(["missing", "empty"])(
+  "does not use generations when root I/O is %s in root mode",
+  async (rootState) => {
+    mocks.observations.mockResolvedValue({
+      observations:
+        rootState === "missing"
+          ? [
+              {
+                id: "generation",
+                parentObservationId: "root",
+                type: "GENERATION",
+              },
+            ]
+          : [{ id: "root", parentObservationId: null, startTime: new Date(0) }],
+      totalCount: 1,
+    });
+    mocks.root.mockResolvedValue({ input: null, output: null, metadata: {} });
+
+    const result = await loadTraceTranscript({
+      ...trace,
+      transcriptSource: "root",
+    });
+
+    expect(result.transcript).toBeNull();
+    expect(mocks.observations).toHaveBeenCalledTimes(1);
+    expect(mocks.assemble).not.toHaveBeenCalled();
+  },
+);
+
 it("leaves an empty transcript unchanged unless fallback is enabled", async () => {
   mocks.assemble.mockReturnValue(null);
   mocks.observations.mockResolvedValue({

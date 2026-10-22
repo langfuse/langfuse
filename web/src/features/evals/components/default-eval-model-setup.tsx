@@ -10,7 +10,7 @@ import type { ToastOperation } from "@/src/features/notifications/toastAnalytics
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { useState } from "react";
 import {
   DialogContent,

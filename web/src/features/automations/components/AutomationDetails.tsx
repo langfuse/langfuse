@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Edit } from "@langfuse/icons";
-import { AutomationForm } from "./automationForm";
+import { AutomationForm } from "./AutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import Header from "@/src/components/layouts/header";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 

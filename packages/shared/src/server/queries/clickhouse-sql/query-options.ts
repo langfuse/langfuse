@@ -33,3 +33,11 @@ export async function shouldSkipObservationsFinal(
 
   return false;
 }
+
+/**
+ * Whether reads of the scores table may skip deduplication (FINAL / LIMIT 1 BY)
+ * for this project. Only safe for projects that never update scores.
+ */
+export function shouldSkipScoresDedup(projectId: string): boolean {
+  return env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS.has(projectId);
+}

@@ -22,7 +22,7 @@ describe("per-table dedup lowering", () => {
   it("does not inject LIMIT BY or FINAL on events_core row reads", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select(["span_id", "project_id"]),
     );
     const lower = sql.toLowerCase();
@@ -33,7 +33,7 @@ describe("per-table dedup lowering", () => {
   it("does not wrap events_core DISTINCT", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("environment")
         .distinct(),
     );
@@ -45,7 +45,7 @@ describe("per-table dedup lowering", () => {
   it("does not wrap events_core aggregations", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select((eb) => ["environment", eb.fn.countAll().as("n")])
         .groupBy("environment"),
     );
@@ -58,7 +58,7 @@ describe("per-table dedup lowering", () => {
   it("still emits an explicit caller LIMIT BY", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("span_id")
         .orderBy("event_ts", "desc")
         .$call(

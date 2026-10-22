@@ -631,6 +631,7 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          runStartedAt: run.claimedAt ?? run.createdAt,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
@@ -805,6 +806,7 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  runStartedAt: Date;
   user: {
     id: string;
     email: string | null;
@@ -838,6 +840,7 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        runStartedAt: params.runStartedAt,
         user: {
           id: params.user.id,
           email: params.user.email,

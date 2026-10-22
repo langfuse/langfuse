@@ -58,9 +58,7 @@ describe("tenancy injection", () => {
   });
 
   it("refuses a scope that is not a single projectId string", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment");
+    const qb = getClickhouseKysely().selectFrom("events").select("environment");
 
     expect(() =>
       // @ts-expect-error - a query is scoped to exactly one project
@@ -82,9 +80,7 @@ describe("tenancy injection", () => {
   });
 
   it("injects project_id when the builder omitted it", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment");
+    const qb = getClickhouseKysely().selectFrom("events").select("environment");
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("project_id");
@@ -93,7 +89,7 @@ describe("tenancy injection", () => {
 
   it("does not duplicate project_id when the builder already scoped the table", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("environment")
       .where("project_id", "=", "proj-1");
 
@@ -148,7 +144,7 @@ describe("tenancy injection", () => {
     "rejects the %s table function as a JOIN source",
     (fn) => {
       const qb = getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .innerJoin(
           (eb) =>
             eb
@@ -200,13 +196,13 @@ describe("tenancy injection", () => {
 
   it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
     const selectRaw = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events_truncated")
       .select(
         sql<string>`(SELECT environment FROM traces LIMIT 1)`.as("stolen"),
       );
 
     const whereRaw = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events_truncated")
       .select("environment")
       .where(sql<boolean>`id IN (SELECT id FROM traces)`);
 
@@ -282,7 +278,7 @@ describe("tenancy injection", () => {
 
   it("injects the context project even when the builder scoped a different project", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("environment")
       .where("project_id", "=", "other-project");
 
@@ -737,7 +733,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("attaches a real LimitByNode", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .where("project_id", "=", "proj-1")
       .$call(
@@ -777,7 +773,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("emits the LIMIT BY count", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .$call(limitBy({ count: 2, columns: (eb) => [eb.ref("span_id")] }));
 
@@ -787,7 +783,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("emits LIMIT BY before a plain LIMIT", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .where("project_id", "=", "proj-1")
       .limit(50)
@@ -828,8 +824,8 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 
   it("rejects FINAL on events_core", () => {
-    expect(() => useFinal(["events_core"])).toThrow(QueryCompileError);
-    expect(() => useFinal(["events_core"])).toThrow(/immutable/);
+    expect(() => useFinal(["events"])).toThrow(QueryCompileError);
+    expect(() => useFinal(["events"])).toThrow(/immutable/);
   });
 });
 

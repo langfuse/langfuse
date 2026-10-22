@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "traceContext": {
+    "sessionId": null,
+    "traceName": null,
+    "traceTimestamp": "2026-10-20T10:00:00.123Z",
+    "environment": "production"
+  },
+  "transcript": {
+    "threads": [
+      {
+        "conversationHistory": [],
+        "currentTurn": {
+          "nestingLevel": 0,
+          "observations": [{ "id": "span", "traceId": "trace" }],
+          "messages": [
+            {
+              "role": "assistant",
+              "source": "output",
+              "parts": [{ "type": "text", "text": "Hello 🌍" }],
+              "observationId": "span",
+              "traceId": "trace",
+              "startTime": "2026-10-20T10:00:00.123Z",
+              "endTime": null
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -94,7 +94,7 @@ vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
   default: () => null,
 }));
 

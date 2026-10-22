@@ -13,7 +13,7 @@ import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,
   type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+} from "@/src/components/layouts/PageTabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {

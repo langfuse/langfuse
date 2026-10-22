@@ -8,14 +8,22 @@ project permissions. Processing additionally requires the project allowlist.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. The header shows the facet
   tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap
-  (default) and Grid, remembered in localStorage; time range and processing
+  (default), Grid and Map, remembered in localStorage; time range and processing
   actions sit on the right, configuration and history in the overflow menu.
-  `CurrentTopics.tsx` owns the map query (Grid only) and trace navigation.
+  `CurrentTopics.tsx` owns the map query (Grid and Map) and trace navigation.
   Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile
   for traces without a topic, traces below; Grid snaps the
   saved map projection onto one square per trace (sampled above 1,000), legend
   under it and traces on the right. Both list the selected topic's traces in
   `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.
+  Map is the original cluster map (`CurrentTopicsView.tsx`) with its trace table.
+  Map clicks select a trace without opening peek. `CurrentTopicsView` keeps
+  that trace ID in project-scoped sessionStorage, shared across facets, and
+  highlights its map point and table row. Selection changes reveal the trace's
+  table page and follow it through result refreshes until the user paginates.
+  Clearing selection preserves the current page. Filtered-out map points cannot
+  replace selection; filters can hide a selection without discarding it. Table row
+  and trace-link clicks select the trace and open peek.
   `useTopicTraceFilters.ts` owns URL-backed facet selection.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
