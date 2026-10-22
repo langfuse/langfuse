@@ -41,7 +41,7 @@ import { InlineFilterBuilder } from "@/src/features/filters";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
-import { Slider } from "@/src/components/ui/slider";
+import { Slider } from "@/src/components/ui/Slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

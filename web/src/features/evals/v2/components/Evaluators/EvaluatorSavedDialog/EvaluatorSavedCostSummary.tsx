@@ -1,7 +1,7 @@
 import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Slider } from "@/src/components/ui/slider";
+import { Slider } from "@/src/components/ui/Slider";
 import {
   SAMPLING_SLIDER_MIN,
   SAMPLING_SLIDER_STEP,
