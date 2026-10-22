@@ -332,6 +332,94 @@ describe("evalsV2 tRPC", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("rejects writes to built-in evaluators for viewers and members", async () => {
+    const builtIn = await caller.evalsV2.create({
+      projectId,
+      name: "Built-in transport evaluator",
+      description: null,
+      definition,
+    });
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    await prisma.evaluator.update({
+      where: { id: builtIn.id, projectId },
+      data: {
+        isBuiltIn: true,
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+      },
+    });
+
+    for (const [role, code] of [
+      ["VIEWER", "FORBIDDEN"],
+      ["MEMBER", "BAD_REQUEST"],
+    ] as const) {
+      for (const write of evaluatorWrites(
+        createCallerWithProjectRole(role),
+        builtIn.id,
+      )) {
+        await expect(write()).rejects.toMatchObject({ code });
+      }
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: builtIn.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: builtIn.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+  });
+
+  it("treats FACET evaluators as missing for viewers and members", async () => {
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "Internal transport facet",
+        type: "FACET",
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    for (const [role, code] of [
+      ["VIEWER", "FORBIDDEN"],
+      ["MEMBER", "NOT_FOUND"],
+    ] as const) {
+      for (const write of evaluatorWrites(
+        createCallerWithProjectRole(role),
+        facet.id,
+      )) {
+        await expect(write()).rejects.toMatchObject({ code });
+      }
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: facet.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+  });
+
   it("returns evaluator costs through the tRPC contract", async () => {
     const evaluator = await caller.evalsV2.create({
       projectId,
@@ -438,3 +526,23 @@ describe("evalsV2 tRPC", () => {
     });
   });
 });
+
+function evaluatorWrites(
+  roleCaller: ReturnType<typeof appRouter.createCaller>,
+  evaluatorId: string,
+) {
+  return [
+    () =>
+      roleCaller.evalsV2.update({
+        projectId,
+        evaluatorId,
+        name: "Renamed protected evaluator",
+        description: null,
+        definition,
+      }),
+    () => roleCaller.evalsV2.reactivate({ projectId, evaluatorId }),
+    () => roleCaller.evalsV2.delete({ projectId, evaluatorId }),
+    () =>
+      roleCaller.evalsV2.deleteMany({ projectId, evaluatorIds: [evaluatorId] }),
+  ];
+}
