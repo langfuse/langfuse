@@ -6,14 +6,31 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
+const { addNotificationJobs } = vi.hoisted(() => ({
+  addNotificationJobs:
+    vi.fn<
+      (
+        jobs: Array<{ data: { payload: SharedServer.NotificationEventType } }>,
+      ) => Promise<unknown>
+    >(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
   return {
     ...actual,
     testModelCall: vi.fn().mockResolvedValue(undefined),
-    sendGatewayInvitationEmail: vi.fn().mockResolvedValue(undefined),
+    NotificationQueue: {
+      getInstance: () => ({ addBulk: addNotificationJobs }),
+    },
   };
 });
+
+function queuedNotifications(): SharedServer.NotificationEventType[] {
+  return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
+    jobs.map((job) => job.data.payload),
+  );
+}
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
@@ -445,16 +462,22 @@ describe("AI gateway control plane", () => {
     });
     expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
 
-    const sendEmail = vi.mocked(SharedServer.sendGatewayInvitationEmail);
-    expect(sendEmail.mock.calls.map(([params]) => params.to).sort()).toEqual(
-      [inviteeEmail, memberEmails[0]?.user.email].sort(),
+    expect(queuedNotifications()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: inviteeEmail,
+          audience: { kind: "invitee", hasAccount: false },
+        }),
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: memberEmails[0]?.user.email?.toLowerCase(),
+          audience: { kind: "member" },
+          inviterName: "Gateway tester",
+        }),
+      ]),
     );
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        audience: { kind: "member" },
-        inviterName: "Gateway tester",
-      }),
-    );
+    expect(queuedNotifications()).toHaveLength(2);
     await expect(
       prisma.membershipInvitation.findFirst({
         where: { orgId: owner.org.id, email: inviteeEmail },
@@ -486,12 +509,12 @@ describe("AI gateway control plane", () => {
     expect(result.failed.map(({ email }) => email)).toEqual([
       memberEmail.toLowerCase(),
     ]);
-    expect(SharedServer.sendGatewayInvitationEmail).toHaveBeenCalledWith(
+    expect(queuedNotifications()).toEqual([
       expect.objectContaining({
         audience: { kind: "member" },
         to: memberEmail.toLowerCase(),
       }),
-    );
+    ]);
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {

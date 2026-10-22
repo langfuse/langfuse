@@ -1,6 +1,13 @@
+import { randomUUID } from "crypto";
+import { TRPCError } from "@trpc/server";
+
 import { Role } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { sendGatewayInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  type NotificationEventType,
+  NotificationQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -10,8 +17,12 @@ import {
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_PREVIEW_LIMIT = 4;
-const EMAIL_SEND_CONCURRENCY = 10;
 const GATEWAY_USER_SCOPE = "gateway:invoke";
+
+type GatewayInvitationEmail = Extract<
+  NotificationEventType,
+  { type: "AI_GATEWAY_INVITATION" }
+>;
 
 function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
@@ -22,7 +33,7 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 /**
  * Owns every email the gateway setup sends: invitations for new people (as
  * organization members) and the announcement to existing members who can use
- * the gateway.
+ * the gateway. Emails are queued, one job per recipient, and sent by the worker.
  */
 export class GatewayTeamService {
   private readonly members: OrganizationMembersService;
@@ -57,31 +68,42 @@ export class GatewayTeamService {
     notifyMembers: boolean;
   }) {
     const { ctx, organizationId } = params;
+    const sendsEmail = isEmailConfigured();
+    const queue = sendsEmail ? NotificationQueue.getInstance() : null;
+    // Checked before inviting so a missing queue does not leave invitations without emails.
+    if (sendsEmail && !queue) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "The email queue is unavailable. Try again later.",
+      });
+    }
+
     const orgName = await this.members.getOrganizationName(organizationId);
-    const inviter = {
+    const sender = {
+      type: "AI_GATEWAY_INVITATION",
+      orgId: organizationId,
+      orgName,
       inviterName: ctx.session.user.name ?? ctx.session.user.email ?? "",
       inviterEmail: ctx.session.user.email ?? "",
-    };
-    const emails = [
-      ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
-    ];
+    } as const;
+    const emailJobs: GatewayInvitationEmail[] = [];
 
     const invited = new Set<string>();
     const failed: Array<{ email: string; message: string }> = [];
-    for (const email of emails) {
+    for (const email of new Set(
+      params.emails.map((email) => email.trim().toLowerCase()),
+    )) {
       try {
         await inviteOrganizationMember({
           ctx,
           input: { orgId: organizationId, email, orgRole: Role.MEMBER },
-          sendInvitationEmail: ({ to, userExists }) =>
-            sendGatewayInvitationEmail({
-              env,
-              audience: { kind: "invitee", hasAccount: userExists },
+          sendInvitationEmail: async ({ to, userExists }) => {
+            emailJobs.push({
+              ...sender,
               to,
-              orgName,
-              orgId: organizationId,
-              ...inviter,
-            }),
+              audience: { kind: "invitee", hasAccount: userExists },
+            });
+          },
         });
         invited.add(email);
       } catch (error) {
@@ -92,55 +114,39 @@ export class GatewayTeamService {
       }
     }
 
-    const notifiedCount = params.notifyMembers
-      ? await this.notifyMembers({
-          ctx,
-          organizationId,
-          orgName,
-          excludeEmails: invited,
-          inviter,
-        })
-      : 0;
+    let notifiedCount = 0;
+    if (params.notifyMembers && sendsEmail) {
+      const members = await this.members.findMembersWithScope({
+        organizationId,
+        scope: GATEWAY_USER_SCOPE,
+        excludeUserId: ctx.session.user.id,
+      });
+      for (const { email } of members) {
+        const to = email.toLowerCase();
+        if (invited.has(to)) continue;
+        emailJobs.push({ ...sender, to, audience: { kind: "member" } });
+        notifiedCount++;
+      }
+    }
 
-    return {
-      invitedCount: invited.size,
-      failed,
-      notifiedCount,
-    };
-  }
-
-  private async notifyMembers(params: {
-    ctx: GatewayTeamContext;
-    organizationId: string;
-    orgName: string;
-    excludeEmails: Set<string>;
-    inviter: { inviterName: string; inviterEmail: string };
-  }) {
-    if (!isEmailConfigured()) return 0;
-
-    const members = await this.members.findMembersWithScope({
-      organizationId: params.organizationId,
-      scope: GATEWAY_USER_SCOPE,
-      excludeUserId: params.ctx.session.user.id,
-    });
-    const recipients = members
-      .map(({ email }) => email.toLowerCase())
-      .filter((email) => !params.excludeEmails.has(email));
-
-    for (let i = 0; i < recipients.length; i += EMAIL_SEND_CONCURRENCY) {
-      await Promise.all(
-        recipients.slice(i, i + EMAIL_SEND_CONCURRENCY).map((to) =>
-          sendGatewayInvitationEmail({
-            env,
-            audience: { kind: "member" },
-            to,
-            orgName: params.orgName,
-            orgId: params.organizationId,
-            ...params.inviter,
-          }),
-        ),
+    if (queue && emailJobs.length > 0) {
+      await queue.addBulk(
+        emailJobs.map((payload) => ({
+          name: QueueJobs.NotificationJob,
+          data: {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload,
+            name: QueueJobs.NotificationJob,
+          },
+          // A repeated send while the same email is still queued is dropped.
+          opts: {
+            jobId: `ai-gateway-invitation-${organizationId}-${payload.audience.kind}-${payload.to}`,
+          },
+        })),
       );
     }
-    return recipients.length;
+
+    return { invitedCount: invited.size, failed, notifiedCount };
   }
 }

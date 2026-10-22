@@ -1,43 +1,52 @@
 import { Job } from "bullmq";
 
-import { logger, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import {
+  logger,
+  type NotificationEventType,
+  QueueName,
+  TQueueJobTypes,
+} from "@langfuse/shared/src/server";
 import { handleCommentMentionNotification } from "../features/notifications/commentMentionHandler";
+import { handleGatewayInvitationNotification } from "../features/notifications/gatewayInvitationHandler";
+
+function notificationScope(payload: NotificationEventType) {
+  return "projectId" in payload
+    ? { projectId: payload.projectId }
+    : { orgId: payload.orgId };
+}
 
 export const notificationQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.NotificationQueue]>,
 ) => {
+  const { payload } = job.data;
+  const logContext = {
+    type: payload.type,
+    ...notificationScope(payload),
+    jobId: job.id,
+  };
   try {
-    const { type, ...payload } = job.data.payload;
-    const projectId = payload.projectId;
+    logger.info("Processing notification job", logContext);
 
-    logger.info("Processing notification job", {
-      type,
-      projectId,
-      jobId: job.id,
-    });
-
-    switch (type) {
+    switch (payload.type) {
       case "COMMENT_MENTION":
         await handleCommentMentionNotification(payload);
         break;
+      case "AI_GATEWAY_INVITATION":
+        await handleGatewayInvitationNotification(payload);
+        break;
       // Future notification types can be added here
       default:
-        logger.warn(`Unknown notification type: ${type}`);
+        logger.warn(`Unknown notification type: ${logContext.type}`);
     }
 
-    logger.info("Finished processing notification job", {
-      type,
-      projectId,
-      jobId: job.id,
-    });
+    logger.info("Finished processing notification job", logContext);
 
     return true;
   } catch (error) {
     logger.error("Failed to process notification job", {
+      ...logContext,
       error,
-      jobId: job.id,
-      payload: job.data.payload,
-      projectId: job.data.payload.projectId,
+      payload,
     });
     throw error;
   }

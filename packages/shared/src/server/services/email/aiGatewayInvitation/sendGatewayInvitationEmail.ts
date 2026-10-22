@@ -28,8 +28,9 @@ type SendGatewayInvitationEmailParams = {
 
 /**
  * Tells someone the organization's AI Gateway is ready: either a new invitee
- * (paired with an organization invitation) or an existing member. Failures are
- * logged, not thrown, so one bad address does not abort a batch.
+ * (paired with an organization invitation) or an existing member. Missing
+ * email configuration is logged and skipped; delivery errors are thrown so the
+ * notification queue retries them.
  */
 export const sendGatewayInvitationEmail = async ({
   env,
@@ -61,30 +62,26 @@ export const sendGatewayInvitationEmail = async ({
       ? `${baseUrl}/auth/sign-up?targetPath=${encodeURIComponent(gatewayKeysPath)}&email=${encodeURIComponent(to)}`
       : `${baseUrl}${gatewayKeysPath}`;
 
-  try {
-    const html = await render(
-      GatewayInvitationEmailTemplate({
-        audience,
-        inviterName,
-        inviterEmail,
-        orgName,
-        receiverEmail: to,
-        link,
-        emailFromAddress: env.EMAIL_FROM_ADDRESS,
-        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      }),
-    );
+  const html = await render(
+    GatewayInvitationEmailTemplate({
+      audience,
+      inviterName,
+      inviterEmail,
+      orgName,
+      receiverEmail: to,
+      link,
+      emailFromAddress: env.EMAIL_FROM_ADDRESS,
+      langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    }),
+  );
 
-    await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
-      to,
-      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-      subject:
-        audience.kind === "invitee"
-          ? `${inviterName} invited you to the AI Gateway in "${orgName}" on Langfuse`
-          : `${inviterName} set up the AI Gateway for "${orgName}" on Langfuse`,
-      html,
-    });
-  } catch (error) {
-    logger.error(error);
-  }
+  await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
+    to,
+    from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
+    subject:
+      audience.kind === "invitee"
+        ? `${inviterName} invited you to the AI Gateway in "${orgName}" on Langfuse`
+        : `${inviterName} set up the AI Gateway for "${orgName}" on Langfuse`,
+    html,
+  });
 };
