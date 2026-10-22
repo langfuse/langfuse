@@ -25,6 +25,7 @@ import { randomUUID } from "crypto";
 import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { env } from "../env";
+import { TableName } from "../services/ClickhouseWriter/types";
 import { prisma } from "@langfuse/shared/src/db";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
@@ -849,5 +850,58 @@ describe("trace deletion", () => {
 
     const files = await eventStorageService.listFiles(projectId);
     expect(files).toHaveLength(0);
+  });
+
+  it("deletes staged observations from observations_batch_staging when deleting a trace", async (ctx) => {
+    await skipUnlessClickhouseTablesExist(
+      ctx,
+      [TableName.ObservationsBatchStaging],
+      "observations_batch_staging ClickHouse table is not enabled",
+    );
+
+    const { projectId } = await createOrgProjectAndApiKey();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const now = Date.now();
+
+    await clickhouseClient().insert({
+      table: TableName.ObservationsBatchStaging,
+      format: "JSONEachRow",
+      values: [
+        {
+          ...createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: projectId,
+            type: "GENERATION",
+            environment: "default",
+            name: "staged-observation",
+            start_time: now,
+            end_time: now + 1_000,
+            created_at: now,
+            updated_at: now,
+            event_ts: now,
+          }),
+          ingestion_api_key: "pk-lf-test",
+          ingestion_sdk_name: "langfuse-js",
+          ingestion_sdk_version: "4.2.0",
+          s3_first_seen_timestamp: toClickhouseDateTime(now),
+        },
+      ],
+    });
+
+    const before = await queryClickhouse<{ count: string }>({
+      query: `SELECT count() as count FROM observations_batch_staging WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      params: { projectId, traceId },
+    });
+    expect(Number(before[0]?.count ?? 0)).toBe(1);
+
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    const after = await queryClickhouse<{ count: string }>({
+      query: `SELECT count() as count FROM observations_batch_staging WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      params: { projectId, traceId },
+    });
+    expect(Number(after[0]?.count ?? 0)).toBe(0);
   });
 });
