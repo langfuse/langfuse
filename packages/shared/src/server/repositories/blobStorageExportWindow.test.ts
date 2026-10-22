@@ -20,6 +20,7 @@ vi.mock("./clickhouse", () => ({
 
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 import { getTracesForBlobStorageExport } from "./traces";

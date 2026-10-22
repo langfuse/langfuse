@@ -13,7 +13,10 @@ import {
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../queries/clickhouse-sql/query-options";
 import {
   planScoreFilterPushdown,
   resolveScoreDataRequirement,
@@ -1704,7 +1707,7 @@ async function buildTracesBaseQuery(
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores FINAL
+        FROM scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
         WHERE project_id = {projectId: String}
         AND session_id IS NULL
         AND dataset_run_id IS NULL
