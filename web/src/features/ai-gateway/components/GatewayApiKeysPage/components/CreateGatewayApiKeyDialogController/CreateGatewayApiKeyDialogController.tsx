@@ -158,10 +158,8 @@ export function CreateGatewayApiKeyDialogController({
                 </div>
                 {canIssueServiceAccountKeys ? (
                   <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground text-sm">
-                        Issued as
-                      </span>
+                    <Label>Issued as</Label>
+                    <div>
                       <Tabs
                         activationMode="manual"
                         value={issuedAs}
