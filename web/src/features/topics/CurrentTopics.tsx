@@ -8,6 +8,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { isValidTopicTimeRange } from "./time-range";
 import { TopicGridView } from "./TopicGridView";
 import { TopicTreemapView } from "./TopicTreemapView";
+import { TopicsResultsSkeleton } from "./TopicsResultsSkeleton";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 export function CurrentTopics({
@@ -39,7 +40,7 @@ export function CurrentTopics({
           </Alert.Description>
         </Alert>
       )}
-      {result.isLoading && <p className="text-sm">Loading topics…</p>}
+      {result.isLoading && <TopicsResultsSkeleton view={view} />}
       {selectedFacet && (
         <CurrentFacet
           key={JSON.stringify([projectId, selectedFacet.facetId])}
