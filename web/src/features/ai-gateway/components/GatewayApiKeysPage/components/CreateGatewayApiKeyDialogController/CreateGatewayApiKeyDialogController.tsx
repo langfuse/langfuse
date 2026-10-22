@@ -24,7 +24,7 @@ import {
   type ApiKeyExpirationPreset,
   resolveApiKeyExpiration,
 } from "@/src/features/apiKey";
-import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
+import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import {
   api,
   reportNonTrpcError,
