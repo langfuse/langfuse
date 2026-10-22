@@ -6,7 +6,7 @@ import {
   PostScoresResponseV1,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { ScoresApiService } from "@/src/features/public-api/server";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import {
   createUnknownSdkIngestionAttribution,
   buildScoreTargetUrl,

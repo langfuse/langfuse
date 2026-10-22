@@ -2,11 +2,14 @@ import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Lock, Plus } from "@langfuse/icons";
 import EvalsTemplateTable from "@/src/features/evals/components/EvalsTemplateTable";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 

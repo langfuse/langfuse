@@ -10,7 +10,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import * as auditLogs from "@/src/features/audit-logs/server";
+import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";

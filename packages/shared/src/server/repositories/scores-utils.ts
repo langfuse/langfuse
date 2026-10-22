@@ -1,5 +1,9 @@
 import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
-import { ScoreDataTypeType, ScoreDomain, ScoreSourceType } from "../../domain";
+import {
+  ScoreDataTypeType,
+  ScoreDomain,
+  ScoreSourceType,
+} from "../../domain/scores";
 import { PreferredClickhouseService } from "../clickhouse/client";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";

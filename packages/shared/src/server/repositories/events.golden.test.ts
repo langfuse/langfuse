@@ -11,7 +11,7 @@ import {
 import { OBSERVATION_FIELD_GROUPS_FULL } from "../../domain/observation-field-groups";
 import { eventsTableTraceNameAggregationSql } from "../../eventsTable";
 import { env } from "../../env";
-import { LangfuseNotFoundError } from "../../errors";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import {
   capturedQueries,
   clickhouseFormatAvailable,

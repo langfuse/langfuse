@@ -37,7 +37,7 @@ import {
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({

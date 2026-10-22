@@ -6,7 +6,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
 import { type LayerName } from "@/src/context/LayerContext/layers";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
-import { type ListEntry } from "@/src/features/navigate-detail-pages";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -17,7 +17,7 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.

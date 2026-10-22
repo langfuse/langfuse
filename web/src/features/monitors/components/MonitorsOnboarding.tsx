@@ -5,7 +5,7 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
-import { automationCreateHref } from "@/src/features/automations";
+import { automationCreateHref } from "@/src/features/automations/components/AutomationForm";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */

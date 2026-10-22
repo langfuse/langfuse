@@ -48,7 +48,7 @@ import {
   type LevelCount,
 } from "@/src/components/LevelCountsDisplay";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";

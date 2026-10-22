@@ -16,7 +16,7 @@ import {
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { cn } from "@/src/utils/tailwind";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 
 /**

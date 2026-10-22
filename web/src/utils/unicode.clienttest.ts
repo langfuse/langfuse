@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { decodeUnicodeEscapesOnly } from "@langfuse/shared";
 
 describe("decodeUnicodeEscapesOnly", () => {
   it("should decode basic Unicode escapes (Chinese, Korean)", () => {

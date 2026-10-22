@@ -1,12 +1,12 @@
 /* eslint-disable no-nested-ternary */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import {
-  featurePreviewLabels,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 

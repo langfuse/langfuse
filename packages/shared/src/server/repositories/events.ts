@@ -15,15 +15,13 @@ import {
 } from "kysely";
 import type {
   EventsObservation,
-  MetadataDomain,
   ObservationType,
-} from "../../domain";
+} from "../../domain/observations";
+import type { MetadataDomain } from "../../domain/traces";
 import { env } from "../../env";
-import {
-  InternalServerError,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-} from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -71,22 +69,34 @@ import {
 import {
   type Filter,
   FilterList,
+  filtersRequireEventsFull,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+
+import {
   type FullEventsObservation,
   FullEventsObservations,
-  buildEventsObservationRowSelection,
-  extractTimeFilter,
+  ObservationPriceFields,
+  type EventsObservationPublic,
+} from "../queries/createGenerationsQuery";
+
+import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
+import {
   orderByToClickhouseSql,
   orderByToEntries,
+} from "../queries/clickhouse-sql/orderby-factory";
+import {
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
-  filtersRequireEventsFull,
+  type ApiColumnMapping,
+} from "../queries/public-api-filter-builder";
+import {
   isFtsAcceleratedIoOperator,
   isFtsEventsTable,
   isFtsTextField,
-  type ApiColumnMapping,
-  ObservationPriceFields,
-} from "../queries";
+} from "../queries/clickhouse-sql/fts";
+
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   planScoreFilterPushdown,
@@ -171,7 +181,7 @@ import {
   type EventFilterOptionColumn,
   type EventFilterOptionScope,
 } from "../queries/clickhouse-sql/event-filter-options";
-import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
+
 import {
   eventsTableCols,
   normalizeEventsTraceName,
@@ -182,7 +192,8 @@ import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/ty
 import {
   findUiColumnMapping,
   type UiColumnMappings,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
+
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { escapeSqlLikePattern } from "../utils/sqlLike";

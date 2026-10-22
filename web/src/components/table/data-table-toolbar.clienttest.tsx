@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import type { ColumnDefinition } from "@langfuse/shared";
-import { ExperimentDisplaySettings } from "@/src/features/experiments";
+import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import {
   DataTableToolbar,
   type MultiSelect,

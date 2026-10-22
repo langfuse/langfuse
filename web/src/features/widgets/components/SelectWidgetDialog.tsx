@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
@@ -25,12 +25,10 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  InAppAgentWidgetComposer,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent";
+import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 export type WidgetItem = {
   id: string;

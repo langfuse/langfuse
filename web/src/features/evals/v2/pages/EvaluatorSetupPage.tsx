@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
@@ -37,8 +38,8 @@ import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluat
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -54,12 +55,12 @@ import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useProject } from "@/src/features/projects";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";

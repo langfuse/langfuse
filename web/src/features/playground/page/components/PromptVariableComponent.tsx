@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, TrashIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { type PromptVariable } from "@langfuse/shared";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 
 import { usePlaygroundContext } from "../context";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";

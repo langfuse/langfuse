@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 interface TracePanelNavigationButtonProps {

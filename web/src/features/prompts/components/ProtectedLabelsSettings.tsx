@@ -11,10 +11,10 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { XIcon, Check } from "@langfuse/icons";

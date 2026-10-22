@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { EvalTemplateType } from "@langfuse/shared";
 
-import { managedEvaluatorTemplateService } from "@/src/features/evals";
+import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 

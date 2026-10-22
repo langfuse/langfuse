@@ -4,8 +4,11 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
-import { getScoresTabs, SCORES_TABS } from "@/src/features/navigation";
-import { useReadPath } from "@/src/features/events";
+import {
+  getScoresTabs,
+  SCORES_TABS,
+} from "@/src/features/navigation/utils/scores-tabs";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function ScoresPage() {
   const router = useRouter();

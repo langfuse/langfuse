@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
-import type { combineInputOutputMessages } from "@/src/utils/chatml";
+import type {
+  ChatMlMessageSchema,
+  combineInputOutputMessages,
+} from "@langfuse/shared";
+
 import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;

@@ -3,7 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -11,16 +11,14 @@ import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type Prisma,
   datasetRunsTableColsWithOptions,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   customRowHeightMenu,
@@ -46,19 +44,21 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
-} from "@/src/features/dashboard";
-import { Chart } from "@/src/features/widgets";
+} from "@/src/features/dashboard/lib/chart-data-adapters";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import {
   addPrefixToScoreKeys,
-  CompareViewAdapter,
   convertScoreColumnsToAnalyticsData,
-  getScoreLabelFromKey,
   scoreFilters,
-  useScoreColumns,
-} from "@/src/features/scores";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/scores/lib/scoreColumns";
+import { CompareViewAdapter } from "@/src/features/scores/adapters/index";
+import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -69,7 +69,7 @@ import {
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DatasetRunRowData = {

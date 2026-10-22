@@ -1,4 +1,4 @@
-import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import type { McpFeatureModule } from "../registry";
 import {
   handleSubmitFeedback,

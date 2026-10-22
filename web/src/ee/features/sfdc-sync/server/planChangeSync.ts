@@ -4,7 +4,7 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { deriveLeadSourceFromMemberships } from "./leadSource";
 import { getSfdcService, toSfdcPlan, type SfdcService } from "./sfdcService";
 

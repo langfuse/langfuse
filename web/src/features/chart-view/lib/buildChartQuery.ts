@@ -1,8 +1,6 @@
 import { type FilterState, type QueryType } from "@langfuse/shared";
-import {
-  type DataPoint,
-  getWidgetMissingBucketValue,
-} from "@/src/features/widgets";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
 import { type ChartViewConfig } from "../types";
 import { getDimension, getMetric, isTimeSeriesChartType } from "../vocab";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Observation } from "../../domain";
+import type { Observation } from "../../domain/observations";
 import { orderObservations } from "./ordering";
 
 describe("orderObservations", () => {

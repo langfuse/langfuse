@@ -3,8 +3,8 @@ import { useState } from "react";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import Page from "@/src/components/layouts/page";
 import {
   SidePanel,

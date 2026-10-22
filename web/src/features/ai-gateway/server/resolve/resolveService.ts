@@ -17,7 +17,7 @@ import {
   type GatewayProviderId,
   type GatewayResolveResponse,
   getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 

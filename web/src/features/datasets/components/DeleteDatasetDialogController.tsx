@@ -1,9 +1,9 @@
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DeleteDatasetDialog,
   type DeleteDatasetDialogDataProps,
 } from "@/src/features/datasets/components/DeleteDatasetDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type ReactNode } from "react";
 
 export type DeleteDatasetDialogSource = "dataset" | "table-single-row";

@@ -8,11 +8,9 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  downloadChartDataCsv,
-  VerticalBarChartTimeSeries,
-  type DataPoint,
-} from "@/src/features/widgets";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/features/organization-usage/constants/usageBreakdown";
 import { api } from "@/src/utils/api";
 import { numberFormatter } from "@/src/utils/numbers";

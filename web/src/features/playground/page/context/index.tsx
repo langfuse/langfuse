@@ -1,5 +1,5 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, {
   createContext,
   useCallback,
@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -49,7 +49,7 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
-import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
+import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/messageSearch/context";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";

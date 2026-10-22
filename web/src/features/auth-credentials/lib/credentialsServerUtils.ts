@@ -2,7 +2,7 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
-import type { AdClickIds } from "@/src/features/auth";
+import type { AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import { env } from "@/src/env.mjs";
 import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
 import { prisma } from "@langfuse/shared/src/db";

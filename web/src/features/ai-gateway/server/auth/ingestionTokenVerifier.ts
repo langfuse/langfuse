@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {

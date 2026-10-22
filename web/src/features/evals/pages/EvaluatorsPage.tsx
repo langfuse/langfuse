@@ -1,13 +1,16 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Plus } from "@langfuse/icons";
 import EvaluatorTable from "@/src/features/evals/components/EvaluatorTable";
-import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
+import {
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";

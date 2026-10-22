@@ -13,8 +13,8 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import { projectNameSchema } from "@/src/features/auth";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewProjectForm = ({
   orgId,

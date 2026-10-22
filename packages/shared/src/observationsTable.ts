@@ -1,9 +1,10 @@
-import { ObservationLevelType } from "./domain";
+import { ObservationLevelType } from "./domain/observations";
 import {
   type SingleValueOption,
   type ColumnDefinition,
   MultiValueOption,
-} from "./tableDefinitions";
+} from "./tableDefinitions/types";
+
 import { formatColumnOptions } from "./tableDefinitions/typeHelpers";
 
 // to be used server side

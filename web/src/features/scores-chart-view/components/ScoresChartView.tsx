@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
 import {
   buildScoresChartQuery,
@@ -14,8 +14,8 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
-import { AddToDashboardButton } from "@/src/features/chart-view";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the

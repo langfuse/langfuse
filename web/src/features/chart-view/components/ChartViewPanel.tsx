@@ -8,7 +8,7 @@ import {
   Loader2,
 } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import type { DataPoint } from "@/src/features/widgets";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {

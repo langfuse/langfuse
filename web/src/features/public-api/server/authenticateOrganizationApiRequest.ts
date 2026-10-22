@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Action } from "@langfuse/shared/rbac";
 
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { RateLimitService } from "./RateLimitService";
 import { shadowAuth } from "./shadowAuth";
 import { writeOrgError } from "./writeError";

@@ -4,7 +4,7 @@ import {
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function useScoreMutations() {

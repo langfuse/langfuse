@@ -1,12 +1,13 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   buildWidgetExport,
   downloadWidgetJson,
@@ -15,7 +16,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
 import { type metricAggregations } from "@langfuse/shared/query";
 import { type z } from "zod";

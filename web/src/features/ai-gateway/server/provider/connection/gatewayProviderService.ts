@@ -14,7 +14,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {

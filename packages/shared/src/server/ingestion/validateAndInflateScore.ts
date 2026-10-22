@@ -11,7 +11,8 @@ import {
   CORRECTION_NAME,
 } from "../../../src";
 import { prisma } from "../../db";
-import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { validateDbScoreConfigSafe } from "../../features/scoreConfigs/validation";
 import { ScoreEventType } from "./types";
 

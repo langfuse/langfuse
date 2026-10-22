@@ -2,8 +2,9 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db";
-import { type DatasetItemMediaField } from "../../domain";
-import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import type { DatasetItemMediaField } from "../../domain/dataset-items";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { findMediaReferences } from "../../utils/mediaReferences";
 import {
   addTagsToCurrentSpan,

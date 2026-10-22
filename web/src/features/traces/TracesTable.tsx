@@ -18,10 +18,8 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
@@ -42,8 +40,8 @@ import {
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages";
-import { useOrderByState } from "@/src/features/orderBy";
+} from "@/src/features/navigate-detail-pages/context";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
   type ObservationLevelType,
@@ -76,14 +74,12 @@ import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlace
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, Trash2 } from "@langfuse/icons";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import {
-  TableActionMenu,
-  useSelectAll,
-  TableSelectionManager,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -92,22 +88,24 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+
+import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-  tracesFieldRegistry,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/traces-config";
+
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -117,10 +115,11 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type TracesTableRow = {

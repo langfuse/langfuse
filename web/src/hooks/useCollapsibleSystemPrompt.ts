@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // A prompt counts as long when it exceeds the char threshold and would not
 // fit a short first-lines preview anyway.

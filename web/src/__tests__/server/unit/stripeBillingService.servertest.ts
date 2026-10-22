@@ -16,7 +16,7 @@ vi.mock("@/src/ee/features/billing/utils/stripe", () => ({
   stripeClient: undefined,
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
 

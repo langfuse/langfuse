@@ -26,12 +26,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMToolNameSchema } from "@/src/features/llm-tools";
+import { LLMToolNameSchema } from "@/src/features/llm-tools/validation";
 import { api } from "@/src/utils/api";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { JSONSchemaFormSchema, type LlmTool } from "@langfuse/shared";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const formSchema = z.object({
   name: LLMToolNameSchema,

@@ -2,7 +2,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";

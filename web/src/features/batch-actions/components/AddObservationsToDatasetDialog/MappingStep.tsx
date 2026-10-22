@@ -1,6 +1,6 @@
 import { CustomMappingEditor } from "./components/CustomMappingEditor";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { DatasetSchemaHoverCard } from "@/src/features/datasets";
+import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import type {
   FieldMappingConfig,
   MappingMode,

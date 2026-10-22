@@ -14,7 +14,7 @@ import type {
   blobStorageIntegrationFormSchema,
   BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import { getExportSourceFormValue } from "@/src/features/analytics-integrations";
+import { getExportSourceFormValue } from "@/src/features/analytics-integrations/exportSource";
 
 // Pre-parse (input) shape of the form; zod defaults make some fields optional.
 export type BlobStorageFormValues = z.input<

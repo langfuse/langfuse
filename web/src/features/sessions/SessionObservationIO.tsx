@@ -3,18 +3,19 @@ import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
-  useMedia,
-  type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/features/traces";
+} from "@/src/features/traces/components/IOPreview/IOPreview";
+import { useMedia } from "@/src/features/traces/hooks/useMedia";
+import type { ChatMLParserResult } from "@/src/features/traces/hooks/useChatMLParser";
+
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { showErrorToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
-import { parseJsonIfString } from "@langfuse/shared";
+import { decodeUnicodeEscapesOnly, parseJsonIfString } from "@langfuse/shared";
+
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export type SessionTraceObservation =

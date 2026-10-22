@@ -1,5 +1,5 @@
 import { singleFilterList } from "../../interfaces/filters";
-import type { ColumnDefinition } from "../../tableDefinitions";
+import type { ColumnDefinition } from "../../tableDefinitions/types";
 import {
   evalDatasetFormFilterCols,
   evalTraceTableCols,

@@ -2,10 +2,13 @@
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
-import { ObservationLevel, ObservationType } from "../../domain";
+import { ObservationLevel, ObservationType } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
-import { SingleValueOption } from "../../tableDefinitions";
-import { ColumnDefinition } from "../../tableDefinitions";
+import {
+  SingleValueOption,
+  ColumnDefinition,
+} from "../../tableDefinitions/types";
+
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 import { parseJsonIfString } from "../../utils/json";
 import { isRootObservation } from "../../eventsTable";

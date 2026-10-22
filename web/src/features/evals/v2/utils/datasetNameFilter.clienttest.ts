@@ -7,10 +7,11 @@ import {
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import {
   type FieldRegistry,
-  filterStateToQueryText,
-  planCommit,
   withFieldOptions,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/fields";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+
 import { addDatasetNameObservedOptions } from "./datasetNameFilter";
 
 const datasets = [

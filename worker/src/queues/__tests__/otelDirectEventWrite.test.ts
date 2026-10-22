@@ -14,7 +14,7 @@ import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch
 import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
+import { fetchObservationEvalRules } from "../../features/evaluation/observationEval/fetchObservationEvalRules";
 import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
@@ -35,10 +35,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   markProjectIngestFailure: vi.fn(),
 }));
 vi.mock(
-  "../../features/evaluation/observationEval",
+  "../../features/evaluation/observationEval/fetchObservationEvalRules",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval")
+      typeof import("../../features/evaluation/observationEval/fetchObservationEvalRules")
     >()),
     fetchObservationEvalRules: vi.fn(),
   }),

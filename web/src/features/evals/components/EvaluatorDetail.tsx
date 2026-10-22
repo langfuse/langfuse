@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/features/evals/components/EvalLogTable";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";

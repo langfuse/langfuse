@@ -5,10 +5,10 @@ import {
   EvalTemplateType,
   JobConfigState,
 } from "@langfuse/shared";
-import {
-  type ObservationEvalRule,
-  type ObservationEvalSchedulerDeps,
-} from "../evaluation/observationEval";
+import type {
+  ObservationEvalRule,
+  ObservationEvalSchedulerDeps,
+} from "../evaluation/observationEval/types";
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -18,16 +18,18 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../evaluation/observationEval", () => ({
+vi.mock("../evaluation/observationEval/createSchedulerDeps", () => ({
+  createObservationEvalSchedulerDeps: vi.fn(() => ({ deps: true })),
+  scheduleObservationEvals: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../evaluation/observationEval/scheduleObservationEvals", () => ({
   createObservationEvalSchedulerDeps: vi.fn(() => ({ deps: true })),
   scheduleObservationEvals: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  createObservationEvalSchedulerDeps,
-  scheduleObservationEvals,
-} from "../evaluation/observationEval";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
+import { scheduleObservationEvals } from "../evaluation/observationEval/scheduleObservationEvals";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 
 describe("processBatchedObservationEval", () => {

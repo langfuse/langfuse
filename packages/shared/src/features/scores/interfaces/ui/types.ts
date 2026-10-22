@@ -1,8 +1,8 @@
 import {
   ListableScoreDataType,
-  MetadataDomain,
   ScoreSourceType,
-} from "../../../../domain";
+} from "../../../../domain/scores";
+import { MetadataDomain } from "../../../../domain/traces";
 
 export type BaseAggregate = {
   comment?: string | null;

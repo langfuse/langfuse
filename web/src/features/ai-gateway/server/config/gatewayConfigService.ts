@@ -3,7 +3,7 @@ import type {
   GatewayIngestionMode,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";

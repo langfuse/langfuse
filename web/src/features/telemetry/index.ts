@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";

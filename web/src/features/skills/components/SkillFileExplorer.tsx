@@ -46,7 +46,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   buildSkillFileTree,
   getParentFolderPaths,

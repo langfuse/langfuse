@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { DATASET_ITEM_TABS } from "@/src/features/navigation";
+import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
 import { DatasetItemVersionedContent } from "@/src/features/datasets/components/DatasetItemVersionedContent";

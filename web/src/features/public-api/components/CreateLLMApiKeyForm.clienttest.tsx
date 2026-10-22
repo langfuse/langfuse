@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   reportTrpcErrorWithoutToast: vi.fn(),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/utils/api", () => {

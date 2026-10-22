@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,

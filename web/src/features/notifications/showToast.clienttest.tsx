@@ -1,7 +1,10 @@
 import { StrictMode, type ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
-import { showCustomToast, showToast } from "@/src/features/notifications";
+import {
+  showCustomToast,
+  showToast,
+} from "@/src/features/notifications/showToast";
 
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
@@ -47,7 +50,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 

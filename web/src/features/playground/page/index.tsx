@@ -11,10 +11,8 @@ import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
-import {
-  MessageSearchProvider,
-  MessageSearchToolbar,
-} from "@/src/components/ChatMessages/MessageSearch";
+import { MessageSearchProvider } from "@/src/components/ChatMessages/messageSearch/context";
+import { MessageSearchToolbar } from "@/src/components/ChatMessages/messageSearch/toolbar";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 

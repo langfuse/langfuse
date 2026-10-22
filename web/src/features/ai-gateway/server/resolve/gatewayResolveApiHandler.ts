@@ -6,7 +6,8 @@ import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/aut
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 export async function gatewayResolveApiHandler({

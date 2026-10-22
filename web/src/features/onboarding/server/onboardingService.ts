@@ -10,13 +10,14 @@ import {
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac";
+} from "@langfuse/shared/rbac";
+
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { createProjectRoute } from "@/src/features/setup";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
 import {

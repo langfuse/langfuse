@@ -10,7 +10,7 @@ import {
   GetObservationsV2Response,
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",

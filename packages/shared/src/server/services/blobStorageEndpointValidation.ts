@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type BlobStorageIntegrationType } from "@prisma/client";
 import { env } from "../../env";
+import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import {
   isDnsCompatibleBucketName,
-  type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   resolveHost,
   validateOutboundResolvedIp,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 import { isIPAddress } from "../webhooks/ipBlocking";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =

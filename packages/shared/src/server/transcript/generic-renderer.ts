@@ -1,10 +1,10 @@
-import type { Observation } from "../../domain";
+import type { Observation } from "../../domain/observations";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolResultContentPart,
 } from "../../utils/normalized-io";
-import { normalizeIO } from "../normalized-io";
+import { normalizeIO } from "../normalized-io/parser";
 import {
   topicsTranscriptConfig,
   transcriptRenderConfigSchema,

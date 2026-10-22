@@ -24,7 +24,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
   isTextDataType,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/helpers";
 import {
   createConfigSchema,
   type CreateConfig,

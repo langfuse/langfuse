@@ -32,11 +32,11 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/features/organizations", () => ({
+vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({
     isLangfuseCloud: false,
     region: undefined,

@@ -9,7 +9,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import Header from "@/src/components/layouts/header";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   formatAnnotateDescription,
   isTextDataType,

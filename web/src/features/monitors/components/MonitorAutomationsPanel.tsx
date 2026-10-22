@@ -21,10 +21,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import {
-  AutomationForm,
-  WebhookSecretRender,
-} from "@/src/features/automations";
+import { AutomationForm } from "@/src/features/automations/components/AutomationForm";
+import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,

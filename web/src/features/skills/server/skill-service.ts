@@ -26,8 +26,8 @@ import {
 } from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { checkHasProtectedLabels } from "@/src/features/prompts/server/utils/checkHasProtectedLabels";
 import {
   authorizeProtectedLabelMutation,

@@ -11,7 +11,7 @@ import {
   GCPServiceAccountKeySchema,
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
-import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
+import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {

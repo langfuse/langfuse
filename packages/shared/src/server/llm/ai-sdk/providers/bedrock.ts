@@ -12,7 +12,7 @@ import {
 import {
   OutboundUrlValidationError,
   parseOutboundUrl,
-} from "../../../outbound-url";
+} from "../../../outbound-url/validation";
 import { llmBaseUrlWhitelistFromEnv } from "../../baseUrlValidation";
 import type { LLMCredentialSource, TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";

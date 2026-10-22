@@ -10,10 +10,10 @@ import {
 } from "@langfuse/shared";
 import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-} from "@/src/features/media";
+import type {
+  MediaContentType,
+  MediaReturnType,
+} from "@/src/features/media/validation";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 

@@ -30,10 +30,8 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
-import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "@/src/features/ai-gateway/server/provider";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";

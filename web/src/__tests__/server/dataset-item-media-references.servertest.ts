@@ -22,7 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
-import { MediaContentType } from "@/src/features/media/server";
+import { MediaContentType } from "@/src/features/media/validation";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const session: Session = {

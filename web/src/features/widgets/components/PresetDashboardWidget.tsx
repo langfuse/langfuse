@@ -1,5 +1,6 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useRef } from "react";
 import {
   CopyIcon,
@@ -10,7 +11,7 @@ import {
 } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import type { ResolvedReadPath } from "@/src/features/events";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -18,7 +19,7 @@ import {
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 /**

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../../db";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as commentsRepository from "../repositories/comments";
 import {

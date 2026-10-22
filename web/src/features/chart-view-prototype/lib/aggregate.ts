@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { DataPoint } from "@/src/features/widgets";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import {
   type AggregationFn,
   type ChartViewConfig,

@@ -33,13 +33,13 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
+import { JSONTableView } from "@/src/features/traces/components/JSONTableView/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";

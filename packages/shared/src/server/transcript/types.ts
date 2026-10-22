@@ -5,7 +5,7 @@ import type {
   threadSchema,
   transcriptSchema,
 } from "./schema";
-import type { Observation } from "../../domain";
+import type { Observation } from "../../domain/observations";
 
 export type TranscriptOptions = {
   /** Hard limit on JSON.stringify(result).length, including metadata and escaping.

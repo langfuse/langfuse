@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, Plus, Unlink } from "@langfuse/icons";
 import { useRouter } from "next/router";
@@ -20,7 +20,7 @@ import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";

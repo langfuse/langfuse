@@ -9,9 +9,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Info } from "@langfuse/icons";
-import { useQueryProject } from "@/src/features/projects";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 

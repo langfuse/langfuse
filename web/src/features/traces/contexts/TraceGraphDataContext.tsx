@@ -10,8 +10,8 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { api } from "@/src/utils/api";
-import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view";
-import { useReadPath } from "@/src/features/events";
+import type { AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   MAX_NODES_FOR_GRAPH_UI,
   resolveGraphAvailability,

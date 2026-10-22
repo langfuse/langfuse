@@ -9,7 +9,7 @@ import {
   GatewayConfigurationView,
   type IngestionMode,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 type Project = {

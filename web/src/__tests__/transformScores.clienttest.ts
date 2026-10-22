@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { transformToAnnotationScores } from "@/src/features/scores";
+import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import {
   type ScoreDomain,
   type ScoreAggregate,

@@ -6,7 +6,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -16,22 +16,23 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@langfuse/shared";
 import Page from "@/src/components/layouts/page";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
-import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import {
-  useScoreColumns,
+  getPromptTabs,
+  PROMPT_TABS,
+} from "@/src/features/navigation/utils/prompt-tabs";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import {
   scoreFilters,
   addPrefixToScoreKeys,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";

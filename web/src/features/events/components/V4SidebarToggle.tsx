@@ -11,7 +11,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { setReadPath } from "@/src/features/events/actions/setReadPath";
 import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getV4PreviewDisabledRedirect,
   getV4PreviewEnabledRedirect,

@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import Header from "@/src/components/layouts/header";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 
 export function HostNameProject() {

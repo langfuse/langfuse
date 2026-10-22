@@ -9,7 +9,7 @@ const router = vi.hoisted(() => ({
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
 
-vi.mock("@/src/features/account", () => ({
+vi.mock("@/src/features/account/AccountSettingsPage", () => ({
   useAccountSettingsPages: () => [],
 }));
 

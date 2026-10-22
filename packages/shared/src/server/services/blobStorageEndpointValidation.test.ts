@@ -4,7 +4,7 @@ import {
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundResolvedIp,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 import {
   assertGcsBlobStorageBucketAllowed,
   blobStorageEndpointConnectionValidationOptions,

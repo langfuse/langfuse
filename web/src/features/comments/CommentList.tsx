@@ -2,7 +2,7 @@
 import { useRef, type ReactNode } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type CommentObjectType } from "@langfuse/shared";

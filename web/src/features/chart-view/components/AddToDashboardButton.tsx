@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { LayoutDashboard } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartWidgetInput } from "../lib/chartConfigToWidget";

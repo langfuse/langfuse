@@ -6,7 +6,7 @@ import {
   convertScoreToPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   InternalServerError,
   LISTABLE_SCORE_TYPES,

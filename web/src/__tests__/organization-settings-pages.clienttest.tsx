@@ -1,10 +1,10 @@
 import { renderHook } from "@testing-library/react";
 
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { env } from "@/src/env.mjs";
@@ -52,16 +52,19 @@ vi.mock("@/src/ee/features/billing/components/BillingSettings", () => ({
   BillingSettings: () => null,
 }));
 
-vi.mock("@/src/features/organization-usage", () => ({
-  OrganizationUsageBreakdown: () => null,
-}));
+vi.mock(
+  "@/src/features/organization-usage/components/OrganizationUsageBreakdown",
+  () => ({
+    OrganizationUsageBreakdown: () => null,
+  }),
+);
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: vi.fn(),
   usePlan: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/sso-settings", () => ({
+vi.mock("@/src/ee/features/sso-settings/components/SSOSettings", () => ({
   SSOSettings: () => null,
 }));
 
@@ -86,7 +89,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/audit-log-viewer", () => ({
+vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 
@@ -111,12 +114,42 @@ vi.mock("@/src/utils/api", () => ({
   api: { aiGateway: { getSetupStatus: { useQuery: getSetupStatusQuery } } },
 }));
 
-vi.mock("@/src/features/ai-gateway", () => ({
-  GatewayApiKeysPage: () => null,
-  GatewayConfigurationPage: () => null,
-  GatewayModelsPage: () => null,
-  GatewayProvidersPage: () => null,
-}));
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage",
+  () => ({
+    GatewayApiKeysPage: () => null,
+    GatewayConfigurationPage: () => null,
+    GatewayModelsPage: () => null,
+    GatewayProvidersPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayConfigurationPage/GatewayConfigurationPage",
+  () => ({
+    GatewayApiKeysPage: () => null,
+    GatewayConfigurationPage: () => null,
+    GatewayModelsPage: () => null,
+    GatewayProvidersPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage",
+  () => ({
+    GatewayApiKeysPage: () => null,
+    GatewayConfigurationPage: () => null,
+    GatewayModelsPage: () => null,
+    GatewayProvidersPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayProvidersPage/GatewayProvidersPage",
+  () => ({
+    GatewayApiKeysPage: () => null,
+    GatewayConfigurationPage: () => null,
+    GatewayModelsPage: () => null,
+    GatewayProvidersPage: () => null,
+  }),
+);
 
 const organization = {
   id: "org-1",

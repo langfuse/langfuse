@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { ServiceUnavailableError } from "../../errors";
+import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
 import { recordIncrement } from "../instrumentation";
 
 const MAX_CAUSE_DEPTH = 8;

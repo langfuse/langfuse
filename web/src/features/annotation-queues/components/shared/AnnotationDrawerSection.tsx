@@ -1,5 +1,6 @@
 import { Card } from "@/src/components/ui/card";
-import { AnnotationForm, type ScoreTarget } from "@/src/features/scores";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import type { ScoreTarget } from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
   type ScoreDomain,

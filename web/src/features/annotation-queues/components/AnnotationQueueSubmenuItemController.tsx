@@ -7,8 +7,8 @@ import { type ReactNode, useCallback, useMemo } from "react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type AnalyticsData } from "@/src/features/scores/types";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 

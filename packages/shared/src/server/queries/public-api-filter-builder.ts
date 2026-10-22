@@ -16,7 +16,7 @@ import type { EventsTableFilterState } from "../../types";
 import type {
   UiColumnMappings,
   ColumnDefinition,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {

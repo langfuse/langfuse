@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",

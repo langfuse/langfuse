@@ -1,8 +1,8 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function AuditLogsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({

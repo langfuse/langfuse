@@ -1,6 +1,6 @@
 import { expect, fn, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 const meta = preview.meta({

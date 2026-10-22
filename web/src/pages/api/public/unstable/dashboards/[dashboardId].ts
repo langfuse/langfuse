@@ -13,7 +13,7 @@ import {
   deletePublicDashboard,
   getPublicDashboard,
   updatePublicDashboard,
-} from "@/src/features/dashboard/server";
+} from "@/src/features/dashboard/server/public-dashboard-service";
 
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({

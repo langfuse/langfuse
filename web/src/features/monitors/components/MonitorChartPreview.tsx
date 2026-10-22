@@ -4,12 +4,10 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import {
-  Chart,
-  ChartLoadingState,
-  type DataPoint,
-  getWidgetMetricPresentation,
-} from "@/src/features/widgets";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 import {
   type FilterState,
   type metricAggregations,

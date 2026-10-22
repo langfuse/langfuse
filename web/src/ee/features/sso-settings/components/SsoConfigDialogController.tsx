@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
+import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Copy } from "@langfuse/icons";
 import { useId, useMemo, useState } from "react";

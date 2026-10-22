@@ -5,21 +5,23 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
-import { findUiColumnMapping } from "../../tableDefinitions";
+import { findUiColumnMapping } from "../../tableDefinitions/types";
 import {
   convertDateToClickhouseDateTime,
   type PreferredClickhouseService,
 } from "../clickhouse/client";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import {
   getProjectIdDefaultFilter,
   createFilterFromFilterState,
 } from "../queries/clickhouse-sql/factory";
-import {
-  TRACE_TO_OBSERVATIONS_INTERVAL,
-  queryClickhouse,
-} from "../repositories";
+import { TRACE_TO_OBSERVATIONS_INTERVAL } from "../repositories/constants";
+import { queryClickhouse } from "../repositories/clickhouse";
 
 export type SessionDataReturnType = {
   session_id: string;

@@ -19,7 +19,7 @@ import {
   type MetricOption,
   type ScoreCoverageByLevel,
 } from "@/src/features/experiments/types/charts";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 const PANEL_IDS = ["charts", "table"];
