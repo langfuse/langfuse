@@ -256,7 +256,14 @@ export function CreateGatewayApiKeyDialogController({
         )
       }
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) =>
+        children({
+          openDialog: () => {
+            reset();
+            openDialog();
+          },
+        })
+      }
     </DialogController>
   );
 }
