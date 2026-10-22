@@ -2,31 +2,42 @@
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
-import Header from "@/src/components/layouts/header";
+import Header, { SubHeader } from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
+import { IngestionDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionDialogController/IngestionDialogController";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayProvidersTable/GatewayProvidersTable";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
+import type {
+  GatewayConfig,
+  GatewayProject,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import { GATEWAY_SETUP_COPY } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetupCopy";
+import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gatewayIngestionModes";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
-export function GatewayProvidersPage({
-  organizationId,
-}: {
+export type GatewayCredentialsOverviewProps = {
   organizationId: string;
-}) {
+  connectionId: string | undefined;
+  config: GatewayConfig | null;
+  projects: GatewayProject[];
+};
+
+export function GatewayCredentialsOverview({
+  organizationId,
+  connectionId,
+  config,
+  projects,
+}: GatewayCredentialsOverviewProps) {
   const router = useRouter();
-  const connectionId =
-    typeof router.query.connectionId === "string"
-      ? router.query.connectionId
-      : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
     { orgId: organizationId, limit: gatewayConnectionsPageSize },
     {
@@ -77,7 +88,7 @@ export function GatewayProvidersPage({
       ]);
       if (connection.id === connectionId) {
         await router.push(
-          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`,
+          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
         );
       }
     } catch (error) {
@@ -107,7 +118,7 @@ export function GatewayProvidersPage({
   if (connectionsQuery.isError) {
     return (
       <div className="flex flex-col gap-4">
-        <Header title="Provider credentials" />
+        <Header title={GATEWAY_SETUP_COPY.title} />
         <Alert variant="destructive">
           <Alert.Title>Provider credentials could not be loaded</Alert.Title>
           <Alert.Description>
@@ -159,25 +170,51 @@ export function GatewayProvidersPage({
             ];
           }),
       );
+  const ingestionModeTitle = GATEWAY_INGESTION_MODES.find(
+    (mode) => mode.value === config?.ingestionMode,
+  )?.title;
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <Header
-        title="Provider credentials"
-        actionButtons={
-          <ProviderDialogController organizationId={organizationId}>
-            {({ openAddDialog }) => (
-              <Button onClick={openAddDialog}>
-                <Plus size="base" __rawClassName="mr-1.5" />
-                Add credential
-              </Button>
-            )}
-          </ProviderDialogController>
-        }
-      />
-      <p className="text-muted-foreground text-sm">
-        Model names are prefixed with their connection name. Credentials are
-        validated against the provider when they are saved.
-      </p>
+      <div>
+        <Header
+          title={GATEWAY_SETUP_COPY.title}
+          actionButtons={
+            <div className="flex items-center gap-2">
+              <IngestionDialogController
+                organizationId={organizationId}
+                config={config}
+                projects={projects}
+              >
+                {({ openDialog }) => (
+                  <Button variant="outline" onClick={openDialog}>
+                    {ingestionModeTitle
+                      ? `Ingestion: ${ingestionModeTitle}`
+                      : "Set up ingestion"}
+                  </Button>
+                )}
+              </IngestionDialogController>
+              <ProviderDialogController organizationId={organizationId}>
+                {({ openAddDialog }) => (
+                  <Button onClick={openAddDialog}>
+                    <Plus size="base" __rawClassName="mr-1.5" />
+                    Add credential
+                  </Button>
+                )}
+              </ProviderDialogController>
+            </div>
+          }
+        />
+        <p className="text-muted-foreground text-sm">
+          {GATEWAY_SETUP_COPY.description}
+        </p>
+      </div>
+      <div>
+        <SubHeader title="Provider credentials" />
+        <p className="text-muted-foreground text-sm">
+          Model names are prefixed with their connection name. Credentials are
+          validated against the provider when they are saved.
+        </p>
+      </div>
       <ConfirmationDialogController<GatewayConnection>
         title="Delete provider credential"
         text={(connection) =>
