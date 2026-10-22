@@ -1,4 +1,4 @@
-import { describeTeamInviteResult } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/describeTeamInviteResult";
+import { describeTeamInviteResult } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/describeTeamInviteResult";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 

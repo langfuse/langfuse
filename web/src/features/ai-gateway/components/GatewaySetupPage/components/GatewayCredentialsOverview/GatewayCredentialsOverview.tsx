@@ -8,9 +8,9 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
-import { IngestionDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionDialogController/IngestionDialogController";
+import { IngestionDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/IngestionDialogController/IngestionDialogController";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
-import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayProvidersTable/GatewayProvidersTable";
+import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/GatewayProvidersTable/GatewayProvidersTable";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";

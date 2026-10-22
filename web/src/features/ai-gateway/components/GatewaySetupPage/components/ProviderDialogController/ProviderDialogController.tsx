@@ -13,8 +13,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/CredentialFields";
-import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderSelect";
+import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CredentialFields/CredentialFields";
+import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { suggestGatewayConnectionName } from "@/src/features/ai-gateway/fns/suggestGatewayConnectionName";

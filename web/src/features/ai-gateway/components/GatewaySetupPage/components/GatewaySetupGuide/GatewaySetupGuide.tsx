@@ -1,6 +1,6 @@
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CredentialStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/CredentialStep";
-import { IngestionStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep";
+import { IngestionStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/IngestionStep";
 import { TeamInviteStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/TeamInviteStep";
 import { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { useGatewaySetupProgress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/hooks/useGatewaySetupProgress";

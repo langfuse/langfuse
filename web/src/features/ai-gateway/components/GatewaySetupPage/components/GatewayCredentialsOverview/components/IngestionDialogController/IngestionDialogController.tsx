@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { IngestionDialog } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionDialogController/components/IngestionDialog";
+import { IngestionDialog } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/IngestionDialogController/components/IngestionDialog";
 import type {
   GatewayConfig,
   GatewayProject,

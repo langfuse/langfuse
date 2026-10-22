@@ -1,11 +1,11 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 
-import { EmailTag } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/EmailTagInput/components/EmailTag";
+import { EmailTag } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
 import {
   appendEmails,
   EMAIL_SEPARATOR,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/appendEmails";
-import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/isEmailAddress";
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/fns/appendEmails";
+import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/isEmailAddress";
 
 export type EmailTagInputProps = {
   id: string;
