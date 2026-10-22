@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 

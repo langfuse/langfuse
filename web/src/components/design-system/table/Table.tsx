@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies */
+/* eslint-disable boundaries/dependencies, react/no-unstable-nested-components */
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
