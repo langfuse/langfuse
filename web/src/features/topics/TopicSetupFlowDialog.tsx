@@ -283,7 +283,7 @@ export function TopicSetupFlowDialog({
               </div>
               <p className="text-muted-foreground text-xs">
                 {pastCount.status === "ready"
-                  ? `About ${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days.`
+                  ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days.`
                   : "Share of new traces analyzed once automatic processing is on."}
               </p>
             </div>
@@ -347,7 +347,7 @@ export function TopicSetupFlowDialog({
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
                   <span className="flex items-center gap-2">
                     <Clock size="base" aria-hidden="true" />
-                    First results from past traces in about 3–5 min
+                    First results from past traces in ~3–5 min
                   </span>
                 ) : null}
                 <span className="flex items-center gap-2">
@@ -397,7 +397,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.matched === 0)
     return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
   const window = count.days === 1 ? "day" : `${count.days} days`;
-  return `Include about ${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
+  return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
 }
 
 function samplePercentFromInput(value: string) {
@@ -514,7 +514,7 @@ function ReviewRow({
             ) : null}
             <span
               className={line.mono ? "truncate font-mono text-xs" : "text-sm"}
-              title={line.value}
+              title={line.mono ? line.value : undefined}
             >
               {line.value}
             </span>
