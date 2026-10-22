@@ -42,6 +42,8 @@ type DialogAction = {
 };
 
 type DialogProps = {
+  /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
+  closeLabel?: string;
   closeOnInteractionOutside?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
@@ -50,24 +52,15 @@ type DialogProps = {
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
-) &
-  (
-    | {
-        /** Decision footer: a Cancel button is added before these actions. */
-        actions?: ReadonlyArray<DialogAction>;
-        acknowledge?: never;
-      }
-    | {
-        actions?: never;
-        /** Acknowledgement footer: a single button that closes the dialog. */
-        acknowledge: { label: string };
-      }
-  );
+) & {
+    /** Decision footer: the close button is added before these actions. */
+    actions?: ReadonlyArray<DialogAction>;
+  };
 
 function DialogRoot({
-  acknowledge,
   actions,
   children,
+  closeLabel,
   closeOnInteractionOutside = false,
   stopPropagationOnEnterSpace = true,
   size,
@@ -77,18 +70,19 @@ function DialogRoot({
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
-  const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
-  const acknowledgeButtonRef = React.useRef<HTMLButtonElement | null>(null);
-  // Radix auto-focuses only on open; a dialog that swaps its footer to an
-  // acknowledgement while open (e.g. after a submit) would otherwise drop
-  // focus to the document body.
-  const attachAcknowledgeButton = React.useCallback(
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  // Radix auto-focuses only on open; a dialog that swaps to a close-only
+  // footer while open (e.g. after a submit) would otherwise drop focus to the
+  // document body.
+  const attachCloseOnlyButton = React.useCallback(
     (button: HTMLButtonElement | null) => {
-      acknowledgeButtonRef.current = button;
+      closeButtonRef.current = button;
       button?.focus();
     },
     [],
   );
+  const hasActions = Boolean(actions?.length);
+  const isCloseOnly = !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -107,9 +101,9 @@ function DialogRoot({
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
           // than immediately triggering a destructive action.
-          if (acknowledge) {
+          if (isCloseOnly) {
             event.preventDefault();
-            acknowledgeButtonRef.current?.focus();
+            closeButtonRef.current?.focus();
             return;
           }
 
@@ -135,7 +129,7 @@ function DialogRoot({
             return;
           }
 
-          cancelButtonRef.current?.focus();
+          closeButtonRef.current?.focus();
         }}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -171,16 +165,24 @@ function DialogRoot({
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
           </PopoverLayerProvider>
-          {actions?.length ? (
+          {hasActions || isCloseOnly ? (
             <DialogFooter>
               <DialogPrimitive.Close asChild>
-                <Button
-                  ref={cancelButtonRef}
-                  variant="secondary"
-                  text="Cancel"
-                />
+                {isCloseOnly ? (
+                  <Button
+                    ref={attachCloseOnlyButton}
+                    variant="primary"
+                    text={closeLabel}
+                  />
+                ) : (
+                  <Button
+                    ref={closeButtonRef}
+                    variant="secondary"
+                    text={closeLabel ?? "Cancel"}
+                  />
+                )}
               </DialogPrimitive.Close>
-              {actions.map(
+              {actions?.map(
                 ({ icon: Icon, label, variant, ...buttonProps }, index) => (
                   <Button
                     key={label}
@@ -196,17 +198,6 @@ function DialogRoot({
                   />
                 ),
               )}
-            </DialogFooter>
-          ) : null}
-          {acknowledge ? (
-            <DialogFooter>
-              <DialogPrimitive.Close asChild>
-                <Button
-                  ref={attachAcknowledgeButton}
-                  variant="primary"
-                  text={acknowledge.label}
-                />
-              </DialogPrimitive.Close>
             </DialogFooter>
           ) : null}
         </div>

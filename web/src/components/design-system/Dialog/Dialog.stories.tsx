@@ -94,14 +94,14 @@ export const Autofocus = meta.story({
   },
 });
 
-export const Acknowledge = meta.story({
+export const CloseOnly = meta.story({
   render: () => (
     <DialogController
       renderDialog={() => (
         <Dialog
           title="Import finished"
           text="All prompts were imported."
-          acknowledge={{ label: "Done" }}
+          closeLabel="Done"
         />
       )}
     >
