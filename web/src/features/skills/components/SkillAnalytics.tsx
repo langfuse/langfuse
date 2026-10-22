@@ -125,10 +125,9 @@ function SkillAnalyticsDashboard({
           <div className="px-3">
             <h3 className="text-sm font-bold">File usage</h3>
           </div>
-          <div className="ph-no-capture overflow-auto">
+          <div className="ph-no-capture overflow-auto [&_tbody>tr]:h-8 [&_tbody>tr>td:not([colspan])]:py-1 [&_tbody>tr>td:not([colspan])>div]:h-6">
             <Table<FileUsage>
               tableName="Skill file usage"
-              rowHeight="xs"
               columns={[
                 createTextTableColumn<FileUsage>({
                   accessorKey: "path",
