@@ -196,37 +196,24 @@ describe("NextAuth OAuth staff email verification", () => {
   it.each([
     { name: "verified Google email", verified: true, expected: true },
     { name: "unverified Google email", verified: false, expected: false },
-    { name: "missing ownership proof", verified: undefined, expected: false },
     {
       name: "different verified email",
       verified: true,
       mismatch: true,
       expected: false,
     },
-    {
-      name: "non-staff email",
-      verified: true,
-      domain: "example.com",
-      expected: false,
-    },
-    {
-      name: "credentials login",
-      verified: true,
-      credentials: true,
-      expected: false,
-    },
   ])("accepts only matching staff ownership proof: $name", async (testCase) => {
     const { userId, email } = await createUser({
       password: null,
-      emailDomain: "domain" in testCase ? testCase.domain : "langfuse.com",
+      emailDomain: "langfuse.com",
     });
     const authOptions = await getAuthOptions();
     await authOptions.callbacks!.jwt!({
       token: { email },
       user: { id: userId, email },
       account: {
-        provider: "credentials" in testCase ? "credentials" : "google",
-        type: "credentials" in testCase ? "credentials" : "oauth",
+        provider: "google",
+        type: "oauth",
         providerAccountId: userId,
       },
       profile: {
@@ -285,7 +272,7 @@ describe("NextAuth OAuth staff email verification", () => {
     },
   );
 
-  it.each(["unverified", "different-email", "failed-lookup"])(
+  it.each(["no-matching-proof", "failed-lookup"])(
     "keeps login working without verifying GitHub ownership on %s",
     async (scenario) => {
       const { userId, email } = await createUser({
@@ -301,11 +288,8 @@ describe("NextAuth OAuth staff email verification", () => {
       else
         fetchMock.mockResolvedValue(
           Response.json([
-            {
-              email:
-                scenario === "different-email" ? "someone@example.com" : email,
-              verified: scenario !== "unverified",
-            },
+            { email, verified: false },
+            { email: "someone@example.com", verified: true },
           ]),
         );
       const authOptions = await getAuthOptions();

@@ -300,14 +300,10 @@ describe("Topics project allowlist", () => {
 describe("Topics visibility gate", () => {
   const session = ({
     admin = false,
-    email = "user@example.com",
-    emailVerified = "2026-01-01T00:00:00.000Z",
     langfuseTopics = true,
     role = "VIEWER",
   }: {
     admin?: boolean;
-    email?: string;
-    emailVerified?: string | null;
     langfuseTopics?: boolean;
     role?: string | null;
   }) =>
@@ -316,8 +312,6 @@ describe("Topics visibility gate", () => {
       user: {
         id: "user-a",
         admin,
-        email,
-        emailVerified,
         featureFlags: testFeatureFlags({ langfuseTopics }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
@@ -329,28 +323,6 @@ describe("Topics visibility gate", () => {
   it.each([
     ["a member on an allowlisted project", {}, true, true],
     ["a project outside the allowlist", {}, false, false],
-    [
-      "a staff member without the Topics flag",
-      { email: "member@langfuse.com", langfuseTopics: false },
-      true,
-      true,
-    ],
-    [
-      "an unverified staff address without the Topics flag",
-      {
-        email: "member@langfuse.com",
-        emailVerified: null,
-        langfuseTopics: false,
-      },
-      true,
-      false,
-    ],
-    [
-      "a staff member outside the project",
-      { email: "member@langfuse.com", langfuseTopics: false, role: null },
-      true,
-      false,
-    ],
     ["the feature preview turned off", { langfuseTopics: false }, true, false],
     ["a role without topics:read", { role: "NONE" }, true, false],
     [

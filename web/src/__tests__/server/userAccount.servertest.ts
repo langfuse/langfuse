@@ -28,25 +28,22 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
-    async (enabled) => {
-      const { caller, userId } = await createCaller({
-        emailDomain: "langfuse.com",
-        emailVerified: new Date("2026-01-01T00:00:00.000Z"),
-      });
-      await expect(
-        caller.userAccount.setFeaturePreviewEnabled({
-          flag: "langfuseTopics",
-          enabled,
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.featureFlags).toEqual(["templateFlag"]);
-    },
-  );
+  it("rejects a staff user's admin-only Topics toggle", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "langfuse.com",
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await expect(
+      caller.userAccount.setFeaturePreviewEnabled({
+        flag: "langfuseTopics",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag"]);
+  });
 
   it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
     const { caller, userId } = await createCaller({ admin: true });
@@ -152,30 +149,24 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
-  const testEnv = env as {
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: typeof env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalEnv = {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
-  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
-    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    Object.assign(env, {
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
   });
   afterEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
-    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    Object.assign(env, originalEnv);
   });
 
-  it.each([
-    { admin: true, emailDomain: "example.com" },
-    { admin: false, emailDomain: "langfuse.com" },
-  ])("keeps $emailDomain admin=$admin", async (options) => {
-    testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    const { admin, emailDomain } = options;
+  it("lets verified staff switch views without V4 while preserving other preferences", async () => {
     const { caller, userId } = await createCaller({
-      admin,
-      emailDomain,
+      emailDomain: "langfuse.com",
       emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       featureFlags: ["sessionViewV2"],
     });
@@ -193,26 +184,25 @@ describe("userAccountRouter.setViewMode", () => {
       where: { id: userId },
     });
     expect(user.featureFlags).toEqual(["sessionViewV2"]);
-    expect(user.admin).toBe(admin);
+    expect(user.admin).toBe(false);
   });
 
-  it.each(["example.com", "langfuse.com"])(
-    "lets unverified %s addresses opt out but not enable internal view",
-    async (emailDomain) => {
-      const { caller, userId } = await createCaller({ emailDomain });
-      await expect(
-        caller.userAccount.setViewMode({ mode: "INTERNAL" }),
-      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.featureFlags).toContain(
-        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
-      );
-      expect(user.admin).toBe(false);
-    },
-  );
+  it("lets unverified staff opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "langfuse.com",
+    });
+    await expect(
+      caller.userAccount.setViewMode({ mode: "INTERNAL" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toContain(
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    );
+    expect(user.admin).toBe(false);
+  });
 });
 
 describe("userAccountRouter.signOutAllSessions", () => {

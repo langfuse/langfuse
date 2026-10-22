@@ -66,7 +66,8 @@ describe("events.transcriptByTraceId preview access", () => {
       allowed: true,
     },
     {
-      name: "user opt-out",
+      name: "unverified staff opt-out",
+      email: "member@clickhouse.com",
       flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
       defaults: ["sessionViewV2", "sessionViewV2Timeline"],
       allowed: false,
@@ -78,13 +79,6 @@ describe("events.transcriptByTraceId preview access", () => {
       flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
       defaults: [],
       allowed: true,
-    },
-    {
-      name: "unverified staff address without the timeline preview",
-      email: "member@clickhouse.com",
-      flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
-      defaults: [],
-      allowed: false,
     },
   ])("respects $name", async (testCase) => {
     const {

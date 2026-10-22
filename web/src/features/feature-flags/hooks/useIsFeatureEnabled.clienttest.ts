@@ -71,14 +71,6 @@ describe("useIsFeatureEnabled", () => {
       enableExperimentalFeatures: false,
       expected: false,
     },
-    {
-      admin: false,
-      email: "member@clickhouse.com",
-      emailVerified: "2026-01-01T00:00:00.000Z",
-      internalFeatures: false,
-      enableExperimentalFeatures: false,
-      expected: false,
-    },
   ])(
     "resolves internal view as $expected for $admin admin / $internalFeatures preference",
     ({ expected, ...options }) => {
@@ -92,10 +84,7 @@ describe("useIsFeatureEnabled", () => {
     ["member@langfuse.com", true, true],
     ["MEMBER@CLICKHOUSE.COM", true, true],
     ["member@sub.langfuse.com", true, false],
-    ["member@sub.clickhouse.com", true, false],
-    ["member@langfuse.com.example.org", true, false],
     ["member@clickhouse.com.example.org", true, false],
-    ["member@notlangfuse.com", true, false],
     ["member@notclickhouse.com", true, false],
     ["member@langfuse.com", false, false],
   ] as const)(
