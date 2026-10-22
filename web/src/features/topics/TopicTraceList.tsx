@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type PointerEvent } from "react";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
@@ -37,6 +37,8 @@ export function TopicTraceList({
       typeof update === "function" ? update(current) : update,
     );
   };
+  const titleTooltip = useTruncatedTitle(title);
+  const descriptionTooltip = useTruncatedTitle(description ?? "");
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
@@ -104,7 +106,11 @@ export function TopicTraceList({
               style={{ backgroundColor: swatchColor }}
             />
           ) : null}
-          <span className="truncate" title={title}>
+          <span
+            className="truncate"
+            title={titleTooltip.title}
+            onPointerEnter={titleTooltip.onPointerEnter}
+          >
             {title}
           </span>
           <span className="text-muted-foreground shrink-0 font-mono text-xs font-normal">
@@ -124,7 +130,8 @@ export function TopicTraceList({
       {description ? (
         <p
           className="bg-muted text-muted-foreground mx-4 mb-3 line-clamp-3 rounded-md px-3 py-2 text-sm"
-          title={description}
+          title={descriptionTooltip.title}
+          onPointerEnter={descriptionTooltip.onPointerEnter}
         >
           {description}
         </p>
@@ -167,6 +174,24 @@ type TopicTraceListProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   divider?: "top" | "side";
 };
+
+/**
+ * Native tooltip with the full text, only while the element clips it.
+ * Measured on hover so it follows panel resizes and topic switches.
+ */
+function useTruncatedTitle(text: string) {
+  const [isTruncated, setIsTruncated] = useState(false);
+  return {
+    title: isTruncated ? text : undefined,
+    onPointerEnter: (event: PointerEvent<HTMLElement>) => {
+      const element = event.currentTarget;
+      setIsTruncated(
+        element.scrollWidth > element.clientWidth ||
+          element.scrollHeight > element.clientHeight,
+      );
+    },
+  };
+}
 
 function compactAge(timestamp: string) {
   return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
