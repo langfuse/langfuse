@@ -170,9 +170,9 @@ export function GatewayCredentialsOverview({
             ];
           }),
       );
-  const ingestionModeTitle = GATEWAY_INGESTION_MODES.find(
+  const ingestionMode = GATEWAY_INGESTION_MODES.find(
     (mode) => mode.value === config?.ingestionMode,
-  )?.title;
+  );
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
@@ -187,9 +187,17 @@ export function GatewayCredentialsOverview({
               >
                 {({ openDialog }) => (
                   <Button variant="outline" onClick={openDialog}>
-                    {ingestionModeTitle
-                      ? `Ingestion: ${ingestionModeTitle}`
-                      : "Set up ingestion"}
+                    {ingestionMode ? (
+                      <>
+                        <ingestionMode.icon
+                          size="base"
+                          __rawClassName="mr-1.5"
+                        />
+                        Ingestion: {ingestionMode.title}
+                      </>
+                    ) : (
+                      "Set up ingestion"
+                    )}
                   </Button>
                 )}
               </IngestionDialogController>
