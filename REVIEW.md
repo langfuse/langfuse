@@ -81,7 +81,7 @@ Use their technical rules, not their implementation or handoff workflows.
   Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without
-  commentary or speculation, using `/** X does Y [for Z] */`.
+  commentary or speculation.
 - Put callers above callees. Order `.ts`/`.tsx` files: imports, module constants
   or lookup tables, main export, private subcomponents, custom hooks, helpers,
   helper types, then `export const __test = { ... }` if needed.
