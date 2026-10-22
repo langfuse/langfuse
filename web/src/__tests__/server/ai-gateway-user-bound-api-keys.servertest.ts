@@ -186,6 +186,25 @@ describe("user-bound API keys", () => {
       ).toEqual({ createdByUserId: user.id });
     });
 
+    it("rejects a service-account key from a creator whose current role cannot manage the gateway", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: user.id, role: Role.MEMBER },
+      });
+      const before = await existingKeyIds();
+
+      await expect(
+        new GatewayApiKeyService(prisma).create({
+          organizationId: org.id,
+          metadata: {},
+          issuedAs: "serviceAccount",
+          session: orgSession(user, org, Role.ADMIN),
+        }),
+      ).rejects.toThrow(ForbiddenError);
+      expect(await existingKeyIds()).toEqual(before);
+    });
+
     it("rejects a creator whose current role cannot invoke the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();

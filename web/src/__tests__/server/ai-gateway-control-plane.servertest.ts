@@ -806,6 +806,8 @@ describe("AI gateway control plane", () => {
           Role.MEMBER,
         );
 
+        const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+
         await expect(
           member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
         ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -813,6 +815,22 @@ describe("AI gateway control plane", () => {
           owner.caller.aiGateway.createApiKey({
             orgId: owner.org.id,
             metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+        await expect(
+          admin.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
           }),
         ).resolves.toMatchObject({
           secretKey: expect.stringMatching(/^sk-lf-/),
