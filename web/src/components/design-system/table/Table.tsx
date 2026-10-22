@@ -380,6 +380,8 @@ export function Table<TData extends object>({
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
+                    if (!event.currentTarget.contains(event.target as Node))
+                      return;
                     if (shouldIgnoreRowClickTarget(event.target)) return;
                     if (!onRowClick) return;
                     event.preventDefault();
