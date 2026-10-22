@@ -677,16 +677,23 @@ export const CopyMessageInteraction = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.hover(canvasElement);
-    await userEvent.click(
-      await canvas.findByRole("button", { name: "Copy message" }),
-    );
+    const write = spyOn(navigator.clipboard, "write").mockResolvedValue();
 
-    await waitFor(() =>
-      expect(
-        canvas.getByRole("button", { name: "Message copied" }),
-      ).toBeVisible(),
-    );
+    try {
+      await userEvent.hover(canvasElement);
+      await userEvent.click(
+        await canvas.findByRole("button", { name: "Copy message" }),
+      );
+
+      await waitFor(() =>
+        expect(
+          canvas.getByRole("button", { name: "Message copied" }),
+        ).toBeVisible(),
+      );
+      expect(write).toHaveBeenCalledOnce();
+    } finally {
+      write.mockRestore();
+    }
   },
 });
 
