@@ -861,15 +861,7 @@ the file locally: `cargo about generate --locked --fail about.hbs`.
 
 ### Web resolution client
 
-`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
-base URL. The binary initializes it when a Web URL is configured. The
-caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
-development; `ControlPlaneConfig::with_plain_http`, which the binary uses when
-`LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for
-internal traffic only. URLs cannot contain credentials, a query or fragment. Include the
-Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
-`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web base URL. The binary initializes it when a Web URL is configured. The caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local development; `ControlPlaneConfig::with_plain_http`, which the binary uses when `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for internal traffic only. URLs cannot contain credentials, a query or fragment. Include the Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
 use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};
