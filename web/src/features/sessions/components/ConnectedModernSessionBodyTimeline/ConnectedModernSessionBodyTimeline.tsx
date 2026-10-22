@@ -31,6 +31,9 @@ type ConnectedModernSessionBodyTimelineProps = {
   sidebarMode?: ComponentProps<
     typeof ConnectedSessionConversationTimeline
   >["sidebarMode"];
+  annotationActions?: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["annotationActions"];
 };
 
 export function ConnectedModernSessionBodyTimeline({
@@ -39,6 +42,7 @@ export function ConnectedModernSessionBodyTimeline({
   sessionId,
   openPeek,
   sidebarMode,
+  annotationActions,
 }: ConnectedModernSessionBodyTimelineProps) {
   const [transcriptSourceParam] = useQueryParam(
     "transcriptSource",
@@ -267,6 +271,7 @@ export function ConnectedModernSessionBodyTimeline({
       resultsByTraceId={resultsByTraceId}
       scrollTarget={scrollTarget}
       sidebarMode={sidebarMode}
+      annotationActions={annotationActions}
     />
   );
 }

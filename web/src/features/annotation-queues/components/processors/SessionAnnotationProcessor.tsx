@@ -28,6 +28,9 @@ import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import { ConnectedSessionOutputCorrectionsDialog } from "./components/ConnectedSessionOutputCorrectionsDialog/ConnectedSessionOutputCorrectionsDialog";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -204,18 +207,53 @@ export const SessionAnnotationProcessor: React.FC<
       )}
       {/* Scrollable Content */}
       {isV4 && isSessionTimelineEnabled && !tracesFromEventsQuery.isError ? (
-        <ConnectedModernSessionBodyTimeline
-          sidebarMode="collapsible"
+        <DialogController<EventSessionTrace>
           key={`${projectId}:${item.objectId}`}
-          projectId={projectId}
-          sessionId={item.objectId}
-          tracesState={
-            tracesFromEventsQuery.isSuccess
-              ? { type: "loaded", traces: tracesFromEventsQuery.data }
-              : { type: "loading" }
-          }
-          openPeek={openPeek}
-        />
+          renderDialog={({ state, isOpen }) => (
+            <ConnectedSessionOutputCorrectionsDialog
+              projectId={projectId}
+              sessionId={item.objectId}
+              trace={state}
+              isOpen={isOpen}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <CommentDrawerController
+              projectId={projectId}
+              count={Array.from(traceCommentCounts.data?.values() ?? []).reduce(
+                (sum, count) => sum + count,
+                0,
+              )}
+            >
+              {({ disabled, openDrawer }) => (
+                <ConnectedModernSessionBodyTimeline
+                  sidebarMode="collapsible"
+                  key={`${projectId}:${item.objectId}`}
+                  projectId={projectId}
+                  sessionId={item.objectId}
+                  tracesState={
+                    tracesFromEventsQuery.isSuccess
+                      ? { type: "loaded", traces: tracesFromEventsQuery.data }
+                      : { type: "loading" }
+                  }
+                  openPeek={openPeek}
+                  annotationActions={{
+                    commentCounts: asCommentCounts(traceCommentCounts.data),
+                    commentsDisabled: disabled,
+                    onOpenComments: (traceId) =>
+                      openDrawer({
+                        type: "comments",
+                        objectId: traceId,
+                        objectType: "TRACE",
+                      }),
+                    onOpenCorrections: openDialog,
+                  }}
+                />
+              )}
+            </CommentDrawerController>
+          )}
+        </DialogController>
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">

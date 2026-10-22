@@ -1,13 +1,8 @@
-import {
-  type ComponentProps,
-  useLayoutEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
-import { PanelLeftClose, PanelLeftOpen, Search } from "@langfuse/icons";
+import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
+import { PanelLeftOpen, Search } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -41,7 +36,7 @@ export function SessionConversationalView(
           ComponentProps<typeof SessionConversationSidebar>,
           { state: "loaded" }
         >,
-        "traces" | "activeTraceId" | "searchLeading"
+        "traces" | "activeTraceId" | "sidebarToggle"
       > & {
         searchQuery: string;
         isSearchPending: boolean;
@@ -60,7 +55,10 @@ export function SessionConversationalView(
   );
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   const showSidebar = (workspaceSize?.width ?? 0) >= 768;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useSessionStorage(
+    "annotation-session-conversation-sidebar:open",
+    true,
+  );
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "session-conversation-sidebar",
     panelIds: ["sidebar", "timeline"],
@@ -283,32 +281,10 @@ export function SessionConversationalView(
             props.onSelect(...args);
           },
         };
-  const sidebarToggle = (
-    <Tooltip
-      label={isSidebarOpen ? "Hide session sidebar" : "Show session sidebar"}
-      placement={isSidebarOpen ? "top" : "right"}
-    >
-      {({ getTriggerProps }) => (
-        <Button
-          {...getTriggerProps()}
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          aria-label={
-            isSidebarOpen ? "Hide session sidebar" : "Show session sidebar"
-          }
-          aria-expanded={isSidebarOpen}
-          className="h-6 w-6 shrink-0"
-        >
-          {isSidebarOpen ? (
-            <PanelLeftClose size="base" color="default" />
-          ) : (
-            <PanelLeftOpen size="base" color="default" />
-          )}
-        </Button>
-      )}
-    </Tooltip>
-  );
+  const sidebarToggle = {
+    open: isSidebarOpen,
+    onToggle: () => setIsSidebarOpen((open) => !open),
+  };
   const timeline = (
     <div
       ref={transcriptRef}
@@ -399,32 +375,52 @@ export function SessionConversationalView(
           </DialogController>
         </div>
       )}
-      {showSidebar && props.sidebarMode === "collapsible" ? (
+      {/* The timeline must keep its DOM identity across sidebar breakpoints for scroll and search highlights. */}
+      {props.sidebarMode === "collapsible" ? (
         <div className="min-h-0 flex-1">
           <ResizableSplitLayout
             primaryContent={timeline}
             secondaryContent={
               <div className="bg-surface flex h-full flex-col overflow-hidden">
-                {!isSidebarOpen && (
+                {showSidebar && !isSidebarOpen && (
                   <div className="box-content flex h-7 shrink-0 items-center justify-center border-b py-4">
-                    {sidebarToggle}
+                    <Tooltip label="Show session sidebar" placement="right">
+                      {({ getTriggerProps }) => (
+                        <Button
+                          {...getTriggerProps()}
+                          variant="ghost"
+                          size="icon"
+                          onClick={sidebarToggle.onToggle}
+                          aria-label="Show session sidebar"
+                          aria-expanded={false}
+                          className="h-6 w-6 shrink-0"
+                        >
+                          <PanelLeftOpen size="base" color="default" />
+                        </Button>
+                      )}
+                    </Tooltip>
                   </div>
                 )}
-                <div className={isSidebarOpen ? "min-h-0 flex-1" : "hidden"}>
+                <div
+                  className={
+                    showSidebar && isSidebarOpen ? "min-h-0 flex-1" : "hidden"
+                  }
+                >
                   <SessionConversationSidebar
                     {...sidebarProps}
-                    searchLeading={isSidebarOpen ? sidebarToggle : undefined}
+                    sidebarToggle={sidebarToggle}
                   />
                 </div>
               </div>
             }
-            open={isSidebarOpen}
-            onOpenChange={setIsSidebarOpen}
+            open={showSidebar && isSidebarOpen}
+            onOpenChange={showSidebar ? setIsSidebarOpen : undefined}
+            showHandle={showSidebar}
             defaultPrimarySize={76}
             defaultSecondarySize={24}
             minPrimarySize={50}
             maxSecondarySize={50}
-            collapsedSecondarySize="40px"
+            collapsedSecondarySize={showSidebar ? "40px" : "0%"}
             minSecondarySize="200px"
             secondaryPosition="left"
             persistId="annotation-session-conversation-sidebar"

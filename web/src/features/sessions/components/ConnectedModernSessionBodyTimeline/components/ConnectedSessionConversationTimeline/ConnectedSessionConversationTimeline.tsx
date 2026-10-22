@@ -36,6 +36,12 @@ export function ConnectedSessionConversationTimeline(
     sidebarMode?: ComponentProps<
       typeof SessionConversationalView
     >["sidebarMode"];
+    annotationActions?: {
+      commentCounts: ReadonlyMap<string, number> | undefined;
+      commentsDisabled: boolean;
+      onOpenComments: (traceId: string) => void;
+      onOpenCorrections: (trace: EventSessionTrace) => void;
+    };
   },
 ) {
   const { traces, openPeek, controller, resultsByTraceId, scrollTarget } =
@@ -63,6 +69,17 @@ export function ConnectedSessionConversationTimeline(
           trace,
           turnNumber,
           state,
+          annotationActions: props.annotationActions
+            ? {
+                commentCount:
+                  props.annotationActions.commentCounts?.get(trace.id) ?? 0,
+                commentsDisabled: props.annotationActions.commentsDisabled,
+                onOpenComments: () =>
+                  props.annotationActions?.onOpenComments(trace.id),
+                onOpenCorrections: () =>
+                  props.annotationActions?.onOpenCorrections(trace),
+              }
+            : undefined,
           onOpenTrace: () => openPeek(trace.id, trace),
           onOpenObservation: (observationId: string) =>
             openPeek(trace.id, { ...trace, observationId }),
