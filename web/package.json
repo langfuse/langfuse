@@ -224,7 +224,7 @@
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "raw-loader": "^4.0.2",
-    "storybook": "10.5.10",
+    "storybook": "10.6.2",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.20.5",
     "typescript": "^7.0.2",
