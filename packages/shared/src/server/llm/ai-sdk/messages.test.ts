@@ -53,11 +53,75 @@ describe("mapChatMessagesToModelMessages", () => {
     }
   });
 
-  it("drops a lone empty message", () => {
+  it("keeps a lone empty message", () => {
     expect(
       mapChatMessagesToModelMessages([{ ...systemMessage, content: "" }], {
         adapter: LLMAdapter.Anthropic,
       }),
-    ).toEqual([]);
+    ).toEqual([{ role: "user", content: "" }]);
+  });
+
+  it("keeps blank messages so a replayed conversation keeps its shape", () => {
+    expect(
+      mapChatMessagesToModelMessages([
+        systemMessage,
+        { ...userMessage, content: "" },
+        { ...userMessage, content: "   " },
+        {
+          type: ChatMessageType.AssistantText,
+          role: ChatMessageRole.Assistant,
+          content: "",
+        },
+        userMessage,
+      ]),
+    ).toEqual([
+      { role: "system", content: "You are terse." },
+      { role: "user", content: "" },
+      { role: "user", content: "   " },
+      { role: "assistant", content: "" },
+      { role: "user", content: "Hi" },
+    ]);
+  });
+
+  it("keeps a tool result with empty output", () => {
+    expect(
+      mapChatMessagesToModelMessages([
+        {
+          type: ChatMessageType.AssistantToolCall,
+          role: ChatMessageRole.Assistant,
+          content: "",
+          toolCalls: [{ id: "call_1", name: "search", args: {} }],
+        },
+        {
+          type: ChatMessageType.ToolResult,
+          role: ChatMessageRole.Tool,
+          content: "",
+          toolCallId: "call_1",
+        },
+      ]),
+    ).toEqual([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "call_1",
+            toolName: "search",
+            input: {},
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call_1",
+            toolName: "search",
+            output: { type: "text", value: "" },
+          },
+        ],
+      },
+    ]);
   });
 });
