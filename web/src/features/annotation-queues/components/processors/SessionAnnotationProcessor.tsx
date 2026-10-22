@@ -25,6 +25,10 @@ import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
+import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -52,6 +56,12 @@ export const SessionAnnotationProcessor: React.FC<
     setVisibleTraces((prev) => prev + PAGE_SIZE);
   };
   const { isV4 } = useReadPath();
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    { enableForAdmins: false, projectId },
+  );
+  const [isRedesignBannerDismissed, setIsRedesignBannerDismissed] =
+    useLocalStorage("sessionRedesignBannerDismissed", false);
 
   // Fetch traces separately when v4 beta is enabled (events table path)
   // The byIdWithScoresFromEvents endpoint doesn't include traces array
@@ -99,7 +109,7 @@ export const SessionAnnotationProcessor: React.FC<
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
-    (traceId: string, row?: { observationId?: string }) => {
+    (traceId: string, row?: { id?: string; observationId?: string }) => {
       // observationId: a truncated observation's "Open in trace view" deep-links
       // to that observation (LFE-10958).
       const observationParam = row?.observationId
@@ -192,91 +202,114 @@ export const SessionAnnotationProcessor: React.FC<
         <Separator />
       </div>
 
+      {isV4 && isSessionTimelineEnabled && !isRedesignBannerDismissed && (
+        <SessionRedesignBanner
+          onDismiss={() => setIsRedesignBannerDismissed(true)}
+        />
+      )}
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
-          {/* Loading state for v4 beta traces */}
-          {isV4 && tracesFromEventsQuery.isLoading && (
-            <div className="space-y-4">
-              {Array.from({ length: 3 }).map((_, i) => (
+      {isV4 && isSessionTimelineEnabled && !tracesFromEventsQuery.isError ? (
+        <ConnectedModernSessionBodyTimeline
+          transcriptSource="generations"
+          sidebarMode="collapsible"
+          key={`${projectId}:${item.objectId}`}
+          projectId={projectId}
+          sessionId={item.objectId}
+          tracesState={
+            tracesFromEventsQuery.isSuccess
+              ? { type: "loaded", traces: tracesFromEventsQuery.data }
+              : { type: "loading" }
+          }
+          openPeek={openPeek}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            {/* Loading state for v4 beta traces */}
+            {isV4 && tracesFromEventsQuery.isLoading && (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card
+                    key={i}
+                    className="border-border mb-2 grid gap-2 p-2 shadow-none"
+                  >
+                    <JsonSkeleton
+                      className="h-full w-full overflow-hidden"
+                      numRows={4}
+                    />
+                  </Card>
+                ))}
+              </div>
+            )}
+            {/* Error state for v4 beta traces */}
+            {isV4 && tracesFromEventsQuery.isError && (
+              <div className="text-destructive p-2 text-sm">
+                Failed to load traces for this session.
+              </div>
+            )}
+            {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
+            {isV4 &&
+              tracesFromEventsQuery.isSuccess &&
+              traces
+                .slice(0, visibleTraces)
+                .map((trace: any, index: number) => (
+                  <LazyTraceEventsRow
+                    key={trace.id}
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={item.objectId}
+                    openPeek={openPeek}
+                    traceCommentCounts={asCommentCounts(
+                      traceCommentCounts.data,
+                    )}
+                    showCorrections
+                    filterState={EMPTY_FILTER_STATE}
+                    viewLabel={null}
+                    hideTracePanel
+                    index={index}
+                  />
+                ))}
+            {/* Trace list - v3 path uses SessionIO */}
+            {!isV4 &&
+              traces.slice(0, visibleTraces).map((trace: any) => (
                 <Card
-                  key={i}
-                  className="border-border mb-2 grid gap-2 p-2 shadow-none"
+                  className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
+                  key={trace.id}
                 >
-                  <JsonSkeleton
-                    className="h-full w-full overflow-hidden"
-                    numRows={4}
+                  <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
+                    <Link
+                      href={`/project/${projectId}/traces/${trace.id}`}
+                      className="text-xs hover:underline"
+                    >
+                      Trace: {trace.name} ({trace.id})&nbsp;↗
+                    </Link>
+                    <div className="text-muted-foreground text-xs">
+                      {trace.timestamp.toLocaleString()}
+                    </div>
+                  </div>
+                  <SessionIO
+                    traceId={trace.id}
+                    projectId={projectId}
+                    timestamp={trace.timestamp}
+                    environment={trace.environment}
+                    showCorrections
                   />
                 </Card>
               ))}
-            </div>
-          )}
-          {/* Error state for v4 beta traces */}
-          {isV4 && tracesFromEventsQuery.isError && (
-            <div className="text-destructive p-2 text-sm">
-              Failed to load traces for this session.
-            </div>
-          )}
-          {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
-          {isV4 &&
-            tracesFromEventsQuery.isSuccess &&
-            traces
-              .slice(0, visibleTraces)
-              .map((trace: any, index: number) => (
-                <LazyTraceEventsRow
-                  key={trace.id}
-                  trace={trace}
-                  projectId={projectId}
-                  sessionId={item.objectId}
-                  openPeek={openPeek}
-                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
-                  showCorrections
-                  filterState={EMPTY_FILTER_STATE}
-                  viewLabel={null}
-                  hideTracePanel
-                  index={index}
-                />
-              ))}
-          {/* Trace list - v3 path uses SessionIO */}
-          {!isV4 &&
-            traces.slice(0, visibleTraces).map((trace: any) => (
-              <Card
-                className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
-                key={trace.id}
-              >
-                <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
-                  <Link
-                    href={`/project/${projectId}/traces/${trace.id}`}
-                    className="text-xs hover:underline"
-                  >
-                    Trace: {trace.name} ({trace.id})&nbsp;↗
-                  </Link>
-                  <div className="text-muted-foreground text-xs">
-                    {trace.timestamp.toLocaleString()}
-                  </div>
+            {(!isV4 || tracesFromEventsQuery.isSuccess) &&
+              traces.length > visibleTraces && (
+                <div className="flex justify-center py-4">
+                  <DsButton
+                    variant="text"
+                    size="sm"
+                    text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                    onClick={handleLoadMoreTraces}
+                  />
                 </div>
-                <SessionIO
-                  traceId={trace.id}
-                  projectId={projectId}
-                  timestamp={trace.timestamp}
-                  environment={trace.environment}
-                  showCorrections
-                />
-              </Card>
-            ))}
-          {(!isV4 || tracesFromEventsQuery.isSuccess) &&
-            traces.length > visibleTraces && (
-              <div className="flex justify-center py-4">
-                <DsButton
-                  variant="text"
-                  size="sm"
-                  text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                  onClick={handleLoadMoreTraces}
-                />
-              </div>
-            )}
+              )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 

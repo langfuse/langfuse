@@ -33,6 +33,9 @@ export function ConnectedSessionConversationTimeline(
     controller: SessionConversationTimelineController;
     resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
     scrollTarget: SessionConversationTimelineScrollTarget | null;
+    sidebarMode?: ComponentProps<
+      typeof SessionConversationalView
+    >["sidebarMode"];
   },
 ) {
   const { traces, openPeek, controller, resultsByTraceId, scrollTarget } =

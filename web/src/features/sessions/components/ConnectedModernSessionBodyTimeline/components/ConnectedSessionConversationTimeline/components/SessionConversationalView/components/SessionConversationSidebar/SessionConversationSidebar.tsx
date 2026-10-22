@@ -73,7 +73,7 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden" },
+  ) & { searchVisibility?: "hidden"; searchLeading?: ReactNode },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -238,11 +238,12 @@ export function SessionConversationSidebar(
       >
         <div
           className={cn(
-            "shrink-0 p-4",
+            "flex shrink-0 items-center gap-2 p-4",
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
-          <div className="relative min-w-0">
+          {props.searchLeading}
+          <div className="relative min-w-0 flex-1">
             <Search
               size="base"
               color="tertiary"
@@ -288,11 +289,12 @@ export function SessionConversationSidebar(
     >
       <div
         className={cn(
-          "relative z-10 shrink-0 p-4",
+          "relative z-10 flex shrink-0 items-center gap-2 p-4",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
-        <div className="relative min-w-0">
+        {props.searchLeading}
+        <div className="relative min-w-0 flex-1">
           <Search
             size="base"
             color="tertiary"
