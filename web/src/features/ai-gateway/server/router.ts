@@ -29,6 +29,7 @@ import {
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 import { GatewayConfigService } from "./config/gatewayConfigService";
+import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
   GatewayMetadataSchema,
   GatewayModelCatalogService,
@@ -48,6 +49,7 @@ const offsetPaginatedOrganizationInput = organizationInput.extend({
   limit: pageLimitSchema,
 });
 const connectionInput = organizationInput.extend({ id: z.string() });
+const MAX_TEAM_INVITES = 50;
 const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
@@ -123,7 +125,6 @@ export const aiGatewayRouter = createTRPCRouter({
         config: await new GatewayConfigService(ctx.prisma).getConfig(
           input.orgId,
         ),
-        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
       };
     }),
 
@@ -166,6 +167,34 @@ export const aiGatewayRouter = createTRPCRouter({
         defaultIngestionProjectId: input.defaultIngestionProjectId,
         ingestionMode: input.ingestionMode,
         session: ctx.session,
+      });
+    }),
+
+  getTeamInviteSummary: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getInviteSummary({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+      });
+    }),
+
+  /** Invites new people as members and, once per organization, tells existing members. */
+  inviteTeam: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        emails: z.array(z.email()).max(MAX_TEAM_INVITES),
+        notifyMembers: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).inviteTeam({
+        ctx,
+        organizationId: input.orgId,
+        emails: input.emails,
+        notifyMembers: input.notifyMembers,
       });
     }),
 
