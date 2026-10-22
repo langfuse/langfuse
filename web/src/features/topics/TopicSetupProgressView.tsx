@@ -1,5 +1,6 @@
-import { Check } from "@langfuse/icons";
+import { Check, Sparkles } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { type TopicSetupStage } from "./topic-setup-flow";
 
@@ -12,12 +13,6 @@ export type TopicSetupProgressFacet = {
   topicCount: number | null;
 };
 
-const FILLS = [
-  "bg-dark-violet/25",
-  "bg-dark-blue/20",
-  "bg-dark-teal/20",
-  "bg-dark-yellow/25",
-];
 const RUNNING = {
   title: "Analyzing your traces",
   detail: "This runs in the background. You can leave this page.",
@@ -35,19 +30,23 @@ const COPY: Record<TopicSetupStage, { title: string; detail: string }> = {
     detail: "Retry picks up where it stopped.",
   },
 };
+const TOPIC_STEPS = [
+  { stage: "grouping", label: "Identifying clusters" },
+  { stage: "naming", label: "Generating & refining topics" },
+] as const;
 const NO_TOPICS = new Set([
   "no_topics",
   "insufficient_data",
   "no_applicable_summaries",
 ]);
 
-/** First-run progress: summaries fill one bucket per facet, then topics are grouped and named. */
+/** First-run progress in two phases: summaries, then topics. */
 export function TopicSetupProgressView({
+  canRetry,
   facets,
   onDisplayResults,
   onRetry,
   retrying,
-  canRetry,
   stage,
 }: {
   facets: TopicSetupProgressFacet[];
@@ -57,12 +56,23 @@ export function TopicSetupProgressView({
   onDisplayResults: () => void;
   onRetry: () => void;
 }) {
-  const anyWithoutTopics =
-    stage === "done" &&
-    facets.some((facet) => NO_TOPICS.has(facet.outcome ?? ""));
+  const requested = Math.max(0, ...facets.map((facet) => facet.requested));
+  const complete = Math.min(
+    requested,
+    ...facets.map((facet) => facet.complete),
+  );
+  const summarizing = stage === "summarizing";
+  const summariesDone =
+    stage === "grouping" || stage === "naming" || stage === "done";
+  const percent =
+    summariesDone || requested === 0
+      ? 100
+      : Math.round((complete / requested) * 100);
+  const topicIndex = ["grouping", "naming", "done"].indexOf(stage);
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 overflow-y-auto px-4 pt-12">
-      <div className="flex flex-col items-center gap-1 text-center">
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 overflow-y-auto px-4 pt-12">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <Sparkles aria-hidden="true" size="xl" color="muted" />
         <h2 className="text-2xl font-bold">{COPY[stage].title}</h2>
         <p className="text-muted-foreground text-sm">
           {stage === "failed" && !canRetry
@@ -70,21 +80,74 @@ export function TopicSetupProgressView({
             : COPY[stage].detail}
         </p>
       </div>
-      <div className="bg-light-violet grid w-full grid-cols-2 gap-6 rounded-2xl px-6 py-8 sm:grid-cols-4">
-        {facets.map((facet, index) => (
-          <FacetBucket
-            key={facet.key}
-            facet={facet}
-            fill={FILLS[index % FILLS.length]!}
-            stage={stage}
-          />
-        ))}
+      <div className="grid w-full gap-4 sm:grid-cols-2">
+        <section className="bg-card flex flex-col gap-3 rounded-xl border p-5">
+          <div className="flex items-center gap-2">
+            <PhaseMarker done={summariesDone} active={summarizing} index={1} />
+            <h3 className="text-sm font-bold">
+              Analyzing traces & generating summaries
+            </h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <Progress value={percent} />
+            </div>
+            <span className="text-muted-foreground w-10 text-right font-mono text-xs">
+              {percent}%
+            </span>
+          </div>
+          <span className="text-muted-foreground text-xs">
+            {summariesDone
+              ? `${requested.toLocaleString("en-US")} traces summarized`
+              : `${complete.toLocaleString("en-US")} of ${requested.toLocaleString("en-US")} traces`}
+          </span>
+        </section>
+        <section className="bg-card flex flex-col gap-3 rounded-xl border p-5">
+          <div className="flex items-center gap-2">
+            <PhaseMarker
+              done={stage === "done"}
+              active={stage === "grouping" || stage === "naming"}
+              index={2}
+            />
+            <h3 className="text-sm font-bold">
+              Identifying clusters & generating topics
+            </h3>
+          </div>
+          {topicIndex < 0 ? (
+            <span className="text-muted-foreground text-xs">
+              Starts when summaries are done.
+            </span>
+          ) : null}
+          {topicIndex >= 0 && stage !== "done" ? (
+            <ul className="flex flex-col gap-1.5">
+              {TOPIC_STEPS.map((step, index) => (
+                <li
+                  key={step.stage}
+                  className="text-muted-foreground flex items-center gap-2 text-xs"
+                >
+                  <StepMarker state={stepState(index, topicIndex)} />
+                  {step.label}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {stage === "done" ? (
+            <ul className="flex flex-col gap-1.5">
+              {facets.map((facet) => (
+                <li
+                  key={facet.key}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span>{facet.name}</span>
+                  <span className="text-muted-foreground">
+                    {facetResult(facet)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       </div>
-      {anyWithoutTopics ? (
-        <p className="text-muted-foreground text-center text-sm">
-          Facets without enough data get topics as more traces come in.
-        </p>
-      ) : null}
       {stage === "done" ? (
         <Button text="Display results" onClick={onDisplayResults} />
       ) : null}
@@ -95,77 +158,44 @@ export function TopicSetupProgressView({
   );
 }
 
-function FacetBucket({
-  facet,
-  fill,
-  stage,
+function stepState(index: number, current: number) {
+  if (index < current) return "done";
+  if (index === current) return "active";
+  return "waiting";
+}
+
+function facetResult(facet: TopicSetupProgressFacet) {
+  if (facet.outcome === "failed") return "Failed";
+  if (NO_TOPICS.has(facet.outcome ?? "")) return "Not enough data yet";
+  if (facet.topicCount === null) return "Topics ready";
+  return `${facet.topicCount} ${facet.topicCount === 1 ? "topic" : "topics"}`;
+}
+
+function PhaseMarker({
+  active,
+  done,
+  index,
 }: {
-  facet: TopicSetupProgressFacet;
-  fill: string;
-  stage: TopicSetupStage;
+  active: boolean;
+  done: boolean;
+  index: number;
 }) {
-  const percent =
-    facet.requested > 0
-      ? Math.min(100, Math.round((facet.complete / facet.requested) * 100))
-      : 0;
-  const summarized = stage !== "summarizing" && stage !== "failed";
+  if (done)
+    return (
+      <span className="bg-dark-green flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+        <Check size="sm" aria-hidden="true" />
+      </span>
+    );
+  if (active) return <Spinner size="sm" />;
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div
-        role="progressbar"
-        aria-label={`${facet.name} summaries`}
-        aria-valuenow={percent}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        className="bg-card relative h-36 w-full max-w-28 overflow-hidden rounded-b-2xl border-2 border-t-0"
-      >
-        <div
-          className={`absolute inset-x-0 bottom-0 transition-[height] duration-700 ${fill}`}
-          style={{ height: `${summarized ? 100 : percent}%` }}
-        >
-          {stage === "summarizing" ? (
-            <span className="bg-background/60 absolute inset-x-0 top-0 h-2 motion-safe:animate-pulse" />
-          ) : null}
-        </div>
-      </div>
-      <span className="text-sm font-bold">{facet.name}</span>
-      <FacetStatus facet={facet} stage={stage} />
-    </div>
+    <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full border text-xs">
+      {index}
+    </span>
   );
 }
 
-function FacetStatus({
-  facet,
-  stage,
-}: {
-  facet: TopicSetupProgressFacet;
-  stage: TopicSetupStage;
-}) {
-  const muted = "text-muted-foreground flex items-center gap-1.5 text-xs";
-  if (stage === "summarizing" || stage === "failed")
-    return (
-      <span className="text-muted-foreground font-mono text-xs">
-        {facet.complete.toLocaleString("en-US")} /{" "}
-        {facet.requested.toLocaleString("en-US")}
-      </span>
-    );
-  if (stage === "grouping" || stage === "naming")
-    return (
-      <span className={muted}>
-        <Spinner size="xs" />
-        {stage === "grouping" ? "Grouping" : "Naming topics"}
-      </span>
-    );
-  if (facet.outcome === "failed")
-    return <span className="text-destructive text-xs">Failed</span>;
-  if (NO_TOPICS.has(facet.outcome ?? ""))
-    return <span className={muted}>Not enough data yet</span>;
-  return (
-    <span className={muted}>
-      <Check size="sm" aria-hidden="true" />
-      {facet.topicCount === null
-        ? "Topics ready"
-        : `${facet.topicCount} ${facet.topicCount === 1 ? "topic" : "topics"}`}
-    </span>
-  );
+function StepMarker({ state }: { state: "done" | "active" | "waiting" }) {
+  if (state === "done") return <Check size="sm" aria-hidden="true" />;
+  if (state === "active") return <Spinner size="xxs" />;
+  return <span className="size-3 rounded-full border" />;
 }

@@ -1086,6 +1086,8 @@ it("keeps date controls reachable when a disabled results query has no data", ()
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
   expect(
-    screen.queryByText("Thousands of traces, a few clear topics"),
+    screen.queryByText(
+      "Thousands of traces, identify recurring topics & issues",
+    ),
   ).toBeNull();
 });

@@ -54,10 +54,10 @@ export function TopicSetupNotice({
         </Alert>
       ) : null}
       {showOnboarding ? (
-        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-8 overflow-y-auto px-4 pt-12">
+        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 overflow-y-auto px-4 pt-12">
           <SortingIllustration />
           <h2 className="text-center text-2xl font-bold">
-            Thousands of traces, a few clear topics
+            Thousands of traces, identify recurring topics & issues
           </h2>
           {startBlockedReason ? (
             <p role="status" className="text-muted-foreground text-sm">
@@ -147,7 +147,9 @@ function SortingIllustration() {
                 />
               ))}
             </div>
-            <span className="mt-2 text-sm font-bold">{pile.name}</span>
+            <span className="mt-2 text-sm font-bold whitespace-nowrap">
+              {pile.name}
+            </span>
             <span className="text-muted-foreground text-sm">{pile.count}</span>
           </div>
         ))}
