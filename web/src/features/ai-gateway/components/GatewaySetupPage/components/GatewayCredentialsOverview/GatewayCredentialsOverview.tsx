@@ -2,7 +2,7 @@
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
-import Header, { SubHeader } from "@/src/components/layouts/header";
+import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
@@ -216,13 +216,7 @@ export function GatewayCredentialsOverview({
           {GATEWAY_SETUP_COPY.description}
         </p>
       </div>
-      <div>
-        <SubHeader title="Provider credentials" />
-        <p className="text-muted-foreground text-sm">
-          Model names are prefixed with their connection name. Credentials are
-          validated against the provider when they are saved.
-        </p>
-      </div>
+      <Header title="Provider credentials" />
       <ConfirmationDialogController<GatewayConnection>
         title="Delete provider credential"
         text={(connection) =>
