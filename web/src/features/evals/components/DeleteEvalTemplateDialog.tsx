@@ -3,7 +3,7 @@ import { ExternalLinkIcon } from "@langfuse/icons";
 import Link from "next/link";
 import { useState } from "react";
 
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
