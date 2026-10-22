@@ -40,7 +40,7 @@ export function TeamInviteFields({
             aria-describedby={hintId}
           />
           <p id={hintId} className="text-muted-foreground text-xs">
-            Separate with a comma or Enter. They join as Member.
+            Separate with a comma, space or Enter. They join as Member.
           </p>
         </div>
       </div>

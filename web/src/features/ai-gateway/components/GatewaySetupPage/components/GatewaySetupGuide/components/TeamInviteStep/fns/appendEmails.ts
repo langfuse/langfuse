@@ -1,4 +1,4 @@
-const EMAIL_SEPARATOR = /[\s,;]+/;
+export const EMAIL_SEPARATOR = /[\s,;]+/;
 
 /** Adds the addresses typed or pasted as `text`, skipping ones already listed. */
 export function appendEmails(current: string[], text: string) {

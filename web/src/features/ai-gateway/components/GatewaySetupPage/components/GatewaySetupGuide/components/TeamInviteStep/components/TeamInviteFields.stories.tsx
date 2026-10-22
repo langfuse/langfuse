@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { TeamInviteFields } from "./TeamInviteFields";
@@ -46,5 +46,18 @@ export const WithoutMembersToNotify = meta.story({
   args: {
     emails: [],
     onEmailsChange: fn(),
+  },
+});
+
+export const TestSpaceCommitsEmail = meta.story({
+  name: "(Test) Space commits an email",
+  args: { emails: [], onEmailsChange: fn() },
+  play: async ({ args, canvasElement }) => {
+    const input = within(canvasElement).getByRole("textbox", {
+      name: "Email addresses",
+    });
+    await userEvent.type(input, "ada@company.com ");
+    await expect(args.onEmailsChange).toHaveBeenCalledWith(["ada@company.com"]);
+    await expect(input).toHaveValue("");
   },
 });

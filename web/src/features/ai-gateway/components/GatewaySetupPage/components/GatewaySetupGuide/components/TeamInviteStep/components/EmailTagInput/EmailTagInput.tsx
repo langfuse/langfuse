@@ -1,7 +1,10 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 
 import { EmailTag } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/EmailTagInput/components/EmailTag";
-import { appendEmails } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/appendEmails";
+import {
+  appendEmails,
+  EMAIL_SEPARATOR,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/appendEmails";
 import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/fns/isEmailAddress";
 
 export type EmailTagInputProps = {
@@ -12,7 +15,7 @@ export type EmailTagInputProps = {
 };
 
 /**
- * Turns typed or pasted addresses into removable chips on comma, Enter, or
+ * Turns typed or pasted addresses into removable chips on comma, space, Enter, or
  * blur. Borderless: the surrounding field draws the frame.
  */
 export function EmailTagInput({
@@ -30,7 +33,7 @@ export function EmailTagInput({
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const text = event.target.value;
-    if (text.includes(",")) commit(text);
+    if (EMAIL_SEPARATOR.test(text)) commit(text);
     else setDraft(text);
   }
 
