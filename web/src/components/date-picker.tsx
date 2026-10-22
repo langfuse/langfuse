@@ -7,7 +7,7 @@ import { Calendar as CalendarIcon, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
-import { Calendar } from "@/src/components/ui/calendar";
+import { Calendar } from "@/src/components/ui/Calendar";
 import {
   Popover,
   PopoverContent,
