@@ -52,6 +52,7 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ### Tests
 
+- Not every detail needs a test. Focus tests on critical user behavior and known regressions. Add preemptive regression coverage only for important functionality; do not require tests for incidental details or hypothetical low-impact failures.
 - One representative input per code path, plus each boundary. Remove redundant cases; retain distinct contracts and paths.
 - Tests must fail when the behavior breaks or its implementation is deleted. No mocks that just return the expected answer or always-true assertions.
 - Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
