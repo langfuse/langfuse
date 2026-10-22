@@ -37,8 +37,8 @@ export function TopicTraceList({
       typeof update === "function" ? update(current) : update,
     );
   };
-  const titleTooltip = useTruncatedTitle(title);
-  const descriptionTooltip = useTruncatedTitle(description ?? "");
+  const titleTooltip = useTruncatedTitle(title, "truncate");
+  const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
@@ -178,16 +178,19 @@ type TopicTraceListProps = {
 /**
  * Native tooltip with the full text, only while the element clips it.
  * Measured on hover so it follows panel resizes and topic switches.
+ * `truncate` text is measured by width only: with tight leading its glyphs
+ * overflow vertically even when the whole line fits.
  */
-function useTruncatedTitle(text: string) {
+function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
   const [isTruncated, setIsTruncated] = useState(false);
   return {
     title: isTruncated ? text : undefined,
     onPointerEnter: (event: PointerEvent<HTMLElement>) => {
       const element = event.currentTarget;
       setIsTruncated(
-        element.scrollWidth > element.clientWidth ||
-          element.scrollHeight > element.clientHeight,
+        clip === "truncate"
+          ? element.scrollWidth > element.clientWidth
+          : element.scrollHeight > element.clientHeight,
       );
     },
   };
