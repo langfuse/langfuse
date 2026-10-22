@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 import { Clock, Moon, Sun } from "@langfuse/icons";
 import { type Period } from "@/src/components/ui/time-picker-utils";

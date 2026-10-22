@@ -1,7 +1,7 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
-import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
+import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/page-tabs";

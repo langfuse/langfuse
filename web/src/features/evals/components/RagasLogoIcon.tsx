@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { env } from "@/src/env.mjs";
 
 export const RagasLogoIcon = () => {

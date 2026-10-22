@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";

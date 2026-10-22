@@ -2,7 +2,7 @@
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
 import { DialogTrigger } from "@/src/components/ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";

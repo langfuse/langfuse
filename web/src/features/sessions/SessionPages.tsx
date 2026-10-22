@@ -30,7 +30,7 @@ import React, {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { type AnnotateDrawerPayload } from "@/src/features/scores/components/AnnotateDrawerController";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   CommentDrawerController,

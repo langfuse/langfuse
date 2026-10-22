@@ -52,7 +52,7 @@ import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/trace
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import {
   EllipsisVertical,
   LockIcon,
