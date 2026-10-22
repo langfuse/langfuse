@@ -43,14 +43,17 @@ export function GeneratedKeyContent({
   return (
     <>
       <DialogHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-baseline gap-2">
           <DialogTitle>Gateway key created</DialogTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            text="Read docs"
-            href={activeInstructions?.docsUrl ?? AGENT_SETUP_DOCS_URLS.api}
-          />
+          {/* The header centers its close button on this row, so the taller button must not grow it. */}
+          <div className="-my-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              text="Read docs"
+              href={activeInstructions?.docsUrl ?? AGENT_SETUP_DOCS_URLS.api}
+            />
+          </div>
         </div>
       </DialogHeader>
       <DialogBody>
