@@ -595,6 +595,11 @@ describe("IngestionService unit tests", () => {
       createdAtTimestamp: new Date(timestamp),
       observationEventList,
       writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
     });
 
     const observationRecord = addToQueue.mock.calls.find(
