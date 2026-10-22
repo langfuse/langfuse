@@ -18,6 +18,7 @@ vi.mock("../../env", () => ({
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "events",
     LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "test/",
     LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES: 200,
+    LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: 10_000,
   },
 }));
 
@@ -55,6 +56,7 @@ describe("trace batch input storage", () => {
 
     expect(createEventUploadStorageService).toHaveBeenCalledExactlyOnceWith(
       "events",
+      { s3RequestTimeoutMs: 10_000 },
     );
   });
 
