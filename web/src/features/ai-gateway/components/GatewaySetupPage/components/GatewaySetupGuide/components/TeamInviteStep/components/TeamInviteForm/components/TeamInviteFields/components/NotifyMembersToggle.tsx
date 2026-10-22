@@ -30,6 +30,7 @@ export function NotifyMembersToggle({
           >
             <Avatar
               size="sm"
+              tone="tinted"
               displayName={member.name ?? member.email ?? ""}
               email={member.email ?? undefined}
               src={member.image ?? undefined}
