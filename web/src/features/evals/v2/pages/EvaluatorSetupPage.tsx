@@ -20,7 +20,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
