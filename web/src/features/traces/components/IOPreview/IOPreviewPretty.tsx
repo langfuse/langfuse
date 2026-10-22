@@ -28,7 +28,11 @@ import {
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
-import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  ToolCallDefinitionCard,
+  type ToolDefinition,
+} from "./components/ToolCallDefinitionCard";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
@@ -41,6 +45,10 @@ import { useCorrectionData } from "./hooks/useCorrectionData";
 import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+
+const TOOLS_COLLAPSE_THRESHOLD = 5;
+// The user's collapse choice lasts the session, across observations.
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -186,6 +194,12 @@ export function IOPreviewPretty({
 }: IOPreviewPrettyProps) {
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
+    "called",
+  );
+  const [storedToolsCollapsed, setStoredToolsCollapsed] = useSessionStorage<
+    boolean | null
+  >(TOOLS_COLLAPSED_KEY, null);
   const skillGroups = new Map<
     string,
     {
@@ -262,6 +276,28 @@ export function IOPreviewPretty({
     messageToToolCallNumbers,
     inputMessageCount,
   } = parserResult;
+
+  const { calledTools, notCalledTools } = useMemo(
+    () =>
+      allTools.reduce(
+        (groups, tool) => {
+          if ((toolCallCounts.get(tool.name) ?? 0) > 0) {
+            groups.calledTools.push(tool);
+          } else {
+            groups.notCalledTools.push(tool);
+          }
+          return groups;
+        },
+        {
+          calledTools: [] as ToolDefinition[],
+          notCalledTools: [] as ToolDefinition[],
+        },
+      ),
+    [allTools, toolCallCounts],
+  );
+  const hasToolTabs = calledTools.length > 0 && notCalledTools.length > 0;
+  const tabTools = activeToolTab === "called" ? calledTools : notCalledTools;
+  const visibleTools = hasToolTabs ? tabTools : allTools;
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -388,11 +424,43 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && allTools.length > 0 ? (
-        <SectionToolDefinitions
-          tools={allTools}
-          toolCallCounts={toolCallCounts}
-          toolCallsByName={toolCallsByName}
-        />
+        <IOSection
+          title="Tools"
+          variant="table"
+          collapsed={
+            storedToolsCollapsed ?? allTools.length > TOOLS_COLLAPSE_THRESHOLD
+          }
+          onCollapsedChange={setStoredToolsCollapsed}
+          tabs={
+            hasToolTabs
+              ? {
+                  value: activeToolTab,
+                  onValueChange: (value) => {
+                    if (value === "called" || value === "not-called")
+                      setActiveToolTab(value);
+                  },
+                  items: [
+                    {
+                      value: "called",
+                      label: "Called",
+                      count: calledTools.length,
+                    },
+                    {
+                      value: "not-called",
+                      label: "Not called",
+                      count: notCalledTools.length,
+                    },
+                  ],
+                }
+              : undefined
+          }
+        >
+          <ToolCallDefinitionCard
+            key={activeToolTab}
+            tools={visibleTools}
+            toolCallsByName={toolCallsByName}
+          />
+        </IOSection>
       ) : null}
 
       {showData && skills && skills.items.length > 0 ? (

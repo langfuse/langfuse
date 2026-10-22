@@ -1,9 +1,25 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 import { IOPreviewPretty } from "./IOPreviewPretty";
+import type { ToolDefinition } from "./components/ToolCallDefinitionCard";
+import type {
+  ChatMLParserResult,
+  ToolCallInvocation,
+} from "../../hooks/useChatMLParser";
 
 const meta = preview.meta({
   component: IOPreviewPretty,
+  beforeEach: () => {
+    const previousCollapsed = sessionStorage.getItem(TOOLS_COLLAPSED_KEY);
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+    return () => {
+      if (previousCollapsed === null) {
+        sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+      } else {
+        sessionStorage.setItem(TOOLS_COLLAPSED_KEY, previousCollapsed);
+      }
+    };
+  },
   args: {
     projectId: "storybook-project",
     traceId: "storybook-trace",
@@ -271,6 +287,299 @@ export const LoadedSkills = meta.story({
     await expect(
       canvas.getByText("references/international-shipping.md"),
     ).toBeVisible();
+  },
+});
+
+const baseTools: ToolDefinition[] = [
+  {
+    name: "search_docs",
+    description: "Searches product docs for relevant troubleshooting steps.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "What to search for" },
+        limit: { type: "number", description: "Maximum number of results" },
+      },
+      required: ["query"],
+    },
+  },
+];
+
+const baseToolCalls = new Map<string, ToolCallInvocation[]>([
+  [
+    "search_docs",
+    [
+      {
+        id: "call_01HXYZ123",
+        name: "search_docs",
+        invocationNumber: 1,
+        arguments: JSON.stringify({ query: "rate limits", limit: 3 }),
+      },
+    ],
+  ],
+]);
+
+function toolPreviewArgs(
+  tools: ToolDefinition[],
+  toolCallCounts: Map<string, number>,
+  toolCallsByName: Map<string, ToolCallInvocation[]>,
+) {
+  return {
+    hideInput: true,
+    hideOutput: true,
+    chatMLParserResult: {
+      canDisplayAsChat: false,
+      allMessages: [],
+      additionalInput: undefined,
+      allTools: tools,
+      toolCallCounts,
+      toolCallsByName,
+      messageToToolCallNumbers: new Map(),
+      inputMessageCount: 0,
+    } satisfies ChatMLParserResult,
+  };
+}
+
+export const UncalledTool = meta.story({
+  args: toolPreviewArgs(baseTools, new Map([["search_docs", 0]]), new Map()),
+});
+
+export const CalledTool = meta.story({
+  args: toolPreviewArgs(
+    baseTools,
+    new Map([["search_docs", 1]]),
+    baseToolCalls,
+  ),
+});
+
+export const MultipleTools = meta.story({
+  args: toolPreviewArgs(
+    [
+      ...baseTools,
+      {
+        name: "create_ticket",
+        description: "Creates a support escalation ticket.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            priority: { type: "string", enum: ["low", "high"] },
+          },
+          required: ["title", "priority"],
+        },
+      },
+      { name: "notify_team" },
+    ],
+    new Map([
+      ["search_docs", 2],
+      ["create_ticket", 1],
+      ["notify_team", 0],
+    ]),
+    new Map([
+      [
+        "search_docs",
+        [
+          ...baseToolCalls.get("search_docs")!,
+          {
+            id: "call_01HXYZ124",
+            name: "search_docs",
+            invocationNumber: 2,
+            arguments: JSON.stringify({ query: "retry policy" }),
+          },
+        ],
+      ],
+      [
+        "create_ticket",
+        [
+          {
+            id: "call_01HXYZ200",
+            name: "create_ticket",
+            invocationNumber: 1,
+            arguments: { title: "API requests failing", priority: "high" },
+          },
+        ],
+      ],
+    ]),
+  ),
+});
+
+const longToolName =
+  "search_enterprise_customer_documentation_for_multistep_api_rate_limit_troubleshooting_and_backoff_recommendations";
+const longUncalledToolName =
+  "create_cross_functional_incident_escalation_ticket_with_customer_context_and_internal_follow_up_requirements";
+
+export const WithLongToolNames = meta.story({
+  args: toolPreviewArgs(
+    [
+      {
+        name: longToolName,
+        description:
+          "Looks up long-form support guidance for enterprise API incidents.",
+        parameters: {
+          type: "object",
+          properties: { query: { type: "string" } },
+          required: ["query"],
+        },
+      },
+      {
+        name: longUncalledToolName,
+        description: "Creates a detailed incident escalation ticket.",
+      },
+    ],
+    new Map([
+      [longToolName, 1],
+      [longUncalledToolName, 0],
+    ]),
+    new Map([
+      [
+        longToolName,
+        [
+          {
+            id: "call_long_01",
+            name: longToolName,
+            invocationNumber: 1,
+            arguments: JSON.stringify({ query: "429 retry guidance" }),
+          },
+        ],
+      ],
+    ]),
+  ),
+});
+
+const manyToolNames = [
+  "langfuse_getPrompt",
+  "langfuse_getPromptUnresolved",
+  "langfuse_listPrompts",
+  "langfuse_listObservations",
+  "langfuse_getObservation",
+  "langfuse_getObservationFieldSchema",
+  "langfuse_getObservationFilterSchema",
+  "langfuse_getObservationFilterValues",
+  "langfuse_listAnnotationQueues",
+  "langfuse_getAnnotationQueue",
+  "langfuse_listAnnotationQueueItems",
+  "langfuse_createScoreConfigForProject",
+  "langfuse_searchLangfuseDocs",
+  "langfuse_proposeRedirect",
+  "langfuse_listDatasets",
+  "langfuse_getDataset",
+  "langfuse_listSessions",
+  "langfuse_getSession",
+];
+const calledNames = new Set(manyToolNames.slice(12));
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+
+export const ManyTools = meta.story({
+  beforeEach: () => {
+    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  },
+  args: toolPreviewArgs(
+    manyToolNames.map((name) => ({ name })),
+    new Map(manyToolNames.map((name) => [name, calledNames.has(name) ? 1 : 0])),
+    new Map(),
+  ),
+});
+
+export const NoneCalled = meta.story({
+  beforeEach: () => {
+    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  },
+  args: toolPreviewArgs(
+    manyToolNames.map((name) => ({ name })),
+    new Map(manyToolNames.map((name) => [name, 0])),
+    new Map(),
+  ),
+});
+
+export const AllCalled = meta.story({
+  beforeEach: () => {
+    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  },
+  args: toolPreviewArgs(
+    manyToolNames.map((name) => ({ name })),
+    new Map(manyToolNames.map((name) => [name, 1])),
+    new Map(),
+  ),
+});
+
+export const NotCalledTab = meta.story({
+  name: "(Test) Not Called Tab",
+  beforeEach: () => {
+    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  },
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(
+      canvas.getByRole("button", {
+        name: /^1\.\s*langfuse_searchLangfuseDocs$/,
+      }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("tab", { name: /^Not called\s*12$/ }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: /^1\.\s*langfuse_getPrompt$/ }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
+  },
+});
+
+export const NoSwitchWhenOneSideEmpty = meta.story({
+  name: "(Test) No Switch When One Side Empty",
+  beforeEach: () => {
+    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  },
+  args: NoneCalled.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("tab")).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: /^18\.\s*langfuse_getSession$/ }),
+    ).toBeVisible();
+  },
+});
+
+export const RowTogglesDetails = meta.story({
+  name: "(Test) Row Toggles Details",
+  beforeEach: () => {
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+  },
+  args: CalledTool.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getByRole("button", { name: /^1\.\s*search_docs$/ });
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByText("Description")).toBeNull();
+    await userEvent.click(row);
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getByText("Description")).toBeVisible();
+    await userEvent.click(row);
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+  },
+});
+
+export const CollapsedByDefault = meta.story({
+  name: "(Test) Collapsed By Default",
+  beforeEach: () => {
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+  },
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = canvas.getByRole("button", { name: "Expand Tools" });
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByRole("tab")).toBeNull();
+    await userEvent.click(header);
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toBeVisible();
+    await expect(sessionStorage.getItem(TOOLS_COLLAPSED_KEY)).toBe("false");
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
   },
 });
 
