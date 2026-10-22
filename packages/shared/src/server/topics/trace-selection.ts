@@ -28,7 +28,7 @@ type SelectionRows = {
   };
 };
 
-/** Select trace identities from matching root observations. */
+/** Select unique trace identities from matching observations. */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
@@ -40,24 +40,15 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     projectId: input.projectId,
     prisma,
     objectType: "OBSERVATION",
-    filterState: input.filter.flatMap((filter) => {
-      if (filter.column === "isRootObservation") return [];
-      if (filter.column === "tags")
-        return [{ ...filter, column: "traceTags" as const }];
-      return [filter];
-    }),
+    filterState: input.filter.map((filter) =>
+      filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
+    ),
   });
   if (hasNoMatches) return [];
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
     filter: filterState.concat([
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
       {
         column: "startTime",
         type: "datetime",
