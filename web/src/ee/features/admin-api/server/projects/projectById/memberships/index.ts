@@ -180,33 +180,15 @@ async function updateMembership(
     from: before?.role,
     to: role,
   });
-  const after = await upsertMembership(tx, {
+  const after = await assignProjectMembershipRole(tx, {
+    orgId,
     projectId,
     userId,
     role,
     orgMembershipId,
   });
-  await assignProjectMembershipRole(tx, { ...after, orgId });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
   return after;
-}
-
-function upsertMembership(
-  tx: Prisma.TransactionClient,
-  data: {
-    projectId: string;
-    userId: string;
-    role: Role;
-    orgMembershipId: string;
-  },
-) {
-  return tx.projectMembership.upsert({
-    where: {
-      projectId_userId: { projectId: data.projectId, userId: data.userId },
-    },
-    update: { role: data.role },
-    create: data,
-  });
 }
 
 /** deleteMembership authorizes and audits removal within its transaction. */

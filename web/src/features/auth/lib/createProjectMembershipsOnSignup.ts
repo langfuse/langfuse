@@ -6,7 +6,7 @@ import {
   type MembershipInvitation,
   type Prisma,
 } from "@langfuse/shared/src/db";
-import { logger, withTransaction } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import {
   getOrganizationPlanServerSide,
@@ -19,8 +19,8 @@ import { provisionStarterOrganizationForNewUser } from "@/src/features/onboardin
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
-  assignOrgMembershipRole,
-  assignProjectMembershipRole,
+  createOrgMembership,
+  createProjectMembership,
 } from "@/src/features/memberships/helpers";
 
 export async function createProjectMembershipsOnSignup(
@@ -55,7 +55,7 @@ export async function createProjectMembershipsOnSignup(
           })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
-      await upsertOrgMembership(prisma, {
+      await ensureOrgMembership(prisma, {
         userId: user.id,
         orgId: demoProject.orgId,
         role: Role.VIEWER,
@@ -79,7 +79,7 @@ export async function createProjectMembershipsOnSignup(
       { id: string; orgId: string; userId: string }
     >();
     for (const org of defaultOrgs) {
-      const membership = await upsertOrgMembership(prisma, {
+      const membership = await ensureOrgMembership(prisma, {
         orgId: org.id,
         userId: user.id,
         role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
@@ -111,7 +111,8 @@ export async function createProjectMembershipsOnSignup(
       if (existingOrgMembership) {
         // (1) project's org is in the default org list -> create project membership if entitled
         if (hasProjectRolesEntitlement) {
-          await upsertProjectMembership(prisma, project.orgId, {
+          await ensureProjectMembership(prisma, {
+            orgId: project.orgId,
             userId: user.id,
             orgMembershipId: existingOrgMembership.id,
             projectId: project.id,
@@ -120,7 +121,7 @@ export async function createProjectMembershipsOnSignup(
         }
       } else {
         // (2) project's org is NOT in the default org list (legacy behavior) -> create org membership for the project's org first
-        const orgMembership = await upsertOrgMembership(prisma, {
+        const orgMembership = await ensureOrgMembership(prisma, {
           orgId: project.orgId,
           userId: user.id,
           role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
@@ -129,7 +130,8 @@ export async function createProjectMembershipsOnSignup(
         orgMembershipMap.set(project.orgId, orgMembership);
 
         if (hasProjectRolesEntitlement) {
-          await upsertProjectMembership(prisma, project.orgId, {
+          await ensureProjectMembership(prisma, {
+            orgId: project.orgId,
             userId: user.id,
             orgMembershipId: orgMembership.id,
             projectId: project.id,
@@ -351,25 +353,21 @@ async function acceptInvitation(
   invitation: MembershipInvitation,
   userId: string,
 ) {
-  const orgMembership = await tx.organizationMembership.create({
-    data: { userId, orgId: invitation.orgId, role: invitation.orgRole },
+  const orgMembership = await createOrgMembership(tx, {
+    userId,
+    orgId: invitation.orgId,
+    role: invitation.orgRole,
   });
-  await assignOrgMembershipRole(tx, orgMembership);
   if (!invitation.projectId || !invitation.projectRole) return;
   if (!(await isProjectInOrg(tx, invitation.projectId, invitation.orgId))) {
     return;
   }
-  const projectMembership = await tx.projectMembership.create({
-    data: {
-      userId,
-      orgMembershipId: orgMembership.id,
-      projectId: invitation.projectId,
-      role: invitation.projectRole,
-    },
-  });
-  await assignProjectMembershipRole(tx, {
-    ...projectMembership,
+  await createProjectMembership(tx, {
     orgId: invitation.orgId,
+    userId,
+    orgMembershipId: orgMembership.id,
+    projectId: invitation.projectId,
+    role: invitation.projectRole,
   });
 }
 
@@ -386,42 +384,34 @@ async function isProjectInOrg(
   return project !== null;
 }
 
-/** upsertOrgMembership creates a missing org membership, preserving an existing role, and mirrors it. */
-function upsertOrgMembership(
+/** ensureOrgMembership creates a missing org membership with its role assignment, preserving an existing one. */
+async function ensureOrgMembership(
   prisma: Prisma.TransactionClient,
   data: { orgId: string; userId: string; role: Role },
 ) {
-  return withTransaction(prisma, async (tx) => {
-    const membership = await tx.organizationMembership.upsert({
-      where: { orgId_userId: { orgId: data.orgId, userId: data.userId } },
-      update: {},
-      create: data,
-    });
-    await assignOrgMembershipRole(tx, membership);
-    return membership;
+  const existing = await prisma.organizationMembership.findUnique({
+    where: { orgId_userId: { orgId: data.orgId, userId: data.userId } },
   });
+  if (existing) return existing;
+  return await createOrgMembership(prisma, data);
 }
 
-/** upsertProjectMembership creates a missing project membership, preserving an existing role, and mirrors it. */
-function upsertProjectMembership(
+/** ensureProjectMembership creates a missing project membership with its role assignment, preserving an existing one. */
+async function ensureProjectMembership(
   prisma: Prisma.TransactionClient,
-  orgId: string,
   data: {
+    orgId: string;
     userId: string;
     orgMembershipId: string;
     projectId: string;
     role: Role;
   },
 ) {
-  return withTransaction(prisma, async (tx) => {
-    const membership = await tx.projectMembership.upsert({
-      where: {
-        projectId_userId: { projectId: data.projectId, userId: data.userId },
-      },
-      update: {},
-      create: data,
-    });
-    await assignProjectMembershipRole(tx, { ...membership, orgId });
-    return membership;
+  const existing = await prisma.projectMembership.findUnique({
+    where: {
+      projectId_userId: { projectId: data.projectId, userId: data.userId },
+    },
   });
+  if (existing) return existing;
+  return await createProjectMembership(prisma, data);
 }

@@ -307,16 +307,11 @@ export const membersRouter = createTRPCRouter({
 
       const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const updatedMembership = await tx.organizationMembership.update({
-            where: {
-              id: membership.id,
-              orgId: input.orgId,
-            },
-            data: {
-              role: input.role,
-            },
+          const updatedMembership = await assignOrgMembershipRole(tx, {
+            orgId: input.orgId,
+            userId: membership.userId,
+            role: input.role,
           });
-          await assignOrgMembershipRole(tx, updatedMembership);
           const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
             userId: membership.userId,
             orgId: input.orgId,
@@ -571,31 +566,14 @@ export const membersRouter = createTRPCRouter({
 
       // Create/update
       const projectRole = input.projectRole;
-      const updatedProjectMembership = await ctx.prisma.$transaction(
-        async (tx) => {
-          const membership = await tx.projectMembership.upsert({
-            where: {
-              projectId_userId: {
-                projectId: input.projectId,
-                userId: input.userId,
-              },
-              orgMembershipId: input.orgMembershipId,
-            },
-            update: {
-              role: projectRole,
-            },
-            create: {
-              projectId: input.projectId,
-              userId: input.userId,
-              role: projectRole,
-              orgMembershipId: input.orgMembershipId,
-            },
-          });
-          await assignProjectMembershipRole(tx, {
-            ...membership,
-            orgId: input.orgId,
-          });
-          return membership;
+      const updatedProjectMembership = await assignProjectMembershipRole(
+        ctx.prisma,
+        {
+          orgId: input.orgId,
+          projectId: input.projectId,
+          userId: input.userId,
+          role: projectRole,
+          orgMembershipId: input.orgMembershipId,
         },
       );
 

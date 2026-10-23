@@ -1,6 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
-import { withTransaction } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
@@ -9,8 +8,8 @@ import {
   hasEntitlement,
 } from "@/src/features/entitlements/server";
 import {
-  assignOrgMembershipRole,
-  assignProjectMembershipRole,
+  createOrgMembership,
+  createProjectMembership,
 } from "@/src/features/memberships/helpers";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -33,11 +32,7 @@ async function createProjectMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await withTransaction(prisma, async (tx) => {
-      const membership = await tx.projectMembership.create({ data });
-      await assignProjectMembershipRole(tx, { ...membership, orgId });
-      return membership;
-    });
+    return await createProjectMembership(prisma, { ...data, orgId });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -64,11 +59,7 @@ async function createOrgMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await withTransaction(prisma, async (tx) => {
-      const membership = await tx.organizationMembership.create({ data });
-      await assignOrgMembershipRole(tx, membership);
-      return membership;
-    });
+    return await createOrgMembership(prisma, data);
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

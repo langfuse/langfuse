@@ -23,7 +23,7 @@ import {
 } from "@/src/ee/features/billing/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
-import { assignOrgMembershipRole } from "@/src/features/memberships/helpers";
+import { createOrgMembership } from "@/src/features/memberships/helpers";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
@@ -204,15 +204,9 @@ export const organizationsRouter = createTRPCRouter({
           data: {
             name: input.name,
             aiFeaturesEnabled: input.aiFeaturesEnabled,
-            organizationMemberships: {
-              create: {
-                userId: ctx.session.user.id,
-                role: "OWNER",
-              },
-            },
           },
         });
-        await assignOrgMembershipRole(tx, {
+        await createOrgMembership(tx, {
           orgId: organization.id,
           userId: ctx.session.user.id,
           role: "OWNER",

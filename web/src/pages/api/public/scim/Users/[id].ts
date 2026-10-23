@@ -3,6 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   assignOrgMembershipRole,
+  createOrgMembership,
   unassignOrgMembershipRoles,
 } from "@/src/features/memberships/helpers";
 import {
@@ -97,11 +98,11 @@ async function provisionMembership({
             from: current.role,
             to: targetRole,
           });
-          const updated = await tx.organizationMembership.update({
-            where: { orgId_userId: { orgId, userId } },
-            data: { role: targetRole },
+          const updated = await assignOrgMembershipRole(tx, {
+            orgId,
+            userId,
+            role: targetRole,
           });
-          await assignOrgMembershipRole(tx, updated);
           const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
             userId,
             orgId,
@@ -182,12 +183,10 @@ async function provisionMembership({
     to: roleToCreate,
   });
   try {
-    const created = await prisma.$transaction(async (tx) => {
-      const membership = await tx.organizationMembership.create({
-        data: { userId, orgId, role: roleToCreate },
-      });
-      await assignOrgMembershipRole(tx, membership);
-      return membership;
+    const created = await createOrgMembership(prisma, {
+      userId,
+      orgId,
+      role: roleToCreate,
     });
     await auditLog({
       resourceType: "orgMembership",

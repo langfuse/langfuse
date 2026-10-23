@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { assignOrgMembershipRole } from "@/src/features/memberships/helpers";
+import { createOrgMembership } from "@/src/features/memberships/helpers";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
@@ -472,15 +472,9 @@ export const provisionStarterOrganizationForNewUser = async ({
       data: {
         name: getStarterOrganizationName(userName),
         metadata: STARTER_ORGANIZATION_METADATA,
-        organizationMemberships: {
-          create: {
-            userId,
-            role: Role.OWNER,
-          },
-        },
       },
     });
-    await assignOrgMembershipRole(tx, {
+    await createOrgMembership(tx, {
       orgId: organization.id,
       userId,
       role: Role.OWNER,

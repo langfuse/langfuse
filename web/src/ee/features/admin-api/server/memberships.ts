@@ -102,16 +102,11 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
-    const after = await tx.organizationMembership.upsert({
-      where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
-      update: { role: validatedBody.data.role },
-      create: {
-        orgId,
-        userId: validatedBody.data.userId,
-        role: validatedBody.data.role,
-      },
+    const after = await assignOrgMembershipRole(tx, {
+      orgId,
+      userId: validatedBody.data.userId,
+      role: validatedBody.data.role,
     });
-    await assignOrgMembershipRole(tx, after);
     await auditLog(
       {
         orgId,

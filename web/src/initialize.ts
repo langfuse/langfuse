@@ -145,20 +145,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
-    const orgMembership = await prisma.$transaction(async (tx) => {
-      const membership = await tx.organizationMembership.upsert({
-        where: {
-          orgId_userId: { userId, orgId: org.id },
-        },
-        update: { role: "OWNER" },
-        create: {
-          userId,
-          orgId: org.id,
-          role: "OWNER",
-        },
-      });
-      await assignOrgMembershipRole(tx, membership);
-      return membership;
+    const orgMembership = await assignOrgMembershipRole(prisma, {
+      userId,
+      orgId: org.id,
+      role: "OWNER",
     });
 
     // On EE plans with rbac-project-roles, createUserEmailPassword ->
@@ -178,21 +168,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
           where: { id: projectId },
           select: { orgId: true },
         });
-        const membership = await tx.projectMembership.upsert({
-          where: {
-            projectId_userId: { projectId, userId },
-          },
-          update: { role: "OWNER" },
-          create: {
-            userId,
-            orgMembershipId: orgMembership.id,
-            projectId,
-            role: "OWNER",
-          },
-        });
         await assignProjectMembershipRole(tx, {
-          ...membership,
           orgId: project.orgId,
+          userId,
+          orgMembershipId: orgMembership.id,
+          projectId,
+          role: "OWNER",
         });
       });
     }
