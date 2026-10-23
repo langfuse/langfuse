@@ -270,39 +270,24 @@ function TopicsWorkspaceContent({
     },
   );
   const [mountedAt] = useState(Date.now);
-  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
-    null,
-  );
   const setupRun = topicSetupRun(executions.data ?? []);
   const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A run that finished before this visit is not replayed; results show instead.
+  // A finished run hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setupRun !== null &&
     setup !== null &&
-    setupRun.process.id !== acknowledgedSetupId &&
     (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
-  const setupRunIds =
-    setupRun?.update?.facets.flatMap((facet) =>
-      facet.runId ? [facet.runId] : [],
-    ) ?? [];
-  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
-    { projectId, runIds: setupRunIds },
-    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
-  );
+      (setup.stage === "failed" &&
+        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
+          mountedAt));
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
   // A run worth inspecting: the one that failed, or a topic run with failed facets.
   const setupDetailsId =
     setupRun && setup ? detailsRunId(setupRun, setup) : null;
-  const setupFacets =
-    setupRun?.process.facets.map((facet) => {
-      const update = setupRun.update?.facets.find(
-        (item) =>
-          item.facetId === facet.facetId &&
-          item.facetVersion === facet.facetVersion,
-      );
+  const runFacets = (run: typeof setupRun) =>
+    run?.process.facets.map((facet) => {
       return {
         key: `${facet.facetId}:${facet.facetVersion}`,
         name:
@@ -310,12 +295,14 @@ function TopicsWorkspaceContent({
           "Facet",
         complete: facet.counts.complete,
         requested: facet.counts.requested,
-        outcome: update?.outcome ?? null,
-        topicCount:
-          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
-            ?.topicCount ?? null,
       };
     }) ?? [];
+  const setupFacets = runFacets(setupRun);
+  const busyProcess =
+    (executions.data ?? []).find(
+      (execution) =>
+        execution.input.operation === "process" && busy(execution.status),
+    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -486,6 +473,16 @@ function TopicsWorkspaceContent({
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+        const landingRun =
+          showLanding && !showSetupProgress && busyProcess
+            ? { process: busyProcess, update: null }
+            : null;
+        const waitingForTraces =
+          showLanding &&
+          !showSetupProgress &&
+          !landingRun &&
+          modelSettings.automaticProcessing.state.status === "on";
         const showOnboarding = showSetupProgress || showLanding;
         return (
           <Page
@@ -595,8 +592,33 @@ function TopicsWorkspaceContent({
                 startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showLanding && !showSetupProgress}
+                showOnboarding={
+                  showLanding &&
+                  !showSetupProgress &&
+                  !landingRun &&
+                  !waitingForTraces
+                }
               />
+              {landingRun ? (
+                <TopicSetupProgressView
+                  stage={topicSetupStage(landingRun, Date.now()).stage}
+                  facets={runFacets(landingRun)}
+                  retrying={false}
+                  canRetry={false}
+                  onViewDetails={() => openExecution(landingRun.process.id)}
+                  onRetry={refreshResults}
+                />
+              ) : null}
+              {waitingForTraces ? (
+                <TopicSetupProgressView
+                  waiting
+                  stage="summarizing"
+                  facets={[]}
+                  retrying={false}
+                  canRetry={false}
+                  onRetry={refreshResults}
+                />
+              ) : null}
               {showSetupProgress && setup ? (
                 <TopicSetupProgressView
                   stage={setup.stage}
@@ -614,10 +636,6 @@ function TopicsWorkspaceContent({
                         projectId,
                         executionId: setup.retryId,
                       });
-                  }}
-                  onDisplayResults={() => {
-                    setAcknowledgedSetupId(setupRun.process.id);
-                    return utils.topics.invalidate();
                   }}
                 />
               ) : null}
