@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 // Completion planning — pure functions, zero React/DOM.
 //
 // Given the active input text + caret, produce a CompletionPlan the popover

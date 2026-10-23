@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -77,6 +77,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getRequestContext: "Checking request context",
   getSkill: "Inspecting skill",
   listDashboardWidgets: "Browsing widgets",
+  listLlmConnections: "Browsing LLM connections",
   listSkills: "Browsing skills",
   loadSkill: "Loading skill",
   loadSkillResource: "Loading skill resource",

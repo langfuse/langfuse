@@ -12,6 +12,7 @@ type Size = NonNullable<React.ComponentProps<typeof Dialog>["size"]>;
 const allSizes = Object.keys({
   sm: true,
   default: true,
+  md: true,
   lg: true,
   xxl: true,
 } satisfies Record<Size, true>) as Size[];
@@ -91,6 +92,26 @@ export const Autofocus = meta.story({
       expect(body.getByRole("button", { name: "Continue" })).toHaveFocus(),
     );
   },
+});
+
+export const CloseOnly = meta.story({
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Import finished"
+          text="All prompts were imported."
+          closeLabel="Done"
+        />
+      )}
+    >
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog()}>
+          Open dialog
+        </button>
+      )}
+    </DialogController>
+  ),
 });
 
 export const DestructiveAutofocus = meta.story({

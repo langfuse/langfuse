@@ -215,7 +215,8 @@ describe("Projects API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const orgKey = await createApiKey(prisma, {
-      owner: OrganizationId("seed-org-id"),
+      tenant: OrganizationId("seed-org-id"),
+      scope: OrganizationId("seed-org-id"),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
@@ -1347,7 +1348,8 @@ describe("Projects API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       const apiKeyMeta = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId("seed-org-id"),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,

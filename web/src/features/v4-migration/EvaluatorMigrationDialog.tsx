@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { BotMessageSquare, Wrench } from "@langfuse/icons";
 import { useState } from "react";
 import {

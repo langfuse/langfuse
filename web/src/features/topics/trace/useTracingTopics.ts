@@ -8,17 +8,16 @@ export function useTopicFilterOptions(projectId: string, enabled: boolean) {
   ).data;
 }
 
-/** Current topics of the visible rows' traces, fetched after the rows and only while the column is shown. */
+/** Current topics of the visible rows' traces; every Topics cell shares this one query per page. */
 export function useTraceTopicsForRows(
   projectId: string,
   rows: { traceId?: string | null; startTime: Date }[],
-  enabled: boolean,
 ) {
   const traces = rows.flatMap((row) =>
     row.traceId ? [{ traceId: row.traceId, timestamp: row.startTime }] : [],
   );
   return api.topics.forTraces.useQuery(
     { projectId, traces },
-    { enabled: enabled && traces.length > 0, staleTime: 60 * 1000 },
+    { enabled: traces.length > 0, staleTime: 60 * 1000 },
   ).data;
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { stripTypeScriptTypes } from "node:module";
 import * as vm from "node:vm";
 import { env } from "../../env";

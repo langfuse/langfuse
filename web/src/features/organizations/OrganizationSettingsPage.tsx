@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
@@ -91,7 +92,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showV4Migration,
     showAiGatewayManagement: gatewayAccess.showManagement,
     showAiGatewayModels: gatewayAccess.showModels,
-    /** Only managers get disabled entries; readers see a notice on Models. */
+    showAiGatewayApiKeys: gatewayAccess.showApiKeys,
+    /** Only managers get disabled entries; others see a notice on the page. */
     gatewaySetupDisabledReason:
       gatewayAccess.showManagement &&
       gatewayAccess.isIngestionConfigured === false
@@ -113,6 +115,7 @@ const getOrganizationSettingsPages = ({
   showV4Migration,
   showAiGatewayManagement,
   showAiGatewayModels,
+  showAiGatewayApiKeys,
   gatewaySetupDisabledReason,
   showOrganizationLlmConnections,
   showFeaturePreviews,
@@ -136,6 +139,7 @@ const getOrganizationSettingsPages = ({
   showV4Migration: boolean;
   showAiGatewayManagement: boolean;
   showAiGatewayModels: boolean;
+  showAiGatewayApiKeys: boolean;
   gatewaySetupDisabledReason: string | undefined;
   showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
@@ -358,7 +362,7 @@ const getOrganizationSettingsPages = ({
     section: "AI Gateway",
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
-    show: showAiGatewayManagement,
+    show: showAiGatewayApiKeys,
     disabledReason: gatewaySetupDisabledReason,
   },
 ];

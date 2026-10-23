@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -251,6 +252,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteModel: {
     approval: "approval",
     availability: { scope: "models:CUD" },
+  },
+  listLlmConnections: {
+    approval: "auto",
+    availability: { scope: "llmApiKeys:read" },
   },
   listObservations: {
     approval: "auto",

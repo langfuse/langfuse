@@ -151,7 +151,8 @@ describe("MCP connection auth parity", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const org = await createApiKey(prisma, {
-      owner: OrganizationId(base.orgId),
+      tenant: OrganizationId(base.orgId),
+      scope: OrganizationId(base.orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
     });
@@ -161,7 +162,8 @@ describe("MCP connection auth parity", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const agent = await createApiKey(prisma, {
-      owner: ProjectId(base.projectId),
+      tenant: OrganizationId(base.orgId),
+      scope: ProjectId(base.projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,

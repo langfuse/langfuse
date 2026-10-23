@@ -5,7 +5,7 @@ import {
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useHasProjectAccess } from "@/src/features/rbac";

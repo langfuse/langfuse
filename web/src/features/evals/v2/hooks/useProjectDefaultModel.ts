@@ -1,10 +1,10 @@
 import { showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
-import { supportedModels } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 import { getJudgeModelProviderAdapters } from "@/src/features/evals/v2/judgeModel";
+import { getConnectionAvailableModels } from "@/src/features/llm-api-key";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
@@ -105,14 +105,7 @@ export function useProjectDefaultModel({
     connectionsPending: connectionsQuery.isPending,
     providerGroups: connections.map<[string, string[]]>((connection) => [
       connection.provider,
-      Array.from(
-        new Set([
-          ...connection.customModels,
-          ...(connection.withDefaultModels
-            ? supportedModels[connection.adapter]
-            : []),
-        ]),
-      ),
+      getConnectionAvailableModels(connection),
     ]),
     providerAdapters: getJudgeModelProviderAdapters(connections),
     canRead,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
@@ -458,6 +459,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
+        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -506,6 +508,7 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
+            transcriptSource: input.transcriptSource,
           });
         },
       );

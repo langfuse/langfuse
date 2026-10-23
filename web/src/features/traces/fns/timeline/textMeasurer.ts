@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Duration-label text measurement — ported from Sentry's
  * `traceRenderers/traceTextMeasurer.tsx`.

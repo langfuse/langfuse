@@ -15,6 +15,7 @@ vi.mock("../repositories", () => ({
 
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: mockShouldSkipObservationsFinal,
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 import {

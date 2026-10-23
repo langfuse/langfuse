@@ -8,6 +8,24 @@ import {
 } from "./clickhouse";
 import { getPublishedTopicMaps, listTopicFacets } from "./postgres";
 
+// Summaries start at a trace's first observation, so the lower bound gets the trace slack.
+function topicTimeRange(filter: FilterState) {
+  const bounds = filter.flatMap((condition) =>
+    condition.type === "datetime" &&
+    (condition.column === "startTime" || condition.column === "Start Time")
+      ? [condition]
+      : [],
+  );
+  const lower = bounds.find((condition) => condition.operator.startsWith(">"));
+  const upper = bounds.find((condition) => condition.operator.startsWith("<"));
+  return {
+    from: lower
+      ? new Date(lower.value.getTime() - TRACE_START_SLACK_MS)
+      : new Date(0),
+    to: new Date((upper?.value ?? new Date()).getTime() + 1),
+  };
+}
+
 /**
  * Turns topic filters into ClickHouse conditions on the events query, so membership is
  * resolved inside the same query instead of shipping trace ids. Names map to stable topic
@@ -48,22 +66,4 @@ export async function topicFilterConditions(
       }),
     ];
   });
-}
-
-// Summaries start at a trace's first observation, so the lower bound gets the trace slack.
-function topicTimeRange(filter: FilterState) {
-  const bounds = filter.flatMap((condition) =>
-    condition.type === "datetime" &&
-    (condition.column === "startTime" || condition.column === "Start Time")
-      ? [condition]
-      : [],
-  );
-  const lower = bounds.find((condition) => condition.operator.startsWith(">"));
-  const upper = bounds.find((condition) => condition.operator.startsWith("<"));
-  return {
-    from: lower
-      ? new Date(lower.value.getTime() - TRACE_START_SLACK_MS)
-      : new Date(0),
-    to: new Date((upper?.value ?? new Date()).getTime() + 1),
-  };
 }

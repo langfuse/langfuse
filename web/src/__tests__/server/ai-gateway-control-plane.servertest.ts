@@ -269,6 +269,32 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it.skipIf(env.NODE_ENV === "development")(
+    "turns the gateway off on a self-hosted deployment without a gateway",
+    async () => {
+      const { caller, org } = await prepare();
+      const original = {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+        LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      };
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "false",
+        LANGFUSE_AI_GATEWAY_ENABLED: "true",
+      });
+
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        Object.assign(env, original);
+      }
+    },
+  );
+
   it("enforces admin scope and validates the ingestion project organization", async () => {
     const owner = await prepare();
     const member = await prepare(Role.MEMBER);
@@ -340,6 +366,29 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isConfigured: false });
   });
 
+  it("gives key owners the gateway URL and enabled providers without connection details", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-test-client-setup",
+    });
+
+    const setup = await member.aiGateway.getClientSetup({
+      orgId: owner.org.id,
+    });
+    expect(setup).toEqual({
+      gatewayBaseUrl: expect.any(String),
+      providers: ["OPENAI"],
+    });
+    await expect(
+      viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("redirects gateway managers to Configuration until ingestion is set up", async () => {
     const owner = await prepare();
     const memberSession = {
@@ -379,11 +428,11 @@ describe("AI gateway control plane", () => {
     ).resolves.toBeNull();
   });
 
-  it("requires an ingestion project unless ingestion mode is NONE", async () => {
+  it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
     const { caller, org } = await prepare();
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
       await expect(
         caller.aiGateway.updateConfig({
           orgId: org.id,
@@ -697,6 +746,150 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow("Gateway API key not found");
   });
 
+  it("scopes gateway API keys to their creator for members", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+
+    const memberList = await member.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(memberList.data.map(({ apiKey }) => apiKey.id)).toEqual([
+      memberKey.id,
+    ]);
+    expect(memberList.data[0]?.apiKey.user).toMatchObject({
+      name: "Gateway member",
+    });
+
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.map(({ apiKey }) => [apiKey.id, apiKey.user?.name]),
+    ).toEqual(
+      expect.arrayContaining([
+        [ownerKey.id, "Gateway tester"],
+        [memberKey.id, "Gateway member"],
+      ]),
+    );
+
+    const search = async (
+      caller: typeof member,
+      searchQuery: string,
+    ): Promise<string[]> =>
+      (
+        await caller.aiGateway.listApiKeys({ orgId: owner.org.id, searchQuery })
+      ).data.map(({ apiKey }) => apiKey.id);
+    expect(await search(owner.caller, "owner KEY")).toEqual([ownerKey.id]);
+    expect(await search(owner.caller, "gateway member")).toEqual([
+      memberKey.id,
+    ]);
+    expect(await search(owner.caller, "%")).toEqual([]);
+    expect(await search(member, "owner key")).toEqual([]);
+
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
+    ).rejects.toThrow("Gateway API key not found");
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      viewer.aiGateway.listApiKeys({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      viewer.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets only gateway managers issue service-account keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+
+    const serviceKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service key",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.find(({ apiKey }) => apiKey.id === serviceKey.id)?.apiKey
+        .user,
+    ).toBeNull();
+
+    await expect(
+      member.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        metadata: {},
+        issuedAs: "serviceAccount",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
+    ).toEqual([]);
+  });
+
+  it.each(["legacy", "shadow"] as const)(
+    "keeps gateway API key creation admin-only when API_AUTH_MIGRATION is %s",
+    async (migration) => {
+      const originalMigration = env.API_AUTH_MIGRATION;
+      Object.assign(env, { API_AUTH_MIGRATION: migration });
+      try {
+        const owner = await prepare();
+        const member = await createCallerForOrganizationRole(
+          owner,
+          Role.MEMBER,
+        );
+
+        const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+
+        await expect(
+          member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+        await expect(
+          admin.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+      } finally {
+        Object.assign(env, { API_AUTH_MIGRATION: originalMigration });
+      }
+    },
+  );
+
   it("rejects gateway API key expiration dates in the past", async () => {
     const { caller, org } = await prepare();
 
@@ -731,6 +924,7 @@ describe("AI gateway control plane", () => {
     const key = await apiKeyService.create({
       organizationId: org.id,
       metadata: {},
+      issuedAs: "user",
       session,
     });
 
@@ -928,59 +1122,6 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
-  });
-
-  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
-    configureGatewayJwtSigning();
-    const { caller, org, project } = await prepare();
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
-      await caller.aiGateway.updateConfig({
-        orgId: org.id,
-        defaultIngestionProjectId: project.id,
-        ingestionMode: "NONE",
-      });
-      await caller.aiGateway.createConnection({
-        orgId: org.id,
-        name: "OpenAI",
-        provider: "OPENAI",
-        credential: "sk-test-openai",
-      });
-      const gatewayKey = await caller.aiGateway.createApiKey({
-        orgId: org.id,
-        metadata: {},
-      });
-
-      const result = await authenticateRequest({
-        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-        apiFormat: "openai.responses",
-        model: "gpt-4o",
-      });
-      expect(result.ingestion_mode).toBe("none");
-      expect(result.ingestion).toBeNull();
-      expect(result.attribution.project_id).toBe(project.id);
-
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "NONE",
-        }),
-      ).rejects.toThrow("only available on self-hosted deployments");
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "USAGE",
-        }),
-      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
-    } finally {
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
-    }
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {
@@ -1637,7 +1778,8 @@ describe("AI gateway control plane", () => {
     try {
       const { org, user } = await prepare();
       const adminKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
         role: SystemRoleId("ADMIN"),
         createdBy: UserId(user.id),
       });

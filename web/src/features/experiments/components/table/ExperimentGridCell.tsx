@@ -1,7 +1,7 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, react/no-unstable-nested-components */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -174,7 +174,7 @@ const ScoreItem = ({
       placement="bottom-start"
       onClick={(event) => event.stopPropagation()}
       content={
-        <div className="max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
+        <div className="ph-no-capture max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
           <div className="flex flex-col gap-3">
             <span className="font-bold">{name}</span>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
