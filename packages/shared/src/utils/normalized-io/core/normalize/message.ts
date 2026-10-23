@@ -11,7 +11,7 @@ import { normalizeFinishReason } from "./finish-reason";
 import { normalizeMediaPartsFromString } from "./message-parts/media";
 import { extractCitations } from "./message-parts/text";
 import { normalizePartValue, normalizePartList } from "./part";
-import { coerceRole, normalizeRole } from "./role";
+import { coerceRole, normalizeRole, withDeclaredRole } from "./role";
 import type { ParserContext } from "../parser-context";
 import { providersInOrder } from "../utils/providers";
 
@@ -172,15 +172,23 @@ export function normalizeMessage(
       }
     }
     const parts = normalizeMediaPartsFromString(value);
-    return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
+    return parts.length > 0
+      ? { role: fallbackRole, roleInferred: true, parts, source }
+      : null;
   }
   if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
 
   const envelopeContext: MessageEnvelopeContext = {
     source,
     normalizePartList: (parts) => normalizePartList(parts, parserContext),
-    normalizeMessage: (nestedValue, nestedFallbackRole) =>
-      normalizeMessage(nestedValue, nestedFallbackRole, parserContext),
+    normalizeMessage: (nestedValue, nestedFallbackRole) => {
+      const nested = normalizeMessage(
+        nestedValue,
+        nestedFallbackRole,
+        parserContext,
+      );
+      return nested ? withDeclaredRole(nested) : null;
+    },
     isMessageLike,
     normalizeFinishReason,
   };
@@ -214,14 +222,16 @@ export function normalizeMessage(
 
   const nestedContent = asRecord(value.content);
   const recognizedRole = normalizeRole(value);
-  let role =
-    recognizedRole ??
-    (nestedContent ? normalizeRole(nestedContent) : undefined) ??
-    fallbackRole;
+  const nestedRole = nestedContent ? normalizeRole(nestedContent) : undefined;
+  let role = recognizedRole ?? nestedRole ?? fallbackRole;
 
   const parts = normalizeMessageContent(value, nestedContent, parserContext);
   applySiblingFields(value, parts, parserContext);
   role = coerceRole(role, value, parts);
+  const roleInferred =
+    recognizedRole === undefined &&
+    nestedRole === undefined &&
+    role === fallbackRole;
 
   // Last resort for non-message payloads (function-span args/results, plain
   // records, {text} items): represent them instead of dropping — the trace
@@ -249,6 +259,7 @@ export function normalizeMessage(
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
         ...(senderName ? { senderName } : {}),
         role,
+        ...(roleInferred ? { roleInferred } : {}),
         parts,
         ...(finishReason ? { finishReason } : {}),
         source,

@@ -223,6 +223,7 @@ export function IOPreviewPretty({
     toolCallsByName,
     messageToToolCallNumbers,
     inputMessageCount,
+    rolesInferred,
   } = parserResult;
 
   const characterLimit = useMarkdownRenderCharacterLimit();
@@ -337,11 +338,15 @@ export function IOPreviewPretty({
       onClosed={() => setCorrectionOpen(false)}
     />
   ) : null;
-  // Only generations hold a conversation; tools, spans, agents and the rest
-  // are titled Input / Output rather than by role. (`isGenerationLike` is
-  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
-  const titleBySide =
+  // Non-generation I/O that the parser had to wrap into messages (plain
+  // strings, loose records) is titled Input / Output; declared chat roles
+  // keep their role titles everywhere. Generations always title by role.
+  const canTitleBySide =
     observationType !== undefined && observationType !== "GENERATION";
+  const titleBySide = {
+    input: canTitleBySide && rolesInferred.input,
+    output: canTitleBySide && rolesInferred.output,
+  };
 
   return (
     <div className="space-y-2 pt-3">

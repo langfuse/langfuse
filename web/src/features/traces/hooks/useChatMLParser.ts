@@ -45,6 +45,8 @@ export interface ChatMLParserResult {
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
   inputMessageCount: number;
+  /** Per side: every message took the side's default role (non-chat I/O). */
+  rolesInferred: { input: boolean; output: boolean };
 }
 
 /**
@@ -191,6 +193,7 @@ function emptyChatMLParserResult(): ChatMLParserResult {
     toolCallsByName: new Map(),
     messageToToolCallNumbers: new Map(),
     inputMessageCount: 0,
+    rolesInferred: { input: false, output: false },
   };
 }
 
@@ -224,6 +227,9 @@ export function parseChatML(
       additionalInput: extractAdditionalInput(parsedInput),
       ...toolBookkeeping,
       inputMessageCount,
+      // Input only renders when it parsed as chat; output falls back to one
+      // synthesized assistant message.
+      rolesInferred: { input: false, output: !outResult.success },
     };
   } catch {
     return emptyChatMLParserResult();

@@ -176,6 +176,11 @@ export const normalizedMessageSchema = z.object({
    * do when they put the agent name in the role field.
    */
   senderName: z.string().optional(),
+  /**
+   * The source declared no role; `role` is the side's default (user for
+   * input, assistant for output). Plain strings and loose records carry it.
+   */
+  roleInferred: z.literal(true).optional(),
   parts: z.array(normalizedMessagePartSchema),
   /**
    * Turn metadata, not conversation content: a message field rather than a part

@@ -390,6 +390,7 @@ describe("useChatMLParser", () => {
       toolCallsByName: new Map(),
       messageToToolCallNumbers: new Map(),
       inputMessageCount: 0,
+      rolesInferred: { input: false, output: false },
     };
 
     const { result } = renderHook(() =>

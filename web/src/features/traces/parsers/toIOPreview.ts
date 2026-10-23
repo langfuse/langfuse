@@ -295,6 +295,10 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
       count + (source === "input" ? messages.length : 0),
     0,
   );
+  const rolesInferredOn = (side: NormalizedMessage["source"]) =>
+    io.messages
+      .filter((message) => message.source === side)
+      .every((message) => message.roleInferred === true);
   const bookkeeping = computeToolCallBookkeeping(
     allMessages,
     inputMessageCount,
@@ -308,6 +312,10 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
     // The parser removes each field as it consumes it, so this is the leftover.
     additionalInput: io.additionalInput,
     inputMessageCount,
+    rolesInferred: {
+      input: rolesInferredOn("input"),
+      output: rolesInferredOn("output"),
+    },
     ...bookkeeping,
   };
 }
