@@ -37,16 +37,20 @@ export function selfTimeMs(node: TreeNode): number {
 
 /**
  * The one observation with the most self time, from the unfiltered roots.
- * The trace root is excluded: the TRACE wrapper, and a sole top-level
- * observation, whose untracked time is the wrapper's. Ties go to the earliest
- * start. Null when fewer than two observations compete or the winner has no
- * self time.
+ * The trace root is excluded: the TRACE wrapper, the v4 root observation, and
+ * a sole top-level observation, whose untracked time is the wrapper's. Ties go
+ * to the earliest start. Null when fewer than two observations compete or the
+ * winner has no self time.
  */
-export function findSlowestObservationId(roots: TreeNode[]): string | null {
+export function findSlowestObservationId(
+  roots: TreeNode[],
+  rootObservationId?: string,
+): string | null {
   const traceRoot = roots.find((root) => root.type === "TRACE");
   const topLevel = traceRoot ? traceRoot.children : roots;
   const excluded = new Set<string>();
   if (traceRoot) excluded.add(traceRoot.id);
+  if (rootObservationId) excluded.add(rootObservationId);
   if (topLevel.length === 1 && topLevel[0]) excluded.add(topLevel[0].id);
 
   let best: TreeNode | null = null;

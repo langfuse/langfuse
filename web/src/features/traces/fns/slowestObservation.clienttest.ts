@@ -123,4 +123,12 @@ describe("findSlowestObservationId", () => {
     ];
     expect(findSlowestObservationId(roots)).toBe("b");
   });
+
+  it("excludes the v4 root observation even beside an orphaned sibling root", () => {
+    const roots = [
+      node("root", 0, 10000, [node("a", 0, 1000), node("b", 1000, 5000)]),
+      node("orphan", 500, 700),
+    ];
+    expect(findSlowestObservationId(roots, "root")).toBe("b");
+  });
 });

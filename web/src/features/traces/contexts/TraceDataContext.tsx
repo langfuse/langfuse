@@ -58,7 +58,9 @@ interface TraceDataContextValue {
   /** Trace-wide cost/duration totals for metric emphasis. Derived from the
    * UNFILTERED tree so level filtering cannot change which rows read bold. */
   metricEmphasis: TraceMetricEmphasis;
-  /** Observation with the most self time, from the UNFILTERED tree. */
+  /** Observation with the most self time, from the UNFILTERED tree. Null on a
+   * truncated trace: a parent whose children fell past the cap would be
+   * credited their time. */
   slowestObservationId: string | null;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
@@ -203,7 +205,9 @@ export function TraceDataProvider({
       traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
       metricEmphasis: uiData.metricEmphasis,
-      slowestObservationId: uiData.slowestObservationId,
+      slowestObservationId: truncatedAtObservations
+        ? null
+        : uiData.slowestObservationId,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,

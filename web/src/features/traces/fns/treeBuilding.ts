@@ -557,7 +557,10 @@ export function buildTraceUiData(
 } {
   const { roots, nodeMap } = buildTraceTree(trace, observations);
   const metricEmphasis = computeTraceMetricEmphasis(roots);
-  const slowestObservationId = findSlowestObservationId(roots);
+  const slowestObservationId = findSlowestObservationId(
+    roots,
+    trace.rootObservationId,
+  );
 
   // Handle empty roots case
   if (roots.length === 0) {
