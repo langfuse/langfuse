@@ -1,8 +1,10 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { TopicBadge } from "@/src/features/topics/TopicBadge";
-import { topicBadgeColor } from "@/src/features/topics/topic-map-colors";
+import {
+  topicBadgeColor,
+  topicColor,
+} from "@/src/features/topics/topic-map-colors";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
@@ -27,7 +29,28 @@ export function useTraceTopicFacets(trace: {
   );
 }
 
-/** Trace header: a "topics" count badge whose hover card lists every facet summary of the trace. */
+function TopicDot({ topicIndex }: { topicIndex: number }) {
+  return (
+    <span
+      aria-hidden
+      className="size-2 shrink-0 rounded-full"
+      style={{ backgroundColor: topicColor(topicIndex) }}
+    />
+  );
+}
+
+function TopicChip({ name, topicIndex }: { name: string; topicIndex: number }) {
+  return (
+    <BadgeShell color={topicBadgeColor(topicIndex)}>
+      <TopicDot topicIndex={topicIndex} />
+      <span className="truncate" title={name}>
+        {name}
+      </span>
+    </BadgeShell>
+  );
+}
+
+/** Trace header: the trace's first topic, with a hover card listing every facet result. */
 export function TraceTopicsHoverCard({
   projectId,
   facets,
@@ -35,49 +58,66 @@ export function TraceTopicsHoverCard({
   projectId: string;
   facets: TraceTopicFacet[];
 }) {
+  const assigned = facets.filter((facet) => facet.topicName);
+  const lead = assigned[0];
   return (
     <HoverCard
       openDelay={200}
       placement="bottom-start"
       content={
         <div className="flex w-96 flex-col">
+          <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+            <span className="text-sm font-bold">Topics</span>
+            <TextLink
+              path={`/project/${encodeURIComponent(projectId)}/topics`}
+              value="Open in Topics"
+            />
+          </div>
           {facets.map((facet) => (
             <div
               key={facet.facetId}
-              className="flex flex-col gap-1.5 border-b px-3 py-2.5"
+              className="flex flex-col gap-1.5 border-b px-4 py-3 last:border-b-0"
             >
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-muted-foreground pt-0.5 text-xs font-bold uppercase">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground text-sm">
                   {facet.name}
                 </span>
-                <TopicBadge
-                  row={facet}
-                  color={topicBadgeColor(facet.topicIndex)}
-                  size="sm"
-                />
+                {facet.topicName ? (
+                  <TopicChip
+                    name={facet.topicName}
+                    topicIndex={facet.topicIndex}
+                  />
+                ) : (
+                  <span className="text-muted-foreground text-xs">
+                    {facet.outcome.replaceAll("_", " ")}
+                  </span>
+                )}
               </div>
-              <p className="text-foreground-secondary text-xs">
-                {facet.summary}
-              </p>
+              {facet.topicName && facet.summary && (
+                <p className="text-sm">{facet.summary}</p>
+              )}
             </div>
           ))}
-          <div className="bg-muted/50 px-3 py-2">
-            <TextLink
-              path={`/project/${encodeURIComponent(projectId)}/topics`}
-              value="Open Topics"
-            />
-          </div>
         </div>
       }
     >
       {({ getTriggerProps }) => (
         <span className="inline-flex" {...getTriggerProps()}>
-          <Badge
-            color="ghost"
-            font="mono"
-            label="topics"
-            text={String(facets.filter((facet) => facet.topicName).length)}
-          />
+          {lead?.topicName ? (
+            <BadgeShell color="ghost">
+              <TopicDot topicIndex={lead.topicIndex} />
+              <span className="truncate" title={lead.topicName}>
+                {lead.topicName}
+              </span>
+              {assigned.length > 1 && (
+                <span className="text-muted-foreground">
+                  +{assigned.length - 1}
+                </span>
+              )}
+            </BadgeShell>
+          ) : (
+            <Badge color="ghost" text="No topics" />
+          )}
         </span>
       )}
     </HoverCard>
