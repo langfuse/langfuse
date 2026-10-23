@@ -72,7 +72,8 @@ const issuesRun = {
   error: null,
   topics: [
     definition("timeouts", "Tool call timeouts", "run-2"),
-    definition("refunds", "Refund loops", "run-2"),
+    // Reused unchanged from the previous run.
+    definition("refunds", "Refund loops", "run-1"),
   ],
 };
 const oldRun = {
@@ -222,14 +223,16 @@ describe("unstable Topics public API", () => {
       projectId,
       page: 1,
       limit: 50,
-      filter: [{ type: "string", column: "prompt", operator: "=", value: "x" }],
+      filter: [
+        { type: "string", column: "constructor", operator: "=", value: "x" },
+      ],
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(StructuredPublicApiError);
     expect(error).toMatchObject({
       httpCode: 400,
       code: "invalid_filter_value",
       details: {
-        column: "prompt",
+        column: "constructor",
         allowedValues: ["id", "name", "description", "isBuiltIn", "active"],
       },
     });
@@ -264,7 +267,7 @@ describe("unstable Topics public API", () => {
         runId: "run-2",
         traceCount: 2,
       },
-      expect.objectContaining({ id: "refunds", traceCount: 0 }),
+      expect.objectContaining({ id: "refunds", runId: "run-1", traceCount: 0 }),
     ]);
     expect(result.facets).toEqual([
       {
@@ -297,6 +300,7 @@ describe("unstable Topics public API", () => {
     });
     expect(filtered.data).toEqual([]);
     expect(filtered.facets).toEqual([]);
+    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
   });
 
   it("rejects windows longer than 93 days", async () => {

@@ -176,6 +176,7 @@ export async function currentTopicResults(
                 topics: run.topics.map((topic) => ({
                   id: topic.topicId,
                   versionId: topic.topicVersionId,
+                  runId: topic.createdByRunId,
                   name: topic.name,
                   description: topic.description,
                 })),

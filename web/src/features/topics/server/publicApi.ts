@@ -25,8 +25,7 @@ type FilterColumns<T> = Record<
 
 /**
  * Public read access uses the project gate only: API keys carry no user, so
- * the UI's per-user feature preview cannot apply. Paused or blocked processing
- * does not hide stored results.
+ * the UI's per-user feature preview cannot apply.
  */
 function assertTopicsApiAvailable(projectId: string) {
   if (!isTopicsProjectEnabled(projectId))
@@ -56,10 +55,12 @@ function applyFilter<T>(
   filter: FilterState | undefined,
   columns: FilterColumns<T>,
 ): T[] {
-  if (!filter?.length) return rows;
+  if (!filter || filter.length === 0) return rows;
   const names = Object.keys(columns);
   for (const condition of filter) {
-    const column = columns[condition.column];
+    const column = Object.hasOwn(columns, condition.column)
+      ? columns[condition.column]
+      : undefined;
     if (!column)
       throw invalidFilter(
         `Unknown filter column "${condition.column}".`,
@@ -115,10 +116,10 @@ function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
   return { from: start, to: end };
 }
 
+// Matches currentTopicResults: only the latest rule's facets are active.
 async function activeFacetIds(projectId: string) {
-  return new Set(
-    (await listTopicRules(projectId)).flatMap((rule) => rule.facetIds),
-  );
+  const [rule] = await listTopicRules(projectId);
+  return new Set(rule?.facetIds);
 }
 
 function publicFacet(facet: TopicFacet, active: boolean, run: TopicRun | null) {
@@ -203,10 +204,34 @@ export async function getPublicTopicFacet(params: {
   return facet;
 }
 
-async function loadPublicTopics(projectId: string, window: TopicTimeRange) {
-  const active = await activeFacetIds(projectId);
-  const { facets } = await currentTopicResults(projectId, window, [...active]);
-  return facets.map((facet) => {
+const facetSummaryColumns: FilterColumns<{
+  facet: { id: string; name: string };
+}> = {
+  facetId: { types: ["stringOptions"], value: (row) => row.facet.id },
+  facetName: {
+    types: ["string", "stringOptions"],
+    value: (row) => row.facet.name,
+  },
+};
+
+async function loadPublicTopics(
+  projectId: string,
+  window: TopicTimeRange,
+  facetFilter?: FilterState,
+) {
+  const [facets, active] = await Promise.all([
+    listTopicFacets(projectId),
+    activeFacetIds(projectId),
+  ]);
+  const facetIds = applyFilter(
+    facets
+      .filter(({ id }) => active.has(id))
+      .map(({ id, name }) => ({ facet: { id, name } })),
+    facetFilter,
+    facetSummaryColumns,
+  ).map(({ facet }) => facet.id);
+  const results = await currentTopicResults(projectId, window, facetIds);
+  return results.facets.map((facet) => {
     const ref = {
       id: facet.facetId,
       name: facet.name,
@@ -219,7 +244,7 @@ async function loadPublicTopics(projectId: string, window: TopicTimeRange) {
       name: topic.name,
       description: topic.description,
       facet: ref,
-      runId: facet.map!.runId,
+      runId: topic.runId,
       traceCount: traceCounts.get(topic.id)?.count ?? 0,
     }));
     const currentIds = new Set(current.map(({ id }) => id));
@@ -258,14 +283,6 @@ type PublicTopic = Awaited<
   ReturnType<typeof loadPublicTopics>
 >[number]["current"][number];
 
-const facetSummaryColumns: FilterColumns<{ facet: PublicTopic["facet"] }> = {
-  facetId: { types: ["stringOptions"], value: (row) => row.facet.id },
-  facetName: {
-    types: ["string", "stringOptions"],
-    value: (row) => row.facet.name,
-  },
-};
-
 const topicColumns: FilterColumns<PublicTopic> = {
   ...facetSummaryColumns,
   id: { types: ["stringOptions"], value: (row) => row.id },
@@ -293,20 +310,21 @@ export async function listPublicTopics(params: {
 }) {
   assertTopicsApiAvailable(params.projectId);
   const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
-  const facets = await loadPublicTopics(params.projectId, window);
+  const facets = await loadPublicTopics(
+    params.projectId,
+    window,
+    params.filter?.filter(({ column }) =>
+      Object.hasOwn(facetSummaryColumns, column),
+    ),
+  );
   const topics = applyFilter(
     facets.flatMap(({ current }) => current),
     params.filter,
     topicColumns,
   ).sort(topicOrder[params.orderBy]);
-  const summaries = applyFilter(
-    facets.map(({ summary }) => summary),
-    params.filter?.filter(({ column }) => column in facetSummaryColumns),
-    facetSummaryColumns,
-  );
   return {
     window,
-    facets: summaries,
+    facets: facets.map(({ summary }) => summary),
     ...paginate(topics, params.page, params.limit),
   };
 }
