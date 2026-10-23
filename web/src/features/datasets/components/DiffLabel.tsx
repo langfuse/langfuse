@@ -52,7 +52,7 @@ export function DiffLabel({
        score going pass → fail is a diff, just not a number. */
     const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     // A named move can be longer than the cell it sits in; the badge
-    // ellipsises it and keeps the full move on hover.
+    // truncates it and keeps the full move on hover.
     return (
       <Badge color={variant ?? "yellow"} text={move} title={title ?? move} />
     );
