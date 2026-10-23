@@ -48,9 +48,11 @@ function resolveTopicResult(
 export async function currentTopicResults(
   projectId: string,
   timeRange: TopicTimeRange,
-  traceIds?: string[],
+  { facetIds, traceIds }: { facetIds?: string[]; traceIds?: string[] } = {},
 ) {
-  const facets = await listTopicFacets(projectId);
+  const facets = (await listTopicFacets(projectId)).filter(
+    (facet) => !facetIds || facetIds.includes(facet.id),
+  );
   const hasStoredSummaries =
     facets.length > 0 && (await hasStoredTopicSummaries(projectId));
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
@@ -164,6 +166,12 @@ export async function currentTopicResults(
                 topicByVersion.get(topic.assignment.topicVersionId ?? "");
               return {
                 id,
+                versionId:
+                  definition?.topicVersionId ??
+                  topic.assignment.topicVersionId ??
+                  "",
+                runId:
+                  definition?.createdByRunId ?? topic.assignment.runId ?? "",
                 name: definition?.name ?? "Unavailable topic",
                 description: definition?.description ?? "",
                 count: topic.count,
@@ -175,6 +183,8 @@ export async function currentTopicResults(
                 runId: run.id,
                 topics: run.topics.map((topic) => ({
                   id: topic.topicId,
+                  versionId: topic.topicVersionId,
+                  runId: topic.createdByRunId,
                   name: topic.name,
                   description: topic.description,
                 })),
@@ -199,9 +209,9 @@ export async function traceFacetResults(
     to: new Date(timestamp.getTime() + slackMs),
   });
   if (!unitTimeRange) return [];
-  const { facets } = await currentTopicResults(projectId, unitTimeRange, [
-    traceId,
-  ]);
+  const { facets } = await currentTopicResults(projectId, unitTimeRange, {
+    traceIds: [traceId],
+  });
   return facets.map((facet) => {
     const row = facet.rows.find((item) => item.traceId === traceId);
     return {
