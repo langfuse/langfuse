@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { SwitchInput } from "@/src/components/design-system/SwitchInput/SwitchInput";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Slider } from "@/src/components/ui/Slider";
 import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
 
@@ -67,13 +67,19 @@ export function AutomaticProcessingDialog({
       <Dialog.Body>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <SwitchInput
-              id="topics-auto-analyze"
-              aria-label="Auto-analyze"
-              description="Auto-analyze new traces as they arrive"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-            />
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="topics-auto-analyze"
+                className="text-sm font-bold"
+              >
+                Auto-analyze
+              </label>
+              <Switch
+                id="topics-auto-analyze"
+                checked={enabled}
+                onCheckedChange={setEnabled}
+              />
+            </div>
             {blocked ? (
               <p className="text-destructive text-sm">
                 Choose every model in Settings before turning this on.
