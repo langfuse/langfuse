@@ -488,6 +488,8 @@ function TopicsWorkspaceContent({
           !results.error &&
           !hasStoredSummaries;
         const showOnboarding = showSetupProgress || showLanding;
+        const landingOnly =
+          showLanding && !showSetupProgress && !setupBlockedReason;
         return (
           <Page
             headerProps={{
@@ -522,9 +524,7 @@ function TopicsWorkspaceContent({
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
-                  menuOnly={
-                    showLanding && !showSetupProgress && !setupBlockedReason
-                  }
+                  menuOnly={landingOnly}
                 />
               ),
               actionButtonsMenu: ({ closeMenu }) => {
@@ -535,7 +535,7 @@ function TopicsWorkspaceContent({
                 return (
                   <TopicsActionsMenu
                     triggerAction={
-                      pipeline.available
+                      pipeline.available && !landingOnly
                         ? {
                             label: "Manual processing",
                             disabled: false,
