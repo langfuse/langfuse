@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { ExternalLink, type IconComponent } from "@langfuse/icons";
+import type { IconComponent } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { Button as OutlineButton } from "@/src/components/ui/button";
+import { Button as MenuTriggerButton } from "@/src/components/ui/button";
 
 export type GatewaySetupEmptyStateProps = {
   icon: IconComponent;
@@ -49,12 +49,7 @@ function EmptyStateAction({
       return <MenuAction action={action} />;
     case "link":
       return (
-        <OutlineButton variant="outline" className="gap-1.5" asChild>
-          <a href={action.href} target="_blank" rel="noopener">
-            {action.label}
-            <ExternalLink size="sm" color="inherit" aria-hidden />
-          </a>
-        </OutlineButton>
+        <Button variant="outline" text={action.label} href={action.href} />
       );
     case "button":
       return (
@@ -81,7 +76,7 @@ function MenuAction({ action }: { action: MenuActionDefinition }) {
     >
       {({ getTriggerProps }) => (
         /** The design-system Button does not forward floating-ui trigger handlers. */
-        <OutlineButton
+        <MenuTriggerButton
           variant="outline"
           className="gap-1.5"
           disabled={isDisabled}
@@ -89,7 +84,7 @@ function MenuAction({ action }: { action: MenuActionDefinition }) {
         >
           {action.label}
           <DropdownIndicator nudge />
-        </OutlineButton>
+        </MenuTriggerButton>
       )}
     </DropdownMenu>
   );
