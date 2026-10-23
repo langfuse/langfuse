@@ -18,6 +18,10 @@ service:
         to retrieve the next page of results. The `limit` parameter is a maximum: a page may contain
         fewer items than the requested limit, including zero items, while `meta.cursor` is present.
         Continue requesting pages until `meta.cursor` is absent.
+        With adaptive scanning enabled (the default), requests without a lower start-time bound
+        search from the project's creation time. Customers can backfill observations with earlier
+        timestamps; to retrieve those observations, provide an explicit `fromStartTime` or a
+        lower `startTime` bound in the structured `filter`.
 
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
@@ -97,7 +101,11 @@ service:
             docs: Optional filter for observations where the environment is one of the provided values.
           fromStartTime:
             type: optional<datetime>
-            docs: Retrieve only observations with a start_time on or after this datetime (ISO 8601).
+            docs: |
+              Retrieve only observations with a start_time on or after this datetime (ISO 8601).
+              With adaptive scanning enabled (the default), the project's creation time is used
+              when no lower start-time bound is supplied. Set an explicit lower bound to retrieve
+              backfilled observations whose timestamps precede project creation.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only observations with a start_time before this datetime (ISO 8601).

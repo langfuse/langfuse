@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const mockQueryClickhouse = vi.hoisted(() => vi.fn());
+const mockProject = vi.hoisted(() => vi.fn());
 const mockQueryClickhouseWithProgress = vi.hoisted(() => vi.fn());
 let charCounter = 0;
 
@@ -45,11 +46,9 @@ import {
   getObservationsV2FromEventsTableForPublicApi,
   getObservationsV2PageFromEventsTableForPublicApi,
 } from "./events";
-import {
-  ClickHouseQueryAbortedError,
-  ClickHouseResourceError,
-} from "./clickhouse";
+import { ClickHouseQueryAbortedError } from "./clickhouse";
 import { type EventsTableFilterState } from "../../types";
+import { prisma } from "../../db";
 
 const inputContainsFilter: EventsTableFilterState = [
   { type: "string", column: "input", operator: "contains", value: "needle" },
@@ -114,6 +113,10 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     vi.clearAllMocks();
     mockQueryClickhouseWithProgress.mockReset();
     mockQueryClickhouse.mockResolvedValue([]);
+    mockProject.mockResolvedValue({
+      createdAt: new Date("2026-10-17T00:00:00Z"),
+    });
+    vi.spyOn(prisma.project, "findUnique").mockImplementation(mockProject);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -170,6 +173,7 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     });
 
     expect(page.items.map((row) => row.id)).toEqual(["newer", "older"]);
+    expect(mockProject).not.toHaveBeenCalled();
     expect(page.cursor).toEqual({
       lastStartTimeTo: new Date("2026-10-04T00:00:00.000Z"),
       lastTraceId: "trace-1",
@@ -196,23 +200,24 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
           type: "datetime",
           column: "startTime",
           operator: ">=",
-          value: new Date("2026-10-17T00:00:00Z"),
+          value: new Date("2026-10-10T00:00:00Z"),
         },
         {
           type: "datetime",
           column: "startTime",
           operator: "<=",
-          value: new Date("2026-10-18T00:00:00Z"),
+          value: new Date("2026-10-11T00:00:00Z"),
         },
       ],
     });
 
     expect(page).toEqual({ items: [], cursor: undefined });
+    expect(mockProject).not.toHaveBeenCalled();
     expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(1);
     const call = mockQueryClickhouseWithProgress.mock.calls[0][0];
     expect(scanBounds(call)).toEqual({
-      from: "2026-10-17 00:00:00.000",
-      to: "2026-10-18 00:00:00.000",
+      from: "2026-10-10 00:00:00.000",
+      to: "2026-10-11 00:00:00.000",
     });
     expect(
       [
@@ -319,9 +324,8 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     ).toBe("2026-10-12 00:00:00.000");
   });
 
-  it("bounds an unbounded request by the project's oldest row and preserves future timestamps", async () => {
+  it("uses project creation time without a ClickHouse preflight and preserves future timestamps", async () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-19T00:00:00Z"));
-    mockProgressQuery(rowEvent({ start_time: "2026-10-17 00:00:00.000" }));
     mockProgressQuery(
       rowEvent(observation("future", "2026-10-20 00:00:00.000")),
     );
@@ -333,21 +337,23 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
 
     expect(page.items.map((row) => row.id)).toEqual(["future"]);
     expect(page.cursor).toBeUndefined();
-    expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(2);
-    const [probe, scan] = mockQueryClickhouseWithProgress.mock.calls.map(
-      ([opts]) => opts,
-    );
-    expect(probe.query).toContain("e.start_time ASC");
-    expect(probe.params.limit).toBe(1);
+    expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(1);
+    expect(mockProject).toHaveBeenCalledWith({
+      where: { id: baseOpts.projectId, deletedAt: null },
+      select: { createdAt: true },
+    });
+    const scan = mockQueryClickhouseWithProgress.mock.calls[0][0];
     expect(scanBounds(scan).from).toBe("2026-10-17 00:00:00.000");
     expect(scanBounds(scan).to).toBeUndefined();
   });
 
-  it("maps an aborted oldest-row lookup to the API timeout error", async () => {
-    mockProgressError(new ClickHouseQueryAbortedError());
-    const request = getObservationsV2PageFromEventsTableForPublicApi(baseOpts);
-    await expect(request).rejects.toBeInstanceOf(ClickHouseResourceError);
-    await expect(request).rejects.toMatchObject({ errorType: "TIMEOUT" });
+  it("finishes without querying ClickHouse when the upper bound precedes project creation", async () => {
+    const page = await getObservationsV2PageFromEventsTableForPublicApi({
+      ...baseOpts,
+      toStartTime: "2026-10-16T00:00:00Z",
+    });
+    expect(page).toEqual({ items: [], cursor: undefined });
+    expect(mockQueryClickhouseWithProgress).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -435,7 +441,6 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
 
   it("recalibrates after crossing empty history into a byte-heavy window", async () => {
     const clock = vi.spyOn(performance, "now").mockReturnValue(0);
-    mockProgressQuery(rowEvent({ start_time: "1970-01-01 00:00:00.000" }));
     mockProgressQuery(progressEvent(0));
     mockQueryClickhouseWithProgress.mockImplementationOnce(async function* () {
       clock.mockReturnValue(12_000);
@@ -448,9 +453,10 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     await getObservationsV2PageFromEventsTableForPublicApi({
       ...baseOpts,
       traceId: "trace-1",
+      fromStartTime: "1970-01-01T00:00:00Z",
       toStartTime: "2026-10-19T00:00:00Z",
     });
-    const scans = mockQueryClickhouseWithProgress.mock.calls.slice(1);
+    const scans = mockQueryClickhouseWithProgress.mock.calls;
     expect(scans).toHaveLength(3);
     expect(
       scans.map(
