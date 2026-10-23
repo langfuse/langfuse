@@ -84,54 +84,54 @@ export function TopicSetupNotice({
 
 // Decorative: trace summaries dropping into three example topics.
 const PILES = [
-  { name: "Refunds", count: 214, bars: 9, color: "violet", left: "left-3.5" },
+  { name: "Refunds", count: 214, bars: 9, color: "violet", left: "left-5" },
   {
     name: "Order status",
     count: 154,
     bars: 6,
     color: "blue",
-    left: "left-26.5",
+    left: "left-33.5",
   },
-  { name: "Address", count: 96, bars: 4, color: "amber", left: "left-49.5" },
+  { name: "Address", count: 96, bars: 4, color: "amber", left: "left-62" },
 ] as const;
 
 const SLIPS = [
   {
-    text: "Where is order 4471?",
-    color: "blue",
-    position: "top-4.5 left-9 -rotate-7",
-  },
-  {
-    text: "Wants money back",
+    text: "Refund for a double charge",
     color: "violet",
-    position: "top-0.5 left-37.5 rotate-5",
+    position: "top-7 left-15 -rotate-8",
   },
   {
-    text: "Typo in street",
+    text: "Package says delivered, not here",
+    color: "blue",
+    position: "top-1.5 left-47.5 rotate-5",
+  },
+  {
+    text: "Ship to my office instead",
     color: "amber",
-    position: "top-8.5 left-53 -rotate-4",
+    position: "top-13 left-67.5 -rotate-4",
   },
 ] as const;
 
 function SortingIllustration() {
   return (
-    <div aria-hidden="true" className="relative h-52.5 w-82.5 shrink-0">
-      <div className="bg-background absolute top-12 left-5 z-10 h-37.5 w-72.5 rounded-lg border shadow-md">
+    <div aria-hidden="true" className="relative h-62.5 w-110 shrink-0">
+      <div className="bg-background absolute top-17.5 left-10 z-10 h-45 w-90 rounded-lg border shadow-md">
         {PILES.map((pile) => (
           <div
             key={pile.name}
-            className={`absolute bottom-3 flex w-19.5 flex-col gap-1.25 ${pile.left}`}
+            className={`absolute bottom-3.5 flex w-23 flex-col gap-1.5 ${pile.left}`}
           >
-            <div className="flex flex-col-reverse gap-0.5">
+            <div className="flex flex-col-reverse gap-0.75">
               {Array.from({ length: pile.bars }, (_, index) => (
                 <span
                   key={index}
-                  className="h-1.75 rounded-xs"
+                  className="h-2.25 rounded-sm"
                   style={{ backgroundColor: fadedColor(pile.color, index) }}
                 />
               ))}
             </div>
-            <div className="text-2xs flex flex-col gap-px leading-tight">
+            <div className="flex flex-col text-xs">
               <span className="font-bold whitespace-nowrap">{pile.name}</span>
               <span className="text-muted-foreground font-mono">
                 {pile.count}
@@ -143,10 +143,10 @@ function SortingIllustration() {
       {SLIPS.map((slip) => (
         <div
           key={slip.text}
-          className={`bg-background text-2xs absolute z-20 flex items-center gap-1.5 rounded-md border px-2 py-1.25 leading-tight whitespace-nowrap shadow-md ${slip.position}`}
+          className={`bg-background absolute z-20 flex items-center gap-1.75 rounded-lg border px-2.5 py-1.75 text-xs whitespace-nowrap shadow-md ${slip.position}`}
         >
           <span
-            className="size-1.5 shrink-0 rounded-full"
+            className="size-1.75 shrink-0 rounded-full"
             style={{ backgroundColor: categoryColor(slip.color) }}
           />
           {slip.text}
