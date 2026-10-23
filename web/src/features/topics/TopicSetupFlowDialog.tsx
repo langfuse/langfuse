@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { Slider } from "@/src/components/ui/Slider";
 import { useRef, useState } from "react";
 import {
   ChevronDown,
@@ -324,18 +325,19 @@ export function TopicSetupFlowDialog({
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-bold">Sample rate</span>
                 <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={100}
-                    value={samplePercent}
-                    aria-label="Sample rate"
-                    className="accent-primary min-w-0 flex-1"
-                    disabled={!canWrite}
-                    onChange={(event) =>
-                      onSamplePercentChange(Number(event.target.value))
-                    }
-                  />
+                  <div className="min-w-0 flex-1">
+                    <Slider
+                      min={1}
+                      max={100}
+                      step={1}
+                      value={[samplePercent]}
+                      aria-label="Sample rate"
+                      disabled={!canWrite}
+                      onValueChange={(value) =>
+                        onSamplePercentChange(value[0] ?? samplePercent)
+                      }
+                    />
+                  </div>
                   <div className="w-20">
                     <Input
                       type="number"
