@@ -248,12 +248,13 @@ ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 ARG MICRO_BASE_IMAGE
 
+# BEGIN generated image labels from scripts/docker/image-labels.json;
+# edit that file and run `pnpm run docker:labels`.
 # Identify the image as Langfuse, not its UBI base. Inherited labels cannot be
 # removed, so the Red Hat and Iron Bank ones that would describe this image as
 # theirs are set empty; com.redhat.license_terms stays as the EULA pointer.
 # Release builds override the title, description, licenses, version, revision
-# and created labels. Keep in sync with worker/Dockerfile and
-# ai-gateway/Dockerfile.
+# and created labels.
 LABEL name="langfuse/langfuse" \
     summary="Langfuse web" \
     description="Langfuse web application: UI, public API and tRPC backend." \
@@ -288,6 +289,7 @@ LABEL name="langfuse/langfuse" \
     mil.dso.ironbank.os-type="" \
     mil.dso.ironbank.product.name="" \
     mil.dso.ironbank.project.id=""
+# END generated image labels
 
 WORKDIR /app
 

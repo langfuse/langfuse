@@ -282,6 +282,8 @@ jobs:
         run: pnpm run agents:check
       - name: product package versions agree
         run: pnpm change check
+      - name: Dockerfile image labels match scripts/docker/image-labels.json
+        run: pnpm run docker:labels:check
       - name: agent setup tests
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests

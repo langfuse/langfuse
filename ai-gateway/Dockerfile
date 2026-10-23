@@ -133,12 +133,13 @@ RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 ARG MICRO_BASE_IMAGE
 
+# BEGIN generated image labels from scripts/docker/image-labels.json;
+# edit that file and run `pnpm run docker:labels`.
 # Identify the image as Langfuse, not its UBI base. Inherited labels cannot be
 # removed, so the Red Hat and Iron Bank ones that would describe this image as
 # theirs are set empty; com.redhat.license_terms stays as the EULA pointer.
 # Release builds override the title, description, licenses, version, revision
-# and created labels. Keep in sync with web/Dockerfile and
-# worker/Dockerfile.
+# and created labels.
 LABEL name="langfuse/ai-gateway" \
     summary="Langfuse AI Gateway" \
     description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
@@ -173,6 +174,7 @@ LABEL name="langfuse/ai-gateway" \
     mil.dso.ironbank.os-type="" \
     mil.dso.ironbank.product.name="" \
     mil.dso.ironbank.project.id=""
+# END generated image labels
 
 COPY --from=rpm-installer /mnt/rootfs /
 COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
