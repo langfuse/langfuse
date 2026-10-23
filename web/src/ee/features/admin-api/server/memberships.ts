@@ -10,7 +10,7 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
-  assignOrgMembershipRole,
+  saveOrgMembership,
   unassignOrgMembershipRoles,
 } from "@/src/features/memberships/helpers";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -102,7 +102,7 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
-    const after = await assignOrgMembershipRole(tx, {
+    const after = await saveOrgMembership(tx, {
       orgId,
       userId: validatedBody.data.userId,
       role: validatedBody.data.role,

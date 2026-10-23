@@ -2,7 +2,7 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
-  assignOrgMembershipRole,
+  saveOrgMembership,
   createOrgMembership,
   unassignOrgMembershipRoles,
 } from "@/src/features/memberships/helpers";
@@ -98,7 +98,7 @@ async function provisionMembership({
             from: current.role,
             to: targetRole,
           });
-          const updated = await assignOrgMembershipRole(tx, {
+          const updated = await saveOrgMembership(tx, {
             orgId,
             userId,
             role: targetRole,

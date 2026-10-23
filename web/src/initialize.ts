@@ -3,8 +3,8 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  assignOrgMembershipRole,
-  assignProjectMembershipRole,
+  saveOrgMembership,
+  saveProjectMembership,
 } from "@/src/features/memberships/helpers";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
@@ -145,7 +145,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
-    const orgMembership = await assignOrgMembershipRole(prisma, {
+    const orgMembership = await saveOrgMembership(prisma, {
       userId,
       orgId: org.id,
       role: "OWNER",
@@ -168,7 +168,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
           where: { id: projectId },
           select: { orgId: true },
         });
-        await assignProjectMembershipRole(tx, {
+        await saveProjectMembership(tx, {
           orgId: project.orgId,
           userId,
           orgMembershipId: orgMembership.id,

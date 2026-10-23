@@ -17,8 +17,8 @@ import {
 } from "@langfuse/shared/src/db";
 import { withTransaction } from "@langfuse/shared/src/server";
 
-/** assignOrgMembershipRole upserts a user's organization membership with a role and mirrors it into role assignments. */
-export async function assignOrgMembershipRole(
+/** saveOrgMembership upserts a user's organization membership with a role and mirrors it into role assignments. */
+export async function saveOrgMembership(
   prisma: Prisma.TransactionClient,
   { orgId, userId, role }: { orgId: string; userId: string; role: Role },
 ): Promise<OrganizationMembership> {
@@ -47,8 +47,8 @@ export async function createOrgMembership(
   });
 }
 
-/** assignProjectMembershipRole upserts a user's project membership with a role and mirrors it into role assignments. */
-export async function assignProjectMembershipRole(
+/** saveProjectMembership upserts a user's project membership with a role and mirrors it into role assignments. */
+export async function saveProjectMembership(
   prisma: Prisma.TransactionClient,
   { orgId, ...data }: ProjectMembershipInput,
 ): Promise<ProjectMembership> {

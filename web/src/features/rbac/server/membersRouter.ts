@@ -37,8 +37,8 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
-  assignOrgMembershipRole,
-  assignProjectMembershipRole,
+  saveOrgMembership,
+  saveProjectMembership,
   unassignOrgMembershipRoles,
   unassignProjectMembershipRole,
 } from "@/src/features/memberships/helpers";
@@ -307,7 +307,7 @@ export const membersRouter = createTRPCRouter({
 
       const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const updatedMembership = await assignOrgMembershipRole(tx, {
+          const updatedMembership = await saveOrgMembership(tx, {
             orgId: input.orgId,
             userId: membership.userId,
             role: input.role,
@@ -566,16 +566,13 @@ export const membersRouter = createTRPCRouter({
 
       // Create/update
       const projectRole = input.projectRole;
-      const updatedProjectMembership = await assignProjectMembershipRole(
-        ctx.prisma,
-        {
-          orgId: input.orgId,
-          projectId: input.projectId,
-          userId: input.userId,
-          role: projectRole,
-          orgMembershipId: input.orgMembershipId,
-        },
-      );
+      const updatedProjectMembership = await saveProjectMembership(ctx.prisma, {
+        orgId: input.orgId,
+        projectId: input.projectId,
+        userId: input.userId,
+        role: projectRole,
+        orgMembershipId: input.orgMembershipId,
+      });
 
       await auditLog({
         session: ctx.session,

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  assignProjectMembershipRole,
+  saveProjectMembership,
   unassignProjectMembershipRole,
 } from "@/src/features/memberships/helpers";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -180,7 +180,7 @@ async function updateMembership(
     from: before?.role,
     to: role,
   });
-  const after = await assignProjectMembershipRole(tx, {
+  const after = await saveProjectMembership(tx, {
     orgId,
     projectId,
     userId,
