@@ -31,10 +31,181 @@ type SessionOrganization = SessionUser["organizations"][number];
 
 const plan: Plan = "cloud:team";
 
+/** callRoute invokes a Next.js API route in-process and fails on non-2xx responses. */
+async function callRoute(
+  route: (req: NextApiRequest, res: NextApiResponse) => Promise<unknown>,
+  method: "POST" | "PUT" | "DELETE",
+  authorization: string,
+  {
+    body,
+    query,
+  }: { body?: Record<string, unknown>; query?: Record<string, unknown> },
+) {
+  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+    method,
+    headers: { authorization },
+    query,
+    body,
+  });
+  await route(req, res);
+  if (res.statusCode >= 300) {
+    throw new Error(`${method} failed: ${res.statusCode} ${res._getData()}`);
+  }
+  return { status: res.statusCode };
+}
+
+/** createUser creates a user with a unique email. */
+function createUser() {
+  return prisma.user.create({
+    data: { email: `user-${randomUUID()}@example.com`, name: "Test User" },
+  });
+}
+
+/** sorted returns a sorted copy. */
+function sorted(values: string[]) {
+  return [...values].sort();
+}
+
+/** assignment formats a role assignment for comparison. */
+function assignment(orgId: string, ownerId: string, roleId: string) {
+  return `${orgId} ${ownerId} ${roleId}`;
+}
+
+/** org describes an organization-owned role assignment. */
+function org(orgId: string, role: Role) {
+  return assignment(orgId, `organization/${orgId}`, `system/${role}`);
+}
+
+/** proj describes a project-owned role assignment. */
+function proj(orgId: string, projectId: string, role: Role) {
+  return assignment(orgId, `project/${projectId}`, `system/${role}`);
+}
+
+/** rolesOf lists a user's role assignments as sorted tenant/owner/role triples. */
+async function rolesOf(userId: string) {
+  const assignments = await prisma.roleAssignment.findMany({
+    where: { principalId: UserId(userId) },
+  });
+  return sorted(
+    assignments.map((a) => assignment(a.orgId, a.ownerId, a.roleId)),
+  );
+}
+
 describe("membership role assignments", () => {
   let orgId: string;
   let projectId: string;
   let ownerId: string;
+
+  /** sessionFor builds a session that owns the given organization and its project. */
+  function sessionFor(userId: string, ownedOrgId?: string): Session {
+    const organizations = ownedOrgId
+      ? [
+          {
+            id: ownedOrgId,
+            name: ownedOrgId,
+            role: Role.OWNER,
+            plan,
+            cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
+            projects: [
+              {
+                id: projectId,
+                name: projectId,
+                role: Role.OWNER,
+                retentionDays: 30,
+                deletedAt: null,
+                metadata: {},
+              },
+            ],
+          } as unknown as SessionOrganization,
+        ]
+      : [];
+    return {
+      expires: "1",
+      user: {
+        id: userId,
+        email: `${userId}@example.com`,
+        name: userId,
+        canCreateOrganizations: true,
+        organizations,
+        featureFlags: testFeatureFlags(),
+        admin: false,
+      } as SessionUser,
+      environment: {
+        enableExperimentalFeatures: false,
+        selfHostedInstancePlan: plan,
+      },
+    };
+  }
+
+  /** callerFor calls tRPC as a user who may own an organization. */
+  function callerFor(userId: string, ownedOrgId?: string) {
+    const ctx = createInnerTRPCContext({
+      session: sessionFor(userId, ownedOrgId),
+      headers: {},
+    });
+    return appRouter.createCaller({ ...ctx, prisma });
+  }
+
+  /** ownerCaller calls tRPC as the organization owner. */
+  function ownerCaller() {
+    return callerFor(ownerId, orgId);
+  }
+
+  /** orgApiKeyHeader mints an organization API key and returns its basic auth header. */
+  async function orgApiKeyHeader() {
+    const key = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(ownerId),
+    });
+    return createBasicAuthHeader(key.publicKey, key.secretKey);
+  }
+
+  /** callOrgMemberships invokes the public organization memberships route. */
+  async function callOrgMemberships(
+    method: "PUT" | "DELETE",
+    authorization: string,
+    body: Record<string, unknown>,
+  ) {
+    return callRoute(orgMembershipsRoute, method, authorization, { body });
+  }
+
+  /** callProjectMemberships invokes the public project memberships route. */
+  async function callProjectMemberships(
+    method: "PUT" | "DELETE",
+    authorization: string,
+    body: Record<string, unknown>,
+  ) {
+    return callRoute(projectMembershipsRoute, method, authorization, {
+      body,
+      query: { projectId },
+    });
+  }
+
+  /** callScim invokes a SCIM users route. */
+  async function callScim(
+    route: typeof scimUsersRoute,
+    method: "POST" | "PUT" | "DELETE",
+    authorization: string,
+    { userId, body }: { userId?: string; body?: Record<string, unknown> },
+  ) {
+    return callRoute(route, method, authorization, {
+      body,
+      query: { id: userId },
+    });
+  }
+
+  /** orgMembershipId looks up the user's membership in the test organization. */
+  async function orgMembershipId(userId: string) {
+    const membership = await prisma.organizationMembership.findUniqueOrThrow({
+      where: { orgId_userId: { orgId, userId } },
+    });
+    return membership.id;
+  }
 
   beforeEach(async () => {
     const org = await prisma.organization.create({
@@ -377,175 +548,4 @@ describe("membership role assignments", () => {
       ]);
     });
   });
-
-  /** ownerCaller calls tRPC as the organization owner. */
-  function ownerCaller() {
-    return callerFor(ownerId, orgId);
-  }
-
-  /** callerFor calls tRPC as a user who may own an organization. */
-  function callerFor(userId: string, ownedOrgId?: string) {
-    const ctx = createInnerTRPCContext({
-      session: sessionFor(userId, ownedOrgId),
-      headers: {},
-    });
-    return appRouter.createCaller({ ...ctx, prisma });
-  }
-
-  /** sessionFor builds a session that owns the given organization and its project. */
-  function sessionFor(userId: string, ownedOrgId?: string): Session {
-    const organizations = ownedOrgId
-      ? [
-          {
-            id: ownedOrgId,
-            name: ownedOrgId,
-            role: Role.OWNER,
-            plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                name: projectId,
-                role: Role.OWNER,
-                retentionDays: 30,
-                deletedAt: null,
-                metadata: {},
-              },
-            ],
-          } as unknown as SessionOrganization,
-        ]
-      : [];
-    return {
-      expires: "1",
-      user: {
-        id: userId,
-        email: `${userId}@example.com`,
-        name: userId,
-        canCreateOrganizations: true,
-        organizations,
-        featureFlags: testFeatureFlags(),
-        admin: false,
-      } as SessionUser,
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: plan,
-      },
-    };
-  }
-
-  /** orgApiKeyHeader mints an organization API key and returns its basic auth header. */
-  async function orgApiKeyHeader() {
-    const key = await createApiKey(prisma, {
-      tenant: OrganizationId(orgId),
-      scope: OrganizationId(orgId),
-      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-      createdBy: UserId(ownerId),
-    });
-    return createBasicAuthHeader(key.publicKey, key.secretKey);
-  }
-
-  /** callOrgMemberships invokes the public organization memberships route. */
-  async function callOrgMemberships(
-    method: "PUT" | "DELETE",
-    authorization: string,
-    body: Record<string, unknown>,
-  ) {
-    return callRoute(orgMembershipsRoute, method, authorization, { body });
-  }
-
-  /** callProjectMemberships invokes the public project memberships route. */
-  async function callProjectMemberships(
-    method: "PUT" | "DELETE",
-    authorization: string,
-    body: Record<string, unknown>,
-  ) {
-    return callRoute(projectMembershipsRoute, method, authorization, {
-      body,
-      query: { projectId },
-    });
-  }
-
-  /** callScim invokes a SCIM users route. */
-  async function callScim(
-    route: typeof scimUsersRoute,
-    method: "POST" | "PUT" | "DELETE",
-    authorization: string,
-    { userId, body }: { userId?: string; body?: Record<string, unknown> },
-  ) {
-    return callRoute(route, method, authorization, {
-      body,
-      query: { id: userId },
-    });
-  }
-
-  /** orgMembershipId looks up the user's membership in the test organization. */
-  async function orgMembershipId(userId: string) {
-    const membership = await prisma.organizationMembership.findUniqueOrThrow({
-      where: { orgId_userId: { orgId, userId } },
-    });
-    return membership.id;
-  }
 });
-
-/** callRoute invokes a Next.js API route in-process and fails on non-2xx responses. */
-async function callRoute(
-  route: (req: NextApiRequest, res: NextApiResponse) => Promise<unknown>,
-  method: "POST" | "PUT" | "DELETE",
-  authorization: string,
-  {
-    body,
-    query,
-  }: { body?: Record<string, unknown>; query?: Record<string, unknown> },
-) {
-  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-    method,
-    headers: { authorization },
-    query,
-    body,
-  });
-  await route(req, res);
-  if (res.statusCode >= 300) {
-    throw new Error(`${method} failed: ${res.statusCode} ${res._getData()}`);
-  }
-  return { status: res.statusCode };
-}
-
-/** createUser creates a user with a unique email. */
-function createUser() {
-  return prisma.user.create({
-    data: { email: `user-${randomUUID()}@example.com`, name: "Test User" },
-  });
-}
-
-/** rolesOf lists a user's role assignments as sorted tenant/owner/role triples. */
-async function rolesOf(userId: string) {
-  const assignments = await prisma.roleAssignment.findMany({
-    where: { principalId: UserId(userId) },
-  });
-  return sorted(
-    assignments.map((a) => assignment(a.orgId, a.ownerId, a.roleId)),
-  );
-}
-
-/** org describes an organization-owned role assignment. */
-function org(orgId: string, role: Role) {
-  return assignment(orgId, `organization/${orgId}`, `system/${role}`);
-}
-
-/** proj describes a project-owned role assignment. */
-function proj(orgId: string, projectId: string, role: Role) {
-  return assignment(orgId, `project/${projectId}`, `system/${role}`);
-}
-
-/** assignment formats a role assignment for comparison. */
-function assignment(orgId: string, ownerId: string, roleId: string) {
-  return `${orgId} ${ownerId} ${roleId}`;
-}
-
-/** sorted returns a sorted copy. */
-function sorted(values: string[]) {
-  return [...values].sort();
-}
