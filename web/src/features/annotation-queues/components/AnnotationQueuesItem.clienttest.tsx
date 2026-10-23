@@ -54,7 +54,7 @@ vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
 vi.mock("@/src/features/events", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/src/components/ui/tooltip", () => ({

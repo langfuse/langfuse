@@ -1,8 +1,8 @@
 import { StringParam, useQueryParam } from "use-query-params";
-import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
+import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm/NewPromptForm";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 
 export const NewPrompt = () => {
   const projectId = useProjectIdFromURL();

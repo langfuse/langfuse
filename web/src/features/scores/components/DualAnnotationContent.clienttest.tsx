@@ -22,7 +22,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   ScoreCacheProvider,
   useScoreCache,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
 import { cloneElement, createRef } from "react";
