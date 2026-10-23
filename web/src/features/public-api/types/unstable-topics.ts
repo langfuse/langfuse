@@ -109,6 +109,113 @@ export const GetUnstableTopicsResponse = z
   })
   .strict();
 
+const TopicTraceCursor = z.object({
+  v: z.literal(1),
+  timestamp: z.coerce.date(),
+  traceId: z.string(),
+});
+
+export const encodeTopicTraceCursor = (cursor: {
+  timestamp: Date;
+  traceId: string;
+}) =>
+  Buffer.from(
+    JSON.stringify({
+      v: 1,
+      timestamp: cursor.timestamp.toISOString(),
+      traceId: cursor.traceId,
+    }),
+  ).toString("base64url");
+
+const booleanParam = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true");
+
+export const GetUnstableTopicTracesQuery = timeWindow.extend({
+  filter: optionalJsonParam(singleFilterList, "filter"),
+  facets: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ?.split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  includeTotal: booleanParam.default(false),
+  truncateSummaries: booleanParam.default(false),
+  orderBy: z
+    .enum(["timestamp.desc", "timestamp.asc"])
+    .default("timestamp.desc"),
+  limit: z.coerce.number().int().positive().max(500).default(50),
+  cursor: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined) return undefined;
+      try {
+        return TopicTraceCursor.parse(
+          JSON.parse(Buffer.from(value, "base64url").toString("utf-8")),
+        );
+      } catch {
+        ctx.addIssue({ code: "custom", message: "Invalid cursor." });
+        return z.NEVER;
+      }
+    }),
+});
+
+const TopicTraceFacetSchema = z
+  .object({
+    facetId: z.string(),
+    facetName: z.string(),
+    facetVersion: z.number().int().nullable(),
+    state: z.enum([
+      "complete",
+      "not_applicable",
+      "insufficient_input",
+      "not_processed",
+    ]),
+    summary: z.string().nullable(),
+    summaryTruncated: z.boolean(),
+    processedAt: z.coerce.date().nullable(),
+    assignment: z
+      .object({
+        status: z.enum(["assigned", "outlier", "awaiting_map"]),
+        topic: z
+          .object({ id: z.string(), versionId: z.string(), name: z.string() })
+          .strict()
+          .nullable(),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+
+export const GetUnstableTopicTracesResponse = z
+  .object({
+    window: WindowSchema,
+    data: z.array(
+      z
+        .object({
+          traceId: z.string(),
+          traceName: z.string(),
+          environment: z.string(),
+          timestamp: z.coerce.date(),
+          traceUrl: z.string(),
+          processedAt: z.coerce.date(),
+          facets: z.array(TopicTraceFacetSchema),
+        })
+        .strict(),
+    ),
+    meta: z
+      .object({
+        cursor: z.string().nullable(),
+        totalItems: z.number().int().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const GetUnstableTopicQuery = timeWindow.extend({
   topicId: z.string(),
 });
