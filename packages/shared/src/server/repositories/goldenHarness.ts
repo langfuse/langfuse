@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { spawnSync } from "child_process";
 import { homedir } from "os";
 import { join } from "path";

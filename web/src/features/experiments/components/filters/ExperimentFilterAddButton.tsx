@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Plus } from "@langfuse/icons";

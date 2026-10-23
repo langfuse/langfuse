@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Pure transformation functions for score analytics data
  * Extracted from analytics.tsx, SingleScoreAnalytics, TwoScoreAnalytics

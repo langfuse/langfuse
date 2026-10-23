@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment, useEffect, useRef, useState } from "react";
 
 import {

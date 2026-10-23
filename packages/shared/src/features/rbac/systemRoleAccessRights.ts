@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Role, type SystemRole } from "../../db";
 import {
   organizationRoleAccessRights,

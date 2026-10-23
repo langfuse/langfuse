@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import {
   parseClickhouseUTCDateTimeFormat,

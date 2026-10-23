@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Check, Sparkles } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Progress } from "@/src/components/design-system/Progress/Progress";

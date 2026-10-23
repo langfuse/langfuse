@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";

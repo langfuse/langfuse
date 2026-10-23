@@ -22,7 +22,10 @@ import {
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 
-import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
+import {
+  GatewayApiKeyService,
+  gatewayApiKeyCreatorScopes,
+} from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 import { GatewayConfigService } from "./config/gatewayConfigService";
@@ -137,6 +140,23 @@ export const aiGatewayRouter = createTRPCRouter({
         requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
       else requireGatewayRead({ session: ctx.session, orgId: input.orgId });
       return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
+  /** What a key owner needs to point a client at the gateway; no connection details. */
+  getClientSetup: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const connections = await new GatewayProviderService(ctx.prisma).listAll(
+        input.orgId,
+        GatewayConnectionStatus.ENABLED,
+      );
+      return {
+        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
+        providers: [
+          ...new Set(connections.map((connection) => connection.provider)),
+        ],
+      };
     }),
 
   updateConfig: protectedOrganizationProcedure
@@ -386,21 +406,30 @@ export const aiGatewayRouter = createTRPCRouter({
           .refine((date) => date == null || date.getTime() > Date.now(), {
             message: "Expiration date must be in the future",
           }),
+        issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       // Legacy public API auth ignores key roles, so a gateway key passes as an
       // organization admin key there; only managers may mint one outside enforce.
-      if (env.API_AUTH_MIGRATION === "enforce") {
+      if (env.API_AUTH_MIGRATION === "enforce" && input.issuedAs === "user") {
         requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
       } else {
         requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      }
+      for (const scope of gatewayApiKeyCreatorScopes(input.issuedAs)) {
+        throwIfNoOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope,
+        });
       }
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
         expiresAt: input.expiresAt,
+        issuedAs: input.issuedAs,
         session: ctx.session,
       });
       return key;

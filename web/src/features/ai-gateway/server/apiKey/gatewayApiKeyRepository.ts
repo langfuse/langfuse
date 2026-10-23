@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 
