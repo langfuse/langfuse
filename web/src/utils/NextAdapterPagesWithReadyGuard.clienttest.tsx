@@ -3,7 +3,7 @@ import { cleanup, render } from "@testing-library/react";
 import { useRouter } from "next/router";
 import type { QueryParamAdapter } from "use-query-params";
 
-import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWithReadyGuard";
 
 vi.mock("next/router", () => ({
   useRouter: vi.fn(),
