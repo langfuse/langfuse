@@ -1,9 +1,11 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 
 import { Role } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
+  logger,
   type NotificationEventType,
   NotificationQueue,
   QueueJobs,
@@ -23,6 +25,21 @@ type GatewayInvitationEmail = Extract<
   NotificationEventType,
   { type: "AI_GATEWAY_INVITATION" }
 >;
+
+/** Client errors carry messages written for the user; others may leak internals. */
+function getClientErrorMessage(error: unknown) {
+  if (!(error instanceof TRPCError)) return null;
+  const status = getHTTPStatusCodeFromError(error);
+  return status >= 400 && status < 500 ? error.message : null;
+}
+
+/** Job ids are logged and used as Redis keys, so they carry a hash, not the address. */
+function getInvitationJobId(payload: GatewayInvitationEmail) {
+  const recipientHash = createHash("sha256")
+    .update(payload.to.toLowerCase())
+    .digest("hex");
+  return `ai-gateway-invitation-${payload.orgId}-${payload.audience.kind}-${recipientHash}`;
+}
 
 function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
@@ -144,10 +161,17 @@ export class GatewayTeamService {
         });
         invited.add(email);
       } catch (error) {
-        failed.push({
-          email,
-          message: error instanceof Error ? error.message : "Invitation failed",
-        });
+        const message = getClientErrorMessage(error);
+        if (!message) {
+          logger.error(
+            "Failed to invite organization member to the AI Gateway",
+            {
+              organizationId,
+              error,
+            },
+          );
+        }
+        failed.push({ email, message: message ?? "Invitation failed" });
       }
     }
 
@@ -180,9 +204,7 @@ export class GatewayTeamService {
           name: QueueJobs.NotificationJob as const,
         },
         // A repeated send while the same email is still queued is dropped.
-        opts: {
-          jobId: `ai-gateway-invitation-${organizationId}-${payload.audience.kind}-${payload.to}`,
-        },
+        opts: { jobId: getInvitationJobId(payload) },
       }));
       // Failed jobs are kept for inspection, and a kept id would swallow the re-send.
       await Promise.all(

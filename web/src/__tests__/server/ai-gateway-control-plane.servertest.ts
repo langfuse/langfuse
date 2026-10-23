@@ -1,5 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -578,7 +578,7 @@ describe("AI gateway control plane", () => {
     });
 
     expect(getNotificationJob).toHaveBeenCalledWith(
-      `ai-gateway-invitation-${owner.org.id}-member-${memberEmail}`,
+      `ai-gateway-invitation-${owner.org.id}-member-${createHash("sha256").update(memberEmail).digest("hex")}`,
     );
     expect(removeFailedJob).toHaveBeenCalledOnce();
     expect(removeFailedJob.mock.invocationCallOrder[0]).toBeLessThan(
