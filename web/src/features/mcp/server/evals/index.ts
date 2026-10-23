@@ -47,11 +47,15 @@ import {
   handleDetachEvaluatorFromEvaluationRule,
 } from "./tools/manageEvaluationRuleEvaluators";
 import { handleTestEvaluator, testEvaluatorTool } from "./tools/testEvaluator";
+import {
+  handleRunBatchEvaluation,
+  runBatchEvaluationTool,
+} from "./tools/runBatchEvaluation";
 
 export const evalsFeature = {
   name: "evals",
   description:
-    "Manage evaluators and evaluation rules in the current Langfuse project",
+    "Manage evaluators and evaluation rules, and run batch evaluations, in the current Langfuse project",
   tools: [
     {
       definition: listManagedEvaluatorTemplatesTool,
@@ -102,6 +106,10 @@ export const evalsFeature = {
     {
       definition: deleteEvaluationRuleTool,
       handler: handleDeleteEvaluationRule,
+    },
+    {
+      definition: runBatchEvaluationTool,
+      handler: handleRunBatchEvaluation,
     },
   ],
 } as const satisfies McpFeatureModule;
