@@ -3134,14 +3134,14 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-      ORDER BY
-          s.timestamp desc, s.event_ts desc
       ${
         // The traces join is not deduplicated, so LIMIT 1 BY also collapses
-        // one score row per unmerged trace version.
+        // one score row per unmerged trace version. Without it the scan reads
+        // the table directly; the day first keeps the order but lets ClickHouse
+        // read the newest days first and stop after the page.
         shouldSkipScoresDedup(projectId) && !needsTraceJoin
-          ? ""
-          : "LIMIT 1 BY s.id, s.project_id"
+          ? "ORDER BY toDate(s.timestamp) desc, s.timestamp desc, s.event_ts desc"
+          : "ORDER BY s.timestamp desc, s.event_ts desc\n      LIMIT 1 BY s.id, s.project_id"
       }
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -3498,8 +3498,13 @@ const buildV3ListQuery = (
       : ""
   }
   ${filterClause ? `AND ${filterClause}` : ""}
-  ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
-  ${skipDedup ? "" : "LIMIT 1 BY s.id, s.project_id"}
+  ${
+    // Without dedup the scan reads the table directly; the day first keeps the
+    // order but lets ClickHouse read the newest days first and stop after the page.
+    skipDedup
+      ? "ORDER BY toDate(s.timestamp) DESC, s.timestamp DESC, s.id DESC, s.event_ts DESC"
+      : "ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC\n  LIMIT 1 BY s.id, s.project_id"
+  }
   LIMIT {limit: Int32}
 `;
 
