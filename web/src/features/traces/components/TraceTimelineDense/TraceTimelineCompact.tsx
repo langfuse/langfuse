@@ -14,7 +14,7 @@ import { useCallback, useState } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";

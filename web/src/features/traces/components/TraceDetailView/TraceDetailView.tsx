@@ -29,7 +29,7 @@ import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   jsonViewToggleTab,

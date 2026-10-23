@@ -1,5 +1,5 @@
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**

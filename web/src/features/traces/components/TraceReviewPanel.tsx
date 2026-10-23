@@ -3,7 +3,7 @@ import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useTraceData } from "../contexts/TraceDataContext";
+import { useTraceData } from "../contexts/TraceDataProvider";
 import { useSelection } from "../contexts/SelectionProvider";
 import { useReadPath } from "@/src/features/events";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";

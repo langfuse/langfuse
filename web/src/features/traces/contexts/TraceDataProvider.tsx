@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 /**
  * TraceDataContext - Provides read-only trace data and derived structures.
  *

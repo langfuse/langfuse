@@ -12,7 +12,7 @@
  */
 
 import { ObservationLevel } from "@langfuse/shared";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
 export function TracePanelNavigationHiddenNotice() {

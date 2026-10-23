@@ -51,7 +51,7 @@ import {
 } from "@/src/components/ui/jsonViewPreference";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { api } from "@/src/utils/api";
 

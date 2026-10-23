@@ -23,7 +23,7 @@ vi.mock("../contexts/TraceReviewPanelContext", () => ({
 vi.mock("../contexts/SelectionProvider", () => ({
   useSelection: () => ({ selectedNodeId: state.selectedNodeId }),
 }));
-vi.mock("../contexts/TraceDataContext", () => ({
+vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
     trace: { id: "trace", projectId: "project", environment: "default" },
     observations: [

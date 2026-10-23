@@ -31,7 +31,7 @@ import {
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {

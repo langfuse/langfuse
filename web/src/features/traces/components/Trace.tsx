@@ -6,7 +6,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import {
   TraceDataProvider,
   useTraceData,
-} from "@/src/features/traces/contexts/TraceDataContext";
+} from "@/src/features/traces/contexts/TraceDataProvider";
 import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,

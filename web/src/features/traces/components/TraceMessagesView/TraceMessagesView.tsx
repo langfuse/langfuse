@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";
 // TODO: Before TraceMessagesView leaves internal preview, rename the components

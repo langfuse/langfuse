@@ -6,7 +6,7 @@ import {
   type TreeNodeMetadata,
 } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";

@@ -15,7 +15,7 @@ const { mockUseSelection, mockUseTraceData, mockByIdQuery } = vi.hoisted(
 vi.mock("@/src/features/traces/contexts/SelectionProvider", () => ({
   useSelection: () => mockUseSelection(),
 }));
-vi.mock("@/src/features/traces/contexts/TraceDataContext", () => ({
+vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
   useTraceData: () => mockUseTraceData(),
 }));
 vi.mock("@/src/utils/api", () => ({

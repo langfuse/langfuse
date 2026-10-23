@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from "react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
