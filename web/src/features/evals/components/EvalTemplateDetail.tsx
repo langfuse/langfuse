@@ -9,7 +9,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   SidePanel,
@@ -193,12 +193,11 @@ export const EvalTemplateDetail = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                             }}
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
+                            color="primary"
+                            size="lg"
+                            text={`# ${template.version}`}
                             data-version-trigger="false"
-                          >
-                            # {template.version}
-                          </Badge>
+                          />
                           {index === 0 && (
                             <StatusBadge type="active" key="active" />
                           )}
