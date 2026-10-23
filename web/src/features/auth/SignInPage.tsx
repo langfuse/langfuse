@@ -30,7 +30,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Code, Key } from "@langfuse/icons";

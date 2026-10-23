@@ -50,7 +50,7 @@ vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudPrivacyNotice", () => ({
+vi.mock("@/src/features/auth/components/CloudPrivacyNotice", () => ({
   CloudPrivacyNotice: () => null,
 }));
 
