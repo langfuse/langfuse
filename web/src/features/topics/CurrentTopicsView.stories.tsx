@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
@@ -11,6 +12,8 @@ import {
 
 const topic = {
   id: "billing",
+  versionId: "billing-v1",
+  runId: "run",
   name: "Billing questions",
   description: "Invoice support",
   count: 60,

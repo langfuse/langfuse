@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   type TopicsModelSlotName,

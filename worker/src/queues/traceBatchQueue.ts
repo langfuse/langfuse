@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { backOff } from "exponential-backoff";
@@ -16,7 +17,7 @@ import {
   TraceBatchEventSchema,
   type QueueName,
   type TQueueJobTypes,
-  type Transcript,
+  type TranscriptContext,
   type TraceBatchInputReference,
 } from "@langfuse/shared/src/server";
 import {
@@ -142,7 +143,7 @@ function newestSessionId(observations: TraceBatchObservation[]) {
 
 async function summarizeTraceBatch(
   observations: TraceBatchObservation[],
-  transcript: Transcript | null,
+  context: TranscriptContext | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
   revisions: ReadonlyMap<string, string>,
@@ -197,14 +198,18 @@ async function summarizeTraceBatch(
         ...traceContext,
         jobEnqueuedAt,
         traceName: traceContext.traceName ?? "",
-        transcript,
+        transcript: context?.transcript ?? null,
         models: project.models,
         facets: project.facets,
       }),
       inputReference
         ? storeInputs(
             inputReference,
-            { transcript, traceContext },
+            {
+              transcript: context?.transcript ?? null,
+              executionIssues: context?.executionIssues ?? [],
+              traceContext,
+            },
             inputStorage,
           )
         : Promise.resolve(),
@@ -446,11 +451,11 @@ export const traceBatchQueueProcessor: Processor<
           performance.now() - enqueuedAt,
         );
         if (summaryFailed) return null;
-        let transcript: Transcript | null = null;
+        let context: TranscriptContext | null = null;
         await recordTraceBatchTranscript(observations, async (assembled) => {
-          transcript = assembled;
+          context = assembled;
         });
-        return { transcript };
+        return { context };
       });
       transcribing = transcribed.catch(() => {});
       const summary: Promise<void> = transcribed
@@ -461,7 +466,7 @@ export const traceBatchQueueProcessor: Processor<
               topicsOutcomes.push(
                 await summarizeTraceBatch(
                   observations,
-                  assembled.transcript,
+                  assembled.context,
                   topics,
                   event.timestamp,
                   revisions,

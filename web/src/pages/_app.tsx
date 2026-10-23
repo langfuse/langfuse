@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // Must stay the first import: installs a `crypto.randomUUID` fallback for
 // non-secure (plain-HTTP) origins before any other module can call it
 // (LFE-10858).
@@ -17,7 +18,7 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";

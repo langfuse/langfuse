@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
@@ -24,7 +24,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { RESOURCE_METRICS } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
 import { TemplateSelector } from "@/src/features/evals/components/TemplateSelector";
 import {

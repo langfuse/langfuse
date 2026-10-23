@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -42,7 +42,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerToo
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import {
   EvalTemplateSourceCodeLanguage,
@@ -105,18 +105,11 @@ const TemplateTypeBadge = ({
     })();
 
     return (
-      <Badge className="w-fit gap-1.5" variant="outline-solid">
-        {Icon ? <Icon size="sm" aria-hidden="true" /> : null}
-        {label}
-      </Badge>
+      <Badge color="primary" leadingIcon={Icon ?? undefined} text={label} />
     );
   }
 
-  return (
-    <Badge className="w-fit gap-1.5" variant="outline-solid">
-      LLM-as-judge
-    </Badge>
-  );
+  return <Badge color="primary" text="LLM-as-judge" />;
 };
 
 const templateTableRowHeights: CustomHeights = {
@@ -361,11 +354,7 @@ export default function EvalsTemplateTable({
       cell: (row) => {
         const resultType = row.getValue();
 
-        return (
-          <Badge className="w-fit self-start" variant="outline-solid">
-            {resultType}
-          </Badge>
-        );
+        return <Badge color="primary" text={resultType} />;
       },
     }),
     columnHelper.accessor("maintainer", {

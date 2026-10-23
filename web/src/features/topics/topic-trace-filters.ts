@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import {
   createFieldRegistry,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SkillLinkedTraces } from "./SkillLinkedTraces";

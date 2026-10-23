@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { Queue } from "bullmq";
 import { QueueJobs, QueueName, type TQueueJobTypes } from "../queues";

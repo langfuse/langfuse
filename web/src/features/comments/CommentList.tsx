@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, type ReactNode } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
@@ -9,7 +10,7 @@ import { useSession } from "next-auth/react";
 import { CommentComposer } from "./components/CommentComposer";
 import { CommentConversation } from "./components/CommentConversation";
 import { refreshCommentQueries } from "./actions/refreshCommentQueries";
-import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "./contexts/InlineCommentSelectionProvider";
 
 type CommentListProps = {
   projectId: string;

@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useState, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import {
@@ -56,6 +58,8 @@ export function TopicSetupFlowController({
           onDismiss={closeSetup}
           renderDialog={({ closeDialog }) => (
             <TopicSetupSession
+              // Rebuilds the draft with recommended models once the first connection arrives.
+              key={settings.connections.length > 0 ? "ready" : "none"}
               projectId={projectId}
               canWrite={canWrite}
               settings={settings}
@@ -89,6 +93,23 @@ function TopicSetupSession({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const canAddConnection = useHasProjectAccess({
+    projectId,
+    scope: "llmApiKeys:create",
+  });
+  // A connection added in another tab shows up when this tab regains focus.
+  useEffect(() => {
+    const refetch = () => {
+      if (document.visibilityState === "visible")
+        utils.llmApiKey.effective.invalidate({ projectId });
+    };
+    window.addEventListener("focus", refetch);
+    document.addEventListener("visibilitychange", refetch);
+    return () => {
+      window.removeEventListener("focus", refetch);
+      document.removeEventListener("visibilitychange", refetch);
+    };
+  }, [utils, projectId]);
   const save = api.topics.saveSetup.useMutation({
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
@@ -98,6 +119,7 @@ function TopicSetupSession({
     },
   });
   const startSetup = api.topics.startSetup.useMutation();
+  const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
       id: connection.id,
@@ -272,6 +294,8 @@ function TopicSetupSession({
         settings.stored.embedding?.model,
       )}
       connectionCaption={topicConnectionCaption(connections)}
+      hasConnection={connections.length > 0}
+      canAddConnection={canAddConnection}
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
@@ -287,12 +311,9 @@ function TopicSetupSession({
       onEmbeddingChange={(model) => updateModel(setDraft, "embedding", model)}
       onClusteringChange={(model) => updateModel(setDraft, "clustering", model)}
       onConfigureProviders={() => {
-        window.open(
-          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`,
-          "_blank",
-          "noopener,noreferrer",
-        );
+        window.open(connectionSettingsUrl, "_blank", "noopener,noreferrer");
       }}
+      connectionSettingsUrl={connectionSettingsUrl}
       onAdvancedOpenChange={(advancedOpen) =>
         setDraft((current) => ({ ...current, advancedOpen }))
       }

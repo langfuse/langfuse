@@ -1,8 +1,8 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { showErrorToast } from "@/src/features/notifications";
 import { SKILL_LATEST_LABEL } from "@langfuse/shared";

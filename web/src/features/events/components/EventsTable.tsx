@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import {
   useEventsSearchBar,
@@ -69,7 +69,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 import { cn } from "@/src/utils/tailwind";
-import { ObservationLevelTag } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/ObservationLevelTag";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -98,10 +98,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/DataTableRefreshButton";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import {
   useColumnOrder,
   useColumnVisibility,

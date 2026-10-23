@@ -36,6 +36,7 @@ struct ControlPlaneLimits {
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
     web_url: Url,
+    plain_http: bool,
     service_key: SecretString,
     resolve_limits: ControlPlaneLimits,
     models_limits: ControlPlaneLimits,
@@ -49,6 +50,28 @@ impl ControlPlaneConfig {
     /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
     /// query, or fragment.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
+        Self::from_parts(web_url, service_key, false)
+    }
+
+    /// Like [`Self::new`], but also accepts plain HTTP on any host.
+    ///
+    /// Only for internal traffic, such as Web's in-cluster Kubernetes Service or another
+    /// private network. Never use it for a URL that crosses the public internet: resolve
+    /// responses carry provider API keys, and requests carry the service key and
+    /// ingestion tokens, all unencrypted over HTTP.
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Configuration`] for a blank service key or an invalid
+    /// base URL. URLs require HTTP or HTTPS, with no userinfo, query, or fragment.
+    pub fn with_plain_http(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
+        Self::from_parts(web_url, service_key, true)
+    }
+
+    fn from_parts(
+        web_url: &str,
+        service_key: &str,
+        allow_plain_http: bool,
+    ) -> Result<Self, ResolutionError> {
         let url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost"
@@ -57,7 +80,8 @@ impl ControlPlaneConfig {
                     .parse::<IpAddr>()
                     .is_ok_and(|ip| ip.is_loopback())
         });
-        if !(url.scheme() == "https" || (url.scheme() == "http" && loopback))
+        let plain_http = url.scheme() == "http" && !loopback;
+        if !(url.scheme() == "https" || (url.scheme() == "http" && (loopback || allow_plain_http)))
             || url.host_str().is_none()
             || !url.username().is_empty()
             || url.password().is_some()
@@ -69,6 +93,7 @@ impl ControlPlaneConfig {
         }
         Ok(Self {
             web_url: url,
+            plain_http,
             service_key: service_key.into(),
             resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
@@ -86,6 +111,13 @@ impl ControlPlaneConfig {
         let mut url = self.web_url.clone();
         url.set_path(&format!("{}{path}", url.path().trim_end_matches('/')));
         url
+    }
+
+    /// Whether the Web URL is plain HTTP off loopback, so provider API keys, the service
+    /// key and ingestion tokens travel unencrypted.
+    #[must_use]
+    pub fn is_plain_http(&self) -> bool {
+        self.plain_http
     }
 
     pub(crate) fn service_key(&self) -> &SecretString {

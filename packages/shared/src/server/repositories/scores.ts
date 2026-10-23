@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   ScoreDataTypeType,
@@ -1779,8 +1779,28 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
   // level, so pagination follows the requested sort (and a traces-column sort can
   // reference the joined `e`).
-  const orderAndPage = `
-      ${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
+  const orderByClause = withIdTiebreaker(
+    orderByToClickhouseSql(
+      orderBy ?? null,
+      scoresTableUiColumnDefinitionsFromEvents,
+    ),
+    orderBy,
+  );
+  // The table sorts by day, not by timestamp. Putting the day first keeps the
+  // order but lets ClickHouse read the newest days first and stop after the
+  // page. Only the plain scan reads the table directly, so only it benefits.
+  const sortsByScoreTimestamp =
+    matchedOrderByColumn?.clickhouseTableName === "scores" &&
+    matchedOrderByColumn.clickhouseSelect === "timestamp";
+  const sortKeyOrderByClause =
+    sortsByScoreTimestamp && orderBy
+      ? orderByClause.replace(
+          /^ORDER BY /,
+          `ORDER BY toDate(s.timestamp) ${orderBy.order}, `,
+        )
+      : orderByClause;
+  const orderAndPage = (clause: string) => `
+      ${clause}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
 
   // Projects whose scores are never updated have one row per key, so they
@@ -1796,7 +1816,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ) s
       ${eventsJoin}
       ${outerWhereClause}
-      ${props.select === "count" ? "" : orderAndPage}
+      ${props.select === "count" ? "" : orderAndPage(sortKeyOrderByClause)}
     `;
 
   const dedupCountQuery = () => `
@@ -1845,7 +1865,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       ${eventsJoin}
-      ${orderAndPage}
+      ${orderAndPage(orderByClause)}
     `;
 
   const query = (() => {
@@ -3114,14 +3134,14 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-      ORDER BY
-          s.timestamp desc, s.event_ts desc
       ${
         // The traces join is not deduplicated, so LIMIT 1 BY also collapses
-        // one score row per unmerged trace version.
+        // one score row per unmerged trace version. Without it the scan reads
+        // the table directly; the day first keeps the order but lets ClickHouse
+        // read the newest days first and stop after the page.
         shouldSkipScoresDedup(projectId) && !needsTraceJoin
-          ? ""
-          : "LIMIT 1 BY s.id, s.project_id"
+          ? "ORDER BY toDate(s.timestamp) desc, s.timestamp desc, s.event_ts desc"
+          : "ORDER BY s.timestamp desc, s.event_ts desc\n      LIMIT 1 BY s.id, s.project_id"
       }
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -3478,8 +3498,13 @@ const buildV3ListQuery = (
       : ""
   }
   ${filterClause ? `AND ${filterClause}` : ""}
-  ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
-  ${skipDedup ? "" : "LIMIT 1 BY s.id, s.project_id"}
+  ${
+    // Without dedup the scan reads the table directly; the day first keeps the
+    // order but lets ClickHouse read the newest days first and stop after the page.
+    skipDedup
+      ? "ORDER BY toDate(s.timestamp) DESC, s.timestamp DESC, s.id DESC, s.event_ts DESC"
+      : "ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC\n  LIMIT 1 BY s.id, s.project_id"
+  }
   LIMIT {limit: Int32}
 `;
 

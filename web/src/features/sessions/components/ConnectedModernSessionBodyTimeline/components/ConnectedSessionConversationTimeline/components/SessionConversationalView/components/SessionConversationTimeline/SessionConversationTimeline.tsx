@@ -88,7 +88,12 @@ export function SessionConversationTimeline({
                 </div>
               )}
               <div className={isSingleTraceView ? "flex-1" : undefined}>
-                <SessionConversationTimelineTrace {...traceProps} />
+                {(!traceProps.isCollapsed ||
+                  traces.findIndex(
+                    (item) => item.trace.id === traceProps.trace.id,
+                  ) === virtualItem.index) && (
+                  <SessionConversationTimelineTrace {...traceProps} />
+                )}
               </div>
               {virtualItem.index === traces.length - 1 &&
                 navigation?.nextTrace && (

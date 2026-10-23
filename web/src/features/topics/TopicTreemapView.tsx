@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
@@ -62,6 +63,8 @@ export function TopicTreemapView({
           ...facet.topics,
           {
             id: UNASSIGNED_ID,
+            versionId: "",
+            runId: "",
             name: "Unassigned",
             description: "",
             count: unassignedCount,

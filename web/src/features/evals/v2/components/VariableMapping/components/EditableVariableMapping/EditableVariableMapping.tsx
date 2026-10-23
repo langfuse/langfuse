@@ -33,7 +33,7 @@ import {
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 

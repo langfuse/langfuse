@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 /**
  * SpanContent - Pure span/observation content renderer.
  *
@@ -30,8 +30,8 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
