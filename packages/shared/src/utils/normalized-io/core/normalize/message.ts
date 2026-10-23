@@ -228,10 +228,15 @@ export function normalizeMessage(
   const parts = normalizeMessageContent(value, nestedContent, parserContext);
   applySiblingFields(value, parts, parserContext);
   role = coerceRole(role, value, parts);
+  // Tool calls and results identify the turn by shape; only text, files and
+  // data payloads without a declared role take the side default blindly.
   const roleInferred =
     recognizedRole === undefined &&
     nestedRole === undefined &&
-    role === fallbackRole;
+    role === fallbackRole &&
+    parts.every(
+      (part) => part.type !== "tool-call" && part.type !== "tool-result",
+    );
 
   // Last resort for non-message payloads (function-span args/results, plain
   // records, {text} items): represent them instead of dropping — the trace

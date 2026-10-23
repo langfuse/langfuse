@@ -124,6 +124,7 @@ const message = z.object({
   id: z.string().optional(),
   role: z.enum(["system", "user", "assistant", "tool"]),
   senderName: z.string().optional(),
+  roleInferred: z.literal(true).optional(),
   parts: z.array(messagePart),
   finishReason: finishReason.optional(),
   source: z.enum(["input", "output"]),

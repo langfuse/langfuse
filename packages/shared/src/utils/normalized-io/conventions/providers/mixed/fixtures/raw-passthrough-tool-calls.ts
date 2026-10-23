@@ -36,7 +36,6 @@ export const rawPassthroughToolCallsFixture = {
       },
       {
         role: "assistant",
-        roleInferred: true,
         parts: [
           {
             type: "tool-call",
