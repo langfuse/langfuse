@@ -53,6 +53,7 @@ export function TopicTreemapView({
   peekView,
   onGenerateTopics,
   canGenerateTopics,
+  sideBySide = false,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   if (facet.topics.length === 0) {
@@ -83,12 +84,18 @@ export function TopicTreemapView({
     (row) => (row.topicId ?? null) === selectedRowTopicId,
   );
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        sideBySide && "lg:flex-row",
+      )}
+    >
       <TopicTreemap
         facet={facet}
         topics={topics}
         selectedTopicId={selected.id}
         onSelectTopic={setSelectedTopicId}
+        sideBySide={sideBySide}
       />
       <TopicTraceList
         key={selected.id}
@@ -98,7 +105,7 @@ export function TopicTreemapView({
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}
-        divider="top"
+        divider={sideBySide ? "side" : "top"}
       />
     </div>
   );
@@ -109,6 +116,7 @@ function TopicTreemap({
   topics,
   selectedTopicId,
   onSelectTopic,
+  sideBySide,
 }: TopicTreemapProps) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const total = facet.rows.length;
@@ -131,7 +139,10 @@ function TopicTreemap({
     <section
       aria-label="Topics"
       ref={ref}
-      className="relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2"
+      className={cn(
+        "relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2",
+        sideBySide && "lg:shrink lg:basis-3/5",
+      )}
     >
       {tiles.map(({ item, x, y, width, height }) => (
         <TopicTile
@@ -286,6 +297,8 @@ type TopicTreemapViewProps = {
   peekView: DataTablePeekViewProps;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  /** Treemap left, traces right on wide screens. */
+  sideBySide?: boolean;
 };
 
 type TopicTreemapProps = {
@@ -293,6 +306,7 @@ type TopicTreemapProps = {
   topics: FacetTopic[];
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
+  sideBySide: boolean;
 };
 
 type TileTier = "large" | "medium" | "small" | "tiny";

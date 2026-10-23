@@ -88,6 +88,9 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+/** Treemap on the left, traces on the right. */
+export const SideBySide = meta.story({ args: { sideBySide: true } });
+
 const manyUnassignedRows = [
   ...assignedRows,
   ...Array.from({ length: 320 }, (_, index) => ({
