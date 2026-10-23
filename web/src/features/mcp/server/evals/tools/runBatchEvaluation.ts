@@ -1,12 +1,13 @@
-import { isoDateTime, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 import { CreateObservationBatchEvaluationActionSchema } from "@/src/features/batch-actions/validation";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
+  buildStartTimeFilters,
+  ObservationMcpBatchQueryFilterSchema,
   ObservationMcpFilterBaseSchema,
-  ObservationMcpFilterSchema,
-} from "../../observations/tools/listObservations";
+  OptionalStartTimeRangeShape,
+} from "../../observations/filter-schema";
 import { createMcpBatchEvaluationService } from "../batch-evaluation-service";
 
 const { evaluatorIds, sampling, rowLimit } =
@@ -20,16 +21,7 @@ const RunBatchEvaluationBaseSchema = z
     evaluatorIds: evaluatorIds.describe(
       "IDs of the evaluators to run, as returned by listEvaluators. Each must be observation-scoped and not attached to a trace- or dataset-level evaluation rule.",
     ),
-    fromStartTime: isoDateTime({ offset: true })
-      .optional()
-      .describe(
-        "Inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone. Observations older than the plan's data-access window are never evaluated.",
-      ),
-    toStartTime: isoDateTime({ offset: true })
-      .optional()
-      .describe(
-        "Exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone.",
-      ),
+    ...OptionalStartTimeRangeShape,
     filter: z
       .array(ObservationMcpFilterBaseSchema)
       .optional()
@@ -43,41 +35,16 @@ const RunBatchEvaluationBaseSchema = z
   })
   .strict();
 
-// Batch queries use the generic filter contract, which excludes the
-// events-only full-text operator listObservations accepts.
-const BatchQueryFilterSchema = ObservationMcpFilterSchema.transform(
-  (filter, ctx) => {
-    const parsed = singleFilter.safeParse(filter);
-    if (parsed.success) return parsed.data;
-    for (const issue of parsed.error.issues) {
-      ctx.addIssue({
-        code: "custom",
-        path: issue.path,
-        message: issue.message,
-      });
-    }
-    return z.NEVER;
-  },
-);
-
-const startTimeFilter = (operator: ">=" | "<", value: string) => ({
-  type: "datetime" as const,
-  column: "startTime",
-  operator,
-  value: new Date(value),
-});
-
 const RunBatchEvaluationInputSchema = RunBatchEvaluationBaseSchema.extend({
   filter: z
-    .array(BatchQueryFilterSchema)
+    .array(ObservationMcpBatchQueryFilterSchema)
     .optional()
     .describe(FILTER_DESCRIPTION),
 }).transform(({ fromStartTime, toStartTime, filter, ...input }) => ({
   ...input,
   filter: [
     ...(filter ?? []),
-    ...(fromStartTime ? [startTimeFilter(">=", fromStartTime)] : []),
-    ...(toStartTime ? [startTimeFilter("<", toStartTime)] : []),
+    ...buildStartTimeFilters({ fromStartTime, toStartTime }),
   ],
 }));
 
@@ -85,7 +52,7 @@ export const [runBatchEvaluationTool, handleRunBatchEvaluation] = defineTool({
   name: "runBatchEvaluation",
   description: [
     "Run one or more saved evaluators over the existing observations that match a filter in the current Langfuse project, like Run Evaluation in the observations table.",
-    "Preview the selection with listObservations using the same filter and time range before running.",
+    "Preview the selection with listObservations using the same filter and time range before running. Observations older than the plan's data-access window are never evaluated.",
     "The run is queued and processed asynchronously; this returns the batch action id. Results are written as scores on the evaluated observations, and each score and evaluator trace carries the batch action id as batch_action_id metadata.",
     "This executes every selected evaluator on every selected observation and may incur model or code execution cost.",
   ].join(" "),

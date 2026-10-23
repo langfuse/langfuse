@@ -1,23 +1,8 @@
 import {
   isoDateTime,
   InvalidRequestError,
-  OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
-  booleanFilter,
-  eventsTableSingleFilter,
-  eventsTableStringFilter,
-  eventsTableStringObjectFilter,
-  eventsTableCols,
-  coerceLegacyEmptyMetadataFilters,
-  filterOperators,
-  FTS_MATCH_OPERATOR,
-  numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
-  stringFilter,
-  stringObjectFilter,
-  stringOptionsFilter,
-  timeFilter,
-  type ColumnDefinition,
 } from "@langfuse/shared";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -44,9 +29,10 @@ import {
   projectObservation,
 } from "../schema";
 import {
-  OBSERVATION_MCP_FTS_COLUMNS,
-  OBSERVATION_MCP_INDEXED_IO_COLUMNS,
-} from "./getObservationFilterSchema";
+  buildStartTimeFilters,
+  ObservationMcpFilterBaseSchema,
+  ObservationMcpFilterSchema,
+} from "../filter-schema";
 
 const ObservationCursorSchema =
   EncodedObservationsCursorV2String.optional().describe(
@@ -56,208 +42,8 @@ const ObservationCursorSchema =
 const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
-const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
-  eventsTableCols
-    .filter((column) =>
-      OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
-    )
-    .map((column) => [
-      column.id === "traceTags" ? "tags" : column.id,
-      column.type,
-    ]),
-);
-
-const OBSERVATION_MCP_FILTER_EXAMPLE = {
-  column: "totalCost",
-  operator: ">",
-  value: 0.0029,
-} satisfies Omit<z.infer<typeof numberFilter>, "type">;
-
-const OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE = {
-  type: "number",
-  ...OBSERVATION_MCP_FILTER_EXAMPLE,
-} satisfies z.infer<typeof numberFilter>;
-
-const OBSERVATION_MCP_FILTER_EXAMPLE_JSON = JSON.stringify(
-  OBSERVATION_MCP_FILTER_EXAMPLE,
-);
-
-const OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON = JSON.stringify(
-  OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE,
-);
-
-const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
-  datetime: (column: string, requireType = false) =>
-    timeFilter.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("datetime")
-        : z.literal("datetime").optional(),
-      column: z.literal(column),
-    }),
-  string: (column: string, requireType = false) => {
-    const filterSchema = OBSERVATION_MCP_INDEXED_IO_COLUMNS.has(column)
-      ? eventsTableStringFilter.extend({
-          operator: z.enum(["=", FTS_MATCH_OPERATOR]),
-        })
-      : stringFilter;
-
-    return filterSchema.omit({ type: true, column: true }).extend({
-      type: requireType ? z.literal("string") : z.literal("string").optional(),
-      column: z.literal(column),
-    });
-  },
-  stringOptions: (column: string, requireType = false) =>
-    stringOptionsFilter.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("stringOptions")
-        : z.literal("stringOptions").optional(),
-      column: z.literal(column),
-    }),
-  arrayOptions: (column: string, requireType = false) =>
-    z.object({
-      operator: z.enum(filterOperators.arrayOptions),
-      value: z.array(z.string()),
-      type: requireType
-        ? z.literal("arrayOptions")
-        : z.literal("arrayOptions").optional(),
-      column: z.literal(column),
-    }),
-  number: (column: string, requireType = false) =>
-    numberFilter.omit({ type: true, column: true }).extend({
-      type: requireType ? z.literal("number") : z.literal("number").optional(),
-      column: z.literal(column),
-    }),
-  stringObject: (column: string, requireType = false) => {
-    const filterSchemaBase = OBSERVATION_MCP_FTS_COLUMNS.has(column)
-      ? eventsTableStringObjectFilter
-      : stringObjectFilter;
-
-    return filterSchemaBase.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("stringObject")
-        : z.literal("stringObject").optional(),
-      column: z.literal(column),
-    });
-  },
-  boolean: (column: string, requireType = false) =>
-    booleanFilter.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("boolean")
-        : z.literal("boolean").optional(),
-      column: z.literal(column),
-    }),
-} satisfies Partial<
-  Record<
-    ColumnDefinition["type"],
-    (column: string, requireType?: boolean) => z.ZodType
-  >
->;
-
-type ObservationMcpFilterType =
-  keyof typeof OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
-
-const isObservationMcpFilterType = (
-  type: string,
-): type is ObservationMcpFilterType =>
-  type in OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
-
-export const ObservationMcpFilterBaseSchema = z
-  .object({
-    column: z.string(),
-    operator: z.string(),
-    value: z.any(),
-    type: z.string().optional(),
-    key: z
-      .string()
-      .optional()
-      .describe(
-        "Metadata/object key to filter on. Required when column is metadata.",
-      ),
-  })
-  .describe(
-    `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
-  );
-
-const normalizeExactObservationIdFilter = (filter: unknown) => {
-  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
-    return filter;
-  }
-
-  const candidate = filter as Record<string, unknown>;
-  if (
-    candidate.column !== "id" ||
-    candidate.operator !== "=" ||
-    typeof candidate.value !== "string" ||
-    (candidate.type !== undefined && candidate.type !== "string")
-  ) {
-    return filter;
-  }
-
-  return {
-    ...candidate,
-    type: "stringOptions",
-    operator: "any of",
-    value: [candidate.value],
-  };
-};
-
-export const ObservationMcpFilterSchema = z.preprocess(
-  normalizeExactObservationIdFilter,
-  z
-    .object({ column: z.string() })
-    .loose()
-    .superRefine((filter, ctx) => {
-      if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["column"],
-          message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
-        });
-        return;
-      }
-
-      const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
-
-      if (!type || !isObservationMcpFilterType(type)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["type"],
-          message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
-        });
-        return;
-      }
-
-      const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
-        filter.column,
-        Boolean(filter.type),
-      ).safeParse(filter);
-
-      if (!filterParseResult.success) {
-        for (const issue of filterParseResult.error.issues) {
-          ctx.addIssue({
-            code: "custom",
-            path: issue.path,
-            message: issue.message,
-          });
-        }
-      }
-    })
-    .transform((filter) => {
-      const type =
-        filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
-
-      const reshaped =
-        filter.column === "tags"
-          ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type };
-      // Legacy `contains ""` presence spelling → `is set` before validation.
-      const [coerced] = coerceLegacyEmptyMetadataFilters([
-        reshaped,
-      ]) as unknown[];
-
-      return eventsTableSingleFilter.parse(coerced);
-    }),
-);
+const OBSERVATION_FILTER_DESCRIPTION =
+  "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.";
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
@@ -298,18 +84,14 @@ const ListObservationsBaseSchema = z.object({
   filter: z
     .array(ObservationMcpFilterBaseSchema)
     .optional()
-    .describe(
-      "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.",
-    ),
+    .describe(OBSERVATION_FILTER_DESCRIPTION),
 });
 
 const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
   filter: z
     .array(ObservationMcpFilterSchema)
     .optional()
-    .describe(
-      "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.",
-    ),
+    .describe(OBSERVATION_FILTER_DESCRIPTION),
 });
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
@@ -370,22 +152,10 @@ export const [listObservationsTool, handleListObservations] = defineTool({
         const advancedFilters = dataAccessWindow.accessFloor
           ? [
               ...(input.filter ?? []),
-              {
-                column: "startTime",
-                operator: ">=" as const,
-                value: dataAccessWindow.effectiveFromTimestamp!,
-                type: "datetime" as const,
-              },
-              ...(input.toStartTime
-                ? [
-                    {
-                      column: "startTime",
-                      operator: "<" as const,
-                      value: new Date(input.toStartTime),
-                      type: "datetime" as const,
-                    },
-                  ]
-                : []),
+              ...buildStartTimeFilters({
+                fromStartTime: dataAccessWindow.effectiveFromTimestamp,
+                toStartTime: input.toStartTime,
+              }),
             ]
           : input.filter;
 
