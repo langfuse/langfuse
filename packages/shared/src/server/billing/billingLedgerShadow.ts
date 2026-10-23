@@ -28,6 +28,37 @@ const UNIT_TYPES: readonly BillableEventType[] = [
   "score",
 ];
 
+const zeroUnits = (): Units => ({ trace: 0, observation: 0, score: 0 });
+
+const totalUnits = (units: Units) =>
+  units.trace + units.observation + units.score;
+
+/** Ledger minus legacy, per unit type. */
+const deltaUnits = ({
+  legacy,
+  ledger,
+}: {
+  legacy: Units;
+  ledger: Units;
+}): Units => ({
+  trace: ledger.trace - legacy.trace,
+  observation: ledger.observation - legacy.observation,
+  score: ledger.score - legacy.score,
+});
+
+const largestGap = (delta: Units) =>
+  Math.max(...UNIT_TYPES.map((unitType) => Math.abs(delta[unitType])));
+
+const isDiverging = ({ legacy, delta }: { legacy: Units; delta: Units }) =>
+  UNIT_TYPES.some((unitType) => {
+    const gap = Math.abs(delta[unitType]);
+    return (
+      gap > 0 &&
+      (gap >= DIVERGENCE_MIN_UNITS ||
+        gap >= DIVERGENCE_MIN_RATIO * legacy[unitType])
+    );
+  });
+
 /**
  * Compares the legacy billing counts of `[from, to)` with the billable_events
  * ledger per project and reports the result. Metrics carry unit totals per
@@ -170,34 +201,3 @@ export const compareWithBillingLedger = async ({
     });
   }
 };
-
-const zeroUnits = (): Units => ({ trace: 0, observation: 0, score: 0 });
-
-const totalUnits = (units: Units) =>
-  units.trace + units.observation + units.score;
-
-/** Ledger minus legacy, per unit type. */
-const deltaUnits = ({
-  legacy,
-  ledger,
-}: {
-  legacy: Units;
-  ledger: Units;
-}): Units => ({
-  trace: ledger.trace - legacy.trace,
-  observation: ledger.observation - legacy.observation,
-  score: ledger.score - legacy.score,
-});
-
-const largestGap = (delta: Units) =>
-  Math.max(...UNIT_TYPES.map((unitType) => Math.abs(delta[unitType])));
-
-const isDiverging = ({ legacy, delta }: { legacy: Units; delta: Units }) =>
-  UNIT_TYPES.some((unitType) => {
-    const gap = Math.abs(delta[unitType]);
-    return (
-      gap > 0 &&
-      (gap >= DIVERGENCE_MIN_UNITS ||
-        gap >= DIVERGENCE_MIN_RATIO * legacy[unitType])
-    );
-  });
