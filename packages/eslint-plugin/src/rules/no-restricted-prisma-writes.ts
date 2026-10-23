@@ -3,25 +3,15 @@ import { type TSESTree } from "@typescript-eslint/utils";
 
 import { createRule } from "../util.js";
 
-const createMethods = new Set([
-  "create",
-  "createMany",
-  "createManyAndReturn",
-  "upsert",
-]);
+const createMethods = ["create", "createMany", "createManyAndReturn", "upsert"];
 
-const writeMethods = new Set([
-  ...createMethods,
-  "update",
-  "updateMany",
-  "updateManyAndReturn",
-  "delete",
-  "deleteMany",
-]);
+const updateMethods = ["update", "updateMany", "updateManyAndReturn", "upsert"];
+
+const deleteMethods = ["delete", "deleteMany"];
 
 const globCharacters = /[*?[\]{}]/;
 
-/** rule flags Prisma creates, or every write for fully owned models, on configured models outside the files allowed to write them */
+/** rule flags a configured model's restricted Prisma writes outside the files allowed to make them */
 const rule = createRule<[Options], "restricted">({
   name: "no-restricted-prisma-writes",
   meta: {
@@ -41,18 +31,20 @@ const rule = createRule<[Options], "restricted">({
           models: {
             type: "object",
             additionalProperties: {
-              oneOf: [
-                { type: "array", items: { type: "string" } },
-                {
-                  type: "object",
-                  properties: {
-                    files: { type: "array", items: { type: "string" } },
-                    writes: { type: "string", enum: ["creates", "all"] },
-                  },
-                  required: ["files", "writes"],
-                  additionalProperties: false,
-                },
+              type: "object",
+              properties: {
+                files: { type: "array", items: { type: "string" } },
+                create: { type: "boolean" },
+                update: { type: "boolean" },
+                delete: { type: "boolean" },
+              },
+              required: ["files"],
+              anyOf: [
+                { type: "object", required: ["create"] },
+                { type: "object", required: ["update"] },
+                { type: "object", required: ["delete"] },
               ],
+              additionalProperties: false,
             },
           },
         },
@@ -64,8 +56,8 @@ const rule = createRule<[Options], "restricted">({
   create(context, [{ models }]) {
     const restricted = new Map(
       Object.entries(models)
-        .map(([model, writer]) => [model, normalizeWriter(writer)] as const)
-        .filter(([, writer]) => !isAllowed(writer.files, context.filename)),
+        .filter(([, writer]) => !isAllowed(writer.files, context.filename))
+        .map(([model, writer]) => [model, restriction(writer)] as const),
     );
     if (restricted.size === 0) return {};
 
@@ -74,14 +66,14 @@ const rule = createRule<[Options], "restricted">({
         const call = modelCall(node.callee);
         if (call === undefined) return;
 
-        const writer = restricted.get(call.model);
-        if (writer === undefined) return;
-        if (!restrictedMethods(writer).has(call.method)) return;
+        const restriction = restricted.get(call.model);
+        if (restriction === undefined) return;
+        if (!restriction.methods.has(call.method)) return;
 
         context.report({
           node,
           messageId: "restricted",
-          data: { ...call, writers: writers(writer.files) },
+          data: { ...call, writers: writers(restriction.files) },
         });
       },
     };
@@ -90,19 +82,19 @@ const rule = createRule<[Options], "restricted">({
 
 export default rule;
 
-/** normalizeWriter reads a model's allowed files and restricted writes from either option form */
-function normalizeWriter(writer: ModelWriter): {
+/** restriction lists the Prisma methods a model's writer files own */
+function restriction(writer: ModelWriter): {
   files: string[];
-  writes: Writes;
+  methods: Set<string>;
 } {
-  if (Array.isArray(writer)) return { files: writer, writes: "creates" };
-  return writer;
-}
-
-/** restrictedMethods lists the Prisma methods a model's writer owns */
-function restrictedMethods({ writes }: { writes: Writes }): Set<string> {
-  if (writes === "all") return writeMethods;
-  return createMethods;
+  return {
+    files: writer.files,
+    methods: new Set([
+      ...(writer.create ? createMethods : []),
+      ...(writer.update ? updateMethods : []),
+      ...(writer.delete ? deleteMethods : []),
+    ]),
+  };
 }
 
 /** isAllowed reports whether a trailing run of the linted file's path segments matches an allow glob */
@@ -163,11 +155,15 @@ function propertyName(node: TSESTree.MemberExpression): string | undefined {
   return undefined;
 }
 
-/** Options maps each restricted Prisma model to the file globs allowed to create its rows, or to write them at all */
+/** Options maps each restricted Prisma model to the file globs allowed to make its restricted writes */
 type Options = { models: Record<string, ModelWriter> };
 
-type ModelWriter = string[] | { files: string[]; writes: Writes };
-
-type Writes = "creates" | "all";
+/** ModelWriter names a model's writer files and the kinds of writes only they may make */
+type ModelWriter = {
+  files: string[];
+  create?: boolean;
+  update?: boolean;
+  delete?: boolean;
+};
 
 type ModelCall = { model: string; method: string };

@@ -4,31 +4,25 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
-// Files allowed to create each Prisma model's rows, or to write them at all; globs match trailing path segments.
+// Files allowed to make each Prisma model's restricted writes; globs match trailing path segments.
 const membershipTestWriters = [
   "__tests__/**",
   "*.test.ts",
   "scripts/seeder/**",
 ];
 const prismaWriters = {
-  apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
-  roleAssignment: [
+  apiKey: limitCreate("packages/shared/src/server/auth/apiKeys.ts"),
+  roleAssignment: limitCreate(
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
-  ],
-  organizationMembership: {
-    files: [
-      "web/src/features/memberships/orgMembershipRepository.ts",
-      ...membershipTestWriters,
-    ],
-    writes: "all",
-  },
-  projectMembership: {
-    files: [
-      "web/src/features/memberships/projectMembershipRepository.ts",
-      ...membershipTestWriters,
-    ],
-    writes: "all",
-  },
+  ),
+  organizationMembership: limitWrite(
+    "web/src/features/memberships/orgMembershipRepository.ts",
+    ...membershipTestWriters,
+  ),
+  projectMembership: limitWrite(
+    "web/src/features/memberships/projectMembershipRepository.ts",
+    ...membershipTestWriters,
+  ),
 };
 
 export default [
@@ -116,3 +110,13 @@ export default [
     },
   },
 ];
+
+/** limitCreate restricts a Prisma model's creates to the given files */
+function limitCreate(...files) {
+  return { files, create: true };
+}
+
+/** limitWrite restricts every Prisma write on a model to the given files */
+function limitWrite(...files) {
+  return { files, create: true, update: true, delete: true };
+}
