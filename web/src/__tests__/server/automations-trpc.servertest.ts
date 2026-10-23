@@ -819,6 +819,14 @@ describe("automations trpc", () => {
               "content-type": "application/json",
               "x-api-key": "legacy-api-key-value",
             },
+            requestHeaders: {
+              "x-env": { secret: false, value: "production" },
+            },
+            // A stored displayHeaders entry may list a legacy value unmasked.
+            displayHeaders: {
+              "x-api-key": { secret: false, value: "legacy-api-key-value" },
+              "x-env": { secret: false, value: "production" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -847,6 +855,7 @@ describe("automations trpc", () => {
       expect(config.displayHeaders).toEqual({
         "content-type": { secret: true, value: "appl...json" },
         "x-api-key": { secret: true, value: "lega...alue" },
+        "x-env": { secret: false, value: "production" },
       });
 
       // Should NOT have raw headers object in response
@@ -860,66 +869,6 @@ describe("automations trpc", () => {
       expect(
         (listed?.action.config as SafeWebhookActionConfig).displayHeaders,
       ).toEqual(config.displayHeaders);
-    });
-
-    it("should mask legacy headers that a stored displayHeaders lists unmasked", async () => {
-      const { project, caller } = await prepare();
-
-      const trigger = await prisma.trigger.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
-          eventSource: "prompt",
-          eventActions: ["created"],
-          filter: [],
-          status: JobConfigState.ACTIVE,
-        },
-      });
-
-      const { secretKey, displaySecretKey } = generateWebhookSecret();
-      const action = await prisma.action.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
-          type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/webhook",
-            headers: { Authorization: "Bearer legacy-token" },
-            requestHeaders: {
-              "Content-Type": { secret: false, value: "application/json" },
-            },
-            displayHeaders: {
-              Authorization: { secret: false, value: "Bearer legacy-token" },
-              "Content-Type": { secret: false, value: "application/json" },
-            },
-            apiVersion: { prompt: "v1" },
-            secretKey: encrypt(secretKey),
-            displaySecretKey,
-          },
-        },
-      });
-
-      const automation = await prisma.automation.create({
-        data: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-          name: "Mixed Legacy Headers Read Test",
-        },
-      });
-
-      const response = await caller.automations.getAutomation({
-        projectId: project.id,
-        automationId: automation.id,
-      });
-
-      expect(
-        (response.action.config as SafeWebhookActionConfig).displayHeaders,
-      ).toEqual({
-        Authorization: { secret: true, value: "Bear...oken" },
-        "Content-Type": { secret: false, value: "application/json" },
-      });
     });
 
     it("should throw error when automation not found", async () => {
