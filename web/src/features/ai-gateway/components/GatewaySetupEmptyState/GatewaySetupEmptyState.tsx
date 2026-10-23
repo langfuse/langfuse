@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { IconComponent } from "@langfuse/icons";
+import { ExternalLink, type IconComponent } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { Button as MenuTriggerButton } from "@/src/components/ui/button";
+import { Button as OutlineButton } from "@/src/components/ui/button";
 
 export type GatewaySetupEmptyStateProps = {
   icon: IconComponent;
@@ -30,22 +30,41 @@ export function GatewaySetupEmptyState({
       </div>
       {actions.length > 0 ? (
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {actions.map((action) =>
-            action.type === "menu" ? (
-              <MenuAction key={action.label} action={action} />
-            ) : (
-              <Button
-                key={action.label}
-                text={action.label}
-                icon={action.icon}
-                onClick={action.onClick}
-              />
-            ),
-          )}
+          {actions.map((action) => (
+            <EmptyStateAction key={action.label} action={action} />
+          ))}
         </div>
       ) : null}
     </div>
   );
+}
+
+function EmptyStateAction({
+  action,
+}: {
+  action: GatewaySetupEmptyStateAction;
+}) {
+  switch (action.type) {
+    case "menu":
+      return <MenuAction action={action} />;
+    case "link":
+      return (
+        <OutlineButton variant="outline" className="gap-1.5" asChild>
+          <a href={action.href} target="_blank" rel="noopener">
+            {action.label}
+            <ExternalLink size="sm" color="inherit" aria-hidden />
+          </a>
+        </OutlineButton>
+      );
+    case "button":
+      return (
+        <Button
+          text={action.label}
+          icon={action.icon}
+          onClick={action.onClick}
+        />
+      );
+  }
 }
 
 function MenuAction({ action }: { action: MenuActionDefinition }) {
@@ -62,7 +81,7 @@ function MenuAction({ action }: { action: MenuActionDefinition }) {
     >
       {({ getTriggerProps }) => (
         /** The design-system Button does not forward floating-ui trigger handlers. */
-        <MenuTriggerButton
+        <OutlineButton
           variant="outline"
           className="gap-1.5"
           disabled={isDisabled}
@@ -70,7 +89,7 @@ function MenuAction({ action }: { action: MenuActionDefinition }) {
         >
           {action.label}
           <DropdownIndicator nudge />
-        </MenuTriggerButton>
+        </OutlineButton>
       )}
     </DropdownMenu>
   );
@@ -91,4 +110,5 @@ type GatewaySetupEmptyStateAction =
       onClick: () => void;
       icon?: IconComponent;
     }
+  | { type: "link"; label: string; href: string }
   | MenuActionDefinition;

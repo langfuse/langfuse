@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { useSession } from "next-auth/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
@@ -106,6 +107,8 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: vi.fn(),
 }));
 
+vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
   api: { aiGateway: { getSetupStatus: { useQuery: getSetupStatusQuery } } },
@@ -115,6 +118,7 @@ vi.mock("@/src/features/ai-gateway", () => ({
   GatewayApiKeysPage: () => null,
   GatewayConfigurationPage: () => null,
   GatewayModelsPage: () => null,
+  GatewayNotDeployedNotice: () => null,
   GatewayProvidersPage: () => null,
 }));
 
@@ -139,6 +143,11 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
     vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: true },
       isPending: false,
@@ -350,6 +359,42 @@ describe("useOrganizationSettingsPages", () => {
       ["ai-gateway-api-keys", false],
     ]);
   });
+
+  it.each([
+    { canManage: true, expected: ["ai-gateway"] },
+    { canManage: false, expected: [] },
+  ])(
+    "shows only the Configuration placeholder on self-hosted without a gateway (manager: $canManage)",
+    ({ canManage, expected }) => {
+      vi.mocked(useHasOrganizationAccess).mockImplementation(
+        ({ scope }) =>
+          (canManage && scope === "gateway:manage") ||
+          scope === "gateway:read" ||
+          scope === "gateway:invoke",
+      );
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          expires: "",
+          user: null,
+          environment: {
+            enableExperimentalFeatures: false,
+            selfHostedInstancePlan: null,
+            aiGatewayDeployed: false,
+          },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useOrganizationSettingsPages());
+
+      expect(
+        result.current
+          .filter((page) => page.slug.startsWith("ai-gateway") && page.show)
+          .map((page) => page.slug),
+      ).toEqual(expected);
+    },
+  );
 
   it("shows the usage page instead of the billing page without cloud billing", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
