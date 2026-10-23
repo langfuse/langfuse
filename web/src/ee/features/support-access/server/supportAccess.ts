@@ -1,47 +1,29 @@
 import { z } from "zod/v4";
 
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { Prisma, prisma, Role } from "@langfuse/shared/src/db";
 
-// Shape of users.support_access. Each key is an organization id the user may
-// view as a Langfuse support engineer until expiresAt. Only the ConductorOne
-// webhook writes this column.
-const SupportAccessEntrySchema = z.object({
-  role: z.literal("VIEWER"),
-  expiresAt: z.iso.datetime(),
-  c1TaskId: z.string(),
-});
-
-export const SupportAccessSchema = z.record(
+// users.support_access: { [orgId]: { role: "VIEWER", expiresAt } }
+const SupportAccessSchema = z.record(
   z.string(),
-  SupportAccessEntrySchema,
+  z.object({
+    role: z.literal("VIEWER"),
+    expiresAt: z.iso.datetime(),
+  }),
 );
 
-export type SupportAccess = z.infer<typeof SupportAccessSchema>;
-export type SupportAccessEntry = z.infer<typeof SupportAccessEntrySchema>;
+function parseSupportAccess(value: unknown) {
+  return SupportAccessSchema.safeParse(value ?? {}).data ?? {};
+}
 
-/**
- * Returns the org ids with unexpired support access. Expiry is checked here, on
- * every session read, so access lapses even if ConductorOne never sends the
- * revoke. Malformed values grant nothing.
- */
 export function getActiveSupportAccessOrgIds(
   supportAccess: unknown,
   now: Date = new Date(),
 ): string[] {
-  if (supportAccess === null || supportAccess === undefined) return [];
-  const parsed = SupportAccessSchema.safeParse(supportAccess);
-  if (!parsed.success) return [];
-
-  return Object.entries(parsed.data)
+  return Object.entries(parseSupportAccess(supportAccess))
     .filter(([, entry]) => new Date(entry.expiresAt) > now)
     .map(([orgId]) => orgId);
 }
 
-/**
- * Org memberships to add to the session for unexpired support access grants:
- * VIEWER on every project. Orgs the user is a real member of are skipped, so
- * their own role wins.
- */
 export async function getSupportAccessMemberships(
   user: {
     supportAccess: unknown;
@@ -71,4 +53,29 @@ export async function getSupportAccessMemberships(
     role: Role.VIEWER,
     ProjectMemberships: [],
   }));
+}
+
+export async function grantSupportAccess(
+  userId: string,
+  orgId: string,
+  expiresAt: Date,
+) {
+  const entry = { role: "VIEWER", expiresAt: expiresAt.toISOString() };
+  // Single statement so concurrent grants for different orgs don't collide.
+  await prisma.$executeRaw`
+    UPDATE users
+    SET support_access = COALESCE(support_access, '{}'::jsonb)
+      || jsonb_build_object(${orgId}::text, ${JSON.stringify(entry)}::jsonb)
+    WHERE id = ${userId}`;
+}
+
+export async function revokeAllSupportAccess(user: {
+  id: string;
+  supportAccess: unknown;
+}): Promise<string[]> {
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { supportAccess: Prisma.DbNull },
+  });
+  return Object.keys(parseSupportAccess(user.supportAccess));
 }

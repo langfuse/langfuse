@@ -17,25 +17,23 @@ const db = vi.hoisted(() => ({
 const getSsoProvider = vi.hoisted(() => vi.fn());
 const auditLog = vi.hoisted(() => vi.fn());
 
-vi.mock("@/src/env.mjs", () => ({ env: {} }));
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
-}));
-vi.mock("@langfuse/shared/src/server", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/src/ee/features/multi-tenant-sso/server", () => ({
   getSsoAuthProviderIdForDomain: getSsoProvider,
 }));
 vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
 
+import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
 import {
-  handleProvisionTask,
-  ProvisionPayloadSchema,
-  verifyConductorOneRequest,
-} from "@/src/ee/features/support-access/server/conductorOneWebhook";
+  parseProvisionPayload,
+  type GrantRequest,
+  type RevokeRequest,
+} from "@/src/ee/features/support-access/server/conductorOnePayload";
+import { provisionSupportAccess } from "@/src/ee/features/support-access/server/provisionSupportAccess";
 import {
   getActiveSupportAccessOrgIds,
   getSupportAccessMemberships,
@@ -48,7 +46,7 @@ describe("verifyConductorOneRequest", () => {
   const bodyHash = createHash("sha256").update(body).digest("base64");
   let key: CryptoKey;
   let unknownKey: CryptoKey;
-  let config: Parameters<typeof verifyConductorOneRequest>[2];
+  let jwks: ReturnType<typeof createLocalJWKSet>;
 
   beforeAll(async () => {
     const pair = await generateKeyPair("RS256");
@@ -59,7 +57,7 @@ describe("verifyConductorOneRequest", () => {
       kid: "k",
       alg: "RS256",
     };
-    config = { issuer, audience, jwks: createLocalJWKSet({ keys: [jwk] }) };
+    jwks = createLocalJWKSet({ keys: [jwk] });
   });
 
   async function sign(
@@ -76,11 +74,17 @@ describe("verifyConductorOneRequest", () => {
       .sign(opts.key ?? key);
   }
 
-  const verify = (token: string, rawBody = body) =>
-    verifyConductorOneRequest(`Bearer ${token}`, rawBody, config);
+  const verify = (authorization: string | null, rawBody = body) =>
+    verifyConductorOneRequest({
+      authorization,
+      rawBody,
+      issuer,
+      audience,
+      jwks,
+    });
 
   it("accepts a valid token for this body", async () => {
-    await expect(verify(await sign())).resolves.toBeUndefined();
+    await expect(verify(`Bearer ${await sign()}`)).resolves.toBeUndefined();
   });
 
   it.each([
@@ -89,39 +93,98 @@ describe("verifyConductorOneRequest", () => {
     ["another body's hash", { htb_s256: "AAAA" }],
     ["no body hash", { htb_s256: undefined }],
   ])("rejects %s", async (_, claims) => {
-    await expect(verify(await sign(claims))).rejects.toThrow();
+    await expect(verify(`Bearer ${await sign(claims)}`)).rejects.toThrow();
   });
 
   it("rejects a token moved onto a different body", async () => {
+    const token = await sign();
     await expect(
-      verify(await sign(), Buffer.from('{"event":"y"}')),
+      verify(`Bearer ${token}`, Buffer.from('{"event":"y"}')),
     ).rejects.toThrow();
   });
 
-  it("rejects an unknown signing key, an expired token and alg none", async () => {
-    await expect(verify(await sign({}, { key: unknownKey }))).rejects.toThrow();
-    await expect(
-      verify(await sign({}, { expiresIn: "-1m" })),
-    ).rejects.toThrow();
-    const none = (v: object) =>
+  it("rejects an unknown key, an expired token and alg none", async () => {
+    const forged = await sign({}, { key: unknownKey });
+    const expired = await sign({}, { expiresIn: "-1m" });
+    const part = (v: object) =>
       Buffer.from(JSON.stringify(v)).toString("base64url");
-    await expect(
-      verify(
-        `${none({ alg: "none" })}.${none({ iss: issuer, aud: audience, htb_s256: bodyHash })}.`,
-      ),
-    ).rejects.toThrow();
+    const unsigned = `${part({ alg: "none" })}.${part({ iss: issuer, aud: audience, htb_s256: bodyHash })}.`;
+    for (const token of [forged, expired, unsigned]) {
+      await expect(verify(`Bearer ${token}`)).rejects.toThrow();
+    }
   });
 
   it("rejects missing authorization", async () => {
-    for (const authorization of [undefined, "", "Basic abc"]) {
-      await expect(
-        verifyConductorOneRequest(authorization, body, config),
-      ).rejects.toThrow();
+    for (const authorization of [null, "", "Basic abc"]) {
+      await expect(verify(authorization)).rejects.toThrow();
     }
   });
 });
 
-describe("handleProvisionTask", () => {
+describe("parseProvisionPayload", () => {
+  const c1User = {
+    "@type": "type.googleapis.com/c1.api.user.v1.User",
+    id: "c1-user",
+    email: "Eng@ClickHouse.com",
+  };
+  const payload = (type: object, extra: object = {}) => ({
+    taskView: { task: { id: "task-1", userId: "c1-user", type, ...extra } },
+    expanded: [
+      { ...c1User, id: "someone-else", email: "other@clickhouse.com" },
+      c1User,
+    ],
+  });
+  const form = {
+    form: {
+      data: { langfuse_region: "US", langfuse_organization_id: "org-1" },
+    },
+  };
+
+  it("reads a grant", () => {
+    const grant = { appEntitlementId: "ent-1", grantDuration: "43200s" };
+    expect(parseProvisionPayload(payload({ grant }, form))).toEqual({
+      action: "grant",
+      taskId: "task-1",
+      entitlementId: "ent-1",
+      email: "eng@clickhouse.com",
+      region: "US",
+      orgId: "org-1",
+      durationMs: 43_200_000,
+    });
+  });
+
+  it("reads a revoke", () => {
+    const revoke = { appEntitlementId: "ent-1" };
+    expect(parseProvisionPayload(payload({ revoke }))).toEqual({
+      action: "revoke",
+      taskId: "task-1",
+      entitlementId: "ent-1",
+      email: "eng@clickhouse.com",
+    });
+  });
+
+  it("treats a missing or non-protobuf duration as none", () => {
+    for (const grantDuration of [null, "12h", "-1s"]) {
+      const grant = { appEntitlementId: "ent-1", grantDuration };
+      expect(parseProvisionPayload(payload({ grant }, form))).toMatchObject({
+        durationMs: null,
+      });
+    }
+  });
+
+  it.each([
+    [
+      "a grant without form values",
+      payload({ grant: { appEntitlementId: "e" } }),
+    ],
+    ["no task type", payload({})],
+    ["something that isn't a task", { hello: "world" }],
+  ])("returns null for %s", (_, value) => {
+    expect(parseProvisionPayload(value)).toBeNull();
+  });
+});
+
+describe("provisionSupportAccess", () => {
   const config = { entitlementId: "ent-1", region: "US" };
   const now = new Date("2026-10-23T12:00:00.000Z");
   const ssoUser = {
@@ -130,42 +193,21 @@ describe("handleProvisionTask", () => {
     supportAccess: null,
     accounts: [{ provider: "clickhouse.com.okta" }],
   };
-  const grant = (grantDuration?: string, appEntitlementId = "ent-1") => ({
-    grant: { appEntitlementId, grantDuration },
-  });
-
-  function payload(
-    o: {
-      type?: Record<string, unknown>;
-      region?: string;
-      email?: string;
-    } = {},
-  ) {
-    return ProvisionPayloadSchema.parse({
-      taskView: {
-        task: {
-          id: "task-1",
-          userId: "c1-user",
-          type: o.type ?? grant("43200s"),
-          form: {
-            data: {
-              langfuse_region: o.region ?? "US",
-              langfuse_organization_id: "org-1",
-            },
-          },
-        },
-      },
-      expanded: [
-        {
-          "@type": "type.googleapis.com/c1.api.user.v1.User",
-          id: "c1-user",
-          email: o.email ?? "eng@clickhouse.com",
-        },
-      ],
-    });
-  }
-
-  const run = (p = payload()) => handleProvisionTask(p, config, now);
+  const grantRequest: GrantRequest = {
+    action: "grant",
+    taskId: "task-1",
+    entitlementId: "ent-1",
+    email: "eng@clickhouse.com",
+    region: "US",
+    orgId: "org-1",
+    durationMs: 12 * 3_600_000,
+  };
+  const revokeRequest: RevokeRequest = {
+    action: "revoke",
+    taskId: "task-2",
+    entitlementId: "ent-1",
+    email: "eng@clickhouse.com",
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -175,11 +217,9 @@ describe("handleProvisionTask", () => {
   });
 
   it("grants VIEWER until now + duration", async () => {
-    expect(await run()).toEqual({
-      version: "v1",
-      complete: {
-        comment: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
-      },
+    expect(await provisionSupportAccess(grantRequest, config, now)).toEqual({
+      ok: true,
+      message: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
     });
     expect(db.$executeRaw).toHaveBeenCalledOnce();
     expect(auditLog).toHaveBeenCalledWith(
@@ -188,13 +228,16 @@ describe("handleProvisionTask", () => {
   });
 
   it.each([
-    ["another entitlement", payload({ type: grant("3600s", "ent-admin") })],
-    ["another region", payload({ region: "EU" })],
-    ["no duration (permanent)", payload({ type: grant(undefined) })],
-    ["a duration above 12h", payload({ type: grant("86400s") })],
-    ["a non-ClickHouse email", payload({ email: "eng@evil-clickhouse.com" })],
-  ])("rejects %s", async (_, p) => {
-    expect(await run(p)).toHaveProperty("errored");
+    ["another entitlement", { entitlementId: "ent-admin" }],
+    ["another region", { region: "EU" }],
+    ["no duration (permanent)", { durationMs: null }],
+    ["a duration above 12h", { durationMs: 24 * 3_600_000 }],
+    ["a non-ClickHouse email", { email: "eng@evil-clickhouse.com" }],
+  ])("rejects %s", async (_, change) => {
+    const request = { ...grantRequest, ...change };
+    expect(await provisionSupportAccess(request, config, now)).toMatchObject({
+      ok: false,
+    });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
@@ -209,38 +252,36 @@ describe("handleProvisionTask", () => {
     ["a user with a password", { ...ssoUser, password: "hash" }],
   ])("rejects %s", async (_, user) => {
     db.user.findUnique.mockResolvedValue(user);
-    expect(await run()).toHaveProperty("errored");
+    expect(
+      await provisionSupportAccess(grantRequest, config, now),
+    ).toMatchObject({
+      ok: false,
+    });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
   it("rejects when clickhouse.com has no enforced SSO", async () => {
     getSsoProvider.mockResolvedValue(null);
-    expect(await run()).toHaveProperty("errored");
+    expect(
+      await provisionSupportAccess(grantRequest, config, now),
+    ).toMatchObject({
+      ok: false,
+    });
   });
 
   it("rejects an unknown organization", async () => {
     db.organization.findUnique.mockResolvedValue(null);
-    expect(await run()).toHaveProperty("errored");
-  });
-
-  it("is idempotent for a retried task", async () => {
-    db.user.findUnique.mockResolvedValue({
-      ...ssoUser,
-      supportAccess: {
-        "org-1": {
-          role: "VIEWER",
-          expiresAt: "2026-10-24T00:00:00.000Z",
-          c1TaskId: "task-1",
-        },
-      },
+    expect(
+      await provisionSupportAccess(grantRequest, config, now),
+    ).toMatchObject({
+      ok: false,
     });
-    expect(await run()).toHaveProperty("complete");
-    expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
   it("revokes all support access", async () => {
-    const revoke = payload({ type: { revoke: { appEntitlementId: "ent-1" } } });
-    expect(await run(revoke)).toHaveProperty("complete");
+    expect(await provisionSupportAccess(revokeRequest, config)).toMatchObject({
+      ok: true,
+    });
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: "user-1" },
       data: { supportAccess: "DbNull" },
@@ -248,30 +289,31 @@ describe("handleProvisionTask", () => {
   });
 
   it("ignores revokes for another entitlement", async () => {
-    const revoke = payload({ type: { revoke: { appEntitlementId: "other" } } });
-    expect(await run(revoke)).toHaveProperty("errored");
+    const request = { ...revokeRequest, entitlementId: "other" };
+    expect(await provisionSupportAccess(request, config)).toMatchObject({
+      ok: false,
+    });
     expect(db.user.update).not.toHaveBeenCalled();
   });
 });
 
-describe("getActiveSupportAccessOrgIds", () => {
+describe("support access in the session", () => {
   const now = new Date("2026-10-23T12:00:00.000Z");
-  const entry = (expiresAt: string, role = "VIEWER") => ({
-    role,
-    expiresAt,
-    c1TaskId: "t",
-  });
+  const entry = (expiresAt: string, role = "VIEWER") => ({ role, expiresAt });
+  const active = entry("2099-01-01T00:00:00.000Z");
+
+  beforeEach(() => vi.clearAllMocks());
 
   it("returns only unexpired grants", () => {
     expect(
       getActiveSupportAccessOrgIds(
         {
-          active: entry("2026-10-23T13:00:00.000Z"),
+          current: entry("2026-10-23T13:00:00.000Z"),
           expired: entry("2026-10-23T11:59:59.000Z"),
         },
         now,
       ),
-    ).toEqual(["active"]);
+    ).toEqual(["current"]);
   });
 
   it("grants nothing for malformed values or other roles", () => {
@@ -284,16 +326,6 @@ describe("getActiveSupportAccessOrgIds", () => {
     expect(getActiveSupportAccessOrgIds(null, now)).toEqual([]);
     expect(getActiveSupportAccessOrgIds("garbage", now)).toEqual([]);
   });
-});
-
-describe("getSupportAccessMemberships", () => {
-  const active = {
-    role: "VIEWER",
-    expiresAt: "2099-01-01T00:00:00.000Z",
-    c1TaskId: "t",
-  };
-
-  beforeEach(() => vi.clearAllMocks());
 
   it("adds VIEWER only for orgs the user is not a member of", async () => {
     db.organization.findMany.mockResolvedValue([{ id: "org-2", projects: [] }]);
