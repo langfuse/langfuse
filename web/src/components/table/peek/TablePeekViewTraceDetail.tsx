@@ -11,6 +11,7 @@ import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekT
 import { buildTracePath } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { ConnectedTraceScopeToggle } from "@/src/features/traces/components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -24,6 +25,7 @@ export const TablePeekViewTraceDetail = (
   const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -45,6 +47,7 @@ export const TablePeekViewTraceDetail = (
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const sessionId = trace.data?.sessionId;
   const isSessionScope =
+    internalFeaturesEnabled &&
     props.isV4 &&
     isProjectMember &&
     router.query.aggregation === "session" &&
@@ -76,7 +79,7 @@ export const TablePeekViewTraceDetail = (
       itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
       title={isSessionScope ? sessionId : traceId}
       titleControl={
-        props.isV4 ? (
+        props.isV4 && internalFeaturesEnabled ? (
           <ConnectedTraceScopeToggle
             value={isSessionScope ? "session" : "trace"}
             canSelectSession={isProjectMember && !!sessionId}

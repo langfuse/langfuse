@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   trace: vi.fn(),
   readPath: vi.fn(),
   replace: vi.fn(),
+  internalFeatures: vi.fn(),
+}));
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => mocks.internalFeatures(),
 }));
 vi.mock("next/router", () => ({ useRouter: () => mocks.router() }));
 vi.mock("next-auth/react", () => ({
@@ -45,6 +49,7 @@ vi.mock("@/src/components/layouts/page", () => ({
 describe("TracePage scope header", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.internalFeatures.mockReturnValue(true);
     mocks.router.mockReturnValue({
       pathname: "/project/[projectId]/traces/[traceId]",
       query: { projectId: "p", traceId: "trace-1", observation: "in-trace" },
@@ -122,6 +127,24 @@ describe("TracePage scope header", () => {
     expect(
       screen.getByRole("heading", { name: "trace-1" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tablist", { name: "Trace detail scope" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restores the trace icon and ignores session scope without internal features", () => {
+    mocks.internalFeatures.mockReturnValue(false);
+    mocks.router.mockReturnValue({
+      query: { projectId: "p", traceId: "trace-1", aggregation: "session" },
+    });
+    render(<TracePage traceId="trace-1" />);
+    expect(
+      screen.getByRole("heading", { name: "trace-1" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("page")).toHaveAttribute(
+      "data-item-type",
+      "TRACE",
+    );
     expect(
       screen.queryByRole("tablist", { name: "Trace detail scope" }),
     ).not.toBeInTheDocument();

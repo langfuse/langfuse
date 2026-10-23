@@ -12,6 +12,7 @@ import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { useReadPath } from "@/src/features/events";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { ConnectedTraceScopeToggle } from "./components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
 
 export function TracePage({
@@ -24,6 +25,7 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const { isV4 } = useReadPath();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const routeProjectId = (router.query.projectId as string) ?? "";
 
   // Shared, beta-aware fetch (same hook the peek uses).
@@ -98,7 +100,8 @@ export function TracePage({
     </Badge>
   ) : undefined;
   const sessionId = trace.data.sessionId;
-  const canSelectSession = isV4 && hasProjectAccess && !!sessionId;
+  const canSelectSession =
+    internalFeaturesEnabled && isV4 && hasProjectAccess && !!sessionId;
   const isSessionScope =
     router.query.aggregation === "session" && canSelectSession;
 
@@ -108,13 +111,14 @@ export function TracePage({
         // Trace titles follow the route while the previous trace is kept as placeholder.
         title: isSessionScope ? sessionId : traceId,
         itemType: isSessionScope ? "SESSION" : "TRACE",
-        titleControl: isV4 ? (
-          <ConnectedTraceScopeToggle
-            value={isSessionScope ? "session" : "trace"}
-            canSelectSession={canSelectSession}
-            observations={trace.data.observations}
-          />
-        ) : undefined,
+        titleControl:
+          isV4 && internalFeaturesEnabled ? (
+            <ConnectedTraceScopeToggle
+              value={isSessionScope ? "session" : "trace"}
+              canSelectSession={canSelectSession}
+              observations={trace.data.observations}
+            />
+          ) : undefined,
         divider: false,
         breadcrumb: [
           {

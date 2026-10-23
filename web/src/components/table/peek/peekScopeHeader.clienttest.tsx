@@ -10,6 +10,11 @@ const mocks = vi.hoisted(() => ({
   trace: vi.fn(),
   member: vi.fn(),
   replace: vi.fn(),
+  internalFeatures: vi.fn(),
+}));
+
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => mocks.internalFeatures(),
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => mocks.router() }));
@@ -49,6 +54,7 @@ describe.each([
 ] as const)("%s scope header", (_, Peek) => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.internalFeatures.mockReturnValue(true);
     mocks.router.mockReturnValue({
       pathname: "/project/[projectId]/traces",
       replace: mocks.replace,
@@ -233,5 +239,18 @@ describe.each([
       "data-item-type",
       "TRACE",
     );
+  });
+
+  it("restores the trace icon and ignores session scope without internal features", () => {
+    mocks.internalFeatures.mockReturnValue(false);
+    renderPeek();
+    expect(screen.getByTestId("peek-header")).toHaveAttribute(
+      "data-item-type",
+      "TRACE",
+    );
+    expect(screen.getByTestId("peek-title")).toHaveTextContent("trace-1");
+    expect(
+      screen.queryByRole("tablist", { name: "Trace detail scope" }),
+    ).not.toBeInTheDocument();
   });
 });

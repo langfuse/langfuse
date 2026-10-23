@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import { useRef } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { ConnectedTraceScopeToggle } from "@/src/features/traces/components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -20,6 +21,7 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
 
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
@@ -44,6 +46,7 @@ export const TablePeekViewObservationDetail = (
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const sessionId = trace.data?.sessionId;
   const isSessionScope =
+    internalFeaturesEnabled &&
     props.isV4 &&
     isProjectMember &&
     router.query.aggregation === "session" &&
@@ -80,7 +83,7 @@ export const TablePeekViewObservationDetail = (
       itemType={isSessionScope ? "SESSION" : props.itemType}
       title={isSessionScope ? sessionId : traceId}
       titleControl={
-        props.isV4 ? (
+        props.isV4 && internalFeaturesEnabled ? (
           <ConnectedTraceScopeToggle
             value={isSessionScope ? "session" : "trace"}
             canSelectSession={isProjectMember && !!sessionId}

@@ -151,9 +151,14 @@ function TraceWithSelection({
   const { selectedNodeId } = useSelection();
   const { isV4 } = useReadPath();
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const [aggregation] = useQueryParam("aggregation", StringParam);
   const canSelectSession =
-    isV4 && isProjectMember && !!trace.sessionId && context !== "annotation";
+    internalFeaturesEnabled &&
+    isV4 &&
+    isProjectMember &&
+    !!trace.sessionId &&
+    context !== "annotation";
   const scopeToSession = aggregation === "session" && canSelectSession;
   const sessionQuery = api.sessions.observationsForSessionFromEvents.useQuery(
     { projectId, sessionId: trace.sessionId ?? "" },
