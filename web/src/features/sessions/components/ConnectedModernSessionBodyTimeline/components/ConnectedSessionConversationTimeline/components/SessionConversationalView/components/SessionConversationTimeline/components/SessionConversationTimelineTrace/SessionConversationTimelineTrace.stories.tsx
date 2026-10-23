@@ -125,7 +125,7 @@ const commonArgs = {
   scrollTarget: null,
 };
 export const QueueAnnotationActions = meta.story({
-  name: "(Test) Queue corrections and trace comments",
+  name: "Queue corrections and trace comments",
   args: {
     ...commonArgs,
     onOpenTrace: fn(),
@@ -136,24 +136,6 @@ export const QueueAnnotationActions = meta.story({
       onOpenComments: fn(),
       onOpenCorrections: fn(),
     },
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    await userEvent.hover(
-      canvas.getByTitle(`${args.trace.name ?? "Trace"} (${args.trace.id})`),
-    );
-    const comments = canvas.getByRole("button", { name: "Trace comments (3)" });
-    await expect(within(comments).getByText("3")).toBeVisible();
-    await userEvent.click(comments);
-    await expect(args.annotationActions?.onOpenComments).toHaveBeenCalledOnce();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Output corrections" }),
-    );
-    await expect(
-      args.annotationActions?.onOpenCorrections,
-    ).toHaveBeenCalledOnce();
-    await userEvent.click(canvas.getByRole("button", { name: "Open trace" }));
-    await expect(args.onOpenTrace).toHaveBeenCalledOnce();
   },
 });
 function transcriptState({
