@@ -209,6 +209,9 @@ export async function traceFacetResults(
       outcome: row?.outcome ?? null,
       topicId: row?.topicId ?? null,
       topicName: row?.topicName ?? null,
+      // Slot in the published map; picks the topic's color.
+      topicIndex:
+        facet.map?.topics.findIndex((topic) => topic.id === row?.topicId) ?? -1,
     };
   });
 }

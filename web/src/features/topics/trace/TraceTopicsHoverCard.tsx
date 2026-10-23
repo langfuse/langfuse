@@ -6,7 +6,7 @@ import {
   treemapSwatchColor,
 } from "@/src/features/topics/topic-map-colors";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type TraceTopicFacet = RouterOutputs["topics"]["forTrace"][number];
@@ -36,7 +36,7 @@ function outcomeLabel(outcome: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Treemap hue, nudged toward the text color so it reads on the chip tint. */
+/** Map hue, nudged toward the text color so it reads on the chip tint. */
 function TopicDot({ rank }: { rank: number }) {
   return (
     <span
@@ -49,68 +49,30 @@ function TopicDot({ rank }: { rank: number }) {
   );
 }
 
-const HOUR_MS = 3_600_000;
-
-/** Rank and trace count per topic over the last 7 days, the Topics page default; ranks pick the treemap color. */
-function useTopicRanks(projectId: string, enabled: boolean) {
-  // Hour-aligned so every trace header in the same hour shares one cached query.
-  const [timeRange] = useState(() => {
-    const to = new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
-    return { from: new Date(to.getTime() - 7 * 24 * HOUR_MS), to };
-  });
-  const results = api.topics.currentResults.useQuery(
-    { projectId, timeRange },
-    { enabled, staleTime: HOUR_MS, gcTime: HOUR_MS },
-  );
-  return (facetId: string, topicId: string) => {
-    const topics =
-      results.data?.facets.find((facet) => facet.facetId === facetId)?.topics ??
-      [];
-    const rank = topics.findIndex((topic) => topic.id === topicId);
-    return { rank, count: rank < 0 ? null : topics[rank].count };
-  };
-}
-
-function TopicChip({
-  name,
-  rank,
-  count,
-}: {
-  name: string;
-  rank: number;
-  count: number | null;
-}) {
+/** Topic chip colored by the topic's slot in the published map. */
+function TopicChip({ name, mapIndex }: { name: string; mapIndex: number }) {
   return (
     <span className="flex min-w-0">
-      <BadgeShell color={treemapBadgeColor(rank)} font="mono">
-        <TopicDot rank={rank} />
+      <BadgeShell color={treemapBadgeColor(mapIndex)} font="mono">
+        <TopicDot rank={mapIndex} />
         <span className="truncate" title={name}>
           {name}
         </span>
-        {count !== null && (
-          <span className="text-muted-foreground shrink-0">{count}</span>
-        )}
       </BadgeShell>
     </span>
   );
 }
 
-type RankOf = ReturnType<typeof useTopicRanks>;
-
 /** Trace header trigger: the trace's first topic and how many more it has. */
 function TraceTopicsTrigger({
   facets,
-  rankOf,
   triggerProps,
 }: {
   facets: TraceTopicFacet[];
-  rankOf: RankOf;
   triggerProps: Record<string, unknown>;
 }) {
-  const assigned = facets.filter((facet) => facet.topicId && facet.topicName);
+  const assigned = facets.filter((facet) => facet.topicName);
   const lead = assigned[0];
-  const leadRank =
-    lead?.topicId != null ? rankOf(lead.facetId, lead.topicId).rank : -1;
   return (
     <span
       className="ph-no-capture hover:bg-muted inline-flex min-w-0 cursor-pointer rounded-sm px-2"
@@ -118,7 +80,7 @@ function TraceTopicsTrigger({
     >
       {lead?.topicName ? (
         <BadgeShell color="ghost" font="mono">
-          <TopicDot rank={leadRank} />
+          <TopicDot rank={lead.topicIndex} />
           <span className="truncate" title={lead.topicName}>
             {lead.topicName}
           </span>
@@ -143,12 +105,8 @@ export function TraceTopicsHoverCard({
 }: {
   projectId: string;
   facets: TraceTopicFacet[];
-  children: (trigger: {
-    triggerProps: Record<string, unknown>;
-    rankOf: RankOf;
-  }) => ReactNode;
+  children: (triggerProps: Record<string, unknown>) => ReactNode;
 }) {
-  const rankOf = useTopicRanks(projectId, facets.length > 0);
   return (
     <HoverCard
       openDelay={200}
@@ -163,13 +121,6 @@ export function TraceTopicsHoverCard({
             />
           </div>
           {facets.map((facet) => {
-            const topic =
-              facet.topicId && facet.topicName
-                ? {
-                    name: facet.topicName,
-                    ...rankOf(facet.facetId, facet.topicId),
-                  }
-                : null;
             return (
               <div
                 key={facet.facetId}
@@ -179,11 +130,10 @@ export function TraceTopicsHoverCard({
                   <span className="shrink-0 text-sm font-bold">
                     {facet.name}
                   </span>
-                  {topic && (
+                  {facet.topicName && (
                     <TopicChip
-                      name={topic.name}
-                      rank={topic.rank}
-                      count={topic.count}
+                      name={facet.topicName}
+                      mapIndex={facet.topicIndex}
                     />
                   )}
                   {!facet.summary && (
@@ -205,9 +155,7 @@ export function TraceTopicsHoverCard({
         </div>
       }
     >
-      {({ getTriggerProps }) =>
-        children({ triggerProps: getTriggerProps(), rankOf })
-      }
+      {({ getTriggerProps }) => children(getTriggerProps())}
     </HoverCard>
   );
 }

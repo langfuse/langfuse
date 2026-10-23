@@ -128,10 +128,9 @@ function LoadedTraceHeader() {
             projectId={trace.projectId}
             facets={topicFacets}
           >
-            {({ triggerProps, rankOf }) => (
+            {(triggerProps) => (
               <TraceTopicsHoverCard.Trigger
                 facets={topicFacets}
-                rankOf={rankOf}
                 triggerProps={triggerProps}
               />
             )}
