@@ -1996,7 +1996,11 @@ jobs:
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
           provenance: false
-          sbom: false
+          # Attaches an SPDX SBOM of the final image, including the UBI base
+          # and its Red Hat RPMs. The digest output is then an index that
+          # holds the image and its attestation; imagetools create below
+          # keeps both when merging the platforms.
+          sbom: true
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-dockerhub
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
@@ -2011,7 +2015,7 @@ jobs:
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
           provenance: false
-          sbom: false
+          sbom: true
       - name: Record pushed digests
         env:
           DIGEST_GHCR: ${{ steps.build-ghcr.outputs.digest }}
