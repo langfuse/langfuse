@@ -98,7 +98,7 @@ function fadedColor(color: PileColor, index: number) {
 
 type PileColor = "violet" | "blue" | "amber";
 
-type TopicPile = {
+export type TopicPile = {
   name: string;
   detail: string;
   slots: number;
