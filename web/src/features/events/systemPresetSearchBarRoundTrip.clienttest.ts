@@ -18,7 +18,7 @@ import { filterStateToQueryText, planCommit } from "@/src/features/search-bar";
 // self-demote on a mere focus + blur with no edit.
 //
 // This holds for the whole catalog today but is catalog-fragile: e.g. an
-// `id`/`name` stringOptions any-of-[single-value] re-commits as `string =`,
+// `id` stringOptions any-of-[single-value] re-commits as `string =`,
 // and a `score_booleans` filter re-commits as `categoryOptions`. If a new
 // preset fails here, give it a grammar-stable filter shape (or extend the
 // grammar) — do not weaken the demote guard.

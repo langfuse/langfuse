@@ -6,6 +6,11 @@ import type { FilterState } from "@langfuse/shared";
 import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
 import { planCommit } from "./commit";
 import {
+  applyCheckboxSelection,
+  hasEmptyCheckboxSelection,
+  type SidebarFilterActionContext,
+} from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
 } from "@/src/features/filters";
@@ -686,7 +691,12 @@ describe("astToFilterState", () => {
     }
     // `key:=value` is the explicit exact match.
     expect(lower("name:=checkout").filters).toEqual([
-      { type: "string", column: "name", operator: "=", value: "checkout" },
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["checkout"],
+      },
     ]);
     // Negation is does-not-contain (flat-representable).
     expect(lower("-id:abc").filters).toEqual([
@@ -702,7 +712,7 @@ describe("astToFilterState", () => {
   it("lowers negated exact on id/name to stringOptions none-of (exact inequality)", () => {
     // `-name:=abc` is exact-inequality — the faithful flat form is
     // stringOptions none-of (there is no `string !=`). It is the inverse of the
-    // positive `name:=abc` (`string =`) and the shape the facet emits when one
+    // positive `name:=abc` and the shape the facet emits when one
     // value is unchecked, so it must lower cleanly rather than error.
     for (const column of ["id", "name"]) {
       const r = lower(`-${column}:=abc`);
@@ -713,6 +723,43 @@ describe("astToFilterState", () => {
     }
     // The commit gate accepts it (no longer a "not representable" error).
     expect(validateQuery("-name:=abc").valid).toBe(true);
+  });
+
+  it("preserves an empty Name facet through a search-bar edit", () => {
+    const ctx: SidebarFilterActionContext = {
+      facets: [{ type: "categorical", column: "name", label: "Name" }],
+      columnDefinitions: [
+        {
+          id: "name",
+          name: "Name",
+          type: "stringOptions",
+          options: [],
+          internal: "name",
+        },
+      ],
+      options: { name: ["checkout", "chat"] },
+    };
+    const empty = applyCheckboxSelection(ctx, [], "name", []);
+    const { text, skippedFilters } = filterStateToQueryText(empty);
+    expect(text).toBe("name:=checkout -name:=checkout");
+    expect(skippedFilters).toEqual([]);
+
+    const commit = planCommit(`${text} env:prod`);
+    expect(commit.status).toBe("committed");
+    if (commit.status !== "committed") return;
+
+    expect(commit.filters.filter((filter) => filter.column === "name")).toEqual(
+      empty,
+    );
+    expect(hasEmptyCheckboxSelection(commit.filters, "name")).toBe(true);
+    expect(
+      applyCheckboxSelection(ctx, commit.filters, "name", ["chat"]),
+    ).toContainEqual({
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["chat"],
+    });
   });
 
   it("lowers input:/output: to real column filters (not searchType)", () => {
@@ -1214,10 +1261,12 @@ describe("filterStateToQueryText", () => {
       expect(skipped).toEqual([]);
       expect(text).toBe(`${column}:=abc`); // explicit exact, not bare `id:abc`
       const r = astToFilterState(validateQuery(text).ast);
-      // Stabilizes to {string,=} — same semantics (exact equality), never contains.
-      expect(r.filters).toEqual([
-        { type: "string", column, operator: "=", value: "abc" },
-      ]);
+      // Name retains its categorical facet shape; ID uses string equality.
+      const expected =
+        column === "name"
+          ? filters
+          : [{ type: "string", column, operator: "=", value: "abc" }];
+      expect(r.filters).toEqual(expected);
       // And the stabilized form is a fixpoint (no further drift).
       const echo = filterStateToQueryText(r.filters);
       expect(echo.text).toBe(`${column}:=abc`);
