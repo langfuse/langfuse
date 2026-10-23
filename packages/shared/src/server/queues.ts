@@ -8,6 +8,7 @@ import {
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
+import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import {
@@ -321,9 +322,17 @@ export const promptVersionWebhookEnvelopeSchema = z.object({
     .optional(),
 });
 
+export const skillVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("skill-version"),
+  skill: SkillVersionSchema,
+  action: EventActionSchema,
+  user: promptVersionWebhookEnvelopeSchema.shape.user,
+});
+
 /** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
 export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
   promptVersionWebhookEnvelopeSchema,
+  skillVersionWebhookEnvelopeSchema,
   MonitorWebhookQueueEventSchema,
   ProjectNotificationWebhookQueueEventSchema,
 ]);
@@ -350,6 +359,14 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
         email: z.string().nullable(),
       })
       .optional(),
+  }),
+  z.object({
+    entityType: z.literal("skill-version"),
+    projectId: z.string(),
+    skillId: z.string(),
+    action: EventActionSchema,
+    skill: SkillVersionSchema,
+    user: promptVersionWebhookEnvelopeSchema.shape.user,
   }),
   // Add other entity types here in the future
 ]);
