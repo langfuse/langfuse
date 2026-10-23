@@ -11,7 +11,7 @@ const membershipTestWriters = [
 ];
 /**
  * allowedPrismaWriters contains the list of files allowed to write to Prisma collections.
- * No config permits writes from the entire application.
+ * Writes are permitted from the entire application unless otherwise specified.
  * Globs match trailing path segments.
  */
 const allowedPrismaWriters = {
