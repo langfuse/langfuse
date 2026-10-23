@@ -1,0 +1,27 @@
+/* Halo: its mark drawn on the raised face, the message's text, and the dashed outline of what Halo is about to do */
+
+.mark {
+  fill: none;
+  stroke: var(--illustration-ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+/* On a highlighted block the mark takes the accent's ink, like the hero's name */
+[data-accent="highlight"] .mark {
+  stroke: var(--illustration-highlight-ink);
+}
+.message {
+  fill: var(--illustration-ink);
+  font-family: var(--illustration-font);
+}
+.object {
+  fill: var(--illustration-ink-2);
+  font-family: var(--illustration-font);
+}
+.result {
+  fill: color-mix(in srgb, var(--illustration-panel) 70%, transparent);
+  stroke: var(--illustration-ink);
+  stroke-width: 1.25;
+}

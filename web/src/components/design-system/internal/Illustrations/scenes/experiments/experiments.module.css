@@ -1,0 +1,111 @@
+/* Experiments: the chart's lines, guides, hatch and crosshair. Colours come from the --illustration-* tokens. */
+
+.guideSolid {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.guideDashed {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-dasharray: 7 5.8;
+  stroke-dashoffset: 3.65;
+}
+
+.hatchLine {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-opacity: 0.4;
+}
+.area {
+  stroke: none;
+}
+
+.series {
+  fill: none;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.heroLine {
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.1;
+}
+.otherLine {
+  stroke: var(--illustration-line);
+  stroke-width: 1.1;
+}
+
+/* The soft chip's text sits between ink and label, like the PNG's grey "set B" */
+.softChip text[data-tone="soft"] {
+  fill: color-mix(
+    in srgb,
+    var(--illustration-ink-2) 55%,
+    var(--illustration-label)
+  );
+}
+
+.cross {
+  opacity: 0;
+}
+.crossLine {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.crossDot {
+  fill: var(--illustration-ink);
+}
+.crossHalo {
+  fill: var(--illustration-ink);
+  opacity: 0.15;
+}
+
+/* The hero chip leads a first build after the stage's lead, like the raised blocks elsewhere; replays leave it in place */
+.heroChip {
+  --hero-chip-at: var(--illustration-build-lead, 0ms);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .heroChip {
+    transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  [data-from="hidden"] .heroChip {
+    animation: hero-chip-in 420ms var(--illustration-ease-out)
+      var(--hero-chip-at) backwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-from="hidden"] .heroChip {
+    animation: hero-chip-fade 240ms ease-out var(--hero-chip-at) backwards;
+  }
+}
+@keyframes hero-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+@keyframes hero-chip-fade {
+  from {
+    opacity: 0;
+  }
+}
+/* It lifts on hover like a hero block: with a real pointer, over the art or a host card */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  :global(svg:not([data-lift="off"]):hover) .heroChip,
+  :global([data-illustration-host]:hover svg:not([data-lift="off"])) .heroChip {
+    transform: translateY(-4px);
+  }
+}
+
+/* Keyboard focus inside a host card lifts it too, on any pointer */
+@media (prefers-reduced-motion: no-preference) {
+  :global([data-illustration-host]:focus-within svg:not([data-lift="off"]))
+    .heroChip {
+    transform: translateY(-4px);
+  }
+}

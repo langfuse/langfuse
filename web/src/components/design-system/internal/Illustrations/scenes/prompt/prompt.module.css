@@ -1,0 +1,96 @@
+/* Prompt management: the sans face for versions and tags, the opaque cards, the dark live wiring and the drop-in. */
+
+.sans {
+  font-family: var(--font-sans);
+}
+
+.plateCard {
+  fill: var(--illustration-panel);
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.dash {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3.5;
+  stroke-dashoffset: -4;
+}
+.dashReveal {
+  fill: none;
+  stroke: white;
+  stroke-width: 8;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+}
+.liveWire {
+  fill: none;
+  stroke: var(--illustration-edge);
+  stroke-width: 1.6;
+  stroke-linejoin: miter;
+}
+.liveSocket {
+  fill: var(--illustration-edge);
+}
+.bracket {
+  fill: none;
+  stroke: var(--illustration-edge);
+  stroke-width: 1.6;
+  stroke-linecap: square;
+}
+/* On a highlighted block the solid tag would vanish into it, so it inverts */
+[data-accent="highlight"] .heroTag {
+  fill: var(--illustration-highlight-ink);
+}
+[data-accent="highlight"] .heroTagText {
+  fill: var(--illustration-highlight);
+}
+.authorChip {
+  fill: var(--illustration-soft);
+}
+.authorText {
+  fill: color-mix(
+    in srgb,
+    var(--illustration-ink-2) 60%,
+    var(--illustration-label)
+  );
+}
+
+/* A version drops into the stack; it clears like the engine's reveals, on the global illustration-clear (styles/globals.css) */
+.drop {
+  --drop-clear: illustration-clear var(--illustration-clear-for, 180ms)
+    var(--illustration-ease-out) var(--illustration-clear-at, 0ms) forwards;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-running] .drop {
+    animation:
+      var(--drop-clear),
+      prompt-drop 380ms var(--illustration-ease-out) var(--at) forwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-running] .drop {
+    animation:
+      var(--drop-clear),
+      prompt-fade 240ms ease-out var(--at) forwards;
+  }
+}
+
+@keyframes prompt-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes prompt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

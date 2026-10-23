@@ -11,7 +11,7 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "group/button inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -56,6 +56,8 @@ type ButtonProps = {
       disabled?: never;
       loading?: never;
       icon?: IconComponent;
+      /** After the text, nudging right on hover, e.g. an arrow; on external links it sits before the external-link icon. */
+      trailingIcon?: IconComponent;
       form?: never;
       onClick?: never;
       type?: never;
@@ -66,6 +68,8 @@ type ButtonProps = {
       disabled?: boolean;
       form?: string;
       icon?: IconComponent;
+      /** After the text, nudging right on hover (not while disabled), e.g. an arrow. */
+      trailingIcon?: IconComponent;
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
@@ -75,6 +79,20 @@ type ButtonProps = {
       "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
     >)
 );
+
+function TrailingIcon({
+  icon: Icon,
+  color,
+}: {
+  icon: IconComponent;
+  color: "default" | "inherit";
+}) {
+  return (
+    <span className="inline-flex duration-150 ease-out motion-safe:transition-transform motion-safe:group-hover/button:group-not-disabled/button:translate-x-0.5">
+      <Icon color={color} aria-hidden />
+    </span>
+  );
+}
 
 export function Button(props: ButtonProps) {
   // twMerge so the text variant's px-0/h-auto win over the size defaults.
@@ -106,6 +124,9 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
+          {props.trailingIcon ? (
+            <TrailingIcon icon={props.trailingIcon} color={iconColor} />
+          ) : null}
           {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
           <ExternalLink
             size="sm"
@@ -121,6 +142,9 @@ export function Button(props: ButtonProps) {
       <Link className={className} href={props.href} ref={props.ref}>
         {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
+        {props.trailingIcon ? (
+          <TrailingIcon icon={props.trailingIcon} color={iconColor} />
+        ) : null}
       </Link>
     );
   }
@@ -151,6 +175,9 @@ export function Button(props: ButtonProps) {
       >
         {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
+        {props.trailingIcon ? (
+          <TrailingIcon icon={props.trailingIcon} color={iconColor} />
+        ) : null}
       </span>
       {props.loading && (
         <span className="absolute inset-0 flex items-center justify-center">

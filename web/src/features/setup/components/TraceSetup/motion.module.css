@@ -1,0 +1,139 @@
+/*
+ * The page's moments, each only when it happens in front of you. Ease-out curves; under reduced motion things
+ * fade or simply appear.
+ */
+
+/*
+ * A setup that opens in front of you: its parts rise into place one after another under a light blur that resolves,
+ * 50 ms apart, so the eye follows them down. Classes below win over it on a part that has its own entrance.
+ */
+.stagger > * {
+  animation: rise-in 260ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+.stagger > :nth-child(2) {
+  animation-delay: 50ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 100ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 150ms;
+}
+
+/* Keys that land while you watch fade into the rows that waited for them */
+.fadeIn {
+  animation: fade 200ms ease-out;
+}
+
+/* A step done in front of you: its check lands, then the next step lights up */
+.checkIn {
+  animation: check-in 260ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.stepOn {
+  animation: step-on 280ms cubic-bezier(0.23, 1, 0.32, 1) 320ms backwards;
+}
+
+/* A job that opens when the first trace lands */
+.unlock {
+  animation: lift 700ms ease;
+}
+
+/* Waiting: the dot keeps ringing while Langfuse checks, like a spinner */
+.ping {
+  animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* More traces: the count ticks up, and a newer trace shown on request settles in rather than swaps */
+.countIn {
+  animation: count-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.swapIn {
+  animation: swap-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* The sheet's views slide the way you went */
+.viewForward {
+  animation: view-in-forward 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.viewBack {
+  animation: view-in-back 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(2px);
+  }
+}
+@keyframes check-in {
+  from {
+    transform: scale(0.8);
+  }
+}
+@keyframes step-on {
+  from {
+    background-color: var(--color-muted);
+    color: var(--color-muted-foreground);
+  }
+  45% {
+    transform: scale(0.84);
+  }
+}
+@keyframes lift {
+  40% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes ping {
+  75%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+@keyframes count-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes view-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes view-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > *,
+  .swapIn,
+  .viewForward,
+  .viewBack {
+    animation-name: fade;
+  }
+  .checkIn,
+  .stepOn,
+  .unlock,
+  .ping,
+  .countIn {
+    animation: none;
+  }
+}

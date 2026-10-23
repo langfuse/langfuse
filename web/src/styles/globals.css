@@ -549,6 +549,31 @@
     --chart-fill-7: 115 38% 56%;
     --chart-fill-8: 325 61% 68%;
     --chart-grid: var(--muted-gray);
+
+    /* Illustrations (design-system/internal/Illustrations): complete colours, read as var(--illustration-*) */
+    --illustration-font: var(--font-mono);
+    --illustration-panel: hsl(var(--surface-sunken));
+    --illustration-grid: hsl(var(--muted));
+    --illustration-line: hsl(var(--border-contrast));
+    --illustration-guide: hsl(var(--foreground-tertiary));
+    --illustration-label: hsl(var(--muted-foreground));
+    --illustration-ink: hsl(var(--foreground));
+    --illustration-ink-2: hsl(var(--foreground-secondary));
+    --illustration-edge: hsl(var(--foreground));
+    --illustration-packet: var(--observation-evaluator-line);
+    --illustration-top: hsl(var(--card));
+    --illustration-front: hsl(var(--header));
+    --illustration-left: hsl(var(--muted));
+    --illustration-soft: hsl(var(--input));
+    --illustration-pass: var(--dark-green);
+    --illustration-fail: var(--dark-red);
+    --illustration-neutral: hsl(var(--foreground-tertiary));
+    --illustration-warm: var(--dark-yellow);
+    --illustration-shadow: hsl(0 0% 0%);
+    --illustration-highlight: var(--primary-accent-fill);
+    --illustration-highlight-ink: hsl(var(--card));
+    /* Claude's brand orange, for its mark: the same in both themes */
+    --illustration-claude: hsl(15 63% 60%);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
     --color-3: oklch(69.6% 0.165 251);
@@ -783,6 +808,27 @@
     --chart-fill-7: 115 46% 35%;
     --chart-fill-8: 323 39% 47%;
     --chart-grid: var(--muted-gray);
+
+    --illustration-panel: hsl(var(--surface-sunken));
+    --illustration-grid: hsl(var(--muted));
+    --illustration-line: hsl(var(--border-contrast));
+    --illustration-guide: hsl(0 0% 32%);
+    --illustration-label: hsl(var(--muted-foreground));
+    --illustration-ink: hsl(var(--primary));
+    --illustration-ink-2: hsl(var(--foreground));
+    --illustration-edge: hsl(var(--foreground-secondary));
+    --illustration-packet: var(--observation-evaluator-line);
+    --illustration-top: hsl(var(--muted));
+    --illustration-front: hsl(var(--modal));
+    --illustration-left: hsl(var(--surface-sunken));
+    --illustration-soft: hsl(var(--input));
+    --illustration-pass: var(--dark-green);
+    --illustration-fail: var(--dark-red);
+    --illustration-neutral: hsl(var(--muted-foreground));
+    --illustration-warm: oklch(76.5% 0.12 75);
+    --illustration-shadow: hsl(0 0% 0%);
+    --illustration-highlight: var(--primary-accent-fill);
+    --illustration-highlight-ink: hsl(0 0% 96%);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
     --color-3: oklch(69.6% 0.165 251);
@@ -1017,6 +1063,33 @@
   }
   to {
     --scroll-fade-b: 0px;
+  }
+}
+
+/* Illustration animations shared across their CSS modules, which reach them
+   through custom properties (--illustration-clear, -land, -shadow-in) that
+   CSS Modules can't rename. */
+@keyframes illustration-clear {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes illustration-land {
+  from {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+/* A shadow under something still in the air is wider and fainter */
+@keyframes illustration-shadow-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
   }
 }
 

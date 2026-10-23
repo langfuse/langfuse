@@ -1,4 +1,4 @@
-import { BookOpen } from "@langfuse/icons";
+import { ArrowRight, BookOpen } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -42,6 +42,26 @@ export const VariantMatrix = meta.story({
       )}
     </div>
   ),
+});
+
+export const TrailingIcon = meta.story({
+  args: {
+    text: "New prompt",
+    variant: "secondary",
+    size: "sm",
+    trailingIcon: ArrowRight,
+    href: "/project/project-1/prompts/new",
+  },
+});
+
+export const TrailingIconOnExternalLink = meta.story({
+  args: {
+    text: "Read the guide",
+    variant: "secondary",
+    size: "sm",
+    trailingIcon: ArrowRight,
+    href: "https://langfuse.com/docs",
+  },
 });
 
 export const ExternalLangfuseLink = meta.story({

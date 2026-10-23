@@ -1,0 +1,6 @@
+/* The dark wires from each model down to its reply */
+.lead {
+  fill: none;
+  stroke: var(--illustration-edge);
+  stroke-width: 1.5;
+}
