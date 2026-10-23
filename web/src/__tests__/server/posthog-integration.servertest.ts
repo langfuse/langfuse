@@ -870,6 +870,28 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
       expect(row.enabled).toBe(false);
     });
 
+    it("update changing the hostname with a blank key → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          posthogHostname: "https://eu.posthog.com",
+          posthogProjectApiKey: "",
+        }),
+      ).rejects.toThrow(
+        "PostHog Project API Key is required when changing the hostname",
+      );
+      const row = await prisma.posthogIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.posthogHostName).toBe("https://us.posthog.com/");
+    });
+
     it("create with a blank key → BAD_REQUEST", async () => {
       const { caller, project } = await prepare();
       await expect(
