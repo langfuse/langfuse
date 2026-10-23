@@ -33,9 +33,26 @@ const RunBatchEvaluationBaseSchema = z
   })
   .strict();
 
+// Batch queries use the generic filter contract, which excludes the
+// events-only full-text operator listObservations accepts.
+const BatchQueryFilterSchema = ObservationMcpFilterSchema.transform(
+  (filter, ctx) => {
+    const parsed = singleFilter.safeParse(filter);
+    if (parsed.success) return parsed.data;
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({
+        code: "custom",
+        path: issue.path,
+        message: issue.message,
+      });
+    }
+    return z.NEVER;
+  },
+);
+
 const RunBatchEvaluationInputSchema = RunBatchEvaluationBaseSchema.extend({
   filter: z
-    .array(ObservationMcpFilterSchema.pipe(singleFilter))
+    .array(BatchQueryFilterSchema)
     .optional()
     .describe(FILTER_DESCRIPTION),
 });
