@@ -17,6 +17,7 @@ import {
   getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
+  countCurrentTopicTraces,
   createTopicFacet,
   createTopicFacetVersion,
   ensureDefaultTopicFacets,
@@ -778,6 +779,67 @@ describe("Topics definition persistence", () => {
         count: allowedTraceIds.length,
       },
     ]);
+  });
+
+  it("counts each trace once under its current topic, ignoring unpublished runs", async () => {
+    const facetId = randomUUID();
+    const [moved, stayed, unpublished] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    const online = (
+      traceId: string,
+      topicId: string,
+      assignedAt: string,
+    ): TopicAssignment => ({
+      projectId,
+      facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.processedAt,
+      runId: null,
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      assignedAt,
+    });
+    await writeTopicAssignments([
+      online(moved, "topic-a", "2026-09-01T00:00:00.000Z"),
+      online(moved, "topic-b", "2026-09-02T00:00:00.000Z"),
+      online(stayed, "topic-a", "2026-09-01T00:00:00.000Z"),
+      {
+        ...online(unpublished, "topic-a", "2026-09-01T00:00:00.000Z"),
+        runId: "unpublished",
+        origin: "initial",
+        coordinates: [0, 0],
+      },
+    ]);
+    const counts = await countCurrentTopicTraces(
+      projectId,
+      [
+        { facetId, topicId: "topic-a" },
+        { facetId, topicId: "topic-b" },
+      ],
+      {
+        from: new Date("2026-08-01T00:00:00.000Z"),
+        to: new Date("2026-09-01T00:00:00.000Z"),
+      },
+    );
+    expect(counts).toEqual(
+      expect.arrayContaining([
+        { facetId, topicId: "topic-a", count: 1 },
+        { facetId, topicId: "topic-b", count: 1 },
+      ]),
+    );
+    expect(counts).toHaveLength(2);
   });
 
   it("sums priced summary and embedding costs scoped to the project and executions", async () => {

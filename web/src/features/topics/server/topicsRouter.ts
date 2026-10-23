@@ -28,6 +28,7 @@ import {
   readTopicExecutionTraceErrors,
   getTopicExecutionCosts,
   getTopicSummaryCounts,
+  countCurrentTopicTraces,
   listTopicExecutions,
   listTopicFacets,
   isTopicsProjectEnabled,
@@ -328,6 +329,22 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       traceFacetResults(input.projectId, input.traceId, input.timestamp),
     ),
+  /** Trace header card: traces per topic over the Topics page's default last 7 days. */
+  topicTraceCounts: topicsProcedure
+    .input(
+      projectInput.extend({
+        topics: z
+          .array(z.object({ facetId: topicIdSchema, topicId: topicIdSchema }))
+          .max(50),
+      }),
+    )
+    .query(({ input }) => {
+      const to = new Date();
+      return countCurrentTopicTraces(input.projectId, input.topics, {
+        from: new Date(to.getTime() - 7 * 86_400_000),
+        to,
+      });
+    }),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),
