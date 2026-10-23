@@ -91,64 +91,61 @@ function MissingCostBadge({
     scope: "models:CUD",
   });
   const settingsPath = `/project/${encodeURIComponent(projectId)}/settings/models`;
-  const renderChip = (openDialog?: () => void) => (
-    <CustomTooltip
-      renderContent={({ close }) => (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs">
-            {hasUsage
-              ? "No model price matched this generation. Add a model price, or send the cost from your SDK."
-              : "No usage or cost was sent for this generation. Send usage (e.g. characters) and add a model price, or send the cost from your SDK."}
-          </p>
-          <div className="flex items-center gap-1.5">
-            {openDialog ? (
-              <TextLink
-                path={settingsPath}
-                value="Add model price"
-                onClick={() => {
-                  close();
-                  openDialog();
-                }}
-              />
-            ) : (
-              <TextLink path={settingsPath} value="Model settings" />
-            )}
-            <span className="text-muted-foreground text-xs">·</span>
-            <TextLink
-              path="https://langfuse.com/docs/model-usage-and-cost"
-              value="Docs"
-              external
-            />
-          </div>
-        </div>
-      )}
-    >
-      {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Badge
-            font="mono"
-            color="ghost-warning"
-            interactive
-            leadingIcon={TriangleAlert}
-            text="no cost"
-          />
-        </span>
-      )}
-    </CustomTooltip>
-  );
-
-  if (!model || !canCreateModel) return renderChip();
-  // The dialog lives outside the tooltip so closing the tooltip cannot unmount it.
+  // Mounted outside the tooltip so closing the tooltip cannot unmount the dialog.
   return (
     <UpsertModelFormDialogController
       action="create"
       projectId={projectId}
       prefilledModelData={{
-        modelName: model,
+        modelName: model ?? undefined,
         prices: prefilledPricesFromUsage(usageDetails),
       }}
     >
-      {({ openDialog }) => renderChip(openDialog)}
+      {({ openDialog }) => (
+        <CustomTooltip
+          renderContent={({ close }) => (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs">
+                {hasUsage
+                  ? "No model price matched this generation. Add a model price, or send the cost from your SDK."
+                  : "No usage or cost was sent for this generation. Send usage (e.g. characters) and add a model price, or send the cost from your SDK."}
+              </p>
+              <div className="flex items-center gap-1.5">
+                {model && canCreateModel ? (
+                  <TextLink
+                    path={settingsPath}
+                    value="Add model price"
+                    onClick={() => {
+                      close();
+                      openDialog();
+                    }}
+                  />
+                ) : (
+                  <TextLink path={settingsPath} value="Model settings" />
+                )}
+                <span className="text-muted-foreground text-xs">·</span>
+                <TextLink
+                  path="https://langfuse.com/docs/model-usage-and-cost"
+                  value="Docs"
+                  external
+                />
+              </div>
+            </div>
+          )}
+        >
+          {({ getTriggerProps }) => (
+            <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
+              <Badge
+                font="mono"
+                color="ghost-warning"
+                interactive
+                leadingIcon={TriangleAlert}
+                text="no cost"
+              />
+            </span>
+          )}
+        </CustomTooltip>
+      )}
     </UpsertModelFormDialogController>
   );
 }
