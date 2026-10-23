@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { TraceDetailBody } from "@/src/features/traces";
