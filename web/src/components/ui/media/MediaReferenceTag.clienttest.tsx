@@ -1,48 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MediaReferenceTag } from "./MediaReferenceTag";
 import { classifyMediaValue } from "./mediaUtils";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
-const { refreshIfNeeded } = vi.hoisted(() => ({
-  refreshIfNeeded: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock("./useResolvedMedia", () => ({
   useResolvedMedia: () => ({
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
     contentLength: 2.5 * 1024 * 1024,
-    refreshIfNeeded,
   }),
 }));
 
 describe("MediaReferenceTag", () => {
-  it("checks for an expired URL on the first open and on every reopen", async () => {
-    const descriptor = classifyMediaValue(
-      "@@@langfuseMedia:type=application/pdf|id=document|source=bytes@@@",
-    );
-
-    expect(descriptor).not.toBeNull();
-    render(<MediaReferenceTag descriptor={descriptor!} />, {
-      wrapper: LayerProvider,
-    });
-
-    const trigger = screen.getByRole("button", { name: "PDF media" });
-    fireEvent.click(trigger);
-    expect(refreshIfNeeded).toHaveBeenCalledTimes(1);
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() =>
-      expect(screen.queryByText("No inline preview")).not.toBeInTheDocument(),
-    );
-    expect(refreshIfNeeded).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(trigger);
-    expect(refreshIfNeeded).toHaveBeenCalledTimes(2);
-  });
-
   it("keeps focus on the media trigger when resolution starts", () => {
     const descriptor = classifyMediaValue(
       "@@@langfuseMedia:type=image/png|id=image|source=bytes@@@",

@@ -53,6 +53,7 @@ const descriptor = {
 } as const;
 
 const queryKey = ["media.getById", "project-1", descriptor.mediaId];
+// Received at 09:00:00 (the fake clock below), valid for 60s.
 const cachedMedia: MediaResponse = {
   url: "https://signed.example.com/document.pdf?signature=old",
   urlExpiry: "2026-10-22T09:01:00.000Z",
@@ -86,52 +87,58 @@ describe("useResolvedMedia", () => {
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  const renderMediaHook = () =>
+    renderHook(() => useResolvedMedia(descriptor), { wrapper });
+  const reopenAt = (
+    result: ReturnType<typeof renderMediaHook>["result"],
+    time: string,
+  ) => {
+    act(() => result.current.onOpenChange(false));
+    vi.setSystemTime(new Date(time));
+    act(() => result.current.onOpenChange(true));
+  };
 
-  it.each([true, false])(
-    "refreshes an expired cached URL on open (previously enabled: %s)",
-    async (enabled) => {
-      getMedia.mockResolvedValue(refreshedMedia);
-      const { result, rerender } = renderHook(
-        ({ enabled }) => useResolvedMedia(descriptor, { enabled }),
-        { initialProps: { enabled }, wrapper },
-      );
-      expect(result.current.url).toBe(enabled ? cachedMedia.url : undefined);
-      expect(getMedia).not.toHaveBeenCalled();
-
-      vi.setSystemTime(new Date(cachedMedia.urlExpiry));
-      rerender({ enabled });
-      expect(result.current.status).not.toBe("ready");
-      expect(result.current.url).toBeUndefined();
-
-      await act(async () => {
-        await result.current.refreshIfNeeded();
-      });
-      rerender({ enabled: true });
-
-      await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
-      expect(result.current.status).toBe("ready");
-      await act(result.current.refreshIfNeeded);
-      expect(getMedia).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  it("renews a URL shortly before it expires, but not early in its lifetime", async () => {
+  it("fetches nothing until the peek first opens", async () => {
+    queryClient.removeQueries({ queryKey });
     getMedia.mockResolvedValue(refreshedMedia);
-    const { result, rerender } = renderHook(
-      () => useResolvedMedia(descriptor, { enabled: true }),
-      { wrapper },
-    );
+    const { result } = renderMediaHook();
 
-    vi.setSystemTime(new Date("2026-10-22T09:00:30.000Z"));
-    rerender();
-    expect(result.current.url).toBe(cachedMedia.url);
-    await act(result.current.refreshIfNeeded);
+    expect(result.current.status).toBe("idle");
     expect(getMedia).not.toHaveBeenCalled();
 
-    vi.setSystemTime(new Date("2026-10-22T09:00:50.000Z"));
-    rerender();
+    act(() => result.current.onOpenChange(true));
+    expect(result.current.open).toBe(true);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.url).toBe(refreshedMedia.url);
+    expect(getMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the URL early in its lifetime and renews it on reopen shortly before expiry", async () => {
+    getMedia.mockResolvedValue(refreshedMedia);
+    const { result } = renderMediaHook();
+
+    act(() => result.current.onOpenChange(true));
+    expect(result.current.url).toBe(cachedMedia.url);
+
+    reopenAt(result, "2026-10-22T09:00:30.000Z");
+    expect(result.current.url).toBe(cachedMedia.url);
+    expect(getMedia).not.toHaveBeenCalled();
+
+    reopenAt(result, "2026-10-22T09:00:50.000Z");
     expect(result.current.url).toBeUndefined();
-    await act(result.current.refreshIfNeeded);
+    await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
+    expect(result.current.status).toBe("ready");
+    expect(getMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("renews a URL that expired in the cache before the first open", async () => {
+    getMedia.mockResolvedValue(refreshedMedia);
+    vi.setSystemTime(new Date("2026-10-22T09:02:00.000Z"));
+    const { result } = renderMediaHook();
+
+    act(() => result.current.onOpenChange(true));
+    expect(result.current.url).toBeUndefined();
+    await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
     expect(getMedia).toHaveBeenCalledTimes(1);
   });
 
@@ -140,41 +147,44 @@ describe("useResolvedMedia", () => {
       ...cachedMedia,
       urlExpiry: "2026-10-22T07:01:00.000Z",
     });
-    const { result, rerender } = renderHook(
-      () => useResolvedMedia(descriptor, { enabled: true }),
-      { wrapper },
-    );
-
     vi.setSystemTime(new Date("2026-10-22T09:00:10.000Z"));
-    rerender();
+    const { result } = renderMediaHook();
+
+    act(() => result.current.onOpenChange(true));
     expect(result.current.status).toBe("ready");
     expect(result.current.url).toBe(cachedMedia.url);
+    expect(getMedia).not.toHaveBeenCalled();
   });
 
-  it("hides the expired URL during renewal and shares concurrent refreshes", async () => {
+  it("hides the expired URL while renewing and shares one request across quick reopens", async () => {
     const signing = Promise.withResolvers<MediaResponse>();
     getMedia.mockReturnValue(signing.promise);
-    const { result } = renderHook(
-      () => useResolvedMedia(descriptor, { enabled: true }),
-      { wrapper },
-    );
-    vi.setSystemTime(new Date(cachedMedia.urlExpiry));
+    const { result } = renderMediaHook();
+    act(() => result.current.onOpenChange(true));
 
-    let renewals!: Promise<void[]>;
-    act(() => {
-      renewals = Promise.all([
-        result.current.refreshIfNeeded(),
-        result.current.refreshIfNeeded(),
-      ]);
-    });
-    await waitFor(() => expect(result.current.status).toBe("loading"));
+    reopenAt(result, "2026-10-22T09:01:00.000Z");
+    reopenAt(result, "2026-10-22T09:01:01.000Z");
+    expect(result.current.status).toBe("loading");
     expect(result.current.url).toBeUndefined();
     expect(getMedia).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      signing.resolve(refreshedMedia);
-      await renewals;
-    });
+    await act(async () => signing.resolve(refreshedMedia));
     await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
+  });
+
+  it("retries a failed fetch on the next open", async () => {
+    queryClient.removeQueries({ queryKey });
+    getMedia
+      .mockRejectedValueOnce(new Error("signing failed"))
+      .mockResolvedValue(refreshedMedia);
+    const { result } = renderMediaHook();
+
+    act(() => result.current.onOpenChange(true));
+    await waitFor(() => expect(result.current.status).toBe("error"));
+
+    reopenAt(result, "2026-10-22T09:00:05.000Z");
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.url).toBe(refreshedMedia.url);
+    expect(getMedia).toHaveBeenCalledTimes(2);
   });
 });

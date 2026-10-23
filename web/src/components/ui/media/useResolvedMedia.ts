@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { isSignedUrlExpired, type MediaDescriptor } from "./mediaUtils";
@@ -6,22 +7,22 @@ import { type MediaTagStatus } from "../../MediaTag/MediaTag";
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 
 /**
- * Resolves the previewable URL for a media descriptor.
+ * Drives the peek of a native media chip and resolves its signed URL.
  *
- * URLs are resolved lazily when media opens, so a JSON view with N media leaves
- * does not fetch N URLs on render. Cached URLs are reused until shortly before
- * their returned expiry; callers check for renewal when opening media.
+ * The URL is fetched lazily on the first open, so a JSON view with N media
+ * leaves does not fetch N URLs on render. Later opens reuse the cached URL
+ * until shortly before it expires, then fetch a new one.
  */
-export function useResolvedMedia(
-  descriptor: LangfuseRefDescriptor,
-  { enabled }: { enabled: boolean },
-): {
+export function useResolvedMedia(descriptor: LangfuseRefDescriptor): {
   status: MediaTagStatus;
   url?: string;
   contentLength?: number;
-  refreshIfNeeded: () => Promise<void>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 } {
   const projectId = useProjectIdFromURL();
+  const [armed, setArmed] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const { data, dataUpdatedAt, isError, isFetching, refetch } =
     api.media.getById.useQuery(
@@ -30,7 +31,7 @@ export function useResolvedMedia(
         projectId: projectId as string,
       },
       {
-        enabled: enabled && Boolean(projectId),
+        enabled: armed && Boolean(projectId),
         meta: { silentHttpCodes: [404] },
         refetchOnWindowFocus: false,
         refetchOnMount: false,
@@ -41,25 +42,29 @@ export function useResolvedMedia(
   const isExpired = () =>
     isSignedUrlExpired(data?.urlTtlSeconds, dataUpdatedAt);
 
-  const refreshIfNeeded = async () => {
-    if (!projectId || (!isError && !isExpired())) return;
-    await refetch({ cancelRefetch: false });
+  const onOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) return;
+
+    setArmed(true);
+    if (projectId && (isError || isExpired())) {
+      refetch({ cancelRefetch: false }).catch(() => undefined);
+    }
   };
 
-  if (!enabled || !projectId) return { status: "idle", refreshIfNeeded };
+  const peek = { open, onOpenChange };
+  if (!armed || !projectId) return { status: "idle", ...peek };
   if (isExpired()) {
-    return {
-      status: isFetching ? "loading" : "error",
-      refreshIfNeeded,
-    };
+    return { status: isFetching ? "loading" : "error", ...peek };
   }
-  if (isError) return { status: "error", refreshIfNeeded };
-  if (data?.url)
+  if (isError) return { status: "error", ...peek };
+  if (data?.url) {
     return {
       status: "ready",
       url: data.url,
       contentLength: data.contentLength,
-      refreshIfNeeded,
+      ...peek,
     };
-  return { status: "loading", refreshIfNeeded };
+  }
+  return { status: "loading", ...peek };
 }

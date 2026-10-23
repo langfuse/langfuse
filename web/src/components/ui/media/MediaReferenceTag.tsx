@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
 import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
@@ -12,9 +11,10 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
 /**
- * Container that connects a classified media value to the pure `MediaTag`: it
- * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
- * armed so re-hovers read from the query cache instead of re-fetching.
+ * Container that connects a classified media value to the pure `MediaTag`. The
+ * resolver hooks own the peek: they arm the lazy fetch the first time it opens
+ * (hover/focus) and serve re-hovers from the query cache until the URL nears
+ * expiry.
  */
 export function MediaReferenceTag({
   descriptor,
@@ -57,23 +57,10 @@ function S3MediaTag({
     enableForAdmins: false,
     projectId,
   });
-  const [armed, setArmed] = useState(false);
-  const [open, setOpen] = useState(false);
-  const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
+  const { status, url, open, onOpenChange } = useResolvedExternalMedia(
     descriptor,
-    {
-      enabled: isFeatureEnabled && armed,
-    },
+    { enabled: isFeatureEnabled },
   );
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) return;
-
-    if (armed) {
-      refreshIfNeeded().catch(() => undefined);
-    }
-    setArmed(true);
-  };
 
   if (!isFeatureEnabled) {
     return (
@@ -95,7 +82,7 @@ function S3MediaTag({
       url={url}
       errorDetail={descriptor.uri}
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={onOpenChange}
     />
   );
 }
@@ -107,21 +94,10 @@ function LangfuseRefMediaTag({
   descriptor: LangfuseRefDescriptor;
   size?: MediaTagProps["size"];
 }) {
-  const [armed, setArmed] = useState(false);
-  const [open, setOpen] = useState(false);
-  const { status, url, contentLength, refreshIfNeeded } = useResolvedMedia(
-    descriptor,
-    { enabled: armed },
-  );
+  const { status, url, contentLength, open, onOpenChange } =
+    useResolvedMedia(descriptor);
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) return;
-
-    refreshIfNeeded().catch(() => undefined);
-    setArmed(true);
-  };
 
   return (
     <MediaTag
@@ -139,7 +115,7 @@ function LangfuseRefMediaTag({
       openActionLabel={isOversizedField ? "Open original" : undefined}
       intent={isOversizedField ? "attachment" : undefined}
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={onOpenChange}
     />
   );
 }

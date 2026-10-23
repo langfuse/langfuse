@@ -12,11 +12,7 @@ vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 // path's media tag resolves too — stub its project/URL lookups.
 vi.mock("@/src/hooks/useProjectIdFromURL", () => ({ default: () => "p1" }));
 vi.mock("@/src/components/ui/media/useResolvedMedia", () => ({
-  useResolvedMedia: () => ({
-    status: "idle",
-    url: undefined,
-    refreshIfNeeded: vi.fn().mockResolvedValue(undefined),
-  }),
+  useResolvedMedia: () => ({ status: "idle", url: undefined }),
 }));
 
 // Stands in for the real media renderer (it needs a session + signed-URL

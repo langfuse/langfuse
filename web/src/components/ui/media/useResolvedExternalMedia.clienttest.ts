@@ -46,16 +46,31 @@ describe("useResolvedExternalMedia", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes a cached signed URL when it expires before the next open", async () => {
+  it("refreshes a cached signed URL when it expires before the next open", () => {
     const { result } = renderHook(() =>
       useResolvedExternalMedia(descriptor, { enabled: true }),
     );
+    expect(result.current.status).toBe("idle");
 
+    act(() => result.current.onOpenChange(true));
     expect(result.current.status).toBe("ready");
+    expect(refetchMock).not.toHaveBeenCalled();
 
+    act(() => result.current.onOpenChange(false));
     vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
-    await act(result.current.refreshIfNeeded);
+    act(() => result.current.onOpenChange(true));
 
     expect(refetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not fetch while external media is disabled", () => {
+    vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
+    const { result } = renderHook(() =>
+      useResolvedExternalMedia(descriptor, { enabled: false }),
+    );
+
+    act(() => result.current.onOpenChange(true));
+    expect(result.current.status).toBe("idle");
+    expect(refetchMock).not.toHaveBeenCalled();
   });
 });
