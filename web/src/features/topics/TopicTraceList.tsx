@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useState } from "react";
+import { type RefObject, useState } from "react";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
@@ -23,6 +23,7 @@ export function TopicTraceList({
   rows,
   peekView,
   tracePanelRef,
+  headerRef,
   divider,
 }: TopicTraceListProps) {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -85,7 +86,10 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
-      <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-3">
+      <div
+        ref={headerRef}
+        className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"
+      >
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-muted-foreground flex items-center gap-2 text-sm">
             {swatchColor && (
@@ -162,6 +166,8 @@ type TopicTraceListProps = {
   rows: FacetRow[];
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
+  /** Lets a neighbouring panel match this header's height. */
+  headerRef?: RefObject<HTMLDivElement | null>;
   divider?: "top" | "side";
 };
 

@@ -50,6 +50,7 @@ export function TopicGridView({
   canGenerateTopics,
 }: TopicGridViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
   const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
   const topics = orderedFacetTopics(facet).map((topic, index) => ({
     ...topic,
@@ -114,6 +115,7 @@ export function TopicGridView({
             selectedIndex={selectedIndex}
             onSelectTopic={setSelectedTopicId}
             onOpenTrace={onOpenTrace}
+            barHeight={headerSize?.height}
           />
         )}
       </section>
@@ -128,6 +130,7 @@ export function TopicGridView({
         rows={listRows}
         peekView={peekView}
         tracePanelRef={tracePanelRef}
+        headerRef={headerRef}
         divider="side"
       />
     </div>
@@ -146,6 +149,7 @@ function TopicGrid({
   selectedIndex,
   onSelectTopic,
   onOpenTrace,
+  barHeight,
 }: TopicGridProps) {
   const [zoom, setZoom] = useState(0);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -218,7 +222,10 @@ function TopicGrid({
 
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-4">
+      <div
+        className="flex h-12 shrink-0 items-center justify-end gap-2 px-4"
+        style={barHeight ? { height: barHeight } : undefined}
+      >
         <div className="flex items-center gap-0.5">
           <IconButton
             icon={Minus}
@@ -551,6 +558,8 @@ type TopicGridProps = {
   selectedIndex: number | null;
   onSelectTopic: (topicId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
+  /** Matches the trace list header so both dividers line up. */
+  barHeight?: number;
 };
 
 type GridHoverCardProps = {
