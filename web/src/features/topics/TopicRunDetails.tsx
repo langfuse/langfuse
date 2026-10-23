@@ -9,8 +9,6 @@ import {
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Button as PopoverButton } from "@/src/components/ui/button";
-import { PopoverController } from "@/src/components/ui/popover";
 import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
@@ -176,60 +174,6 @@ function QuestionRow({
   );
 }
 
-function RunDetailsPopover({ execution }: { execution: Run }) {
-  const modeLabel = (() => {
-    if (execution.input.operation !== "update")
-      return "Assign to current topics";
-    return execution.input.exploratory ? "Small sample" : "Standard";
-  })();
-  return (
-    <PopoverController
-      align="end"
-      contentClassName="w-80 max-w-[calc(100vw-2rem)]"
-      disabled={false}
-      modal={false}
-      renderContent={() => (
-        <div className="ph-no-capture flex flex-col gap-3 text-sm">
-          <h3 className="font-bold">Run details</h3>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-            <dt className="text-muted-foreground">Triggered</dt>
-            <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
-            <dt className="text-muted-foreground">Operation</dt>
-            <dd>{operationLabels[execution.input.operation]}</dd>
-            <dt className="text-muted-foreground">Mode</dt>
-            <dd>{modeLabel}</dd>
-            <dt className="text-muted-foreground">Last step</dt>
-            <dd className="capitalize">
-              {execution.phase.replaceAll("_", " ")}
-            </dd>
-            <dt className="text-muted-foreground">Embedding dimensions</dt>
-            <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
-            {execution.input.operation === "update" && (
-              <>
-                <dt className="text-muted-foreground">
-                  Minimum traces for clustering
-                </dt>
-                <dd>
-                  {execution.input.minimumTraceCount ??
-                    (execution.input.exploratory ? 10 : 100)}
-                </dd>
-              </>
-            )}
-          </dl>
-        </div>
-      )}
-    >
-      {({ Trigger }) => (
-        <Trigger asChild>
-          <PopoverButton variant="ghost" size="sm">
-            Run details
-          </PopoverButton>
-        </Trigger>
-      )}
-    </PopoverController>
-  );
-}
-
 export function TopicRunDetails({
   execution,
   facets,
@@ -371,9 +315,6 @@ export function TopicRunDetails({
             </span>
           </div>
         )}
-        <div className="flex justify-end">
-          <RunDetailsPopover execution={execution} />
-        </div>
       </div>
       <div className="flex flex-col">
         <h3 className="text-muted-foreground px-4 pt-3.5 pb-0.5 text-xs font-bold">
