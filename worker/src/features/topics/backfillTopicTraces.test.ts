@@ -89,6 +89,9 @@ describe("Topics trace selection and backfill", () => {
         createEvent({
           project_id: project,
           trace_id: trace,
+          parent_span_id: "missing-parent",
+          is_app_root: false,
+          name: "fetch_context",
           start_time: new Date(timestamp),
           trace_name: "agent-turn",
           environment: environment ?? "test",
@@ -96,6 +99,16 @@ describe("Topics trace selection and backfill", () => {
         }),
       ),
     );
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: "trace-new",
+        span_id: "missing-parent",
+        is_app_root: true,
+        name: "root",
+        start_time: new Date("2026-09-22T23:59:00Z"),
+      }),
+    ]);
   });
   beforeEach(() => {
     enabled.mockReturnValue(true);
@@ -109,7 +122,18 @@ describe("Topics trace selection and backfill", () => {
   it("deduplicates and orders bounded matches without enqueueing a dry run", async () => {
     const result = await enqueueTopicTraceBackfill({
       projectId,
-      selection: { ...selection, limit: 1 },
+      selection: {
+        ...selection,
+        limit: 1,
+        filter: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["fetch_context"],
+          },
+        ],
+      },
       apply: false,
     });
     expect(result).toEqual({
@@ -141,7 +165,7 @@ describe("Topics trace selection and backfill", () => {
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it("filters latest matching root environments before counting and limiting", async () => {
+  it("filters latest matching environments before counting and limiting", async () => {
     const mixedProject = randomUUID();
     const source = {
       project_id: mixedProject,
