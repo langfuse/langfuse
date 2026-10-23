@@ -62,6 +62,52 @@ const ctx: SidebarFilterActionContext = {
 };
 
 describe("applySelection", () => {
+  it.each(["env", "tags"])(
+    "matches nothing when every default %s option is unchecked",
+    (column) => {
+      const type = column === "tags" ? "arrayOptions" : "stringOptions";
+      const defaultValue = column === "tags" ? "a" : "prod";
+      const other: FilterState = [
+        { column: "bookmarked", type: "boolean", operator: "=", value: true },
+      ];
+      for (const current of [
+        other,
+        [
+          ...other,
+          { column, type, operator: "none of", value: ["stale"] },
+        ] satisfies FilterState,
+      ]) {
+        const empty = applyCheckboxSelection(ctx, current, column, []);
+        const value = current.length > 1 ? "stale" : defaultValue;
+        expect(empty).toEqual([
+          ...other,
+          { column, type, operator: "any of", value: [value] },
+          { column, type, operator: "none of", value: [value] },
+        ]);
+        expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(
+          empty,
+        );
+      }
+    },
+  );
+
+  it("keeps an explicit empty all-of waiting for selection", () => {
+    const change = deriveOperatorChange(ctx, [], "tags")!;
+    const next = applySelection(ctx, [], "tags", change.values, "all of");
+    expect(next).toEqual([
+      { column: "tags", type: "arrayOptions", operator: "all of", value: [] },
+    ]);
+    expect(singleFilter.safeParse(next[0]).success).toBe(true);
+    expect(applyCheckboxSelection(ctx, next, "tags", ["a"])).toEqual([
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["a"],
+      },
+    ]);
+  });
+
   it.each([
     {
       column: "env",
@@ -159,13 +205,24 @@ describe("applySelection", () => {
       {
         column: "env",
         type: "stringOptions",
+        operator: "any of",
+        value: ["dev"],
+      },
+      {
+        column: "env",
+        type: "stringOptions",
         operator: "none of",
-        value: ["prod", "dev", "test"],
+        value: ["dev"],
       },
     ]);
-    expect(applyCheckboxSelection(managedCtx, empty, "env", ["prod"])).toEqual(
-      current,
-    );
+    expect(applyCheckboxSelection(managedCtx, empty, "env", ["prod"])).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["prod"],
+      },
+    ]);
     expect(clearCategoricalColumn(empty, "env")).toEqual([]);
   });
 
@@ -459,11 +516,16 @@ describe("applyCheckboxSelection", () => {
       },
     ]);
     const second = applyCheckboxSelection(userCtx, first, "userId", []);
-    expect(second).toEqual([{ ...first[0], value: ["user-a", "user-b"] }]);
+    expect(second).toEqual([
+      { ...first[0], operator: "any of", value: ["user-a"] },
+      first[0],
+    ]);
     const reselected = applyCheckboxSelection(userCtx, second, "userId", [
       "user-a",
     ]);
-    expect(reselected).toEqual([{ ...first[0], value: ["user-b"] }]);
+    expect(reselected).toEqual([
+      { ...first[0], operator: "any of", value: ["user-a"] },
+    ]);
     expect(
       applyCheckboxSelection(userCtx, reselected, "userId", [
         "user-a",
@@ -483,7 +545,8 @@ describe("applyCheckboxSelection", () => {
       },
     ];
     expect(applyCheckboxSelection(managedCtx, current, "env", [])).toEqual([
-      { ...current[0], value: ["prod", "dev", "test"] },
+      { ...current[0], operator: "any of", value: ["prod"] },
+      { ...current[0], value: ["prod"] },
     ]);
   });
 

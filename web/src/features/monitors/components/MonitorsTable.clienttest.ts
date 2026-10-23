@@ -5,6 +5,7 @@ import {
   type Monitor,
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
+  ListMonitorFilterSchema,
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
@@ -72,6 +73,56 @@ describe("getMonitorFilterConfig", () => {
 });
 
 describe("filterStateToListMonitorFilter", () => {
+  it.each([
+    { column: "severity", type: "stringOptions", value: ["ALERT"] },
+    { column: "evaluatorId", type: "stringOptions", value: ["eval-1"] },
+    { column: "tags", type: "arrayOptions", value: ["prod"] },
+  ] as const)(
+    "matches nothing for an empty $column without losing other facets",
+    ({ column, type, value }) => {
+      const other = (
+        [
+          {
+            column: "severity",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["WARNING"],
+          },
+          {
+            column: "evaluatorId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["eval-2"],
+          },
+          {
+            column: "tags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["critical"],
+          },
+        ] satisfies FilterState
+      ).filter((filter) => filter.column !== column);
+      const state: FilterState = [
+        ...other,
+        { column, type, operator: "any of", value: [...value] },
+        { column, type, operator: "none of", value: [...value] },
+      ];
+      const original = structuredClone(state);
+      const request = filterStateToListMonitorFilter(state);
+      expect(ListMonitorFilterSchema.safeParse(request).success).toBe(true);
+      expect(request).toEqual([
+        ...other.filter((filter) => filter.column !== "severity"),
+        {
+          column: "severity",
+          type: "stringOptions",
+          operator: "none of",
+          value: MonitorSeveritySchema.options,
+        },
+      ]);
+      expect(state).toEqual(original);
+    },
+  );
+
   it("passes severity `any of` through with values intact", () => {
     const state: FilterState = [
       {
