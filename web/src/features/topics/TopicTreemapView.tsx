@@ -95,7 +95,6 @@ export function TopicTreemapView({
         projectId={projectId}
         title={selected.name}
         description={selected.description}
-        totalCount={facet.rows.length}
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}

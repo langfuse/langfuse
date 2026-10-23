@@ -123,7 +123,6 @@ export function TopicGridView({
         projectId={projectId}
         title={selectedTopic?.name ?? allTopicsLabel(facet.name)}
         description={selectedTopic?.description}
-        totalCount={facet.rows.length}
         swatchColor={
           selectedIndex !== null ? topics[selectedIndex]?.color : undefined
         }

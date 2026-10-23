@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { type RefObject, useState } from "react";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { ExternalLink } from "@langfuse/icons";
@@ -18,7 +18,6 @@ export function TopicTraceList({
   projectId,
   title,
   description,
-  totalCount,
   swatchColor,
   rows,
   peekView,
@@ -100,10 +99,10 @@ export function TopicTraceList({
               />
             )}
             <span
-              className="truncate"
-              title={traceListEyebrow(rows.length, totalCount)}
+              className="truncate font-mono text-xs"
+              title={`${rows.length.toLocaleString()} traces`}
             >
-              {traceListEyebrow(rows.length, totalCount)}
+              {`${rows.length.toLocaleString()} traces`}
             </span>
           </p>
           <h3 className="truncate text-lg font-bold" title={title}>
@@ -160,8 +159,6 @@ type TopicTraceListProps = {
   projectId: string;
   title: string;
   description?: string;
-  /** Traces in the facet, for the share of the selected topic. */
-  totalCount: number;
   swatchColor?: string;
   rows: FacetRow[];
   peekView: DataTablePeekViewProps;
@@ -170,9 +167,3 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   divider?: "top" | "side";
 };
-
-function traceListEyebrow(count: number, total: number) {
-  const traces = `${count.toLocaleString()} traces`;
-  if (total === 0 || count === total) return traces;
-  return `${traces} · ${Math.round((count / total) * 100)}% of all`;
-}
