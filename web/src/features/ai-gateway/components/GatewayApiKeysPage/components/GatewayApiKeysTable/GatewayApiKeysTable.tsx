@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { BookOpen, Plus, Trash } from "@langfuse/icons";
+import { Plus, Trash } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -113,7 +113,6 @@ export function GatewayApiKeysTable({
           id: "docs",
           label: "Docs",
           variant: "secondary",
-          icon: <BookOpen size="base" aria-hidden="true" />,
           href: GATEWAY_API_KEYS_DOCS_URL,
         },
         {

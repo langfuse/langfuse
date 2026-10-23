@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
-import { BookOpen } from "@langfuse/icons";
-
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -93,7 +91,6 @@ export function ConnectedGatewayModelsTable({
           <Button
             variant="secondary"
             text="Docs"
-            icon={BookOpen}
             href={GATEWAY_MODELS_DOCS_URL}
           />
         }
