@@ -2,7 +2,6 @@ import { render } from "@react-email/render";
 import {
   createMailTransport,
   getEmailAppBaseUrl,
-  logger,
   type NotificationEventType,
 } from "@langfuse/shared/src/server";
 import {
@@ -25,8 +24,8 @@ const getUtmContent = (audience: GatewayInvitationEmailAudience) => {
 /**
  * Tells someone the organization's AI Gateway is ready: either a new invitee
  * (paired with an organization invitation) or an existing member. Missing
- * email configuration is logged and skipped; delivery errors are thrown so the
- * notification queue retries them.
+ * email configuration and delivery errors are thrown, so the job fails and is
+ * kept instead of completing unsent.
  */
 export async function handleGatewayInvitationNotification({
   orgId,
@@ -38,18 +37,16 @@ export async function handleGatewayInvitationNotification({
   inviterEmail,
 }: GatewayInvitationPayload) {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
-    logger.error(
-      "Missing environment variables for sending gateway invitation email.",
+    throw new Error(
+      "Missing SMTP_CONNECTION_URL or EMAIL_FROM_ADDRESS for sending gateway invitation email.",
     );
-    return;
   }
 
   const baseUrl = getEmailAppBaseUrl(env);
   if (!baseUrl) {
-    logger.error(
-      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable.",
+    throw new Error(
+      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION for sending gateway invitation email.",
     );
-    return;
   }
 
   const gatewayKeysPath = `/organization/${orgId}/settings/ai-gateway-api-keys`;

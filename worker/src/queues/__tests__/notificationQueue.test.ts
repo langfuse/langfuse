@@ -11,28 +11,45 @@ vi.mock("../../env", () => ({
   },
 }));
 
+import { env } from "../../env";
 import { notificationQueueProcessor } from "../notificationQueue";
+
+function createGatewayInvitationJob() {
+  return {
+    id: "job-1",
+    data: {
+      timestamp: new Date(),
+      id: "job-1",
+      name: "notification-job",
+      payload: {
+        type: "AI_GATEWAY_INVITATION",
+        orgId: "org-1",
+        orgName: "Acme",
+        to: "grace@company.com",
+        audience: { kind: "member" },
+        inviterName: "Ada Lovelace",
+        inviterEmail: "ada@company.com",
+      },
+    },
+  } as Job<TQueueJobTypes[QueueName.NotificationQueue]>;
+}
 
 describe("notificationQueueProcessor", () => {
   it("fails an AI Gateway invitation job when delivery fails, so it is retried", async () => {
-    const job = {
-      id: "job-1",
-      data: {
-        timestamp: new Date(),
-        id: "job-1",
-        name: "notification-job",
-        payload: {
-          type: "AI_GATEWAY_INVITATION",
-          orgId: "org-1",
-          orgName: "Acme",
-          to: "grace@company.com",
-          audience: { kind: "member" },
-          inviterName: "Ada Lovelace",
-          inviterEmail: "ada@company.com",
-        },
-      },
-    } as Job<TQueueJobTypes[QueueName.NotificationQueue]>;
+    await expect(
+      notificationQueueProcessor(createGatewayInvitationJob()),
+    ).rejects.toThrow();
+  });
 
-    await expect(notificationQueueProcessor(job)).rejects.toThrow();
+  it("fails an AI Gateway invitation job when the worker has no SMTP configured", async () => {
+    const smtpConnectionUrl = env.SMTP_CONNECTION_URL;
+    Object.assign(env, { SMTP_CONNECTION_URL: undefined });
+    try {
+      await expect(
+        notificationQueueProcessor(createGatewayInvitationJob()),
+      ).rejects.toThrow("Missing SMTP_CONNECTION_URL");
+    } finally {
+      Object.assign(env, { SMTP_CONNECTION_URL: smtpConnectionUrl });
+    }
   });
 });
