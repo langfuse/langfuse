@@ -72,10 +72,18 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
             No model price matched this generation. Add a model price, or send
             the cost from your SDK.
           </p>
-          <TextLink
-            path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-            value="Model settings"
-          />
+          <div className="flex items-center gap-1.5">
+            <TextLink
+              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
+              value="Model settings"
+            />
+            <span className="text-muted-foreground text-xs">·</span>
+            <TextLink
+              path="https://langfuse.com/docs/model-usage-and-cost"
+              value="Docs"
+              external
+            />
+          </div>
         </div>
       }
     >
