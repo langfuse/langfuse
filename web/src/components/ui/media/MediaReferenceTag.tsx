@@ -6,7 +6,7 @@ import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useMediaPeek } from "@/src/hooks/useMediaPeek";
+import { useMediaPeek } from "@/src/features/media";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;

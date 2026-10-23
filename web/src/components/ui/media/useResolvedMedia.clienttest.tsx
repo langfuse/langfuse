@@ -9,7 +9,7 @@ import { type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useResolvedMedia } from "./useResolvedMedia";
-import { useMediaPeek } from "@/src/hooks/useMediaPeek";
+import { useMediaPeek } from "@/src/features/media";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type MediaResponse = RouterOutputs["media"]["getById"];
