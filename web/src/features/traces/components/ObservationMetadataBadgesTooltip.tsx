@@ -7,6 +7,11 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
+  prefilledPricesFromUsage,
+  UpsertModelFormDialogController,
+} from "@/src/features/models";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import {
   BreakdownTooltip,
   type CostSource,
   type PriceSource,
@@ -29,13 +34,18 @@ type CostBadgeProps =
       costSource?: CostSource;
     }
   /** A generation nothing priced; the tooltip differs when no usage was sent either. */
-  | { variant: "missing"; projectId: string; hasUsage: boolean };
+  | {
+      variant: "missing";
+      projectId: string;
+      hasUsage: boolean;
+      model: string | null;
+      usageDetails: Record<string, number> | undefined;
+    };
 
 export function CostBadge(props: CostBadgeProps) {
   if (props.variant === "missing") {
-    return (
-      <MissingCostBadge projectId={props.projectId} hasUsage={props.hasUsage} />
-    );
+    const { variant: _variant, ...missingProps } = props;
+    return <MissingCostBadge {...missingProps} />;
   }
   const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
@@ -68,13 +78,22 @@ export function CostBadge(props: CostBadgeProps) {
 function MissingCostBadge({
   projectId,
   hasUsage,
+  model,
+  usageDetails,
 }: {
   projectId: string;
   hasUsage: boolean;
+  model: string | null;
+  usageDetails: Record<string, number> | undefined;
 }) {
-  return (
+  const canCreateModel = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+  const settingsPath = `/project/${encodeURIComponent(projectId)}/settings/models`;
+  const renderChip = (openDialog?: () => void) => (
     <CustomTooltip
-      content={
+      renderContent={({ close }) => (
         <div className="flex flex-col gap-1">
           <p className="text-xs">
             {hasUsage
@@ -82,10 +101,18 @@ function MissingCostBadge({
               : "No usage or cost was sent for this generation. Send usage (e.g. characters) and add a model price, or send the cost from your SDK."}
           </p>
           <div className="flex items-center gap-1.5">
-            <TextLink
-              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-              value="Model settings"
-            />
+            {openDialog ? (
+              <TextLink
+                path={settingsPath}
+                value="Add model price"
+                onClick={() => {
+                  close();
+                  openDialog();
+                }}
+              />
+            ) : (
+              <TextLink path={settingsPath} value="Model settings" />
+            )}
             <span className="text-muted-foreground text-xs">·</span>
             <TextLink
               path="https://langfuse.com/docs/model-usage-and-cost"
@@ -94,7 +121,7 @@ function MissingCostBadge({
             />
           </div>
         </div>
-      }
+      )}
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
@@ -108,6 +135,21 @@ function MissingCostBadge({
         </span>
       )}
     </CustomTooltip>
+  );
+
+  if (!model || !canCreateModel) return renderChip();
+  // The dialog lives outside the tooltip so closing the tooltip cannot unmount it.
+  return (
+    <UpsertModelFormDialogController
+      action="create"
+      projectId={projectId}
+      prefilledModelData={{
+        modelName: model,
+        prices: prefilledPricesFromUsage(usageDetails),
+      }}
+    >
+      {({ openDialog }) => renderChip(openDialog)}
+    </UpsertModelFormDialogController>
   );
 }
 

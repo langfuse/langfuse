@@ -10,7 +10,7 @@ import {
 
 type TooltipProps = Omit<
   React.ComponentProps<typeof CustomTooltip>,
-  "content"
+  "content" | "renderContent"
 > & {
   label: string;
   /** Rendered as a keycap after the label. */

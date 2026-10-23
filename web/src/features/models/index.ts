@@ -3,3 +3,4 @@
 export { ModelsSettings } from "@/src/features/models/components/ModelsSettings";
 export { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 export { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
+export { prefilledPricesFromUsage } from "@/src/features/models/fns/prefilledPricesFromUsage";

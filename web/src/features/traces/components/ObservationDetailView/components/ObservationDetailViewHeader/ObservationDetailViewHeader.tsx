@@ -191,6 +191,8 @@ export const ObservationDetailViewHeader = memo(
             variant="missing"
             projectId={projectId}
             hasUsage={displayedTotalUsage > 0}
+            model={observation.model}
+            usageDetails={observation.usageDetails}
           />
         );
       if (displayedTotalCost == null || !displayedCostDetails) return null;
