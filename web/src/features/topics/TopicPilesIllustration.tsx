@@ -7,8 +7,17 @@ const PILE_LEFT = ["left-5", "left-33.5", "left-62"] as const;
 export function TopicPilesIllustration({
   piles,
   slips = [],
-  mutedLabels = false,
+  bare = false,
 }: TopicPilesIllustrationProps) {
+  if (bare) {
+    return (
+      <div aria-hidden="true" className="flex items-end gap-4">
+        {piles.map((pile) => (
+          <PileBars key={pile.name} pile={pile} narrow />
+        ))}
+      </div>
+    );
+  }
   return (
     <div aria-hidden="true" className="relative h-62.5 w-110 shrink-0">
       <div className="bg-background absolute top-17.5 left-10 z-10 h-45 w-90 rounded-lg border shadow-md">
@@ -20,25 +29,9 @@ export function TopicPilesIllustration({
               PILE_LEFT[pileIndex],
             )}
           >
-            <div className="flex flex-col-reverse gap-0.75">
-              {Array.from({ length: pile.slots }, (_, index) => (
-                <PileBar
-                  key={index}
-                  color={pile.color}
-                  index={index}
-                  filled={index < pile.filled}
-                />
-              ))}
-            </div>
+            <PileBars pile={pile} />
             <div className="flex flex-col text-xs">
-              <span
-                className={cn(
-                  "font-bold whitespace-nowrap",
-                  mutedLabels && "text-muted-foreground",
-                )}
-              >
-                {pile.name}
-              </span>
+              <span className="font-bold whitespace-nowrap">{pile.name}</span>
               <span className="text-muted-foreground font-mono">
                 {pile.detail}
               </span>
@@ -60,6 +53,21 @@ export function TopicPilesIllustration({
           />
           {slip.text}
         </div>
+      ))}
+    </div>
+  );
+}
+
+function PileBars({ pile, narrow = false }: PileBarsProps) {
+  return (
+    <div className={cn("flex flex-col-reverse gap-0.75", narrow && "w-9")}>
+      {Array.from({ length: pile.slots }, (_, index) => (
+        <PileBar
+          key={index}
+          color={pile.color}
+          index={index}
+          filled={index < pile.filled}
+        />
       ))}
     </div>
   );
@@ -102,7 +110,10 @@ type TopicPilesIllustrationProps = {
   /** Three piles, left to right. */
   piles: readonly TopicPile[];
   slips?: readonly { text: string; color: PileColor; position: string }[];
-  mutedLabels?: boolean;
+  /** Piles only: no card, labels or slips. */
+  bare?: boolean;
 };
+
+type PileBarsProps = { pile: TopicPile; narrow?: boolean };
 
 type PileBarProps = { color: PileColor; index: number; filled: boolean };

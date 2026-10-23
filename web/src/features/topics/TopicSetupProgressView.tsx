@@ -52,12 +52,12 @@ export function TopicSetupProgressView({
   const copy = progressCopy(failed, waiting);
   const piles: TopicPile[] = PILE_SLOTS.map((pile, index) => ({
     ...pile,
-    detail: "·",
+    detail: "",
     filled: pileFill(pile.slots, index, tick),
   }));
   return (
     <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-6 overflow-y-auto px-4 pb-35">
-      <TopicPilesIllustration piles={piles} mutedLabels />
+      <TopicPilesIllustration piles={piles} bare />
       <div className="flex flex-col items-center gap-2 text-center">
         <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
           {copy.title}
