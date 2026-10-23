@@ -22,6 +22,7 @@ import {
   getUserProjectRoles,
   getUserProjectRolesCount,
   escapeSqlLikePattern,
+  withTransaction,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
@@ -40,6 +41,12 @@ import {
   deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import {
+  assignOrgMembershipRole,
+  assignProjectMembershipRole,
+  unassignOrgMembershipRoles,
+  unassignProjectMembershipRole,
+} from "@/src/features/memberships/helpers";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
   userFeaturePreviewFlags,
@@ -121,9 +128,11 @@ async function throwIfHigherProjectRole({
 
 async function createProjectMembershipOrThrowIfDuplicate({
   prisma,
+  orgId,
   data,
 }: {
   prisma: PrismaClient | Prisma.TransactionClient;
+  orgId: string;
   data: {
     userId: string;
     projectId: string;
@@ -132,7 +141,11 @@ async function createProjectMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await prisma.projectMembership.create({ data });
+    return await withTransaction(prisma, async (tx) => {
+      const membership = await tx.projectMembership.create({ data });
+      await assignProjectMembershipRole(tx, { ...membership, orgId });
+      return membership;
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -159,7 +172,11 @@ async function createOrgMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await prisma.organizationMembership.create({ data });
+    return await withTransaction(prisma, async (tx) => {
+      const membership = await tx.organizationMembership.create({ data });
+      await assignOrgMembershipRole(tx, membership);
+      return membership;
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -323,6 +340,7 @@ export const membersRouter = createTRPCRouter({
             const newProjectMembership =
               await createProjectMembershipOrThrowIfDuplicate({
                 prisma: ctx.prisma,
+                orgId: input.orgId,
                 data: {
                   userId: user.id,
                   projectId: project.id,
@@ -393,6 +411,7 @@ export const membersRouter = createTRPCRouter({
                 project && input.projectRole && input.projectRole !== Role.NONE
                   ? await createProjectMembershipOrThrowIfDuplicate({
                       prisma: tx,
+                      orgId: input.orgId,
                       data: {
                         userId: user.id,
                         projectId: project.id,
@@ -584,6 +603,7 @@ export const membersRouter = createTRPCRouter({
               orgId: input.orgId,
             },
           });
+          await unassignOrgMembershipRoles(tx, deleted);
           const revokedKeys = await deleteUserBoundApiKeys(tx, {
             userId: orgMembership.userId,
             orgId: input.orgId,
@@ -725,6 +745,7 @@ export const membersRouter = createTRPCRouter({
               role: input.role,
             },
           });
+          await assignOrgMembershipRole(tx, updatedMembership);
           const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
             userId: membership.userId,
             orgId: input.orgId,
@@ -941,14 +962,17 @@ export const membersRouter = createTRPCRouter({
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
-          await ctx.prisma.projectMembership.delete({
-            where: {
-              projectId_userId: {
-                projectId: input.projectId,
-                userId: input.userId,
+          await ctx.prisma.$transaction(async (tx) => {
+            const deleted = await tx.projectMembership.delete({
+              where: {
+                projectId_userId: {
+                  projectId: input.projectId,
+                  userId: input.userId,
+                },
+                orgMembershipId: input.orgMembershipId,
               },
-              orgMembershipId: input.orgMembershipId,
-            },
+            });
+            await unassignProjectMembershipRole(tx, deleted);
           });
 
           await auditLog({
@@ -972,25 +996,34 @@ export const membersRouter = createTRPCRouter({
       });
 
       // Create/update
-      const updatedProjectMembership =
-        await ctx.prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
+      const projectRole = input.projectRole;
+      const updatedProjectMembership = await ctx.prisma.$transaction(
+        async (tx) => {
+          const membership = await tx.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: input.projectId,
+                userId: input.userId,
+              },
+              orgMembershipId: input.orgMembershipId,
+            },
+            update: {
+              role: projectRole,
+            },
+            create: {
               projectId: input.projectId,
               userId: input.userId,
+              role: projectRole,
+              orgMembershipId: input.orgMembershipId,
             },
-            orgMembershipId: input.orgMembershipId,
-          },
-          update: {
-            role: input.projectRole,
-          },
-          create: {
-            projectId: input.projectId,
-            userId: input.userId,
-            role: input.projectRole,
-            orgMembershipId: input.orgMembershipId,
-          },
-        });
+          });
+          await assignProjectMembershipRole(tx, {
+            ...membership,
+            orgId: input.orgId,
+          });
+          return membership;
+        },
+      );
 
       await auditLog({
         session: ctx.session,

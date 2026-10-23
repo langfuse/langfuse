@@ -48,9 +48,12 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         findUnique: vi.fn(async (): Promise<unknown> => null),
         findMany: vi.fn(async (): Promise<unknown[]> => []),
         count: vi.fn(async () => 1),
-        create: vi.fn(async (): Promise<unknown> => ({})),
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         update: vi.fn(async (): Promise<unknown> => ({})),
         upsert: vi.fn(async (): Promise<unknown> => ({})),
+      },
+      projectMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
       },
       membershipInvitation: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
@@ -63,6 +66,10 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       auditLog: {
         create: vi.fn(async () => ({})),
+      },
+      roleAssignment: {
+        createMany: vi.fn(async () => ({ count: 1 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       apiKey: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
@@ -1169,6 +1176,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
         email: "invitee@test.com",
       },
     ]);
+    prismaMock.$queryRaw.mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(
       { id: "user-invited", email: "invitee@test.com", name: "Invitee" },

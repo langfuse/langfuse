@@ -23,6 +23,7 @@ import {
 } from "@/src/ee/features/billing/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { assignOrgMembershipRole } from "@/src/features/memberships/helpers";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
@@ -210,6 +211,11 @@ export const organizationsRouter = createTRPCRouter({
               },
             },
           },
+        });
+        await assignOrgMembershipRole(tx, {
+          orgId: organization.id,
+          userId: ctx.session.user.id,
+          role: "OWNER",
         });
 
         if (organizationCountBeforeCreate === 0) {

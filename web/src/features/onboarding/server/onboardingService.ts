@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { assignOrgMembershipRole } from "@/src/features/memberships/helpers";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
@@ -477,6 +478,11 @@ export const provisionStarterOrganizationForNewUser = async ({
           },
         },
       },
+    });
+    await assignOrgMembershipRole(tx, {
+      orgId: organization.id,
+      userId,
+      role: Role.OWNER,
     });
 
     const project = await tx.project.create({

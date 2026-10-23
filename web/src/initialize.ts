@@ -2,6 +2,10 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  assignOrgMembershipRole,
+  assignProjectMembershipRole,
+} from "@/src/features/memberships/helpers";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
@@ -141,16 +145,20 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
-    const orgMembership = await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: { userId, orgId: org.id },
-      },
-      update: { role: "OWNER" },
-      create: {
-        userId,
-        orgId: org.id,
-        role: "OWNER",
-      },
+    const orgMembership = await prisma.$transaction(async (tx) => {
+      const membership = await tx.organizationMembership.upsert({
+        where: {
+          orgId_userId: { userId, orgId: org.id },
+        },
+        update: { role: "OWNER" },
+        create: {
+          userId,
+          orgId: org.id,
+          role: "OWNER",
+        },
+      });
+      await assignOrgMembershipRole(tx, membership);
+      return membership;
     });
 
     // On EE plans with rbac-project-roles, createUserEmailPassword ->
@@ -164,20 +172,24 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      await prisma.projectMembership.upsert({
-        where: {
-          projectId_userId: {
-            projectId: env.LANGFUSE_INIT_PROJECT_ID,
-            userId,
+      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
+      await prisma.$transaction(async (tx) => {
+        const membership = await tx.projectMembership.upsert({
+          where: {
+            projectId_userId: { projectId, userId },
           },
-        },
-        update: { role: "OWNER" },
-        create: {
-          userId,
-          orgMembershipId: orgMembership.id,
-          projectId: env.LANGFUSE_INIT_PROJECT_ID,
-          role: "OWNER",
-        },
+          update: { role: "OWNER" },
+          create: {
+            userId,
+            orgMembershipId: orgMembership.id,
+            projectId,
+            role: "OWNER",
+          },
+        });
+        await assignProjectMembershipRole(tx, {
+          ...membership,
+          orgId: org.id,
+        });
       });
     }
   }

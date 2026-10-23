@@ -8,6 +8,10 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  assignOrgMembershipRole,
+  unassignOrgMembershipRoles,
+} from "@/src/features/memberships/helpers";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -106,6 +110,7 @@ export async function handleUpdateMembership(
         role: validatedBody.data.role,
       },
     });
+    await assignOrgMembershipRole(tx, after);
     await auditLog(
       {
         orgId,
@@ -173,6 +178,7 @@ export async function handleDeleteMembership(
     await tx.organizationMembership.delete({
       where: { id: before.id, orgId },
     });
+    await unassignOrgMembershipRoles(tx, before);
     await auditLog(
       {
         orgId,

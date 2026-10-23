@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  assignProjectMembershipRole,
+  unassignProjectMembershipRole,
+} from "@/src/features/memberships/helpers";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
@@ -181,6 +185,7 @@ async function updateMembership(
     role,
     orgMembershipId,
   });
+  await assignProjectMembershipRole(tx, { ...after, orgId });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
   return after;
 }
@@ -222,6 +227,7 @@ async function deleteMembership(
   const membership = await tx.projectMembership.delete({
     where: { projectId_userId: { projectId, userId: before.userId } },
   });
+  await unassignProjectMembershipRole(tx, membership);
   await auditMembershipDeletion(tx, params, membership);
   return true;
 }

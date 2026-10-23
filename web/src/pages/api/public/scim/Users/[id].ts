@@ -1,6 +1,10 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
+  assignOrgMembershipRole,
+  unassignOrgMembershipRoles,
+} from "@/src/features/memberships/helpers";
+import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
@@ -96,6 +100,7 @@ async function provisionMembership({
             where: { orgId_userId: { orgId, userId } },
             data: { role: targetRole },
           });
+          await assignOrgMembershipRole(tx, updated);
           const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
             userId,
             orgId,
@@ -176,8 +181,12 @@ async function provisionMembership({
     to: roleToCreate,
   });
   try {
-    const created = await prisma.organizationMembership.create({
-      data: { userId, orgId, role: roleToCreate },
+    const created = await prisma.$transaction(async (tx) => {
+      const membership = await tx.organizationMembership.create({
+        data: { userId, orgId, role: roleToCreate },
+      });
+      await assignOrgMembershipRole(tx, membership);
+      return membership;
     });
     await auditLog({
       resourceType: "orgMembership",
@@ -281,6 +290,7 @@ async function deprovisionOrReject(
         await tx.organizationMembership.delete({
           where: { orgId_userId: { orgId, userId } },
         });
+        await unassignOrgMembershipRoles(tx, { orgId, userId });
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
         return { result: "deleted" as const, membership, revokedKeys };
       },
