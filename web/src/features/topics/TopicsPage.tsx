@@ -243,7 +243,7 @@ function TopicsWorkspaceContent({
     allowedRanges: sharedTimeRangePresets,
     fallback: "last7Days",
   });
-  const [refreshedAt, setRefreshedAt] = useState(Date.now);
+  const [refreshedAt] = useState(Date.now);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -390,10 +390,6 @@ function TopicsWorkspaceContent({
     results.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
-  const refreshResults = () => {
-    setRefreshedAt(Date.now());
-    utils.topics.currentResults.invalidate({ projectId });
-  };
   const openExecution = (id: string) => {
     setHistoryOpen(false);
     router.push(
@@ -469,9 +465,6 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
-        function openManualProcessing() {
-          openManual("process");
-        }
         function openTopicGeneration() {
           openManual("update");
         }
@@ -513,14 +506,12 @@ function TopicsWorkspaceContent({
                 <TopicsHeaderActions
                   automaticProcessing={automaticProcessing}
                   configure={modelSettings.configure}
-                  configured={configured}
                   canWrite={canWrite}
-                  manualAvailable={pipeline.available}
-                  openManual={openManualProcessing}
+                  regenerateAvailable={pipeline.available}
+                  onRegenerate={openTopicGeneration}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
-                  onRefresh={refreshResults}
                 />
               ),
               actionButtonsMenu: ({ closeMenu }) => {
@@ -530,22 +521,16 @@ function TopicsWorkspaceContent({
                 }
                 return (
                   <TopicsActionsMenu
-                    triggerAction={
-                      pipeline.available
-                        ? {
-                            label: "Manual processing",
-                            disabled: false,
-                            onSelect: openManualProcessing,
-                          }
-                        : null
-                    }
+                    regenerate={{
+                      disabled: !pipeline.available,
+                      onSelect: openTopicGeneration,
+                    }}
                     closeMenu={closeMenu}
                     onOpenHistory={openHistory}
-                    onRefresh={refreshResults}
                   >
                     {configured ? (
                       <HeaderActionMenuRow
-                        label="Configure Topics"
+                        label="Settings"
                         icon={<Settings size="base" color="default" />}
                         onClick={handleConfigureFromMenu}
                       />
