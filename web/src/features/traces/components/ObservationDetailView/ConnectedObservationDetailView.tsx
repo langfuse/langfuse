@@ -41,7 +41,7 @@ import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+} from "@/src/features/traces/contexts/SelectionProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";

@@ -12,7 +12,7 @@
  */
 
 import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";

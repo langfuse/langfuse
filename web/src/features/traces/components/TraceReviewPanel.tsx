@@ -4,7 +4,7 @@ import { type CommentTarget } from "@/src/features/comments/state/commentOverlay
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTraceData } from "../contexts/TraceDataContext";
-import { useSelection } from "../contexts/SelectionContext";
+import { useSelection } from "../contexts/SelectionProvider";
 import { useReadPath } from "@/src/features/events";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useStore } from "zustand";

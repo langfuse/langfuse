@@ -1,7 +1,7 @@
 import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";

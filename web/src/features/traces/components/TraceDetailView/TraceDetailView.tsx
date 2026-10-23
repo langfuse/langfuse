@@ -38,7 +38,7 @@ import {
 import {
   type DetailTab,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+} from "@/src/features/traces/contexts/SelectionProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";

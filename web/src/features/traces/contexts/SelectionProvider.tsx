@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 /**
  * SelectionContext - Manages UI navigation and interaction state.
  *

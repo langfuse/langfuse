@@ -17,7 +17,7 @@
  * - Does NOT re-render when search changes (isolated)
  */
 
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";

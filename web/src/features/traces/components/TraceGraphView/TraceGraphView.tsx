@@ -16,7 +16,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
-import { useSelection } from "../../contexts/SelectionContext";
+import { useSelection } from "../../contexts/SelectionProvider";
 
 export function TraceGraphView() {
   const {

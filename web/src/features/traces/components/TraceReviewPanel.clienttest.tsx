@@ -20,7 +20,7 @@ vi.mock("next/router", () => ({
 vi.mock("../contexts/TraceReviewPanelContext", () => ({
   useTraceReviewPanel: () => store,
 }));
-vi.mock("../contexts/SelectionContext", () => ({
+vi.mock("../contexts/SelectionProvider", () => ({
   useSelection: () => ({ selectedNodeId: state.selectedNodeId }),
 }));
 vi.mock("../contexts/TraceDataContext", () => ({

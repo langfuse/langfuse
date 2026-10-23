@@ -11,7 +11,7 @@ import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPref
 import {
   SelectionProvider,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+} from "@/src/features/traces/contexts/SelectionProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
