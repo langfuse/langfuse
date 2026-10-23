@@ -81,6 +81,15 @@ describe("sendResetPasswordVerificationRequest", () => {
     expect(mail.html).toContain("Forgot your Langfuse password?");
   });
 
+  it("renders no hidden content", async () => {
+    const mail = await sentMail("http://localhost:3000/auth/reset-password");
+
+    // Hidden preheaders and zero-width/bidi padding are spam-filter evasion
+    // patterns and get transactional mail flagged as dangerous by Gmail.
+    expect(mail.html).not.toContain("display:none");
+    expect(mail.html).not.toMatch(/[\u200B-\u200F\uFEFF]/);
+  });
+
   it("falls back to password reset copy when no callback URL is present", async () => {
     await sendResetPasswordVerificationRequest({
       ...verificationRequestParams("http://localhost:3000/auth/reset-password"),
