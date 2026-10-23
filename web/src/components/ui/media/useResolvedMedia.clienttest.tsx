@@ -13,6 +13,7 @@ import { useResolvedMedia } from "./useResolvedMedia";
 type MediaResponse = {
   url: string;
   urlExpiry: string;
+  urlTtlSeconds: number;
   contentLength: number;
 };
 
@@ -55,6 +56,7 @@ const queryKey = ["media.getById", "project-1", descriptor.mediaId];
 const cachedMedia: MediaResponse = {
   url: "https://signed.example.com/document.pdf?signature=old",
   urlExpiry: "2026-10-22T09:01:00.000Z",
+  urlTtlSeconds: 60,
   contentLength: 1024,
 };
 const refreshedMedia: MediaResponse = {
@@ -131,6 +133,22 @@ describe("useResolvedMedia", () => {
     expect(result.current.url).toBeUndefined();
     await act(result.current.refreshIfNeeded);
     expect(getMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("measures the URL lifetime on the browser clock, even when it disagrees with the server", () => {
+    queryClient.setQueryData(queryKey, {
+      ...cachedMedia,
+      urlExpiry: "2026-10-22T07:01:00.000Z",
+    });
+    const { result, rerender } = renderHook(
+      () => useResolvedMedia(descriptor, { enabled: true }),
+      { wrapper },
+    );
+
+    vi.setSystemTime(new Date("2026-10-22T09:00:10.000Z"));
+    rerender();
+    expect(result.current.status).toBe("ready");
+    expect(result.current.url).toBe(cachedMedia.url);
   });
 
   it("hides the expired URL during renewal and shares concurrent refreshes", async () => {

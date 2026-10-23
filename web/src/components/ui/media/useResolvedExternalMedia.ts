@@ -26,7 +26,7 @@ export function useResolvedExternalMedia(
     },
   );
   const isExpired = () =>
-    isSignedUrlExpired(query.data?.expiresAt, query.dataUpdatedAt);
+    isSignedUrlExpired(query.data?.urlTtlSeconds, query.dataUpdatedAt);
   const refreshIfNeeded = async () => {
     if (!query.isError && !isExpired()) return;
     await query.refetch();

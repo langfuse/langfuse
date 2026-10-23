@@ -6,7 +6,7 @@ const { queryState, refetchMock } = vi.hoisted(() => ({
   queryState: {
     data: {
       url: "https://signed.example.com/photo.jpeg",
-      expiresAt: new Date("2026-10-09T14:05:00.000Z"),
+      urlTtlSeconds: 60,
     },
     dataUpdatedAt: new Date("2026-10-09T14:04:00.000Z").getTime(),
     isError: false,

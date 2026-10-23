@@ -38,7 +38,8 @@ export function useResolvedMedia(
         staleTime: 55 * 60 * 1000,
       },
     );
-  const isExpired = () => isSignedUrlExpired(data?.urlExpiry, dataUpdatedAt);
+  const isExpired = () =>
+    isSignedUrlExpired(data?.urlTtlSeconds, dataUpdatedAt);
 
   const refreshIfNeeded = async () => {
     if (!projectId || (!isError && !isExpired())) return;

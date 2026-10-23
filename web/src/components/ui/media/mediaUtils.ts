@@ -156,19 +156,20 @@ export function splitStringByMediaReferences(value: string) {
 }
 
 /**
- * Whether a signed URL is too close to expiry to hand out. It counts as expired
- * a quarter of its lifetime early (at most 30s), so a link opened just before
- * expiry still works when clicked, even with modest server/browser clock skew.
- * `receivedAt` is when the browser got the URL (a query's `dataUpdatedAt`).
+ * Whether a signed URL is too close to expiry to hand out. Expiry is measured
+ * on the browser clock from `receivedAt` (a query's `dataUpdatedAt`) plus the
+ * server-reported lifetime, so server/browser clock skew cannot flip it. The
+ * URL counts as expired a quarter of its lifetime early (at most 30s), which
+ * absorbs network latency and leaves time to click the link.
  */
 export function isSignedUrlExpired(
-  expiresAt: Date | string | undefined,
+  urlTtlSeconds: number | undefined,
   receivedAt: number,
 ) {
-  if (expiresAt === undefined) return false;
-  const expiry = new Date(expiresAt).getTime();
-  const margin = Math.min(30_000, Math.max(0, expiry - receivedAt) / 4);
-  return expiry - margin <= Date.now();
+  if (urlTtlSeconds === undefined) return false;
+  const lifetime = urlTtlSeconds * 1000;
+  const margin = Math.min(30_000, lifetime / 4);
+  return receivedAt + lifetime - margin <= Date.now();
 }
 
 function mimeFromUrl(url: string) {
