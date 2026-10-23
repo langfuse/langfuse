@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
