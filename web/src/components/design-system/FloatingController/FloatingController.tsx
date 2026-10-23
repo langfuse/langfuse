@@ -23,6 +23,113 @@ import * as React from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
+function buildMiddleware({
+  sideOffset,
+  collisionPadding,
+  hideWhenDetached,
+  scrollable,
+}: Required<
+  Pick<
+    React.ComponentProps<typeof FloatingController>,
+    "sideOffset" | "collisionPadding" | "hideWhenDetached" | "scrollable"
+  >
+>) {
+  return [
+    offset(sideOffset),
+    flip({ padding: collisionPadding }),
+    shift({ padding: collisionPadding }),
+    ...(hideWhenDetached ? [hide({ padding: collisionPadding })] : []),
+    ...(scrollable
+      ? [
+          size({
+            padding: collisionPadding,
+            apply({ availableHeight, elements }) {
+              elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+            },
+          }),
+        ]
+      : []),
+  ];
+}
+
+function useStableTriggerRef(
+  setReference: ReturnType<typeof useFloating>["refs"]["setReference"],
+) {
+  return React.useMemo(() => {
+    // Stable composed refs avoid detaching the trigger on every prop-getter call.
+    const mergedRefs = new WeakMap<
+      NonNullable<React.Ref<HTMLElement>>,
+      React.RefCallback<HTMLElement>
+    >();
+
+    return (callerRef: React.Ref<HTMLElement> | undefined) => {
+      if (!callerRef) return setReference;
+      const cachedRef = mergedRefs.get(callerRef);
+      if (cachedRef) return cachedRef;
+
+      const mergedRef: React.RefCallback<HTMLElement> = (node) => {
+        setReference(node);
+        if (typeof callerRef === "function") {
+          const cleanup = callerRef(node);
+          return () => {
+            setReference(null);
+            if (cleanup) {
+              cleanup();
+            } else {
+              callerRef(null);
+            }
+          };
+        }
+
+        callerRef.current = node;
+        return () => {
+          setReference(null);
+          callerRef.current = null;
+        };
+      };
+      mergedRefs.set(callerRef, mergedRef);
+      return mergedRef;
+    };
+  }, [setReference]);
+}
+
+function getContentProps({
+  getFloatingProps,
+  setFloating,
+  placement,
+  floatingStyles,
+  middlewareData,
+  role,
+  onWheel,
+  onTouchMove,
+  ...props
+}: React.HTMLProps<HTMLDivElement> & {
+  getFloatingProps: ReturnType<typeof useInteractions>["getFloatingProps"];
+  setFloating: ReturnType<typeof useFloating>["refs"]["setFloating"];
+  placement: Placement;
+  floatingStyles: ReturnType<typeof useFloating>["floatingStyles"];
+  middlewareData: ReturnType<typeof useFloating>["middlewareData"];
+  role: NonNullable<React.ComponentProps<typeof FloatingController>["role"]>;
+}) {
+  return {
+    ...getFloatingProps({
+      ...props,
+      onWheel: role === "dialog" ? stopScrollPropagation(onWheel) : onWheel,
+      onTouchMove:
+        role === "dialog" ? stopScrollPropagation(onTouchMove) : onTouchMove,
+    }),
+    ref: setFloating,
+    "data-state": "open" as const,
+    "data-side": placement.split("-")[0] ?? placement,
+    style: {
+      ...floatingStyles,
+      ...(middlewareData.hide?.referenceHidden
+        ? { visibility: "hidden" as const }
+        : {}),
+    },
+  };
+}
+
 function FloatingController({
   children,
   renderContent,
@@ -84,22 +191,12 @@ function FloatingController({
     onOpenChange,
     placement,
     strategy: "fixed",
-    middleware: [
-      offset(sideOffset),
-      flip({ padding: collisionPadding }),
-      shift({ padding: collisionPadding }),
-      ...(hideWhenDetached ? [hide({ padding: collisionPadding })] : []),
-      ...(scrollable
-        ? [
-            size({
-              padding: collisionPadding,
-              apply({ availableHeight, elements }) {
-                elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
-              },
-            }),
-          ]
-        : []),
-    ],
+    middleware: buildMiddleware({
+      sideOffset,
+      collisionPadding,
+      hideWhenDetached,
+      scrollable,
+    }),
     transform: false,
     whileElementsMounted: autoUpdate,
   });
@@ -118,43 +215,7 @@ function FloatingController({
     dismiss,
     role,
   ]);
-  const { setReference } = refs;
-  const getTriggerRef = React.useMemo(() => {
-    // Stable composed refs avoid detaching the trigger on every prop-getter call.
-    const mergedRefs = new WeakMap<
-      NonNullable<React.Ref<HTMLElement>>,
-      React.RefCallback<HTMLElement>
-    >();
-
-    return (callerRef: React.Ref<HTMLElement> | undefined) => {
-      if (!callerRef) return setReference;
-      const cachedRef = mergedRefs.get(callerRef);
-      if (cachedRef) return cachedRef;
-
-      const mergedRef: React.RefCallback<HTMLElement> = (node) => {
-        setReference(node);
-        if (typeof callerRef === "function") {
-          const cleanup = callerRef(node);
-          return () => {
-            setReference(null);
-            if (cleanup) {
-              cleanup();
-            } else {
-              callerRef(null);
-            }
-          };
-        }
-
-        callerRef.current = node;
-        return () => {
-          setReference(null);
-          callerRef.current = null;
-        };
-      };
-      mergedRefs.set(callerRef, mergedRef);
-      return mergedRef;
-    };
-  }, [setReference]);
+  const getTriggerRef = useStableTriggerRef(refs.setReference);
 
   return (
     <>
@@ -173,28 +234,19 @@ function FloatingController({
             modal={false}
             initialFocus={-1}
           >
-            {renderContent({
-              ...getFloatingProps({
+            {renderContent(
+              getContentProps({
                 ...props,
-                onWheel:
-                  overlayRole === "dialog"
-                    ? stopScrollPropagation(onWheel)
-                    : onWheel,
-                onTouchMove:
-                  overlayRole === "dialog"
-                    ? stopScrollPropagation(onTouchMove)
-                    : onTouchMove,
+                getFloatingProps,
+                setFloating: refs.setFloating,
+                placement: resolvedPlacement,
+                floatingStyles,
+                middlewareData,
+                role: overlayRole,
+                onWheel,
+                onTouchMove,
               }),
-              ref: refs.setFloating,
-              "data-state": "open",
-              "data-side": resolvedPlacement.split("-")[0] ?? resolvedPlacement,
-              style: {
-                ...floatingStyles,
-                ...(middlewareData.hide?.referenceHidden
-                  ? { visibility: "hidden" }
-                  : {}),
-              },
-            })}
+            )}
           </FloatingFocusManager>
         </FloatingPortal>
       ) : null}
