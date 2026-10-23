@@ -85,12 +85,9 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
-      <div
-        ref={headerRef}
-        className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"
-      >
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+      <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
+        <div className="flex h-7 items-center justify-between gap-4">
+          <p className="text-muted-foreground flex min-w-0 items-center gap-2">
             {swatchColor && (
               <span
                 aria-hidden
@@ -105,26 +102,26 @@ export function TopicTraceList({
               {`${rows.length.toLocaleString()} traces`}
             </span>
           </p>
-          <h3 className="truncate text-lg font-bold" title={title}>
-            {title}
-          </h3>
-          {description && (
-            <p
-              className="text-muted-foreground line-clamp-2 text-sm"
-              title={description}
-            >
-              {description}
-            </p>
+          {tracingHref && (
+            <Button
+              href={tracingHref}
+              text="Open in Tracing"
+              variant="ghost"
+              size="sm"
+              icon={ExternalLink}
+            />
           )}
         </div>
-        {tracingHref && (
-          <Button
-            href={tracingHref}
-            text="Open in Tracing"
-            variant="ghost"
-            size="sm"
-            icon={ExternalLink}
-          />
+        <h3 className="truncate text-lg font-bold" title={title}>
+          {title}
+        </h3>
+        {description && (
+          <p
+            className="text-muted-foreground line-clamp-2 text-sm"
+            title={description}
+          >
+            {description}
+          </p>
         )}
       </div>
       <DataTable
