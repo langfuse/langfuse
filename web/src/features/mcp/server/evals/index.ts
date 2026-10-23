@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import type { McpFeatureModule } from "../registry";
 import {
   listEvaluatorsTool,
@@ -55,7 +56,7 @@ import {
 export const evalsFeature = {
   name: "evals",
   description:
-    "Manage evaluators and evaluation rules, and run batch evaluations, in the current Langfuse project",
+    "Manage evaluators and evaluation rules in the current Langfuse project",
   tools: [
     {
       definition: listManagedEvaluatorTemplatesTool,
@@ -107,9 +108,19 @@ export const evalsFeature = {
       definition: deleteEvaluationRuleTool,
       handler: handleDeleteEvaluationRule,
     },
+  ],
+} as const satisfies McpFeatureModule;
+
+export const batchEvaluationsFeature = {
+  name: "batchEvaluations",
+  description:
+    "Run evaluators over existing observations in the current Langfuse project",
+  tools: [
     {
       definition: runBatchEvaluationTool,
       handler: handleRunBatchEvaluation,
     },
   ],
+  isEnabled: async () =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
 } as const satisfies McpFeatureModule;

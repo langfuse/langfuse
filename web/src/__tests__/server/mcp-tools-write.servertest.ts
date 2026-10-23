@@ -1180,6 +1180,48 @@ describe("MCP Write Tools", () => {
       });
     });
 
+    it("bounds the selection by the time range and the plan's data-access window", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+      const fromStartTime = "2020-01-01T00:00:00.000Z";
+      const toStartTime = "2020-01-15T00:00:00.000Z";
+
+      const { id } = (await handleRunBatchEvaluation(
+        { evaluatorIds: [evaluator.id], fromStartTime, toStartTime } as never,
+        { ...setup.context, plan: "cloud:hobby" },
+      )) as { id: string };
+
+      const { query } = await prisma.batchAction.findUniqueOrThrow({
+        where: { id, projectId: setup.projectId },
+      });
+      const filter = (query as { filter: Array<Record<string, unknown>> })
+        .filter;
+      expect(filter.slice(0, 2)).toEqual([
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: ">=",
+          value: fromStartTime,
+        },
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: "<",
+          value: toStartTime,
+        },
+      ]);
+      const accessFloor = filter[2];
+      expect(accessFloor).toMatchObject({
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+      });
+      const floorAgeDays =
+        (Date.now() - new Date(accessFloor.value as string).getTime()) /
+        (24 * 60 * 60 * 1000);
+      expect(floorAgeDays).toBeCloseTo(30, 1);
+    });
+
     it("rejects full-text filters, which batch queries cannot carry", async () => {
       const setup = await createMcpTestSetup();
       const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
