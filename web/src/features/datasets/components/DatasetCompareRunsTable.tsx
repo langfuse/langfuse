@@ -20,7 +20,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import {
   DatasetCompareFieldsProvider,
   useDatasetCompareFields,
-} from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+} from "@/src/features/datasets/contexts/DatasetCompareFieldsProvider";
 import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";

@@ -5,7 +5,7 @@ import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";

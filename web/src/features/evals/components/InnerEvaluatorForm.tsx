@@ -119,7 +119,7 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/CodeEvalTestRunCard";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 // Lazy load tables
 const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));

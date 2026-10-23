@@ -8,7 +8,7 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellProvider";
 import {
   AnnotationForm,
   decomposeAggregateScoreKey,

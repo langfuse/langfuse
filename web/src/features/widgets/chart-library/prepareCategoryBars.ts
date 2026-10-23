@@ -1,5 +1,5 @@
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { seriesFillColor } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { seriesFillColor } from "@/src/features/widgets/chart-library/SeriesOverflowNote";
 
 /**
  * How many bars a colour can still IDENTIFY. The chart palette holds 8 slots and
