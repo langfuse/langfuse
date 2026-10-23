@@ -225,6 +225,15 @@ export function applySelection(
   operator?: CheckboxOperator,
 ): FilterState {
   if (hasMultipleFilterTargets(current, column)) return current;
+  // Changing operators without selecting values must not turn an empty
+  // selection into a vacuous all-of/none-of that matches everything.
+  if (
+    operator !== undefined &&
+    values.length === 0 &&
+    hasEmptyCheckboxSelection(current, column)
+  ) {
+    return current;
+  }
   const existingFilter = current.find((f) => f.column === column);
   const target = existingFilter?.target
     ? { target: existingFilter.target }
