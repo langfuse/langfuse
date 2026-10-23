@@ -8,7 +8,7 @@ import { useWindowCoordination } from "@/src/features/playground/page/hooks/useW
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
 import { type MultiWindowState } from "@/src/features/playground/page/types";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
 import {

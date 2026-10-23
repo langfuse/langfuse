@@ -26,7 +26,7 @@ import {
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 
 import {
   convertSelectedEnvironmentsToFilter,

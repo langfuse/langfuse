@@ -51,7 +51,7 @@ import {
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   Popover,
   PopoverContent,

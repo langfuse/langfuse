@@ -18,7 +18,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";

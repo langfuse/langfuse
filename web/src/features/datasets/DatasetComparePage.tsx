@@ -17,7 +17,7 @@ import {
 } from "@/src/features/experiments";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
