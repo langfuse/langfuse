@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,

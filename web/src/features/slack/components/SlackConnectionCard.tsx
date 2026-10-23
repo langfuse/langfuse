@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle, AlertCircle, Unlink } from "@langfuse/icons";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Card,
@@ -173,24 +173,26 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Workspace:</span>
-            <Badge variant="secondary" className="text-xs">
-              {integrationStatus.teamName}
-            </Badge>
+            <Badge color="filled" text={integrationStatus.teamName ?? ""} />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Team ID:</span>
-            <Badge variant="outline" className="font-mono text-xs">
-              {integrationStatus.teamId}
-            </Badge>
+            <Badge
+              color="primary"
+              font="mono"
+              text={integrationStatus.teamId ?? ""}
+            />
           </div>
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Bot User:</span>
-              <Badge variant="outline" className="font-mono text-xs">
-                {integrationStatus.botUserId}
-              </Badge>
+              <Badge
+                color="primary"
+                font="mono"
+                text={integrationStatus.botUserId}
+              />
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Tooltip,
   TooltipContent,
@@ -154,9 +154,7 @@ export function RuleFilterPills({
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
+            <Badge color="filled" text={`+${overflowItemCount}`} />
           </TooltipTrigger>
           <TooltipContent className="max-w-96">
             <div className="flex flex-wrap gap-1">

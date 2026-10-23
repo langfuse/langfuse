@@ -2,7 +2,7 @@
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StorageService } from "../services/StorageService";
-import type { Transcript } from "../transcript/types";
+import type { ExecutionIssue, Transcript } from "../transcript/types";
 import storedV1 from "./fixtures/inputs-v1.json";
 import { createEventUploadStorageService } from "../s3";
 import { createTraceBatchInputStorage } from "./storage";
@@ -53,7 +53,11 @@ describe("trace batch input storage", () => {
     expect(createEventUploadStorageService).not.toHaveBeenCalled();
 
     await first.get(reference);
-    await second.put(reference, { transcript: null, traceContext });
+    await second.put(reference, {
+      transcript: null,
+      executionIssues: [],
+      traceContext,
+    });
 
     expect(createEventUploadStorageService).toHaveBeenCalledExactlyOnceWith(
       "events",
@@ -67,6 +71,7 @@ describe("trace batch input storage", () => {
   ])("round trips nested trace context with %j", async (nullableFields) => {
     const inputs = {
       transcript: transcript(),
+      executionIssues: [executionIssue()],
       traceContext: {
         ...traceContext,
         ...nullableFields,
@@ -78,6 +83,9 @@ describe("trace batch input storage", () => {
       json += chunk;
     expect(JSON.parse(json)).toEqual({
       ...storedV1,
+      executionIssues: [
+        { ...executionIssue(), startTime: "2026-10-20T10:00:00.456Z" },
+      ],
       traceContext: inputs.traceContext,
     });
     storage.download.mockResolvedValueOnce(json);
@@ -87,13 +95,19 @@ describe("trace batch input storage", () => {
   it("reads the saved v1 format and writes it at the deterministic revision key", async () => {
     const value = transcript();
     const key = "test/trace-batch/trace/ecb/project/trace/revision.json";
+    // The saved fixture predates execution issues, which read as empty.
     expect(await inputStorage.get(reference)).toEqual({
       transcript: value,
+      executionIssues: [],
       traceContext,
     });
     expect(storage.download).toHaveBeenCalledWith(key);
 
-    await inputStorage.put(reference, { transcript: value, traceContext });
+    await inputStorage.put(reference, {
+      transcript: value,
+      executionIssues: [],
+      traceContext,
+    });
     const upload = storage.uploadFile.mock.calls[0][0];
     expect(upload).toMatchObject({
       fileName: key,
@@ -102,7 +116,7 @@ describe("trace batch input storage", () => {
     expect(upload.data).toBeInstanceOf(Readable);
     let json = "";
     for await (const chunk of upload.data) json += chunk;
-    expect(JSON.parse(json)).toEqual(storedV1);
+    expect(JSON.parse(json)).toEqual({ ...storedV1, executionIssues: [] });
   });
 
   it("reads an explicitly stored null transcript", async () => {
@@ -111,6 +125,7 @@ describe("trace batch input storage", () => {
     );
     expect(await inputStorage.get(reference)).toEqual({
       transcript: null,
+      executionIssues: [],
       traceContext,
     });
   });
@@ -122,6 +137,7 @@ describe("trace batch input storage", () => {
       const overhead = JSON.stringify({
         schemaVersion: 1,
         transcript: value,
+        executionIssues: [],
         traceContext,
       }).length;
       value.threads[0].currentTurn.messages[0].parts = [
@@ -130,6 +146,7 @@ describe("trace batch input storage", () => {
       expect(
         await inputStorage.put(reference, {
           transcript: value,
+          executionIssues: [],
           traceContext,
         }),
       ).toEqual({
@@ -147,7 +164,11 @@ describe("trace batch input storage", () => {
     await expect(inputStorage.get(reference)).rejects.toThrow("NoSuchKey");
     storage.uploadFile.mockRejectedValueOnce(new Error("SlowDown"));
     await expect(
-      inputStorage.put(reference, { transcript: null, traceContext }),
+      inputStorage.put(reference, {
+        transcript: null,
+        executionIssues: [],
+        traceContext,
+      }),
     ).rejects.toThrow("SlowDown");
   });
 
@@ -163,6 +184,15 @@ describe("trace batch input storage", () => {
       JSON.stringify({
         schemaVersion: 1,
         transcript: { threads: "bad" },
+        traceContext,
+      }),
+    ],
+    [
+      "invalid execution issue",
+      JSON.stringify({
+        schemaVersion: 1,
+        transcript: null,
+        executionIssues: [{ ...executionIssue(), level: "DEFAULT" }],
         traceContext,
       }),
     ],
@@ -214,5 +244,17 @@ function transcript(text = "Hello 🌍"): Transcript {
         },
       },
     ],
+  };
+}
+
+function executionIssue(): ExecutionIssue {
+  return {
+    observationId: "tool",
+    traceId: "trace",
+    type: "TOOL",
+    name: "search",
+    level: "ERROR",
+    statusMessage: "Request timed out",
+    startTime: new Date("2026-10-20T10:00:00.456Z"),
   };
 }

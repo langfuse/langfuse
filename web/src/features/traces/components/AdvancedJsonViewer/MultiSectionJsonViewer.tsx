@@ -24,7 +24,7 @@ import {
   SimpleMultiSectionViewer,
   type SimpleMultiSectionViewerHandle,
 } from "./SimpleMultiSectionViewer";
-import { SectionContextProvider } from "./contexts/SectionContext";
+import { SectionContextProvider } from "./contexts/SectionContextProvider";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import { type MediaReturnType } from "@/src/features/media";
 import { type CommentedPathsByField } from "./utils/commentRanges";

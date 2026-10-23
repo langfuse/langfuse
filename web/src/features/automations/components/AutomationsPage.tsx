@@ -10,7 +10,7 @@ import { WebhookSecretRender } from "@/src/features/automations/components/Webho
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {

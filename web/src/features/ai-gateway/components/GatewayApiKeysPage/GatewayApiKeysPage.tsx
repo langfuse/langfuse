@@ -17,7 +17,7 @@ export function GatewayApiKeysPage({
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-  /** Managers are redirected to Configuration by the settings route. */
+  /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
     return <GatewayNotSetUpNotice title="Gateway API keys" />;
   }
