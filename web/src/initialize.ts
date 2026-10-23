@@ -160,19 +160,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
-      await prisma.$transaction(async (tx) => {
-        const project = await tx.project.findUniqueOrThrow({
-          where: { id: projectId },
-          select: { orgId: true },
-        });
-        await saveProjectMembership(tx, {
-          orgId: project.orgId,
-          userId,
-          orgMembershipId: orgMembership.id,
-          projectId,
-          role: "OWNER",
-        });
+      await saveProjectMembership(prisma, {
+        orgId: org.id,
+        userId,
+        orgMembershipId: orgMembership.id,
+        projectId: env.LANGFUSE_INIT_PROJECT_ID,
+        role: "OWNER",
       });
     }
   }
