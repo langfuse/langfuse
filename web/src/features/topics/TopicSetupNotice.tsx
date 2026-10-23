@@ -2,6 +2,7 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
+import { TopicPilesIllustration } from "./TopicPilesIllustration";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -52,7 +53,7 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <SortingIllustration />
+          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -74,19 +75,13 @@ export function TopicSetupNotice({
 }
 
 // Decorative: trace summaries dropping into three example topics.
-const PILES = [
-  { name: "Refunds", count: 214, bars: 9, color: "violet", left: "left-5" },
-  {
-    name: "Order status",
-    count: 154,
-    bars: 6,
-    color: "blue",
-    left: "left-33.5",
-  },
-  { name: "Address", count: 96, bars: 4, color: "amber", left: "left-62" },
+const LANDING_PILES = [
+  { name: "Refunds", detail: "214", slots: 9, filled: 9, color: "violet" },
+  { name: "Order status", detail: "154", slots: 6, filled: 6, color: "blue" },
+  { name: "Address", detail: "96", slots: 4, filled: 4, color: "amber" },
 ] as const;
 
-const SLIPS = [
+const LANDING_SLIPS = [
   {
     text: "Refund for a double charge",
     color: "violet",
@@ -103,55 +98,3 @@ const SLIPS = [
     position: "top-13 left-67.5 -rotate-4",
   },
 ] as const;
-
-function SortingIllustration() {
-  return (
-    <div aria-hidden="true" className="relative h-62.5 w-110 shrink-0">
-      <div className="bg-background absolute top-17.5 left-10 z-10 h-45 w-90 rounded-lg border shadow-md">
-        {PILES.map((pile) => (
-          <div
-            key={pile.name}
-            className={`absolute bottom-3.5 flex w-23 flex-col gap-1.5 ${pile.left}`}
-          >
-            <div className="flex flex-col-reverse gap-0.75">
-              {Array.from({ length: pile.bars }, (_, index) => (
-                <span
-                  key={index}
-                  className="h-2.25 rounded-sm"
-                  style={{ backgroundColor: fadedColor(pile.color, index) }}
-                />
-              ))}
-            </div>
-            <div className="flex flex-col text-xs">
-              <span className="font-bold whitespace-nowrap">{pile.name}</span>
-              <span className="text-muted-foreground font-mono">
-                {pile.count}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      {SLIPS.map((slip) => (
-        <div
-          key={slip.text}
-          className={`bg-background absolute z-20 flex items-center gap-1.75 rounded-lg border px-2.5 py-1.75 text-xs whitespace-nowrap shadow-md ${slip.position}`}
-        >
-          <span
-            className="size-1.75 shrink-0 rounded-full"
-            style={{ backgroundColor: categoryColor(slip.color) }}
-          />
-          {slip.text}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function categoryColor(color: (typeof PILES)[number]["color"]) {
-  return `var(--category-${color}-highlight)`;
-}
-
-/** Bottom bar strongest; each bar above fades 8% toward the page. */
-function fadedColor(color: (typeof PILES)[number]["color"], index: number) {
-  return `color-mix(in oklch, ${categoryColor(color)} ${100 - index * 8}%, hsl(var(--background)))`;
-}
