@@ -47,7 +47,7 @@ function CustomTooltip({
       closeDelay={0}
       placement={placement}
       hoverableContent={hoverableContent}
-      scrollable={overflow === "scroll"}
+      isScrollable={overflow === "scroll"}
       renderContent={(floatingProps) => (
         <div
           {...floatingProps}

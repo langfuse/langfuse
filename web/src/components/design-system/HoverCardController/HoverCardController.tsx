@@ -9,7 +9,7 @@ function HoverCardController({
   ...props
 }: Omit<
   React.ComponentProps<typeof FloatingController>,
-  "role" | "hoverableContent" | "scrollable" | "renderContent"
+  "role" | "hoverableContent" | "isScrollable" | "renderContent"
 > & { content: React.ReactElement }) {
   return (
     <FloatingController

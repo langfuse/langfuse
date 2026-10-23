@@ -27,11 +27,11 @@ function buildMiddleware({
   sideOffset,
   collisionPadding,
   hideWhenDetached,
-  scrollable,
+  isScrollable,
 }: Required<
   Pick<
     React.ComponentProps<typeof FloatingController>,
-    "sideOffset" | "collisionPadding" | "hideWhenDetached" | "scrollable"
+    "sideOffset" | "collisionPadding" | "hideWhenDetached" | "isScrollable"
   >
 >) {
   return [
@@ -39,7 +39,7 @@ function buildMiddleware({
     flip({ padding: collisionPadding }),
     shift({ padding: collisionPadding }),
     ...(hideWhenDetached ? [hide({ padding: collisionPadding })] : []),
-    ...(scrollable
+    ...(isScrollable
       ? [
           size({
             padding: collisionPadding,
@@ -144,7 +144,7 @@ function FloatingController({
   enabled = true,
   role: overlayRole = "dialog",
   hoverableContent = true,
-  scrollable = false,
+  isScrollable = false,
   onWheel,
   onTouchMove,
   ...props
@@ -174,7 +174,7 @@ function FloatingController({
   enabled?: boolean;
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
-  scrollable?: boolean;
+  isScrollable?: boolean;
 }) {
   const isOpen = enabled && open;
   const layerContainer = useLayerContainer(
@@ -195,7 +195,7 @@ function FloatingController({
       sideOffset,
       collisionPadding,
       hideWhenDetached,
-      scrollable,
+      isScrollable,
     }),
     transform: false,
     whileElementsMounted: autoUpdate,
