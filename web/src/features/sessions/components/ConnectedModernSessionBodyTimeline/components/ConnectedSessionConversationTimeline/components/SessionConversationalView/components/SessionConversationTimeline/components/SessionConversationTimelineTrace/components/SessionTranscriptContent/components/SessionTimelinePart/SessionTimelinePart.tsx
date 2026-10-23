@@ -19,7 +19,7 @@ import {
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { ExternalMediaView } from "@/src/components/ui/media/ExternalMediaView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import {

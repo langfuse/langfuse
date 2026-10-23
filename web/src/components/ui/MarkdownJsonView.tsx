@@ -8,7 +8,12 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
+import {
+  MarkdownViewController,
+  type MarkdownViewState,
+} from "./MarkdownViewController";
+import { useTheme } from "next-themes";
 import { type MediaReturnType } from "@/src/features/media";
 import {
   Check,
@@ -185,12 +190,12 @@ export function MarkdownJsonView({
   );
 
   return markdownContent ? (
-    <MarkdownView
+    <MarkdownSection
       markdown={markdownContent.value}
-      title={title}
-      titleIcon={titleIcon}
       audio={audio}
       media={media}
+      title={title}
+      titleIcon={titleIcon}
       actions={actions}
       beforeContent={beforeContent}
       afterContent={afterContent}
@@ -221,6 +226,119 @@ export function MarkdownJsonView({
         />
       )}
     </JsonViewController>
+  );
+}
+
+function MarkdownSection({
+  markdown,
+  audio,
+  media,
+  title,
+  titleIcon,
+  actions,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
+}: Pick<
+  React.ComponentProps<typeof MarkdownViewController>,
+  "markdown" | "audio" | "media"
+> &
+  Pick<
+    React.ComponentProps<typeof MarkdownSectionContent>,
+    | "title"
+    | "titleIcon"
+    | "actions"
+    | "beforeContent"
+    | "afterContent"
+    | "isSystemPrompt"
+    | "defaultCollapsed"
+    | "collapsed"
+    | "onCollapsedChange"
+  >) {
+  return (
+    <MarkdownViewController markdown={markdown} audio={audio} media={media}>
+      {(state) => (
+        <MarkdownSectionContent
+          state={state}
+          title={title}
+          titleIcon={titleIcon}
+          actions={actions}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
+          isSystemPrompt={isSystemPrompt}
+          defaultCollapsed={defaultCollapsed}
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+        />
+      )}
+    </MarkdownViewController>
+  );
+}
+
+function MarkdownSectionContent({
+  state,
+  title,
+  titleIcon,
+  actions,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
+}: Pick<
+  React.ComponentProps<typeof MarkdownJsonView>,
+  | "title"
+  | "titleIcon"
+  | "actions"
+  | "beforeContent"
+  | "afterContent"
+  | "isSystemPrompt"
+  | "defaultCollapsed"
+  | "collapsed"
+  | "onCollapsedChange"
+> & { state: MarkdownViewState }) {
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(title) && (isSystemPrompt ?? title === "system"),
+    content: state.textContent,
+  });
+
+  if (!title) {
+    return (
+      <div
+        className="io-message-content ph-no-capture px-1 pt-1 pb-2"
+        key={forcedTheme ?? resolvedTheme}
+      >
+        <MarkdownViewContent state={state} />
+      </div>
+    );
+  }
+
+  return (
+    <IOSection
+      key={forcedTheme ?? resolvedTheme}
+      title={title}
+      titleIcon={titleIcon}
+      onCopy={state.copy}
+      actions={actions}
+      defaultCollapsed={defaultCollapsed}
+      collapsed={
+        systemPrompt.shouldBeCollapsible ? systemPrompt.isCollapsed : collapsed
+      }
+      onCollapsedChange={
+        systemPrompt.shouldBeCollapsible
+          ? systemPrompt.toggleCollapsed
+          : onCollapsedChange
+      }
+    >
+      {beforeContent}
+      <MarkdownViewContent state={state} />
+      {afterContent}
+    </IOSection>
   );
 }
 

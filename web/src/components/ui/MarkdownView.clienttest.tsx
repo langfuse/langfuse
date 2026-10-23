@@ -1,10 +1,16 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
-} from "@/src/components/ui/MarkdownViewer";
+} from "@/src/components/ui/MarkdownView";
+import { MarkdownViewContent } from "./MarkdownViewContent";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownViewController } from "./MarkdownViewController";
+import { IOSection } from "./IOSection";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard: vi.fn() }));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: { projectId: "project-1" } }),
@@ -42,6 +48,104 @@ vi.mock("@/src/features/feature-flags", () => ({
 
 const renderMarkdown = (markdown: string) =>
   render(<MarkdownView markdown={markdown} />);
+
+describe("MarkdownView composition", () => {
+  it("renders content without a section header", () => {
+    renderMarkdown("A **content-only** message");
+    expect(screen.getByText("content-only")).toBeInTheDocument();
+    expect(screen.queryByTitle("Copy to clipboard")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Collapse/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets a host own the section and copy prepared content", () => {
+    render(
+      <MarkdownViewController
+        markdown={[
+          { type: "text", text: "First" },
+          { type: "text", text: "Second" },
+        ]}
+      >
+        {(state) => (
+          <IOSection title="Host" onCopy={state.copy}>
+            <MarkdownViewContent state={state} />
+          </IOSection>
+        )}
+      </MarkdownViewController>,
+    );
+    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Second")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Copy to clipboard"));
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith("First\nSecond");
+  });
+
+  it("preserves caller-controlled collapse and surrounding content", () => {
+    const onCollapsedChange = vi.fn();
+    render(
+      <MarkdownJsonView
+        content="Message body"
+        title="assistant"
+        collapsed={false}
+        onCollapsedChange={onCollapsedChange}
+        beforeContent={<span>Before</span>}
+        afterContent={<span>After</span>}
+      />,
+    );
+    expect(screen.getByText("Before")).toBeInTheDocument();
+    expect(screen.getByText("After")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse assistant" }));
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+  });
+
+  it("does not count image payloads towards system-prompt collapse", () => {
+    render(
+      <MarkdownJsonView
+        content={[
+          { type: "text", text: "Short instruction" },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${"A".repeat(1_000)}` },
+          },
+        ]}
+        title="system"
+        isSystemPrompt
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Collapse system" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Short instruction")).toBeInTheDocument();
+  });
+
+  it("collapses named system prompts based on text rather than their display title", () => {
+    const stored = localStorage.getItem("collapseSystemPrompt");
+    const legacyStored = localStorage.getItem("traceSystemPrompt:collapsed");
+    localStorage.removeItem("collapseSystemPrompt");
+    localStorage.removeItem("traceSystemPrompt:collapsed");
+    try {
+      render(
+        <MarkdownJsonView
+          content={"Long system instruction. ".repeat(30)}
+          title="Named prompt"
+          isSystemPrompt
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Expand Named prompt" }),
+      );
+      expect(
+        screen.getByRole("button", { name: "Collapse Named prompt" }),
+      ).toBeInTheDocument();
+    } finally {
+      if (stored === null) localStorage.removeItem("collapseSystemPrompt");
+      else localStorage.setItem("collapseSystemPrompt", stored);
+      if (legacyStored === null)
+        localStorage.removeItem("traceSystemPrompt:collapsed");
+      else localStorage.setItem("traceSystemPrompt:collapsed", legacyStored);
+    }
+  });
+});
 
 describe("MarkdownView external S3 media", () => {
   it("renders a standalone S3 media URI as external media", () => {

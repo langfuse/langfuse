@@ -30,7 +30,7 @@ import {
 } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 
 import {
   convertRowIdToKeyPath,
