@@ -16,7 +16,7 @@ import {
   webhookWhitelistFromEnv,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { areDestinationUrlsEquivalent } from "@/src/utils/destinationUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface WebhookConfigOptions {
   actionConfig: ActionCreate;
@@ -93,8 +93,9 @@ export async function processWebhookActionConfig({
  * 1. Merging legacy headers with new requestHeaders
  * 2. Handling header removal (headers not in input are removed)
  * 3. Preserving existing values when empty values are submitted, except for
- *    secret values when the URL changes (they must be re-entered so they are
- *    never sent to a destination they were not entered for)
+ *    secret values when the URL changes (they must be re-entered, or are
+ *    dropped when no headers are submitted, so they are never sent to a
+ *    destination they were not entered for)
  * 4. Encrypting secret headers based on secret flag
  * 5. Generating display values for secret headers
  */
@@ -132,11 +133,11 @@ function processWebhookHeaders(
     { secret: boolean; value: string }
   > = {};
 
-  // If no headers are provided in input, preserve all existing headers
-  // This allows URL-only updates without requiring all headers to be resent
+  // An empty input keeps existing headers so URL-only updates need not resend
+  // them; secret headers are dropped instead when the URL changes.
   if (Object.keys(inputRequestHeaders).length === 0) {
     for (const [key, headerObj] of Object.entries(mergedExistingHeaders)) {
-      assertSecretMayBeKept(key, headerObj);
+      if (isUrlChanged && headerObj.secret) continue;
       finalRequestHeaders[key] = headerObj;
     }
   } else {

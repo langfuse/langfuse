@@ -12,7 +12,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { areDestinationUrlsEquivalent } from "@/src/utils/destinationUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;

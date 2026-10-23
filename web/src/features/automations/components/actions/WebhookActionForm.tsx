@@ -38,7 +38,7 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications";
-import { areDestinationUrlsEquivalent } from "@/src/utils/destinationUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({

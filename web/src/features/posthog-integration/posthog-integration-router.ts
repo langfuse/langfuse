@@ -17,7 +17,7 @@ import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
-import { areDestinationUrlsEquivalent } from "@/src/utils/destinationUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,

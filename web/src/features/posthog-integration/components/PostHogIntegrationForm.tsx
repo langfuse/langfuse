@@ -22,7 +22,7 @@ import {
   isExportSourceSelectable,
 } from "@/src/features/analytics-integrations";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
-import { areDestinationUrlsEquivalent } from "@/src/utils/destinationUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;
 
