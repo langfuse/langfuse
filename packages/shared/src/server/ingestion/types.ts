@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 
-import { NonEmptyString, jsonSchema } from "../../utils/zod";
+import { isoDateTime, NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
 import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
@@ -40,7 +41,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
+export const stringDateTime = isoDateTime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -89,6 +90,11 @@ const CostDetails = z
 const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
   if (!val) return;
 
+  const result = extractUsageCounts(val);
+  return Object.keys(result).length > 0 ? result : undefined;
+});
+
+function extractUsageCounts(val: Record<string, unknown>) {
   const result: Record<string, number> = {};
 
   for (const [key, value] of Object.entries(val)) {
@@ -102,9 +108,53 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
     }
   }
 
-  return Object.keys(result).length > 0 ? result : undefined;
-});
+  splitAnthropicCacheCreation(val.cache_creation, result);
 
+  return result;
+}
+
+/**
+ * Native Anthropic usage nests cache writes by TTL under `cache_creation`.
+ * The 5-minute and 1-hour writes are priced differently, so they are stored
+ * as `input_cache_creation_5m` / `input_cache_creation_1h`; the aggregate
+ * `cache_creation_input_tokens` keeps only the unattributed remainder so no
+ * write is priced twice.
+ */
+function splitAnthropicCacheCreation(
+  cacheCreation: unknown,
+  result: Record<string, number>,
+) {
+  if (typeof cacheCreation !== "object" || cacheCreation === null) return;
+
+  const split = cacheCreation as Record<string, unknown>;
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0;
+  const fiveMinute = split["ephemeral_5m_input_tokens"];
+  const oneHour = split["ephemeral_1h_input_tokens"];
+  if (!isCount(fiveMinute) && !isCount(oneHour)) return;
+
+  let attributed = 0;
+  if (isCount(fiveMinute)) {
+    result["input_cache_creation_5m"] = fiveMinute;
+    attributed += fiveMinute;
+  }
+  if (isCount(oneHour)) {
+    result["input_cache_creation_1h"] = oneHour;
+    attributed += oneHour;
+  }
+
+  const remainder = (result["cache_creation_input_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["cache_creation_input_tokens"] = remainder;
+  } else {
+    delete result["cache_creation_input_tokens"];
+  }
+}
+
+// The OpenAI schemas accept unknown top-level keys: OpenAI-compatible providers
+// add fields such as `cost`, and rejecting those would route the payload to
+// `RawUsageDetails` and lose the normalization. Unknown keys are kept under the
+// same rules as `RawUsageDetails`; normalized keys take precedence.
 const OpenAICompletionUsageSchema = z
   .object({
     prompt_tokens: z.number().int().nonnegative(),
@@ -117,7 +167,7 @@ const OpenAICompletionUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -127,12 +177,14 @@ const OpenAICompletionUsageSchema = z
       total_tokens,
       prompt_tokens_details,
       completion_tokens_details,
+      ...unknownFields
     } = v;
     const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
     } = {
+      ...extractUsageCounts(unknownFields),
       input: prompt_tokens,
       output: completion_tokens,
       total: total_tokens,
@@ -172,7 +224,7 @@ const OpenAIResponseUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -182,12 +234,14 @@ const OpenAIResponseUsageSchema = z
       total_tokens,
       input_tokens_details,
       output_tokens_details,
+      ...unknownFields
     } = v;
     const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
     } = {
+      ...extractUsageCounts(unknownFields),
       input: input_tokens,
       output: output_tokens,
       total: total_tokens,
@@ -411,6 +465,25 @@ export const SdkLogEvent = z.object({
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
+// Values outside the supported shapes (e.g. a structured-output
+// `response_format`) are stored as JSON strings instead of rejecting the whole
+// generation. OTel ingestion applies the same rule before reaching this schema.
+const ModelParameters = z
+  .record(
+    z.string(),
+    z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.array(z.string()),
+        z.record(z.string(), z.string()),
+        z.unknown().transform((value) => JSON.stringify(value)),
+      ])
+      .nullish(),
+  )
+  .nullish();
+
 // Complete schema factory - single source of truth for ALL schemas
 const createAllIngestionSchemas = ({
   isPublic = true,
@@ -473,20 +546,7 @@ const createAllIngestionSchemas = ({
   const CreateGenerationBody = CreateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,
@@ -502,20 +562,7 @@ const createAllIngestionSchemas = ({
   const UpdateGenerationBody = UpdateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,
@@ -588,7 +635,7 @@ const createAllIngestionSchemas = ({
       BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
-          dataType: z.undefined(),
+          dataType: z.undefined().optional(),
           configId: z.string().nullish(),
         }).shape,
       ),
@@ -616,7 +663,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.iso.datetime({ offset: true }),
+    timestamp: isoDateTime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 

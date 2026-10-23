@@ -3,7 +3,7 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -151,7 +151,7 @@ export function EvaluatorVersionHistoryList({
                     title={`Restore version ${version.version}`}
                     onClick={() => onRestoreVersion(version)}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw size="sm" color="default" />
                   </Button>
                 </span>
               )

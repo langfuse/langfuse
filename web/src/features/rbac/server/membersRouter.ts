@@ -21,6 +21,7 @@ import {
   sendMembershipInvitationEmail,
   getUserProjectRoles,
   getUserProjectRolesCount,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
@@ -34,9 +35,14 @@ import {
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import {
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
-  featurePreviewFlags,
+  userFeaturePreviewFlags,
   setUserFeaturePreviewWithAuthorization,
 } from "@/src/features/feature-flags/server";
 
@@ -45,11 +51,11 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
     return Prisma.empty;
   }
 
-  const q = searchQuery;
+  const pattern = `%${escapeSqlLikePattern(searchQuery)}%`;
   const searchConditions: Prisma.Sql[] = [];
 
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.name ILIKE ${pattern}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${pattern}`);
 
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
@@ -570,12 +576,22 @@ export const membersRouter = createTRPCRouter({
         before: orgMembership,
       });
 
-      const deleted = await ctx.prisma.organizationMembership.delete({
-        where: {
-          id: orgMembership.id,
-          orgId: input.orgId,
+      const { deleted, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const deleted = await tx.organizationMembership.delete({
+            where: {
+              id: orgMembership.id,
+              orgId: input.orgId,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeys(tx, {
+            userId: orgMembership.userId,
+            orgId: input.orgId,
+          });
+          return { deleted, revokedKeys };
         },
-      });
+      );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       // SFDC: remove the org-member bridge.
       await getSfdcService()?.removeUser({
@@ -698,15 +714,26 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const updatedMembership = await ctx.prisma.organizationMembership.update({
-        where: {
-          id: membership.id,
-          orgId: input.orgId,
+      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const updatedMembership = await tx.organizationMembership.update({
+            where: {
+              id: membership.id,
+              orgId: input.orgId,
+            },
+            data: {
+              role: input.role,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+            userId: membership.userId,
+            orgId: input.orgId,
+            role: input.role,
+          });
+          return { updatedMembership, revokedKeys };
         },
-        data: {
-          role: input.role,
-        },
-      });
+      );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       await auditLog({
         session: ctx.session,
@@ -731,7 +758,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         userId: z.string(),
-        flag: z.enum(featurePreviewFlags),
+        flag: z.enum(userFeaturePreviewFlags),
         enabled: z.boolean(),
       }),
     )

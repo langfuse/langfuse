@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
@@ -32,21 +31,33 @@ export function useIOPreviewParser(
   preParsedMetadata?: unknown,
   preParsedResult?: ChatMLParserResult,
 ): ChatMLParserResult {
-  const parsedInput = preParsedResult
-    ? undefined
-    : preParsedInput !== undefined
-      ? preParsedInput
-      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput = preParsedResult
-    ? undefined
-    : preParsedOutput !== undefined
-      ? preParsedOutput
-      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata = preParsedResult
-    ? undefined
-    : preParsedMetadata !== undefined
-      ? preParsedMetadata
-      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  const parsedInput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedInput !== undefined) {
+      return preParsedInput;
+    }
+    return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedOutput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedOutput !== undefined) {
+      return preParsedOutput;
+    }
+    return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedMetadata = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedMetadata !== undefined) {
+      return preParsedMetadata;
+    }
+    return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  })();
 
   return useMemo<ChatMLParserResult>(() => {
     if (preParsedResult) return preParsedResult;

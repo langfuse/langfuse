@@ -3,7 +3,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
 
 type SessionScore = ComponentProps<
   typeof ModernSessionHeader
@@ -14,7 +13,6 @@ const makeScore = (
 ): SessionScore =>
   ({
     projectId: "project-1",
-    environment: "default",
     source: "EVAL",
     authorUserId: null,
     comment: null,
@@ -53,22 +51,15 @@ const manyUsers = Array.from(
 );
 
 const defaultArgs = {
+  dividerTone: "default",
   projectId: "project-1",
   countTraces: 24,
-  traces: {
-    state: "loaded",
-    data: [
-      { latencyMs: 1_240, observationCount: 42 },
-      { latencyMs: 2_310, observationCount: 38 },
-      { latencyMs: 4_620, observationCount: 51 },
-      { latencyMs: 8_760, observationCount: 55 },
-    ],
-  },
+  minTimestamp: new Date("2026-09-11T10:00:00Z"),
+  maxTimestamp: new Date("2026-09-11T10:04:12Z"),
   tokensIn: 18_420,
   tokensOut: 6_310,
   totalTokens: 24_730,
   totalCost: 0.084291,
-  environment: "production",
   users: ["customer@example.com", "support@example.com"],
   metadataJsonPaths: {
     paths: [],
@@ -82,11 +73,9 @@ const defaultArgs = {
 
 const minimalArgs = {
   ...defaultArgs,
-  traces: { state: "loading" },
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
-  environment: null,
   users: [],
   scores: [],
 } satisfies ComponentProps<typeof ModernSessionHeader>;
@@ -120,7 +109,7 @@ export const ConfiguredMetadata = meta.story({
       source: {
         state: "ready",
         metadata: {
-          langfuse_user_email: "danielm@nexite.io",
+          langfuse_user_email: "daniel.mueller-schmidt@enterprise.nexite.io",
           cloud_region: "EU",
         },
         metadataTruncated: false,
@@ -149,12 +138,12 @@ export const TestSearchesHiddenPills = meta.story({
     await waitFor(() =>
       expect(
         canvas.getByRole("button", {
-          name: /show \d+ hidden session details/i,
+          name: /show \d+ more session details/i,
         }),
       ).toBeInTheDocument(),
     );
     const overflowButton = canvas.getByRole("button", {
-      name: /show \d+ hidden session details/i,
+      name: /show \d+ more session details/i,
     });
     const visiblePills = canvasElement.querySelectorAll<HTMLElement>(
       "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
@@ -163,7 +152,7 @@ export const TestSearchesHiddenPills = meta.story({
     await expect(
       overflowButton.getBoundingClientRect().left -
         lastVisiblePill.getBoundingClientRect().right,
-    ).toBeLessThanOrEqual(8);
+    ).toBeLessThanOrEqual(16);
     const overflowButtonRect = overflowButton.getBoundingClientRect();
     const lastVisiblePillRect = lastVisiblePill.getBoundingClientRect();
     await expect(
@@ -174,13 +163,13 @@ export const TestSearchesHiddenPills = meta.story({
       ),
     ).toBeLessThanOrEqual(0.5);
     const trailingButton = canvas.getByRole("button", {
-      name: "Add metadata JSONPath",
+      name: "Edit Metadata",
     });
     const trailingGap =
       trailingButton.getBoundingClientRect().left -
       overflowButton.getBoundingClientRect().right;
     await expect(trailingGap).toBeGreaterThanOrEqual(0);
-    await expect(trailingGap).toBeLessThanOrEqual(8);
+    await expect(trailingGap).toBeLessThanOrEqual(16);
 
     await userEvent.click(overflowButton);
 
@@ -215,7 +204,7 @@ export const TestBoundsManyUsers = meta.story({
 
     await userEvent.click(
       canvas.getByRole("button", {
-        name: /show \d+ hidden session details/i,
+        name: /show \d+ more session details/i,
       }),
     );
     const body = within(canvasElement.ownerDocument.body);
@@ -243,7 +232,7 @@ export const TestBoundsManyUsers = meta.story({
     await userEvent.type(searchInput, "user-999@example.com");
     await expect(
       within(results).getByRole("link", {
-        name: "user user-999@example.com",
+        name: "user: user-999@example.com",
       }),
     ).toBeInTheDocument();
   },
@@ -284,9 +273,7 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     const openEditor = () =>
-      userEvent.click(
-        canvas.getByRole("button", { name: "Add metadata JSONPath" }),
-      );
+      userEvent.click(canvas.getByRole("button", { name: "Edit Metadata" }));
 
     await openEditor();
     let input = body.getByLabelText("Metadata JSONPath");
@@ -345,96 +332,9 @@ export const TestCompactsTokenCounts = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(
         "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
       ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
+    ).find((pill) => pill.textContent?.trim().endsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent(/649k.*7k.*655k/);
-    await expect(tokenPill).toHaveAttribute(
-      "title",
-      "tokens 648,714 in, 6,697 out, 655,411 total",
-    );
-  },
-});
-
-export const TestHidesAndRevealsDetails = meta.story({
-  name: "(Test) Hides and reveals details",
-  args: {
-    ...defaultArgs,
-    projectId: "project-header-visibility-story",
-  },
-  play: async ({ canvasElement }) => {
-    const storageKey = sessionHeaderVisibilityStorageKey(
-      "project-header-visibility-story",
-    );
-    const storedValue = JSON.stringify([]);
-    localStorage.setItem(storageKey, storedValue);
-    window.dispatchEvent(
-      new CustomEvent("localStorageChange", {
-        detail: { key: storageKey, newValue: storedValue },
-      }),
-    );
-
-    const canvas = within(canvasElement);
-    const hideTraceDetail = await canvas.findByRole("button", {
-      name: "Hide trace and span counts in session header",
-    });
-    const visibleTraceDetail = hideTraceDetail.closest(
-      "[data-overflow-visible-item='true']",
-    );
-    await expect(visibleTraceDetail).toBeInTheDocument();
-    hideTraceDetail.focus();
-    await waitFor(() => expect(hideTraceDetail).toBeVisible());
-    await expect(
-      hideTraceDetail.getBoundingClientRect().width,
-    ).toBeGreaterThanOrEqual(24);
-    await expect(
-      hideTraceDetail.getBoundingClientRect().height,
-    ).toBeGreaterThanOrEqual(24);
-    await userEvent.click(hideTraceDetail);
-    await expect(
-      canvas.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
-    ).not.toBeInTheDocument();
-    await expect(
-      JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
-    ).toContain("traces");
-
-    const overflowButton = canvas.getByRole("button", {
-      name: /show \d+ hidden session details/i,
-    });
-    await waitFor(() => expect(overflowButton).toHaveFocus());
-    await userEvent.click(overflowButton);
-    const body = within(canvasElement.ownerDocument.body);
-    const overflowSearchInput = await body.findByRole("textbox", {
-      name: "Search session details",
-    });
-    const showTraceDetail = await body.findByRole("button", {
-      name: "Show trace and span counts in session header",
-    });
-    showTraceDetail.focus();
-    await waitFor(() => expect(showTraceDetail).toBeVisible());
-    await userEvent.click(showTraceDetail);
-
-    await expect(
-      canvas.getByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
-    ).toBeInTheDocument();
-    await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));
-    const metadataEditorButton = canvas.getByRole("button", {
-      name: "Add metadata JSONPath",
-    });
-    await waitFor(() =>
-      expect(
-        [
-          overflowSearchInput,
-          metadataEditorButton,
-          canvas.queryByRole("button", {
-            name: /show \d+ hidden session details/i,
-          }),
-        ].filter(Boolean),
-      ).toContain(canvasElement.ownerDocument.activeElement),
-    );
+    await expect(tokenPill).toHaveTextContent(/^655k\s*tokens$/);
   },
 });

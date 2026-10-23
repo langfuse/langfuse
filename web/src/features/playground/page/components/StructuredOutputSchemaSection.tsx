@@ -1,9 +1,10 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useCallback, useEffect } from "react";
 
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "@langfuse/icons";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -123,7 +124,7 @@ export const StructuredOutputSchemaPopover = ({
               className="flex items-center justify-between px-1 py-2"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+                <BoxIcon size="base" color="muted" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold" title={schema.name}>
                     {schema.name}
@@ -147,7 +148,7 @@ export const StructuredOutputSchemaPopover = ({
                   });
                 }}
               >
-                <PencilIcon className="h-3.5 w-3.5" />
+                <PencilIcon size="base" color="default" />
               </Button>
             </CommandItem>
           ))}
@@ -161,7 +162,7 @@ export const StructuredOutputSchemaPopover = ({
           className="w-full"
           onClick={() => onOpenSchemaDialog({ onSave: handleSelectSchema })}
         >
-          <PlusIcon className="mr-2 h-4 w-4" />
+          <PlusIcon size="base" color="default" __rawClassName="mr-2" />
           Create new schema
         </Button>
       </div>
@@ -298,10 +299,10 @@ export const StructuredOutputSchemaSection = ({
                 handleRemoveSchema();
               }}
             >
-              <MinusCircle className="h-4 w-4" />
+              <MinusCircle size="base" color="default" />
             </Button>
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
-              <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+              <BoxIcon size="base" color="muted" __rawClassName="mt-0.5" />
               <div className="min-w-0">
                 <h3
                   className="truncate text-sm font-bold"

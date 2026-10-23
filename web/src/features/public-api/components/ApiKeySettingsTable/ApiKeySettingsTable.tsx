@@ -1,41 +1,55 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash } from "@langfuse/icons";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableProps,
+} from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 import { type RouterOutput } from "@/src/utils/types";
+
+const EXCLUDE_GATEWAY_KEYS = "exclude-gateway";
+const ALL_KEYS = "all";
+
+const GATEWAY_KEY_FILTER_OPTIONS = [
+  { value: EXCLUDE_GATEWAY_KEYS, label: "Exclude gateway keys" },
+  { value: ALL_KEYS, label: "All API keys" },
+];
 
 export type ApiKeySettingsTableRow =
   | RouterOutput["projectApiKeys"]["byProjectId"][number]
   | RouterOutput["organizationApiKeys"]["byOrganizationId"][number];
 
 export function ApiKeySettingsTable({
-  editNoteAction,
+  editNameAction,
   hasWriteAccess,
   onDelete,
+  search,
+  gatewayKeyFilter,
   ...tableProps
-}: Pick<
-  TableProps<ApiKeySettingsTableRow>,
-  "data" | "loadingRowCount" | "noResultsMessage"
-> & {
-  editNoteAction: {
-    hasAccess: boolean;
-    onClick: (apiKey: ApiKeySettingsTableRow) => void;
-  };
-  hasWriteAccess: boolean;
-  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
-}) {
+}: ApiKeySettingsTableProps) {
   const columns = useMemo<LangfuseColumnDef<ApiKeySettingsTableRow>[]>(
     () => [
-      createDateTableColumn<ApiKeySettingsTableRow>({
-        accessorKey: "createdAt",
-        header: "Created",
-        hideBelowMd: true,
+      createTextTableColumn<ApiKeySettingsTableRow>({
+        id: "note",
+        accessorFn: (apiKey) => apiKey.note || null,
+        header: "Name",
         enableResizing: false,
+        nullValue: "—",
+        trailingAction: editNameAction.hasAccess
+          ? {
+              type: "custom",
+              icon: Pencil,
+              label: "Edit name",
+              onClick: ({ row }) => editNameAction.onClick(row.original),
+            }
+          : undefined,
       }),
       createUserTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdByUser",
@@ -62,21 +76,6 @@ export function ApiKeySettingsTable({
         },
       }),
       createTextTableColumn<ApiKeySettingsTableRow>({
-        id: "note",
-        accessorFn: (apiKey) => apiKey.note || null,
-        header: "Note",
-        enableResizing: false,
-        nullValue: "—",
-        trailingAction: editNoteAction.hasAccess
-          ? {
-              type: "custom",
-              icon: Pencil,
-              label: "Edit note",
-              onClick: ({ row }) => editNoteAction.onClick(row.original),
-            }
-          : undefined,
-      }),
-      createTextTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "publicKey",
         header: "Public Key",
         trailingAction: { type: "copy-to-clipboard" },
@@ -87,8 +86,23 @@ export function ApiKeySettingsTable({
         header: "Secret Key",
         enableResizing: false,
       }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "expiresAt",
+        header: "Expiration",
+        hideBelowMd: true,
+        enableResizing: false,
+        emptyValue: "No expiration",
+        getPrefix: (expiresAt) =>
+          isApiKeyExpired(expiresAt) ? "Expired on " : null,
+      }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "createdAt",
+        header: "Created",
+        hideBelowMd: true,
+        enableResizing: false,
+      }),
     ],
-    [editNoteAction],
+    [editNameAction],
   );
 
   const actions = useCallback<
@@ -113,9 +127,55 @@ export function ApiKeySettingsTable({
   return (
     <SettingsTable
       tableName="API keys"
+      columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
       actions={actions}
+      search={{ ...search, placeholder: "Search by name" }}
+      filters={
+        gatewayKeyFilter
+          ? [toGatewayKeySettingsFilter(gatewayKeyFilter)]
+          : undefined
+      }
       {...tableProps}
     />
   );
 }
+
+function toGatewayKeySettingsFilter({
+  includeGatewayKeys,
+  onIncludeGatewayKeysChange,
+}: GatewayKeyFilter): SettingsTableFilter {
+  return {
+    type: "select",
+    id: "gatewayKeys",
+    label: "Gateway keys",
+    placeholder: "Exclude gateway keys",
+    options: GATEWAY_KEY_FILTER_OPTIONS,
+    value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
+    onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
+    muted: !includeGatewayKeys,
+  };
+}
+
+type ApiKeySettingsTableProps = Pick<
+  TableProps<ApiKeySettingsTableRow>,
+  "data" | "loadingRowCount" | "noResultsMessage"
+> & {
+  editNameAction: {
+    hasAccess: boolean;
+    onClick: (apiKey: ApiKeySettingsTableRow) => void;
+  };
+  hasWriteAccess: boolean;
+  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
+  search: { value: string; onChange: (value: string) => void };
+  gatewayKeyFilter?: GatewayKeyFilter;
+};
+
+type GatewayKeyFilter = {
+  includeGatewayKeys: boolean;
+  onIncludeGatewayKeysChange: (includeGatewayKeys: boolean) => void;
+};
+
+type SettingsTableFilter = NonNullable<
+  SettingsTableProps<ApiKeySettingsTableRow>["filters"]
+>[number];

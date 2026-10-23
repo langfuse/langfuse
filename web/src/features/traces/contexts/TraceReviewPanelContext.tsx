@@ -1,9 +1,19 @@
+/* eslint-disable @repo/component-file-structure */
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import {
   createTraceReviewPanelStore,
   type TraceReviewPanelStore,
 } from "../state/traceReviewPanelStore";
+
+const ReviewPanelOpenContext = createContext<
+  | ((panel: "annotation" | "comments", target?: CommentTarget) => void)
+  | undefined
+>(undefined);
+
+export function useReviewPanelOpen() {
+  return useContext(ReviewPanelOpenContext);
+}
 
 const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
   null,
@@ -12,19 +22,26 @@ const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
 export function TraceReviewPanelProvider({
   projectId,
   initialComments,
+  onOpen,
   children,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
+  onOpen?: (panel: "annotation" | "comments", target?: CommentTarget) => void;
   children: ReactNode;
 }) {
   const [store] = useState(() =>
-    createTraceReviewPanelStore({ projectId, initialComments }),
+    createTraceReviewPanelStore({
+      projectId,
+      initialComments,
+    }),
   );
 
   return (
     <TraceReviewPanelContext.Provider value={store}>
-      {children}
+      <ReviewPanelOpenContext.Provider value={onOpen}>
+        {children}
+      </ReviewPanelOpenContext.Provider>
     </TraceReviewPanelContext.Provider>
   );
 }

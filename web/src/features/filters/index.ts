@@ -12,7 +12,7 @@ export {
   InlineFilterState,
   PopoverFilterBuilder,
 } from "@/src/features/filters/components/filter-builder";
-export { MultiSelect } from "@/src/features/filters/components/multi-select";
+export { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 // eval-logs / evaluators / scores configs stay on the deep path: they import
 // server table definitions (and Prisma enums via those), and re-exporting
 // them here would make every consumer of this client door fail

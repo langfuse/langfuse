@@ -1,6 +1,8 @@
+/* eslint-disable @repo/component-file-structure */
 import type React from "react";
 import { type ObservationLevelType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 
 const observationLevelToStatus = {
   ERROR: "error",
@@ -13,6 +15,27 @@ export function getObservationLevelStatus(level: string): string {
   return Object.hasOwn(observationLevelToStatus, level)
     ? observationLevelToStatus[level as ObservationLevelType]
     : level;
+}
+
+const observationLevelToTagStatus = {
+  ERROR: "error",
+  WARNING: "warning",
+  DEBUG: "default",
+  DEFAULT: "default",
+} as const satisfies Record<ObservationLevelType, string>;
+
+/** Table cell for an observation level, lowercase like the environment next to it. */
+export function ObservationLevelTag({
+  level,
+}: {
+  level: ObservationLevelType;
+}) {
+  return (
+    <Tag
+      text={getObservationLevelStatus(level)}
+      status={observationLevelToTagStatus[level]}
+    />
+  );
 }
 
 export const LevelColors = {

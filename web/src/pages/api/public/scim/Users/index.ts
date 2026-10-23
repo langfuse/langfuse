@@ -1,11 +1,12 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-
+import { env } from "@/src/env.mjs";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { type Role } from "@langfuse/shared";
+import { isBaseError, type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
@@ -197,6 +198,14 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
+      await assertValidOwnershipChange({
+        tx: prisma,
+        context: authCheck.ctx,
+        orgId: authCheck.scope.orgId,
+        from: undefined,
+        to: role,
+      });
+
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant
       // userName slips past the duplicate check and the upsert can collide
@@ -230,6 +239,10 @@ export default async function handler(
         create: {
           email: normalizedEmail,
           name: name?.formatted || displayName,
+          v4BetaEnabled:
+            env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only" ||
+            (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual" &&
+              Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)),
         },
         update: {},
       });
@@ -290,6 +303,9 @@ export default async function handler(
       });
     } catch (error) {
       logger.error("[SCIM] Failed to create user", error);
+      if (isBaseError(error)) {
+        return writeScimError(res, error);
+      }
       return res.status(500).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Internal server error",

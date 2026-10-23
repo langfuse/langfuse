@@ -14,8 +14,22 @@ export function removeObjectKeys<T, K extends keyof T>(
   return result;
 }
 
+/** Define an own data property without invoking setters, including `__proto__`. */
+export function defineOwnValue(
+  target: object,
+  property: PropertyKey,
+  value: unknown,
+): void {
+  Object.defineProperty(target, property, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  });
+}
+
 /**
- * Safely coerces a value to a Record if it's a plain object.
+ * Safely coerces a value to a Record if it's a non-array object.
  * Returns undefined for null, undefined, arrays, and non-objects.
  */
 export function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -237,7 +237,30 @@ test("rejects pricing-entry removal from the staged snapshot", () => {
   );
 });
 
-test("rejects selectable-model removal from the staged snapshot", () => {
+test("accepts a retired selectable-model removal from the staged snapshot", () => {
+  const result = runValidator({
+    baseTypes: typesSource({ openAI: ["gpt-4o", modelName] }),
+    basePrices: changedPrices.before,
+    changedModelTypes: true,
+    currentTypes: typesSource(),
+    output: {
+      pullRequestTitle:
+        "chore(pricing): remove retired gpt-5.5 from playground",
+      modelsChecked: [
+        {
+          ...confirmedChange(modelName, "removed"),
+          priceConfirmed: "no",
+          comments: "Listed as shut down on the official deprecations page.",
+        },
+      ],
+    },
+    typesDiff: `-  "${modelName}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("rejects a staged selectable-model removal reported as an update", () => {
   const result = runValidator({
     baseTypes: typesSource({ openAI: ["gpt-4o", modelName] }),
     basePrices: changedPrices.before,
@@ -253,7 +276,7 @@ test("rejects selectable-model removal from the staged snapshot", () => {
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Automated selectable-model removal is not allowed: gpt-5.5-2026-04-23/,
+    /modelsChecked must report the actual removed model entry: gpt-5.5-2026-04-23/,
   );
 });
 

@@ -7,11 +7,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockRateLimitRequest, mockSubmitFeedback, mockVerifyAuth } = vi.hoisted(
+const { mockRateLimitRequest, mockSubmitFeedback, mockShadowAuth } = vi.hoisted(
   () => ({
     mockRateLimitRequest: vi.fn(),
     mockSubmitFeedback: vi.fn(),
-    mockVerifyAuth: vi.fn(),
+    mockShadowAuth: vi.fn(),
   }),
 );
 
@@ -19,15 +19,12 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
-vi.mock("@/src/features/public-api/server/apiAuth", () => {
-  function ApiAuthService() {
-    return {
-      verifyAuthHeaderAndReturnScope: mockVerifyAuth,
-    };
-  }
-
-  return { ApiAuthService };
-});
+// Stub the auth seam the route actually uses so the test is independent of the
+// active API_AUTH_MIGRATION mode.
+vi.mock("@/src/features/public-api/server/shadowAuth", async () => ({
+  ...(await vi.importActual("@/src/features/public-api/server/shadowAuth")),
+  shadowAuth: mockShadowAuth,
+}));
 
 vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   RateLimitService: {
@@ -78,14 +75,14 @@ describe("POST /api/public/feedback", () => {
   beforeEach(() => {
     mockRateLimitRequest.mockReset();
     mockSubmitFeedback.mockReset();
-    mockVerifyAuth.mockReset();
+    mockShadowAuth.mockReset();
 
     mockRateLimitRequest.mockResolvedValue(undefined);
     mockSubmitFeedback.mockResolvedValue({
       id: "11111111-1111-4111-8111-111111111111",
     });
-    mockVerifyAuth.mockResolvedValue({
-      validKey: true,
+    mockShadowAuth.mockResolvedValue({
+      success: true,
       scope: validScope,
     });
   });

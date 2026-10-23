@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
+import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
@@ -15,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -164,10 +165,11 @@ export const SessionObservationIO = ({
         },
         fileName: `observation-${observation.id}.json`,
       });
-    } catch {
+    } catch (error) {
       showErrorToast(
         "Download failed",
         "Could not fetch the observation's full I/O. Please try again.",
+        classifyTrpcToastError(error, "observation.download"),
       );
     } finally {
       setIsDownloading(false);
@@ -185,6 +187,7 @@ export const SessionObservationIO = ({
       output={observation.output ?? undefined}
       metadata={observation.metadata ?? undefined}
       observationName={observation.name ?? undefined}
+      observationType={observation.type}
       hideIfNull
       media={observationMedia.data}
       projectId={projectId}
@@ -273,7 +276,7 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />
+          <ExternalLinkIcon size="base" color="default" __rawClassName="mr-1" />
           Open in trace view
         </Button>
         <Button
@@ -283,9 +286,13 @@ export const SessionObservationIO = ({
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            <Loader2
+              size="base"
+              color="default"
+              __rawClassName="mr-1 animate-spin"
+            />
           ) : (
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download size="base" color="default" __rawClassName="mr-1" />
           )}
           Download I/O
         </Button>

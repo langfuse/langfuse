@@ -6,9 +6,19 @@ import {
   requireGatewayEnabledForOrganization,
 } from "./availability";
 
+const PREVIEW_PR_URL = "https://github.com/langfuse/langfuse/pull/18561";
+
+const deployedSelfHosted = {
+  nodeEnv: "production",
+  deployed: "true",
+} as const;
+
 describe("gateway organization allowlist", () => {
   it("matches organization IDs exactly", () => {
-    const environment = { nodeEnv: "production" };
+    const environment = {
+      ...deployedSelfHosted,
+      enabledForAllOrganizations: "false",
+    } as const;
 
     expect(
       isGatewayEnabledForOrganization("org-1", ["org-1", "org-2"], environment),
@@ -16,18 +26,139 @@ describe("gateway organization allowlist", () => {
     expect(isGatewayEnabledForOrganization("org", ["org-1"], environment)).toBe(
       false,
     );
-  });
-
-  it("keeps the allowlist active outside local development", () => {
-    expect(
-      isGatewayEnabledForOrganization("org-not-allowed", [], {
-        nodeEnv: "production",
-      }),
-    ).toBe(false);
     expect(() =>
-      requireGatewayEnabledForOrganization("org-not-allowed", [], {
-        nodeEnv: "production",
-      }),
+      requireGatewayEnabledForOrganization("org", ["org-1"], environment),
     ).toThrow(ForbiddenError);
   });
+});
+
+describe("self-hosted deployments", () => {
+  it("enables every organization of a deployed gateway unless disabled", () => {
+    expect(
+      isGatewayEnabledForOrganization("org-2", [], deployedSelfHosted),
+    ).toBe(true);
+    expect(
+      isGatewayEnabledForOrganization("org-2", [], {
+        ...deployedSelfHosted,
+        enabledForAllOrganizations: "true",
+      }),
+    ).toBe(true);
+    expect(
+      isGatewayEnabledForOrganization("org-2", [], {
+        ...deployedSelfHosted,
+        enabledForAllOrganizations: "false",
+      }),
+    ).toBe(false);
+  });
+
+  it.each([undefined, "false"] as const)(
+    "turns the gateway off when deployed is %s, despite flags and allowlist",
+    (deployed) => {
+      const notDeployed = {
+        nodeEnv: "production",
+        deployed,
+        enabledForAllOrganizations: "true",
+      } as const;
+
+      expect(
+        isGatewayEnabledForOrganization("org-1", ["org-1"], notDeployed),
+      ).toBe(false);
+      expect(() =>
+        requireGatewayEnabledForOrganization("org-1", ["org-1"], notDeployed),
+      ).toThrow(ForbiddenError);
+    },
+  );
+
+  it.each([
+    { nodeEnv: "development" },
+    { nodeEnv: "production", previewPrUrl: PREVIEW_PR_URL },
+  ])(
+    "enables every organization on $nodeEnv / preview $previewPrUrl",
+    (environment) => {
+      for (const enabledForAllOrganizations of [
+        undefined,
+        "true",
+        "false",
+      ] as const) {
+        expect(
+          isGatewayEnabledForOrganization("org-2", [], {
+            ...environment,
+            enabledForAllOrganizations,
+          }),
+        ).toBe(true);
+      }
+    },
+  );
+});
+
+describe("Langfuse Cloud matches the previous availability rule", () => {
+  // The rule before LANGFUSE_AI_GATEWAY_DEPLOYED existed, when
+  // LANGFUSE_AI_GATEWAY_ENABLED defaulted to "false".
+  const previousRule = (
+    organizationId: string,
+    allowedOrganizationIds: string[],
+    environment: {
+      nodeEnv: string;
+      previewPrUrl?: string;
+      enabledForAllOrganizations?: "true" | "false";
+    },
+  ) =>
+    environment.enabledForAllOrganizations === "true" ||
+    environment.nodeEnv === "development" ||
+    environment.previewPrUrl !== undefined ||
+    allowedOrganizationIds.includes(organizationId);
+
+  const cases = ["US", "EU", "STAGING", "DEV", "HIPAA", "JP"].flatMap(
+    (cloudRegion) =>
+      [undefined, "true", "false"].flatMap((enabledForAllOrganizations) =>
+        [true, false].flatMap((allowlisted) =>
+          [
+            { name: "production", nodeEnv: "production" },
+            { name: "development", nodeEnv: "development" },
+            {
+              name: "preview",
+              nodeEnv: "production",
+              previewPrUrl: PREVIEW_PR_URL,
+            },
+          ].flatMap((runtime) =>
+            [undefined, "true", "false"].map((deployed) => ({
+              cloudRegion,
+              enabledForAllOrganizations: enabledForAllOrganizations as
+                | "true"
+                | "false"
+                | undefined,
+              allowlisted,
+              runtime,
+              deployed: deployed as "true" | "false" | undefined,
+            })),
+          ),
+        ),
+      ),
+  );
+
+  it.each(cases)(
+    "$cloudRegion, ENABLED=$enabledForAllOrganizations, allowlisted=$allowlisted, $runtime.name, DEPLOYED=$deployed",
+    ({
+      cloudRegion,
+      enabledForAllOrganizations,
+      allowlisted,
+      runtime,
+      deployed,
+    }) => {
+      const allowlist = allowlisted ? ["org-1"] : ["org-2"];
+      const environment = {
+        nodeEnv: runtime.nodeEnv,
+        previewPrUrl: runtime.previewPrUrl,
+        enabledForAllOrganizations,
+      };
+
+      expect(
+        isGatewayEnabledForOrganization("org-1", allowlist, {
+          ...environment,
+          cloudRegion,
+          deployed,
+        }),
+      ).toBe(previousRule("org-1", allowlist, environment));
+    },
+  );
 });

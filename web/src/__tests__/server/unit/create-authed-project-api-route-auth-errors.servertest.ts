@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import type * as PrismaClientModule from "@prisma/client";
+import type * as StructuredPublicApiErrorContract from "@/src/features/public-api/server/structuredPublicApiErrorContract";
 
 const {
+  mockAuthenticate,
   mockVerifyAuthHeaderAndReturnScope,
   mockIsPrismaException,
   mockRateLimitRequest,
@@ -17,6 +19,7 @@ const {
   mockSendStructuredPublicApiErrorResponse,
   mockEnv,
 } = vi.hoisted(() => ({
+  mockAuthenticate: vi.fn(),
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
@@ -40,10 +43,19 @@ const {
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
   mockEnv: {
     NODE_ENV: "test",
+    API_AUTH_MIGRATION: "legacy" as "legacy" | "enforce",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
     LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual" as "dual" | "events_only",
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: undefined as
+      | string
+      | undefined,
   },
+}));
+
+vi.mock("@/src/features/apiKey/server", () => ({
+  authenticator: { authenticate: mockAuthenticate },
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -69,6 +81,10 @@ vi.mock("@langfuse/shared/src/db", async () => {
 
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
+  instrumentAsync: vi.fn(async (_ctx, callback) =>
+    callback({ setAttribute: vi.fn() }),
+  ),
+  addUserToSpan: vi.fn(),
   logger: {
     debug: mockLoggerDebug,
     info: mockLoggerInfo,
@@ -149,12 +165,15 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnv.API_AUTH_MIGRATION = "legacy";
     mockIsPrismaException.mockReturnValue(false);
     mockRateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
     });
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = undefined;
   });
 
   async function callRoute(options?: {
@@ -223,7 +242,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       replacementEndpoint: "GET /api/public/v2/observations",
       documentationUrl:
         "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
-      _deprecation: deprecation,
     });
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
@@ -307,11 +325,20 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     const res = await callRoute({ deprecation });
 
     expect(res.statusCode).toBe(200);
-    expect(res._getJSONData()).toEqual({
-      ok: true,
-      _deprecation: deprecation,
-    });
+    expect(res._getJSONData()).toEqual({ ok: true });
     expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
+  it("exposes the route deprecation for withMiddlewares", () => {
+    const handler = createAuthedProjectAPIRoute({
+      name: "Test Route",
+      action: "project:read",
+      responseSchema: z.object({ ok: z.literal(true) }),
+      deprecation,
+      fn: async () => ({ ok: true as const }),
+    });
+
+    expect(handler.deprecation).toBe(deprecation);
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {
@@ -345,6 +372,64 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(200);
     expect(mockFindOrganization).not.toHaveBeenCalled();
   });
+
+  it.each([false, true])(
+    "preserves the required permission in enforce-mode 403 responses with structured=%s",
+    async (useStructuredErrorContract) => {
+      mockEnv.API_AUTH_MIGRATION = "enforce";
+      mockAuthenticate.mockResolvedValueOnce({
+        success: true,
+        context: {
+          principal: {
+            kind: "apiKey",
+            apiKeyId: "api-key-1",
+            publicKey: "pk-test",
+            userId: null,
+            isInAppAgentKey: false,
+            scope: "PROJECT",
+            presentation: "privateKey",
+            boundResource: { orgId: "org-1", projectId: "project-1" },
+            organizations: [
+              {
+                orgId: "org-1",
+                projectIds: ["project-1"],
+                organizationCreatedAt: "2026-09-16T00:00:00.000Z",
+                plan: "cloud:hobby",
+                rateLimitOverrides: [],
+                isIngestionSuspended: false,
+              },
+            ],
+          },
+          policies: [],
+        },
+      });
+      if (useStructuredErrorContract) {
+        const contract = await vi.importActual<
+          typeof StructuredPublicApiErrorContract
+        >("@/src/features/public-api/server/structuredPublicApiErrorContract");
+        mockCreateStructuredPublicApiAuthError.mockImplementationOnce(
+          contract.createStructuredPublicApiAuthError,
+        );
+        mockSendStructuredPublicApiErrorResponse.mockImplementationOnce(
+          contract.sendStructuredPublicApiErrorResponse,
+        );
+      }
+
+      const res = await callRoute({ useStructuredErrorContract });
+
+      expect(res.statusCode).toBe(403);
+      expect(res._getJSONData()).toEqual({
+        message:
+          'Access denied. The "project:read" permission is required to access this resource.',
+        ...(useStructuredErrorContract
+          ? { code: "access_denied" }
+          : { error: "ForbiddenError" }),
+      });
+      expect(mockAuthenticate).toHaveBeenCalledOnce();
+      expect(mockVerifyAuthHeaderAndReturnScope).not.toHaveBeenCalled();
+      expect(mockRateLimitRequest).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns 401 for invalid credentials", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
@@ -550,5 +635,80 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(204);
     expect(res._isEndCalled()).toBe(true);
     expect(res._getData()).toBe("");
+  });
+
+  describe("legacy write rejection messages", () => {
+    async function callLegacyWrite() {
+      const fn = vi.fn(async () => ({ ok: true as const }));
+      const handler = createAuthedProjectAPIRoute({
+        name: "Create Trace (Legacy)",
+        action: "traces:create",
+        responseSchema: z.object({ ok: z.literal(true) }),
+        rejectInEventsOnlyMode: true,
+        isLegacyTraceWrite: true,
+        fn,
+      });
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        url: "/api/public/traces",
+        headers: { authorization: "Basic test" },
+      });
+      await handler(req, res);
+      return { res, fn };
+    }
+
+    it("tells a cutoff organization to upgrade SDKs or use OTel, without events_only text", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF =
+        validAuth.scope.organizationCreatedAt;
+
+      const { res, fn } = await callLegacyWrite();
+
+      expect(res.statusCode).toBe(404);
+      const { message } = res._getJSONData() as { message: string };
+      expect(message).toContain(
+        "no longer accepts trace or observation writes for this organization",
+      );
+      expect(message).toContain("Upgrade to the latest Langfuse SDKs");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+      expect(message).not.toContain("events_only");
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    it("leaves legacy reads open for a cutoff organization", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF =
+        validAuth.scope.organizationCreatedAt;
+      const fn = vi.fn(async () => ({ ok: true as const }));
+      const handler = createAuthedProjectAPIRoute({
+        name: "Get Traces",
+        action: "traces:read",
+        responseSchema: z.object({ ok: z.literal(true) }),
+        rejectInEventsOnlyMode: true,
+        fn,
+      });
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        url: "/api/public/traces",
+        headers: { authorization: "Basic test" },
+      });
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(fn).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the events_only explanation and adds the SDK and OTel pointer", async () => {
+      mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+
+      const { res } = await callLegacyWrite();
+
+      expect(res.statusCode).toBe(404);
+      const { message } = res._getJSONData() as { message: string };
+      expect(message).toContain("Langfuse v4 events_only mode");
+      expect(message).toContain("Upgrade to the latest Langfuse SDKs");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+    });
   });
 });

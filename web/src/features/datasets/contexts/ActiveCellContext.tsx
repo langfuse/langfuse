@@ -1,8 +1,9 @@
+/* eslint-disable @repo/component-file-structure */
 import { type ScoreAggregate } from "@langfuse/shared";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import { showToast } from "@/src/features/notifications";
 
 type ActiveCell = {
   datasetRunId: string;
@@ -38,7 +39,15 @@ function createActiveCellStore() {
         const { activeCell, hasCommentDraft } = get();
         const sameTarget = isSameTarget(activeCell, cell);
         if (!sameTarget && hasCommentDraft) {
-          toast.error("Please save or discard your comment before proceeding");
+          showToast({
+            type: "ERROR",
+            title: "Please save or discard your comment before proceeding",
+            analytics: {
+              operation: "dataset_annotation.navigate",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+          });
           return false;
         }
         set({

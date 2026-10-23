@@ -144,6 +144,17 @@ describe("classifyMediaValue", () => {
     ).toBe("audio/mpeg");
   });
 
+  it("classifies S3 media URIs by object extension", () => {
+    expect(classifyMediaValue("s3://media-bucket/path/image.png")).toEqual({
+      kind: "s3",
+      contentType: "image/png",
+      uri: "s3://media-bucket/path/image.png",
+    });
+    expect(
+      classifyMediaValue("s3://media-bucket/path/no-extension"),
+    ).toBeNull();
+  });
+
   it("ignores non-media and malformed inputs", () => {
     expect(classifyMediaValue("https://example.com/page")).toBeNull();
     expect(classifyMediaValue("just a string")).toBeNull();

@@ -1,11 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 
 const DynamicMobileRightDrawer = dynamic(
   () =>
@@ -58,11 +58,15 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const { open: supportOpen } = useSupportDrawer();
   const { open: migrationOpen } = useV4MigrationPanel();
 
-  const rightDrawerContent = supportOpen ? (
-    <DynamicSupportDrawer />
-  ) : migrationOpen ? (
-    <DynamicV4MigrationPanel />
-  ) : null;
+  const rightDrawerContent = (() => {
+    if (supportOpen) {
+      return <DynamicSupportDrawer />;
+    }
+    if (migrationOpen) {
+      return <DynamicV4MigrationPanel />;
+    }
+    return null;
+  })();
 
   return (
     <>

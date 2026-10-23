@@ -1,13 +1,14 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
+import { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function EditWidgetPage() {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
+        operation: "widget.update",
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
       });
@@ -63,7 +65,11 @@ export default function EditWidgetPage() {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to update widget", error.message);
+      showErrorToast(
+        "Failed to update widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.update"),
+      );
     },
   });
 
@@ -99,7 +105,7 @@ export default function EditWidgetPage() {
       }}
     >
       {!isWidgetLoading && widgetData && isResolved ? (
-        <WidgetForm
+        <ConnectedWidgetForm
           // Remount when the edited widget changes so its loaded values seed
           // the form defaults once, rather than syncing via an effect.
           key={widgetId}

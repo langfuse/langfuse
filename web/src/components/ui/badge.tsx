@@ -1,11 +1,11 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border pr-1.5 pb-px pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
@@ -35,6 +35,7 @@ const badgeVariants = cva(
           "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
         green:
           "border-transparent bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200",
+        ghost: "border-transparent bg-transparent text-muted-foreground",
       },
     },
     defaultVariants: {

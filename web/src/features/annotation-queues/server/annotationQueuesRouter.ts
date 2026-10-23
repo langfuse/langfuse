@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -11,6 +12,7 @@ import {
   CreateQueueData,
   filterAndValidateDbScoreConfigList,
   isBaseError,
+  isPresent,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
@@ -18,10 +20,18 @@ import {
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
+  isPrismaRecordNotFoundError,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+const QueueData = CreateQueueData.extend({
+  scoreConfigIds: CreateQueueData.shape.scoreConfigIds.refine(
+    (ids) => new Set(ids).size === ids.length,
+    { message: "Score config IDs must be unique" },
+  ),
+});
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -122,13 +132,17 @@ export const queueRouter = createTRPCRouter({
             },
           });
 
+        const scoreConfigsById = new Map(
+          scoreConfigs.map((config) => [config.id, config]),
+        );
+
         return {
           totalCount,
           queues: queues.map((queue) => ({
             ...queue,
-            scoreConfigs: scoreConfigs.filter((config) =>
-              queue.scoreConfigIds.includes(config.id),
-            ),
+            scoreConfigs: Array.from(new Set(queue.scoreConfigIds))
+              .map((id) => scoreConfigsById.get(id))
+              .filter(isPresent),
             isCurrentUserAssigned: userQueueAssignments.some(
               (assignment) => assignment.queueId === queue.id,
             ),
@@ -216,9 +230,18 @@ export const queueRouter = createTRPCRouter({
           },
         });
 
+        const scoreConfigsById = new Map(
+          filterAndValidateDbScoreConfigList(configs).map((config) => [
+            config.id,
+            config,
+          ]),
+        );
+
         return {
           ...queue,
-          scoreConfigs: filterAndValidateDbScoreConfigList(configs),
+          scoreConfigs: Array.from(new Set(queue?.scoreConfigIds ?? []))
+            .map((id) => scoreConfigsById.get(id))
+            .filter(isPresent),
         };
       } catch (error) {
         logger.error(error);
@@ -298,7 +321,7 @@ export const queueRouter = createTRPCRouter({
     }),
   create: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.extend({
         projectId: z.string(),
       }),
     )
@@ -322,6 +345,12 @@ export const queueRouter = createTRPCRouter({
         // unique index cannot prevent.
         const queue = await ctx.prisma.$transaction(
           async (tx) => {
+            await validateProjectScoreConfigs(
+              tx,
+              input.projectId,
+              input.scoreConfigIds,
+            );
+
             if (plan === "cloud:hobby") {
               const queueCount = await tx.annotationQueue.count({
                 where: { projectId: input.projectId },
@@ -402,7 +431,7 @@ export const queueRouter = createTRPCRouter({
     }),
   update: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.partial().extend({
         projectId: z.string(),
         queueId: z.string(),
       }),
@@ -426,21 +455,31 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
-        const existingQueueWithName =
-          await ctx.prisma.annotationQueue.findFirst({
-            where: {
-              projectId: input.projectId,
-              name: input.name,
-              id: { not: input.queueId },
-            },
-            select: { id: true },
-          });
+        if (input.scoreConfigIds !== undefined) {
+          await validateProjectScoreConfigs(
+            ctx.prisma,
+            input.projectId,
+            input.scoreConfigIds,
+          );
+        }
 
-        if (existingQueueWithName) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A queue with this name already exists in the project",
-          });
+        if (input.name !== undefined) {
+          const existingQueueWithName =
+            await ctx.prisma.annotationQueue.findFirst({
+              where: {
+                projectId: input.projectId,
+                name: input.name,
+                id: { not: input.queueId },
+              },
+              select: { id: true },
+            });
+
+          if (existingQueueWithName) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "A queue with this name already exists in the project",
+            });
+          }
         }
 
         const updatedQueue = await ctx.prisma.annotationQueue.update({
@@ -507,10 +546,15 @@ export const queueRouter = createTRPCRouter({
 
         return queue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting annotation queue failed.",
@@ -595,3 +639,19 @@ export const queueRouter = createTRPCRouter({
       return inflatedUpdatedItem;
     }),
 });
+
+async function validateProjectScoreConfigs(
+  prisma: Pick<Prisma.TransactionClient, "scoreConfig">,
+  projectId: string,
+  scoreConfigIds: string[],
+) {
+  const configCount = await prisma.scoreConfig.count({
+    where: { projectId, id: { in: scoreConfigIds } },
+  });
+  if (configCount !== scoreConfigIds.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "All score configs must belong to this project.",
+    });
+  }
+}

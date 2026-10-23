@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { filterRank } from "@/src/features/search-bar";
 
@@ -174,8 +173,15 @@ export function getFacetSummaryValue(filter: UIFilter): string | null {
 }
 
 /** Better of two ranks when either string may not match at all. */
-const bestRank = (a: number | null, b: number | null): number | null =>
-  a === null ? b : b === null ? a : Math.min(a, b);
+const bestRank = (a: number | null, b: number | null): number | null => {
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  return Math.min(a, b);
+};
 
 /**
  * Rank a facet's option values for its search box the way the search bar

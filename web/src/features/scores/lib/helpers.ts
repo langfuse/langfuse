@@ -41,3 +41,13 @@ export const formatAnnotateDescription = <Target extends ScoreTarget>(
   }
   return `Annotate ${sourceEntity} with scores to capture human evaluation across different dimensions.`;
 };
+
+export function formatScoreRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+) {
+  if (min != null && max != null) return `${min} – ${max}`;
+  if (min != null) return `Min ${min}`;
+  if (max != null) return `Max ${max}`;
+  return "Enter a number";
+}

@@ -44,7 +44,7 @@ export default withMiddlewares({
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete Score",
-    action: "scores:CUD",
+    action: "scores:delete",
     querySchema: DeleteScoreQueryV1,
     responseSchema: DeleteScoreResponseV1,
     rateLimitResource: "score-delete",

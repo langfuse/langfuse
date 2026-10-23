@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import {
   type CategoricalDiff,
   type NumericDiff,
@@ -23,6 +23,7 @@ export function DiffLabel({
   className,
   preferNegativeDiff = false,
   title,
+  variant,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
@@ -34,15 +35,20 @@ export function DiffLabel({
    * (`describeRunComparison`). Falls back to the chip's own text.
    */
   title?: string;
+  variant?: BadgeProps["variant"];
 }) {
   if (diff.type === "NUMERIC") {
     return (
       <Badge
-        variant={getVariant(diff.direction, preferNegativeDiff)}
+        variant={variant ?? getVariant(diff.direction, preferNegativeDiff)}
         // A number must never break across the badge's line box or give up
         // width to a sibling: both render a fragment. If it cannot sit beside
         // the value it qualifies, the caller's row wraps it whole.
-        className={cn("shrink-0 font-bold whitespace-nowrap", className)}
+        className={cn(
+          "shrink-0 whitespace-nowrap",
+          variant === "ghost" ? "font-normal" : "font-bold",
+          className,
+        )}
         title={title}
       >
         {diff.direction}
@@ -56,11 +62,15 @@ export function DiffLabel({
     const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     return (
       <Badge
-        variant="warning"
+        variant={variant ?? "warning"}
         // A named move can be longer than the cell it sits in, and the value it
         // qualifies matters more than the move does — so shrink and ellipsise
         // here rather than clipping mid-word, and keep the full move on hover.
-        className={cn("min-w-0 truncate font-bold", className)}
+        className={cn(
+          "min-w-0 truncate",
+          variant === "ghost" ? "font-normal" : "font-bold",
+          className,
+        )}
         title={title ?? move}
       >
         {move}

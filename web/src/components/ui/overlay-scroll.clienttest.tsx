@@ -7,17 +7,14 @@
  * for wheel and touch while keyboard navigation still works.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("overlay content keeps scroll events local", () => {
   beforeAll(() => {
@@ -68,12 +65,14 @@ describe("overlay content keeps scroll events local", () => {
 
   it("hover card: neither event reaches the document", () => {
     render(
-      <HoverCard open>
-        <HoverCardTrigger>hover</HoverCardTrigger>
-        <HoverCardContent>
-          <pre>preview</pre>
-        </HoverCardContent>
-      </HoverCard>,
+      <ControlledHoverCard
+        open
+        onOpenChange={vi.fn()}
+        content={<pre>preview</pre>}
+      >
+        {({ getTriggerProps }) => <button {...getTriggerProps()}>hover</button>}
+      </ControlledHoverCard>,
+      { wrapper: LayerProvider },
     );
 
     scroll(screen.getByText("preview"));

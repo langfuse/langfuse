@@ -1,7 +1,8 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { Play } from "lucide-react";
+import { Play } from "@langfuse/icons";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
@@ -181,7 +182,7 @@ export default function PlaygroundPage() {
                 {globalIsExecutingAll ? (
                   <Spinner size="xxs" />
                 ) : (
-                  <Play className="h-3 w-3" />
+                  <Play size="base" color="default" />
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>

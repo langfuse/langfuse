@@ -1,0 +1,9 @@
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-dbg-in-tests = true
+allow-print-in-tests = true
+
+disallowed-methods = [
+  { path = "std::process::exit", reason = "skips Drop, so shutdown and telemetry flushing would not run; return ExitCode instead" },
+]

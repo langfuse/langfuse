@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * SDK / events_core usage checks for the v4 transition.
  *
@@ -514,11 +513,13 @@ export const deriveExperimentInstrumentationMigration = ({
         currentInstrumentationStatus !== "supported")
     );
   });
-  return hasCurrentExperimentInstrumentation
-    ? { status: "not_required", upgradePath: null }
-    : hasInconclusiveExperimentSdkUsage
-      ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
-      : { status: "required", upgradePath: "api" };
+  if (hasCurrentExperimentInstrumentation) {
+    return { status: "not_required", upgradePath: null };
+  }
+  if (hasInconclusiveExperimentSdkUsage) {
+    return { status: "sdk_usage_inconclusive", upgradePath: "sdk" };
+  }
+  return { status: "required", upgradePath: "api" };
 };
 
 export const getSdkUsageSummaries = async ({

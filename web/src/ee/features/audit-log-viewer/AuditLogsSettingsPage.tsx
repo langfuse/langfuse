@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
@@ -12,21 +11,29 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 
-  const body = !hasEntitlement ? (
-    <p className="text-muted-foreground text-sm">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your project.
-    </p>
-  ) : !hasAccess ? (
-    <Alert>
-      <Alert.Title>Access Denied</Alert.Title>
-      <Alert.Description>
-        Contact your project administrator to request access.
-      </Alert.Description>
-    </Alert>
-  ) : (
-    <ConnectedAuditLogsTable scope="project" projectId={props.projectId} />
-  );
+  const body = (() => {
+    if (!hasEntitlement) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          Audit logs are an Enterprise feature. Upgrade your plan to track all
+          changes made to your project.
+        </p>
+      );
+    }
+    if (!hasAccess) {
+      return (
+        <Alert>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
+            Contact your project administrator to request access.
+          </Alert.Description>
+        </Alert>
+      );
+    }
+    return (
+      <ConnectedAuditLogsTable scope="project" projectId={props.projectId} />
+    );
+  })();
 
   return (
     <>

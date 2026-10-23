@@ -1,4 +1,5 @@
 export { ApiAuthService } from "./apiAuth";
+export { authenticateOrganizationApiRequest } from "./authenticateOrganizationApiRequest";
 export { createAuthedProjectAPIRoute } from "./createAuthedProjectAPIRoute";
 export { createOrFetchDatasetRun } from "./dataset-runs";
 export {
@@ -174,12 +175,7 @@ export {
   shadowAuthorize,
   type ShadowAuthParams,
 } from "./shadowAuth";
-export {
-  ErrorOrgApiKeyRequired,
-  writeOrgError,
-  writeProjectError,
-  writeScimError,
-} from "./writeError";
+export { writeOrgError, writeProjectError, writeScimError } from "./writeError";
 export {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,

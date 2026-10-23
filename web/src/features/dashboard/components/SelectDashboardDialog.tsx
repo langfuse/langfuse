@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
@@ -10,7 +10,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 

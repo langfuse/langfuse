@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { TRPCError } from "@trpc/server";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { type Cluster, type Redis } from "ioredis";
@@ -172,9 +171,11 @@ export class WebCalloutRateLimitService {
       return;
     }
 
-    this.redisConnectPromise ??= redis.connect().finally(() => {
-      this.redisConnectPromise = null;
-    });
+    if (this.redisConnectPromise === null) {
+      this.redisConnectPromise = redis.connect().finally(() => {
+        this.redisConnectPromise = null;
+      });
+    }
 
     await this.redisConnectPromise;
   }

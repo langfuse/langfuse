@@ -5,6 +5,7 @@ import {
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   type TracingSearchType,
 } from "../../../interfaces/search";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import { bareFtsField, ftsTextTokenPredicate, hasFtsSearchToken } from "./fts";
 
 const regexIndefiniteCharacters = "%";
@@ -164,12 +165,12 @@ export const clickhouseSearchCondition = ({
     requiresEventsFull,
     params: query
       ? {
-          searchString: `${regexIndefiniteCharacters}${query}${regexIndefiniteCharacters}`,
+          searchString: `${regexIndefiniteCharacters}${escapeSqlLikePattern(query)}${regexIndefiniteCharacters}`,
           // Unwrapped for the events-path equality columns (span_id/trace_id).
           ...(useEventsTablePath ? { searchStringExact: query } : {}),
           ...(hasEscapedVariant
             ? {
-                searchStringEscaped: `${regexIndefiniteCharacters}${escapedQuery}${regexIndefiniteCharacters}`,
+                searchStringEscaped: `${regexIndefiniteCharacters}${escapeSqlLikePattern(escapedQuery!)}${regexIndefiniteCharacters}`,
               }
             : {}),
         }

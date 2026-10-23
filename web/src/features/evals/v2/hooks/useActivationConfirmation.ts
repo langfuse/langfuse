@@ -91,7 +91,7 @@ export function useActivationConfirmation({
         return result;
       } catch (error) {
         setEstimate((current) => ({ ...current, status: "idle" }));
-        trpcErrorToast(error);
+        trpcErrorToast(error, "evaluator_rule.estimate_activation");
         return null;
       }
     },

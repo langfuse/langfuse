@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InternalServerError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
@@ -62,11 +62,13 @@ function apiKeyAccessLevel(
   principal: ApiKeyPrincipal,
   projectId: string | null,
 ): ApiAccessLevel {
-  return projectId === null
-    ? "organization"
-    : principal.presentation === "publicKey"
-      ? "scores"
-      : "project";
+  if (projectId === null) {
+    return "organization";
+  }
+  if (principal.presentation === "publicKey") {
+    return "scores";
+  }
+  return "project";
 }
 
 /** TargetResource is the resolved org and optional project a seam maps the principal onto. */

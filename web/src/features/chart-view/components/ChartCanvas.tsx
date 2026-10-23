@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   Chart,
   type DataPoint,
   getWidgetMissingBucketValue,
 } from "@/src/features/widgets";
-import { type ChartConfig } from "@/src/components/ui/chart";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type AggregationFn } from "../types";
 import { isTimeSeriesChartType } from "../vocab";
 
@@ -16,8 +16,8 @@ const RANKED_ROW_LIMIT = 20;
  * Builds the `chart-library` `ChartConfig` (series labels + the `metric` key the
  * bar/pie primitives colour through `--color-metric`) from the rendered series.
  */
-function buildChartConfig(data: DataPoint[], metricLabel: string): ChartConfig {
-  const config: ChartConfig = {};
+function buildChartConfig(data: DataPoint[], metricLabel: string) {
+  const config: NonNullable<ChartProps["config"]> = {};
   // Per-series labels first, so a breakdown value that is literally "metric"
   // (e.g. an observation/model named "metric") keeps its own label.
   for (const point of data) {
@@ -71,7 +71,7 @@ export const ChartCanvas = React.memo(function ChartCanvas({
   if (data.length === 0) {
     return (
       <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <BarChart3 className="h-10 w-10 opacity-40" />
+        <BarChart3 __rawClassName="h-10 w-10 opacity-40" />
         <p className="text-sm">{emptyMessage}</p>
       </div>
     );

@@ -26,10 +26,10 @@ export type CloudBillingService =
  * `cloudBillingRouter` procedures keep their names, inputs, and output
  * shapes, so the tRPC contract does not change.
  *
- * Fail-closed guard: when the CHB cutoff is set but the CHB REST env is
- * incomplete, cutoff-routed orgs (no CHB state yet) fall back to Stripe —
- * never a half-configured CHB flow. Orgs already carrying CHB state cannot be
- * served by Stripe and error instead.
+ * Fail-closed guard: when the CHB cutoff or opt-in list is set but the CHB
+ * REST env is incomplete, orgs routed by them (no CHB state yet) fall back to
+ * Stripe — never a half-configured CHB flow. Orgs already carrying CHB state
+ * cannot be served by Stripe and error instead.
  *
  * This dispatch is also the structural interlock that keeps Stripe checkout
  * unreachable for any org holding a `cloudConfig.clickhouse` block: such
@@ -52,11 +52,13 @@ export const resolveBillingService = async (
     });
   }
   const parsedOrg = parseDbOrg(org);
-  // The cutoff is injected rather than read inside the resolver: the shared
-  // module is exported from the client-safe barrel, so web passes the value from
-  // its own validated env schema.
-  const cutoff = env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE;
-  const billingProvider = getBillingProvider(parsedOrg, { cutoff });
+  // The cutoff and opt-in list are injected rather than read inside the
+  // resolver: the shared module is exported from the client-safe barrel, so web
+  // passes the values from its own validated env schema.
+  const billingProvider = getBillingProvider(parsedOrg, {
+    cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
+  });
 
   if (billingProvider === "clickhouse") {
     // Shared process-wide, so every billing request reuses one Auth0 token
@@ -73,12 +75,10 @@ export const resolveBillingService = async (
           message: "ClickHouse Billing is not configured on this deployment",
         });
       }
-      // Cutoff-routed org without CHB state: fail closed to Stripe
-      if (cutoff) {
-        logger.error(
-          "resolveBillingService: LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE is set but the CHB REST env is incomplete — treating the cutoff as unset (fail closed to Stripe)",
-        );
-      }
+      // Cutoff- or opt-in-routed org without CHB state: fail closed to Stripe
+      logger.error(
+        `resolveBillingService: org ${orgId} routes to CHB by cutoff or opt-in but the CHB REST env is incomplete — falling back to Stripe`,
+      );
       return {
         billingProvider: "stripe",
         service: createBillingServiceFromContext(ctx),

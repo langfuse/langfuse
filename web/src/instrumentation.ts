@@ -9,6 +9,19 @@ export async function register() {
 
   const isNodeRuntime = process.env.NEXT_RUNTIME === "nodejs";
 
+  // Enforce LANGFUSE_REQUIRE_FIPS before any init script connects, also on
+  // secondary replicas that skip init and when entrypoint.sh is overridden.
+  if (isNodeRuntime) {
+    const { assertFipsMode } =
+      await import("@langfuse/shared/src/server/ee/fips");
+    try {
+      assertFipsMode();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
   if (isNodeRuntime && isInitLoadingEnabled) {
     console.log("Running init scripts...");
     await import("./observability.config");

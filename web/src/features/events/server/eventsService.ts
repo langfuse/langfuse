@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-exotic-operators */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -28,6 +27,7 @@ import {
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
+  type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -163,6 +163,8 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "skillNamesAvailable",
+  "skillsNamesLoaded",
   "metadataKeys",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
@@ -355,6 +357,7 @@ async function getEventListPage(
       minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
+      preferredClickhouseService: "ReadOnly",
     }),
     traceIds.length > 0
       ? getScoresForTraces({
@@ -473,6 +476,8 @@ const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "traceTags",
   "toolNames",
   "calledToolNames",
+  "skillNamesAvailable",
+  "skillsNamesLoaded",
 ]);
 
 const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
@@ -629,6 +634,7 @@ export async function getEventFilterValuePage(
       | "promptName";
     limit: number;
     offset: number;
+    clickhouseSettings?: ClickhouseQueryOpts["clickhouseSettings"];
   },
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
@@ -642,6 +648,7 @@ export async function getEventFilterValuePage(
     column,
     limit: queryLimit,
     offset,
+    clickhouseSettings: scopedParams.clickhouseSettings,
   });
 
   const values = rows.map((row) =>
@@ -665,13 +672,19 @@ export async function getEventFilterNumericRange(
       NumericEventsTableColumnId,
       "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
     >;
+    clickhouseSettings?: ClickhouseQueryOpts["clickhouseSettings"];
   },
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
   const { projectId, column } = scopedParams;
   const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
 
-  return getEventsNumericStatsByFilterColumn(projectId, eventsFilter, column);
+  return getEventsNumericStatsByFilterColumn(
+    projectId,
+    eventsFilter,
+    column,
+    scopedParams.clickhouseSettings,
+  );
 }
 
 /**
@@ -837,13 +850,19 @@ export async function getEventFilterOptions(
     score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const typeClass =
-      score.dataType === "NUMERIC"
-        ? "numeric"
-        : score.dataType === "BOOLEAN"
-          ? "boolean"
-          : "categorical"; // CATEGORICAL + TEXT
-    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    const typeClass = (() => {
+      if (score.dataType === "NUMERIC") {
+        return "numeric";
+      }
+      if (score.dataType === "BOOLEAN") {
+        return "boolean";
+      }
+      return "categorical";
+    })(); // CATEGORICAL + TEXT
+    if (scoreNameLevelsByType[typeClass][score.name] === undefined) {
+      scoreNameLevelsByType[typeClass][score.name] = [];
+    }
+    const levels = scoreNameLevelsByType[typeClass][score.name];
     if (!levels.includes(level)) levels.push(level);
   };
   observationLevelScoreNames.forEach((score) =>
@@ -918,6 +937,7 @@ export async function getEventMetadataValues(
 interface GetEventBatchIOParams<
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 > {
   projectId: string;
   observations: Array<{
@@ -932,6 +952,7 @@ interface GetEventBatchIOParams<
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
+  includeSkillFields?: TIncludeSkills;
 }
 
 /**
@@ -940,9 +961,18 @@ interface GetEventBatchIOParams<
 export async function getEventBatchIO<
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 >(
-  params: GetEventBatchIOParams<TIncludeExperiment, TIncludeToolCalls>,
-): Promise<Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>> {
+  params: GetEventBatchIOParams<
+    TIncludeExperiment,
+    TIncludeToolCalls,
+    TIncludeSkills
+  >,
+): Promise<
+  Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >
+> {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
@@ -953,5 +983,6 @@ export async function getEventBatchIO<
     sessionId: params.sessionId,
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
+    includeSkillFields: params.includeSkillFields,
   });
 }

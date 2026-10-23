@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { useState, type ReactNode } from "react";
+import type * as ResizablePanels from "react-resizable-panels";
 import {
   act,
   cleanup,
@@ -13,6 +14,7 @@ import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
 } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { SessionReviewLeading } from "./sessionReviewLeading";
 import { SessionReviewWorkspace } from "./SessionReviewWorkspace";
 
 const { groupRef, router } = vi.hoisted(() => ({
@@ -21,7 +23,9 @@ const { groupRef, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
-vi.mock("react-resizable-panels", () => ({
+vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("react-resizable-panels", async (importOriginal) => ({
+  ...(await importOriginal<typeof ResizablePanels>()),
   useGroupRef: () => groupRef,
   Group: ({
     children,
@@ -121,6 +125,9 @@ function Harness() {
   return (
     <TraceReviewPanelProvider projectId="project">
       <SessionReviewWorkspace projectId="project">
+        <SessionReviewLeading>
+          <div>Session metrics</div>
+        </SessionReviewLeading>
         <SessionContent />
       </SessionReviewWorkspace>
     </TraceReviewPanelProvider>
@@ -137,6 +144,7 @@ function resize(nextWidth: number) {
 
 beforeEach(() => {
   width = 1200;
+  groupRef.current.setLayout.mockClear();
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -172,6 +180,43 @@ afterEach(() => {
 });
 
 describe("session review workspace", () => {
+  it("keeps session metrics above both panels and opens a narrow review column", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate session" }));
+
+    const metrics = screen.getByText("Session metrics");
+    const panels = screen.getByTestId("workspace-panels");
+    expect(metrics.parentElement).toHaveClass("sticky");
+    expect(metrics.parentElement?.nextElementSibling).toBe(panels);
+    expect(panels.contains(metrics)).toBe(false);
+
+    await waitFor(() => {
+      const reviewSizes = groupRef.current.setLayout.mock.calls
+        .map((call) => {
+          const layout: { review?: number } = call[0] ?? {};
+          return layout.review ?? 0;
+        })
+        .filter((review) => review > 0);
+      expect(reviewSizes.at(-1)).toBe(32);
+    });
+  });
+
+  it("keeps a wide workspace near the preferred review width", async () => {
+    width = 3440;
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate session" }));
+
+    await waitFor(() => {
+      const reviewSizes = groupRef.current.setLayout.mock.calls
+        .map((call) => {
+          const layout: { review?: number } = call[0] ?? {};
+          return layout.review ?? 0;
+        })
+        .filter((review) => review > 0);
+      expect(reviewSizes.at(-1)).toBe(11);
+    });
+  });
+
   it("brings an opened stacked editor into its own scrollport", async () => {
     width = 320;
     const { container } = render(<Harness />);

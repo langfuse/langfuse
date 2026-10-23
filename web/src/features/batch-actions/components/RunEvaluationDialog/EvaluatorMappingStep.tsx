@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { useStore } from "zustand";
 import type { ReactNode } from "react";
 
@@ -211,7 +211,9 @@ function EvaluatorMappingEditor({
               costEstimates={costEstimates}
               estimatingEvaluatorIds={estimatingEvaluatorIds}
               footerTrailing={footerTrailing}
-              emptyDescription="Attach an evaluator to score this selection."
+              emptyActionLabel="Select evaluator"
+              additionalActionLabel="Select another evaluator"
+              emptyDescription="Select an evaluator to score this selection."
               sourceUnavailableMessage="No observation is available to validate JSON paths."
             />
             {costError ? (

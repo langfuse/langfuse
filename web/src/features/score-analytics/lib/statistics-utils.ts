@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * Statistical calculation utilities for score comparison analytics
  * Provides functions for calculating Cohen's Kappa, F1 Score, Overall Agreement,
@@ -213,7 +212,15 @@ export function interpretPearsonCorrelation(
   }
 
   const abs = Math.abs(r);
-  const direction = r > 0 ? "positive" : r < 0 ? "negative" : "no";
+  const direction = (() => {
+    if (r > 0) {
+      return "positive";
+    }
+    if (r < 0) {
+      return "negative";
+    }
+    return "no";
+  })();
 
   if (abs >= 0.9) {
     return {
@@ -269,7 +276,15 @@ export function interpretSpearmanCorrelation(
   }
 
   const abs = Math.abs(rho);
-  const direction = rho > 0 ? "positive" : rho < 0 ? "negative" : "no";
+  const direction = (() => {
+    if (rho > 0) {
+      return "positive";
+    }
+    if (rho < 0) {
+      return "negative";
+    }
+    return "no";
+  })();
 
   if (abs >= 0.9) {
     return {

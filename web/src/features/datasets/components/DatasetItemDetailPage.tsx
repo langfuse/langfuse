@@ -6,7 +6,13 @@ import { Button } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
-import { CopyIcon, ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  CopyIcon,
+  ListTree,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
@@ -217,7 +223,7 @@ export const DatasetItemDetailPage = ({
                   href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
-                  <ListTree className="h-4 w-4" />
+                  <ListTree size="sm" color="default" />
                 </Link>
               </Button>
             )}
@@ -245,7 +251,7 @@ export const DatasetItemDetailPage = ({
                     aria-label="Copy item"
                     onClick={() => openDialog(datasetItemDialogPayload)}
                   >
-                    <CopyIcon className="size-3" />
+                    <CopyIcon size="sm" color="default" />
                   </ActionButton>
                 )}
               </NewDatasetItemFromExistingObjectDialogController>
@@ -257,7 +263,7 @@ export const DatasetItemDetailPage = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -265,7 +271,7 @@ export const DatasetItemDetailPage = ({
                   onClick={() => setEditDialogOpen(true)}
                   disabled={!hasAccess || isViewingOldVersion || !item.data}
                 >
-                  <Pencil className="mr-2 h-4 w-4" />
+                  <Pencil size="base" color="default" __rawClassName="mr-2" />
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -278,7 +284,7 @@ export const DatasetItemDetailPage = ({
                   }
                   className="text-destructive"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
                   {mutDelete.isPending ? "Deleting..." : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>

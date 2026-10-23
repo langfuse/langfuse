@@ -27,7 +27,7 @@ pub(crate) struct FakeServer {
 }
 
 impl FakeServer {
-    pub async fn start<F, Fut>(handler: F) -> Self
+    pub(crate) async fn start<F, Fut>(handler: F) -> Self
     where
         F: Fn(Request<Body>) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = Response<Body>> + Send + 'static,
@@ -46,11 +46,11 @@ impl FakeServer {
         Self { url, calls, task }
     }
 
-    pub fn calls(&self) -> usize {
+    pub(crate) fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
 
-    pub fn control_plane(&self) -> ControlPlaneClient {
+    pub(crate) fn control_plane(&self) -> ControlPlaneClient {
         ControlPlaneClient::new(ControlPlaneConfig::new(&self.url, "test-service-key").unwrap())
             .unwrap()
     }
@@ -60,6 +60,32 @@ impl Drop for FakeServer {
     fn drop(&mut self) {
         self.task.abort();
     }
+}
+
+pub(crate) fn upload_text(body: &[u8]) -> String {
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut flate2::read::GzDecoder::new(body), &mut text).unwrap();
+    text
+}
+
+pub(crate) fn upload_json(body: &[u8]) -> serde_json::Value {
+    serde_json::from_str(&upload_text(body)).unwrap()
+}
+
+pub(crate) fn ingestion_token(organization: &str, project: &str) -> String {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let segment = |value: serde_json::Value| URL_SAFE_NO_PAD.encode(value.to_string());
+    format!(
+        "{}.{}.private-ingestion-token",
+        segment(json!({"alg": "ES256", "typ": "JWT"})),
+        segment(json!({
+            "version": 1,
+            "organization_id": organization,
+            "project_id": project,
+            "ingestion_mode": "usage",
+            "scope": "gateway-ingest",
+        })),
+    )
 }
 
 pub(crate) fn resolution_response_for(
@@ -73,12 +99,20 @@ pub(crate) fn resolution_response_for(
         + 300;
     let connection = match api_format {
         ApiFormat::OpenAiResponses => json!({
-            "id": "connection-1", "provider": "openai", "api_format": "openai.responses",
+            "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.responses",
+            "provider_model": "provider-model",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"type": "Bearer", "token": provider_secret}
+        }),
+        ApiFormat::OpenAiChatCompletions => json!({
+            "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.chat-completions",
+            "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
             "auth": {"type": "Bearer", "token": provider_secret}
         }),
         ApiFormat::AnthropicMessages => json!({
-            "id": "connection-1", "provider": "anthropic", "api_format": "anthropic.messages",
+            "id": "connection-1", "name": "Production key", "provider": "anthropic", "api_format": "anthropic.messages",
+            "provider_model": "provider-model",
             "base_url": "https://api.anthropic.com/v1",
             "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_secret}
         }),
@@ -91,7 +125,7 @@ pub(crate) fn resolution_response_for(
             "provider_connection_id": "provider-connection-1"
         },
         "ingestion_mode": "usage",
-        "ingestion": {"access_token": "private-ingestion-token", "token_type": "Bearer", "expires_at": expires_at}
+        "ingestion": {"access_token": ingestion_token("org-1", "project-1"), "token_type": "Bearer", "expires_at": expires_at}
     });
     Response::builder()
         .header("content-type", "application/json")
@@ -131,6 +165,11 @@ pub(crate) async fn resolved_request_context_for(
             .unwrap();
             let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             body["ingestion_mode"] = mode.into();
+            if mode == "none" {
+                // Web mints no grant and may have no ingestion project in this mode.
+                body["ingestion"] = serde_json::Value::Null;
+                body["attribution"]["project_id"] = serde_json::Value::Null;
+            }
             Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))
@@ -139,7 +178,12 @@ pub(crate) async fn resolved_request_context_for(
     })
     .await;
     web.control_plane()
-        .resolve("gateway-secret", api_format)
+        .resolve(
+            "gateway-secret",
+            api_format,
+            "Production key:provider-model",
+            "test-request-id",
+        )
         .await
         .unwrap()
 }

@@ -1,5 +1,9 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
+import {
+  DrawerContent,
+  DrawerController,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ScoreTarget,
@@ -10,7 +14,11 @@ import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAna
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { AnnotationPanelContent } from "./AnnotationPanelContent";
-import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import {
+  useTraceReviewPanelOptional,
+  useReviewPanelOpen,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   children: (control: {
@@ -22,7 +30,7 @@ export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
 
 type AnnotateDrawerState = AnnotationPanelData;
 
-type AnnotateDrawerPayload<Target extends ScoreTarget> =
+export type AnnotateDrawerPayload<Target extends ScoreTarget> =
   Target extends Extract<ScoreTarget, { type: "trace" }>
     ? Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
         scoreTarget: Target;
@@ -37,12 +45,14 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
+  const onOpen = useReviewPanelOpen();
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
+  const isMobile = useIsMobile();
   const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
   const disabled = !hasAccess;
 
@@ -57,6 +67,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               triggerRef.current.focus({ preventScroll: true });
           }}
         >
+          {/* AnnotationPanelContent's visible "Annotate" header is a plain
+              heading, so the drawer still needs its own Title element. */}
+          <DrawerTitle className="sr-only">Annotate</DrawerTitle>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
             <AnnotationPanelContent
               data={state}
@@ -82,11 +95,13 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               document.activeElement instanceof HTMLElement
                 ? document.activeElement
                 : null;
-            if (reviewPanel) {
+            // A phone uses the bottom sheet, whose height follows the form.
+            if (reviewPanel && !isMobile) {
               reviewPanel
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
+              onOpen?.("annotation");
             } else openDrawer(payload);
           },
         })

@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 import { expect, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { TotalMetric } from "./TotalMetric";
@@ -27,7 +27,7 @@ export const WithInfoIcon = meta.story({
   args: {
     metric: "$9,753.19",
     description: "Total cost",
-    children: <Info className="text-muted-foreground h-3 w-3" />,
+    children: <Info size="sm" color="muted" />,
   },
 });
 

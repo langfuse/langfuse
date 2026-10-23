@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
@@ -12,6 +13,7 @@ import {
   createDisplayHeaders,
   encryptSecretHeaders,
   validateWebhookURL,
+  webhookWhitelistFromEnv,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -51,7 +53,7 @@ export async function processWebhookActionConfig({
   }
 
   try {
-    await validateWebhookURL(actionConfig.url);
+    await validateWebhookURL(actionConfig.url, webhookWhitelistFromEnv());
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",

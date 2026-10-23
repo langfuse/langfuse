@@ -1,4 +1,4 @@
-import { PlusCircle } from "lucide-react";
+import { PlusCircle } from "@langfuse/icons";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useState } from "react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
@@ -116,7 +116,7 @@ export function PricingSection({ form }: PricingSectionProps) {
         />
 
         <Button type="button" variant="ghost" onClick={addTier}>
-          <PlusCircle className="mr-2 h-4 w-4" />
+          <PlusCircle size="base" color="default" __rawClassName="mr-2" />
           Add Custom Pricing Tier
         </Button>
       </div>
@@ -168,7 +168,7 @@ export function PricingSection({ form }: PricingSectionProps) {
       </AccordionPrimitive.Root>
 
       <Button type="button" variant="outline" onClick={addTier}>
-        <PlusCircle className="mr-2 h-4 w-4" />
+        <PlusCircle size="base" color="default" __rawClassName="mr-2" />
         Add Custom Tier
       </Button>
     </div>

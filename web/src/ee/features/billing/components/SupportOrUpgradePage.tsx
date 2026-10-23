@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 export const SupportOrUpgradePage = () => {

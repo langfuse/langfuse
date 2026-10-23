@@ -480,20 +480,23 @@ export function useScoreAnalyticsQuery(
       : null;
 
     // For Score 2: If same score selected twice, reuse Score 1 data
-    const score2ModeMetrics =
-      !isNumeric && mode === "two"
-        ? isSameScore
-          ? calculateModeMetrics({
-              distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
-              timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
-              totalCount: apiData.counts.score2Total,
-            })
-          : calculateModeMetrics({
-              distribution: isBoolean ? distribution2 : apiData.distribution2,
-              timeSeries: apiData.timeSeriesCategorical2,
-              totalCount: apiData.counts.score2Total,
-            })
-        : null;
+    const score2ModeMetrics = (() => {
+      if (!isNumeric && mode === "two") {
+        if (isSameScore) {
+          return calculateModeMetrics({
+            distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
+            timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
+            totalCount: apiData.counts.score2Total,
+          });
+        }
+        return calculateModeMetrics({
+          distribution: isBoolean ? distribution2 : apiData.distribution2,
+          timeSeries: apiData.timeSeriesCategorical2,
+          totalCount: apiData.counts.score2Total,
+        });
+      }
+      return null;
+    })();
 
     // ========================================================================
     // 6. Fill time series gaps

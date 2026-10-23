@@ -1,78 +1,47 @@
-import { Plus } from "lucide-react";
-
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
-import { GatewayApiKeysView } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysView/GatewayApiKeysView";
-import { RevokeGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/RevokeGatewayApiKeyDialog";
-import { api } from "@/src/utils/api";
+import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { ConnectedGatewayApiKeysTable } from "./components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const apiKeysQuery = api.aiGateway.listApiKeys.useInfiniteQuery(
-    { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
 
-  if (apiKeysQuery.isPending) {
+  if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-
-  if (apiKeysQuery.isError) {
-    return (
-      <div className="flex flex-col gap-4">
-        <Header title="Gateway API keys" />
-        <Alert variant="destructive">
-          <Alert.Title>Gateway API keys could not be loaded</Alert.Title>
-          <Alert.Description>
-            Retry to manage keys for this organization.
-          </Alert.Description>
-        </Alert>
-        <Button
-          className="w-fit"
-          variant="secondary"
-          onClick={() => apiKeysQuery.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
-    );
+  /** Managers are redirected to Configuration by the settings route. */
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <GatewayNotSetUpNotice title="Gateway API keys" />;
   }
-
   return (
-    <GatewayApiKeysView
-      apiKeys={apiKeysQuery.data?.pages.flatMap((page) => page.data) ?? []}
-      hasMore={Boolean(apiKeysQuery.hasNextPage)}
-      isLoadingMore={apiKeysQuery.isFetchingNextPage}
-      onLoadMore={() => apiKeysQuery.fetchNextPage()}
-      createAction={
-        <CreateGatewayApiKeyDialogController organizationId={organizationId}>
-          {({ openDialog }) => (
-            <Button onClick={openDialog}>
-              <Plus className="mr-1.5 size-4" />
-              Create key
-            </Button>
-          )}
-        </CreateGatewayApiKeyDialogController>
-      }
-      renderRevokeAction={(apiKeyId) => (
-        <RevokeGatewayApiKeyDialog
-          organizationId={organizationId}
-          apiKeyId={apiKeyId}
-        />
-      )}
-    />
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-1">
+        <Header title="Gateway API keys" className="mb-0!" />
+        <InfoTooltip label="About gateway API keys">
+          {canManageGateway
+            ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
+            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}
+        </InfoTooltip>
+      </div>
+      <ConnectedGatewayApiKeysTable
+        key={organizationId}
+        organizationId={organizationId}
+      />
+    </div>
   );
 }
 
 function ApiKeysSkeleton() {
   return (
-    <div className="flex flex-col gap-4" data-testid="gateway-api-keys-loading">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-7 w-48" />
       <Skeleton className="h-48 w-full" />
     </div>

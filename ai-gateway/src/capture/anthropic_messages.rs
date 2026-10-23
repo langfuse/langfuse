@@ -1,6 +1,6 @@
 use super::{
-    MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
-    identity_encoding, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
+    parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -192,7 +192,7 @@ impl AssistantMessage {
 
 fn reserve(used: &mut usize, bytes: usize) -> Result<(), Gap> {
     match used.checked_add(bytes) {
-        Some(total) if total <= MAX_CAPTURE_BYTES => {
+        Some(total) if total <= MAX_OUTPUT_CAPTURE_BYTES => {
             *used = total;
             Ok(())
         }
@@ -205,7 +205,7 @@ fn block_index(event: &Map<String, Value>) -> Option<u64> {
 }
 
 impl AnthropicMessagesCapture {
-    pub fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -216,17 +216,20 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        if identity_encoding(headers)
-            && body.len() <= MAX_CAPTURE_BYTES
-            && let Ok(Value::Object(request)) = serde_json::from_slice(body)
-        {
-            capture.capture_request(request);
-            capture.request_complete = true;
+        match parse_request(headers, body) {
+            Ok(request) => {
+                capture.capture_request(request);
+                capture.request_complete = true;
+            }
+            Err(omission) if mode == IngestionMode::Full => {
+                capture.facts.input_omission = Some(omission);
+            }
+            Err(_) => {}
         }
         capture
     }
 
-    pub fn record_response(&mut self, headers: &HeaderMap) {
+    pub(super) fn record_response(&mut self, headers: &HeaderMap) {
         self.facts.provider_request_id = headers
             .get("request-id")
             .and_then(|v| v.to_str().ok())
@@ -237,7 +240,7 @@ impl AnthropicMessagesCapture {
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
         if !body.push(bytes, |event| {
@@ -249,7 +252,7 @@ impl AnthropicMessagesCapture {
         completion_started
     }
 
-    pub fn end_body(&mut self) {
+    pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                 Ok(Value::Object(response)) => {
@@ -277,7 +280,7 @@ impl AnthropicMessagesCapture {
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
-    pub fn into_facts(mut self) -> ProviderFacts {
+    pub(super) fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();
         }

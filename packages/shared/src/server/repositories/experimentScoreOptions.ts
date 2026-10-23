@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /**
  * The level-agnostic score-option shape shared by the experiment runs and items
  * surfaces. Kept free of query imports so it stays a pure, directly testable
@@ -58,9 +57,18 @@ export const toAgnosticScoreFilterOptions = (
     pick: (options: ProcessedScoreFilterOptions) => string[],
   ): ScoreNameLevels => {
     const out: ScoreNameLevels = {};
-    for (const name of pick(observation))
-      (out[name] ??= []).push("observation");
-    for (const name of pick(trace)) (out[name] ??= []).push("trace");
+    for (const name of pick(observation)) {
+      if (out[name] === undefined) {
+        out[name] = [];
+      }
+      out[name].push("observation");
+    }
+    for (const name of pick(trace)) {
+      if (out[name] === undefined) {
+        out[name] = [];
+      }
+      out[name].push("trace");
+    }
     return out;
   };
 

@@ -32,7 +32,7 @@ Use this skill for interactive dependency bumps in Langfuse.
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
 - Probe the parent once at `@latest`:
-  `npm view <parent>@latest dependencies peerDependencies optionalDependencies --json`.
+  `pnpm view <parent>@latest dependencies peerDependencies optionalDependencies --json`.
   If that range resolves to any non-vulnerable version of the target, even one
   newer than the lowest fix, upgrade the parent instead of pinning the exact
   lowest fix. If the latest parent still pins a vulnerable range, do not walk
@@ -80,7 +80,7 @@ Use this skill for interactive dependency bumps in Langfuse.
 - Transitive provenance / final graph verification:
   `pnpm why -r <package>`
 - Inspect a current parent manifest on the registry:
-  `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
+  `pnpm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
 - Preflight resolver/policy check:
   `pnpm install --dry-run --ignore-scripts`
 - Optional lockfile cleanup:

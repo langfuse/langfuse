@@ -1,14 +1,17 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
+  InvalidRequestError,
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
   type Plan,
 } from "@langfuse/shared";
 import {
+  ClickHouseResourceError,
   recordIncrement,
   type ApiAccessScopeWithOptionalApiKeyId,
   logger,
@@ -178,6 +181,47 @@ export class RateLimitService {
   rateLimitPrefix(resource: string) {
     return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
   }
+
+  async withMcpQueryCooldown<T>(projectId: string, query: () => Promise<T>) {
+    const redis = RateLimitService.redis;
+    if (
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+      env.LANGFUSE_RATE_LIMITS_ENABLED === "false" ||
+      !redis
+    ) {
+      return query();
+    }
+
+    const key = `${this.rateLimitPrefix("mcp-query-cooldown")}:${projectId}`;
+    const cooldownError = (seconds: number) =>
+      new InvalidRequestError(
+        `MCP observation searches for this project are paused after a query exceeded resource limits. Retry in ${Math.max(1, seconds)}s with a shorter date range or more specific filters, and run searches sequentially.`,
+      );
+    const onRedisError = (error: unknown) => {
+      logger.warn("MCP query cooldown Redis operation failed", error);
+      return null;
+    };
+    if (redis.status === "wait") await redis.connect().catch(onRedisError);
+    if (redis.status !== "ready") return query();
+    const ttl = await redis.ttl(key).catch(onRedisError);
+    if (ttl !== null && ttl >= 0) throw cooldownError(ttl);
+
+    try {
+      return await query();
+    } catch (error) {
+      if (ClickHouseResourceError.is(error)) {
+        const blocked = await redis.set(key, "1", "EX", 30).catch(onRedisError);
+        if (blocked) {
+          logger.warn("MCP ClickHouse resource limit exceeded", {
+            errorType: error.errorType,
+            tags: error.tags,
+          });
+          throw cooldownError(30);
+        }
+      }
+      throw error;
+    }
+  }
 }
 
 class RateLimitHelper {
@@ -228,7 +272,7 @@ export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
     "X-RateLimit-Remaining": res.remainingPoints,
-    "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
+    "X-RateLimit-Reset": Math.ceil((Date.now() + res.msBeforeNext) / 1000),
   };
 };
 
@@ -292,7 +336,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 15,
+            points: 5,
             durationInSec: 60,
           };
         case "datasets":
@@ -393,7 +437,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 30,
+            points: 15,
             durationInSec: 60,
           };
         case "datasets":
@@ -494,7 +538,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 100,
+            points: 40,
             durationInSec: 60,
           };
         case "datasets":

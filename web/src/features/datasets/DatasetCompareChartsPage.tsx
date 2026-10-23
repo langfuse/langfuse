@@ -1,11 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import {
   MultiSelectKeyValues,
   CompareViewAdapter,
   getScoreDataTypeIcon,
 } from "@/src/features/scores";
-import { FlaskConical, List } from "lucide-react";
+import { FlaskConical, List } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
@@ -126,7 +126,7 @@ function DatasetCompareChartsLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -151,7 +151,9 @@ function DatasetCompareChartsLegacy() {
               className="w-fit"
               variant="outline"
               hideClearButton
-              iconLeft={<List className="mr-2 h-4 w-4" />}
+              iconLeft={
+                <List size="base" color="default" __rawClassName="mr-2" />
+              }
               options={runs.map((run) => ({
                 key: run.key,
                 value: run.value,

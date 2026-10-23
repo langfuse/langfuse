@@ -40,6 +40,7 @@ export default function ObservationsPage() {
     <Page
       headerProps={{
         title: "Tracing",
+        divider: false,
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
         titleBadges: showOnboarding ? undefined : (
@@ -61,16 +62,13 @@ export default function ObservationsPage() {
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
+      {/* Wait for the beta flag before mounting either table. Otherwise the
+          legacy table can briefly mount, restore a v3 saved view, and
+          promote its viewId into the URL before the correct mode
+          resolves. */}
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
-      ) : !isResolved ? (
-        <>
-          {/* Wait for the beta flag before mounting either table. Otherwise the
-              legacy table can briefly mount, restore a v3 saved view, and
-              promote its viewId into the URL before the correct mode
-              resolves. */}
-        </>
-      ) : isV4 ? (
+      ) : !isResolved ? null : isV4 ? (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader

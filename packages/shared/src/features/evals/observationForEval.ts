@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
@@ -139,6 +140,25 @@ export function zipObservationToolCalls(
   });
 }
 
+/**
+ * Zips parallel name/value arrays into a plain object, first occurrence wins.
+ * Collects into a `Map` so that keys shared with `Object.prototype` (`toString`,
+ * `constructor`, `__proto__`, ...) are treated as ordinary metadata keys.
+ */
+function zipFirstOccurrenceWins<T>(
+  names: string[],
+  values: T[],
+): Record<string, T> {
+  const entries = new Map<string, T>();
+  names.forEach((name, i) => {
+    if (!entries.has(name)) {
+      entries.set(name, values[i]);
+    }
+  });
+
+  return Object.fromEntries(entries);
+}
+
 export function convertEventRecordToObservationForEval(
   record: EventRecordBaseType,
 ): ObservationForEval {
@@ -148,14 +168,10 @@ export function convertEventRecordToObservationForEval(
   );
   const experimentItemMetadata =
     record.experiment_item_metadata_names.length > 0
-      ? record.experiment_item_metadata_names.reduce<
-          Record<string, string | null | undefined>
-        >((acc, name, i) => {
-          if (!(name in acc)) {
-            acc[name] = record.experiment_item_metadata_values[i];
-          }
-          return acc;
-        }, {})
+      ? zipFirstOccurrenceWins(
+          record.experiment_item_metadata_names,
+          record.experiment_item_metadata_values,
+        )
       : undefined;
 
   const toolCallNames = record.tool_call_names ?? [];
