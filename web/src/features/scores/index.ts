@@ -21,7 +21,7 @@ export { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSele
 export {
   ScoreCacheProvider,
   type CachedScore,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 export { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 export {
   createScoreColumns,

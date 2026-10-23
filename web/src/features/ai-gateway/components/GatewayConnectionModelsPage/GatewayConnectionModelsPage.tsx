@@ -70,8 +70,8 @@ function ProviderCredentialsLink({
 }) {
   return (
     <TextLink
-      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
-      value="Provider credentials"
+      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`}
+      value="Gateway setup"
       icon={ArrowLeft}
     />
   );

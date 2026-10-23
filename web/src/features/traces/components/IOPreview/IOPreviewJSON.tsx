@@ -15,7 +15,7 @@ import {
   InlineCommentSelectionProvider,
   useInlineCommentSelectionOptional,
   type SelectionData,
-} from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+} from "@/src/features/comments/contexts/InlineCommentSelectionProvider";
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";

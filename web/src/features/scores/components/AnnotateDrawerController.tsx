@@ -17,7 +17,7 @@ import { AnnotationPanelContent } from "./AnnotationPanelContent";
 import {
   useTraceReviewPanelOptional,
   useReviewPanelOpen,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {

@@ -22,7 +22,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   ScoreCacheProvider,
   useScoreCache,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
 import { cloneElement, createRef } from "react";
@@ -634,6 +634,7 @@ describe("unified annotation targets", () => {
       ).toHaveTextContent("Saved"),
     );
     fireEvent.click(screen.getByTitle("Add or view score comment"));
+    expect(screen.getByRole("dialog")).toHaveClass("ph-no-capture");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Unsent score comment" },
     });

@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { normalizedMessageSchema } from "../../utils/normalized-io/schema";
+import {
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+} from "../../domain/observations";
 
 export const threadMessageSchema = normalizedMessageSchema.extend({
   /** Observation that first emitted this message. */
@@ -32,4 +36,16 @@ export const transcriptSchema = z.object({
   threads: z.array(threadSchema),
   /** The character limit shortened text or omitted messages. */
   truncated: z.literal(true).optional(),
+});
+
+/** An ERROR observation, or a WARNING observation with a status message. */
+export const executionIssueSchema = z.object({
+  observationId: z.string(),
+  traceId: z.string().nullable(),
+  type: ObservationTypeDomain,
+  name: z.string().nullable(),
+  level: ObservationLevelDomain.extract(["ERROR", "WARNING"]),
+  /** First 1,000 characters of the status message. */
+  statusMessage: z.string().nullable(),
+  startTime: z.date(),
 });

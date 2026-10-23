@@ -52,16 +52,23 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-baseline gap-1">
+      <div className="flex flex-col gap-1">
         <h3 className="font-bold">Usage instructions</h3>
-        {activeEntry ? (
-          <Button
-            variant="text"
-            size="sm"
-            text="Docs"
-            href={activeEntry.docsUrl}
-          />
-        ) : null}
+        <p className="text-muted-foreground">
+          Call the gateway from your code or connect an AI tool to it. Each tab
+          has the steps for one tool.{" "}
+          {activeEntry ? (
+            <Button
+              variant="text"
+              text={
+                activeEntry.id === "api"
+                  ? "How to call the gateway API"
+                  : `How to connect ${activeEntry.label}`
+              }
+              href={activeEntry.docsUrl}
+            />
+          ) : null}
+        </p>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex h-9 items-center border-b">

@@ -1,7 +1,19 @@
 import type { McpFeatureModule } from "../registry";
+import {
+  createSkillVersionTool,
+  handleCreateSkillVersion,
+} from "./tools/createSkillVersion";
 import { getSkillTool, handleGetSkill } from "./tools/getSkill";
 import { listSkillsTool, handleListSkills } from "./tools/listSkills";
 import { loadSkillTool, handleLoadSkill } from "./tools/loadSkill";
+import {
+  updateSkillLabelsTool,
+  handleUpdateSkillLabels,
+} from "./tools/updateSkillLabels";
+import {
+  updateSkillTagsTool,
+  handleUpdateSkillTags,
+} from "./tools/updateSkillTags";
 import {
   loadSkillResourceTool,
   handleLoadSkillResource,
@@ -10,11 +22,14 @@ import {
 export const skillsFeature = {
   name: "skills",
   description:
-    "List skills, retrieve version manifests, and load text resources",
+    "Create skill versions, update labels and tags, list skills, retrieve manifests, and load text resources",
   tools: [
     { definition: listSkillsTool, handler: handleListSkills },
     { definition: getSkillTool, handler: handleGetSkill },
     { definition: loadSkillTool, handler: handleLoadSkill },
     { definition: loadSkillResourceTool, handler: handleLoadSkillResource },
+    { definition: createSkillVersionTool, handler: handleCreateSkillVersion },
+    { definition: updateSkillLabelsTool, handler: handleUpdateSkillLabels },
+    { definition: updateSkillTagsTool, handler: handleUpdateSkillTags },
   ],
 } as const satisfies McpFeatureModule;
