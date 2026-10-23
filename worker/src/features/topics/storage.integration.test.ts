@@ -302,7 +302,7 @@ describe("Topics eval-backed configuration", () => {
       expect(
         await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
       ).toMatchObject({
-        targetObject: "trace",
+        targetObject: "trace_transcript",
         delay: 0,
         timeScope: ["NEW"],
         status: "ACTIVE",
