@@ -7,7 +7,7 @@ import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
 import { type SkillEditorStore } from "./skillEditorStore";
 import { SkillLabelsSelect } from "./SkillMetadataSelect";
-import { SkillVersionComparisonController } from "./SkillVersionComparison";
+import { SkillVersionComparisonController } from "./SkillVersionComparisonController";
 
 export function SkillVersionHistory(
   props:

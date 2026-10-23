@@ -1,4 +1,4 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   BreadcrumbSeparator,
   BreadcrumbPage,

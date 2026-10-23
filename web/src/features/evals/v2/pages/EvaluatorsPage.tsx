@@ -11,7 +11,7 @@ import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useRef, useState } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   customRowHeightMenu,
