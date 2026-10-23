@@ -28,10 +28,6 @@ const buttonVariants = cva(
         default: "h-8 px-3 py-1 text-sm",
         sm: "h-7 px-2 text-xs",
       },
-      underline: {
-        true: "",
-        false: "no-underline",
-      },
     },
     compoundVariants: [{ variant: "text", class: "h-auto px-0 py-0" }],
     defaultVariants: {
@@ -43,8 +39,6 @@ const buttonVariants = cva(
 
 type ButtonProps = {
   text: string;
-  /** Text variant only: `false` drops the underline, e.g. when an icon marks it. */
-  underline?: boolean;
   variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
   size?: "default" | "sm";
 } & (
@@ -67,8 +61,6 @@ type ButtonProps = {
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
-      /** Icon left (default) or right of the text. */
-      iconPosition?: "left" | "right";
       "data-state"?: string;
     } & Pick<
       ButtonHTMLAttributes<HTMLButtonElement>,
@@ -82,7 +74,6 @@ export function Button(props: ButtonProps) {
     buttonVariants({
       variant: props.variant,
       size: props.size,
-      underline: props.underline,
     }),
   );
   const iconColor = props.variant === "ghost" ? "default" : "inherit";
@@ -150,13 +141,8 @@ export function Button(props: ButtonProps) {
           props.loading && "invisible",
         )}
       >
-        {Icon && props.iconPosition !== "right" ? (
-          <Icon color={iconColor} aria-hidden />
-        ) : null}
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
-        {Icon && props.iconPosition === "right" ? (
-          <Icon color={iconColor} aria-hidden />
-        ) : null}
       </span>
       {props.loading && (
         <span className="absolute inset-0 flex items-center justify-center">

@@ -1,4 +1,3 @@
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { useResizeObserver } from "@/src/hooks/useResizeObserver";
 import { cn } from "@/src/utils/tailwind";
@@ -29,9 +28,6 @@ export function SessionTimelineMessageContent({
     );
   }, []);
   useResizeObserver(contentRef, measureContent);
-  const handleExpandedChange = (expanded: boolean) => {
-    setExpansion({ isExpanded: expanded, requestId: expandRequestId });
-  };
 
   return (
     <div className="min-w-0">
@@ -66,11 +62,20 @@ export function SessionTimelineMessageContent({
       {exceedsPreviewHeight && (
         <div className="mt-2 flex items-center gap-3">
           <div className="bg-border h-px flex-1" aria-hidden="true" />
-          <ExpandToggle
-            expanded={isExpanded}
-            onExpandedChange={handleExpandedChange}
-            controls={contentId}
-          />
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md px-3 py-1 text-xs transition-colors hover:bg-[var(--session-message-toggle-hover,var(--color-muted))]"
+            aria-expanded={isExpanded}
+            aria-controls={contentId}
+            onClick={() =>
+              setExpansion({
+                isExpanded: !isExpanded,
+                requestId: expandRequestId,
+              })
+            }
+          >
+            {isExpanded ? "Show less" : "Show more"}
+          </button>
           <div className="bg-border h-px flex-1" aria-hidden="true" />
         </div>
       )}

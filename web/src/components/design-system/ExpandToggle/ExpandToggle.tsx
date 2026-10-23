@@ -1,6 +1,22 @@
+import { cva } from "class-variance-authority";
 import { ChevronDown, ChevronUp } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+const expandToggleVariants = cva(
+  "text-muted-foreground hover:text-foreground ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+  {
+    variants: {
+      variant: {
+        plain: "",
+        underline: "underline",
+        icon: "",
+      },
+      size: {
+        xs: "text-xs",
+        sm: "text-sm",
+      },
+    },
+  },
+);
 
 type ExpandToggleProps = {
   expanded: boolean;
@@ -33,19 +49,21 @@ export function ExpandToggle({
   const handleClick = () => {
     onExpandedChange(!expanded);
   };
-  const chevron = expanded ? ChevronUp : ChevronDown;
+  const Chevron = expanded ? ChevronUp : ChevronDown;
+  const icon =
+    variant === "icon" ? <Chevron color="inherit" aria-hidden /> : null;
 
   return (
-    <Button
-      variant="text"
-      underline={variant === "underline"}
-      size={size === "sm" ? "default" : "sm"}
-      text={expanded ? expandedLabel : label}
-      icon={variant === "icon" ? chevron : undefined}
-      iconPosition={iconPosition}
+    <button
+      type="button"
+      className={expandToggleVariants({ variant, size })}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={handleClick}
-    />
+    >
+      {iconPosition === "left" ? icon : null}
+      {expanded ? expandedLabel : label}
+      {iconPosition === "right" ? icon : null}
+    </button>
   );
 }
