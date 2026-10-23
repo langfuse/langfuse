@@ -74,7 +74,7 @@ import {
   evaluatorTableFilterOptions,
 } from "../constants/tableFilterColumns";
 import type { GalleryTemplate } from "../types/templateGallery";
-import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationUpdateRequiredBadge";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
