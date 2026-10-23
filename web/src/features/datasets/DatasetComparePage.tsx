@@ -26,7 +26,7 @@ import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetR
 import {
   ActiveCellProvider,
   useActiveCell,
-} from "@/src/features/datasets/contexts/ActiveCellContext";
+} from "@/src/features/datasets/contexts/ActiveCellProvider";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";

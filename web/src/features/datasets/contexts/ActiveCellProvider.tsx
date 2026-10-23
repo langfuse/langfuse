@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { type ScoreAggregate } from "@langfuse/shared";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
