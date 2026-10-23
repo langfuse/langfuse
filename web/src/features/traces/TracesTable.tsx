@@ -116,7 +116,7 @@ import {
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 import { useHasProjectAccess } from "@/src/features/rbac";

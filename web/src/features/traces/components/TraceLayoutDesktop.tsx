@@ -26,7 +26,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { TraceReviewLayout } from "./TraceReviewLayout";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";

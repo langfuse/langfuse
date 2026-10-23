@@ -101,7 +101,7 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/DataTableRefreshButton";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import {
   useColumnOrder,
   useColumnVisibility,

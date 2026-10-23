@@ -73,7 +73,7 @@ import { EmptyValue } from "@/src/components/design-system/table/components/Empt
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
