@@ -73,7 +73,7 @@ describe("PrettyJsonView short-list expansion", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Expand all rows" }));
-    expect(within(prettyTable()).getByText("email")).toBeInTheDocument();
+    expect(await within(prettyTable()).findByText("email")).toBeInTheDocument();
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Collapse all rows" }),
