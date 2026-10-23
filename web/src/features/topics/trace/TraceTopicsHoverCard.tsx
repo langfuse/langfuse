@@ -50,15 +50,7 @@ function TopicDot({ rank }: { rank: number }) {
 }
 
 /** Topic chip colored by the topic's slot in the published map. */
-function TopicChip({
-  name,
-  mapIndex,
-  traceCount,
-}: {
-  name: string;
-  mapIndex: number;
-  traceCount: number | undefined;
-}) {
+function TopicChip({ name, mapIndex }: { name: string; mapIndex: number }) {
   return (
     <span className="flex min-w-0">
       <BadgeShell color={treemapBadgeColor(mapIndex)}>
@@ -66,14 +58,6 @@ function TopicChip({
         <span className="truncate" title={name}>
           {name}
         </span>
-        {traceCount !== undefined && (
-          <span
-            className="text-muted-foreground shrink-0 font-mono"
-            title="Traces with this topic in the last 7 days"
-          >
-            {traceCount} traces
-          </span>
-        )}
       </BadgeShell>
     </span>
   );
@@ -113,69 +97,6 @@ function TraceTopicsTrigger({
   );
 }
 
-/** Card body; mounts only while the card is open, so trace counts load on hover. */
-function TraceTopicsCardContent({
-  projectId,
-  facets,
-}: {
-  projectId: string;
-  facets: TraceTopicFacet[];
-}) {
-  const topics = facets.flatMap(({ facetId, topicId }) =>
-    topicId ? [{ facetId, topicId }] : [],
-  );
-  const traceCounts = api.topics.topicTraceCounts.useQuery(
-    { projectId, topics },
-    { enabled: topics.length > 0, staleTime: 5 * 60 * 1000 },
-  ).data;
-  return (
-    <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
-      <div className="flex items-center justify-between gap-2 border-b py-2.5">
-        <span className="text-sm font-bold">Topics</span>
-        <TextLink
-          path={`/project/${encodeURIComponent(projectId)}/topics`}
-          value="Open in Topics →"
-        />
-      </div>
-      {facets.map((facet) => (
-        <div
-          key={facet.facetId}
-          className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground shrink-0 text-sm">
-              {facet.name}
-            </span>
-            {facet.topicName && (
-              <TopicChip
-                name={facet.topicName}
-                mapIndex={facet.topicIndex}
-                traceCount={
-                  traceCounts?.find(
-                    (row) =>
-                      row.facetId === facet.facetId &&
-                      row.topicId === facet.topicId,
-                  )?.count
-                }
-              />
-            )}
-            {!facet.summary && (
-              <span className="text-muted-foreground text-sm">
-                {facet.outcome
-                  ? outcomeLabel(facet.outcome)
-                  : "Not analyzed yet"}
-              </span>
-            )}
-          </div>
-          {facet.summary && (
-            <p className="text-sm text-pretty">{facet.summary}</p>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /** Card listing every facet result of a trace; the caller renders the trigger. */
 export function TraceTopicsHoverCard({
   projectId,
@@ -190,7 +111,45 @@ export function TraceTopicsHoverCard({
     <HoverCard
       openDelay={200}
       placement="bottom-end"
-      content={<TraceTopicsCardContent projectId={projectId} facets={facets} />}
+      content={
+        <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
+          <div className="flex items-center justify-between gap-2 border-b py-2.5">
+            <span className="text-sm font-bold">Topics</span>
+            <TextLink
+              path={`/project/${encodeURIComponent(projectId)}/topics`}
+              value="Open in Topics →"
+            />
+          </div>
+          {facets.map((facet) => (
+            <div
+              key={facet.facetId}
+              className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground shrink-0 text-sm">
+                  {facet.name}
+                </span>
+                {facet.topicName && (
+                  <TopicChip
+                    name={facet.topicName}
+                    mapIndex={facet.topicIndex}
+                  />
+                )}
+                {!facet.summary && (
+                  <span className="text-muted-foreground text-sm">
+                    {facet.outcome
+                      ? outcomeLabel(facet.outcome)
+                      : "Not analyzed yet"}
+                  </span>
+                )}
+              </div>
+              {facet.summary && (
+                <p className="text-sm text-pretty">{facet.summary}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      }
     >
       {({ getTriggerProps }) => children(getTriggerProps())}
     </HoverCard>
