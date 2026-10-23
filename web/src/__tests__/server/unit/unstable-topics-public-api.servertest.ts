@@ -218,6 +218,31 @@ describe("unstable Topics public API", () => {
     ).rejects.toThrow(LangfuseNotFoundError);
   });
 
+  it("treats every facet as active when the project has no Topics rule", async () => {
+    mocks.listTopicRules.mockResolvedValue([]);
+    const facets = await listPublicTopicFacets({
+      projectId,
+      page: 1,
+      limit: 50,
+    });
+    expect(facets.data.map(({ id, active }) => [id, active])).toEqual([
+      ["issues", true],
+      ["custom", true],
+    ]);
+    const topics = await listPublicTopics({
+      projectId,
+      ...window,
+      orderBy: "traceCount.desc",
+      page: 1,
+      limit: 50,
+    });
+    expect(topics.facets.map(({ facet }) => facet.id)).toEqual([
+      "issues",
+      "custom",
+    ]);
+    expect(topics.data.map(({ id }) => id)).toEqual(["timeouts", "refunds"]);
+  });
+
   it("rejects unknown filter columns with the allowed columns", async () => {
     const error = await listPublicTopicFacets({
       projectId,

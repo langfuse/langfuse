@@ -116,10 +116,10 @@ function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
   return { from: start, to: end };
 }
 
-// Matches currentTopicResults: only the latest rule's facets are active.
-async function activeFacetIds(projectId: string) {
+// Matches currentTopicResults: the latest rule's facets, or all facets without a rule (manual runs).
+async function isFacetActive(projectId: string) {
   const [rule] = await listTopicRules(projectId);
-  return new Set(rule?.facetIds);
+  return (facetId: string) => !rule || rule.facetIds.includes(facetId);
 }
 
 function publicFacet(facet: TopicFacet, active: boolean, run: TopicRun | null) {
@@ -156,15 +156,15 @@ const hasActiveCondition = (filter: FilterState | undefined) =>
   filter?.some((condition) => condition.column === "active") ?? false;
 
 async function loadPublicFacets(projectId: string) {
-  const [facets, active] = await Promise.all([
+  const [facets, isActive] = await Promise.all([
     listTopicFacets(projectId),
-    activeFacetIds(projectId),
+    isFacetActive(projectId),
   ]);
   return Promise.all(
     facets.map(async (facet) =>
       publicFacet(
         facet,
-        active.has(facet.id),
+        isActive(facet.id),
         await getPublishedTopicRun(projectId, facet.id),
       ),
     ),
@@ -219,13 +219,13 @@ async function loadPublicTopics(
   window: TopicTimeRange,
   facetFilter?: FilterState,
 ) {
-  const [facets, active] = await Promise.all([
+  const [facets, isActive] = await Promise.all([
     listTopicFacets(projectId),
-    activeFacetIds(projectId),
+    isFacetActive(projectId),
   ]);
   const facetIds = applyFilter(
     facets
-      .filter(({ id }) => active.has(id))
+      .filter(({ id }) => isActive(id))
       .map(({ id, name }) => ({ facet: { id, name } })),
     facetFilter,
     facetSummaryColumns,

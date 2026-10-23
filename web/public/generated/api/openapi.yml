@@ -7500,8 +7500,8 @@ paths:
         Unstable: Topics is in closed beta. The shape may change without notice.
 
         List the project's Topics facets. Only active facets (attached to the
-        project's Topics rule) are returned unless `filter` contains an
-        `active` condition.
+        project's Topics rule, or all facets if the project has no rule) are
+        returned unless `filter` contains an `active` condition.
 
         `filter` is a JSON array of filter conditions combined with AND.
         String matching is case-insensitive. Columns: `id` (stringOptions),
@@ -15156,7 +15156,9 @@ components:
           type: boolean
         active:
           type: boolean
-          description: Whether the facet is attached to the project's Topics rule.
+          description: >-
+            Whether the facet is attached to the project's Topics rule. True for
+            all facets if the project has no rule.
         version:
           type: integer
           description: Latest facet version.
