@@ -1,6 +1,11 @@
 // @vitest-environment node
 
-import type { FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  singleFilter,
+  encodeFiltersGeneric,
+  decodeFiltersGeneric,
+} from "@langfuse/shared";
 import {
   addTextFilterEntry,
   applyCheckboxSelection,
@@ -86,12 +91,52 @@ describe("applySelection", () => {
       const current: FilterState = [filter];
       const empty = applyCheckboxSelection(ctx, current, column, []);
       expect(empty).toEqual([
-        { column, type, operator: "any of", value: [], target: "run-b" },
+        {
+          column,
+          type,
+          operator: "any of",
+          value: [value[0]],
+          target: "run-b",
+        },
+        {
+          column,
+          type,
+          operator: "none of",
+          value: [value[0]],
+          target: "run-b",
+        },
       ]);
+      expect(
+        empty.every((filter) => singleFilter.safeParse(filter).success),
+      ).toBe(true);
+      expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(empty);
+      expect(deriveOperatorChange(ctx, empty, column)?.values).toEqual([]);
       expect(applyCheckboxSelection(ctx, empty, column, value)).toEqual([
         { column, type, operator: "any of", value, target: "run-b" },
       ]);
       expect(clearCategoricalColumn(empty, column)).toEqual([]);
+    },
+  );
+
+  it.each(["env", "tags"])(
+    "keeps empty %s selections valid when options are blank or unavailable",
+    (column) => {
+      const type = column === "tags" ? "arrayOptions" : "stringOptions";
+      for (const options of [[], [""]]) {
+        const empty = applyCheckboxSelection(
+          { ...ctx, options: { [column]: options } },
+          [{ column, type, operator: "any of", value: [""] }],
+          column,
+          [],
+        );
+        expect(empty).toHaveLength(2);
+        expect(
+          empty.every((filter) => singleFilter.safeParse(filter).success),
+        ).toBe(true);
+        expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(
+          empty,
+        );
+      }
     },
   );
 

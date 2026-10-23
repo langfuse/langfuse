@@ -49,6 +49,7 @@ import {
   clearCategoricalColumn,
   deriveOperatorChange,
   hasMultipleFilterTargets,
+  hasEmptyCheckboxSelection,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -1873,10 +1874,13 @@ export function useSidebarFilterPresentation(
             (f.type === "stringOptions" || f.type === "arrayOptions"),
         );
 
-        const selectedValues = computeSelectedValues(
-          availableValues,
-          checkboxFilter,
+        const hasEmptyPositiveSelection = hasEmptyCheckboxSelection(
+          filterState,
+          facet.column,
         );
+        const selectedValues = hasEmptyPositiveSelection
+          ? []
+          : computeSelectedValues(availableValues, checkboxFilter);
 
         // Determine current operator for ANY/ALL toggle
         // When a user selects items in an arrayOptions filter, we expose a toggle
@@ -1919,9 +1923,6 @@ export function useSidebarFilterPresentation(
           !!checkboxFilter &&
           Array.isArray(checkboxFilter.value) &&
           checkboxFilter.value.length > 0;
-        const hasEmptyPositiveSelection =
-          checkboxFilter?.operator === "any of" &&
-          checkboxFilter.value.length === 0;
         const hasExplicitCheckboxFilterWhileLoading =
           hasExplicitCheckboxFilter &&
           selectedValues.length === 0 &&

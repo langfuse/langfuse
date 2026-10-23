@@ -26,6 +26,11 @@ import {
   type CategoricalUIFilter,
 } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
+import {
+  encodeFiltersGeneric,
+  decodeFiltersGeneric,
+  singleFilter,
+} from "@langfuse/shared";
 
 // The hook calls useQueryParam unconditionally even for the "memory" state
 // location used here; stub it out so no QueryParamProvider is needed.
@@ -181,6 +186,20 @@ describe("deselecting the last checkbox", () => {
         )!;
       act(() => facet().onOnlyChange?.(value));
       act(() => facet().onChange([]));
+      expect(facet().value).toEqual([]);
+      expect(facet().isActive).toBe(true);
+      const emptySelection = result.current.filterState;
+      expect(
+        emptySelection.every(
+          (filter) => singleFilter.safeParse(filter).success,
+        ),
+      ).toBe(true);
+      act(() =>
+        result.current.setFilterState(
+          decodeFiltersGeneric(encodeFiltersGeneric(emptySelection)),
+        ),
+      );
+      expect(result.current.filterState).toEqual(emptySelection);
       expect(facet().value).toEqual([]);
       expect(facet().isActive).toBe(true);
       act(() => facet().onChange([value]));
