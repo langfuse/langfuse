@@ -122,7 +122,54 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
 RUN echo "gateway:x:10001:" >> /mnt/rootfs/etc/group && \
     echo "gateway:x:10001:10001::/home/gateway:/sbin/nologin" >> /mnt/rootfs/etc/passwd
 
+# The UBI EULA requires every image derived from UBI to include it unmodified;
+# the checksum pins the exact file linked from com.redhat.license_terms.
+# Keep in sync with web/Dockerfile and worker/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    echo "a07025b9f5b71a816febe6ac76f21c9f759c806fa0a66874af90a50c3293f1b6  /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf" | sha256sum -c -
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
+ARG MICRO_BASE_IMAGE
+
+# Identify the image as Langfuse, not its UBI base. Inherited labels cannot be
+# removed, so the Red Hat and Iron Bank ones that would describe this image as
+# theirs are set empty; com.redhat.license_terms stays as the EULA pointer.
+# Release builds override the title, licenses, version, revision and created
+# labels. Keep in sync with web/Dockerfile and worker/Dockerfile.
+LABEL name="langfuse/ai-gateway" \
+    summary="Langfuse AI Gateway" \
+    description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
+    io.k8s.display-name="Langfuse AI Gateway" \
+    io.k8s.description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
+    org.opencontainers.image.title="ai-gateway" \
+    org.opencontainers.image.licenses="MIT" \
+    vendor="ClickHouse, Inc." \
+    maintainer="ClickHouse, Inc." \
+    url="https://langfuse.com" \
+    org.opencontainers.image.vendor="ClickHouse, Inc." \
+    org.opencontainers.image.url="https://langfuse.com" \
+    org.opencontainers.image.source="https://github.com/langfuse/langfuse" \
+    org.opencontainers.image.base.name="${MICRO_BASE_IMAGE}" \
+    org.opencontainers.image.created="" \
+    org.opencontainers.image.revision="" \
+    version="" \
+    release="" \
+    build-date="" \
+    vcs-ref="" \
+    vcs-type="" \
+    cpe="" \
+    com.redhat.component="" \
+    distribution-scope="" \
+    io.buildah.version="" \
+    io.openshift.expose-services="" \
+    mil.dso.ironbank.image.keywords="" \
+    mil.dso.ironbank.image.parent="" \
+    mil.dso.ironbank.image.type="" \
+    mil.dso.ironbank.os-type="" \
+    mil.dso.ironbank.product.name="" \
+    mil.dso.ironbank.project.id=""
 
 COPY --from=rpm-installer /mnt/rootfs /
 COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
