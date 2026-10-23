@@ -1,0 +1,53 @@
+/* Agent sessions: skeleton bars for what the call touched, a warm bar for how long it ran, a dashed slot for the next call */
+
+.bar {
+  fill: var(--illustration-soft);
+}
+.time {
+  fill: color-mix(
+    in srgb,
+    var(--illustration-warm) 55%,
+    var(--illustration-soft)
+  );
+}
+.slot {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+/* An agent's mark on the block in its own colours: Claude's orange, the others in ink */
+.mark {
+  color: var(--illustration-ink);
+}
+.mark[data-tone="claude"] {
+  color: var(--illustration-claude);
+}
+.muted {
+  fill: var(--illustration-label);
+}
+/* On the highlight accent's tinted face, a mark takes the face's ink, as the name does */
+[data-accent="highlight"] .mark {
+  color: var(--illustration-highlight-ink);
+}
+[data-accent="highlight"] .muted {
+  fill: currentColor;
+  opacity: 0.6;
+}
+
+/* A pinned agent picked later swaps in place: its logo and name settle in, the scene stays */
+.swap {
+  animation: agent-swap 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes agent-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swap {
+    animation: none;
+  }
+}

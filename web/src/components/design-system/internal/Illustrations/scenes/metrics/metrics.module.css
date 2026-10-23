@@ -1,0 +1,99 @@
+.line {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+}
+.lineStop {
+  stop-color: var(--illustration-ink-2);
+}
+.hatchLine {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+.dashed {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 7 5;
+}
+.pole {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.5;
+}
+.dot {
+  fill: var(--illustration-panel);
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.5;
+}
+.dim {
+  opacity: 0.55;
+}
+
+/* The flag is the hero: it rises a little on hover, like the raised blocks in the other illustrations */
+@media (prefers-reduced-motion: no-preference) {
+  .tooltip {
+    transition: transform 887ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform 887ms
+      linear(
+        0.002,
+        0.042,
+        0.12,
+        0.217,
+        0.323,
+        0.428,
+        0.528,
+        0.619,
+        0.699,
+        0.768,
+        0.826,
+        0.873,
+        0.911,
+        0.941,
+        0.964,
+        0.981,
+        0.993,
+        1.001,
+        1.007,
+        1.01,
+        1.012,
+        1.012,
+        1.012,
+        1.011,
+        1.01,
+        1.009,
+        1.007,
+        1.006,
+        1.005,
+        1.004,
+        1.003,
+        1.002,
+        1.002,
+        1.001,
+        1.001,
+        1.001,
+        1
+      );
+  }
+}
+/* Matches the scene root by its element: its class is private to Scene.module.css */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  svg:not([data-lift="off"]):hover .tooltip,
+  :global([data-illustration-host]:hover) svg:not([data-lift="off"]) .tooltip {
+    transform: translateY(-7px);
+  }
+}
+
+/* Keyboard focus inside a host card lifts it too, on any pointer */
+@media (prefers-reduced-motion: no-preference) {
+  :global([data-illustration-host]:focus-within)
+    svg:not([data-lift="off"])
+    .tooltip {
+    transform: translateY(-7px);
+  }
+}
