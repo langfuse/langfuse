@@ -1,6 +1,6 @@
 import React from "react";
 import { ExternalLink, RefreshCw } from "@langfuse/icons";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { CodeSection } from "./CodeSection";
@@ -22,6 +22,14 @@ const longCode = Array.from(
   (_, index) =>
     `line ${index + 1}: const value${index + 1} = compute(${index + 1});`,
 ).join("\n");
+
+const agentPrompt = [
+  "Add Langfuse tracing to this application.",
+  '1. Install the Langfuse skill: npx skills add langfuse/skills --skill "langfuse" (in Cursor: /add-plugin langfuse).',
+  "2. The keys are already in .env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY and LANGFUSE_BASE_URL. Don't print, paste or commit them.",
+  "3. Pick the integration that matches the stack (all of them are listed in https://langfuse.com/llms.txt).",
+  "4. Run the app once so a trace is sent, fetch it back to check it, and tell me what you traced.",
+].join("\n");
 
 const longLine =
   "Authorization: Basic cGstbGYtMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOnNrLWxmLTAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMA==";
@@ -102,6 +110,24 @@ export const WithCopiedMessage = meta.story({
   },
 });
 
+export const WithCopyButton = meta.story({
+  args: {
+    title: "Paste this into your coding agent",
+    content: agentPrompt,
+    copyButton: { text: "Copy prompt", variant: "primary" },
+    onCopy: fn(),
+  },
+});
+
+export const Preview = meta.story({
+  args: {
+    title: "Paste this into your coding agent",
+    content: agentPrompt,
+    copyButton: { text: "Copy prompt", variant: "primary" },
+    expandLabel: "Show the full prompt",
+  },
+});
+
 export const LongLineWithoutWrap = meta.story({
   args: {
     variant: "outline",
@@ -144,5 +170,68 @@ export const TogglesCollapse = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse" }),
     ).toHaveAttribute("aria-expanded", "true");
+  },
+});
+
+export const CopyButtonCopies = meta.story({
+  name: "(Test) The copy button copies and calls onCopy",
+  args: WithCopyButton.input.args,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const writeText = spyOn(
+      navigator.clipboard,
+      "writeText",
+    ).mockResolvedValue();
+    try {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Copy prompt" }),
+      );
+      await expect(writeText).toHaveBeenCalledWith(agentPrompt);
+      await expect(args.onCopy).toHaveBeenCalledOnce();
+      await expect(
+        canvas.getByRole("button", { name: "Copied" }),
+      ).toBeVisible();
+    } finally {
+      writeText.mockRestore();
+    }
+  },
+});
+
+export const PreviewExpands = meta.story({
+  name: "(Test) The preview opens and closes",
+  args: Preview.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", { name: "Show the full prompt" });
+    const code = canvasElement.querySelector("code");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toHaveAttribute("aria-controls", code?.id);
+    await userEvent.click(toggle);
+    await expect(
+      canvas.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  },
+});
+
+export const CopiedMessageShows = meta.story({
+  name: "(Test) The copy icon shows and says the copied message",
+  args: WithCopiedMessage.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const message = "Secrets are not included, create a new key to copy them.";
+    const writeText = spyOn(
+      navigator.clipboard,
+      "writeText",
+    ).mockResolvedValue();
+    try {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Copy to clipboard" }),
+      );
+      await expect(writeText).toHaveBeenCalledWith(envCode);
+      await expect(canvas.getByRole("status")).toHaveTextContent(message);
+      await expect(canvas.getByTitle(message)).toBeVisible();
+    } finally {
+      writeText.mockRestore();
+    }
   },
 });
