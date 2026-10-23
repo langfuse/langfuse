@@ -27,16 +27,23 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
-/** Vertical padding, name line height and count+share block height (px) for tiers that show a name. */
+/** Vertical padding, name line height and count block height (px) for tiers that show a count; share only on large. */
 const PADDING_Y_PX = 24;
 const NAME_LINE_PX = { large: 28, medium: 20 };
-const FOOTER_PX = { large: 54, medium: 46 };
+const FOOTER_PX = { large: 54, medium: 28 };
 const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
+
+const NAME_SIZE: Record<TileTier, string> = {
+  large: "text-lg",
+  medium: "text-sm",
+  small: "text-xs",
+  tiny: "",
+};
 
 const COUNT_SIZE: Record<TileTier, string> = {
   large: "text-3xl",
   medium: "text-xl",
-  small: "text-sm",
+  small: "",
   tiny: "",
 };
 
@@ -46,6 +53,7 @@ export function TopicTreemapView({
   peekView,
   onGenerateTopics,
   canGenerateTopics,
+  sideBySide = false,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   if (facet.topics.length === 0) {
@@ -76,12 +84,18 @@ export function TopicTreemapView({
     (row) => (row.topicId ?? null) === selectedRowTopicId,
   );
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        sideBySide && "lg:flex-row",
+      )}
+    >
       <TopicTreemap
         facet={facet}
         topics={topics}
         selectedTopicId={selected.id}
         onSelectTopic={setSelectedTopicId}
+        sideBySide={sideBySide}
       />
       <TopicTraceList
         key={selected.id}
@@ -91,7 +105,7 @@ export function TopicTreemapView({
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}
-        divider="top"
+        divider={sideBySide ? "side" : "top"}
       />
     </div>
   );
@@ -102,6 +116,7 @@ function TopicTreemap({
   topics,
   selectedTopicId,
   onSelectTopic,
+  sideBySide,
 }: TopicTreemapProps) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const total = facet.rows.length;
@@ -113,19 +128,32 @@ function TopicTreemap({
     );
   }
   const tiles = size
-    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
+    ? layoutTreemap(
+        layoutWeights(topics),
+        size.width,
+        size.height,
+        TILE_GAP,
+      ).map((tile) => ({
+        ...tile,
+        item: tile.item.topic,
+        capped: tile.item.count < tile.item.topic.count,
+      }))
     : [];
   return (
     <section
       aria-label="Topics"
       ref={ref}
-      className="relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2"
+      className={cn(
+        "relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2",
+        sideBySide && "lg:shrink lg:basis-3/5",
+      )}
     >
-      {tiles.map(({ item, x, y, width, height }) => (
+      {tiles.map(({ item, capped, x, y, width, height }) => (
         <TopicTile
           key={item.id}
           topic={item}
           share={total > 0 ? item.count / total : 0}
+          capped={capped}
           colors={tileColors(item.id, width * height > BIG_TILE_AREA)}
           isSelected={item.id === selectedTopicId}
           onSelect={onSelectTopic}
@@ -138,9 +166,10 @@ function TopicTreemap({
 }
 
 function TopicTile(props: TopicTileProps) {
-  const { topic, share, tier } = props;
-  const shareLabel = `${Math.round(share * 100)}% of traces`;
-  if (tier === "large" || tier === "medium") {
+  const { topic, share, tier, capped } = props;
+  const percentLabel = `${Math.round(share * 100)}% of traces`;
+  const shareLabel = capped ? `${percentLabel} · shown smaller` : percentLabel;
+  if ((tier === "large" || tier === "medium") && !capped) {
     return <TopicTileButton {...props} shareLabel={shareLabel} />;
   }
   return (
@@ -150,8 +179,13 @@ function TopicTile(props: TopicTileProps) {
         <span className="ph-no-capture flex flex-col gap-0.5">
           <span className="font-bold">{topic.name}</span>
           <span className="text-muted-foreground text-xs">
-            {topic.count.toLocaleString()} traces · {shareLabel}
+            {topic.count.toLocaleString()} traces · {percentLabel}
           </span>
+          {capped && (
+            <span className="text-muted-foreground text-xs">
+              Shown smaller than its actual share so topics stay readable.
+            </span>
+          )}
         </span>
       }
     >
@@ -179,9 +213,9 @@ function TopicTileButton({
   function selectTopic() {
     onSelect(topic.id);
   }
-  const showName = tier === "large" || tier === "medium";
-  /** Name lines that fit above the count. */
-  const nameLines = showName
+  const showCount = tier === "large" || tier === "medium";
+  /** Name lines that fit above the count; small tiles show only the name. */
+  const nameLines = showCount
     ? Math.min(
         3,
         Math.max(
@@ -191,7 +225,7 @@ function TopicTileButton({
           ),
         ),
       )
-    : 0;
+    : 2;
   return (
     <button
       {...triggerProps}
@@ -215,27 +249,43 @@ function TopicTileButton({
             ),
       )}
     >
-      {showName && (
+      {tier !== "tiny" && (
         <span
           className={cn(
             NAME_CLAMP[nameLines - 1],
             "font-bold",
-            tier === "large" ? "text-lg" : "text-sm",
+            NAME_SIZE[tier],
           )}
         >
           {topic.name}
         </span>
       )}
-      {tier !== "tiny" && (
+      {showCount && (
         <span className="flex flex-col gap-0.5">
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
             {topic.count.toLocaleString()}
           </span>
-          {showName && <span className="text-xs opacity-80">{shareLabel}</span>}
+          {(tier === "large" || topic.id === UNASSIGNED_ID) && (
+            <span className="text-xs opacity-80">{shareLabel}</span>
+          )}
         </span>
       )}
     </button>
   );
+}
+
+/** Unassigned never takes more than ~10% of the area; its tile still shows the real count. */
+function layoutWeights(topics: FacetTopic[]) {
+  const assigned = topics
+    .filter((topic) => topic.id !== UNASSIGNED_ID)
+    .reduce((sum, topic) => sum + topic.count, 0);
+  return topics.map((topic) => ({
+    topic,
+    count:
+      topic.id === UNASSIGNED_ID
+        ? Math.min(topic.count, Math.max(1, assigned / 9))
+        : topic.count,
+  }));
 }
 
 function tileTier(width: number, height: number): TileTier {
@@ -258,6 +308,8 @@ type TopicTreemapViewProps = {
   peekView: DataTablePeekViewProps;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  /** Treemap left, traces right on wide screens. */
+  sideBySide?: boolean;
 };
 
 type TopicTreemapProps = {
@@ -265,6 +317,7 @@ type TopicTreemapProps = {
   topics: FacetTopic[];
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
+  sideBySide: boolean;
 };
 
 type TileTier = "large" | "medium" | "small" | "tiny";
@@ -277,6 +330,8 @@ type TopicTileProps = {
   onSelect: (topicId: string) => void;
   rect: { left: number; top: number; width: number; height: number };
   tier: TileTier;
+  /** Drawn smaller than its share of traces. */
+  capped: boolean;
 };
 
 type TopicTileButtonProps = TopicTileProps & {
