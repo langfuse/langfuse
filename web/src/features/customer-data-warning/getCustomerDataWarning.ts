@@ -98,5 +98,5 @@ export function customerDataWarningText(warning: CustomerDataWarning): string {
       ? `customer project (${warning.organizationName} / ${warning.projectName})`
       : `customer organization (${warning.organizationName})`;
 
-  return `You are viewing a ${target}. Treat all data as confidential; you can edit and delete customer data.`;
+  return `You are viewing a ${target}. Treat all data as confidential.`;
 }

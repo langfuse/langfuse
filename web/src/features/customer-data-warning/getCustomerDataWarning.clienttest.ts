@@ -175,7 +175,7 @@ describe("customerDataWarningText", () => {
         projectName: "Production",
       }),
     ).toBe(
-      "You are viewing a customer project (Acme / Production). Treat all data as confidential; you can edit and delete customer data.",
+      "You are viewing a customer project (Acme / Production). Treat all data as confidential.",
     );
   });
 
@@ -186,7 +186,7 @@ describe("customerDataWarningText", () => {
         organizationName: "Acme",
       }),
     ).toBe(
-      "You are viewing a customer organization (Acme). Treat all data as confidential; you can edit and delete customer data.",
+      "You are viewing a customer organization (Acme). Treat all data as confidential.",
     );
   });
 });
