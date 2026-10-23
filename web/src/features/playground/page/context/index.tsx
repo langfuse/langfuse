@@ -58,6 +58,7 @@ type PlaygroundContextType = {
   windowId: string;
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
+  updatePromptVariableValues: (values: Record<string, string>) => void;
   deletePromptVariable: (variable: string) => void;
 
   messagePlaceholders: PlaceholderMessageFillIn[];
@@ -515,6 +516,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
   }, []);
 
+  const updatePromptVariableValues = useCallback(
+    (values: Record<string, string>) => {
+      setPromptVariables((prev) =>
+        prev.map((variable) =>
+          Object.hasOwn(values, variable.name)
+            ? { ...variable, value: values[variable.name] }
+            : variable,
+        ),
+      );
+    },
+    [],
+  );
+
   const updateMessagePlaceholderValue = useCallback(
     (name: string, value: ChatMessage[]) => {
       setMessagePlaceholders((prev) =>
@@ -730,6 +744,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         windowId: effectiveWindowId,
         promptVariables,
         updatePromptVariableValue,
+        updatePromptVariableValues,
         deletePromptVariable,
         messagePlaceholders,
         updateMessagePlaceholderValue,

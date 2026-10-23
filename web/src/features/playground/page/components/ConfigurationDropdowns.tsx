@@ -3,6 +3,8 @@ import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { Wrench, Braces, Variable, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   Popover,
   PopoverContent,
@@ -25,6 +27,8 @@ import { MessagePlaceholders } from "./MessagePlaceholders";
 import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
 import { CreateOrEditLLMSchemaDialog } from "./CreateOrEditLLMSchemaDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { ImportPromptVariablesDialog } from "./ImportPromptVariablesDialog/ImportPromptVariablesDialog";
 
 function usePopoverToDialog<T>() {
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -60,9 +64,12 @@ export const ConfigurationDropdowns: React.FC = () => {
     tools,
     structuredOutputSchema,
     promptVariables,
+    updatePromptVariableValues,
     messagePlaceholders,
   } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
+  const [variablesPopoverOpen, setVariablesPopoverOpen] = useState(false);
   const toolsOverlay = usePopoverToDialog<PlaygroundToolDialogRequest>();
   const schemaOverlay =
     usePopoverToDialog<StructuredOutputSchemaDialogRequest>();
@@ -216,54 +223,92 @@ export const ConfigurationDropdowns: React.FC = () => {
         )}
 
         {/* Variables & Placeholders Dropdown */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 gap-2">
-              {getResponsiveContent("Variables", Variable, "Vars")}
-              {variablesCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {variablesCount}
-                </Badge>
-              )}
-              <DropdownIndicator size="sm" nudge />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-4" align="start">
-            <div className="mb-3">
-              <h4 className="mb-1 text-sm font-bold">
-                Variables & Message Placeholders
-              </h4>
-              <p className="text-muted-foreground text-xs">
-                Configure variables and message placeholders for your prompts.
-              </p>
-            </div>
-            {variablesCount > 0 ? (
-              <div
-                className="mb-3"
-                style={{ maxHeight: "50vh", overflowY: "auto" }}
-              >
-                <div className="space-y-4">
-                  <div>
-                    <h5 className="mb-2 text-xs font-bold">Variables</h5>
-                    <Variables />
-                  </div>
-                  <div>
-                    <h5 className="mb-2 text-xs font-bold">
-                      Message Placeholders
-                    </h5>
-                    <MessagePlaceholders />
-                  </div>
+        <DialogController
+          onDismiss={() => setVariablesPopoverOpen(true)}
+          renderDialog={({ closeDialog }) => (
+            <ImportPromptVariablesDialog
+              promptVariables={promptVariables}
+              onImport={(values) => {
+                updatePromptVariableValues(values);
+                capture("playground:variables_import", {
+                  variableCount: Object.keys(values).length,
+                });
+              }}
+              onClose={() => {
+                closeDialog();
+                setVariablesPopoverOpen(true);
+              }}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <Popover
+              open={variablesPopoverOpen}
+              onOpenChange={setVariablesPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-2">
+                  {getResponsiveContent("Variables", Variable, "Vars")}
+                  {variablesCount > 0 && (
+                    <Badge variant="secondary" className="h-4 text-xs">
+                      {variablesCount}
+                    </Badge>
+                  )}
+                  <DropdownIndicator size="sm" nudge />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4" align="start">
+                <div className="mb-3">
+                  <h4 className="mb-1 text-sm font-bold">
+                    Variables & Message Placeholders
+                  </h4>
+                  <p className="text-muted-foreground text-xs">
+                    Configure variables and message placeholders for your
+                    prompts.
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="mb-3">
-                <p className="text-muted-foreground text-xs">
-                  No variables or message placeholders defined.
-                </p>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+                {variablesCount > 0 ? (
+                  <div
+                    className="mb-3"
+                    style={{ maxHeight: "50vh", overflowY: "auto" }}
+                  >
+                    <div className="space-y-4">
+                      <div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <h5 className="text-xs font-bold">Variables</h5>
+                          {promptVariables.length > 0 && (
+                            <DesignSystemButton
+                              text="Import JSON"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setVariablesPopoverOpen(false);
+                                openDialog();
+                              }}
+                            />
+                          )}
+                        </div>
+                        <Variables />
+                      </div>
+                      <div>
+                        <h5 className="mb-2 text-xs font-bold">
+                          Message Placeholders
+                        </h5>
+                        <MessagePlaceholders />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3">
+                    <p className="text-muted-foreground text-xs">
+                      No variables or message placeholders defined.
+                    </p>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
+        </DialogController>
       </div>
     </div>
   );
