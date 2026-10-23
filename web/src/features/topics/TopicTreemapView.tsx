@@ -27,16 +27,23 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
-/** Vertical padding, name line height and count+share block height (px) for tiers that show a name. */
+/** Vertical padding, name line height and count block height (px) for tiers that show a count; share only on large. */
 const PADDING_Y_PX = 24;
 const NAME_LINE_PX = { large: 28, medium: 20 };
-const FOOTER_PX = { large: 54, medium: 46 };
+const FOOTER_PX = { large: 54, medium: 28 };
 const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
+
+const NAME_SIZE: Record<TileTier, string> = {
+  large: "text-lg",
+  medium: "text-sm",
+  small: "text-xs",
+  tiny: "",
+};
 
 const COUNT_SIZE: Record<TileTier, string> = {
   large: "text-3xl",
   medium: "text-xl",
-  small: "text-sm",
+  small: "",
   tiny: "",
 };
 
@@ -88,6 +95,7 @@ export function TopicTreemapView({
         projectId={projectId}
         title={selected.name}
         description={selected.description}
+        totalCount={facet.rows.length}
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}
@@ -179,9 +187,9 @@ function TopicTileButton({
   function selectTopic() {
     onSelect(topic.id);
   }
-  const showName = tier === "large" || tier === "medium";
-  /** Name lines that fit above the count. */
-  const nameLines = showName
+  const showCount = tier === "large" || tier === "medium";
+  /** Name lines that fit above the count; small tiles show only the name. */
+  const nameLines = showCount
     ? Math.min(
         3,
         Math.max(
@@ -191,7 +199,7 @@ function TopicTileButton({
           ),
         ),
       )
-    : 0;
+    : 2;
   return (
     <button
       {...triggerProps}
@@ -215,23 +223,25 @@ function TopicTileButton({
             ),
       )}
     >
-      {showName && (
+      {tier !== "tiny" && (
         <span
           className={cn(
             NAME_CLAMP[nameLines - 1],
             "font-bold",
-            tier === "large" ? "text-lg" : "text-sm",
+            NAME_SIZE[tier],
           )}
         >
           {topic.name}
         </span>
       )}
-      {tier !== "tiny" && (
+      {showCount && (
         <span className="flex flex-col gap-0.5">
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
             {topic.count.toLocaleString()}
           </span>
-          {showName && <span className="text-xs opacity-80">{shareLabel}</span>}
+          {tier === "large" && (
+            <span className="text-xs opacity-80">{shareLabel}</span>
+          )}
         </span>
       )}
     </button>

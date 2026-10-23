@@ -88,6 +88,30 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+const manyUnassignedRows = [
+  ...assignedRows,
+  ...Array.from({ length: 320 }, (_, index) => ({
+    traceId: `unassigned-trace-${index}`,
+    summary: `Unrelated request ${index + 1} that fit no topic`,
+    topicId: null,
+    topicName: null,
+    outcome: "outlier" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 3 * 60_000).toISOString(),
+  })),
+];
+
+/** About half of the traces fit no topic. */
+export const LargeUnassigned = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      rows: manyUnassignedRows,
+      usableCount: manyUnassignedRows.length,
+    },
+  },
+});
+
 const issueTopics = [
   { name: "Incomplete runs with undelivered results", count: 40 },
   { name: "Research halted before handback report", count: 35 },

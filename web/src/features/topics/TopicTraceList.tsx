@@ -19,6 +19,7 @@ export function TopicTraceList({
   projectId,
   title,
   description,
+  totalCount,
   swatchColor,
   rows,
   peekView,
@@ -96,23 +97,36 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-4">
-        <h3 className="flex min-w-0 items-baseline gap-2 text-base leading-none font-bold">
-          {swatchColor ? (
+      <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            {swatchColor && (
+              <span
+                aria-hidden
+                className="size-3 shrink-0 rounded-xs"
+                style={{ backgroundColor: swatchColor }}
+              />
+            )}
             <span
-              aria-hidden
-              className="size-2.5 shrink-0 self-center rounded-xs"
-              style={{ backgroundColor: swatchColor }}
-            />
-          ) : null}
-          <span className="truncate" title={title}>
+              className="truncate"
+              title={traceListEyebrow(rows.length, totalCount)}
+            >
+              {traceListEyebrow(rows.length, totalCount)}
+            </span>
+          </p>
+          <h3 className="truncate text-xl font-bold" title={title}>
             {title}
-          </span>
-          <span className="text-muted-foreground shrink-0 font-mono text-xs font-normal">
-            {rows.length.toLocaleString()} traces
-          </span>
-        </h3>
-        {tracingHref ? (
+          </h3>
+          {description && (
+            <p
+              className="text-muted-foreground line-clamp-2 text-sm"
+              title={description}
+            >
+              {description}
+            </p>
+          )}
+        </div>
+        {tracingHref && (
           <Button
             href={tracingHref}
             text="Open in Tracing"
@@ -120,16 +134,8 @@ export function TopicTraceList({
             size="sm"
             icon={ExternalLink}
           />
-        ) : null}
+        )}
       </div>
-      {description ? (
-        <p
-          className="bg-muted text-muted-foreground mx-4 mb-3 line-clamp-3 rounded-md px-3 py-2 text-sm"
-          title={description}
-        >
-          {description}
-        </p>
-      ) : null}
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -162,12 +168,20 @@ type TopicTraceListProps = {
   projectId: string;
   title: string;
   description?: string;
+  /** Traces in the facet, for the share of the selected topic. */
+  totalCount: number;
   swatchColor?: string;
   rows: FacetRow[];
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   divider?: "top" | "side";
 };
+
+function traceListEyebrow(count: number, total: number) {
+  const traces = `${count.toLocaleString()} traces`;
+  if (total === 0 || count === total) return traces;
+  return `${traces} · ${Math.round((count / total) * 100)}% of all`;
+}
 
 function compactAge(timestamp: string) {
   return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
