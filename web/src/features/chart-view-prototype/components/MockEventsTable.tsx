@@ -43,7 +43,7 @@ const columns: LangfuseColumnDef<PrototypeEvent>[] = [
     cell: ({ getValue }) =>
       getValue<PrototypeEvent["type"]>() ? (
         <Badge
-          color="primary"
+          color="outline"
           size="sm"
           font="mono"
           text={getValue<PrototypeEvent["type"]>()}

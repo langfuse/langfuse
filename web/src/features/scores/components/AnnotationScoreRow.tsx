@@ -315,7 +315,7 @@ export function AnnotationScoreRow({
                 </Popover>
               )}
           </div>
-          {showTarget ? <Badge color="primary" text={target.label} /> : null}
+          {showTarget ? <Badge color="outline" text={target.label} /> : null}
         </div>
         {config.description?.trim() && (
           <div className="min-w-0">

@@ -48,8 +48,6 @@ interface TreeNodeWrapperProps {
   // Selection/interaction
   isSelected: boolean;
   onSelect: () => void;
-  /** Mirrors the row's `hover:` surface so content can restyle with it. */
-  onHoverChange?: (isHovered: boolean) => void;
 
   // Content to render (fully decoupled from tree structure)
   children: ReactNode;
@@ -109,8 +107,6 @@ export function VirtualizedTreeNodeWrapper(
             }
           : undefined
       }
-      onMouseEnter={loaded ? () => loaded.onHoverChange?.(true) : undefined}
-      onMouseLeave={loaded ? () => loaded.onHoverChange?.(false) : undefined}
     >
       <div className="flex w-full pl-2">
         {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}

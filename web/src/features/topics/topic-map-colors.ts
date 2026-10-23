@@ -17,8 +17,8 @@ export const topicColor = (index: number) =>
 
 export const topicBadgeColor = (
   index: number,
-): (typeof COLORS)[number]["badgeColor"] | "primary" =>
-  index < 0 ? "primary" : COLORS[index % COLORS.length].badgeColor;
+): (typeof COLORS)[number]["badgeColor"] | "outline" =>
+  index < 0 ? "outline" : COLORS[index % COLORS.length].badgeColor;
 
 const TREEMAP_HUES = [
   {

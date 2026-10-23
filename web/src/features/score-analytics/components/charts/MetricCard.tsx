@@ -57,7 +57,7 @@ export function MetricCard({
       case "orange":
       case "gray":
       default:
-        return "primary";
+        return "outline";
     }
   };
 
