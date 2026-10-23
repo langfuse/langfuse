@@ -21,6 +21,7 @@ import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   createOrgMembership,
   createProjectMembership,
+  ProjectNotInOrgError,
 } from "@/src/features/memberships/membershipService";
 
 export async function createProjectMembershipsOnSignup(
@@ -359,29 +360,18 @@ async function acceptInvitation(
     role: invitation.orgRole,
   });
   if (!invitation.projectId || !invitation.projectRole) return;
-  if (!(await isProjectInOrg(tx, invitation.projectId, invitation.orgId))) {
-    return;
+  try {
+    await createProjectMembership(tx, {
+      orgId: invitation.orgId,
+      userId,
+      orgMembershipId: orgMembership.id,
+      projectId: invitation.projectId,
+      role: invitation.projectRole,
+    });
+  } catch (error) {
+    if (error instanceof ProjectNotInOrgError) return; // the project moved orgs after the invite
+    throw error;
   }
-  await createProjectMembership(tx, {
-    orgId: invitation.orgId,
-    userId,
-    orgMembershipId: orgMembership.id,
-    projectId: invitation.projectId,
-    role: invitation.projectRole,
-  });
-}
-
-/** isProjectInOrg reports whether a project still belongs to an organization. */
-async function isProjectInOrg(
-  tx: Prisma.TransactionClient,
-  projectId: string,
-  orgId: string,
-) {
-  const project = await tx.project.findFirst({
-    where: { id: projectId, orgId },
-    select: { id: true },
-  });
-  return project !== null;
 }
 
 /** ensureOrgMembership creates a missing org membership with its role assignment, preserving an existing one. */

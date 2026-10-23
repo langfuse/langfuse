@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   OrganizationId,
   ProjectId,
@@ -53,6 +54,7 @@ export async function saveProjectMembership(
   { orgId, ...data }: ProjectMembershipInput,
 ): Promise<ProjectMembership> {
   return await withTransaction(prisma, async (tx) => {
+    await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
     const membership = await tx.projectMembership.upsert({
       where: {
         projectId_userId: { projectId: data.projectId, userId: data.userId },
@@ -71,6 +73,7 @@ export async function createProjectMembership(
   { orgId, ...data }: ProjectMembershipInput,
 ): Promise<ProjectMembership> {
   return await withTransaction(prisma, async (tx) => {
+    await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
     const membership = await tx.projectMembership.create({ data });
     await replaceProjectRole(tx, { ...membership, orgId });
     return membership;
@@ -114,6 +117,25 @@ export async function deleteProjectMembership(
     });
     return membership;
   });
+}
+
+/** ProjectNotInOrgError rejects a project membership whose project is outside the organization. */
+export class ProjectNotInOrgError extends LangfuseNotFoundError {
+  constructor() {
+    super("Project not found in organization");
+  }
+}
+
+/** assertProjectInOrg throws ProjectNotInOrgError unless the project belongs to the organization. */
+async function assertProjectInOrg(
+  tx: Prisma.TransactionClient,
+  { orgId, projectId }: { orgId: string; projectId: string },
+) {
+  const project = await tx.project.findFirst({
+    where: { id: projectId, orgId },
+    select: { id: true },
+  });
+  if (!project) throw new ProjectNotInOrgError();
 }
 
 /** replaceOrgRole mirrors an organization membership's role into role assignments. */

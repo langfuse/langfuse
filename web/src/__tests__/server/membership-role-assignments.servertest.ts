@@ -7,6 +7,11 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import {
+  createProjectMembership,
+  ProjectNotInOrgError,
+  saveProjectMembership,
+} from "@/src/features/memberships/membershipService";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
 import projectMembershipsRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
 import scimUsersRoute from "@/src/pages/api/public/scim/Users";
@@ -221,6 +226,38 @@ describe("membership role assignments", () => {
     orgId = org.id;
     projectId = project.id;
     ownerId = owner.id;
+  });
+
+  describe("membershipService", () => {
+    it.each([
+      ["saveProjectMembership", saveProjectMembership],
+      ["createProjectMembership", createProjectMembership],
+    ])(
+      "%s rejects a project outside the organization",
+      async (_, writeProjectMembership) => {
+        const user = await createUser();
+        const otherOrg = await prisma.organization.create({
+          data: { name: randomUUID() },
+        });
+        const otherMembership = await prisma.organizationMembership.create({
+          data: { orgId: otherOrg.id, userId: user.id, role: Role.VIEWER },
+        });
+
+        await expect(
+          writeProjectMembership(prisma, {
+            orgId: otherOrg.id,
+            orgMembershipId: otherMembership.id,
+            projectId,
+            userId: user.id,
+            role: Role.ADMIN,
+          }),
+        ).rejects.toBeInstanceOf(ProjectNotInOrgError);
+        expect(
+          await prisma.projectMembership.count({ where: { userId: user.id } }),
+        ).toBe(0);
+        expect(await rolesOf(user.id)).toEqual([]);
+      },
+    );
   });
 
   describe("tRPC", () => {
