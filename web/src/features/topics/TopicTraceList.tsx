@@ -116,7 +116,7 @@ export function TopicTraceList({
           <Button
             href={tracingHref}
             text="Open in Tracing"
-            variant="secondary"
+            variant="ghost"
             size="sm"
             icon={ExternalLink}
           />
