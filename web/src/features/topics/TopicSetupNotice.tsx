@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { ArrowRight } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
@@ -55,18 +54,24 @@ export function TopicSetupNotice({
         </Alert>
       ) : null}
       {showOnboarding ? (
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 overflow-y-auto px-4 pt-12">
+        <div className="flex flex-1 flex-col items-center justify-center gap-7 overflow-y-auto px-4 pb-14">
           <SortingIllustration />
-          <h2 className="text-center text-2xl font-bold">
-            Thousands of traces, identify recurring topics & issues
-          </h2>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
+              See what your traces are about
+            </h2>
+            <p className="text-muted-foreground max-w-100 text-sm text-pretty">
+              Every trace is labeled by intent, sentiment, outcome and issues,
+              so recurring patterns surface on their own.
+            </p>
+          </div>
           {startBlockedReason ? (
             <p role="status" className="text-muted-foreground text-sm">
               {startBlockedReason}
             </p>
           ) : (
             <Button
-              text="Start analyzing"
+              text="Set up topics"
               disabled={!canWrite || !canConfigure}
               onClick={onStart}
             />
@@ -77,84 +82,85 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: a messy pile of traces sorted into three example topics.
-const MESSY_CARDS = [
-  [10, 24, -12],
-  [78, 0, 7],
-  [150, 34, -4],
-  [24, 96, 9],
-  [112, 84, -15],
-  [166, 118, 11],
-  [0, 160, -6],
-  [86, 156, 4],
-  [150, 176, -9],
-  [62, 48, 17],
-] as const;
-const SLAB_JITTER = [0, 3, -2, 4, -3, 1, -4, 2, -1, 3, 0];
+// Decorative: trace summaries dropping into three example topics.
 const PILES = [
-  {
-    name: "Refund requests",
-    count: 214,
-    slabs: 11,
-    className: "bg-dark-violet/25 border-dark-violet/40",
-  },
+  { name: "Refunds", count: 214, bars: 9, color: "violet", left: "left-3.5" },
   {
     name: "Order status",
-    count: 156,
-    slabs: 8,
-    className: "bg-dark-blue/20 border-dark-blue/35",
+    count: 154,
+    bars: 6,
+    color: "blue",
+    left: "left-26.5",
+  },
+  { name: "Address", count: 96, bars: 4, color: "amber", left: "left-49.5" },
+] as const;
+
+const SLIPS = [
+  {
+    text: "Where is order 4471?",
+    color: "blue",
+    position: "top-4.5 left-9 -rotate-7",
   },
   {
-    name: "Cancel subscription",
-    count: 61,
-    slabs: 4,
-    className: "bg-dark-teal/20 border-dark-teal/35",
+    text: "Wants money back",
+    color: "violet",
+    position: "top-0.5 left-37.5 rotate-5",
   },
-];
+  {
+    text: "Typo in street",
+    color: "amber",
+    position: "top-8.5 left-53 -rotate-4",
+  },
+] as const;
 
 function SortingIllustration() {
   return (
-    <div
-      aria-hidden="true"
-      className="bg-light-violet flex w-full items-center justify-center gap-8 overflow-hidden rounded-2xl px-6 py-10"
-    >
-      <div className="relative hidden h-60 w-72 shrink-0 sm:block">
-        {MESSY_CARDS.map(([left, top, rotate]) => (
-          <div
-            key={`${left}-${top}`}
-            className="bg-card absolute flex h-16 w-28 flex-col gap-2 rounded-lg border p-2.5 shadow-sm"
-            style={{ left, top, transform: `rotate(${rotate}deg)` }}
-          >
-            <span className="bg-muted size-2 rounded-full" />
-            <span className="bg-muted h-1.5 w-4/5 rounded" />
-            <span className="bg-muted h-1.5 w-3/5 rounded" />
-          </div>
-        ))}
-      </div>
-      <ArrowRight
-        size="lg"
-        color="muted"
-        __rawClassName="hidden shrink-0 sm:block"
-      />
-      <div className="flex items-end gap-5">
+    <div aria-hidden="true" className="relative h-52.5 w-82.5 shrink-0">
+      <div className="bg-background absolute top-12 left-5 z-10 h-37.5 w-72.5 rounded-lg border shadow-md">
         {PILES.map((pile) => (
-          <div key={pile.name} className="flex flex-col items-center gap-1">
-            <div className="flex flex-col gap-1">
-              {SLAB_JITTER.slice(0, pile.slabs).map((offset, index) => (
+          <div
+            key={pile.name}
+            className={`absolute bottom-3 flex w-19.5 flex-col gap-1.25 ${pile.left}`}
+          >
+            <div className="flex flex-col-reverse gap-0.5">
+              {Array.from({ length: pile.bars }, (_, index) => (
                 <span
                   key={index}
-                  className={`h-3.5 w-28 rounded border ${pile.className}`}
-                  style={{ transform: `translateX(${offset}px)` }}
+                  className="h-1.75 rounded-xs"
+                  style={{ backgroundColor: fadedColor(pile.color, index) }}
                 />
               ))}
             </div>
-            <span className="mt-2 text-sm font-bold whitespace-nowrap">
-              {pile.name}
-            </span>
-            <span className="text-muted-foreground text-sm">{pile.count}</span>
+            <div className="text-2xs flex flex-col gap-px leading-tight">
+              <span className="font-bold whitespace-nowrap">{pile.name}</span>
+              <span className="text-muted-foreground font-mono">
+                {pile.count}
+              </span>
+            </div>
           </div>
         ))}
       </div>
+      {SLIPS.map((slip) => (
+        <div
+          key={slip.text}
+          className={`bg-background text-2xs absolute z-20 flex items-center gap-1.5 rounded-md border px-2 py-1.25 leading-tight whitespace-nowrap shadow-md ${slip.position}`}
+        >
+          <span
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: categoryColor(slip.color) }}
+          />
+          {slip.text}
+        </div>
+      ))}
     </div>
   );
+}
+
+function categoryColor(color: (typeof PILES)[number]["color"]) {
+  return `var(--category-${color}-highlight)`;
+}
+
+/** Bottom bar strongest; each bar above fades 8% toward the page. */
+function fadedColor(color: (typeof PILES)[number]["color"], index: number) {
+  return `color-mix(in oklch, ${categoryColor(color)} ${100 - index * 8}%, hsl(var(--background)))`;
 }

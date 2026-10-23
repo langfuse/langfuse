@@ -521,6 +521,7 @@ function TopicsWorkspaceContent({
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
+                  menuOnly={showLanding && !showSetupProgress}
                 />
               ),
               actionButtonsMenu: ({ closeMenu }) => {
