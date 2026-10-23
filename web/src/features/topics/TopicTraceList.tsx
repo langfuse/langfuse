@@ -114,7 +114,7 @@ export function TopicTraceList({
               {traceListEyebrow(rows.length, totalCount)}
             </span>
           </p>
-          <h3 className="truncate text-xl font-bold" title={title}>
+          <h3 className="truncate text-lg font-bold" title={title}>
             {title}
           </h3>
           {description && (
