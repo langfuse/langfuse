@@ -8,11 +8,11 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import { AgentInstructionsPanel } from "./components/AgentInstructionsPanel";
+import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentInstructionsPanel";
 import {
   ClaudeSetupTabs,
   type ClaudeAgentId,
-} from "./components/ClaudeSetupTabs";
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/ClaudeSetupTabs";
 import { MaskedGatewayKey } from "./components/MaskedGatewayKey";
 import { useAgentSetupInstructions } from "./hooks/useAgentSetupInstructions";
 
