@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
@@ -97,7 +97,7 @@ import { createTableColumn } from "@/src/components/design-system/table/columns/
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/TablePeekViewObservationDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,

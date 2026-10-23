@@ -6,6 +6,8 @@ import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
+  LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+  LANGFUSE_AI_GATEWAY_ENABLED: "false",
   LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
   // Caching is covered against real Redis in the control-plane servertest;
   // these cases are about what the service does with a database row.

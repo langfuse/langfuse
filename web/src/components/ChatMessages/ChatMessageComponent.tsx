@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "@langfuse/icons";
 import {

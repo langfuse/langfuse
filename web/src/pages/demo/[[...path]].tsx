@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";

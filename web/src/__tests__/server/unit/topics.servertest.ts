@@ -186,6 +186,7 @@ const summary = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
+  mocks.listTopicRules.mockResolvedValue([]);
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.getTopicsModels.mockResolvedValue({
     summary: { model: "us.openai.gpt-5.6-luna" },
@@ -1128,6 +1129,29 @@ describe("Topics current results", () => {
     expect(mocks.hasStoredTopicSummaries).toHaveBeenCalledExactlyOnceWith(
       projectId,
     );
+  });
+
+  it("lists only the facets enabled on the project's rule", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      {
+        id: "other-facet",
+        name: "Sentiment",
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([{ facetIds: [facetId] }] as Awaited<
+      ReturnType<typeof topicsServer.listTopicRules>
+    >);
+    mocks.getLatestFacetSummaries.mockResolvedValue([]);
+    mocks.readLatestTopicAssignments.mockResolvedValue([]);
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+
+    const result = await caller("VIEWER").currentResults({
+      projectId,
+      timeRange,
+    });
+    expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
   });
 
   it("retains published map descriptions when reprocessed traces await assignment", async () => {

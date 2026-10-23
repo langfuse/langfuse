@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";

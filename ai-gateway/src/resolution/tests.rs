@@ -972,3 +972,23 @@ fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
         assert!(ControlPlaneConfig::new(url, SERVICE_KEY).is_ok());
     }
 }
+
+#[test]
+fn plain_http_web_configuration_only_relaxes_the_https_requirement() {
+    assert!(ControlPlaneConfig::with_plain_http("http://web.example", SERVICE_KEY).is_ok());
+    for url in [
+        "ftp://web.example",
+        "http://user:password@web.example",
+        "http://web.example?query=true",
+        "http://web.example#fragment",
+    ] {
+        assert!(matches!(
+            ControlPlaneConfig::with_plain_http(url, SERVICE_KEY),
+            Err(ResolutionError::Configuration)
+        ));
+    }
+    assert!(matches!(
+        ControlPlaneConfig::with_plain_http("http://web.example", " "),
+        Err(ResolutionError::Configuration)
+    ));
+}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 

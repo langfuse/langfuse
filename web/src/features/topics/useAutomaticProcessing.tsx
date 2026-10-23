@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";

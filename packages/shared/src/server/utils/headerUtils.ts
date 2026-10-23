@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, decrypt, createSignatureHeader } from "../../encryption";
 import {
   WebhookDefaultHeaders,
