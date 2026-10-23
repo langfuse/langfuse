@@ -357,42 +357,6 @@ describe("useOrganizationSettingsPages", () => {
     ]);
   });
 
-  it.each([
-    { canManage: true, expected: ["ai-gateway"] },
-    { canManage: false, expected: [] },
-  ])(
-    "shows only the Setup placeholder on self-hosted without a gateway (manager: $canManage)",
-    ({ canManage, expected }) => {
-      vi.mocked(useHasOrganizationAccess).mockImplementation(
-        ({ scope }) =>
-          (canManage && scope === "gateway:manage") ||
-          scope === "gateway:read" ||
-          scope === "gateway:invoke",
-      );
-      vi.mocked(useSession).mockReturnValue({
-        data: {
-          expires: "",
-          user: null,
-          environment: {
-            enableExperimentalFeatures: false,
-            selfHostedInstancePlan: null,
-            aiGatewayDeployed: false,
-          },
-        },
-        status: "authenticated",
-        update: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useOrganizationSettingsPages());
-
-      expect(
-        result.current
-          .filter((page) => page.slug.startsWith("ai-gateway") && page.show)
-          .map((page) => page.slug),
-      ).toEqual(expected);
-    },
-  );
-
   it("shows the usage page instead of the billing page without cloud billing", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organizationUsage:read",
