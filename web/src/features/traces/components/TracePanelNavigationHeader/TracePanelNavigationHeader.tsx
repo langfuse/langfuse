@@ -14,7 +14,7 @@
 import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import {
   Tooltip,

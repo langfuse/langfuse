@@ -18,7 +18,7 @@ import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpans
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
-} from "@/src/features/traces/contexts/TraceGraphDataContext";
+} from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
 import { TraceHeader } from "@/src/features/traces/components/TraceHeader";

@@ -11,7 +11,7 @@ import {
   TraceGraphView as TraceGraphViewComponent,
   type GraphViewMode,
 } from "@/src/features/trace-graph-view";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
