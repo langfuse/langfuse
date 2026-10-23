@@ -39,8 +39,8 @@ import {
 import {
   saveOrgMembership,
   saveProjectMembership,
-  unassignOrgMembershipRoles,
-  unassignProjectMembershipRole,
+  deleteOrgMembership,
+  deleteProjectMembership,
 } from "@/src/features/memberships/helpers";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
@@ -168,13 +168,10 @@ export const membersRouter = createTRPCRouter({
 
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const deleted = await tx.organizationMembership.delete({
-            where: {
-              id: orgMembership.id,
-              orgId: input.orgId,
-            },
+          const deleted = await deleteOrgMembership(tx, {
+            orgId: input.orgId,
+            userId: orgMembership.userId,
           });
-          await unassignOrgMembershipRoles(tx, deleted);
           const revokedKeys = await deleteUserBoundApiKeys(tx, {
             userId: orgMembership.userId,
             orgId: input.orgId,
@@ -528,20 +525,10 @@ export const membersRouter = createTRPCRouter({
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
-          await ctx.prisma.$transaction(async (tx) => {
-            const deleted = await tx.projectMembership.delete({
-              where: {
-                projectId_userId: {
-                  projectId: input.projectId,
-                  userId: input.userId,
-                },
-                orgMembershipId: input.orgMembershipId,
-              },
-            });
-            await unassignProjectMembershipRole(tx, {
-              ...deleted,
-              orgId: input.orgId,
-            });
+          await deleteProjectMembership(ctx.prisma, {
+            orgId: input.orgId,
+            projectId: input.projectId,
+            userId: input.userId,
           });
 
           await auditLog({

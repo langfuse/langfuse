@@ -6,7 +6,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
   saveProjectMembership,
-  unassignProjectMembershipRole,
+  deleteProjectMembership,
 } from "@/src/features/memberships/helpers";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -207,10 +207,11 @@ async function deleteMembership(
   });
   if (!before) return false;
   assertMembershipOrganization(before.organizationMembership.orgId, orgId);
-  const membership = await tx.projectMembership.delete({
-    where: { projectId_userId: { projectId, userId: before.userId } },
+  const membership = await deleteProjectMembership(tx, {
+    orgId,
+    projectId,
+    userId: before.userId,
   });
-  await unassignProjectMembershipRole(tx, { ...membership, orgId });
   await auditMembershipDeletion(tx, params, membership);
   return true;
 }

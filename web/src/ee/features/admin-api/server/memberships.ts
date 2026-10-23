@@ -11,7 +11,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   saveOrgMembership,
-  unassignOrgMembershipRoles,
+  deleteOrgMembership,
 } from "@/src/features/memberships/helpers";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -171,10 +171,7 @@ export async function handleDeleteMembership(
       orgId,
       from: before.role,
     });
-    await tx.organizationMembership.delete({
-      where: { id: before.id, orgId },
-    });
-    await unassignOrgMembershipRoles(tx, before);
+    await deleteOrgMembership(tx, { orgId, userId: before.userId });
     await auditLog(
       {
         orgId,

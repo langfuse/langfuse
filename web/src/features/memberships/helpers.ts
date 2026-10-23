@@ -77,30 +77,42 @@ export async function createProjectMembership(
   });
 }
 
-/** unassignOrgMembershipRoles removes a departing member's organization and project role assignments. */
-export async function unassignOrgMembershipRoles(
+/** deleteOrgMembership deletes an organization membership and revokes the member's organization and project role assignments. */
+export async function deleteOrgMembership(
   prisma: Prisma.TransactionClient,
   { orgId, userId }: { orgId: string; userId: string },
-): Promise<void> {
-  await revokeRolesForPrincipal(prisma, {
-    tenantId: OrganizationId(orgId),
-    principalId: UserId(userId),
+): Promise<OrganizationMembership> {
+  return await withTransaction(prisma, async (tx) => {
+    const membership = await tx.organizationMembership.delete({
+      where: { orgId_userId: { orgId, userId } },
+    });
+    await revokeRolesForPrincipal(tx, {
+      tenantId: OrganizationId(orgId),
+      principalId: UserId(userId),
+    });
+    return membership;
   });
 }
 
-/** unassignProjectMembershipRole removes a project membership's role assignment. */
-export async function unassignProjectMembershipRole(
+/** deleteProjectMembership deletes a project membership and revokes its role assignment. */
+export async function deleteProjectMembership(
   prisma: Prisma.TransactionClient,
   {
     orgId,
     projectId,
     userId,
   }: { orgId: string; projectId: string; userId: string },
-): Promise<void> {
-  await revokeRolesForPrincipal(prisma, {
-    tenantId: OrganizationId(orgId),
-    ownerId: ProjectId(projectId),
-    principalId: UserId(userId),
+): Promise<ProjectMembership> {
+  return await withTransaction(prisma, async (tx) => {
+    const membership = await tx.projectMembership.delete({
+      where: { projectId_userId: { projectId, userId } },
+    });
+    await revokeRolesForPrincipal(tx, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(userId),
+    });
+    return membership;
   });
 }
 

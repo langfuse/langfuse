@@ -4,7 +4,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   saveOrgMembership,
   createOrgMembership,
-  unassignOrgMembershipRoles,
+  deleteOrgMembership,
 } from "@/src/features/memberships/helpers";
 import {
   deleteUserBoundApiKeys,
@@ -287,10 +287,7 @@ async function deprovisionOrReject(
           orgId,
           from: membership.role,
         });
-        await tx.organizationMembership.delete({
-          where: { orgId_userId: { orgId, userId } },
-        });
-        await unassignOrgMembershipRoles(tx, { orgId, userId });
+        await deleteOrgMembership(tx, { orgId, userId });
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
         return { result: "deleted" as const, membership, revokedKeys };
       },
