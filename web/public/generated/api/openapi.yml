@@ -15035,7 +15035,6 @@ components:
         - invalid_request
         - invalid_query
         - invalid_body
-        - invalid_filter_value
         - resource_not_found
         - conflict
         - rate_limited

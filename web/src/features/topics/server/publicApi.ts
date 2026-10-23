@@ -37,7 +37,7 @@ function assertTopicsApiAvailable(projectId: string) {
 function invalidFilter(message: string, column: string, allowed: string[]) {
   return createStructuredPublicApiError({
     httpCode: 400,
-    code: "invalid_filter_value",
+    code: "invalid_query",
     message,
     details: { column, allowedValues: allowed },
   });

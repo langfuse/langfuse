@@ -255,7 +255,7 @@ describe("unstable Topics public API", () => {
     expect(error).toBeInstanceOf(StructuredPublicApiError);
     expect(error).toMatchObject({
       httpCode: 400,
-      code: "invalid_filter_value",
+      code: "invalid_query",
       details: {
         column: "constructor",
         allowedValues: ["id", "name", "description", "isBuiltIn", "active"],
