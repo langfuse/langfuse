@@ -76,15 +76,13 @@ function TopicChip({
 }) {
   return (
     <span className="flex min-w-0">
-      <BadgeShell color={treemapBadgeColor(rank)}>
+      <BadgeShell color={treemapBadgeColor(rank)} font="mono">
         <TopicDot rank={rank} />
         <span className="truncate" title={name}>
           {name}
         </span>
         {count !== null && (
-          <span className="text-muted-foreground shrink-0 font-mono">
-            {count} traces
-          </span>
+          <span className="text-muted-foreground shrink-0">{count} traces</span>
         )}
       </BadgeShell>
     </span>
@@ -111,7 +109,7 @@ export function TraceTopicsHoverCard({
       content={
         <div className="flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
           <div className="flex items-center justify-between gap-2 border-b py-2.5">
-            <span className="text-sm font-bold">Topics</span>
+            <span className="text-muted-foreground text-sm">Topics</span>
             <TextLink
               path={`/project/${encodeURIComponent(projectId)}/topics`}
               value="Open in Topics"
@@ -131,7 +129,7 @@ export function TraceTopicsHoverCard({
                 className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground shrink-0 text-sm">
+                  <span className="shrink-0 text-sm font-bold">
                     {facet.name}
                   </span>
                   {topic && (
@@ -159,9 +157,12 @@ export function TraceTopicsHoverCard({
       }
     >
       {({ getTriggerProps }) => (
-        <span className="inline-flex min-w-0" {...getTriggerProps()}>
+        <span
+          className="hover:bg-muted inline-flex min-w-0 cursor-pointer rounded-sm px-2"
+          {...getTriggerProps()}
+        >
           {lead?.topicName ? (
-            <BadgeShell color="ghost" interactive>
+            <BadgeShell color="ghost" font="mono">
               <TopicDot rank={leadRank} />
               <span className="truncate" title={lead.topicName}>
                 {lead.topicName}
@@ -173,7 +174,7 @@ export function TraceTopicsHoverCard({
               )}
             </BadgeShell>
           ) : (
-            <Badge color="ghost" text="Topics" interactive />
+            <Badge color="ghost" font="mono" text="Topics" title="" />
           )}
         </span>
       )}
