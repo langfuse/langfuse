@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, useState } from "react";
 import preview from "../../../../.storybook/preview";
 import DiffViewer from "@/src/components/DiffViewer";

@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -25,6 +25,7 @@ const allColors = Object.keys({
   green: true,
   ghost: true,
   filled: true,
+  filledOnMuted: true,
   violetTint: true,
   skyTint: true,
   emeraldTint: true,
@@ -35,6 +36,7 @@ const allColors = Object.keys({
   orangeTint: true,
   limeTint: true,
   fuchsiaTint: true,
+  inverted: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});
@@ -73,6 +75,10 @@ export const WithTrailingIcon = meta.story({
 
 export const Small = meta.story({
   args: { text: "DEBUG", size: "sm" },
+});
+
+export const Large = meta.story({
+  args: { text: "# 16", size: "lg", color: "inverted", font: "mono" },
 });
 
 export const GhostInteractive = meta.story({

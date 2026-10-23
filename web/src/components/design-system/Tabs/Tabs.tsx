@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva } from "class-variance-authority";
-import { EllipsisVertical, type LucideIcon } from "lucide-react";
+import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
@@ -16,8 +17,6 @@ import { cn } from "@/src/utils/tailwind";
 
 type TabsVariant = "inset" | "underline";
 type TabsInsetSize = "sm" | "md";
-/** `navigation` is the underline look for link tabs: the page header owns the divider. */
-type TabsLook = TabsVariant | "navigation";
 
 const rootFillClassName =
   "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden";
@@ -34,7 +33,6 @@ const tabsListVariants = cva(
         inset:
           "bg-control-track/60 dark:bg-muted text-foreground-tertiary relative isolate justify-center rounded-md p-0.5",
         underline: "h-9 shrink-0 justify-start border-b",
-        navigation: "h-9 shrink-0 justify-start",
       },
       size: {
         sm: "",
@@ -56,7 +54,7 @@ const tabsListVariants = cva(
       { look: "inset", size: "md", class: "h-7" },
       { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
       {
-        look: ["underline", "navigation"],
+        look: "underline",
         layout: ["default", "packed"],
         class: "flex w-full",
       },
@@ -77,8 +75,6 @@ const tabsTriggerVariants = cva(
           "relative z-1 min-w-0 rounded-sm dark:data-[state=active]:text-primary",
         underline:
           "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-4 text-sm",
-        navigation:
-          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-3 text-sm",
       },
       size: {
         sm: "px-2 text-xs",
@@ -152,7 +148,7 @@ type TabsListProps = {
 );
 
 const TabsListContext = React.createContext<{
-  look: TabsLook;
+  look: TabsVariant;
   size?: TabsInsetSize;
 } | null>(null);
 
@@ -167,8 +163,7 @@ function TabsList({
   variant,
 }: TabsListProps) {
   const inRoot = React.use(TabsRootContext) !== null;
-  const look: TabsLook =
-    variant === "underline" && !inRoot ? "navigation" : variant;
+  const look = variant;
   const listRef = React.useRef<HTMLDivElement>(null);
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
   const hasSlidingIndicator = look === "inset";
@@ -266,10 +261,13 @@ function TabsList({
 
   const className = tabsListVariants({ gap, layout, look, size });
 
-  if (look === "navigation") {
+  if (!inRoot) {
     return (
       <TabsListContext value={{ look }}>
-        <nav aria-label={ariaLabel} className={className}>
+        <nav
+          aria-label={ariaLabel}
+          className={cn(className, "w-max min-w-full")}
+        >
           {children}
         </nav>
       </TabsListContext>
@@ -299,13 +297,15 @@ function TabsList({
 
 type TabsTriggerProps = {
   disabled?: boolean;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   /** Marks an internal-only feature with the Internal badge, in the row and in the overflow menu. */
   internal?: boolean;
 } & (
   | {
       /** Preferred for plain-text trigger content. */
       label: string;
+      /** Shown after the label in regular weight, e.g. "Called 6". */
+      count?: number;
       /** Rich tooltip on the label; replaces the native title. */
       tooltip?: string;
       children?: never;
@@ -313,6 +313,7 @@ type TabsTriggerProps = {
     }
   | {
       label?: never;
+      count?: never;
       tooltip?: never;
       /** Rich-content escape hatch. */
       children: React.ReactNode;
@@ -333,14 +334,16 @@ type TabsTriggerProps = {
 function TabsTrigger(props: TabsTriggerProps) {
   // Outside a Tabs.List, fall back to the underline look instead of crashing.
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
-  const { children, disabled, icon, internal, label, title, tooltip } = props;
+  const { children, count, disabled, icon, internal, label, title, tooltip } =
+    props;
   const className = tabsTriggerVariants({ look: list.look, size: list.size });
-  const nativeTitle = tooltip ? undefined : (label ?? title);
+  const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const content = (
     <TabsTriggerContent
       icon={icon}
       internal={internal}
       label={label}
+      count={count}
       tooltip={tooltip}
     >
       {children}
@@ -378,21 +381,22 @@ function TabsTrigger(props: TabsTriggerProps) {
 
 function TabsTriggerContent({
   children,
+  count,
   icon: Icon,
   internal,
   label,
   tooltip,
 }: Pick<
   TabsTriggerProps,
-  "children" | "icon" | "internal" | "label" | "tooltip"
+  "children" | "count" | "icon" | "internal" | "label" | "tooltip"
 >) {
   return (
     <>
-      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
+      {Icon ? <Icon aria-hidden="true" size="base" /> : null}
       {label === undefined ? (
         children
       ) : (
-        <TabsTriggerLabel label={label} tooltip={tooltip} />
+        <TabsTriggerLabel label={label} count={count} tooltip={tooltip} />
       )}
       {/* In a tight row the badge gives way before the label. */}
       {internal ? (
@@ -406,12 +410,25 @@ function TabsTriggerContent({
 
 function TabsTriggerLabel({
   label,
+  count,
   tooltip,
-}: Pick<TabsTriggerProps, "tooltip"> & { label: string }) {
+}: Pick<TabsTriggerProps, "count" | "tooltip"> & { label: string }) {
+  const text = (
+    <>
+      {label}
+      {count !== undefined ? (
+        <span className="font-normal tabular-nums"> {count}</span>
+      ) : null}
+    </>
+  );
+
   if (!tooltip) {
     return (
-      <span className={tabsTriggerLabelClassName} title={label}>
-        {label}
+      <span
+        className={tabsTriggerLabelClassName}
+        title={labelText(label, count)}
+      >
+        {text}
       </span>
     );
   }
@@ -420,11 +437,16 @@ function TabsTriggerLabel({
     <Tooltip label={tooltip}>
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className={tabsTriggerLabelClassName}>
-          {label}
+          {text}
         </span>
       )}
     </Tooltip>
   );
+}
+
+function labelText(label: string | undefined, count: number | undefined) {
+  if (label === undefined || count === undefined) return label;
+  return `${label} ${count}`;
 }
 
 function TabsInternalBadge() {
@@ -445,7 +467,9 @@ function TabsOverflowList({
   const measureKey = JSON.stringify(
     triggers.map((trigger) => [
       trigger.props.value,
-      trigger.props.label ?? trigger.props.title ?? null,
+      labelText(trigger.props.label, trigger.props.count) ??
+        trigger.props.title ??
+        null,
     ]),
   );
   const { availableRef, measureRef, visibleIndices } = useTabsOverflow<
@@ -491,6 +515,7 @@ function TabsOverflowList({
                 icon={trigger.props.icon}
                 internal={trigger.props.internal}
                 label={trigger.props.label}
+                count={trigger.props.count}
               >
                 {trigger.props.children}
               </TabsTriggerContent>
@@ -523,7 +548,7 @@ function TabsOverflowList({
                   id: trigger.props.value,
                   onClick: () => selectFromMenu(trigger.props.value),
                   title:
-                    trigger.props.label ??
+                    labelText(trigger.props.label, trigger.props.count) ??
                     trigger.props.title ??
                     trigger.props.value,
                   tooltip: trigger.props.tooltip,

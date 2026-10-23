@@ -2,7 +2,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -87,7 +87,7 @@ export function MobileFiltersSheet({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 shrink-0 gap-2">
-          <SlidersHorizontal className="icon-base text-icon-foreground" />
+          <SlidersHorizontal size="base" color="default" />
           <span>Filters</span>
           {activeCount > 0 && (
             <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">
@@ -123,7 +123,7 @@ export function MobileFiltersSheet({
                 aria-label="Close filters"
                 className="h-8 w-8 shrink-0"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </SheetClose>
           </div>

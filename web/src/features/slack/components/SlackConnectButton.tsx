@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { SiSlack } from "react-icons/si";
+import { SiSlack } from "@langfuse/icons/si";
 import { api } from "@/src/utils/api";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 
@@ -195,7 +195,7 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
       size={size}
       className="flex items-center gap-2"
     >
-      <SiSlack className="icon-base" />
+      <SiSlack size="base" />
       {showText && <span>{isConnecting ? "Connecting..." : buttonText}</span>}
     </Button>
   );

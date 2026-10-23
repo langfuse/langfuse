@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";

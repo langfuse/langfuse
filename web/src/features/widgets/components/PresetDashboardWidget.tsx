@@ -7,7 +7,7 @@ import {
   GripVerticalIcon,
   MoreVerticalIcon,
   TrashIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import type { ResolvedReadPath } from "@/src/features/events";
@@ -249,7 +249,10 @@ export function PresetDashboardWidget({
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-aria-expanded:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
-          <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block" />
+          <GripVerticalIcon
+            size="base"
+            __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+          />
         )}
         <DropdownMenu
           placement="bottom-end"
@@ -293,7 +296,7 @@ export function PresetDashboardWidget({
               aria-label="Widget actions"
               {...getTriggerProps()}
             >
-              <MoreVerticalIcon className="icon-base" />
+              <MoreVerticalIcon size="base" />
             </button>
           )}
         </DropdownMenu>

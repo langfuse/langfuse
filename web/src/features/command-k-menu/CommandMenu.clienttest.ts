@@ -1,4 +1,10 @@
-import { getIdNavigationItem, getSearchAnalytics } from "./CommandMenu";
+import {
+  addRecentEntry,
+  buildCreateActions,
+  getIdNavigationItem,
+  getSearchAnalytics,
+  getVisibleRecents,
+} from "./CommandMenu";
 
 describe("getIdNavigationItem", () => {
   it("filters traces by an exact 32-character hex ID", () => {
@@ -59,5 +65,83 @@ describe("getIdNavigationItem", () => {
       queryType: "observation_id",
     });
     expect(getSearchAnalytics(search)).not.toHaveProperty("search");
+  });
+});
+
+describe("addRecentEntry", () => {
+  const entry = (url: string) => ({ title: url, url, type: "dashboard" });
+
+  it("moves a repeated pick to the top instead of duplicating it", () => {
+    expect(
+      addRecentEntry([entry("/a"), entry("/b")], entry("/b")).map((e) => e.url),
+    ).toEqual(["/b", "/a"]);
+  });
+
+  it("keeps the four most recent picks", () => {
+    const recents = ["/1", "/2", "/3", "/4"].map(entry);
+    expect(addRecentEntry(recents, entry("/5")).map((e) => e.url)).toEqual([
+      "/5",
+      "/1",
+      "/2",
+      "/3",
+    ]);
+  });
+});
+
+describe("getVisibleRecents", () => {
+  it("hides pages and create actions the menu no longer offers", () => {
+    const recents = [
+      { title: "Prompts", url: "/p/prompts", type: "main_navigation" },
+      { title: "Alerts", url: "/p/alerts", type: "main_navigation" },
+      {
+        title: "New dashboard",
+        url: "/p/dashboards/new",
+        type: "create_action",
+      },
+      { title: "New prompt", url: "/p/prompts/new", type: "create_action" },
+      { title: "Cost", url: "/p/dashboards/1", type: "dashboard" },
+    ];
+
+    expect(
+      getVisibleRecents(recents, {
+        navUrls: new Set(["/p/prompts"]),
+        createUrls: new Set(["/p/prompts/new"]),
+      }).map((e) => e.title),
+    ).toEqual(["Prompts", "New prompt", "Cost"]);
+  });
+});
+
+describe("buildCreateActions", () => {
+  const navItems = [
+    { href: "/project/[projectId]/dashboards", url: "/project/p1/dashboards" },
+    { href: "/project/[projectId]/evals", url: "/project/p1/evals/legacy" },
+  ];
+
+  it("offers an action only for sidebar pages the user can write to", () => {
+    const actions = buildCreateActions({
+      navItems,
+      projectId: "p1",
+      canCreate: (scope) => scope === "dashboards:CUD",
+    });
+
+    expect([...actions.byNavUrl.values()].flat().map((a) => a.url)).toEqual([
+      "/project/p1/dashboards/new",
+    ]);
+    expect(actions.standalone).toEqual([]);
+  });
+
+  it("follows the sidebar URL, so legacy projects get the legacy create page", () => {
+    const actions = buildCreateActions({
+      navItems,
+      projectId: "p1",
+      canCreate: () => true,
+    });
+
+    expect(actions.byNavUrl.get("/project/p1/evals/legacy")?.[0]?.url).toBe(
+      "/project/p1/evals/legacy/new",
+    );
+    expect(actions.standalone.map((a) => a.url)).toEqual([
+      "/project/p1/automations?view=create",
+    ]);
   });
 });

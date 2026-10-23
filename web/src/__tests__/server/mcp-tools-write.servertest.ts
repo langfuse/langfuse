@@ -44,6 +44,7 @@ vi.mock(
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import {
   createInAppAgentMcpContext,
   createMcpTestSetup,
@@ -2043,6 +2044,35 @@ describe("MCP Write Tools", () => {
         }),
       ).resolves.toBeDefined();
     });
+
+    it("rejects a loopback endpoint without persisting it", async () => {
+      const setup = await createMcpTestSetup();
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+      });
+      // HTTPS passes Cloud's protocol check, so this pins the loopback block
+      // in both deployment modes.
+      await expect(
+        handleConfigureExternalMediaStorage(
+          {
+            type: "S3_COMPATIBLE",
+            bucketName: "media-bucket",
+            endpoint: "https://127.0.0.1:9000",
+            region: "us-east-1",
+            accessKeyId: "test-access-key",
+            secretAccessKey: "test-secret-key",
+            forcePathStyle: true,
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow("Blocked IP address detected");
+      await expect(
+        prisma.externalMediaStorageIntegration.findUnique({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBeNull();
+    });
   });
 
   describe("in-app-agent protected prompt labels", () => {
@@ -2115,7 +2145,9 @@ describe("MCP Write Tools", () => {
       if (testCase.expectForbidden) {
         await expect(update).rejects.toMatchObject({
           name: "McpError",
-          message: expect.stringContaining("Access forbidden"),
+          code: ErrorCode.InvalidRequest,
+          message:
+            "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
         });
 
         const prompt = await prisma.prompt.findFirst({
@@ -2164,7 +2196,8 @@ describe("MCP Write Tools", () => {
         ),
       ).rejects.toMatchObject({
         name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        code: ErrorCode.InvalidRequest,
+        message: `MCP error -32600: You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabel}`,
       });
 
       await expect(
@@ -2205,7 +2238,9 @@ describe("MCP Write Tools", () => {
         ),
       ).rejects.toMatchObject({
         name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        code: ErrorCode.InvalidRequest,
+        message:
+          "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
       });
     });
   });

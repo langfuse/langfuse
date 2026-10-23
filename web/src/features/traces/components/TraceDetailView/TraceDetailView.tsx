@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
@@ -10,6 +11,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -51,7 +53,6 @@ import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
@@ -344,7 +345,7 @@ function LoadedTraceDetailView({
                           onCheckedChange={handleBetaToggle}
                         />
                         <span className="text-muted-foreground text-xs">
-                          Beta
+                          Optimized
                         </span>
                       </div>
                     )}
@@ -411,14 +412,6 @@ function LoadedTraceDetailView({
               />
             )}
 
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
-            )}
-
             {/* Preview tab content */}
             <Tabs.Content value="preview" layout="fill">
               <div
@@ -426,7 +419,7 @@ function LoadedTraceDetailView({
                   "flex min-h-0 w-full flex-1 flex-col",
                   currentView === "json-beta" && isJSONBetaVirtualized
                     ? "overflow-hidden"
-                    : "overflow-auto pb-4",
+                    : cn("overflow-auto pb-4", IO_STICKY_HEADERS_CLASS),
                   // The JSON beta viewer runs edge to edge with its own toolbar.
                   currentView !== "json-beta" && "px-4",
                 )}

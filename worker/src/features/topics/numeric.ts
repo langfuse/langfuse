@@ -78,14 +78,19 @@ export async function runTopicClustering(
       clearTimeout(timeout);
       reject(error);
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timeout);
       if (outputExceeded) {
         reject(new Error("Topics numerical fit returned oversized output"));
         return;
       }
       if (code !== 0) {
-        reject(new Error(`Topics numerical fit failed: ${errorOutput}`));
+        // A kill (e.g. out of memory) leaves no stderr; the signal names it.
+        reject(
+          new Error(
+            `Topics numerical fit failed (exit code ${code}, signal ${signal}): ${errorOutput}`,
+          ),
+        );
         return;
       }
       try {

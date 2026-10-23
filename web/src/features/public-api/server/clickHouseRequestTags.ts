@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest } from "next";
 
 /**
@@ -22,6 +23,7 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/media/[mediaId]",
   "/api/public/models/[modelId]",
   "/api/public/observations/[observationId]",
+  "/api/public/organizations/llm-connections/[id]",
   "/api/public/projects/[projectId]",
   "/api/public/projects/[projectId]/apiKeys",
   "/api/public/projects/[projectId]/apiKeys/[apiKeyId]",
@@ -35,6 +37,8 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/unstable/dashboards/[dashboardId]",
   "/api/public/unstable/dashboards/[dashboardId]/placements",
   "/api/public/unstable/dashboards/[dashboardId]/placements/[placementId]",
+  "/api/public/skills/[skillName]",
+  "/api/public/skills/[skillName]/versions/[skillVersion]",
   "/api/public/unstable/skills/[skillName]",
   "/api/public/unstable/skills/[skillName]/versions/[skillVersion]",
   "/api/public/v2/datasets/[datasetName]",

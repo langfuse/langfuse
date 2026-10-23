@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
+import { CheckCircle2, Circle, TrashIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { type PromptVariable } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
@@ -29,9 +29,9 @@ export const PromptVariableComponent: React.FC<{
     deletePromptVariable(name);
   };
   const isUsedIcon = isUsed ? (
-    <CheckCircle2 className="icon-base" color="green" />
+    <CheckCircle2 size="base" __rawStyle={{ color: "green" }} />
   ) : (
-    <Circle className="icon-base" color="grey" />
+    <Circle size="base" __rawStyle={{ color: "grey" }} />
   );
   const isUsedTooltip = isUsed
     ? "Variable is in use"
@@ -57,7 +57,7 @@ export const PromptVariableComponent: React.FC<{
           onClick={handleDeleteVariable}
           className="p-0"
         >
-          {!isUsed && <TrashIcon className="icon-base text-icon-foreground" />}
+          {!isUsed && <TrashIcon size="base" color="default" />}
         </Button>
       </div>
 

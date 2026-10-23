@@ -1,7 +1,7 @@
 "use client";
 
 import { cva } from "class-variance-authority";
-import { PaperclipIcon, UploadIcon } from "lucide-react";
+import { PaperclipIcon, UploadIcon } from "@langfuse/icons";
 import { useMemo } from "react";
 import { DropzoneController } from "../DropzoneController/DropzoneController";
 import { cn } from "@/src/utils/tailwind";
@@ -135,7 +135,7 @@ export const Dropzone = ({
           <input {...getInputProps()} disabled={isDisabled} />
           {variant === "compact" && (
             <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-              <PaperclipIcon className="icon-base" />
+              <PaperclipIcon size="base" />
               <span className="truncate" title={contentText}>
                 {contentText}
               </span>
@@ -144,7 +144,7 @@ export const Dropzone = ({
           {variant === "panel" && (
             <div className="flex flex-col items-center justify-center">
               <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-                <UploadIcon className="icon-base" />
+                <UploadIcon size="base" />
               </div>
               <p
                 className={cn(

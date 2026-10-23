@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
@@ -9,13 +10,14 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 import { useStore } from "zustand";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter, type NextRouter } from "next/router";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
+import { traceNodeId } from "../fns/treeBuilding";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -38,7 +40,7 @@ function CloseReviewPanelButton() {
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
-      <X className="icon-sm text-icon-foreground" />
+      <X size="sm" color="default" />
     </Button>
   );
 }
@@ -129,7 +131,12 @@ function TraceAnnotationPanel() {
   const { isV4 } = useReadPath();
   const observation = observations.find((item) => item.id === selectedNodeId);
   const active = useRouter().query.annotation === "open";
-  if (selectedNodeId && selectedNodeId !== trace.id && !observation) {
+  if (
+    selectedNodeId &&
+    selectedNodeId !== trace.id &&
+    selectedNodeId !== traceNodeId(trace.id) &&
+    !observation
+  ) {
     return (
       <div className="p-4 text-sm" hidden={!active}>
         Loading annotation…

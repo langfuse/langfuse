@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores";
-import { FlaskConical, List } from "lucide-react";
+import { FlaskConical, List } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import {
@@ -110,7 +111,7 @@ function DatasetCompareLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -136,7 +137,7 @@ function DatasetCompareLegacy() {
               variant="outline"
               hideClearButton
               iconLeft={
-                <List className="icon-base text-icon-foreground mr-2" />
+                <List size="base" color="default" __rawClassName="mr-2" />
               }
               options={runs.map((run) => ({
                 key: run.key,

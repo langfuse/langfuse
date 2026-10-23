@@ -725,14 +725,17 @@ describe(
             imageBytes.toString("base64"),
             "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=bytes@@@",
           );
+          // The TS text scan misses escaped MIME separators and bare base64
+          // provider data; only native extraction handles them.
+          const expandedJsonString = JSON.stringify({ image: expandedImage });
+          const earlyExpandedValues = {
+            json_string: expandedJsonString,
+            escaped_json_string: expandedJsonString,
+            quoted_provider: expandedProvider,
+          };
           expectSdkMetadataExpansion(
             comparison,
-            uploadOutcome === "success"
-              ? {
-                  escaped_json_string: JSON.stringify({ image: expandedImage }),
-                  quoted_provider: expandedProvider,
-                }
-              : {},
+            uploadOutcome === "success" ? earlyExpandedValues : {},
           );
           expect(comparison.earlyTs.sideEffects).toEqual(
             comparison.originalTs.sideEffects,
@@ -757,10 +760,11 @@ describe(
             uploadOutcome === "success"
               ? "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@"
               : dataUri;
-          const expectedJsonString =
-            uploadOutcome === "success"
-              ? JSON.stringify({ image: expectedImage })
-              : structuredMetadata.jsonString;
+          const inlineJsonLookingValues = {
+            json_string: JSON.stringify({ image: expectedImage }),
+            escaped_json_string: structuredMetadata.escapedJsonString,
+            quoted_provider: structuredMetadata.providerJson,
+          };
           expect(comparison.originalTs.storedRows).toHaveLength(1);
           const originalMetadata = Object.fromEntries(
             eventMetadataByPath(comparison.originalTs.storedRows[0]),
@@ -768,9 +772,7 @@ describe(
           expect(originalMetadata).toMatchObject({
             quoted: "quoted value",
             "asset.attachment.image": expectedImage,
-            json_string: expectedJsonString,
-            escaped_json_string: structuredMetadata.escapedJsonString,
-            quoted_provider: structuredMetadata.providerJson,
+            ...inlineJsonLookingValues,
             truncated: '{"value":"cut',
             "collision.key": "blob wins",
           });
@@ -785,9 +787,7 @@ describe(
               asset: JSON.stringify({
                 attachment: { image: expectedImage },
               }),
-              json_string: expectedJsonString,
-              escaped_json_string: structuredMetadata.escapedJsonString,
-              quoted_provider: structuredMetadata.providerJson,
+              ...inlineJsonLookingValues,
               truncated: '{"value":"cut',
               collision: JSON.stringify({ key: "blob wins" }),
               "collision.key": "dotted loses",
@@ -797,10 +797,7 @@ describe(
             const earlyMetadata = Object.fromEntries(
               eventMetadataByPath(comparison.earlyTs.storedRows[0]),
             );
-            expect(earlyMetadata).toMatchObject({
-              escaped_json_string: JSON.stringify({ image: expandedImage }),
-              quoted_provider: expandedProvider,
-            });
+            expect(earlyMetadata).toMatchObject(earlyExpandedValues);
           }
         } finally {
           preparation.mockRestore();

@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 import {
   ConnectedSessionConversationTimeline,
@@ -34,6 +36,15 @@ export function ConnectedModernSessionBodyTimeline({
   sessionId,
   openPeek,
 }: ConnectedModernSessionBodyTimelineProps) {
+  const [transcriptSourceParam] = useQueryParam(
+    "transcriptSource",
+    StringParam,
+  );
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const transcriptSource =
+    internalFeaturesEnabled && transcriptSourceParam === "root"
+      ? "root"
+      : "generations";
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
   const [timelineVisibleTraceIds, setTimelineVisibleTraceIds] = useState<
@@ -99,6 +110,7 @@ export function ConnectedModernSessionBodyTimeline({
     projectId,
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
+    transcriptSource,
   });
   const allTranscriptsLoaded =
     tracesState.type === "loaded" &&
@@ -109,6 +121,7 @@ export function ConnectedModernSessionBodyTimeline({
           traceId: trace.id,
           timestamp: trace.timestamp,
           fallbackToRootIO: true,
+          transcriptSource,
         }) !== undefined,
     );
   const searchQuery = allTranscriptsLoaded

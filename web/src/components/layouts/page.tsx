@@ -1,14 +1,15 @@
+/* eslint-disable @repo/component-file-structure */
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
 import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
-import { MobileTopBar } from "@/src/components/layouts/mobile-top-bar";
-import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
+import { MobileTopBar } from "@/src/components/layouts/MobileTopBar";
+import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
 type PageContainerProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
   scrollable?: boolean;
   withPadding?: boolean;

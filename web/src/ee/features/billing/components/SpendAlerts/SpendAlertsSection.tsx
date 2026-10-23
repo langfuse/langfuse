@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 
@@ -26,7 +26,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
           </div>
 
           <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="icon-base mr-2" />
+            <Plus size="base" __rawClassName="mr-2" />
             Create Alert
           </Button>
         </div>

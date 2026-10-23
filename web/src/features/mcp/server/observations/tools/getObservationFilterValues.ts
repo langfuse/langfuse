@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   ObservationTypeDomain,
   isNumericEventsTableColumnId,
@@ -11,6 +12,7 @@ import {
 } from "@/src/features/events/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
@@ -45,8 +47,16 @@ type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  fromStartTime: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "Optional inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Use the same time window as the observations you intend to search.",
+    ),
+  toStartTime: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "Optional exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
+    ),
   observationType: ObservationTypeDomain.optional(),
   isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
@@ -190,6 +200,7 @@ export const [
 
         if (isNumericEventsTableColumnId(eventsColumn)) {
           const range = await getEventFilterNumericRange({
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
             column: eventsColumn,
             projectId: context.projectId,
             startTimeFilter,
@@ -209,6 +220,7 @@ export const [
         const offset = decodeObservationFilterValueCursor(input.cursor);
 
         const page = await getEventFilterValuePage({
+          clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,

@@ -158,6 +158,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -187,6 +190,17 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
+  LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
+  LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -352,6 +366,11 @@ const EnvSchema = z.object({
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
+  // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+  // attributes onto every exported span.
+  OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
     .enum(["true", "false"])
@@ -383,14 +402,18 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Optional opt-outs for split-role workers. Unset follows
-  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
+  // Run execution follows LANGFUSE_IN_APP_AGENT_ENABLED unless opted out.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
+  LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Opt in to the AI-features project's production skills with this tag.
+  LANGFUSE_IN_APP_AGENT_SKILLS_TAG: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -421,6 +444,18 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z

@@ -265,6 +265,152 @@ describe("ResetPasswordPage re-authentication", () => {
   });
 });
 
+describe("ResetPasswordPage redirect after saving the password", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    routerState.isReady = true;
+    routerState.query = {};
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: false,
+      region: undefined,
+    });
+    useSessionMock.mockReturnValue({ status: "unauthenticated", data: null });
+    mutateAsyncMock.mockResolvedValue({ success: true });
+    signInMock.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const waitForRedirect = async () => {
+    await flushPasswordSubmit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+  };
+
+  const setFirstPassword = async () => {
+    render(
+      <ResetPasswordPage
+        passwordResetAvailable
+        initialEmail="new@example.com"
+        intent="setup"
+      />,
+    );
+    submitPasswordForm({
+      code: "654321",
+      passwordLabel: "Password",
+      confirmPasswordLabel: "Confirm Password",
+      submitLabel: "Set password",
+    });
+    await waitForRedirect();
+  };
+
+  it("sends a first self-hosted password setup through onboarding", async () => {
+    await setFirstPassword();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/onboarding");
+  });
+
+  it("carries a self-hosted deep link through onboarding", async () => {
+    routerState.query = { targetPath: "/project/p1/traces?view=v1" };
+
+    await setFirstPassword();
+
+    expect(routerPushMock).toHaveBeenCalledWith(
+      "/onboarding?targetPath=%2Fproject%2Fp1%2Ftraces%3Fview%3Dv1",
+    );
+  });
+
+  it("still drops a Cloud deep link that isn't a demo link", async () => {
+    routerState.query = { targetPath: "/project/p1/traces" };
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: true,
+      region: "EU",
+    });
+
+    await setFirstPassword();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/onboarding");
+  });
+
+  it("keeps an ordinary self-hosted reset going to /", async () => {
+    routerState.query = { targetPath: "/project/p1/traces" };
+    useSessionMock.mockReturnValue({
+      status: "authenticated",
+      data: { user: { email: "user@example.com", hasPassword: true } },
+    });
+
+    render(
+      <ResetPasswordPage
+        passwordResetAvailable
+        initialEmail="user@example.com"
+        intent="reset"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send email" }));
+    submitPasswordForm({
+      code: "123456",
+      passwordLabel: "New Password",
+      confirmPasswordLabel: "Confirm New Password",
+      submitLabel: "Update Password",
+    });
+    await waitForRedirect();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/");
+  });
+
+  /** An SSO user adding a password from Account settings: reset page, no password yet. */
+  const addPasswordAsExistingUser = async () => {
+    useSessionMock.mockReturnValue({
+      status: "authenticated",
+      data: { user: { email: "sso@example.com", hasPassword: false } },
+    });
+    render(
+      <ResetPasswordPage
+        passwordResetAvailable
+        initialEmail="sso@example.com"
+        intent="reset"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send email" }));
+    submitPasswordForm({
+      code: "123456",
+      passwordLabel: "Password",
+      confirmPasswordLabel: "Confirm Password",
+      submitLabel: "Set password",
+    });
+    await waitForRedirect();
+  };
+
+  it("sends an existing self-hosted user who adds a password straight to /", async () => {
+    await addPasswordAsExistingUser();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/");
+  });
+
+  it("sends an existing self-hosted user who adds a password straight to their deep link", async () => {
+    routerState.query = { targetPath: "/project/p1/traces?view=v1" };
+
+    await addPasswordAsExistingUser();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/project/p1/traces?view=v1");
+  });
+
+  it("keeps Cloud routing an existing user who adds a password through onboarding", async () => {
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: true,
+      region: "EU",
+    });
+
+    await addPasswordAsExistingUser();
+
+    expect(routerPushMock).toHaveBeenCalledWith("/onboarding");
+  });
+});
+
 describe("reset-password page ?email= prefill", () => {
   beforeEach(() => {
     vi.clearAllMocks();

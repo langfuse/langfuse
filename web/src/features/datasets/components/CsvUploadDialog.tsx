@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import {
   Dialog,
@@ -13,7 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { File } from "lucide-react";
+import { File } from "@langfuse/icons";
 
 type CsvUploadDialogProps = {
   open: boolean;
@@ -52,7 +53,7 @@ export function CsvUploadDialog({
             {csvFile && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <File className="text-muted-foreground icon-base" />
+                  <File size="base" color="muted" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[300px]">
                   {csvFile.name}

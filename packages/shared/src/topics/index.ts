@@ -196,6 +196,15 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
+      // Generate topics over this range once every batch has finished.
+      thenUpdate: z
+        .object({
+          timeRange: topicTimeRangeSchema.refine(
+            ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+            "Select a time range of at most 93 days.",
+          ),
+        })
+        .optional(),
     })
     .strict(),
   z
@@ -258,7 +267,8 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   projectId: string;
   facetId: string;
   facetVersion: number;
-  triggerType: "manual_poc";
+  /** Processing path that wrote the row; rows from before the automatic/manual split hold "manual_poc". */
+  triggerType: "automatic" | "manual" | "manual_poc";
   environment: string;
   traceName: string;
   unitStartTime: string;

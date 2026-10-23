@@ -28,6 +28,10 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Billing ledger: the append-only `billable_events` table (created by
+  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
+  migration-managed) read via `src/server/repositories/billable-events.ts`.
+  Keep it out of every delete, retention and cleaner path.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
@@ -43,11 +47,12 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
-  `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
-  catalog parity). Compile only through `compileClickhouseQuery` in
-  `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
-  harness (`src/server/repositories/goldenHarness.ts`, capturing at the
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes,
+  single-project tenancy injection, per-table soft-delete filtering and
+  dedup lowering, virtual views, catalog parity). Compile only through
+  `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL
+  correctness is proven by a golden-SQL harness
+  (`src/server/repositories/goldenHarness.ts`, capturing at the
   `src/server/repositories/clickhouse.ts` exec seam and normalizing via
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
@@ -80,11 +85,23 @@
     definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Reads require a time
-    range; replacement includes the source minute, with run/origin suffixes
-    for assignments. Definition bounds retain original creation dates on reuse.
+    Facet versions use `(projectId, facetId, version)`. Data reads require a time
+    range; `hasStoredTopicSummaries(projectId)` checks project onboarding
+    readiness across all stored trace summaries without loading their contents.
+    A positive result is cached per project in Redis for 30 minutes, skipping
+    subsequent ClickHouse probes; cache failures fall back to ClickHouse.
+    Negative results are cached for 30 seconds, bounding the onboarding delay
+    after the first summaries arrive while avoiding repeated empty-project scans.
+    Replacement includes the source minute, with run/origin suffixes for assignments. Definition bounds
+    retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
+    `getTopicClusteringSummaries` requires `{ maxRows, maxBytes }`;
+    preflight and streamed limits reject the whole cohort rather than sample it.
+    `getTopicClusteringSummaryStats` returns only counts and byte estimates for
+    automatic window selection, with the same eligibility as the full read.
+    `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
+    These limits cover admitted data, not total process or native-fit memory.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
@@ -96,9 +113,15 @@
     execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
     connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
-    calls using InvokeModel. Text accepts optional internal generation tracing;
+    calls using InvokeModel. Setup probes use the same Topics transport. Topics
+    opts into the native OpenAI Chat provider per call for official hosts; keep
+    saved evaluator routing independent. Text accepts optional generation tracing;
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
+    Failed text calls retain bounded stop-reason/count diagnostics through
+    `getTopicTextResponseMetadata(error)` without changing the original error.
+    Keep response content out of these diagnostics; opted-in generation traces
+    remain the content-bearing path.
   - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing state). Saving keeps the stored
     state and pause (a first save starts off) and tests every slot with a real
@@ -116,7 +139,7 @@
     project's Topics config, Topics rule or facet evaluators calls
     `invalidateTopicsProcessingActive` after it commits;
     `invalidateProjectEvalConfigCaches` already does.
-  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+  - `loadTopicTranscript`: in-memory source assembly for worker inference.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
     retain their original version. Token counting belongs to worker model calls.
@@ -129,6 +152,26 @@
   `orderObservations`, then pass the enriched result and optional
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
+  `schema.ts` owns the current transcript shape; `types.ts` infers its output
+  types. Message/part types come from `src/utils/normalized-io/schema.ts`.
+
+- `src/server/traceBatch`: versioned input storage through the server barrel.
+  `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
+  with `put` and `get`, sharing a project/trace/revision key in the event bucket
+  and one lazily initialized provider client across factory calls. Consumers
+  receive the storage object. The writer takes `TraceBatchInputData` with transcript
+  and required `traceContext`; session ID and trace name are nullable. The reader
+  requires and returns both. Context timestamps
+  stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
+  units; the reader validates the stored version and restores message dates, and
+  throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
+  callers treat as retryable. Same-revision PUTs may overwrite.
+  `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
+  transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
+  transcript adapters and `storage-schema.ts` only probes the version. Compatible
+  optional additions may extend V1; anything else starts a new version module
+  with its own adapters. Schema versions and readiness revisions are independent;
+  see the trace-batch README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
@@ -173,7 +216,10 @@
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
   run requests/status/errors, approval events, constants, message helpers,
-  and interrupt parsing. Never re-export server code here.
+  interrupt parsing, and the questionnaire tool contract (`questionnaire.ts`:
+  args, positional answers carried on `approvalDecision` requests, result, and
+  the shared resolver web and worker both validate with). Never re-export
+  server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
   `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
@@ -300,6 +346,9 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
+  Put EE logic there when both `web` and `worker` must import it; keep OSS
+  code paths out of it.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
 - Adding vocabulary here — a field on a shared schema, an option on a shared

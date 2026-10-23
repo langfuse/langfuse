@@ -1,7 +1,7 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, react/no-unstable-nested-components */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -26,7 +26,7 @@ import {
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
+import { Copy, Check, ExternalLink, SquarePen } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
@@ -35,9 +35,8 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { type ScoreLevel } from "@/src/components/score-tag";
+import { type ScoreLevel } from "@/src/components/ScoreTag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -175,7 +174,7 @@ const ScoreItem = ({
       placement="bottom-start"
       onClick={(event) => event.stopPropagation()}
       content={
-        <div className="max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
+        <div className="ph-no-capture max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
           <div className="flex flex-col gap-3">
             <span className="font-bold">{name}</span>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
@@ -233,7 +232,7 @@ const ScoreItem = ({
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 hover:underline"
               >
-                <ExternalLink className="icon-sm" />
+                <ExternalLink size="sm" />
                 View execution trace
               </Link>
             )}
@@ -371,12 +370,6 @@ const CellMetadataFooter = ({
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
-                  title={describeRunComparison({
-                    baselineName: data.baselineExperimentName,
-                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
-                    currentText: formatLatency(data.latencyMs ?? 0),
-                    verb: "took",
-                  })}
                 />
               )}
             </div>
@@ -401,12 +394,6 @@ const CellMetadataFooter = ({
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
-                title={describeRunComparison({
-                  baselineName: data.baselineExperimentName,
-                  baselineText: formatCost(data.baselineTotalCost ?? 0),
-                  currentText: formatCost(data.totalCost ?? 0),
-                  verb: "cost",
-                })}
               />
             )}
           </div>

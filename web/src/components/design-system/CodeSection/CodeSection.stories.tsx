@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "@langfuse/icons";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";

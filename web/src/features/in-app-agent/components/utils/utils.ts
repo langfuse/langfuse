@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -74,7 +74,11 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getObservationFilterSchema: "Checking observation filters",
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
+  getRequestContext: "Checking request context",
+  getSkill: "Inspecting skill",
   listDashboardWidgets: "Browsing widgets",
+  listLlmConnections: "Browsing LLM connections",
+  listSkills: "Browsing skills",
   loadSkill: "Loading skill",
   loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
@@ -401,7 +405,7 @@ function parseEmbeddedRateLimitError(message: string) {
 function getErrorMessage(error: unknown) {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
   if (!parsedError.success) {
-    return "Assistant request failed. Please try again.";
+    return "Halo request failed. Please try again.";
   }
 
   const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
@@ -411,9 +415,7 @@ function getErrorMessage(error: unknown) {
     return legacyPayload.data.error;
   }
 
-  return (
-    parsedError.data.message ?? "Assistant request failed. Please try again."
-  );
+  return parsedError.data.message ?? "Halo request failed. Please try again.";
 }
 
 export function getDrawerMessages({

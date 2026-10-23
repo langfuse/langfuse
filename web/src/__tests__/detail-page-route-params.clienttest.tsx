@@ -27,7 +27,7 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
 }));
 
 vi.mock("@/src/features/widgets", () => ({
-  WidgetForm: ({ projectId }: { projectId: string }) => (
+  ConnectedWidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
 }));
@@ -76,7 +76,7 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
+vi.mock("@/src/features/annotation-queues/pages/QueueItems", () => ({
   default: ({ queueId }: { queueId?: string }) => (
     <div data-testid="annotation-queue-items">{queueId ?? "mounted"}</div>
   ),

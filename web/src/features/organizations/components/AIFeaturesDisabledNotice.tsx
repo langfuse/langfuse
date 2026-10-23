@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -45,7 +45,7 @@ export function AIFeaturesDisabledNotice({
           className="w-fit"
         >
           Enable in Organization Settings
-          <ExternalLink className="icon-base text-icon-foreground ml-2" />
+          <ExternalLink size="base" color="default" __rawClassName="ml-2" />
         </Button>
       ) : null}
     </div>

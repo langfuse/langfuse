@@ -1,5 +1,10 @@
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { Gauge, ListChecks, ToggleLeft, type LucideIcon } from "lucide-react";
+import {
+  Gauge,
+  ListChecks,
+  ToggleLeft,
+  type IconComponent,
+} from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -7,7 +12,7 @@ export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
   {
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
     summary: string;
     writes: string;
     example: string;
@@ -91,7 +96,7 @@ export function QuestionTypeSelector({
               )}
             >
               <span className="flex items-center gap-1.5 font-bold">
-                <copy.icon className="icon-base shrink-0" />
+                <copy.icon size="base" />
                 {copy.label}
               </span>
               <span className="text-muted-foreground">{copy.summary}</span>

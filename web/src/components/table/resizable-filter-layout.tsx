@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 "use client";
 
 import {
@@ -7,8 +8,8 @@ import {
   cloneElement,
   isValidElement,
 } from "react";
-import { X } from "lucide-react";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { X } from "@langfuse/icons";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -206,7 +207,7 @@ function FilterPanels({
                         emitMobileClose("header");
                       }}
                     >
-                      <X className="icon-base text-icon-foreground" />
+                      <X size="base" color="default" />
                     </Button>
                   </div>
                   {mobileSearch && (

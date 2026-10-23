@@ -20,32 +20,58 @@ import { defineView, fromView } from "./views";
 export function schemaTypeAssertions(): void {
   const db = getClickhouseKysely();
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     .select("environment")
     // @ts-expect-error DateTime column compared to Int
     .where("start_time", "=", 123);
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     .select("environment")
     .where("start_time", ">=", new Date("2026-01-01T00:00:00.000Z"));
 
-  db.selectFrom("events_core").select((eb) => eb.fn.sum("total_cost").as("s"));
+  db.selectFrom("events").select((eb) => eb.fn.sum("total_cost").as("s"));
 
   // Intentionally valid at the TS layer — Kysely does not constrain sum()
   // to numeric columns. The runtime pass in typecheck.ts rejects this.
-  db.selectFrom("events_core").select((eb) => eb.fn.sum("environment").as("s"));
+  db.selectFrom("events").select((eb) => eb.fn.sum("environment").as("s"));
 
-  db.selectFrom("events_core")
+  db.selectFrom("events")
     // @ts-expect-error unknown column is not in the schema
     .select("not_a_column");
 
+  // @ts-expect-error physical events tables are reached through `events` / `events_truncated`
+  db.selectFrom("events_core");
+  // @ts-expect-error physical events tables are reached through `events` / `events_truncated`
+  db.selectFrom("events_full as e");
+
   const view = defineView("environments_view")<{ environment: string }>(() =>
-    db.selectFrom("events_core").select("environment").distinct(),
+    db.selectFrom("events").select("environment").distinct(),
   );
   fromView(view).select("environment");
   fromView(view)
     // @ts-expect-error view is a black box: inner columns are not exposed
     .select("span_id");
+
+  // Named-tuple arrays read as arrays of objects keyed by tuple name; a typo
+  // in the column type would make the row field `never` and reject these.
+  const _skills = db
+    .selectFrom("events")
+    .select(["skills_available", "skills_resource_loaded"]);
+  type SkillsRow = InferResult<typeof _skills>[number];
+  const _available: SkillsRow["skills_available"] = [
+    { langfuseSkillId: null, skillVersion: null, skillName: "s" },
+    { langfuseSkillId: "id", skillVersion: 1, skillName: "s" },
+  ];
+  const _loaded: SkillsRow["skills_resource_loaded"] = [
+    {
+      langfuseSkillId: null,
+      skillVersion: null,
+      skillName: "s",
+      filePath: "f",
+    },
+  ];
+  // @ts-expect-error skills_available elements have no filePath
+  type _NoFilePath = SkillsRow["skills_available"][number]["filePath"];
 }
 
 /**
@@ -60,10 +86,10 @@ export function extensionTypeAssertions(): void {
     .selectFrom("observations")
     .select("environment")
     .$call(
-      arrayJoin({
-        cost_key: mapKeys("cost_details"),
-        cost: mapValues("cost_details"),
-      }),
+      arrayJoin((eb) => ({
+        cost_key: mapKeys(eb.ref("cost_details")),
+        cost: mapValues(eb.ref("cost_details")),
+      })),
     );
   type Widened = InferResult<typeof _widened>[number];
   // Each arrayJoin alias is added to the output row, so it is referenceable
@@ -78,13 +104,27 @@ export function extensionTypeAssertions(): void {
 
   // limitBy preserves the row type: it declares no new columns.
   const _limited = db
-    .selectFrom("events_core")
+    .selectFrom("events")
     .select("span_id")
-    .$call(limitBy({ count: 1, columns: ["span_id"] }));
+    .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] }));
   type Limited = InferResult<typeof _limited>[number];
   type _Span = Limited["span_id"];
   // @ts-expect-error limitBy adds no columns
   type _NoExtra = Limited["cost_key"];
+
+  // Helper columns are references checked against the query's tables.
+  db.selectFrom("events as e")
+    .select("e.span_id")
+    // @ts-expect-error eb.ref resolves against this select's tables
+    .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_idx")] }));
+  db.selectFrom("observations")
+    .select("environment")
+    // @ts-expect-error eb.ref resolves against this select's tables
+    .$call(arrayJoin((eb) => ({ k: mapKeys(eb.ref("cost_detailz")) })));
+  db.selectFrom("observations").select((eb) =>
+    // @ts-expect-error mapKeys takes a Map column, not a String column
+    mapKeys(eb.ref("environment")).as("k"),
+  );
 
   // useFinal preserves the row type: it declares no new columns.
   const _final = db

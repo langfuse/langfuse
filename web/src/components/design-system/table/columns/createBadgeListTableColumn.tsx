@@ -1,5 +1,5 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
+import { type IconProps } from "@langfuse/icons";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 // eslint-disable-next-line boundaries/dependencies
@@ -37,9 +37,9 @@ type NeutralBadgeVariant = Extract<
   "default" | "secondary" | "tertiary"
 >;
 
-type BadgeIcon =
-  | LucideIcon
-  | React.ElementType<{ className?: string; "aria-hidden"?: boolean }>;
+type BadgeIcon = React.ComponentType<
+  Pick<IconProps, "size" | "__rawClassName" | "aria-hidden">
+>;
 
 /** One chip treatment, shared by the item chips and the overflow chip. */
 type Chip = {
@@ -120,7 +120,7 @@ export function createBadgeListTableColumn<
           title={title}
           aria-label={ariaLabel}
         >
-          {Icon && <Icon className="icon-sm shrink-0" aria-hidden />}
+          {Icon && <Icon size="sm" aria-hidden />}
           <span className="truncate leading-normal" title={title}>
             {value}
           </span>

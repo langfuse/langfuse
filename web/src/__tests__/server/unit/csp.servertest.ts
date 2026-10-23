@@ -25,6 +25,12 @@ const getCsp = (cloudRegion?: string) =>
     },
   );
 
+const getConnectSrc = (cloudRegion?: string) =>
+  getCsp(cloudRegion)
+    .match(/connect-src ([^;]*);/)?.[1]
+    .trim()
+    .split(/\s+/);
+
 describe("Content Security Policy", () => {
   it("allows the local MinIO endpoint in self-hosted Docker builds", () => {
     expect(getCsp()).toContain("connect-src 'self' http://localhost:*");
@@ -32,5 +38,13 @@ describe("Content Security Policy", () => {
 
   it("does not allow local connections in Cloud", () => {
     expect(getCsp("US")).not.toContain("connect-src 'self' http://localhost:*");
+  });
+
+  it("allows the newsletter signup on the bare langfuse.com host in self-hosted builds", () => {
+    expect(getConnectSrc()).toContain("https://langfuse.com");
+  });
+
+  it("does not allow the bare langfuse.com host in Cloud", () => {
+    expect(getConnectSrc("US")).not.toContain("https://langfuse.com");
   });
 });

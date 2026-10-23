@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
@@ -6,6 +6,9 @@ import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { compileClickhouseQuery } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
+import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
@@ -87,12 +90,8 @@ export const getDatasetExperimentMetricsFromEvents = async (props: {
 
   const experimentsQuery = eventsExperimentsAggregation({
     projectId: props.projectId,
-    fieldSet: "count",
+    fieldSet: "datasetMetrics",
   })
-    .selectRaw(
-      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-      "min(e.start_time) AS start_time",
-    )
     .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
       datasetIds: props.datasetIds,
     })
@@ -354,19 +353,29 @@ export const getExperimentMetricsFromEvents = async (props: {
     return [];
   }
 
-  // Use eventsExperimentsAggregation with "metrics" field set for simplified aggregation
-  const queryBuilder = eventsExperimentsAggregation({
-    projectId: props.projectId,
-    fieldSet: "metrics",
-    experimentIds: props.experimentIds,
-  });
-
-  const { query, params } = queryBuilder.buildWithParams();
+  const { projectId, experimentIds } = props;
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      "e.experiment_id as experiment_id",
+      eb.fn.sum("e.total_cost").as("total_cost"),
+      avgIf(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+        eb.and([
+          eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+          eb("e.end_time", "is not", null),
+        ]),
+      ).as("latency_avg"),
+    ])
+    .where("e.experiment_id", "in", experimentIds)
+    .where("e.experiment_id", "!=", literal(""))
+    .groupBy(["e.project_id", "e.experiment_id"]);
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const res = await queryClickhouse<ExperimentMetricsReturnType>({
     query,
     params,
-    tags: { projectId: props.projectId },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 

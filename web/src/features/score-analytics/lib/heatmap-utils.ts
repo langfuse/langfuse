@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Data preprocessing utilities for heatmap visualization
  * Transforms ClickHouse query results into heatmap cell data

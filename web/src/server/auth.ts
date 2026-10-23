@@ -1,5 +1,6 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -79,6 +80,7 @@ import {
   logger,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -91,6 +93,7 @@ import {
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -986,6 +989,12 @@ export async function getAuthOptions(
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
+                                topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
+                                scoreEditsDisabled: shouldSkipScoresDedup(
+                                  project.id,
+                                ),
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
@@ -1180,7 +1189,7 @@ export async function getAuthOptions(
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
       error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
-      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ...(isSignupOnboardingEnabled()
         ? {
             newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
           }

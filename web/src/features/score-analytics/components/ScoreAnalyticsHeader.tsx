@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { ScoreCombobox, type ScoreOption } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -92,7 +92,7 @@ export function ScoreAnalyticsHeader({
                   className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
                 >
                   Share feedback on GitHub Discussions
-                  <ExternalLink className="icon-sm" />
+                  <ExternalLink size="sm" />
                 </a>
               </div>
             </div>

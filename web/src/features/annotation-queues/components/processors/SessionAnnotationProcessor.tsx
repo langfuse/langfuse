@@ -11,7 +11,7 @@ import {
 } from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/ui/badge";
@@ -23,7 +23,7 @@ import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -148,10 +148,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="icon-base text-muted-foreground" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base text-icon-foreground" />
+                    <MessageSquare size="base" color="default" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,

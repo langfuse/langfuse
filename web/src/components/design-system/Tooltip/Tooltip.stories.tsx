@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";

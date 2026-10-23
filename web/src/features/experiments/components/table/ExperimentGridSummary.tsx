@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useMemo } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";

@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo, useState, type ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -382,7 +382,7 @@ function VariableMappingRow({
     >
       {unmapped ? (
         <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
-          <TriangleAlert className="icon-base mt-0.5 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
         </div>
       ) : !sourceObject ? (
@@ -396,7 +396,7 @@ function VariableMappingRow({
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-          <TriangleAlert className="icon-base mt-0.5 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {extracted.error}
         </div>
       ) : !extracted?.value ? (

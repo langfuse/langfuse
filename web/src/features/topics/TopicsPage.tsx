@@ -1,8 +1,9 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";
@@ -13,6 +14,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   TABLE_AGGREGATION_OPTIONS,
   TIME_RANGES,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -25,23 +27,40 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
   type TopicExecutionStatus,
   type TopicFacetOutcome,
   type TopicOperation,
+  type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
+import { cn } from "@/src/utils/tailwind";
+import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { resolveTopicFacetId } from "./topic-facet-selection";
+import { TopicsHeaderActions } from "./TopicsHeaderActions";
+import {
+  TopicsResultsViewSelect,
+  useTopicsResultsView,
+} from "./TopicsResultsViewSelect";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
+import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
+import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupFlowController } from "./TopicSetupFlowController";
+import { TopicSetupNotice } from "./TopicSetupNotice";
+import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
-import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
@@ -64,7 +83,7 @@ const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Run queued",
   running: "Run in progress",
   completed: "Run complete",
-  completed_with_errors: "Run finished with errors",
+  completed_with_errors: "Run finished with issues",
   failed: "Run failed",
 };
 const executionPhaseLabels: Record<string, string> = {
@@ -95,7 +114,7 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  const topicsEnabled = useCanViewTopics(projectId);
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
@@ -110,25 +129,116 @@ export default function TopicsPage() {
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
+  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
+  });
   return (
     <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicsWorkspaceView
-        key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+      <TopicSetupFlowController
         projectId={projectId}
-        facets={facets}
-      />
+        canWrite={canWrite}
+        settings={modelSettings.configure.settings}
+        onSaveSampling={modelSettings.automaticProcessing.save}
+      >
+        {({ openSetup }) => (
+          <TopicsWorkspaceView
+            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+            projectId={projectId}
+            facets={facets}
+            canWrite={canWrite}
+            modelSettings={modelSettings}
+            openSetup={openSetup}
+          />
+        )}
+      </TopicSetupFlowController>
     </TopicsWorkspaceGate>
   );
 }
 
+type TopicsWorkspaceViewProps = {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openSetup: () => void;
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
 function TopicsWorkspaceView({
   projectId,
   facets,
-}: {
-  projectId: string;
-  facets: UseQueryResult<TopicFacet[], { message: string }>;
-}) {
+  canWrite,
+  modelSettings,
+  openSetup,
+}: TopicsWorkspaceViewProps) {
+  return (
+    <ConfigureTopicsDialogController
+      projectId={projectId}
+      settings={modelSettings.configure.settings}
+    >
+      {({ openDialog: openConfigure }) => (
+        <AutomaticProcessingDialogController
+          {...modelSettings.automaticProcessing.dialog}
+        >
+          {({ openDialog: openAutomaticProcessing }) => (
+            <TopicsWorkspaceContent
+              projectId={projectId}
+              facets={facets}
+              canWrite={canWrite}
+              modelSettings={modelSettings}
+              openConfigure={openConfigure}
+              openSetup={openSetup}
+              openAutomaticProcessing={openAutomaticProcessing}
+            />
+          )}
+        </AutomaticProcessingDialogController>
+      )}
+    </ConfigureTopicsDialogController>
+  );
+}
+
+type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
+  openConfigure: () => void;
+  openAutomaticProcessing: (initialEnabled: boolean) => void;
+};
+
+function TopicsWorkspaceContent({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openConfigure,
+  openSetup,
+  openAutomaticProcessing,
+}: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [resultsView, setResultsView] = useTopicsResultsView();
+  const [generationRange, setGenerationRange] = useState<{
+    selection: TimeRange;
+    bounds: TopicTimeRange;
+  }>(() => ({
+    selection: { range: "last7Days" },
+    bounds: { from: new Date(Date.now() - 7 * 86_400_000), to: new Date() },
+  }));
+  const changeGenerationRange = (selection: TimeRange) => {
+    if ("from" in selection) {
+      setGenerationRange({ selection, bounds: selection });
+      return;
+    }
+    const to = new Date();
+    const minutes =
+      TIME_RANGES[selection.range as keyof typeof TIME_RANGES]?.minutes ??
+      TIME_RANGES.last7Days.minutes;
+    const bounds = { from: new Date(to.getTime() - minutes * 60_000), to };
+    setGenerationRange({ selection, bounds });
+  };
   const { timeRange, setTimeRange } = useGlobalDateRange({
     allowedRanges: sharedTimeRangePresets,
     fallback: "last7Days",
@@ -143,16 +253,69 @@ function TopicsWorkspaceView({
   });
   const router = useRouter();
   const utils = api.useUtils();
-  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) =>
-        query.state.data?.some((execution) => busy(execution.status))
+      refetchInterval: (query) => {
+        const data = query.state.data ?? [];
+        if (data.some((execution) => busy(execution.status))) return 3000;
+        // Keep polling through the hand-off from summaries to the topic update.
+        const run = topicSetupRun(data);
+        return run &&
+          !run.update &&
+          topicSetupStage(run, Date.now()).stage === "grouping"
           ? 3000
-          : false,
+          : false;
+      },
     },
   );
+  const [mountedAt] = useState(Date.now);
+  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
+    null,
+  );
+  const setupRun = topicSetupRun(executions.data ?? []);
+  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
+  // A run that finished before this visit is not replayed; results show instead.
+  const showSetupProgress =
+    setupRun !== null &&
+    setup !== null &&
+    setupRun.process.id !== acknowledgedSetupId &&
+    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
+      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
+  const setupRunIds =
+    setupRun?.update?.facets.flatMap((facet) =>
+      facet.runId ? [facet.runId] : [],
+    ) ?? [];
+  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
+    { projectId, runIds: setupRunIds },
+    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
+  );
+  const setupRetry = api.topics.retry.useMutation({
+    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
+  });
+  // A run worth inspecting: the one that failed, or a topic run with failed facets.
+  const setupDetailsId =
+    setupRun && setup ? detailsRunId(setupRun, setup) : null;
+  const setupFacets =
+    setupRun?.process.facets.map((facet) => {
+      const update = setupRun.update?.facets.find(
+        (item) =>
+          item.facetId === facet.facetId &&
+          item.facetVersion === facet.facetVersion,
+      );
+      return {
+        key: `${facet.facetId}:${facet.facetVersion}`,
+        name:
+          facets.data?.find((item) => item.id === facet.facetId)?.name ??
+          "Facet",
+        complete: facet.counts.complete,
+        requested: facet.counts.requested,
+        outcome: update?.outcome ?? null,
+        topicCount:
+          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
+            ?.topicCount ?? null,
+      };
+    }) ?? [];
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -211,13 +374,21 @@ function TopicsWorkspaceView({
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
+  const setupBlockedReason = startBlockedReason(
+    running,
+    modelSettings.automaticProcessing.state.status === "on",
+  );
   const results = useCurrentTopics({
     projectId,
     running,
+    pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const traceFilters = useTopicTraceFilters(projectId, results.data ?? []);
+  const traceFilters = useTopicTraceFilters(
+    projectId,
+    results.data?.facets ?? [],
+  );
   const { selectedFacetId } = traceFilters;
   const refreshResults = () => {
     setRefreshedAt(Date.now());
@@ -246,195 +417,328 @@ function TopicsWorkspaceView({
   function openHistory() {
     setHistoryOpen(true);
   }
-  const { primaryAction, triggerAction, configuration } = useTopicPipelineForm({
+  const regenerate = useRegenerateTopics({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    timeRange: generationRange.bounds,
+    executions: executions.data,
+    executionsError: executions.error?.message ?? null,
+  });
+  const pipeline = useTopicPipelineForm({
     projectId,
     facets: facets.data ?? [],
     canWrite,
     onTriggered: openExecution,
-    timeRange: validTimeRange ? currentTimeRange : null,
+    regenerate,
+    settings: modelSettings.configure.settings,
+    configurationError: modelSettings.configure.error,
+    running,
+    onConfigure: openConfigure,
+    generationTimeRange: generationRange.selection,
+    onGenerationTimeRangeChange: changeGenerationRange,
   });
-  const modelSettings = useTopicModelSettings({
-    projectId,
-    canWrite,
-    facets: facets.data ?? [],
-    facetsReady: facets.isSuccess,
-  });
-  const actions = (
-    <div className="ph-no-capture flex items-center justify-end gap-1">
-      {modelSettings.automaticProcessing}
-      {modelSettings.action}
-      {primaryAction}
-      <DropdownMenu
-        ariaLabel="Topics actions"
-        placement="bottom-end"
-        items={[
-          {
-            id: "history",
-            type: "item",
-            title: "History",
-            onClick: openHistory,
-          },
-          {
-            id: "refresh",
-            type: "item",
-            title: "Refresh results",
-            onClick: refreshResults,
-          },
-        ]}
-      >
-        {({ getTriggerProps }) => (
-          <IconButton
-            {...getTriggerProps()}
-            icon={MoreHorizontal}
-            label="Topics actions"
-            size="sm"
-          />
-        )}
-      </DropdownMenu>
-    </div>
+  const configured = Boolean(
+    modelSettings.configure.settings?.stored.summary &&
+    modelSettings.configure.settings.stored.embedding &&
+    modelSettings.configure.settings.stored.clustering,
   );
+  const automaticProcessing = modelSettings.automaticProcessing;
+  function openAutomaticProcessingFromHeader() {
+    openAutomaticProcessing(automaticProcessing.state.status === "on");
+  }
+  function turnAutomaticProcessingBackOn() {
+    openAutomaticProcessing(true);
+  }
+
   return (
-    <Page
-      headerProps={{
-        title: "Topics",
-        help: {
-          description:
-            "Explore recurring themes across traces, one facet at a time.",
-        },
-        actionButtonsRight: actions,
-        actionButtonsMenu: ({ closeMenu }) => (
-          <TopicsActionsMenu
-            triggerAction={triggerAction}
-            closeMenu={closeMenu}
-            onOpenHistory={openHistory}
-            onRefresh={refreshResults}
-          />
-        ),
-      }}
-    >
-      <PageHeaderControlsPortal>
-        <TimeRangePicker
-          timeRange={effectiveTimeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={topicsTimeRangePresets}
-          maxRangeMs={maxTimeRangeMs}
-          className="my-0 max-w-full overflow-x-auto"
-          triggerClassName="px-2"
+    <DialogController<TopicOperation>
+      renderDialog={({ closeDialog, state }) => (
+        <ManualTopicsFormContent
+          {...pipeline.dialogProps}
+          initialOperation={state}
+          closeDialog={closeDialog}
         />
-      </PageHeaderControlsPortal>
-      <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
-        {isTimeRangeCapped && (
-          <p role="status" className="text-muted-foreground shrink-0 text-xs">
-            {"from" in timeRange
-              ? "Showing the final 90 days of your selected range."
-              : "Showing the last 90 days."}{" "}
-            Your selection is preserved on other pages.
-          </p>
-        )}
-        {!validTimeRange && (
-          <ErrorMessage message="Select a time range of at most 90 days." />
-        )}
-        {modelSettings.notice}
-        {configuration}
-        <Sheet
-          open={historyOpen || executionId !== null}
-          onOpenChange={showExecutionList}
-        >
-          <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-            <SheetHeader>
-              <SheetTitle>
-                {executionId ? "Run status" : "Past executions"}
-              </SheetTitle>
-              <SheetDescription>
-                Review progress, errors, and retry interrupted runs.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-              {executionId ? (
-                <>
-                  <div className="self-start">
-                    <Button
-                      text="All runs"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => showExecutionList(true)}
+      )}
+    >
+      {({ openDialog }) => {
+        const openManual = (operation: TopicOperation) => {
+          if (!("from" in generationRange.selection))
+            changeGenerationRange(generationRange.selection);
+          utils.topics.summaryCounts.invalidate({ projectId });
+          pipeline.clearError();
+          openDialog(operation);
+        };
+        function openManualProcessing() {
+          openManual("process");
+        }
+        function openTopicGeneration() {
+          openManual("update");
+        }
+        const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
+        const headerFacetId = resolveTopicFacetId(
+          results.data?.facets ?? [],
+          selectedFacetId,
+        );
+        const showLanding =
+          validTimeRange &&
+          results.data !== undefined &&
+          !results.isLoading &&
+          !results.error &&
+          !hasStoredSummaries;
+        const showOnboarding = showSetupProgress || showLanding;
+        return (
+          <Page
+            headerProps={{
+              title: "Topics",
+              actionButtonsLeft: showOnboarding ? null : (
+                <div className="flex items-center gap-3">
+                  {validTimeRange && headerFacetId && (
+                    <TopicsFacetTabs
+                      facets={results.data?.facets ?? []}
+                      selectedFacet={headerFacetId}
+                      onSelectFacet={traceFilters.selectFacet}
                     />
-                  </div>
-                  <ExecutionPanel
-                    key={executionId}
-                    projectId={projectId}
-                    executionId={executionId}
-                    query={selectedExecution}
-                    facets={facets.data ?? []}
-                    canWrite={canWrite}
-                  />
-                </>
-              ) : (
-                <>
-                  <div className="self-end">
-                    <Button
-                      text="Refresh"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => executions.refetch()}
+                  )}
+                  <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                    Visualize as
+                    <TopicsResultsViewSelect
+                      value={resultsView}
+                      onValueChange={setResultsView}
                     />
-                  </div>
-                  {executions.error && (
-                    <ErrorMessage message={executions.error.message} />
-                  )}
-                  {!executions.data?.length && (
-                    <p className="text-muted-foreground text-sm">
-                      Your triggered batches will appear here.
-                    </p>
-                  )}
-                  {executions.data?.map((execution) => (
-                    <button
-                      key={execution.id}
-                      onClick={() => openExecution(execution.id)}
-                      className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                    >
-                      <span className="capitalize">
-                        {operationLabels[execution.input.operation]} ·{" "}
-                        {new Date(execution.createdAt).toLocaleString()}
-                      </span>
-                      <span>{execution.facets.length} facets</span>
-                      <Badge text={executionLabels[execution.status]} />
-                    </button>
-                  ))}
-                </>
+                  </span>
+                </div>
+              ),
+              actionButtonsRight: (
+                <TopicsHeaderActions
+                  automaticProcessing={automaticProcessing}
+                  configure={modelSettings.configure}
+                  configured={configured}
+                  canWrite={canWrite}
+                  manualAvailable={pipeline.available}
+                  openManual={openManualProcessing}
+                  onAutomaticProcessing={openAutomaticProcessingFromHeader}
+                  onConfigure={configured ? openConfigure : openSetup}
+                  onHistory={openHistory}
+                  onRefresh={refreshResults}
+                />
+              ),
+              actionButtonsMenu: ({ closeMenu }) => {
+                function handleConfigureFromMenu() {
+                  closeMenu();
+                  openConfigure();
+                }
+                return (
+                  <TopicsActionsMenu
+                    triggerAction={
+                      pipeline.available
+                        ? {
+                            label: "Manual processing",
+                            disabled: false,
+                            onSelect: openManualProcessing,
+                          }
+                        : null
+                    }
+                    closeMenu={closeMenu}
+                    onOpenHistory={openHistory}
+                    onRefresh={refreshResults}
+                  >
+                    {configured ? (
+                      <HeaderActionMenuRow
+                        label="Configure Topics"
+                        icon={<Settings size="base" color="default" />}
+                        onClick={handleConfigureFromMenu}
+                      />
+                    ) : null}
+                  </TopicsActionsMenu>
+                );
+              },
+            }}
+          >
+            {!showOnboarding && (
+              <PageHeaderControlsPortal>
+                <TimeRangePicker
+                  timeRange={effectiveTimeRange}
+                  onTimeRangeChange={setTimeRange}
+                  timeRangePresets={topicsTimeRangePresets}
+                  maxRangeMs={maxTimeRangeMs}
+                  className="my-0 max-w-full overflow-x-auto"
+                  triggerClassName="px-2"
+                />
+              </PageHeaderControlsPortal>
+            )}
+            <div
+              className={cn(
+                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                (showOnboarding || resultsView === "map") && "p-2",
               )}
-            </div>
-          </SheetContent>
-        </Sheet>
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-          <TablePeekViewTraceDetail
-            {...peekNavigation}
-            itemType="TRACE"
-            projectId={projectId}
-            defaultWidthTarget={tracePanel}
-            widthStorageKey="topicsPeekViewWidthFraction"
-          />
-          {validTimeRange && (
-            <TopicsFilters
-              facets={results.data ?? []}
-              selectedFacetId={selectedFacetId}
-              onSelectFacet={traceFilters.selectFacet}
             >
-              <CurrentTopics
-                projectId={projectId}
-                timeRange={currentTimeRange}
-                result={results}
-                selectedFacetId={selectedFacetId}
-                traceFilters={traceFilters}
-                tracePanelRef={setTracePanel}
+              {isTimeRangeCapped && (
+                <p
+                  role="status"
+                  className="text-muted-foreground shrink-0 text-xs"
+                >
+                  {"from" in timeRange
+                    ? "Showing the final 90 days of your selected range."
+                    : "Showing the last 90 days."}{" "}
+                  Your selection is preserved on other pages.
+                </p>
+              )}
+              {!validTimeRange && (
+                <ErrorMessage message="Select a time range of at most 90 days." />
+              )}
+              <TopicSetupNotice
+                notice={modelSettings.notice}
+                canWrite={canWrite}
+                canConfigure={modelSettings.configure.settings !== null}
+                onStart={openSetup}
+                startBlockedReason={setupBlockedReason}
+                onKeepOff={automaticProcessing.clearPause}
+                onTurnBackOn={turnAutomaticProcessingBackOn}
+                showOnboarding={showLanding && !showSetupProgress}
               />
-            </TopicsFilters>
-          )}
-          {facets.isLoading && <p>Loading facets…</p>}
-          {facets.error && <ErrorMessage message={facets.error.message} />}
-        </div>
-      </div>
-    </Page>
+              {showSetupProgress && setup ? (
+                <TopicSetupProgressView
+                  stage={setup.stage}
+                  facets={setupFacets}
+                  retrying={setupRetry.isPending}
+                  canRetry={setup.retryId !== null}
+                  onViewDetails={
+                    setupDetailsId
+                      ? () => openExecution(setupDetailsId)
+                      : undefined
+                  }
+                  onRetry={() => {
+                    if (setup.retryId)
+                      setupRetry.mutate({
+                        projectId,
+                        executionId: setup.retryId,
+                      });
+                  }}
+                  onDisplayResults={() => {
+                    setAcknowledgedSetupId(setupRun.process.id);
+                    return utils.topics.invalidate();
+                  }}
+                />
+              ) : null}
+              <Sheet
+                open={historyOpen || executionId !== null}
+                onOpenChange={showExecutionList}
+              >
+                <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
+                  <SheetHeader>
+                    <SheetTitle>
+                      {executionId ? "Run status" : "Past executions"}
+                    </SheetTitle>
+                    <SheetDescription>
+                      Review progress, costs, errors, and retry interrupted
+                      runs.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                    {executionId ? (
+                      <>
+                        <div className="self-start">
+                          <Button
+                            text="All runs"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => showExecutionList(true)}
+                          />
+                        </div>
+                        <ExecutionPanel
+                          key={executionId}
+                          projectId={projectId}
+                          executionId={executionId}
+                          query={selectedExecution}
+                          facets={facets.data ?? []}
+                          canWrite={canWrite}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="self-end">
+                          <Button
+                            text="Refresh"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => executions.refetch()}
+                          />
+                        </div>
+                        {executions.error && (
+                          <ErrorMessage message={executions.error.message} />
+                        )}
+                        {!executions.data?.length && (
+                          <p className="text-muted-foreground text-sm">
+                            Your triggered batches will appear here.
+                          </p>
+                        )}
+                        {executions.data?.map((execution) => (
+                          <button
+                            key={execution.id}
+                            onClick={() => openExecution(execution.id)}
+                            className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                          >
+                            <span className="capitalize">
+                              {operationLabels[execution.input.operation]} ·{" "}
+                              {new Date(execution.createdAt).toLocaleString()}
+                            </span>
+                            <span>{execution.facets.length} facets</span>
+                            <Badge text={executionLabels[execution.status]} />
+                            {execution.input.operation === "process" && (
+                              <span className="text-muted-foreground w-full tabular-nums">
+                                Estimated cost:{" "}
+                                {estimatedExecutionCost(
+                                  execution.estimatedCost,
+                                )}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <div
+                className={
+                  showOnboarding
+                    ? "contents"
+                    : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+                }
+              >
+                <TablePeekViewTraceDetail
+                  {...peekNavigation}
+                  itemType="TRACE"
+                  projectId={projectId}
+                  defaultWidthTarget={tracePanel}
+                  widthStorageKey="topicsPeekViewWidthFraction"
+                />
+                {validTimeRange && !showOnboarding && (
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <CurrentTopics
+                      projectId={projectId}
+                      timeRange={currentTimeRange}
+                      result={results}
+                      selectedFacetId={selectedFacetId}
+                      view={resultsView}
+                      traceFilters={traceFilters}
+                      tracePanelRef={setTracePanel}
+                      onGenerateTopics={openTopicGeneration}
+                      canGenerateTopics={canWrite && !running && configured}
+                    />
+                  </div>
+                )}
+                {facets.isLoading && <p>Loading facets…</p>}
+                {facets.error && (
+                  <ErrorMessage message={facets.error.message} />
+                )}
+              </div>
+            </div>
+          </Page>
+        );
+      }}
+    </DialogController>
   );
 }
 
@@ -559,6 +863,21 @@ function ExecutionPanel({
           </p>
         )}
       </div>
+      {!isUpdate && (
+        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+          <p className="flex items-center justify-between gap-3">
+            <span className="font-bold">Estimated cost</span>
+            <span className="tabular-nums">
+              {estimatedExecutionCost(execution.estimatedCost)}
+            </span>
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Estimated cost for this run’s currently stored summaries and
+            embeddings. Costs may decrease when summaries are reused,
+            reprocessed, or deleted.
+          </p>
+        </section>
+      )}
       {execution.error && <ErrorMessage message={execution.error} />}
       {execution.facets.some((facet) => facet.counts.failed > 0) && (
         <details
@@ -656,7 +975,14 @@ function ExecutionPanel({
                 configuration.
               </p>
             )}
-            {progress.error && <ErrorMessage message={progress.error} />}
+            {progress.error &&
+              (progress.outcome === "published" ? (
+                <Alert variant="warning">
+                  <Alert.Description>{progress.error}</Alert.Description>
+                </Alert>
+              ) : (
+                <ErrorMessage message={progress.error} />
+              ))}
             {progress.outcome === "insufficient_data" &&
               execution.input.operation === "update" && (
                 <p className="text-sm">
@@ -694,6 +1020,10 @@ function ExecutionPanel({
   );
 }
 
+function estimatedExecutionCost(cost: number | null) {
+  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
+}
+
 function ErrorMessage({ message }: { message: string }) {
   return (
     <Alert variant="destructive">
@@ -702,4 +1032,26 @@ function ErrorMessage({ message }: { message: string }) {
       </Alert.Description>
     </Alert>
   );
+}
+
+function startBlockedReason(running: boolean, automaticOn: boolean) {
+  if (running)
+    return "Analysis is running. Topics appear here when it finishes.";
+  if (automaticOn)
+    return "Automatic processing is on. Topics appear here as traces are summarized.";
+  return null;
+}
+
+function detailsRunId(
+  run: {
+    process: { id: string };
+    update: { id: string; facets: Array<{ outcome: string }> } | null;
+  },
+  setup: { stage: string; retryId: string | null },
+) {
+  if (setup.stage === "failed")
+    return setup.retryId ?? run.update?.id ?? run.process.id;
+  return run.update?.facets.some((facet) => facet.outcome === "failed")
+    ? run.update.id
+    : null;
 }

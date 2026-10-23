@@ -21,7 +21,7 @@ import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
 import Page from "@/src/components/layouts/page";
-import { SquareArrowOutUpRight, Info as InfoIcon } from "lucide-react";
+import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
 import {
   Select,
   SelectContent,
@@ -256,7 +256,7 @@ export default function ModelDetailPage() {
                           size="sm"
                           {...getTriggerProps()}
                         >
-                          <InfoIcon className="icon-base text-icon-foreground" />
+                          <InfoIcon size="base" color="default" />
                           <span>Conditions</span>
                         </Button>
                       )}
@@ -307,7 +307,7 @@ export default function ModelDetailPage() {
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>
-                  <SquareArrowOutUpRight className="icon-base text-icon-foreground" />
+                  <SquareArrowOutUpRight size="base" color="default" />
                 </Link>
               </Button>
             </CardTitle>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { backOff } from "exponential-backoff";
@@ -5,8 +6,10 @@ import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
+  createTraceBatchInputStorage,
   getCurrentSpan,
   getTraceBatchEventStream,
+  isInternalEvalEnvironment,
   logger,
   recordDistribution,
   recordGauge,
@@ -15,6 +18,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
   type Transcript,
+  type TraceBatchInputReference,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
@@ -39,15 +43,26 @@ import {
 import { TopicMetrics } from "../features/topics/metrics";
 import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
+import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+import { storeInputs } from "../features/traceBatching/storeInputs";
 
-type TraceBatchObservation = Observation & { eventTimestamp: string };
+const inputStorage = createTraceBatchInputStorage();
+
+type TraceBatchObservation = Observation & {
+  eventTimestamp: string;
+  sessionId: string | null;
+};
 
 // Rows include a failed trace's valid facets; the batch writes them once.
 type TraceOutcome = (
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string }
 ) & { rows: TopicSummary[] };
+
+/** Identity of one trace within a batch; a batch spans projects. */
+const traceKey = (projectId: string, traceId: string) =>
+  JSON.stringify([projectId, traceId]);
 
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
@@ -105,11 +120,33 @@ async function loadProjectRule(projectId: string) {
   };
 }
 
+/** Orders events like manual processing: event_ts, then span ID, then environment. */
+function newestEvent(observations: TraceBatchObservation[]) {
+  return observations.reduce<TraceBatchObservation | undefined>(
+    (current, row) => {
+      if (!current) return row;
+      if (row.eventTimestamp !== current.eventTimestamp)
+        return row.eventTimestamp > current.eventTimestamp ? row : current;
+      if (row.id !== current.id) return row.id > current.id ? row : current;
+      return row.environment > current.environment ? row : current;
+    },
+    undefined,
+  );
+}
+
+/** Session of the newest event that has one; events of a trace can carry different or no sessions. */
+function newestSessionId(observations: TraceBatchObservation[]) {
+  return (
+    newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
+  );
+}
+
 async function summarizeTraceBatch(
   observations: TraceBatchObservation[],
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
+  revisions: ReadonlyMap<string, string>,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -123,16 +160,25 @@ async function summarizeTraceBatch(
     throw new Error(
       "Trace batch observations crossed a project or trace boundary.",
     );
+  // Match manual processing and discovery, preserving event_ts microseconds.
+  const latest = newestEvent(observations)!;
+  if (isInternalEvalEnvironment(latest.environment))
+    return { outcome: "disabled", rows: [] };
+  const revision = revisions.get(traceKey(first.projectId, traceId));
+  const inputReference: TraceBatchInputReference | undefined =
+    revision === undefined
+      ? undefined
+      : { projectId: first.projectId, traceId, revision };
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
-  // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = observations.reduce((current, row) => {
-    if (row.eventTimestamp !== current.eventTimestamp)
-      return row.eventTimestamp > current.eventTimestamp ? row : current;
-    if (row.id !== current.id) return row.id > current.id ? row : current;
-    return row.environment > current.environment ? row : current;
-  });
+  const sessionId = newestSessionId(observations);
+  const traceContext = {
+    sessionId,
+    traceTimestamp,
+    environment: latest.environment,
+    traceName: first.name,
+  };
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
@@ -144,17 +190,28 @@ async function summarizeTraceBatch(
       })
     )
       return { outcome: "disabled", rows };
-    const result = await summarizeAssembledTrace({
-      projectId: first.projectId,
-      traceId,
-      traceTimestamp,
-      jobEnqueuedAt,
-      environment: latest.environment,
-      traceName: first.name ?? "",
-      transcript,
-      models: project.models,
-      facets: project.facets,
-    });
+    // Capture reports its own failures; drain both before releasing the Topics slot.
+    const [summary] = await Promise.allSettled([
+      summarizeAssembledTrace({
+        projectId: first.projectId,
+        traceId,
+        ...traceContext,
+        jobEnqueuedAt,
+        traceName: traceContext.traceName ?? "",
+        transcript,
+        models: project.models,
+        facets: project.facets,
+      }),
+      inputReference
+        ? storeInputs(
+            inputReference,
+            { transcript, traceContext },
+            inputStorage,
+          )
+        : Promise.resolve(),
+    ]);
+    if (summary.status === "rejected") throw summary.reason;
+    const result = summary.value;
     rows = result.rows;
     if (result.failure === undefined) return { outcome: result.outcome, rows };
     throw result.failure;
@@ -167,6 +224,7 @@ async function summarizeTraceBatch(
       projectId: first.projectId,
       traceId,
       reason,
+      error: error instanceof Error ? error.message : String(error),
     });
     return { outcome: "failed", reason, rows };
   }
@@ -219,13 +277,20 @@ function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
     ]);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
+  const perOutcome: Record<string, number> = {};
   for (const [key, count] of counts) {
     const [outcome, reason] = JSON.parse(key) as [string, string | null];
     recordIncrement("langfuse.topics.trace_outcomes", count, {
       outcome,
       ...(reason ? { reason } : {}),
     });
+    if (outcome === "disabled") continue;
+    const attribute = `langfuse.topics.traces.${outcome}`;
+    perOutcome[attribute] = (perOutcome[attribute] ?? 0) + count;
   }
+  // Batch totals of Topics work on the job span; each trace has its own child span.
+  if (Object.keys(perOutcome).length > 0)
+    getCurrentSpan()?.setAttributes(perOutcome);
 }
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
@@ -294,6 +359,12 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const revisions = new Map(
+      batch.traces.map((trace) => [
+        traceKey(trace.projectId, trace.traceId),
+        trace.revision,
+      ]),
+    );
     const topicsOutcomes: TraceOutcome[] = [];
     let droppedRows = new Set<TopicSummary>();
     const topics = new TopicsBatchProjects(
@@ -394,6 +465,7 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
+                  revisions,
                 ),
               );
           });
@@ -415,7 +487,7 @@ export const traceBatchQueueProcessor: Processor<
       let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
-        foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+        foundTraces.add(traceKey(event.project_id, event.trace_id));
         foundProjects.add(event.project_id);
         // Logical UTF-8 payload size, excluding JSON transport and compression.
         const eventInputBytes = Buffer.byteLength(event.input);
@@ -468,6 +540,7 @@ export const traceBatchQueueProcessor: Processor<
             cost_details: {},
           }),
           eventTimestamp: event.event_ts,
+          sessionId: event.session_id || null,
         });
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
@@ -484,6 +557,17 @@ export const traceBatchQueueProcessor: Processor<
         activeReads--;
         recordTraceBatchActiveReads();
       }
+      // Stored summaries skip summarization on retry, so queue them before a failure rethrows.
+      await enqueueTopicsAutomation(
+        event.id,
+        topicsOutcomes
+          .flatMap(({ rows }) => rows)
+          .filter((row) => !droppedRows.has(row)),
+      ).catch((error: unknown) =>
+        logger.warn("Topics assignment could not be queued for trace batch", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
     }
     if (summaryFailed) throw summaryError;
 

@@ -291,6 +291,14 @@ export const sessionRouter = createTRPCRouter({
       const sessions = await getSessionsTableFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
+        fields: [
+          "session_id",
+          "user_ids",
+          "trace_count",
+          "trace_tags",
+          "min_timestamp",
+          "environment",
+        ],
         orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
@@ -482,6 +490,22 @@ export const sessionRouter = createTRPCRouter({
       const sessions = await getSessionMetricsFromEvents({
         projectId: input.projectId,
         sessionIds: input.sessionIds,
+        fields: [
+          "session_id",
+          "user_ids",
+          "trace_count",
+          "trace_tags",
+          "min_timestamp",
+          "environment",
+          "total_observations",
+          "duration",
+          "session_input_cost",
+          "session_output_cost",
+          "session_total_cost",
+          "session_input_usage",
+          "session_output_usage",
+          "session_total_usage",
+        ],
         queryFromTimestamp: input.queryFromTimestamp ?? undefined,
       });
 
@@ -728,6 +752,17 @@ export const sessionRouter = createTRPCRouter({
         getSessionMetricsFromEvents({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
+          fields: [
+            "user_ids",
+            "trace_count",
+            "session_total_cost",
+            "session_input_usage",
+            "session_output_usage",
+            "session_total_usage",
+            "min_timestamp",
+            "max_timestamp",
+            "environment",
+          ],
         }).then((rows) => rows[0]),
         isStorableTraceSessionId(input.sessionId)
           ? ctx.prisma.traceSession.findFirst({

@@ -7,7 +7,7 @@ import {
 } from "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
+import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "@langfuse/icons";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -53,7 +53,7 @@ function statusMessageBackgroundColor(
     return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
   if (level === "WARNING")
     return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
-  return "hsl(var(--surface-output))";
+  return "hsl(var(--surface-section))";
 }
 
 /**
@@ -163,7 +163,7 @@ function IOPreviewJSONInner({
   const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
     () => ({
       inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-      outputBgColor: "hsl(var(--surface-output))",
+      outputBgColor: "hsl(var(--surface-section))",
       metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
     }),
     [isDark],
@@ -400,12 +400,12 @@ function IOPreviewJSONInner({
 
   const wrapIcon = useMemo(() => {
     if (stringWrapMode === "truncate") {
-      return <Minus className="icon-base" />;
+      return <Minus size="base" />;
     }
     if (stringWrapMode === "wrap") {
-      return <WrapText className="icon-base" />;
+      return <WrapText size="base" />;
     }
-    return <ChevronDown className="icon-base -rotate-90" />;
+    return <ChevronDown size="base" __rawClassName="-rotate-90" />;
   }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
@@ -705,7 +705,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="icon-base text-icon-foreground" />
+              <ChevronUp size="base" color="default" />
             </Button>
             <Button
               variant="ghost"
@@ -714,7 +714,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="icon-base text-icon-foreground" />
+              <ChevronDown size="base" color="default" />
             </Button>
           </>
         )}
@@ -738,7 +738,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         </Button>
       </div>
 

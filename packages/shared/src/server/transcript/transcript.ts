@@ -7,11 +7,11 @@ import {
   append,
   createThread,
   findThread,
-  messageKey,
   splitTurn,
   type ThreadState,
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
+import { prepareMessage } from "./messages";
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
@@ -33,8 +33,8 @@ function normalize(observation: OrderedObservation) {
     },
   });
   return partition(
-    messages.map((message) => ({ message, key: messageKey(message) })),
-    ({ message }) => message.source === "input",
+    messages.map(prepareMessage),
+    (message) => message.source === "input",
   );
 }
 
@@ -42,8 +42,8 @@ function normalize(observation: OrderedObservation) {
  * Assemble threads from observations: normalize their I/O, reconcile replayed
  * history, and retain first-seen provenance. The caller supplies the
  * observations in transcript order, see `orderObservations`; they are consumed
- * as given. Optional timings separate normalization (including initial message
- * keys) from remaining assembly work, excluding ordering and optional truncation.
+ * as given. Optional timings separate normalization and key preparation from
+ * remaining assembly work, excluding ordering and optional truncation.
  */
 export function assembleTranscript(
   orderedObservations: OrderedObservation[],

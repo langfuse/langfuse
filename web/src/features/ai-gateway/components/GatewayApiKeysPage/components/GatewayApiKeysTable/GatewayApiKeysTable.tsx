@@ -1,10 +1,12 @@
-import { Plus, Trash } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { Plus, Trash } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
@@ -18,6 +20,11 @@ type GatewayApiKey = {
     note: string | null;
     createdAt: Date;
     expiresAt: Date | null;
+    user: {
+      name: string | null;
+      email: string | null;
+      image: string | null;
+    } | null;
   };
 };
 
@@ -26,11 +33,13 @@ export function GatewayApiKeysTable({
   createAction,
   onRevoke,
   pagination,
+  search,
 }: {
   data: AsyncTableData<GatewayApiKey[]>;
   createAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
+  search: { value: string; onChange: (value: string) => void };
 }) {
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
     createDateTableColumn<GatewayApiKey>({
@@ -51,6 +60,15 @@ export function GatewayApiKeysTable({
       id: "description",
       header: "Description",
       nullValue: "-",
+      enableResizing: false,
+    }),
+    createUserTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.user,
+      id: "user",
+      header: "User",
+      variant: "avatar",
+      nullValue: "Service account",
+      hideBelowMd: true,
       enableResizing: false,
     }),
     createDateTableColumn<GatewayApiKey>({
@@ -88,15 +106,20 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
+      search={{ ...search, placeholder: "Search by name or user" }}
       toolbarActions={[
         {
           id: "create-key",
           label: "Create key",
-          icon: <Plus className="icon-base" aria-hidden="true" />,
+          icon: <Plus size="base" aria-hidden="true" />,
           onClick: createAction,
         },
       ]}
-      noResultsMessage="No gateway API keys created."
+      noResultsMessage={
+        search.value.trim().length > 0
+          ? "No gateway API keys match the current search."
+          : "No gateway API keys created."
+      }
     />
   );
 }

@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { expect, within } from "storybook/test";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 
 const meta = preview.meta({
@@ -179,5 +180,16 @@ export const Loading = meta.story({
     },
     output: null,
     isLoading: true,
+  },
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: { input: undefined, output: undefined },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByText("undefined", { exact: true }),
+    ).toHaveLength(2);
   },
 });

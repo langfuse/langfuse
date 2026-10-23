@@ -1,4 +1,4 @@
-import { CopyIcon } from "lucide-react";
+import { CopyIcon } from "@langfuse/icons";
 import { expect, fn, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "./button";
@@ -35,11 +35,11 @@ const meta = preview.meta({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" onSelect={fn()}>
-          <CopyIcon className="icon-base mr-2" />
+          <CopyIcon size="base" __rawClassName="mr-2" />
           Copy Trace ID
         </DropdownMenuItem>
         <DropdownMenuItem className="text-xs" onSelect={fn()}>
-          <CopyIcon className="icon-base mr-2" />
+          <CopyIcon size="base" __rawClassName="mr-2" />
           Copy Observation ID
         </DropdownMenuItem>
       </DropdownMenuContent>

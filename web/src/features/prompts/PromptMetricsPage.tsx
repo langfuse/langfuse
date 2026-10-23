@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import {
   customRowHeightMenu,
@@ -36,7 +36,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 export type PromptVersionTableRow = {
   version: number;

@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain } from "@langfuse/shared";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import Link from "next/link";
 import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
 
@@ -58,7 +58,7 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Learn more <ExternalLink className="icon-sm ml-1" />
+                Learn more <ExternalLink size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -126,7 +126,7 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Create token <ExternalLink className="icon-sm ml-1" />
+                Create token <ExternalLink size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />

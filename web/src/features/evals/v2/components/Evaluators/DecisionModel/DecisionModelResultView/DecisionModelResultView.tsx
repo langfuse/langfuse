@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Badge } from "@/src/components/ui/badge";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
@@ -26,7 +27,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
     <li className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
         <Badge variant="secondary" className="min-w-0 font-mono">
-          <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
+          <copy.icon size="base" aria-label={copy.label} />
           <span className="truncate" title={result.scoreName}>
             {result.scoreName}
           </span>

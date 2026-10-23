@@ -1,0 +1,10 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "types": ["node", "react"],
+    "noEmit": true
+  },
+  "include": ["src/create-icon.tsx", "tests"]
+}

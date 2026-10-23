@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions, no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { expect, fireEvent, fn } from "storybook/test";
@@ -46,7 +46,7 @@ import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
@@ -59,7 +59,7 @@ import {
   ListTree,
   PlusCircle,
   Trash,
-} from "lucide-react";
+} from "@langfuse/icons";
 
 const renderMediaReference = (descriptor: MediaDescriptor) => (
   <MediaTag contentType={descriptor.contentType} status="idle" />
@@ -397,7 +397,7 @@ function buildTraceColumns(
               ) : (
                 <span>-</span>
               )}
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -462,7 +462,7 @@ function buildTraceColumns(
       isFixedPosition: true,
       renderMenu: () => (
         <DropdownMenuItem className="text-destructive">
-          <Trash className="icon-base mr-2" />
+          <Trash size="base" __rawClassName="mr-2" />
           Delete trace
         </DropdownMenuItem>
       ),
@@ -1308,17 +1308,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="icon-sm text-icon-foreground" />
+              <Copy size="sm" color="default" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="icon-sm text-icon-foreground" />
+              <Trash size="sm" color="default" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="icon-sm text-icon-foreground" />
+          <Trash size="sm" color="default" />
         </Button>
       );
     },
@@ -1421,7 +1421,7 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
               className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
               <IdTableCell value={name} />
-              <PlusCircle className="icon-base shrink-0" />
+              <PlusCircle size="base" />
             </button>
           );
         case "link":
@@ -1528,7 +1528,7 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-section");
   },
 });
 

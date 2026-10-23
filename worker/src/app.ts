@@ -101,6 +101,7 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
@@ -114,6 +115,7 @@ import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runn
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
+import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
 
 const app = express();
 
@@ -469,19 +471,28 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
 if (isTopicsEnabled()) {
-  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(
-    QueueName.TopicsEmbedding,
-    topicsEmbeddingQueueProcessor,
-    {
-      concurrency: 2,
-    },
-  );
+  if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsEmbedding,
+      topicsEmbeddingQueueProcessor,
+      {
+        concurrency: 2,
+      },
+    );
+  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsAutomation,
+      topicsAutomationQueueProcessor,
+      { concurrency: 2 },
+    );
 }
 
 if (
@@ -794,6 +805,14 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   }
 }
 
+// Assistant retention runs independently of ingestion retention mode and
+// assistant enablement. Conversations with unfinished runs still need reconciliation.
+export let inAppAgentRetentionCleaner: InAppAgentRetentionCleaner | null = null;
+if (env.LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED === "true") {
+  inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
+  inAppAgentRetentionCleaner.start();
+}
+
 // Media retention cleaner for media files and blob storage
 export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 
@@ -844,11 +863,9 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
 // Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
 export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
-if (
-  isInAppAgentWorkerSurfaceEnabled(
-    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
-  )
-) {
+// Reconciliation must continue after assistant opt-out so unfinished runs
+// cannot prevent retention forever. This runner never executes agent work.
+if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED !== "false") {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
 }

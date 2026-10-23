@@ -293,6 +293,132 @@ rather than accepting partial results. Beyond the dispatcher's weight budgets
 and trace exclusion, this does not cap observation count, query memory or
 dispatcher snapshot memory.
 
+## Optional input storage
+
+`LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
+When enabled, `storeInputs.ts` captures the assembled transcript for traces that
+pass the internal-environment exclusion, Topics settings and rule sampling gate.
+The latest event's environment determines eligibility for both capture and Topics.
+It runs inside the
+Topics concurrency limit alongside in-memory summarization. Both operations must
+settle before releasing the slot, including when summarization fails. Each S3
+request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`
+(default 10 seconds) so a stalled request cannot hold a slot indefinitely; the
+SDK attempt budget stays at its default. It does not capture every trace admitted
+by experimental batching.
+
+The shared `server/traceBatch` module uses the event-upload bucket and credentials:
+
+```text
+<prefix>trace-batch/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
+```
+
+`hash` is the first three hex characters of SHA-256 over
+`JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key
+escaping helpers. The revision comes from the queued readiness entry; a new
+revision uses another key, while an ordinary PUT of the same revision can replace
+its object. A reader needs all three identifiers; no latest-revision lookup or
+durable job reference is stored.
+
+Objects contain a versioned envelope:
+
+```ts
+{
+  schemaVersion: 1,
+  transcript: StoredTranscriptV1 | null,
+  traceContext: {
+    sessionId: string | null,
+    traceTimestamp: string, // ISO timestamp
+    environment: string,
+    traceName: string | null,
+  },
+}
+```
+
+The queue creates `inputStorage` with `createTraceBatchInputStorage()` and passes
+it into `storeInputs`. The factory returns the `TraceBatchInputStorage` interface
+with `put` and `get`; all instances share one lazily initialized provider client.
+Feature gating, instrumentation and tolerated failures remain in `storeInputs`.
+
+`inputStorage.put(reference, { transcript, traceContext })` requires all context
+fields, with null for an absent session ID or name. Context fields mirror the
+event-domain field shapes without importing the domain schema; the writer's typed
+assignment keeps them compatible. Context uses the existing Topics selection: earliest observation start,
+newest nonempty session ID, newest-event environment and first observation name.
+The transcript alone cannot reconstruct this context. The original job enqueue
+time remains execution state rather than trace context.
+
+The trace-batch module freezes the complete stored V1 envelope in
+`traceBatch/versions/v1.ts`, including trace context and copies of the transcript
+and normalized message schemas without importing live schemas. Its serialization
+module owns the typed adapters between the live transcript and V1. Message dates are
+serialized as ISO strings. `inputStorage.get(reference)` returns
+`{ transcript, traceContext }`, validates nested content and restores message
+dates; `traceContext.traceTimestamp` remains an ISO string. Missing context,
+invalid JSON and download errors propagate; an explicitly stored null transcript
+returns `transcript: null`. A `schemaVersion` the reader does not know throws
+`UnsupportedTraceBatchInputVersionError`, distinct from invalid data. Schema
+version and readiness revision are independent.
+
+Mixed versions happen: rolling deploys, and self-hosters updating web and worker
+at different times. A reader that meets an unknown `schemaVersion` must fail with
+the retryable `UnsupportedTraceBatchInputVersionError`, never discard the job or
+treat the object as missing. Consumers read inside retried jobs whose backoff
+spans a deploy, so the retry lands on an updated reader. Deploy readers for a new
+version before enabling its writer; if a writer ships first, the retries cover the
+gap. Compatible optional fields may be added to V1 when absent values are safe for
+old readers. A breaking change adds `versions/v2.ts`, its adapters and a read
+dispatch on `schemaVersion`; existing objects are never rewritten.
+
+Serialize the full envelope once. Skip the entire upload if `json.length` exceeds
+1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and
+does not bound assembly or serialization memory. Size skips emit an info log with identifiers,
+actual length and limit. StorageService owns upload retries and logs: SlowDown at
+warning level, other failures including request timeouts at error level. Exhausted
+failures mark the `trace-batch-store-inputs` span as failed. Neither outcome stops
+Topics. The span records outcome and JSON length without transcript content;
+there are no additional outcome counters.
+
+Deploy with writes disabled. Before enabling, configure and verify an enabled
+bucket lifecycle rule for the full `<prefix>trace-batch/trace/` path, matching
+span-eval retention, including noncurrent versions where applicable. A rule for
+`evals/` alone does not cover this path. Enable on a small worker rollout and
+check storage spans, size-skip logs, S3 failures and Topics latency. Roll back by
+disabling writes. Existing Topics processing continues to use in-memory inputs;
+future consumers that require files must schedule only after a successful PUT.
+
+Like temporary span-eval inputs, these objects have no ingestion deletion
+references. Trace/project deletion and per-project retention do not immediately
+remove them; bucket expiry is the accepted cleanup mechanism, and the deletion
+paths are intentionally not extended. The lifecycle rule above remains the
+precondition for enabling writes.
+
+### Storage portability
+
+Keep producers and consumers behind the `TraceBatchInputStorage` interface.
+`createTraceBatchInputStorage()` wires the production implementation; consumers
+receive the storage object so tests or another backend can supply the same contract.
+`TraceBatchInputData` is the application contract; the S3 key layout, client,
+serialization and physical retention belong to the storage implementation.
+The logical identity `(projectId, traceId, revision)` must remain stable across
+storage backends. A ClickHouse implementation can return the same transcript
+and trace context without exposing its table layout to callers.
+
+When adding file-dependent consumers, persist a backend-aware input reference
+on the execution record and carry it in the queue job. For S3 this reference
+must retain the exact object key. Only the storage module should interpret the
+backend and locator. During a migration, keep readers for both backends until
+queued references have drained or expired; changing the writer backend must
+not redirect reads of existing references.
+
+Replacing S3 also requires preserving behavior: report `stored` only after the
+input is durable and available to the consumer's read path; retain the size
+limit and define retry/same-revision replacement semantics explicitly. ClickHouse
+needs batched or safely acknowledged async inserts rather than one synchronous
+insert per trace, and its retention/deletion policy must be configured separately.
+These are requirements for a future backend, not a second implementation in this
+optional-capture stage.
+
 ## Per-trace transcripts
 
 The reader orders only by project ID and trace ID. The worker keeps
@@ -300,7 +426,8 @@ one trace's observations, assembles it when the pair changes, and flushes the la
 trace only after a successful end of stream. A stream error discards the current
 partial trace; earlier completed traces have already emitted samples. Each trace
 uses the shared depth-first ordering and transcript assembler. Transcripts are
-ephemeral: neither logs nor job results contain their content.
+ephemeral unless optional input capture is enabled. Neither logs nor job results
+contain their content.
 
 Completion means all rows returned for that pair's query window, not that no late
 events can arrive. Event versions follow the current ClickHouse merge state;

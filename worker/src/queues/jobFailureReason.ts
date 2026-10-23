@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isS3SlowDownError } from "@langfuse/shared/src/server";
 
 const MAX_CAUSE_DEPTH = 8;

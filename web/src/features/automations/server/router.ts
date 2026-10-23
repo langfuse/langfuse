@@ -20,11 +20,14 @@ import {
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
+  getViewablePrivateSlackChannelIds,
+  maskPrivateSlackChannel,
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -160,10 +163,24 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await getAutomations({
+      const allAutomations = await getAutomations({
         projectId: input.projectId,
         eventSource: input.eventSource,
       });
+      const viewablePrivateChannelIds = await getViewablePrivateSlackChannelIds(
+        {
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+          actions: allAutomations.map((automation) => automation.action),
+        },
+      );
+      const automations = allAutomations.map((automation) => ({
+        ...automation,
+        action: maskPrivateSlackChannel(
+          automation.action,
+          viewablePrivateChannelIds,
+        ),
+      }));
 
       // Project-notification channels are managed from project settings, not
       // the general Automations UI. When no eventSource is requested (the
@@ -206,7 +223,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      return automation;
+      return {
+        ...automation,
+        action: await maskActionForViewer({
+          action: automation.action,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
+      };
     }),
 
   // Get execution history for an automation
@@ -293,18 +317,11 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = webhookResult.finalActionConfig;
         newUnencryptedWebhookSecret = webhookResult.newUnencryptedWebhookSecret;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -367,7 +384,11 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: convertActionToDomain(action),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -406,18 +427,12 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = webhookResult.finalActionConfig;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          existingActionConfig: existingAutomation.action.config,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -495,7 +510,11 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: convertActionToDomain(action),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
       };

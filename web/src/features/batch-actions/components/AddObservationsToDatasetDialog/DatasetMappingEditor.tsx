@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useStore } from "zustand";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import {
@@ -80,7 +81,7 @@ export function DatasetMappingEditor({
                 onClick={() => actions.setScreen("create")}
                 disabled={pending}
               >
-                <Plus className="icon-base text-icon-foreground" />
+                <Plus size="base" color="default" />
                 Create dataset
               </Button>
             </div>

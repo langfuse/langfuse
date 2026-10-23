@@ -6,7 +6,6 @@ import { TopicMapLoading } from "./TopicMapLoading";
 export function TopicEmbeddingMap({
   projectId,
   query,
-  onOpenTrace,
   topics,
   selectedTopic,
   onSelectTopic,
@@ -35,7 +34,6 @@ export function TopicEmbeddingMap({
   return (
     <EmbeddingMapView
       projectId={projectId}
-      onOpenTrace={onOpenTrace}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
@@ -54,7 +52,6 @@ type TopicEmbeddingMapProps = {
     data?: RouterOutputs["topics"]["map"];
     error: { message: string } | null;
   };
-  onOpenTrace: (traceId: string) => void;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
@@ -65,6 +62,6 @@ type TopicEmbeddingMapProps = {
 };
 
 type Topic = Pick<
-  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
+  RouterOutputs["topics"]["currentResults"]["facets"][number]["topics"][number],
   "id" | "name"
 > & { description?: string };

@@ -26,6 +26,9 @@ interface MembershipInvitationTemplateProps {
   langfuseCloudRegion?: string;
 }
 
+const formatRole = (role: string) =>
+  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
 export const MembershipInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
@@ -114,6 +117,3 @@ export const MembershipInvitationTemplate = ({
     </Html>
   );
 };
-
-const formatRole = (role: string) =>
-  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();

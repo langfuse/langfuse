@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { CircleAlert, TriangleAlert } from "lucide-react";
+import { CircleAlert, TriangleAlert } from "@langfuse/icons";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
 type SessionToolStatusCountBadgeProps = {
@@ -34,7 +34,7 @@ export function SessionToolStatusCountBadge({
   )[severity];
   return (
     <BadgeShell color={color} size="sm" {...props}>
-      {variant === "sidebar" && <Icon className="icon-sm" aria-hidden="true" />}
+      {variant === "sidebar" && <Icon size="sm" aria-hidden="true" />}
       {variant === "timeline"
         ? `${count} ${severity}${count === 1 ? "" : "s"}`
         : count}

@@ -17,6 +17,7 @@ import {
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
+  seriesFillColor,
   SeriesOverflowNote,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -97,6 +98,7 @@ export function AreaChartTimeSeries({
       getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
       dimension,
     color: seriesColor(index),
+    fillColor: seriesFillColor(index),
   }));
   const chartLegend = useMemo<LineChartLegend>(() => {
     if (legendPosition === "none") return { visibility: "hidden" };

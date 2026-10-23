@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { History, Play, RefreshCw } from "lucide-react";
+import { History, Play, RefreshCw } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 
 export function TopicsActionsMenu({
@@ -27,19 +27,19 @@ export function TopicsActionsMenu({
       {triggerAction && (
         <HeaderActionMenuRow
           label={triggerAction.label}
-          icon={<Play className="icon-base text-icon-foreground" />}
+          icon={<Play size="base" color="default" />}
           disabled={triggerAction.disabled}
           onClick={processTraces}
         />
       )}
       <HeaderActionMenuRow
         label="History"
-        icon={<History className="icon-base text-icon-foreground" />}
+        icon={<History size="base" color="default" />}
         onClick={openHistory}
       />
       <HeaderActionMenuRow
         label="Refresh results"
-        icon={<RefreshCw className="icon-base text-icon-foreground" />}
+        icon={<RefreshCw size="base" color="default" />}
         onClick={refreshResults}
       />
     </>

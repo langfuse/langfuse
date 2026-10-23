@@ -4,6 +4,8 @@ import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
+import { transcriptSchema } from "../schema";
+
 describe("transcript fixtures", () => {
   const traceId = "trace";
   const generation = (id: string, input: string[], output: string[]) => ({
@@ -473,9 +475,9 @@ describe("transcript fixtures", () => {
       convertObservation(createObservation(observation)),
     );
     const snapshot = structuredClone(observations);
-    expect(assembleTranscript(orderObservations(observations))).toEqual(
-      fixture.expected,
-    );
+    const transcript = assembleTranscript(orderObservations(observations));
+    expect(transcript).toEqual(fixture.expected);
+    expect(transcriptSchema.nullable().parse(transcript)).toEqual(transcript);
     expect(observations).toEqual(snapshot);
   });
 });

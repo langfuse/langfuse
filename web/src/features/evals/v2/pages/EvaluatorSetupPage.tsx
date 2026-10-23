@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
-import { History, Trash2 } from "lucide-react";
+import { History, Trash2 } from "@langfuse/icons";
 import {
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
@@ -16,11 +16,11 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import Page from "@/src/components/layouts/page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
@@ -39,7 +39,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -905,7 +905,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="icon-base text-icon-foreground mr-2" />
+              <History size="base" color="default" __rawClassName="mr-2" />
               Version history
             </Button>
             <Button
@@ -914,7 +914,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="icon-base text-destructive" />
+              <Trash2 size="base" color="destructive" />
             </Button>
           </div>
         ) : undefined,

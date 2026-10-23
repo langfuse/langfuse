@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 

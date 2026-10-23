@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 export function SessionTimelineCollapsibleRow({
@@ -86,8 +86,9 @@ export function SessionTimelineCollapsibleRow({
             onClick={() => onExpandedChange(!isExpanded)}
           >
             <ChevronDown
-              className={cn(
-                "icon-sm transition-transform",
+              size="sm"
+              __rawClassName={cn(
+                "transition-transform",
                 !isExpanded && "-rotate-90",
               )}
               aria-hidden="true"

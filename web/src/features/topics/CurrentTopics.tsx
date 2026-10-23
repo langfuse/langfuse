@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -5,11 +6,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
 import { CurrentTopicsView } from "./CurrentTopicsView";
+import { TopicGridView } from "./TopicGridView";
+import { TopicTreemapView } from "./TopicTreemapView";
+import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 export function CurrentTopics({
@@ -17,13 +18,17 @@ export function CurrentTopics({
   timeRange,
   result,
   selectedFacetId,
+  view,
   tracePanelRef,
   traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
 }: CurrentTopicsProps) {
-  const selectedFacet = result.data?.find(
+  const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
   );
-  const empty = !result.isLoading && !result.error && result.data?.length === 0;
+  const empty =
+    !result.isLoading && !result.error && result.data?.facets.length === 0;
   return (
     <section
       className={cn(
@@ -41,12 +46,15 @@ export function CurrentTopics({
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {selectedFacet && (
         <CurrentFacet
-          key={selectedFacet.facetId}
+          key={JSON.stringify([projectId, selectedFacet.facetId])}
           projectId={projectId}
           facet={selectedFacet}
           timeRange={timeRange}
+          view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
         />
       )}
     </section>
@@ -57,59 +65,71 @@ function CurrentFacet({
   projectId,
   facet,
   timeRange,
+  view,
   tracePanelRef,
   traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
 }: CurrentFacetProps) {
-  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
+  const mapResult = useCurrentTopicMap(
+    projectId,
+    view === "treemap" ? undefined : facet.map?.runId,
+    timeRange,
+  );
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
+  if (view === "treemap")
+    return (
+      <TopicTreemapView
+        projectId={projectId}
+        facet={facet}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        peekView={peekView}
+      />
+    );
+  if (view === "map")
+    return (
+      <CurrentTopicsView
+        projectId={projectId}
+        facet={facet}
+        mapResult={mapResult}
+        tracePanelRef={tracePanelRef}
+        traceFilters={traceFilters}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        onOpenTrace={peekNavigation.openPeek}
+        peekView={peekView}
+      />
+    );
   return (
-    <DialogController<SummarySource>
-      renderDialog={({ state }) => (
-        <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <p className="text-muted-foreground">
-                View the current trace transcript for this summary.
-              </p>
-              <SummaryInspector
-                projectId={projectId}
-                facetId={facet.facetId}
-                {...state}
-              />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => (
-        <CurrentTopicsView
-          projectId={projectId}
-          facet={facet}
-          mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
-          onInspectTranscript={openDialog}
-          peekView={peekView}
-        />
-      )}
-    </DialogController>
+    <TopicGridView
+      projectId={projectId}
+      facet={facet}
+      mapResult={mapResult}
+      tracePanelRef={tracePanelRef}
+      onGenerateTopics={onGenerateTopics}
+      canGenerateTopics={canGenerateTopics}
+      onOpenTrace={peekNavigation.openPeek}
+      peekView={peekView}
+    />
   );
 }
 
 export function useCurrentTopics({
   projectId,
   running,
+  pollForSummaries = false,
   refreshAfter,
   timeRange,
 }: {
   projectId: string;
   running: boolean;
+  pollForSummaries?: boolean;
   refreshAfter: number;
   timeRange: TopicTimeRange;
 }) {
@@ -127,7 +147,12 @@ export function useCurrentTopics({
     queryFn: ({ signal }) =>
       client.topics.currentResults.query({ projectId, timeRange }, { signal }),
     placeholderData: keepPreviousData,
-    refetchInterval: running ? 3000 : false,
+    refetchInterval: (query) => {
+      if (running) return 3000;
+      return pollForSummaries && !query.state.data?.hasStoredSummaries
+        ? 10000
+        : false;
+    },
     enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
@@ -152,22 +177,24 @@ type CurrentTopicsProps = {
     "data" | "isLoading" | "error"
   >;
   selectedFacetId: string | undefined;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
 };
 
 type CurrentFacetProps = {
   projectId: string;
   facet: Facet;
   timeRange: TopicTimeRange;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
 };
 
-type Facet = RouterOutputs["topics"]["currentResults"][number];
-type SummarySource = Pick<
-  Facet["rows"][number],
-  "traceId" | "facetVersion" | "unitStartTime"
->;
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 
 export const __test = { useCurrentTopics };

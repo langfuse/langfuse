@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -6,7 +6,7 @@ import {
   TableViewPresetTableName,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useRef, useState } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
@@ -34,7 +34,7 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
+import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   useColumnOrder,
@@ -128,7 +128,7 @@ function EvaluatorsOverviewSelectionBar({
         className="h-8"
         onClick={() => onDeleteSelection({ selectAll, selectedIds })}
       >
-        <Trash2 className="icon-base text-icon-foreground sm:mr-2" />
+        <Trash2 size="base" color="default" __rawClassName="sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     </OverviewSelectionBar>
@@ -619,7 +619,7 @@ export default function EvaluatorsPage() {
         },
         mobileActionButtons: showOnboarding ? (
           <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
-            <Plus className="icon-base mr-2" />
+            <Plus size="base" __rawClassName="mr-2" />
             New evaluator
           </Button>
         ) : undefined,
@@ -677,7 +677,7 @@ export default function EvaluatorsPage() {
               />
             )}
             <Button onClick={openGalleryFromNewEvaluatorButton}>
-              <Plus className="icon-base text-icon-foreground mr-2" />
+              <Plus size="base" color="default" __rawClassName="mr-2" />
               New evaluator
             </Button>
           </div>

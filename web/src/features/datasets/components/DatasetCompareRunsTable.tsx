@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
+import { FilteredRunPills } from "@/src/components/table/FilteredRunPills";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -25,7 +25,7 @@ import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 
 export type DatasetCompareRunRowData = {
   id: string;

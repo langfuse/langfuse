@@ -96,6 +96,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
+  # Keep its env loader aligned with the app until the adapter updates its pin.
+  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.2
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -105,27 +108,21 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
-  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
-  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
-  "undici@6": 6.28.1
-  "undici@7": 7.29.1
-  zod: 4.3.6
+  # Keep both installed majors on their security-patched releases.
+  "undici@6": 6.29.1
+  "undici@7": 7.30.1
+  zod: 4.6.6
   nanoid: 3.3.18
-  katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
-  "@types/react-dom": 19.3.0
+  "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.16.0
+  qs: 6.16.1
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
-  # SSRF/DoS classifier fixes land in 10.5.1 and 10.7.1 (CVE-2026-101910/-101911/
-  # -101912/-101913). express-rate-limit and socks declare ^10 ranges the
-  # vulnerable 10.3.1 already satisfies, so only an override moves it.
-  ip-address: 10.7.1
   # SSRF + throttling fixes land in 4.0.29/4.0.33. @mastra/core pins its
   # provider-utils-v6 alias to exactly 4.0.27, which the range key can't
   # catch — aliased deps need alias-name overrides (same reason -v5 exists).
@@ -137,22 +134,13 @@ overrides:
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
   fflate@0.8.1: 0.8.3
-  # CVE-2026-86472: fast-uri mishandles case sensitivity when comparing URI
-  # scheme and host. ajv declares ^3.0.1, which 3.1.7 already satisfies, so
-  # only an override moves it to the patched release.
-  fast-uri: 3.1.8
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
-  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
-  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
-  "@storybook/addon-vitest>@vitest/browser": 4.1.11
-  # CVE-2026-93981: XSS in hono, fixed in 4.13.7. Its dependents declare ^4
-  # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
-  # override moves it to the patched release.
-  hono: 4.13.7
+  # Hono's dependents allow these security fixes: XSS in 4.13.7 and
+  # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
+  hono: 4.13.11
   # A batch of SSRF, prototype-pollution, ReDoS and proxy-confusion fixes
   # (CVE-2026-101898 through -101909) all land in 1.20.0. @slack/web-api and
   # @vueuse/integrations declare ^1 ranges the vulnerable 1.18.0 already
@@ -172,7 +160,7 @@ overrides:
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.0.9"
+  "next-auth>nodemailer": "^10.0.13"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -194,11 +182,36 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
-  - ai@7.0.130
-  - "@ai-sdk/openai@4.0.86"
-  - "@ai-sdk/gateway@4.0.106"
-  - "@ai-sdk/provider@4.0.24"
-  - "@ai-sdk/provider-utils@5.0.56"
+  # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
+  - next@16.4.2
+  - "@next/env@16.4.2"
+  - "@next/eslint-plugin-next@16.4.2"
+  - "@next/swc-darwin-arm64@16.4.2"
+  - "@next/swc-darwin-x64@16.4.2"
+  - "@next/swc-linux-arm64-gnu@16.4.2"
+  - "@next/swc-linux-arm64-musl@16.4.2"
+  - "@next/swc-linux-x64-gnu@16.4.2"
+  - "@next/swc-linux-x64-musl@16.4.2"
+  - "@next/swc-win32-arm64-msvc@16.4.2"
+  - "@next/swc-win32-x64-msvc@16.4.2"
+  # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
+  - turbo@2.11.9
+  - eslint-config-turbo@2.11.9
+  - eslint-plugin-turbo@2.11.9
+  - "@turbo/darwin-64@2.11.9"
+  - "@turbo/darwin-arm64@2.11.9"
+  - "@turbo/linux-64@2.11.9"
+  - "@turbo/linux-arm64@2.11.9"
+  - "@turbo/windows-64@2.11.9"
+  - "@turbo/windows-arm64@2.11.9"
+  # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
+  - undici@6.29.1
+  - undici@7.30.1
+  # qs security fix; eligible after 2026-10-19 22:06 UTC.
+  - qs@6.16.1
   # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
   - handlebars@4.7.10
+  # fast-uri security fixes; eligible after 2026-10-24 23:05 UTC.
+  - fast-uri@3.1.9
+  # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
+  - body-parser@2.4.0

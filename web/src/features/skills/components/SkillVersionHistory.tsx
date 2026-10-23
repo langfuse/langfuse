@@ -1,5 +1,5 @@
 import { type MouseEvent, useState } from "react";
-import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -61,13 +61,13 @@ export function SkillVersionHistory(
     <aside
       className={cn(
         "ph-no-capture bg-muted/10 flex w-full shrink-0 flex-col border-b transition-[width,max-height] md:max-h-none md:border-r md:border-b-0",
-        isCollapsed ? "max-h-11 md:w-11" : "max-h-56 md:w-56",
+        isCollapsed ? "max-h-9 md:w-11" : "max-h-56 md:w-56",
       )}
     >
       <div
         className={cn(
-          "flex min-h-11 items-center border-b px-2",
-          isCollapsed ? "justify-center" : "justify-between",
+          "flex min-h-9 shrink-0 items-center border-b",
+          isCollapsed ? "justify-center px-2" : "justify-between px-4",
         )}
       >
         {isCollapsed ? null : (
@@ -84,9 +84,9 @@ export function SkillVersionHistory(
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="icon-base text-icon-foreground" />
+            <PanelLeftOpen size="base" color="default" />
           ) : (
-            <PanelLeftClose className="icon-base text-icon-foreground" />
+            <PanelLeftClose size="base" color="default" />
           )}
         </Button>
       </div>

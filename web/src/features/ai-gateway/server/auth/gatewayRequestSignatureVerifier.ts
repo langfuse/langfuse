@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 
 import { context, propagation, trace, type Context } from "@opentelemetry/api";
@@ -10,15 +11,19 @@ import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";
 const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
+const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z.string().min(1).optional(),
+    model: z
+      .string()
+      .refine((model) => modelRoutingService.resolve(model, []) !== null),
   })
   .strict();
 const modelsQuerySchema = z
@@ -38,6 +43,7 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
+    model: string;
   },
 ) => Promise<unknown>;
 
@@ -73,7 +79,12 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
       serviceKeys,
     )
   ) {
-    throw new GatewayControlPlaneError("Invalid gateway authorization", 401);
+    // Coded so the gateway can tell a service-key mismatch from a rejected caller key.
+    throw new GatewayControlPlaneError(
+      "Invalid gateway authorization",
+      401,
+      "invalid_gateway_authorization",
+    );
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
@@ -104,7 +115,12 @@ export function withGatewayResolveSignatureVerification(
   handler: GatewayResolveHandler,
 ) {
   return withGatewayControlPlaneAuth(
-    ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
+    ({ body, ...params }) =>
+      handler({
+        ...params,
+        apiFormat: body.apiFormat,
+        model: body.model,
+      }),
     resolveBodySchema,
   );
 }
@@ -146,6 +162,9 @@ export function withGatewayModelsSignatureVerification(
       });
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });
@@ -204,6 +223,9 @@ function withGatewayControlPlaneAuth<
       );
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });

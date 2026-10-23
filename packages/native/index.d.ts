@@ -87,6 +87,12 @@ export interface ExtractedOtelMedia {
 export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
 
 /**
+ * Synchronously check raw bytes for possible media without copying or validating JSON.
+ * Callers must bound input size to limit JS-thread work; a match still needs extraction.
+ */
+export declare function hasOtelMediaCandidate(bytes: Buffer): boolean
+
+/**
  * Hello-world entry point. It proves that the worker can load and call the
  * addon and that native code reports through the same telemetry as the rest
  * of the worker: one increment of the `langfuse.native.hello_calls` counter

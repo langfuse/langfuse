@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -57,7 +57,7 @@ import {
 } from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { getObservationLevelStatus } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   formatObservationCost,
@@ -78,26 +78,26 @@ import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
 } from "@/src/features/traces";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { ProvidedModelNameCell } from "@/src/features/models";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/TablePeekViewObservationDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
@@ -858,7 +858,7 @@ export default function ObservationsTable({
       },
       enableHiding: true,
     },
-    createStatusTableColumn<ObservationsTableRow, ObservationLevelType>({
+    createTableColumn<ObservationsTableRow, ObservationLevelType>({
       accessorKey: "level",
       header: "Status",
       size: 100,
@@ -869,9 +869,9 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       enableSorting,
-      isLive: false,
-      getStatus: (level) =>
-        level ? getObservationLevelStatus(level) : undefined,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (level) =>
+        level ? <ObservationLevelTag level={level} /> : <EmptyValue />,
     }),
     createTextTableColumn<ObservationsTableRow>({
       accessorKey: "statusMessage",
@@ -913,7 +913,7 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         );
@@ -1022,7 +1022,7 @@ export default function ObservationsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<ObservationsTableRow>({
+    createTagTableColumn<ObservationsTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,

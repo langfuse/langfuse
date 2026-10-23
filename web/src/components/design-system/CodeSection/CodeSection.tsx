@@ -6,8 +6,8 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Copy as CopyIcon,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { type ReactNode, useState } from "react";
 
 import { IconButton } from "../IconButton/IconButton";
@@ -17,7 +17,7 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 const bodyVariants = cva("relative flex min-w-0 max-w-full items-start", {
   variants: {
     variant: {
-      filled: "bg-surface-output rounded-md",
+      filled: "bg-surface-section rounded-md",
       outline: "bg-background rounded-md border",
       plain: null,
     },
@@ -66,7 +66,7 @@ const actionGroupVariants = cva(
 );
 
 type CodeSectionAction = {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   onClick: () => void;
 };

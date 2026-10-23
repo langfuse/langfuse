@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { LockIcon } from "lucide-react";
+import { LockIcon } from "@langfuse/icons";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -119,7 +119,10 @@ export default function ConfigureRetention() {
                       />
                       {!hasAccess && (
                         <span title="No access">
-                          <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
+                          <LockIcon
+                            size="base"
+                            __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
+                          />
                         </span>
                       )}
                     </div>

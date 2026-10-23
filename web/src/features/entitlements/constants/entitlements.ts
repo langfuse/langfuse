@@ -98,7 +98,6 @@ export const entitlementAccess: Record<
     entitlements: [
       ...cloudAllPlansEntitlements,
       "rbac-project-roles",
-      "audit-logs",
       "data-retention",
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",

@@ -9,7 +9,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -138,7 +138,7 @@ export const DetailPageNav = (props: {
           <HeaderActionButton
             label="Navigate up"
             shortcut="K"
-            icon={<ArrowUp className="icon-base" />}
+            icon={<ArrowUp size="base" />}
             active={shortcutPulse === "previous"}
             disabled={!previousPageEntry}
             onClick={() => {
@@ -150,7 +150,7 @@ export const DetailPageNav = (props: {
           <HeaderActionButton
             label="Navigate down"
             shortcut="J"
-            icon={<ArrowDown className="icon-base" />}
+            icon={<ArrowDown size="base" />}
             active={shortcutPulse === "next"}
             disabled={!nextPageEntry}
             onClick={() => {
@@ -185,7 +185,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp className="icon-base text-icon-foreground" />
+              <ArrowUp size="base" color="default" />
             </Button>
           )}
         </Tooltip>
@@ -206,7 +206,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown className="icon-base text-icon-foreground" />
+              <ArrowDown size="base" color="default" />
             </Button>
           )}
         </Tooltip>

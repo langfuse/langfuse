@@ -1,13 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -75,7 +75,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, Trash2 } from "lucide-react";
+import { InfoIcon, Trash2 } from "@langfuse/icons";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import {
   TableActionMenu,
@@ -87,7 +87,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
@@ -99,7 +99,7 @@ import {
   tracesFieldRegistry,
 } from "@/src/features/filters";
 
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -115,7 +115,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
@@ -898,7 +898,7 @@ function TracesTableInternal({
               ) : (
                 <EmptyValue />
               )}
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -906,7 +906,7 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
     },
-    createBadgeTableColumn<TracesTableRow>({
+    createTagTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -1258,7 +1258,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="icon-base text-icon-foreground mr-2" />
+                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,

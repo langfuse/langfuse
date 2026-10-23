@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import React, {
   type Dispatch,
   type ReactNode,
@@ -9,7 +9,7 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import {
   DataTableColumnVisibilityFilter,
   type ColumnGroupTogglePayload,
-} from "@/src/components/table/data-table-column-visibility-filter";
+} from "@/src/components/table/DataTableColumnVisibilityFilter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import {
   InlineFilterBuilder,
@@ -40,7 +40,7 @@ import {
   type TimeRange,
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
+import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
@@ -54,7 +54,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
-import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
+import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/MultiSelect";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
@@ -70,7 +70,7 @@ import {
   SheetTrigger,
 } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
-import { Filter, X } from "lucide-react";
+import { Filter, X } from "@langfuse/icons";
 import { useMediaQuery } from "react-responsive";
 import {
   SearchBarDraftCacheContext,
@@ -644,7 +644,7 @@ export function DataTableToolbar<TData, TValue>({
                       size="sm"
                       className="flex h-8 items-center gap-2 text-sm md:hidden"
                     >
-                      <Filter className="icon-base text-icon-foreground" />
+                      <Filter size="base" color="default" />
                       <span>Filters</span>
                       {filterState.length > 0 && (
                         <span className="bg-input ml-1 rounded-sm px-1.5 text-xs shadow-xs">
@@ -673,7 +673,7 @@ export function DataTableToolbar<TData, TValue>({
                           emitLegacyMobileFiltersToggled(false, "header");
                         }}
                       >
-                        <X className="icon-base text-icon-foreground" />
+                        <X size="base" color="default" />
                       </Button>
                     </div>
                     <div className="shrink-0 border-b px-2 py-2">

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
 
 import {
