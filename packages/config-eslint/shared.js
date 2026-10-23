@@ -10,7 +10,7 @@ const membershipTestWriters = [
   "*.test.ts",
   "scripts/seeder/**",
 ];
-const prismaWriters = {
+const restrictedPrismaWriters = {
   apiKey: restrictPrismaCreates("packages/shared/src/server/auth/apiKeys.ts"),
   roleAssignment: restrictPrismaCreates(
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
@@ -57,7 +57,10 @@ export default [
       "no-nested-ternary": "error",
       "no-use-before-define": "warn",
       "@repo/no-exotic-operators": "warn",
-      "@repo/no-restricted-prisma-writes": ["error", { models: prismaWriters }],
+      "@repo/no-restricted-prisma-writes": [
+        "error",
+        { models: restrictedPrismaWriters },
+      ],
     },
   },
 
