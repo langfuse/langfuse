@@ -89,6 +89,7 @@ import {
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { DateTimeFilter } from "../queries/clickhouse-sql/clickhouse-filter";
+import { isTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   planScoreFilterPushdown,
   resolveScoreDataRequirement,
@@ -1872,9 +1873,15 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
     const scan = createObservationsScan(opts.projectId);
     try {
       const bounds = extractObservationsStartTimeBounds(opts);
+      // Backfilled timestamps before project creation require an explicit lower bound.
       const from =
         bounds.from ??
-        (await findOldestObservationStartTime(opts.projectId, scan));
+        (
+          await prisma.project.findUnique({
+            where: { id: opts.projectId, deletedAt: null },
+            select: { createdAt: true },
+          })
+        )?.createdAt.getTime();
       if (from === undefined || (bounds.to !== undefined && from > bounds.to)) {
         return { items: [], cursor: undefined };
       }
@@ -1899,12 +1906,7 @@ function extractObservationsStartTimeBounds(opts: PublicApiObservationsQuery) {
   let from: number | undefined;
   let to = opts.cursor?.lastStartTimeTo.getTime();
   observationsFilter.forEach((filter) => {
-    if (
-      !(filter instanceof DateTimeFilter) ||
-      !filter.clickhouseTable.startsWith("events_") ||
-      filter.field.replaceAll('"', "").split(".").at(-1) !== "start_time"
-    )
-      return;
+    if (!isTimeFilter(filter)) return;
     const value = filter.value.getTime();
     if (filter.operator === ">" || filter.operator === ">=") {
       from = Math.max(from ?? value, value);
@@ -1913,20 +1915,6 @@ function extractObservationsStartTimeBounds(opts: PublicApiObservationsQuery) {
     }
   });
   return { from, to };
-}
-
-async function findOldestObservationStartTime(
-  projectId: string,
-  scan: ObservationsScan,
-): Promise<number | undefined> {
-  const { rows } = await scan.query<{ start_time: string }>(
-    new EventsQueryBuilder({ projectId })
-      .selectRaw("e.start_time")
-      .orderByColumns([{ column: "e.start_time", direction: "ASC" }])
-      .limit(1),
-  );
-  if (rows.length === 0) return undefined;
-  return parseClickhouseUTCDateTimeFormat(rows[0].start_time).getTime();
 }
 
 async function scanObservationWindows(
