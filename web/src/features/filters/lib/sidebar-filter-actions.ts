@@ -224,7 +224,16 @@ export function applySelection(
     const falseLabel = facet.falseLabel ?? "False";
     const invert = facet.invertValue ?? false;
 
-    if (values.length === 0 || values.length === 2) return other;
+    if (values.length === 2) return other;
+    if (values.length === 0) {
+      // Boolean filters have no empty-set operator. Both conditions are
+      // ANDed, so this represents neither value without inventing a sentinel.
+      return [
+        ...other,
+        { column, ...target, type: "boolean", operator: "=", value: true },
+        { column, ...target, type: "boolean", operator: "=", value: false },
+      ];
+    }
     if (values.includes(trueLabel)) {
       return [
         ...other,
@@ -274,8 +283,7 @@ export function applySelection(
   // "no filter": exclusions outside the current option list may still be
   // live. Skip the all-selected removal shortcut and let
   // resolveCheckboxOperator re-derive the exclusion set (an emptied set is
-  // removed below). This also covers "none checked", which means
-  // exclude every listed value rather than reset. The managed
+  // removed below). The managed
   // environment column is exempt: its all-selected shortcut persists the
   // explicit enable-all-environments override, and its hidden
   // environments are always listed, so there is nothing to carry.
@@ -301,13 +309,13 @@ export function applySelection(
       return other;
     }
   } else {
-    // If all items selected or none selected, remove filter
+    // If all items are selected, remove the filter.
     // (only for implicit/checkbox-based selection, not when operator is explicitly set)
     if (
       !preserveNoneOfOperator &&
-      (values.length === 0 ||
-        (values.length === availableValues.length &&
-          availableValues.every((v) => values.includes(v))))
+      values.length > 0 &&
+      values.length === availableValues.length &&
+      availableValues.every((v) => values.includes(v))
     ) {
       // Keep explicit override when user intentionally enables all environments.
       if (isManagedEnvironmentColumn && values.length > 0) {
@@ -331,6 +339,12 @@ export function applySelection(
       values,
       availableValues,
     }));
+
+    // "all of []" is vacuously true, not an empty selection. Positive
+    // selections must use "any of []" when their last value is unchecked.
+    if (values.length === 0 && finalOperator === "all of") {
+      finalOperator = "any of";
+    }
 
     // Re-checking the last excluded value empties the exclusion set:
     // return to the implicit-all default instead of persisting an empty

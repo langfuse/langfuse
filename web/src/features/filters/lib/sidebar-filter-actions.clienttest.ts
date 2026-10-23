@@ -57,6 +57,118 @@ const ctx: SidebarFilterActionContext = {
 };
 
 describe("applySelection", () => {
+  it.each([
+    {
+      column: "env",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["prod"],
+      target: "run-b",
+    },
+    {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["a"],
+      target: "run-b",
+    },
+    {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "all of",
+      value: ["a"],
+      target: "run-b",
+    },
+  ] satisfies FilterState)(
+    "keeps an empty positive selection for $column ($operator)",
+    (filter) => {
+      const { column, type, value } = filter;
+      const current: FilterState = [filter];
+      const empty = applyCheckboxSelection(ctx, current, column, []);
+      expect(empty).toEqual([
+        { column, type, operator: "any of", value: [], target: "run-b" },
+      ]);
+      expect(applyCheckboxSelection(ctx, empty, column, value)).toEqual([
+        { column, type, operator: "any of", value, target: "run-b" },
+      ]);
+      expect(clearCategoricalColumn(empty, column)).toEqual([]);
+    },
+  );
+
+  it("keeps all managed environments unchecked and allows reselecting one", () => {
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: ["test"],
+    };
+    const current: FilterState = [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["dev", "test"],
+      },
+    ];
+    const empty = applyCheckboxSelection(managedCtx, current, "env", []);
+    expect(empty).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["prod", "dev", "test"],
+      },
+    ]);
+    expect(applyCheckboxSelection(managedCtx, empty, "env", ["prod"])).toEqual(
+      current,
+    );
+    expect(clearCategoricalColumn(empty, "env")).toEqual([]);
+  });
+
+  it.each([false, true])(
+    "keeps neither boolean label selected (inverted: %s)",
+    (invertValue) => {
+      const booleanCtx: SidebarFilterActionContext = {
+        ...ctx,
+        facets: [
+          {
+            type: "boolean",
+            column: "bookmarked",
+            label: "Bookmarked",
+            invertValue,
+          },
+        ],
+      };
+      const current: FilterState = [
+        {
+          column: "bookmarked",
+          type: "boolean",
+          operator: "=",
+          value: !invertValue,
+          target: "run-b",
+        },
+      ];
+      const empty = applyCheckboxSelection(
+        booleanCtx,
+        current,
+        "bookmarked",
+        [],
+      );
+      expect(empty).toEqual([
+        { ...current[0], value: true },
+        { ...current[0], value: false },
+      ]);
+      expect(
+        applyCheckboxSelection(booleanCtx, empty, "bookmarked", ["True"]),
+      ).toEqual(current);
+      expect(
+        applyCheckboxSelection(booleanCtx, empty, "bookmarked", [
+          "True",
+          "False",
+        ]),
+      ).toEqual([]);
+    },
+  );
+
   it("keeps a categorical filter's target and refuses to merge different targets", () => {
     const current = [
       {
@@ -315,7 +427,7 @@ describe("applyCheckboxSelection", () => {
     ).toEqual([]);
   });
 
-  it("keeps the managed environment reset when the last value is unchecked", () => {
+  it("keeps every managed environment excluded when the last value is unchecked", () => {
     const managedCtx = { ...ctx, managedEnvironmentColumn: "env" };
     const current: FilterState = [
       {
@@ -325,7 +437,9 @@ describe("applyCheckboxSelection", () => {
         value: ["prod", "dev"],
       },
     ];
-    expect(applyCheckboxSelection(managedCtx, current, "env", [])).toEqual([]);
+    expect(applyCheckboxSelection(managedCtx, current, "env", [])).toEqual([
+      { ...current[0], value: ["prod", "dev", "test"] },
+    ]);
   });
 
   it("drops the column's text filters before applying the selection", () => {
