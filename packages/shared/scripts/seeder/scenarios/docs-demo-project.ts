@@ -1,6 +1,7 @@
 import { prisma } from "../../../src/db";
 import { encrypt } from "../../../src/encryption";
 import {
+  OrganizationId,
   ProjectId,
   SystemRoleId,
   UserId,
@@ -25,6 +26,28 @@ const DOCS_DEMO_API_KEYS = {
 };
 /** The user created by `pnpm --filter=shared run db:seed`. */
 const DEMO_USER_EMAIL = "demo@langfuse.com";
+
+function summary(
+  ctx: Parameters<ScenarioDefinition["run"]>[0],
+  startedAt: number,
+  projects: number,
+  dryRun: boolean,
+) {
+  return {
+    scenario: "docs-demo-project",
+    target: "clickhouse" as const,
+    params: {},
+    projectId: DOCS_DEMO_PROJECT_ID,
+    environment: ctx.environment,
+    traceIds: [],
+    sessionIds: [],
+    counts: { organizations: 1, projects },
+    verified: {},
+    links: [`${ctx.baseUrl}/project/${DOCS_DEMO_PROJECT_ID}`],
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
 
 export const docsDemoProjectScenario: ScenarioDefinition = {
   name: "docs-demo-project",
@@ -78,7 +101,8 @@ export const docsDemoProjectScenario: ScenarioDefinition = {
     });
     if (!existingKey) {
       await createApiKey(prisma, {
-        owner: ProjectId(DOCS_DEMO_PROJECT_ID),
+        tenant: OrganizationId(DOCS_DEMO_ORG_ID),
+        scope: ProjectId(DOCS_DEMO_PROJECT_ID),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(user.id),
         name: "docs-demo",
@@ -120,25 +144,3 @@ export const docsDemoProjectScenario: ScenarioDefinition = {
     return summary(ctx, startedAt, projects.length, false);
   },
 };
-
-function summary(
-  ctx: Parameters<ScenarioDefinition["run"]>[0],
-  startedAt: number,
-  projects: number,
-  dryRun: boolean,
-) {
-  return {
-    scenario: "docs-demo-project",
-    target: "clickhouse" as const,
-    params: {},
-    projectId: DOCS_DEMO_PROJECT_ID,
-    environment: ctx.environment,
-    traceIds: [],
-    sessionIds: [],
-    counts: { organizations: 1, projects },
-    verified: {},
-    links: [`${ctx.baseUrl}/project/${DOCS_DEMO_PROJECT_ID}`],
-    dryRun,
-    durationMs: Date.now() - startedAt,
-  };
-}

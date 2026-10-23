@@ -293,6 +293,38 @@ const REPLY_QUESTION = "How do I change the email address on my account?";
 const REPLY_ANSWER =
   "You can change it in Settings → Profile → Email. Enter the new address and confirm it from the verification email we send you. Your login and invoices switch to the new address right away.";
 
+function summary(
+  ctx: Parameters<ScenarioDefinition["run"]>[0],
+  startedAt: number,
+  counts: Record<string, number>,
+  verified: Record<string, number>,
+  ids: { sf: string; capitals: string },
+  chatTraceId: string,
+  chatTs: number,
+  dryRun: boolean,
+): SeedSummary {
+  const datasets = `${ctx.baseUrl}/project/${ctx.projectId}/datasets`;
+  return {
+    scenario: "docs-demo-datasets",
+    target: "clickhouse",
+    params: {},
+    projectId: ctx.projectId ?? DOCS_DEMO_PROJECT_ID,
+    environment: ctx.environment,
+    traceIds: [chatTraceId],
+    sessionIds: [],
+    counts,
+    verified,
+    links: [
+      `${datasets}/${ids.sf}/items`,
+      `${datasets}/${ids.capitals}/experiments`,
+      traceLink(ctx, chatTraceId, chatTs),
+      `${datasets}/docs-demo-ds-support-screenshots/items`,
+    ],
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 export const docsDemoDatasetsScenario: ScenarioDefinition = {
   name: "docs-demo-datasets",
   description:
@@ -863,35 +895,3 @@ export const docsDemoDatasetsScenario: ScenarioDefinition = {
     );
   },
 };
-
-function summary(
-  ctx: Parameters<ScenarioDefinition["run"]>[0],
-  startedAt: number,
-  counts: Record<string, number>,
-  verified: Record<string, number>,
-  ids: { sf: string; capitals: string },
-  chatTraceId: string,
-  chatTs: number,
-  dryRun: boolean,
-): SeedSummary {
-  const datasets = `${ctx.baseUrl}/project/${ctx.projectId}/datasets`;
-  return {
-    scenario: "docs-demo-datasets",
-    target: "clickhouse",
-    params: {},
-    projectId: ctx.projectId ?? DOCS_DEMO_PROJECT_ID,
-    environment: ctx.environment,
-    traceIds: [chatTraceId],
-    sessionIds: [],
-    counts,
-    verified,
-    links: [
-      `${datasets}/${ids.sf}/items`,
-      `${datasets}/${ids.capitals}/experiments`,
-      traceLink(ctx, chatTraceId, chatTs),
-      `${datasets}/docs-demo-ds-support-screenshots/items`,
-    ],
-    dryRun,
-    durationMs: Date.now() - startedAt,
-  };
-}

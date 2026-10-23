@@ -219,6 +219,40 @@ const hexId = (index: number, suffix: number) => {
   return `${ID_PREFIX}${word(0x5eed)}${word(0xbeef)}`;
 };
 
+function summary(
+  ctx: Parameters<ScenarioDefinition["run"]>[0],
+  startedAt: number,
+  traceIds: string[],
+  timestamps: number[],
+  verified: Record<string, number>,
+  dryRun: boolean,
+  written: Record<string, number> = {},
+) {
+  return {
+    scenario: "docs-demo-evals",
+    target: "clickhouse" as const,
+    params: {},
+    projectId: ctx.projectId,
+    environment: ctx.environment,
+    traceIds,
+    sessionIds: [],
+    counts: {
+      scoreConfigs: SCORE_CONFIGS.length,
+      queues: EXISTING_QUEUES.length,
+      traces: traceIds.length,
+      ...written,
+    },
+    verified,
+    links: [
+      ...traceIds.map((id, i) => traceLink(ctx, id, timestamps[i])),
+      `${ctx.baseUrl}/project/${ctx.projectId}/annotation-queues`,
+      `${ctx.baseUrl}/project/${ctx.projectId}/evals`,
+    ],
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 export const docsDemoEvalsScenario: ScenarioDefinition = {
   name: "docs-demo-evals",
   description:
@@ -524,37 +558,3 @@ export const docsDemoEvalsScenario: ScenarioDefinition = {
     });
   },
 };
-
-function summary(
-  ctx: Parameters<ScenarioDefinition["run"]>[0],
-  startedAt: number,
-  traceIds: string[],
-  timestamps: number[],
-  verified: Record<string, number>,
-  dryRun: boolean,
-  written: Record<string, number> = {},
-) {
-  return {
-    scenario: "docs-demo-evals",
-    target: "clickhouse" as const,
-    params: {},
-    projectId: ctx.projectId,
-    environment: ctx.environment,
-    traceIds,
-    sessionIds: [],
-    counts: {
-      scoreConfigs: SCORE_CONFIGS.length,
-      queues: EXISTING_QUEUES.length,
-      traces: traceIds.length,
-      ...written,
-    },
-    verified,
-    links: [
-      ...traceIds.map((id, i) => traceLink(ctx, id, timestamps[i])),
-      `${ctx.baseUrl}/project/${ctx.projectId}/annotation-queues`,
-      `${ctx.baseUrl}/project/${ctx.projectId}/evals`,
-    ],
-    dryRun,
-    durationMs: Date.now() - startedAt,
-  };
-}

@@ -338,6 +338,34 @@ const PROMPTS: PromptDef[] = [
   },
 ];
 
+function summary(
+  ctx: Parameters<ScenarioDefinition["run"]>[0],
+  startedAt: number,
+  versions: number,
+  verified: Record<string, number>,
+  dryRun: boolean,
+): SeedSummary {
+  const base = `${ctx.baseUrl}/project/${ctx.projectId}/prompts`;
+  return {
+    scenario: "docs-demo-prompts",
+    target: "clickhouse",
+    params: {},
+    projectId: ctx.projectId,
+    environment: ctx.environment,
+    traceIds: [],
+    sessionIds: [],
+    counts: { prompts: PROMPTS.length, promptVersions: versions },
+    verified,
+    links: [
+      base,
+      `${base}/${encodeURIComponent("qa-answer-with-context-chat")}`,
+      `${base}/${encodeURIComponent("movie-critic")}`,
+    ],
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 export const docsDemoPromptsScenario: ScenarioDefinition = {
   name: "docs-demo-prompts",
   description:
@@ -443,31 +471,3 @@ export const docsDemoPromptsScenario: ScenarioDefinition = {
     return summary(ctx, startedAt, versionCount, verified, false);
   },
 };
-
-function summary(
-  ctx: Parameters<ScenarioDefinition["run"]>[0],
-  startedAt: number,
-  versions: number,
-  verified: Record<string, number>,
-  dryRun: boolean,
-): SeedSummary {
-  const base = `${ctx.baseUrl}/project/${ctx.projectId}/prompts`;
-  return {
-    scenario: "docs-demo-prompts",
-    target: "clickhouse",
-    params: {},
-    projectId: ctx.projectId,
-    environment: ctx.environment,
-    traceIds: [],
-    sessionIds: [],
-    counts: { prompts: PROMPTS.length, promptVersions: versions },
-    verified,
-    links: [
-      base,
-      `${base}/${encodeURIComponent("qa-answer-with-context-chat")}`,
-      `${base}/${encodeURIComponent("movie-critic")}`,
-    ],
-    dryRun,
-    durationMs: Date.now() - startedAt,
-  };
-}

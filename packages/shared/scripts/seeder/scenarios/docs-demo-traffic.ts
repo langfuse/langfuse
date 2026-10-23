@@ -204,6 +204,32 @@ const withRetry = async (insert: () => Promise<unknown>) => {
 const hex = (value: number, width: number) =>
   value.toString(16).padStart(width, "0").slice(-width);
 
+function summary(
+  ctx: ScenarioContext,
+  params: Record<string, string | number | boolean>,
+  startedAt: number,
+  traces: TraceRecordInsertType[],
+  counts: Record<string, number>,
+  verified: Record<string, number>,
+  links: string[],
+  dryRun: boolean,
+): SeedSummary {
+  return {
+    scenario: "docs-demo-traffic",
+    target: "clickhouse",
+    params,
+    projectId: ctx.projectId,
+    environment: ctx.environment,
+    traceIds: traces.slice(0, 5).map((t) => t.id),
+    sessionIds: [],
+    counts,
+    verified,
+    links,
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 const run = async (
   ctx: ScenarioContext,
   params: Record<string, string | number | boolean>,
@@ -757,32 +783,6 @@ const run = async (
     false,
   );
 };
-
-function summary(
-  ctx: ScenarioContext,
-  params: Record<string, string | number | boolean>,
-  startedAt: number,
-  traces: TraceRecordInsertType[],
-  counts: Record<string, number>,
-  verified: Record<string, number>,
-  links: string[],
-  dryRun: boolean,
-): SeedSummary {
-  return {
-    scenario: "docs-demo-traffic",
-    target: "clickhouse",
-    params,
-    projectId: ctx.projectId,
-    environment: ctx.environment,
-    traceIds: traces.slice(0, 5).map((t) => t.id),
-    sessionIds: [],
-    counts,
-    verified,
-    links,
-    dryRun,
-    durationMs: Date.now() - startedAt,
-  };
-}
 
 export const docsDemoTrafficScenario: ScenarioDefinition = {
   name: "docs-demo-traffic",
