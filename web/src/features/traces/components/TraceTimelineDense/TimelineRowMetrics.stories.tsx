@@ -109,3 +109,56 @@ export const TheRoomierSideWins = meta.story({
     );
   },
 });
+
+/**
+ * The one row per trace with the most self time carries a "slowest" chip after
+ * its cost. The chip is priced with its own mono advance, not the lane's sans
+ * measurer, so a reservation that comes out short cannot clip it.
+ */
+export const TheSlowestRowCarriesAChip = meta.story({
+  name: "(Test) The Slowest Row Carries A Chip",
+  args: {
+    metrics: { costText: "$0.0021", slowest: true },
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-metrics"]',
+    );
+    if (!cluster) throw new Error("no cluster");
+
+    await expect(cluster.innerText).toContain("2.00s");
+    await expect(cluster.innerText).toContain("$0.0021");
+    await expect(cluster.innerText).toContain("slowest");
+    // Cost before chip: the chip is the last thing in the cluster.
+    await expect(cluster.lastElementChild?.textContent).toBe("slowest");
+    await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+      cluster.clientWidth + 0.5,
+    );
+  },
+});
+
+/**
+ * When the lane has room for the duration and the cost but not for all three,
+ * the chip is what goes — and the title still names it.
+ */
+export const TheChipIsTheFirstToDrop = meta.story({
+  name: "(Test) The Chip Is The First To Drop",
+  args: {
+    // 40px bar at x=60 in a 220px lane: ~114px after it, enough for duration
+    // and cost (~85px with the gap) but not for the chip on top.
+    row: row({ x: 60, width: 40, labelPlacement: "after", labelX: 106 }),
+    laneWidth: 220,
+    metrics: { costText: "$0.0021", slowest: true },
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-metrics"]',
+    );
+    if (!cluster) throw new Error("no cluster");
+
+    await expect(cluster.innerText).toContain("2.00s");
+    await expect(cluster.innerText).toContain("$0.0021");
+    await expect(cluster.innerText).not.toContain("slowest");
+    await expect(cluster.title).toContain("slowest");
+  },
+});

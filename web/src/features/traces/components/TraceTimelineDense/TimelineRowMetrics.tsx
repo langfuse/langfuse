@@ -18,21 +18,38 @@
 import { type Density } from "../../fns/timeline/density";
 import { type TextMeasurer } from "../../fns/timeline/textMeasurer";
 import { type PositionedNode } from "../../fns/timeline/layout";
+import {
+  SLOWEST_BADGE_TEXT,
+  SlowestBadge,
+} from "@/src/features/traces/components/SlowestBadge";
 
 /**
  * What a row has to say about itself, formatted by whoever owns the trace data.
  * The renderer stays presentational: it decides what FITS, never what a cost
  * looks like.
  *
- * Deliberately just the cost. Scores, comment counts and heat-map colouring were
- * all tried here and all removed for the same reason: a row beside a bar cannot
- * hold them CONSISTENTLY. Whether they fit depends on where the bar happens to
- * sit and how far you have zoomed, so identical rows showed different things —
- * and the heat map put a second meaning on colour that already means observation
- * type, painting dark red text on a blue bar whose label had already been given
- * white for contrast. They belong somewhere that does not move: the tree, the
- * detail panel, or a fixed column of their own.
+ * The cost and the one "slowest" chip, nothing more. Scores, comment counts and
+ * heat-map colouring were all tried here and all removed for the same reason: a
+ * row beside a bar cannot hold them CONSISTENTLY. Whether they fit depends on
+ * where the bar happens to sit and how far you have zoomed, so identical rows
+ * showed different things — and the heat map put a second meaning on colour
+ * that already means observation type, painting dark red text on a blue bar
+ * whose label had already been given white for contrast. They belong somewhere
+ * that does not move: the tree, the detail panel, or a fixed column of their
+ * own. The chip is the exception because exactly one row per trace carries it.
  */
+/**
+ * The chip's chrome around its text: 1px border and 6px padding each side
+ * (`BadgeShell` size `md`).
+ */
+const SLOWEST_CHIP_CHROME_PX = 14;
+/**
+ * The chip renders `text-xs` mono at every density, and IBM Plex Mono advances
+ * 0.6em: 7.2px per glyph at 12px. The measurer prices the lane's sans font, so
+ * the chip is priced with its own advance rather than with that.
+ */
+const SLOWEST_CHIP_GLYPH_PX = 7.2;
+
 /**
  * The cluster's own `gap-2`. A budget has to reserve the gap the cluster actually
  * renders with, not a smaller one: five admitted items multiply a 2px
@@ -59,6 +76,8 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
 export type RowMetrics = {
   /** Already formatted, e.g. `$0.02`. */
   costText?: string | null;
+  /** This row has the most self time in the trace. */
+  slowest?: boolean;
 };
 
 export function TimelineRowMetrics({
@@ -134,16 +153,24 @@ export function TimelineRowMetrics({
       : null;
   const showDuration = durationText != null && fitsText(durationText);
   const showCost = Boolean(metrics.costText) && fitsText(metrics.costText!);
+  // Admitted last, so it is the first to go when the lane is short.
+  const showSlowest =
+    Boolean(metrics.slowest) &&
+    fits(
+      SLOWEST_BADGE_TEXT.length * SLOWEST_CHIP_GLYPH_PX +
+        SLOWEST_CHIP_CHROME_PX,
+    );
   // Nothing fitted: draw nothing. The row is not silent — hovering it names it
   // and states the same duration and cost, for every row at every density,
   // which is a better fallback than a title on a box of zero width.
-  if (!showDuration && !showCost) return null;
+  if (!showDuration && !showCost && !showSlowest) return null;
 
   // What did not fit stays reachable on hover: a row that silently omits its
   // cost reads as a row without one.
   const dropped = [
     durationText != null && !showDuration ? durationText : null,
     metrics.costText && !showCost ? metrics.costText : null,
+    metrics.slowest && !showSlowest ? SLOWEST_BADGE_TEXT : null,
   ].filter(Boolean);
 
   return (
@@ -174,6 +201,7 @@ export function TimelineRowMetrics({
           {metrics.costText}
         </span>
       ) : null}
+      {showSlowest ? <SlowestBadge /> : null}
     </div>
   );
 }
