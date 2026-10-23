@@ -3,11 +3,22 @@ import {
   EVENTS_FIELD_REGISTRY,
 } from "@/src/features/search-bar";
 
+const SUMMARY_SEARCH_SCOPE = {
+  searchType: ["summary" as const],
+  label: "Trace summaries",
+  description: "search Topics summaries as whole words",
+};
+
 export function eventsSearchRegistry(
   omittedColumns: readonly string[],
   useHostSearchScopes = false,
+  includeSummaryScope = false,
 ) {
-  if (omittedColumns.length === 0 && !useHostSearchScopes)
+  if (
+    omittedColumns.length === 0 &&
+    !useHostSearchScopes &&
+    !includeSummaryScope
+  )
     return EVENTS_FIELD_REGISTRY;
   const omitted = new Set(omittedColumns);
   return createFieldRegistry({
@@ -31,6 +42,9 @@ export function eventsSearchRegistry(
         "trace_score_categories",
         "trace_score_booleans",
       ].some((column) => omitted.has(column)),
+    searchScopes: includeSummaryScope
+      ? { ...EVENTS_FIELD_REGISTRY.searchScopes, summary: SUMMARY_SEARCH_SCOPE }
+      : EVENTS_FIELD_REGISTRY.searchScopes,
     defaultSearchType: useHostSearchScopes
       ? ["id"]
       : EVENTS_FIELD_REGISTRY.defaultSearchType,

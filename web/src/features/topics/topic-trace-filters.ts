@@ -112,12 +112,17 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   rows: readonly Row[],
   filters: FilterState,
   searchQuery: string | null,
+  /** Trace IDs whose summary matched the server-side text index; replaces the client-side summary substring match when set. */
+  summaryMatches?: ReadonlySet<string>,
 ): Row[] {
   const phrase = searchQuery?.trim().toLowerCase() ?? "";
   return rows.filter((row) => {
     if (
       phrase &&
-      ![row.summary, row.topicName, row.traceId].some((value) =>
+      !(summaryMatches
+        ? summaryMatches.has(row.traceId)
+        : row.summary?.toLowerCase().includes(phrase)) &&
+      ![row.topicName, row.traceId].some((value) =>
         value?.toLowerCase().includes(phrase),
       )
     )

@@ -338,7 +338,11 @@ const InAppAgentTracesParamsSchema = z.object({
   search: z
     .object({
       query: z.string().min(1).max(300),
-      type: z.array(TracingSearchType).max(4).optional(),
+      // Summary search needs the per-user Topics gate, which the agent cannot check.
+      type: z
+        .array(TracingSearchType.exclude(["summary"]))
+        .max(4)
+        .optional(),
     })
     .optional(),
   timeRange: InAppAgentTableTimeRangeSchema.optional(),

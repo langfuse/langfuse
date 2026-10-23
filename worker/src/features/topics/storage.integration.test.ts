@@ -13,6 +13,7 @@ import {
   writeTopicAssignments,
   listTopicSummaries,
   getLatestFacetSummaries,
+  searchLatestFacetSummaryTraceIds,
   getTopicClusteringSummaries,
   getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
@@ -756,6 +757,60 @@ describe("Topics definition persistence", () => {
         count: allowedTraceIds.length,
       },
     ]);
+  });
+
+  it("searches the latest summaries of a facet by whole tokens", async () => {
+    const facetId = randomUUID();
+    const range = {
+      from: new Date("2026-08-01T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    const row = (traceId: string, text: string, processedAt: string) => ({
+      ...summary,
+      facetId,
+      traceId,
+      summary: text,
+      processedAt,
+    });
+    const [replaced, plural, matched, other] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries([
+      row(
+        replaced,
+        "Asked about the refund policy",
+        "2026-09-01T00:00:00.000Z",
+      ),
+      row(replaced, "Asked about shipping times", "2026-09-02T00:00:00.000Z"),
+      row(plural, "Refunds were denied", "2026-09-01T00:00:00.000Z"),
+      row(matched, "REFUND requested twice", "2026-09-01T00:00:00.000Z"),
+      row(other, "Refund requested again", "2026-09-01T00:00:00.000Z"),
+      {
+        ...row(randomUUID(), "refund", "2026-09-01T00:00:00.000Z"),
+        projectId: otherProjectId,
+      },
+    ]);
+
+    const search = (query: string, limit?: number) =>
+      searchLatestFacetSummaryTraceIds(projectId, facetId, query, range, limit);
+    expect((await search("refund")).traceIds.sort()).toEqual(
+      [matched, other].sort(),
+    );
+    expect(await search("refund requested twice")).toEqual({
+      traceIds: [matched],
+      truncated: false,
+    });
+    expect(await search("shipping")).toEqual({
+      traceIds: [replaced],
+      truncated: false,
+    });
+    expect(await search(" -- ")).toEqual({ traceIds: [], truncated: false });
+    const limited = await search("refund", 1);
+    expect(limited.truncated).toBe(true);
+    expect(limited.traceIds).toHaveLength(1);
   });
 
   it("sums priced summary and embedding costs scoped to the project and executions", async () => {

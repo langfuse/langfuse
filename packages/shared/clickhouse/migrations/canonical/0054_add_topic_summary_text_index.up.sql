@@ -1,0 +1,3 @@
+ALTER TABLE topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} ADD INDEX IF NOT EXISTS idx_fts_summary_low lower(summary) TYPE text(tokenizer = splitByNonAlpha) SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
+-- topic_facet_summaries is small (Topics is Cloud-only and samples traces), so rebuilding the index for existing parts is cheap. Unmaterialized parts stay correct, as hasAllTokens falls back to scanning them.
+ALTER TABLE topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} MATERIALIZE INDEX IF EXISTS idx_fts_summary_low SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, mutations_sync = 2};

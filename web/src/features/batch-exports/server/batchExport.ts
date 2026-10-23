@@ -8,6 +8,7 @@ import {
   throwIfNoEntitlement,
 } from "@/src/features/entitlements/server";
 import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
+import { assertTopicSummarySearchAllowed } from "@/src/features/topics/server/summarySearchAccess";
 import {
   type AuthedSession,
   createTRPCRouter,
@@ -118,6 +119,13 @@ export const batchExportRouter = createTRPCRouter({
           searchQuery: query.searchQuery,
           searchType: query.searchType,
           tableName: query.tableName,
+        });
+        assertTopicSummarySearchAllowed({
+          session: ctx.session,
+          projectId,
+          searchQuery: query.searchQuery,
+          searchType: query.searchType,
+          readsEventsTable: query.tableName === BatchExportTableName.Events,
         });
 
         logger.info("[BATCH EXPORT] Creating export job", { job: input });

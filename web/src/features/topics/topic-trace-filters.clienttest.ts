@@ -193,6 +193,15 @@ describe("topic trace filtering", () => {
     expect(filterTopicTraces(rows, [], "questions refund")).toEqual([]);
   });
 
+  it("uses server summary matches instead of the summary substring when provided", () => {
+    expect(
+      ids(filterTopicTraces(rows, [], "refund", new Set(["trace-three"]))),
+    ).toEqual(["trace-three"]);
+    expect(
+      ids(filterTopicTraces(rows, [], "support", new Set<string>())),
+    ).toEqual(["trace-two"]);
+  });
+
   it("handles empty results, cleared filters and empty positive selections", () => {
     expect(filterTopicTraces([], [], null)).toEqual([]);
     expect(filterTopicTraces(rows, [], " ")).toEqual(rows);
