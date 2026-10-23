@@ -244,7 +244,7 @@ describe("applySelection", () => {
   });
 
   it.each([false, true])(
-    "keeps neither boolean label selected (inverted: %s)",
+    "clears the boolean filter when its last label is unchecked (inverted: %s)",
     (invertValue) => {
       const booleanCtx: SidebarFilterActionContext = {
         ...ctx,
@@ -263,28 +263,32 @@ describe("applySelection", () => {
           type: "boolean",
           operator: "=",
           value: !invertValue,
-          target: "run-b",
+        },
+      ];
+      const other: FilterState = [
+        {
+          column: "env",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["prod"],
         },
       ];
       const empty = applyCheckboxSelection(
         booleanCtx,
-        current,
+        [...other, ...current],
         "bookmarked",
         [],
       );
-      expect(empty).toEqual([
-        { ...current[0], value: true },
-        { ...current[0], value: false },
-      ]);
+      expect(empty).toEqual(other);
       expect(
         applyCheckboxSelection(booleanCtx, empty, "bookmarked", ["True"]),
-      ).toEqual(current);
+      ).toEqual([...other, ...current]);
       expect(
         applyCheckboxSelection(booleanCtx, empty, "bookmarked", [
           "True",
           "False",
         ]),
-      ).toEqual([]);
+      ).toEqual(other);
     },
   );
 
