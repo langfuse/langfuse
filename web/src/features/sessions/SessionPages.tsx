@@ -1323,10 +1323,18 @@ const LoadedSessionEventsPage: React.FC<{
     };
   }, [positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
-  const [transcriptSource, setTranscriptSource] = useQueryParam(
+  const [urlTranscriptSource, setUrlTranscriptSource] = useQueryParam(
     "transcriptSource",
     StringParam,
   );
+  const [storedTranscriptSource, setStoredTranscriptSource] = useLocalStorage<
+    "root" | "generations"
+  >("sessionTranscriptSource", "generations");
+  const transcriptSource = urlTranscriptSource ?? storedTranscriptSource;
+  const setTranscriptSource = (source: typeof storedTranscriptSource) => {
+    setStoredTranscriptSource(source);
+    setUrlTranscriptSource(source);
+  };
   const filtersQuery = React.useMemo(
     () =>
       urlFiltersQuery ??
