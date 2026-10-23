@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
@@ -46,8 +48,34 @@ export type TopicTraceFilterSectionProps = {
   onSearchTypeChange?: (searchType: TracingSearchType[]) => void;
 };
 
-/** The trace filter, shown disabled until custom filters ship. */
-export function TopicTraceFilterSection({
+/** Custom trace filters are not available yet; the live filter stays wired for when they ship. */
+const TRACE_FILTERS_AVAILABLE = false;
+
+/** The trace filter, shown as coming soon until custom filters ship. */
+export function TopicTraceFilterSection(props: TopicTraceFilterSectionProps) {
+  if (!TRACE_FILTERS_AVAILABLE) return <ComingSoonTraceFilter />;
+  return <LiveTraceFilter {...props} />;
+}
+
+function ComingSoonTraceFilter() {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-muted-foreground text-sm font-bold">
+          Filter traces
+        </h3>
+        <Badge text="Coming soon" color="filled" size="sm" />
+      </div>
+      <Input
+        disabled
+        aria-label="Filter traces"
+        placeholder="level:ERROR -env:dev tags:billing"
+      />
+    </section>
+  );
+}
+
+function LiveTraceFilter({
   projectId,
   mode: modeProp,
   filters: filtersProp,

@@ -286,17 +286,9 @@ export function TopicSetupFlowDialog({
                   <span className="text-muted-foreground text-sm">%</span>
                 </div>
                 <p className="text-muted-foreground text-sm">
-                  {pastCount.status === "ready" ? (
-                    <>
-                      <span className="text-foreground font-bold">
-                        ~{dailyEstimate(pastCount.dailyTraces, samplePercent)}
-                      </span>{" "}
-                      new traces a day, based on the last{" "}
-                      {TOPIC_SETUP_BACKFILL_DAYS} days.
-                    </>
-                  ) : (
-                    "Share of new traces analyzed once automatic processing is on."
-                  )}
+                  {pastCount.status === "ready"
+                    ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days`
+                    : "Share of new traces analyzed once automatic processing is on"}
                 </p>
               </div>
             </div>
