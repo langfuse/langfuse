@@ -1269,7 +1269,6 @@ describe("trace batch queue", () => {
     "selected",
     "empty",
     "other-rule",
-    "inactive",
     "deleted",
     "legacy",
     "disabled-selected",
@@ -1318,7 +1317,6 @@ describe("trace batch queue", () => {
           : [
               {
                 id: "rule",
-                status: mode === "inactive" ? "INACTIVE" : "ACTIVE",
                 facetIds: ["issues"],
                 sampling:
                   mode === "selected" || mode === "disabled-selected" ? 0 : 1,

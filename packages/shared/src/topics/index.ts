@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { JobConfigState } from "../db";
 import { singleFilterList } from "../interfaces/filters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
@@ -168,7 +167,6 @@ export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   id: string;
   projectId: string;
   name: string;
-  status: JobConfigState;
   facetIds: string[];
   updatedAt: string;
 };

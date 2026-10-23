@@ -40,7 +40,7 @@ is enabled. The flag controls whether those selections affect processing:
 | Flag | Ingestion | Consumption |
 | --- | --- | --- |
 | `false` | Record sampled rule IDs while keeping legacy admission/readiness. | Use existing Topics sampling; ignore recorded IDs. |
-| `true` | A sampled rule match opens readiness; retain bounds before a match and extend pending readiness on every arrival. | Use recorded IDs of active saved rules, without sampling again. |
+| `true` | A sampled rule match opens readiness; retain bounds before a match and extend pending readiness on every arrival. | Use recorded IDs of saved rules, without sampling again. |
 
 Existing cloud and Topics gates still apply: `LANGFUSE_TOPICS_ENABLED`,
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, and active saved configuration. There is
@@ -52,6 +52,9 @@ is enabled. An empty array means evaluated with no selection and is skipped
 under enforcement. Redis Lua encodes empty tables as `{}`; hydration normalizes
 only a present empty object to `[]`. Compatible writers preserve and union IDs.
 The consumer's current flag decides behavior, including for already-queued jobs.
+
+Keep enforcement disabled for the recording-only rollout. Execution-time rule
+status revalidation belongs in the enforcement follow-up before activation.
 
 All predicates must match the same span. Span and transcript filter definitions
 share field metadata; the transcript definition explicitly declares its supported

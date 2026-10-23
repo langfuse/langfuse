@@ -35,7 +35,6 @@ const savedRow = {
   id: "rule-a",
   projectId,
   name: "Topics",
-  status: "ACTIVE",
   filter: [],
   sampling: 0.25,
   updatedAt: new Date("2026-10-08T00:00:00Z"),

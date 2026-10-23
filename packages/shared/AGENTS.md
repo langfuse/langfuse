@@ -42,7 +42,6 @@
   legacy consumption; an empty array means no selection. The worker's enforcement
   flag controls consumption. Independent span/transcript filter definitions share
   field metadata; the transcript definition owns supported positive operators.
-  Topics rule reads expose status so consumers can reject inactive selections.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
   the worker owns experiment enablement and lifecycle. Reader options control
   per-query threads/block size and experiment attribution; retain exact tenant

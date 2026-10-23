@@ -76,7 +76,6 @@ class TopicsBatchProjects {
       facets: TopicFacet[];
       sampling: number;
       ruleId?: string;
-      active: boolean;
     }>
   >();
   private readonly paused = new Set<string>();
@@ -117,13 +116,12 @@ async function loadProjectRule(projectId: string) {
     listTopicRules(projectId),
   ]);
   const rule = rules[0];
-  if (!rule) return { facets, sampling: 1, active: false };
+  if (!rule) return { facets, sampling: 1 };
   const selected = new Set(rule.facetIds);
   return {
     facets: facets.filter((facet) => selected.has(facet.id)),
     sampling: rule.sampling,
     ruleId: rule.id,
-    active: rule.status === "ACTIVE",
   };
 }
 
@@ -194,8 +192,7 @@ async function summarizeTraceBatch(
     const selected =
       env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED === "true" &&
       selection?.ruleIds !== undefined
-        ? project.active &&
-          project.ruleId !== undefined &&
+        ? project.ruleId !== undefined &&
           selection.ruleIds.includes(project.ruleId)
         : shouldSampleEvaluation({
             samplingValue: getDeterministicSamplingValue(traceId),
