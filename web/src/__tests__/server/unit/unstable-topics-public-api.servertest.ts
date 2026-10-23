@@ -277,6 +277,7 @@ describe("unstable Topics public API", () => {
       "issues",
       undefined,
       { from: window.fromTimestamp, to: window.toTimestamp },
+      undefined,
     );
     expect(result.window).toEqual({
       from: window.fromTimestamp,
