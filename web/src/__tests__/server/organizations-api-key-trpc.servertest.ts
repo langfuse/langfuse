@@ -438,6 +438,49 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("evicts a renamed gateway key from the gateway cache", async () => {
+      Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Original gateway key",
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: gatewayKey.id },
+        select: { fastHashedSecretKey: true },
+      });
+      const cache = new GatewayResolveCache();
+      const cacheEntry = {
+        fastHashedSecretKey: fastHashedSecretKey!,
+        apiFormat: gatewayApiFormats[0],
+      };
+      await cache.set({
+        ...cacheEntry,
+        context: {
+          organizationId,
+          apiKeyId: gatewayKey.id,
+          userId: null,
+          apiKeyName: "Original gateway key",
+          userName: null,
+          keyMetadata: {},
+          ingestionProjectId: null,
+          ingestionMode: null,
+          connections: [],
+        },
+      });
+      expect(await cache.get(cacheEntry)).not.toBeNull();
+
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: gatewayKey.id,
+        name: "Renamed gateway key",
+      });
+
+      expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
     it("returns NOT_FOUND for a missing API key", async () => {
       await expect(
         ownerCaller.organizationApiKeys.updateName({

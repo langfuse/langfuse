@@ -160,6 +160,12 @@ export const organizationApiKeysRouter = createTRPCRouter({
           note: input.name,
         },
       });
+      // Gateway resolve contexts snapshot the key's name onto generations.
+      if (apiKey.fastHashedSecretKey) {
+        await invalidateGatewayResolveCacheForApiKey(
+          apiKey.fastHashedSecretKey,
+        );
+      }
 
       // do not return the api key
       return;
