@@ -9,7 +9,7 @@ import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/c
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { LatencyTable } from "@/src/features/dashboard/components/LatencyTables";
+import { LatencyTable } from "@/src/features/dashboard/components/LatencyTable";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/GenerationLatencyChart";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 
