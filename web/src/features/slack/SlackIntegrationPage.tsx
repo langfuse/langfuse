@@ -11,7 +11,7 @@ import { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/Priv
 import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
@@ -145,9 +145,12 @@ export default function SlackIntegrationPage() {
                             Available after sending a test message
                           </span>
                         ) : (
-                          <Badge variant="outline" className="text-xs">
-                            {selectedChannel.isPrivate ? "Private" : "Public"}
-                          </Badge>
+                          <Badge
+                            color="primary"
+                            text={
+                              selectedChannel.isPrivate ? "Private" : "Public"
+                            }
+                          />
                         )}
                       </div>
                       <div>

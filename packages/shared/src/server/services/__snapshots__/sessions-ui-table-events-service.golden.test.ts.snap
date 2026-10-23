@@ -58,7 +58,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     countIf(e.level = 'ERROR') AS error_count,
     countIf(e.level = 'DEFAULT') AS default_count,
     countIf(e.level = 'DEBUG') AS debug_count,
-    argMaxIf(e.tags, e.event_ts, notEmpty(e.tags)) AS tags,
+    arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags,
     argMaxIf(e.release, e.event_ts, e.release != '') AS release,
     argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') AS evaluator_id,
     argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') AS evaluation_rule_id,

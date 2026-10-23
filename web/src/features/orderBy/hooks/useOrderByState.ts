@@ -1,6 +1,6 @@
 import { type OrderByState } from "@langfuse/shared";
 import { ObjectParam, useQueryParam, withDefault } from "use-query-params";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 type OrderByQueryParamState =
   | OrderByState

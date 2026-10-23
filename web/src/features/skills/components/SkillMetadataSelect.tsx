@@ -4,7 +4,7 @@ import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "@langfuse/icons";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { PopoverController } from "@/src/components/ui/popover";
@@ -327,16 +327,18 @@ export function SkillTagsSelect({
             )}
           >
             {value.map((tag) => (
-              <Badge key={tag} variant="tertiary" className="h-6 gap-1">
-                <TagIcon size="sm" />
-                <span className="max-w-36 truncate" title={tag}>
-                  {tag}
-                </span>
-              </Badge>
+              <span key={tag} className="inline-flex max-w-36">
+                <Badge
+                  color="filled"
+                  size="lg"
+                  leadingIcon={TagIcon}
+                  text={tag}
+                />
+              </span>
             ))}
-            <Badge variant="tertiary" className="h-6">
+            <BadgeShell color="filled" size="lg">
               <TagIcon size="sm" />
-            </Badge>
+            </BadgeShell>
           </div>
         </Trigger>
       )}

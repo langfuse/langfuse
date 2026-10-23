@@ -68,6 +68,11 @@
   --color-preview-banner-border: hsl(var(--preview-banner-border));
   --color-preview-banner-link: hsl(var(--preview-banner-link));
   --color-preview-banner-link-hover: hsl(var(--preview-banner-link-hover));
+  --color-customer-data-banner: hsl(var(--customer-data-banner));
+  --color-customer-data-banner-foreground: hsl(
+    var(--customer-data-banner-foreground)
+  );
+  --color-customer-data-banner-border: hsl(var(--customer-data-banner-border));
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
@@ -426,6 +431,11 @@
     --preview-banner-border: 213 97% 87%;
     --preview-banner-link: 224 76% 48%;
     --preview-banner-link-hover: 226 71% 40%;
+    /* Staff customer-data strip (Cloud only): amber-100 / amber-950 / amber-200,
+       so it cannot be read as the blue preview-deployment strip. */
+    --customer-data-banner: 48 96% 89%;
+    --customer-data-banner-foreground: 21 92% 14%;
+    --customer-data-banner-border: 48 97% 77%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -668,6 +678,11 @@
     --preview-banner-border: 215 37% 31%;
     --preview-banner-link: 213 94% 68%;
     --preview-banner-link-hover: 212 96% 78%;
+    /* Staff customer-data strip: amber fill over the dark canvas, warm light
+       text, a step-lighter border. Distinct from the blue preview strip. */
+    --customer-data-banner: 32 40% 16%;
+    --customer-data-banner-foreground: 48 96% 89%;
+    --customer-data-banner-border: 36 35% 28%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
