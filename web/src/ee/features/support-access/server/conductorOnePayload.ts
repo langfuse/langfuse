@@ -47,7 +47,12 @@ const ProvisionPayloadSchema = z.object({
     }),
   }),
   expanded: z
-    .array(z.looseObject({ "@type": z.string(), id: z.string().optional() }))
+    .array(
+      z.looseObject({
+        "@type": z.string().optional(),
+        id: z.string().optional(),
+      }),
+    )
     .nullish(),
 });
 
@@ -56,16 +61,16 @@ type ProvisionPayload = z.infer<typeof ProvisionPayloadSchema>;
 function findRequesterEmail(payload: ProvisionPayload): string | null {
   const userId = payload.taskView.task.userId;
   const c1User = payload.expanded?.find(
-    (obj) => obj["@type"].endsWith("c1.api.user.v1.User") && obj.id === userId,
+    (obj) => obj["@type"]?.endsWith("c1.api.user.v1.User") && obj.id === userId,
   );
   const email = z.email().safeParse(c1User?.email);
   return email.success ? email.data.toLowerCase() : null;
 }
 
-// C1 sends durations like "43200s".
+// protobuf Duration JSON, e.g. "43200s" or "1.5s".
 function parseDurationMs(duration: string | null | undefined): number | null {
-  const seconds = duration?.match(/^(\d+)s$/)?.[1];
-  return seconds ? Number(seconds) * 1000 : null;
+  const seconds = duration?.match(/^(\d+(?:\.\d+)?)s$/)?.[1];
+  return seconds ? Math.round(Number(seconds) * 1000) : null;
 }
 
 export function parseConductorOneEnvelope(rawBody: Buffer) {
