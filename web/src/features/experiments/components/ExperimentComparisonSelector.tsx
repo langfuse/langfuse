@@ -3,7 +3,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { ExperimentRunBadge } from "./ExperimentRunBadge";
 import {
   Tooltip,
   TooltipContent,
@@ -493,7 +494,7 @@ export function ExperimentComparisonSelector({
             : undefined;
 
           return (
-            <BadgeShell color="filled">
+            <ExperimentRunBadge colorClass={colorStyles?.badgeClass}>
               {colorStyles && (
                 <span
                   className={cn(
@@ -524,7 +525,7 @@ export function ExperimentComparisonSelector({
               >
                 <X size="sm" />
               </button>
-            </BadgeShell>
+            </ExperimentRunBadge>
           );
         }}
       />
