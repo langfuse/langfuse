@@ -2,11 +2,10 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
+import { MoreVertical } from "@langfuse/icons";
 import { TestRerunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRerunButton/TestRerunButton";
-import {
-  TestResultTraceActions,
-  TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+import { TestResultTraceActions } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
 import { TestResultPanelView } from "./TestResultPanelView";
 
 const meta = preview.meta({ component: TestResultPanelView });
@@ -23,7 +22,9 @@ const traceActions = (executionTraceId: string | null) => (
     onOpenExecutionTrace={actions.onOpenExecutionTrace}
   >
     <DropdownMenuTrigger asChild>
-      <TestResultTraceActionsTrigger />
+      <Button type="button" variant="ghost" size="icon-xs" title="More">
+        <MoreVertical size="sm" color="default" />
+      </Button>
     </DropdownMenuTrigger>
   </TestResultTraceActions>
 );

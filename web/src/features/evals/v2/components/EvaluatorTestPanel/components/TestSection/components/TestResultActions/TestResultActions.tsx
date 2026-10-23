@@ -1,8 +1,7 @@
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import {
-  TestResultTraceActions,
-  TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+import { Button } from "@/src/components/ui/button";
+import { MoreVertical } from "@langfuse/icons";
+import { TestResultTraceActions } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
 
 export function TestResultActions({
   executionTraceId,
@@ -17,7 +16,9 @@ export function TestResultActions({
       onOpenExecutionTrace={onOpenExecutionTrace}
     >
       <DropdownMenuTrigger asChild>
-        <TestResultTraceActionsTrigger />
+        <Button type="button" variant="ghost" size="icon-xs" title="More">
+          <MoreVertical size="sm" color="default" />
+        </Button>
       </DropdownMenuTrigger>
     </TestResultTraceActions>
   );
