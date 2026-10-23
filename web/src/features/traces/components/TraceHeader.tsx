@@ -120,7 +120,7 @@ function LoadedTraceHeader() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
-        {topicFacets.length > 0 && (
+        {topicFacets.some((facet) => facet.summary) && (
           <TraceTopicsHoverCard
             projectId={trace.projectId}
             facets={topicFacets}

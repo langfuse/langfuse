@@ -200,21 +200,15 @@ export async function traceFacetResults(
     },
     [traceId],
   );
-  return facets.flatMap((facet) => {
+  return facets.map((facet) => {
     const row = facet.rows.find((item) => item.traceId === traceId);
-    if (!row) return [];
-    return [
-      {
-        facetId: facet.facetId,
-        name: facet.name,
-        summary: row.summary,
-        outcome: row.outcome,
-        topicName: row.topicName,
-        // Same color slot as the topic's position in the published map.
-        topicIndex:
-          facet.map?.topics.findIndex((topic) => topic.id === row.topicId) ??
-          -1,
-      },
-    ];
+    return {
+      facetId: facet.facetId,
+      name: facet.name,
+      summary: row?.summary ?? null,
+      outcome: row?.outcome ?? null,
+      topicId: row?.topicId ?? null,
+      topicName: row?.topicName ?? null,
+    };
   });
 }
