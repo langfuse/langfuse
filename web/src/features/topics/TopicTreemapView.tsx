@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -48,14 +48,6 @@ export function TopicTreemapView({
   canGenerateTopics,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  if (facet.topics.length === 0) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
-  }
   const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
   const topics: FacetTopic[] =
     unassignedCount > 0
@@ -71,10 +63,22 @@ export function TopicTreemapView({
       : facet.topics;
   const selected =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const selectedRowTopicId = selected.id === UNASSIGNED_ID ? null : selected.id;
-  const rows = facet.rows.filter(
-    (row) => (row.topicId ?? null) === selectedRowTopicId,
+  const selectedRowTopicId =
+    selected && selected.id !== UNASSIGNED_ID ? selected.id : null;
+  // Stable per topic so the list keeps its loaded chunks across re-renders.
+  const rows = useMemo(
+    () =>
+      facet.rows.filter((row) => (row.topicId ?? null) === selectedRowTopicId),
+    [facet.rows, selectedRowTopicId],
   );
+  if (facet.topics.length === 0) {
+    return (
+      <TopicsEmptyState
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+      />
+    );
+  }
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <TopicTreemap
