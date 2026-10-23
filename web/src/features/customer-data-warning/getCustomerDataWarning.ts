@@ -54,18 +54,6 @@ function isOrganizationMember(
   return memberships.some((organization) => organization.id === organizationId);
 }
 
-/**
- * Confidentiality strip for ClickHouse staff on Langfuse Cloud.
- *
- * Shown when the signed-in user is a ClickHouse or Langfuse admin viewing a
- * project or organization through staff access: the deployment has a Cloud
- * region, the email domain is @clickhouse.com or @langfuse.com, `users.admin`
- * is set, and the current project or organization is absent from their
- * session memberships. Genuine members, other email domains, and self-hosted
- * deployments are excluded. Names come from the resolved project or
- * organization and are required, so the strip stays hidden while that lookup
- * is still in flight.
- */
 export function getCustomerDataWarning(
   input: CustomerDataWarningInput,
 ): CustomerDataWarning | null {
