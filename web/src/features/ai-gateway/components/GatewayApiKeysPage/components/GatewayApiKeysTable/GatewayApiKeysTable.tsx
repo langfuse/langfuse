@@ -9,6 +9,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { isApiKeyExpired } from "@/src/features/apiKey";
 
 type GatewayApiKey = {
@@ -108,6 +109,12 @@ export function GatewayApiKeysTable({
       pagination={pagination}
       search={{ ...search, placeholder: "Search by name or user" }}
       toolbarActions={[
+        {
+          id: "docs",
+          label: "Docs",
+          variant: "secondary",
+          href: GATEWAY_API_KEYS_DOCS_URL,
+        },
         {
           id: "create-key",
           label: "Create key",
