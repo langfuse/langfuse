@@ -101,6 +101,36 @@ const manyUnassignedRows = [
   })),
 ];
 
+const manyTopics = Array.from({ length: 40 }, (_, index) => ({
+  id: `many-${index}`,
+  name: `Cluster ${index + 1}: ${["refund status", "order tracking", "address change", "login help", "invoice copy"][index % 5]}`,
+  description: "",
+  count: Math.max(2, Math.round(120 / (index + 1))),
+}));
+const manyRows = manyTopics.flatMap((topic) =>
+  Array.from({ length: topic.count }, (_, index) => ({
+    traceId: `${topic.id}-trace-${index}`,
+    summary: `${topic.name} request ${index + 1}`,
+    topicId: topic.id,
+    topicName: topic.name,
+    outcome: "assigned" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 4 * 60_000).toISOString(),
+  })),
+);
+
+/** Forty clusters: small tiles drop the count, then the name, keeping both in the tooltip. */
+export const ManyClusters = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      topics: manyTopics,
+      rows: manyRows,
+      usableCount: manyRows.length,
+    },
+  },
+});
+
 /** About half of the traces fit no topic. */
 export const LargeUnassigned = meta.story({
   args: {
