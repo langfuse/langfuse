@@ -1,0 +1,530 @@
+/*
+ * The illustrations' shared shapes and the run's shared animations. Colours are the --illustration-* tokens in
+ * styles/globals.css, which follow the app's light and dark palettes.
+ *
+ * Shared animations play only while the svg has data-running. Each takes its start from --at and fades out first
+ * from --clear-at (motion.ts `at()`), so a run clears the resting frame and rebuilds it; reduced motion keeps only
+ * the fades. The Runs section below has the rest.
+ */
+
+@property --illustration-press {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --illustration-hover {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.root {
+  --illustration-hero-top: var(--illustration-top);
+  --illustration-hero-edge: var(--illustration-edge);
+  --illustration-solid: var(--illustration-ink);
+  --illustration-solid-ink: var(--illustration-top);
+
+  display: block;
+  overflow: visible;
+}
+
+/* The highlight accent paints the hero's face and the solid chips in the primary accent */
+.root[data-accent="highlight"] {
+  --illustration-hero-top: var(--illustration-highlight);
+  --illustration-solid: var(--illustration-highlight);
+  --illustration-solid-ink: var(--illustration-highlight-ink);
+}
+
+.root[data-accent="highlight"] .hero .name {
+  fill: var(--illustration-highlight-ink);
+}
+
+/* A scene is a framed picture: tilted plates that run past the frame are cut at its edge, as on langfuse.com */
+.fitWidth {
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+.fitHeight {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+}
+
+.root * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Lowest specificity, so a scene's own class can set another size or face */
+:where(.root) text {
+  font-family: var(--illustration-font);
+  font-size: 20px;
+  font-weight: 400;
+  font-feature-settings: "zero" 1;
+}
+
+/* Floor */
+.panel {
+  fill: var(--illustration-panel);
+}
+.grid {
+  fill: none;
+  stroke: var(--illustration-grid);
+  stroke-width: 1;
+}
+
+/* Shapes on the floor */
+.card {
+  fill: color-mix(in srgb, var(--illustration-panel) 45%, transparent);
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.wire {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1.25;
+}
+.guide {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.socket {
+  fill: var(--illustration-line);
+}
+.label {
+  fill: var(--illustration-label);
+}
+.ink {
+  fill: var(--illustration-ink);
+}
+.ink2 {
+  fill: var(--illustration-ink-2);
+}
+.warm {
+  fill: var(--illustration-warm);
+}
+.packet {
+  fill: var(--illustration-packet);
+  opacity: 0;
+}
+
+.root [data-tone="pass"],
+.root[data-tone="pass"] {
+  --illustration-tone: var(--illustration-pass);
+}
+.root [data-tone="fail"],
+.root[data-tone="fail"] {
+  --illustration-tone: var(--illustration-fail);
+}
+.root [data-tone="neutral"],
+.root[data-tone="neutral"] {
+  --illustration-tone: var(--illustration-neutral);
+}
+.toned {
+  fill: var(--illustration-tone);
+}
+.halo {
+  fill: var(--illustration-tone);
+  opacity: 0.22;
+}
+.ripple {
+  fill: none;
+  stroke: var(--illustration-tone);
+  stroke-width: 1;
+  opacity: 0;
+}
+.stopLine {
+  stop-color: var(--illustration-line);
+}
+.stopTone {
+  stop-color: var(--illustration-tone);
+}
+
+/* Chips: solid (the PNGs' dark tags) or soft (light tags) */
+.chip {
+  fill: var(--illustration-solid);
+}
+.chipText {
+  fill: var(--illustration-solid-ink);
+}
+.chip[data-tone="soft"] {
+  fill: var(--illustration-soft);
+}
+.chipText[data-tone="soft"] {
+  fill: var(--illustration-ink-2);
+}
+
+/* Raised blocks: --lift raises the top face, the side faces stretch down to the floor */
+.lift {
+  --lift: calc(var(--illustration-hover) - var(--illustration-press));
+}
+.top {
+  transform: translateY(calc(var(--lift) * -1px));
+}
+.faceTop {
+  fill: var(--illustration-top);
+}
+.hero .faceTop {
+  fill: var(--illustration-hero-top);
+}
+.faceFront {
+  fill: var(--illustration-front);
+}
+.faceLeft {
+  fill: var(--illustration-left);
+}
+.edge,
+.edgeInner {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.edge {
+  stroke: var(--illustration-edge);
+  stroke-width: 1.6;
+}
+.hero .edge {
+  stroke: var(--illustration-hero-edge);
+}
+.edgeInner {
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.shadow {
+  fill: var(--illustration-shadow);
+  opacity: calc(0.1 - var(--lift) * 0.006);
+}
+.name {
+  fill: var(--illustration-ink);
+}
+
+.pop,
+.ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/*
+ * Runs. data-running is on while a run plays; the variants key their animated groups on the run count, so each run
+ * replays them. A reveal first clears what was there (180 ms, an exit quicker than any entrance), then comes back
+ * at --at. A run that starts from a hidden frame (data-from="hidden": the first run of inView) has
+ * nothing to clear, and data-pending holds its reveals hidden until it starts.
+ */
+.root {
+  --illustration-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --illustration-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /*
+   * The hero landing, shared with the empty states: the body drops onto the floor on a spring (damping 0.7: most of
+   * the drop in 200 ms, a 4.6% settle past the floor, still by 720 ms) while its shadow resolves under it. Use as
+   * `animation: var(--illustration-land) <delay> backwards`. Its keyframes live in styles/globals.css, like the clear's.
+   */
+  --illustration-land: illustration-land 720ms
+    linear(
+      0,
+      0.022,
+      0.078,
+      0.158,
+      0.252,
+      0.352,
+      0.452,
+      0.548,
+      0.638,
+      0.719,
+      0.79,
+      0.851,
+      0.902,
+      0.943,
+      0.976,
+      1.001,
+      1.02,
+      1.033,
+      1.041,
+      1.045,
+      1.046,
+      1.045,
+      1.042,
+      1.039,
+      1.034,
+      1.03,
+      1.025,
+      1.021,
+      1.017,
+      1.013,
+      1.01,
+      1.007,
+      1.005,
+      1.003,
+      1.001,
+      1,
+      1
+    );
+  --illustration-shadow-in: illustration-shadow-in 420ms
+    var(--illustration-ease-out);
+}
+.root[data-from="hidden"] {
+  --illustration-clear-for: 0ms;
+  --illustration-clear-at: 0ms;
+}
+/* When a block lands: the stage's lead, plus its own landAt (Block) */
+.box {
+  --illustration-land-at: calc(
+    var(--land-at, 0ms) + var(--illustration-build-lead, 0ms)
+  );
+}
+.shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/*
+ * A first build: only the floor shows while pending. Then the stage (all the scene draws on the floor) fades in,
+ * the raised blocks land --illustration-build-lead (80 ms) later, and the rest follows on the run's own times, which at()
+ * and play() shift by the same lead. Reduced motion keeps the fade.
+ */
+.root[data-pending] .stage {
+  opacity: 0;
+}
+.root[data-from="hidden"] .stage {
+  animation: fade-in 200ms var(--illustration-ease-out) backwards;
+}
+/* Declared on each part, so its own --clear-at resolves here. CSS Modules don't rename names inside custom properties, so these keyframes are global (styles/globals.css) */
+.clear,
+.pop,
+.draw,
+.slide,
+.fadeIn,
+.rise {
+  --illustration-clear: illustration-clear var(--illustration-clear-for, 180ms)
+    var(--illustration-ease-out)
+    var(--illustration-clear-at, var(--clear-at, 0ms)) forwards;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .box {
+    transition: --illustration-hover 887ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: --illustration-hover 887ms
+      linear(
+        0.002,
+        0.042,
+        0.12,
+        0.217,
+        0.323,
+        0.428,
+        0.528,
+        0.619,
+        0.699,
+        0.768,
+        0.826,
+        0.873,
+        0.911,
+        0.941,
+        0.964,
+        0.981,
+        0.993,
+        1.001,
+        1.007,
+        1.01,
+        1.012,
+        1.012,
+        1.012,
+        1.011,
+        1.01,
+        1.009,
+        1.007,
+        1.006,
+        1.005,
+        1.004,
+        1.003,
+        1.002,
+        1.002,
+        1.001,
+        1.001,
+        1.001,
+        1
+      );
+  }
+
+  .root[data-from="hidden"] .box .body {
+    animation: var(--illustration-land) var(--illustration-land-at) backwards;
+  }
+  .root[data-from="hidden"] .box .shadow {
+    animation: var(--illustration-shadow-in) var(--illustration-land-at)
+      backwards;
+  }
+  [data-running] .lift[data-press] {
+    animation: press 540ms var(--at);
+  }
+  [data-running] .clear {
+    animation: var(--illustration-clear);
+  }
+  [data-running] .pop {
+    animation:
+      var(--illustration-clear),
+      pop 340ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .ripple {
+    animation: ripple 640ms var(--illustration-ease-out) var(--at);
+  }
+  /* Lines draw at an even pace, like data arriving */
+  [data-running] .draw {
+    animation:
+      var(--illustration-clear),
+      draw var(--dur, 140ms) linear var(--at) forwards;
+  }
+  [data-running] .slide {
+    animation:
+      var(--illustration-clear),
+      slide 320ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .fadeIn {
+    animation:
+      var(--illustration-clear),
+      fade-in var(--dur, 320ms) var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .rise {
+    animation:
+      var(--illustration-clear),
+      rise 380ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .flash {
+    animation: flash 420ms ease var(--at);
+  }
+  [data-running] .flashFill {
+    animation: flash-fill 400ms ease var(--at);
+  }
+}
+
+/* Hover lifts the hero only with a real pointer, so a tap doesn't leave it raised; hovering a host card counts too */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .root:not([data-lift="off"]):hover .box[data-hover-lift],
+  :global([data-illustration-host]:hover)
+    .root:not([data-lift="off"])
+    .box[data-hover-lift] {
+    --illustration-hover: 7;
+  }
+}
+
+/* Keyboard focus inside a host card lifts the hero too, on any pointer */
+@media (prefers-reduced-motion: no-preference) {
+  :global([data-illustration-host]:focus-within)
+    .root:not([data-lift="off"])
+    .box[data-hover-lift] {
+    --illustration-hover: 7;
+  }
+}
+
+/* Reduced motion: the same run as fades in the same order; nothing moves, and generated animations are off */
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    --illustration-play: none;
+  }
+  .root[data-from="hidden"] .box {
+    animation: fade-in 240ms ease-out var(--illustration-land-at) backwards;
+  }
+  [data-running] .clear {
+    animation: var(--illustration-clear);
+  }
+  [data-running] .pop,
+  [data-running] .draw,
+  [data-running] .slide,
+  [data-running] .fadeIn,
+  [data-running] .rise {
+    animation:
+      var(--illustration-clear),
+      fade-in 240ms ease-out var(--at) forwards;
+  }
+}
+
+/* Down fast, like a click registering, then a spring back past rest */
+@keyframes press {
+  0% {
+    --illustration-press: 0;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  22% {
+    --illustration-press: 4;
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  55% {
+    --illustration-press: -1.2;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  100% {
+    --illustration-press: 0;
+  }
+}
+/* From a visible size, never from nothing, with a small overshoot */
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ripple {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes draw {
+  from {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes flash {
+  30% {
+    stroke: var(--illustration-label);
+  }
+}
+@keyframes flash-fill {
+  25% {
+    fill: var(--illustration-edge);
+  }
+}
