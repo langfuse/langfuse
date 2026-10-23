@@ -1941,7 +1941,7 @@ async function scanObservationWindows(
   let window: { durationMs: number; estimatedMs?: number } | undefined = {
     durationMs: OBSERVATIONS_SCAN_WINDOW_MS,
   };
-  /** An omitted upper bound stays open on the first query for future timestamps. */
+  // An omitted upper bound stays open on the first query for future timestamps.
   let upper = to ?? Math.max(Date.now(), from);
   while (window !== undefined) {
     const windowStarted = performance.now();
@@ -2016,7 +2016,7 @@ async function queryObservationWindow(
           span.setAttribute("observations.scan.read_rows", result.readRows);
         return result;
       } catch (error) {
-        /** Only completed windows may advance the cursor on timeout. */
+        // Only completed windows may advance the cursor on timeout.
         if (
           completedWindows > 0 &&
           error instanceof ClickHouseResourceError &&
@@ -2060,13 +2060,13 @@ function planNextObservationsWindow(
 ) {
   if (remainingMs <= 0) return undefined;
 
-  /** Client wall time includes retries and stream consumption; GB is decimal. */
+  // Client wall time includes retries and stream consumption; GB is decimal.
   const costMs = Math.max(
     elapsedMs,
     (last.readBytes / 1e9) * OBSERVATIONS_MS_PER_GB,
   );
   const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
-  /** Near the deadline, do not shrink the interval just to reserve overhead. */
+  // Near the deadline, do not shrink the interval just to reserve overhead.
   let timeMultiplier = 1;
   if (availableMs > 0) {
     timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
@@ -2075,7 +2075,7 @@ function planNextObservationsWindow(
     last.readRows !== undefined && last.readRows > 0
       ? OBSERVATIONS_QUERY_ROW_TARGET / last.readRows
       : Infinity;
-  /** Missing statistics or empty scans cannot justify unrestricted growth. */
+  // Missing statistics or empty scans cannot justify unrestricted growth.
   let growthLimit = Infinity;
   if (last.readRows === undefined) growthLimit = 1;
   else if (last.readRows === 0 && last.readBytes === 0) growthLimit = 4;
@@ -2114,14 +2114,14 @@ function createObservationsScan(projectId: string) {
         abortSignal,
         remainingMs(),
         (scanned, bytes) => {
-          /** Streaming progress is cumulative, including work from retried attempts. */
+          // Streaming progress is cumulative, including work from retried attempts.
           readRows += scanned - (queryRows ?? 0);
           readBytes += bytes - queryBytes;
           queryRows = scanned;
           queryBytes = bytes;
         },
       );
-      /** Completed empty streams omit zero progress; nonzero reads flush on completion. */
+      // Completed empty streams omit zero progress; nonzero reads flush on completion.
       return {
         rows,
         readRows: queryRows ?? (rows.length === 0 ? 0 : undefined),
@@ -2222,13 +2222,19 @@ function buildObservationsV2Query(
   // Apply scan bounds after merging user filters so structured filters cannot
   // override them. The same bounded base feeds the full-payload lookup.
   if (window) {
-    baseBuilder.whereRaw("e.start_time >= {scanFrom: DateTime64(6)}", {
-      scanFrom: convertDateToClickhouseDateTime(window.from),
-    });
-    if (window.to) {
-      baseBuilder.whereRaw(
-        `e.start_time ${window.inclusiveTo ? "<=" : "<"} {scanTo: DateTime64(6)}`,
-        { scanTo: convertDateToClickhouseDateTime(window.to) },
+    for (const [value, operator] of [
+      [window.from, ">="],
+      [window.to, window.inclusiveTo ? "<=" : "<"],
+    ] as const) {
+      if (!value) continue;
+      baseBuilder.where(
+        new DateTimeFilter({
+          clickhouseTable: "events_core",
+          field: "start_time",
+          tablePrefix: "e",
+          operator,
+          value,
+        }).apply(),
       );
     }
   }
