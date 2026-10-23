@@ -26,7 +26,10 @@ import {
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/server";
-import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
+import {
+  toApiAccessScope,
+  type TargetResource,
+} from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
   internalServerError,
@@ -98,7 +101,11 @@ async function enforceAdminAuthz(
   );
   if (!decision.success) return decision;
 
-  return access(context, org.orgId, projectId, org.accessAuditLogEnabled);
+  return access(context, {
+    orgId: org.orgId,
+    projectId,
+    accessAuditLogEnabled: org.accessAuditLogEnabled,
+  });
 }
 
 /** enforceApiKeyAuthz records key metadata and dispatches authorization by action scope. */
@@ -138,7 +145,7 @@ function enforceOrgAuthz(
   );
   if (!decision.success) return decision;
 
-  return access(context, org.orgId);
+  return access(context, apiKeyTarget(context, org.orgId, null));
 }
 
 /** enforceProjectAuthz resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
@@ -168,7 +175,7 @@ function enforceProjectAuthz(
   );
   if (!decision.success) return decision;
 
-  return access(context, orgId, project.projectId);
+  return access(context, apiKeyTarget(context, orgId, project.projectId));
 }
 
 /** authorizeAction authorizes against a given action within a tenant, or passes when the route skips authz and authorizes each call itself. */
@@ -315,20 +322,31 @@ function first(os: (string | undefined)[]): string | undefined {
   return os.find((o) => o !== undefined);
 }
 
+/** apiKeyTarget is an api-key request's resolved target, carrying the access-audit opt-in of the principal's matching org. */
+function apiKeyTarget(
+  context: AuthorizationContext,
+  orgId: string,
+  projectId: string | null,
+): TargetResource {
+  const org =
+    "organizations" in context.principal
+      ? context.principal.organizations.find((o) => o.orgId === orgId)
+      : undefined;
+  return {
+    orgId,
+    projectId,
+    accessAuditLogEnabled: org?.accessAuditLogEnabled === true,
+  };
+}
+
 /** access is returned when the enforceAuth grants access */
 function access(
   context: AuthorizationContext,
-  orgId: string,
-  projectId?: string,
-  accessAuditLogEnabled?: boolean,
+  target: TargetResource,
 ): AccessResult {
   return {
     success: true,
-    scope: toApiAccessScope(context.principal, {
-      orgId: orgId,
-      projectId: projectId ?? null,
-      accessAuditLogEnabled,
-    }),
+    scope: toApiAccessScope(context.principal, target),
     ctx: context,
   };
 }

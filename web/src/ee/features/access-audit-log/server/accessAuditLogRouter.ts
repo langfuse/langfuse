@@ -33,10 +33,16 @@ export const accessAuditLogRouter = createTRPCRouter({
         });
       }
 
-      const before = await ctx.prisma.organization.findUniqueOrThrow({
+      const before = await ctx.prisma.organization.findUnique({
         where: { id: input.orgId },
         select: { accessAuditLogEnabled: true },
       });
+      if (!before) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
       const after = await ctx.prisma.organization.update({
         where: { id: input.orgId },
         data: { accessAuditLogEnabled: input.enabled },

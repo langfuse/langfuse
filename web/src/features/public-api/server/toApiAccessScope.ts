@@ -34,7 +34,7 @@ function adminScope(target: TargetResource): ApiAccessScope {
     publicKey: "ADMIN_API_KEY",
     isIngestionSuspended: false,
     isInAppAgentKey: false,
-    accessAuditLogEnabled: target.accessAuditLogEnabled ?? false,
+    accessAuditLogEnabled: target.accessAuditLogEnabled,
   };
 }
 
@@ -54,7 +54,7 @@ function apiKeyScope(
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
-    accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
+    accessAuditLogEnabled: target.accessAuditLogEnabled,
     accessLevel: apiKeyAccessLevel(principal, target.projectId),
   };
 }
@@ -77,8 +77,8 @@ function apiKeyAccessLevel(
 export type TargetResource = {
   orgId: string;
   projectId: string | null;
-  /** The target org's access-audit opt-in, read only for admin principals: an api-key principal carries its own org's. */
-  accessAuditLogEnabled?: boolean;
+  /** The target org's opt-in for read-access audit events. */
+  accessAuditLogEnabled: boolean;
 };
 
 /** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */

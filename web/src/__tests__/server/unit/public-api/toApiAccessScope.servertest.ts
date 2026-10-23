@@ -18,7 +18,6 @@ const scopeOrg = {
 const apiKeyPrincipal = (
   scope: "ORGANIZATION" | "PROJECT",
   presentation: "privateKey" | "publicKey" = "privateKey",
-  org = scopeOrg,
 ): Principal => ({
   kind: "apiKey",
   apiKeyId: "key_1",
@@ -27,7 +26,7 @@ const apiKeyPrincipal = (
   publicKey: "pk-lf-1",
   scope,
   presentation,
-  organizations: [org],
+  organizations: [scopeOrg],
   boundResource:
     scope === "ORGANIZATION"
       ? { orgId: "org_1" }
@@ -54,6 +53,7 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("ORGANIZATION"), {
         orgId: "org_1",
         projectId: null,
+        accessAuditLogEnabled: false,
       }),
     ).toEqual({
       projectId: null,
@@ -75,6 +75,7 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("PROJECT"), {
         orgId: "org_1",
         projectId: "prj_1",
+        accessAuditLogEnabled: false,
       }),
     ).toEqual(projectScope);
   });
@@ -84,6 +85,7 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("PROJECT", "publicKey"), {
         orgId: "org_1",
         projectId: "prj_1",
+        accessAuditLogEnabled: false,
       }).accessLevel,
     ).toBe("scores");
   });
@@ -92,7 +94,7 @@ describe("toApiAccessScope", () => {
     expect(
       toApiAccessScope(
         { kind: "admin", userId: null },
-        { orgId: "org_1", projectId: "prj_1" },
+        { orgId: "org_1", projectId: "prj_1", accessAuditLogEnabled: false },
       ),
     ).toEqual({
       projectId: "prj_1",
@@ -108,32 +110,11 @@ describe("toApiAccessScope", () => {
     });
   });
 
-  it("carries the api key's organization access-audit opt-in", () => {
-    expect(
-      toApiAccessScope(
-        apiKeyPrincipal("PROJECT", "privateKey", {
-          ...scopeOrg,
-          accessAuditLogEnabled: true,
-        }),
-        { orgId: "org_1", projectId: "prj_1" },
-      ).accessAuditLogEnabled,
-    ).toBe(true);
-  });
-
-  it("carries the admin target's access-audit opt-in", () => {
-    expect(
-      toApiAccessScope(
-        { kind: "admin", userId: null },
-        { orgId: "org_1", projectId: "prj_1", accessAuditLogEnabled: true },
-      ).accessAuditLogEnabled,
-    ).toBe(true);
-  });
-
   it("500s an unmappable principal kind", () => {
     expect(() =>
       toApiAccessScope(
         { kind: "user", userId: "u_1", organizations: [] },
-        { orgId: "org_1", projectId: null },
+        { orgId: "org_1", projectId: null, accessAuditLogEnabled: false },
       ),
     ).toThrow(InternalServerError);
   });
