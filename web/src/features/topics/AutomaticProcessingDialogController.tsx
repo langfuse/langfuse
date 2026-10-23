@@ -22,6 +22,17 @@ type AutomaticProcessingDialogControllerProps = AutomaticProcessingSettings & {
   }) => ReactNode;
 };
 
+/** Finished traces per day over the backfill window; null until counted. */
+function useDailyTraceEstimate(projectId: string) {
+  const counts = api.topics.setupTraceCounts.useQuery(
+    { projectId },
+    { retry: false },
+  );
+  return counts.data
+    ? counts.data.finished7d / TOPIC_SETUP_BACKFILL_DAYS
+    : null;
+}
+
 function AutomaticProcessingDialogContent({
   closeDialog,
   projectId,
@@ -35,10 +46,7 @@ function AutomaticProcessingDialogContent({
   initialEnabled: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const counts = api.topics.setupTraceCounts.useQuery(
-    { projectId },
-    { retry: false },
-  );
+  const dailyTraces = useDailyTraceEstimate(projectId);
   const submit = (input: { enabled: boolean; sampling: number }) => {
     setError(null);
     save(input)
@@ -56,9 +64,7 @@ function AutomaticProcessingDialogContent({
     <AutomaticProcessingDialog
       initialEnabled={initialEnabled}
       initialSampling={rule?.sampling ?? 1}
-      dailyTraces={
-        counts.data ? counts.data.finished7d / TOPIC_SETUP_BACKFILL_DAYS : null
-      }
+      dailyTraces={dailyTraces}
       missingModel={TOPICS_MODEL_SLOTS.some((slot) => !stored?.[slot]?.model)}
       saving={saving}
       error={error}
