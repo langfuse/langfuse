@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
-import { OrganizationProjectOverview } from "@/src/features/organizations/components/ProjectOverview";
+import { OrganizationProjectOverview } from "@/src/features/organizations/components/OrganizationProjectOverview";
 import { createProjectRoute } from "@/src/features/setup";
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
