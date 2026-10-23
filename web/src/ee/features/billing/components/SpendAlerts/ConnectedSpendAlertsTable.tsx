@@ -2,11 +2,10 @@ import { useMemo, useState, type ComponentProps } from "react";
 import { api } from "@/src/utils/api";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { SpendAlertsTable } from "./SpendAlertsTable";
-import { SpendAlertDialog } from "./SpendAlertDialog";
+import { ConnectedSpendAlertDialogController } from "./ConnectedSpendAlertDialogController";
 import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 
 export function ConnectedSpendAlertsTable({ orgId }: { orgId: string }) {
-  const [editingAlert, setEditingAlert] = useState<string | null>(null);
   const [deletingAlert, setDeletingAlert] = useState<string | null>(null);
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -37,29 +36,26 @@ export function ConnectedSpendAlertsTable({ orgId }: { orgId: string }) {
     };
   }, [isLoading, isError, error, spendAlerts]);
 
-  const editingAlertData = spendAlerts?.find(
-    (alert) => alert.id === editingAlert,
-  );
-
   return (
     <>
-      <SpendAlertsTable
-        data={data}
-        onEdit={setEditingAlert}
-        onDelete={setDeletingAlert}
-      />
-      {editingAlert && editingAlertData && (
-        <SpendAlertDialog
-          orgId={orgId}
-          alert={editingAlertData}
-          open={!!editingAlert}
-          onOpenChange={(open) => !open && setEditingAlert(null)}
-          onSuccess={() => {
-            setEditingAlert(null);
-            refetch();
-          }}
-        />
-      )}
+      <ConnectedSpendAlertDialogController
+        orgId={orgId}
+        onSuccess={() => {
+          refetch();
+        }}
+      >
+        {({ openDialog }) => (
+          <SpendAlertsTable
+            data={data}
+            onEdit={(id) => {
+              const alert = spendAlerts?.find((alert) => alert.id === id);
+              if (!alert) return;
+              openDialog({ mode: "edit", alert });
+            }}
+            onDelete={setDeletingAlert}
+          />
+        )}
+      </ConnectedSpendAlertDialogController>
       {deletingAlert && (
         <DeleteSpendAlertDialog
           orgId={orgId}
