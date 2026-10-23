@@ -127,7 +127,15 @@ function LoadedTraceHeader() {
           <TraceTopicsHoverCard
             projectId={trace.projectId}
             facets={topicFacets}
-          />
+          >
+            {({ triggerProps, rankOf }) => (
+              <TraceTopicsHoverCard.Trigger
+                facets={topicFacets}
+                rankOf={rankOf}
+                triggerProps={triggerProps}
+              />
+            )}
+          </TraceTopicsHoverCard>
         )}
         {(traceScores.length > 0 || trace.tags.length > 0) && (
           <div className="flex min-w-0 flex-wrap items-center gap-1">

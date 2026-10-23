@@ -6,7 +6,7 @@ import {
   treemapSwatchColor,
 } from "@/src/features/topics/topic-map-colors";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type TraceTopicFacet = RouterOutputs["topics"]["forTrace"][number];
@@ -49,15 +49,18 @@ function TopicDot({ rank }: { rank: number }) {
   );
 }
 
+const HOUR_MS = 3_600_000;
+
 /** Rank and trace count per topic over the last 7 days, the Topics page default; ranks pick the treemap color. */
 function useTopicRanks(projectId: string, enabled: boolean) {
+  // Hour-aligned so every trace header in the same hour shares one cached query.
   const [timeRange] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - 7 * 86_400_000), to };
+    const to = new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
+    return { from: new Date(to.getTime() - 7 * 24 * HOUR_MS), to };
   });
   const results = api.topics.currentResults.useQuery(
     { projectId, timeRange },
-    { enabled, staleTime: 5 * 60 * 1000 },
+    { enabled, staleTime: HOUR_MS, gcTime: HOUR_MS },
   );
   return (facetId: string, topicId: string) => {
     const topics =
@@ -92,25 +95,66 @@ function TopicChip({
   );
 }
 
-/** Trace header: the trace's first topic, with a card listing every facet result. */
-export function TraceTopicsHoverCard({
-  projectId,
+type RankOf = ReturnType<typeof useTopicRanks>;
+
+/** Trace header trigger: the trace's first topic and how many more it has. */
+function TraceTopicsTrigger({
   facets,
+  rankOf,
+  triggerProps,
 }: {
-  projectId: string;
   facets: TraceTopicFacet[];
+  rankOf: RankOf;
+  triggerProps: Record<string, unknown>;
 }) {
-  const rankOf = useTopicRanks(projectId, facets.length > 0);
   const assigned = facets.filter((facet) => facet.topicId && facet.topicName);
   const lead = assigned[0];
   const leadRank =
     lead?.topicId != null ? rankOf(lead.facetId, lead.topicId).rank : -1;
   return (
+    <span
+      className="ph-no-capture hover:bg-muted inline-flex min-w-0 cursor-pointer rounded-sm px-2"
+      {...triggerProps}
+    >
+      {lead?.topicName ? (
+        <BadgeShell color="ghost" font="mono">
+          <TopicDot rank={leadRank} />
+          <span className="truncate" title={lead.topicName}>
+            {lead.topicName}
+          </span>
+          {assigned.length > 1 && (
+            <span className="text-muted-foreground shrink-0">
+              +{assigned.length - 1}
+            </span>
+          )}
+        </BadgeShell>
+      ) : (
+        <Badge color="ghost" font="mono" text="Topics" title="" />
+      )}
+    </span>
+  );
+}
+
+/** Card listing every facet result of a trace; the caller renders the trigger. */
+export function TraceTopicsHoverCard({
+  projectId,
+  facets,
+  children,
+}: {
+  projectId: string;
+  facets: TraceTopicFacet[];
+  children: (trigger: {
+    triggerProps: Record<string, unknown>;
+    rankOf: RankOf;
+  }) => ReactNode;
+}) {
+  const rankOf = useTopicRanks(projectId, facets.length > 0);
+  return (
     <HoverCard
       openDelay={200}
       placement="bottom-end"
       content={
-        <div className="flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
+        <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
           <div className="flex items-center justify-between gap-2 border-b py-2.5">
             <span className="text-muted-foreground text-sm">Topics</span>
             <TextLink
@@ -161,28 +205,11 @@ export function TraceTopicsHoverCard({
         </div>
       }
     >
-      {({ getTriggerProps }) => (
-        <span
-          className="hover:bg-muted inline-flex min-w-0 cursor-pointer rounded-sm px-2"
-          {...getTriggerProps()}
-        >
-          {lead?.topicName ? (
-            <BadgeShell color="ghost" font="mono">
-              <TopicDot rank={leadRank} />
-              <span className="truncate" title={lead.topicName}>
-                {lead.topicName}
-              </span>
-              {assigned.length > 1 && (
-                <span className="text-muted-foreground shrink-0">
-                  +{assigned.length - 1}
-                </span>
-              )}
-            </BadgeShell>
-          ) : (
-            <Badge color="ghost" font="mono" text="Topics" title="" />
-          )}
-        </span>
-      )}
+      {({ getTriggerProps }) =>
+        children({ triggerProps: getTriggerProps(), rankOf })
+      }
     </HoverCard>
   );
 }
+
+TraceTopicsHoverCard.Trigger = TraceTopicsTrigger;
