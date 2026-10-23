@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
 import { type TopicFacet } from "@langfuse/shared/topics";
@@ -378,7 +379,7 @@ afterEach(() => {
 
 it("shows Not found instead of the workspace when the Topics gate is closed", () => {
   state.canViewTopics = false;
-  render(<TopicsPage />);
+  render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
@@ -393,7 +394,7 @@ it.each([
     useGlobalDateRangeStore
       .getState()
       .actions.setProjectDefault("project", token);
-    render(<TopicsPage />);
+    render(<TopicsPage />, { wrapper: LayerProvider });
     const { timeRange } = state.currentTopics.mock.lastCall![0];
     expect(timeRange.to.getTime() - timeRange.from.getTime()).toBe(
       minutes * 60_000,
@@ -416,7 +417,7 @@ it("keeps a URL custom range fixed when an execution completes", () => {
   };
   state.dateRange = rangeToString(timeRange);
   state.status = "running";
-  const view = render(<TopicsPage />);
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ timeRange }),
   );
@@ -435,7 +436,7 @@ it.each(["stored", "URL"])(
       .getState()
       .actions.setProjectDefault("project", "1y");
     state.dateRange = source === "URL" ? "1y" : undefined;
-    render(<TopicsPage />);
+    render(<TopicsPage />, { wrapper: LayerProvider });
 
     const { timeRange } = state.currentTopics.mock.lastCall![0];
     expect(timeRange).toEqual({
@@ -476,7 +477,7 @@ it("caps a custom range at its original end and preserves its URL through comple
   };
   state.dateRange = rangeToString(requested);
   state.status = "running";
-  const view = render(<TopicsPage />);
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ timeRange: expected }),
   );
@@ -505,7 +506,7 @@ it.each([
   "leaves an exact 90-day range unchanged: %j",
   (timeRange) => {
     state.dateRange = rangeToString(timeRange);
-    render(<TopicsPage />);
+    render(<TopicsPage />, { wrapper: LayerProvider });
     expect(state.picker).toHaveBeenLastCalledWith(timeRange);
     expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
     expect(state.setQueryParams).not.toHaveBeenCalled();
@@ -515,11 +516,9 @@ it.each([
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
-  const view = render(<TopicsPage />);
-  const status = screen.getByRole("dialog", { name: "Run status" });
-  fireEvent.click(
-    within(status).getByRole("button", { name: "Resume interrupted stages" }),
-  );
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const status = screen.getByRole("dialog", { name: "Analyze traces" });
+  fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
     executionId: "execution",
@@ -548,7 +547,7 @@ it("refreshes current results through retry and completion for a selected run ou
 
 it("holds relative bounds between renders and advances them after completion", () => {
   state.status = "running";
-  const view = render(<TopicsPage />);
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
   const initialRange = state.currentTopics.mock.lastCall![0].timeRange;
 
   vi.setSystemTime(new Date("2026-10-09T12:01:00Z"));
@@ -586,6 +585,18 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
+/** Opens the manual dialog from the header menu; "process" switches to its summarize tab. */
+async function openManualDialog(operation: "process" | "update" = "update") {
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Regenerate topics" }),
+  );
+  if (operation === "process")
+    fireEvent.mouseDown(
+      screen.getByRole("tab", { name: "Summarize traces & embed" }),
+      { button: 0, ctrlKey: false },
+    );
+}
 function withSummaries() {
   state.facets = [
     facet("intent", [2, 1]),
@@ -598,6 +609,31 @@ function withSummaries() {
     { facetId: "outcome", facetVersion: 1, count: 0 },
   ];
 }
+
+it("shows Analyze in the header while auto-analyze is off and keeps the menu to regenerate, history and settings", async () => {
+  withSummaries();
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
+  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).toEqual([
+    "Regenerate topics",
+    "History",
+    "Settings",
+  ]);
+});
+
+it("shows a paused auto-analyze status with its short reason", () => {
+  withSummaries();
+  state.settings.blockedAt = "2026-10-09T10:00:00Z";
+  state.settings.blockMessage = "Fix the connection.";
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  const control = screen.getByRole("button", { name: "Auto-analyze: Paused" });
+  expect(control).toHaveAttribute("title", "Paused");
+  fireEvent.click(control);
+  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+});
 
 it.each([
   {
@@ -630,11 +666,11 @@ it.each([
     reason:
       "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.",
   },
-])("disables Generate topics $name", ({ setup, reason }) => {
+])("disables Generate topics $name", async ({ setup, reason }) => {
   withSummaries();
   setup();
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
     button: 0,
     ctrlKey: false,
@@ -651,8 +687,8 @@ it("requires an eligible selected facet and applies the small-sample threshold b
     { facetId: "intent", facetVersion: 2, count: 13 },
     { facetId: "outcome", facetVersion: 1, count: 9 },
   ];
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
     button: 0,
     ctrlKey: false,
@@ -680,33 +716,32 @@ it("requires an eligible selected facet and applies the small-sample threshold b
 
 it("counts summaries only while the open manual dialog is generating topics", async () => {
   withSummaries();
-  render(<TopicsPage />);
+  render(<TopicsPage />, { wrapper: LayerProvider });
   const countRequests = () =>
     state.summaryCountInput.mock.calls.filter(
       ([input]) => typeof input !== "symbol",
     );
   expect(countRequests()).toHaveLength(0);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
-  expect(countRequests()).toHaveLength(0);
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
+  await openManualDialog();
   expect(countRequests().length).toBeGreaterThan(0);
+  const generatingRequests = countRequests().length;
+  fireEvent.mouseDown(
+    screen.getByRole("tab", { name: "Summarize traces & embed" }),
+    { button: 0, ctrlKey: false },
+  );
+  expect(countRequests()).toHaveLength(generatingRequests);
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  const completedRequests = countRequests().length;
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
-  expect(countRequests()).toHaveLength(completedRequests);
+  expect(countRequests()).toHaveLength(generatingRequests);
 });
 
-it("keeps summary loading and refetching out of validation warnings", () => {
+it("keeps summary loading and refetching out of validation warnings", async () => {
   withSummaries();
   state.counts = state.counts.map((count) => ({ ...count, count: 240 }));
   state.countsPending = true;
   state.countsFetching = true;
-  const page = render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  const page = render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
     button: 0,
     ctrlKey: false,
@@ -742,8 +777,8 @@ it("keeps summary loading and refetching out of validation warnings", () => {
 it("regenerates the rule's facets that have summaries, at their latest version, over its default seven-day range, then opens the run", async () => {
   withSummaries();
   state.executions = [execution("completed", "update")];
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
     button: 0,
     ctrlKey: false,
@@ -792,9 +827,9 @@ it("shows a regenerate failure that settles after the dialog was closed and reop
   state.trigger.mockImplementationOnce(
     () => new Promise((_, reject) => (fail = reject)),
   );
-  render(<TopicsPage />);
-  const open = () => {
-    fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  const open = async () => {
+    await openManualDialog();
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
       button: 0,
       ctrlKey: false,
@@ -803,11 +838,11 @@ it("shows a regenerate failure that settles after the dialog was closed and reop
   };
 
   fireEvent.click(
-    within(open()).getByRole("button", { name: "Generate topics" }),
+    within(await open()).getByRole("button", { name: "Generate topics" }),
   );
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  const reopened = open();
+  const reopened = await open();
   fail(new Error("Clustering connection failed."));
 
   expect(
@@ -825,8 +860,8 @@ it("shows a regenerate failure that settles after the dialog was closed and reop
 
 it("summarizes the frozen trace selection for active facets and opens the progress drawer", async () => {
   withSummaries();
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog("process");
   const dialog = screen.getByRole("dialog", { name: "Manual processing" });
   fireEvent.click(
     within(dialog).getByRole("button", { name: "Summarize & embed" }),
@@ -865,8 +900,8 @@ it("summarizes the frozen trace selection for active facets and opens the progre
 
 it("hands off from manual processing to Topics model configuration", async () => {
   withSummaries();
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog("process");
   const dialog = screen.getByRole("dialog", { name: "Manual processing" });
   fireEvent.click(
     within(dialog).getByRole("button", { name: "Configure Topics" }),
@@ -882,8 +917,8 @@ it("hands off from manual processing to Topics model configuration", async () =>
 
 it("freezes an independent generation range for summary counts and submission", async () => {
   withSummaries();
-  render(<TopicsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
     button: 0,
     ctrlKey: false,
@@ -916,8 +951,8 @@ it.each(["relative", "absolute"])(
   async (rangeKind) => {
     withSummaries();
     state.counts = [];
-    const view = render(<TopicsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    await openManualDialog();
     if (rangeKind === "absolute") {
       fireEvent.mouseDown(
         screen.getByRole("tab", { name: "Generate topics" }),
@@ -937,7 +972,7 @@ it.each(["relative", "absolute"])(
     state.counts = [{ facetId: "intent", facetVersion: 2, count: 120 }];
     vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
     view.rerender(<TopicsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+    await openManualDialog();
     expect(state.invalidateSummaryCounts).toHaveBeenCalledTimes(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
       button: 0,
@@ -968,11 +1003,11 @@ it.each(["relative", "absolute"])(
 
 it.each(["settings", "readiness", "connections"] as const)(
   "shows a failed %s configuration query and recovers after it succeeds",
-  (query) => {
+  async (query) => {
     withSummaries();
     state.configurationFailure = query;
-    const view = render(<TopicsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    await openManualDialog("process");
     expect(
       screen.getByText(
         /Could not load Topics configuration: Configuration unavailable\./,
@@ -1018,8 +1053,8 @@ it.each([
     if (condition === "loading runs") state.executions = undefined;
     if (condition === "failed runs")
       state.executionsError = new Error("Runs unavailable.");
-    const { rerender } = render(<TopicsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+    const { rerender } = render(<TopicsPage />, { wrapper: LayerProvider });
+    await openManualDialog("process");
     expect(
       screen.getByRole("button", { name: "Summarize & embed" }),
     ).toBeDisabled();
@@ -1051,19 +1086,22 @@ it.each([
 
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
-  const view = render(<TopicsPage />);
-  expect(screen.getByRole("button", { name: "Start analyzing" })).toBeEnabled();
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: /^(Analyze|Auto-analyze)/ }),
+  ).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Start analyzing" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
 });
 
 it("opens generation directly from the empty topics panel", () => {
   withSummaries();
   state.showGenerateCTA = true;
-  render(<TopicsPage />);
+  render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
   const dialog = within(
     screen.getByRole("dialog", { name: "Manual processing" }),
@@ -1081,13 +1119,9 @@ it("keeps date controls reachable when a disabled results query has no data", ()
     from: new Date("2026-10-10T00:00:00Z"),
     to: new Date("2026-10-09T00:00:00Z"),
   });
-  render(<TopicsPage />);
+  render(<TopicsPage />, { wrapper: LayerProvider });
   expect(
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
-  expect(
-    screen.queryByText(
-      "Thousands of traces, identify recurring topics & issues",
-    ),
-  ).toBeNull();
+  expect(screen.queryByText("See what your traces are about")).toBeNull();
 });

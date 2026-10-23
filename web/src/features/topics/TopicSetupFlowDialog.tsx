@@ -1,11 +1,23 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Clock, RefreshCw } from "@langfuse/icons";
+import { Slider } from "@/src/components/ui/Slider";
+import { useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  ArrowUpRight,
+  Copy,
+  Lock,
+  Plug,
+  RefreshCw,
+} from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
@@ -51,6 +63,10 @@ export type TopicSetupFlowDialogProps = {
   canWrite: boolean;
   clustering: JudgeModel | null;
   connectionCaption: string;
+  /** False when the project has no AI connection yet; models cannot be picked. */
+  hasConnection: boolean;
+  /** Whether this user may add an AI connection; others are asked to contact an admin. */
+  canAddConnection: boolean;
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
@@ -84,6 +100,8 @@ export function TopicSetupFlowDialog({
   canWrite,
   clustering,
   connectionCaption,
+  hasConnection,
+  canAddConnection,
   embedding,
   embeddingProviderGroups,
   error,
@@ -127,18 +145,28 @@ export function TopicSetupFlowDialog({
   });
   // The server picks its own traces, so a failed estimate must not block Start.
   const canStart = canWrite && !busy && pastCount.status !== "loading";
-  const nextDisabled = nextStepDisabled({
-    step,
-    busy,
-    canWrite,
-    canLeaveQuestions,
-    canStart,
-  });
+  const connectionActionRef = useRef<HTMLButtonElement>(null);
+  // Without a connection, people who cannot add one only get a link to share and Close.
+  const viewerBlocked = !hasConnection && !canAddConnection;
+  // Without a connection Next stays clickable and points at the banner instead.
+  const needsConnection = step === "questions" && !hasConnection;
+  const nextDisabled = needsConnection
+    ? false
+    : nextStepDisabled({
+        step,
+        busy,
+        canWrite,
+        canLeaveQuestions,
+        canStart,
+      });
   const notice =
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
 
   return (
-    <Dialog title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}>
+    <Dialog
+      title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}
+      {...(viewerBlocked ? { closeLabel: "Close" } : {})}
+    >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
@@ -172,31 +200,73 @@ export function TopicSetupFlowDialog({
                   <h2 className="text-sm font-bold">
                     Select models for analysis
                   </h2>
-                  <span className="text-muted-foreground text-xs">
-                    {connectionCaption}
-                  </span>
+                  {hasConnection && (
+                    <span className="text-muted-foreground text-xs">
+                      {connectionCaption}
+                    </span>
+                  )}
                 </div>
-                <div className="divide-y rounded-md border">
-                  {MODEL_ROWS.map((row) => {
-                    const model = models[row.slot];
-                    return (
-                      <ModelRow
+                {viewerBlocked && (
+                  <AskAdminForConnection projectId={projectId} />
+                )}
+                {!hasConnection && canAddConnection && (
+                  <div className="bg-light-yellow text-foreground flex items-center gap-3 rounded-lg px-3.5 py-3 text-sm">
+                    <Plug size="base" aria-hidden="true" />
+                    <span className="flex-1">
+                      No AI connection in this project yet.
+                    </span>
+                    <button
+                      ref={connectionActionRef}
+                      type="button"
+                      onClick={onConfigureProviders}
+                      className="focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-sm font-bold whitespace-nowrap focus-visible:ring-2 focus-visible:outline-hidden"
+                    >
+                      Add connection
+                      <ArrowUpRight size="sm" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+                {!viewerBlocked && !hasConnection && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none divide-y rounded-lg border text-sm opacity-45"
+                  >
+                    {MODEL_ROWS.map((row) => (
+                      <div
                         key={row.slot}
-                        label={row.label}
-                        model={model}
-                        recommended={
-                          model
-                            ? isRecommendedTopicModel(row.slot, model.model)
-                            : false
-                        }
-                        disabled={!canWrite}
-                        providerGroups={groups[row.slot]}
-                        onConfigureProviders={onConfigureProviders}
-                        onSelect={onModelChange[row.slot]}
-                      />
-                    );
-                  })}
-                </div>
+                        className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.75"
+                      >
+                        <span>{row.label}</span>
+                        <span className="text-muted-foreground">
+                          No models yet
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {hasConnection && (
+                  <div className="divide-y rounded-md border">
+                    {MODEL_ROWS.map((row) => {
+                      const model = models[row.slot];
+                      return (
+                        <ModelRow
+                          key={row.slot}
+                          label={row.label}
+                          model={model}
+                          recommended={
+                            model
+                              ? isRecommendedTopicModel(row.slot, model.model)
+                              : false
+                          }
+                          disabled={!canWrite}
+                          providerGroups={groups[row.slot]}
+                          onConfigureProviders={onConfigureProviders}
+                          onSelect={onModelChange[row.slot]}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
                 ) : null}
@@ -216,28 +286,34 @@ export function TopicSetupFlowDialog({
                   )}
                 </button>
                 {advancedOpen ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm">Wait before summarizing</span>
-                    <div className="flex gap-1.5">
-                      {TOPIC_SETUP_WAIT_MINUTES.map((minutes) => {
-                        const selected = waitMinutes === minutes;
-                        return (
-                          <button
-                            key={minutes}
-                            type="button"
-                            className={
-                              selected
-                                ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
-                                : "rounded-full border px-3 py-1 text-sm"
-                            }
-                            aria-pressed={selected}
-                            onClick={() => onWaitMinutesChange(minutes)}
-                          >
-                            {minutes} min
-                          </button>
-                        );
-                      })}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-sm">Wait before summarizing</span>
+                      <div className="flex gap-1.5">
+                        {TOPIC_SETUP_WAIT_MINUTES.map((minutes) => {
+                          const selected = waitMinutes === minutes;
+                          return (
+                            <button
+                              key={minutes}
+                              type="button"
+                              className={
+                                selected
+                                  ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
+                                  : "rounded-full border px-3 py-1 text-sm"
+                              }
+                              aria-pressed={selected}
+                              onClick={() => onWaitMinutesChange(minutes)}
+                            >
+                              {minutes} min
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+                    <p className="text-muted-foreground text-xs">
+                      A trace is summarized once no new events arrive for this
+                      long, so long-running traces aren&apos;t cut off.
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -245,26 +321,24 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              <TopicTraceFilterSection
-                projectId={projectId}
-                description="Custom trace filters are coming soon. For now, the sample rate applies to all new traces."
-              />
-              <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+              <TopicTraceFilterSection projectId={projectId} />
+              <div className="flex flex-col gap-2">
                 <span className="text-sm font-bold">Sample rate</span>
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={100}
-                    value={samplePercent}
-                    aria-label="Sample rate"
-                    className="accent-primary w-40"
-                    disabled={!canWrite}
-                    onChange={(event) =>
-                      onSamplePercentChange(Number(event.target.value))
-                    }
-                  />
-                  <div className="w-28">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Slider
+                      min={1}
+                      max={100}
+                      step={1}
+                      value={[samplePercent]}
+                      aria-label="Sample rate"
+                      disabled={!canWrite}
+                      onValueChange={(value) =>
+                        onSamplePercentChange(value[0] ?? samplePercent)
+                      }
+                    />
+                  </div>
+                  <div className="w-20">
                     <Input
                       type="number"
                       min={1}
@@ -280,14 +354,14 @@ export function TopicSetupFlowDialog({
                       }}
                     />
                   </div>
-                  <span className="text-sm">%</span>
+                  <span className="text-muted-foreground text-sm">%</span>
                 </div>
+                <p className="text-muted-foreground text-sm">
+                  {pastCount.status === "ready"
+                    ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days`
+                    : "Share of new traces analyzed once automatic processing is on"}
+                </p>
               </div>
-              <p className="text-muted-foreground text-xs">
-                {pastCount.status === "ready"
-                  ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days.`
-                  : "Share of new traces analyzed once automatic processing is on."}
-              </p>
             </div>
           ) : null}
           {step === "review" ? (
@@ -363,25 +437,33 @@ export function TopicSetupFlowDialog({
             <p className="text-destructive text-sm">{error}</p>
           ) : null}
         </div>
-        <div className="flex items-center justify-between border-t px-4 py-3">
-          {step === "questions" ? (
-            <span />
-          ) : (
-            <Button
-              text="Back"
-              variant="ghost"
-              disabled={busy}
-              onClick={onBack}
-            />
-          )}
-          <Button
-            text={step === "review" ? "Start analyzing" : "Next"}
-            variant="primary"
-            loading={busy}
-            disabled={nextDisabled}
-            onClick={onNext}
-          />
-        </div>
+        {!viewerBlocked && (
+          <div className="flex items-center justify-between border-t px-4 py-3">
+            {step === "questions" ? (
+              <span />
+            ) : (
+              <Button
+                text="Back"
+                variant="ghost"
+                disabled={busy}
+                onClick={onBack}
+              />
+            )}
+            <div className="flex items-center gap-3">
+              <Button
+                text={step === "review" ? "Start analyzing" : "Next"}
+                variant="primary"
+                loading={busy}
+                disabled={nextDisabled}
+                onClick={
+                  needsConnection
+                    ? () => connectionActionRef.current?.focus()
+                    : onNext
+                }
+              />
+            </div>
+          </div>
+        )}
       </div>
     </Dialog>
   );
@@ -526,4 +608,35 @@ function ReviewRow({
       <Button text="Edit" variant="ghost" size="sm" onClick={onEdit} />
     </div>
   );
+}
+
+function AskAdminForConnection({ projectId }: { projectId?: string }) {
+  const url = connectionSettingsUrl(projectId);
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex items-center gap-2.5 text-sm font-bold">
+        <Lock size="base" aria-hidden="true" />
+        An admin needs to add an AI connection
+      </div>
+      <p className="text-muted-foreground text-sm">
+        You don&apos;t have permission to add one. Share this with an admin:
+      </p>
+      <div className="bg-muted flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs" title={url}>
+          {url}
+        </span>
+        <IconButton
+          icon={Copy}
+          label="Copy link"
+          size="sm"
+          onClick={() => copyTextToClipboard(url)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function connectionSettingsUrl(projectId: string | undefined) {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}/project/${projectId ?? ""}/settings/llm-connections`;
 }

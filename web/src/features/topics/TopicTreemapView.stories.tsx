@@ -88,6 +88,86 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+/** Treemap on the left, traces on the right. */
+export const SideBySide = meta.story({ args: { sideBySide: true } });
+
+const manyUnassignedRows = [
+  ...assignedRows,
+  ...Array.from({ length: 320 }, (_, index) => ({
+    traceId: `unassigned-trace-${index}`,
+    summary: `Unrelated request ${index + 1} that fit no topic`,
+    topicId: null,
+    topicName: null,
+    outcome: "outlier" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 3 * 60_000).toISOString(),
+  })),
+];
+
+const manyTopics = Array.from({ length: 40 }, (_, index) => ({
+  id: `many-${index}`,
+  name: `Cluster ${index + 1}: ${["refund status", "order tracking", "address change", "login help", "invoice copy"][index % 5]}`,
+  description: "",
+  count: Math.max(2, Math.round(120 / (index + 1))),
+}));
+const manyRows = manyTopics.flatMap((topic) =>
+  Array.from({ length: topic.count }, (_, index) => ({
+    traceId: `${topic.id}-trace-${index}`,
+    summary: `${topic.name} request ${index + 1}`,
+    topicId: topic.id,
+    topicName: topic.name,
+    outcome: "assigned" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 4 * 60_000).toISOString(),
+  })),
+);
+
+/** Forty clusters: small tiles drop the count, then the name, keeping both in the tooltip. */
+const manyTopic = { ...topics[0], count: 350 };
+const bigTopicRows = Array.from({ length: manyTopic.count }, (_, index) => ({
+  ...assignedRows[0],
+  traceId: `${manyTopic.id}-many-${index}`,
+  summary: `${manyTopic.name} question ${index + 1}`,
+}));
+
+/** One topic with 350 traces; its list adds 100 rows each time you scroll near the end. */
+export const ManyTraces = meta.story({
+  args: {
+    sideBySide: true,
+    facet: {
+      ...facet,
+      rows: [
+        ...bigTopicRows,
+        ...rows.filter((row) => row.topicId !== manyTopic.id),
+      ],
+      topics: [manyTopic, ...topics.slice(1)],
+      usableCount: bigTopicRows.length + rows.length - topics[0].count,
+    },
+  },
+});
+
+export const ManyClusters = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      topics: manyTopics,
+      rows: manyRows,
+      usableCount: manyRows.length,
+    },
+  },
+});
+
+/** About half of the traces fit no topic; Unassigned stays at ~10% of the area. */
+export const LargeUnassigned = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      rows: manyUnassignedRows,
+      usableCount: manyUnassignedRows.length,
+    },
+  },
+});
+
 const issueTopics = [
   { name: "Incomplete runs with undelivered results", count: 40 },
   { name: "Research halted before handback report", count: 35 },
