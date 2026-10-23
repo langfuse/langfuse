@@ -1,6 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { type RefObject, useState } from "react";
-import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
+import { type RefObject, type UIEvent, useState } from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -12,6 +11,9 @@ import { type FacetRow, topicTracesHref } from "./facet-topics";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
+/** Rows drawn at once; more load as the list nears its end. */
+const ROW_CHUNK = 100;
+const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
 export function TopicTraceList({
@@ -25,18 +27,16 @@ export function TopicTraceList({
   headerRef,
   divider,
 }: TopicTraceListProps) {
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  });
-  const pageIndex = Math.min(
-    pagination.pageIndex,
-    Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
-  );
-  const onPaginationChange: OnChangeFn<PaginationState> = (update) => {
-    setPagination((current) =>
-      typeof update === "function" ? update(current) : update,
-    );
+  const [shown, setShown] = useState({ rows, count: ROW_CHUNK });
+  // A new topic or facet starts again from the first chunk.
+  const visibleCount = shown.rows === rows ? shown.count : ROW_CHUNK;
+  const onScrollCapture = (event: UIEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    const nearBottom =
+      target.scrollTop + target.clientHeight >=
+      target.scrollHeight - LOAD_MORE_THRESHOLD_PX;
+    if (nearBottom && visibleCount < rows.length)
+      setShown({ rows, count: visibleCount + ROW_CHUNK });
   };
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
@@ -78,6 +78,7 @@ export function TopicTraceList({
     <section
       aria-label="Topic traces"
       ref={tracePanelRef}
+      onScrollCapture={onScrollCapture}
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         divider === "side" && "border-t lg:border-t-0 lg:border-l",
@@ -131,17 +132,8 @@ export function TopicTraceList({
           isLoading: false,
           isError: false,
           data: rows
-            .slice(
-              pageIndex * pagination.pageSize,
-              (pageIndex + 1) * pagination.pageSize,
-            )
+            .slice(0, visibleCount)
             .map((row) => ({ ...row, id: row.traceId })),
-        }}
-        pagination={{
-          totalCount: rows.length,
-          state: { ...pagination, pageIndex },
-          onChange: onPaginationChange,
-          options: [20, 50, 100],
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
