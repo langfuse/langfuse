@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "@langfuse/icons";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";

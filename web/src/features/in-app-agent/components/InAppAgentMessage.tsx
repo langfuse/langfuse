@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 "use client";
 import {
   ArrowRight,
@@ -1076,7 +1076,7 @@ const codeCopyVisibilityClass =
   "pointer-events-none opacity-0 transition-opacity group-hover/code-block:pointer-events-auto group-hover/code-block:opacity-100 group-focus-within/code-block:pointer-events-auto group-focus-within/code-block:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=copied]:pointer-events-auto data-[state=copied]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100";
 
 const tableCopyRowClass =
-  "flex h-0 justify-end overflow-hidden group-hover/table:h-8 group-focus-within/table:h-8 data-[state=copied]:h-8 [@media(hover:none)]:h-8";
+  "pointer-events-none absolute right-0 bottom-full z-10 flex h-8 justify-end group-hover/table:pointer-events-auto group-focus-within/table:pointer-events-auto data-[state=copied]:pointer-events-auto [@media(hover:none)]:pointer-events-auto";
 
 const tableCopyVisibilityClass =
   "pointer-events-none mb-1 opacity-0 transition-opacity group-hover/table:pointer-events-auto group-hover/table:opacity-100 group-focus-within/table:pointer-events-auto group-focus-within/table:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=copied]:pointer-events-auto data-[state=copied]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100";
@@ -1158,7 +1158,7 @@ function TableBlock({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="group/table max-w-full">
+    <div className="group/table relative max-w-full">
       <div
         data-state={isCopied ? "copied" : undefined}
         className={tableCopyRowClass}

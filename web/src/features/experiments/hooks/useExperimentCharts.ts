@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { pickDefaultStripMetric } from "@/src/features/experiments/fns/pickDefaultStripMetric";

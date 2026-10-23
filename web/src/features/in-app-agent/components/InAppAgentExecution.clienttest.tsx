@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -298,6 +299,7 @@ describe("in-app agent execution", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
@@ -1094,6 +1096,7 @@ describe("in-app agent concurrent conversations", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();

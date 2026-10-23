@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // Editor AST → flat Langfuse filter contract.
 //
 //   astToFilterState(ast) -> { filters, searchQuery, searchType, errors }

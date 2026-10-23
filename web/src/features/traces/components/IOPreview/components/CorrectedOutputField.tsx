@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Pencil, Trash, FileDiff } from "@langfuse/icons";
 import {
   IOSection,

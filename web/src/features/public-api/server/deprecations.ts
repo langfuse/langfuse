@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 

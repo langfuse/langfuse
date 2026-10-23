@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 
 import { context, propagation, trace, type Context } from "@opentelemetry/api";

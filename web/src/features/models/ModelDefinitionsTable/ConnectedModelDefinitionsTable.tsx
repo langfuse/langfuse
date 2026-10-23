@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "@langfuse/icons";
 import { useMemo, useRef } from "react";
