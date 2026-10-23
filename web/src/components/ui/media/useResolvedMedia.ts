@@ -24,10 +24,7 @@ export function useResolvedMedia(
     },
     {
       enabled: enabled && Boolean(projectId),
-      // Chips show a failure inline and retry it on the next open, so neither
-      // automatic retries nor a toast per hover are wanted.
-      retry: false,
-      meta: { silentAllErrors: true },
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
