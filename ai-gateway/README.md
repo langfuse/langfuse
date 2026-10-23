@@ -505,16 +505,11 @@ The gateway sets these generation fields directly:
 | Model parameters, usage, input, output, completion start time | `langfuse.observation.*`                                                           | See [Response capture](#response-capture)                                                                                                                                                                            |
 | Metadata                                                      | `langfuse.observation.metadata`                                                    | Caller metadata plus the gateway keys below                                                                                                                                                                          |
 
-The generation never emits `user.name` or `gen_ai.*` attributes: ingestion reads
-them as user ID and model fallbacks.
+The generation never emits `user.name` or `gen_ai.*` attributes: ingestion reads them as user ID and model fallbacks.
 
 ### Generation metadata
 
-Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the
-resource or exchange it describes. The table lists the suffix after that prefix.
-Source is who supplies the value: the gateway itself, Web at resolve time, or the
-caller. Caller-sourced values are recorded as received, within the stated bounds;
-the gateway does not vouch for them.
+Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the resource or exchange it describes. The table lists the suffix after that prefix. Source is who supplies the value: the gateway itself, Web at resolve time, or the caller. Caller-sourced values are recorded as received, within the stated bounds; the gateway does not vouch for them.
 
 | Key                                | Type                                                                                                                                   | Source                                                               | Present                                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -552,29 +547,11 @@ the gateway does not vouch for them.
 | `error.origin`                     | string: `provider` or `provider_transport`                                                                                             | Gateway                                                              | When the generation failed                                                              |
 | `error.type`                       | string: `provider_rate_limited`, `provider_auth`, `provider_4xx`, `provider_5xx`, `provider_response_failed`, `timeout` or `transport` | Gateway                                                              | With `error.origin`                                                                     |
 
-`error.origin` and `error.type` use the same values as the gateway's operational
-`error.origin`/`error.reason`, so a generation can be matched to the request
-metrics. A cancellation is not an error. Byte counts are uncompressed: compressed
-request bodies are rejected, and the provider is asked for an identity-encoded
-response.
+`error.origin` and `error.type` use the same values as the gateway's operational `error.origin`/`error.reason`, so a generation can be matched to the request metrics. A cancellation is not an error. Byte counts are uncompressed: compressed request bodies are rejected, and the provider is asked for an identity-encoded response.
 
-Key metadata appears only under `api_key.metadata.*`, never as bare top-level
-metadata keys. Caller metadata, key metadata and the `agent.*` keys cannot write
-`langfuse.gateway.*`, `scope`, `resourceAttributes` or `attributes` keys; the
-gateway's own keys always win. `agent.*` keys and native request field names keep
-their existing spelling. Metadata names apply to newly captured generations;
-historical traces are not rewritten.
+Key metadata appears only under `api_key.metadata.*`, never as bare top-level metadata keys. Caller metadata, key metadata and the `agent.*` keys cannot write `langfuse.gateway.*`, `scope`, `resourceAttributes` or `attributes` keys; the gateway's own keys always win. `agent.*` keys and native request field names keep their existing spelling. Metadata names apply to newly captured generations; historical traces are not rewritten.
 
-`response.status_code` includes gateway-generated 502/504 errors before upstream
-headers arrive. After headers arrive it retains the relayed status, even if a
-stream subsequently fails. Relay outcome, provider status, completeness flags and
-first-byte timing remain internal facts rather than generation metadata. For the
-gateway scope, ingestion removes Langfuse attributes already mapped to trace and
-observation fields, such as user, session, trace name, tags and environment, while
-preserving custom attributes, scope and resources. Ingestion never estimates usage
-with a tokenizer for gateway generations; it recognizes them by their gateway
-ingestion credential, not by the instrumentation scope name, which any OTLP sender
-can set.
+`response.status_code` includes gateway-generated 502/504 errors before upstream headers arrive. After headers arrive it retains the relayed status, even if a stream subsequently fails. Relay outcome, provider status, completeness flags and first-byte timing remain internal facts rather than generation metadata. For the gateway scope, ingestion removes Langfuse attributes already mapped to trace and observation fields, such as user, session, trace name, tags and environment, while preserving custom attributes, scope and resources. Ingestion never estimates usage with a tokenizer for gateway generations; it recognizes them by their gateway ingestion credential, not by the instrumentation scope name, which any OTLP sender can set.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a
@@ -961,12 +938,7 @@ invalid response, even if Web selected it.
 | `openai`    | `openai.responses`, `openai.chat-completions` | `https://api.openai.com/v1`    | `{"type":"Bearer","token":…}` → `Authorization: Bearer`             |
 | `anthropic` | `anthropic.messages`                          | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
 
-The connection's `name` and the attribution's `user_id`, `key_name` and `user_name`
-are optional in the contract, so the gateway also resolves against a Web deployment
-that predates them. `user_id` is the user the key is bound to and is the key's
-owner; it must not be blank when present. Blank `name`, `key_name` and `user_name`
-count as absent. They are snapshots taken at resolve time, recorded on generations
-as described in [Langfuse uploads](#langfuse-uploads).
+The connection's `name` and the attribution's `user_id`, `key_name` and `user_name` are optional in the contract, so the gateway also resolves against a Web deployment that predates them. `user_id` is the user the key is bound to and is the key's owner; it must not be blank when present. Blank `name`, `key_name` and `user_name` count as absent. They are snapshots taken at resolve time, recorded on generations as described in [Langfuse uploads](#langfuse-uploads).
 
 `ProviderConnection::credential()` exposes the secret in its header position
 (`ProviderCredential::Bearer` or `ProviderCredential::XApiKey`) and has no `Debug`
