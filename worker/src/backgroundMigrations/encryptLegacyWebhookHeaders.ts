@@ -11,7 +11,6 @@ import {
   type WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 
-const BATCH_SIZE = 500;
 const MAX_ATTEMPTS_PER_ACTION = 5;
 
 type Outcome = "encrypted" | "unchanged" | "invalid" | "failed";
@@ -78,20 +77,18 @@ async function encryptLegacyHeadersOfAction(action: {
   return "failed";
 }
 
-async function* webhookActionBatches() {
-  let cursor: string | undefined;
-  while (true) {
-    const actions = await prisma.action.findMany({
-      where: { type: "WEBHOOK" },
-      select: { id: true, config: true },
-      orderBy: { id: "asc" },
-      take: BATCH_SIZE,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-    });
-    if (actions.length === 0) return;
-    cursor = actions[actions.length - 1].id;
-    yield actions;
-  }
+/**
+ * Legacy headers were only written for a short window before header
+ * encryption existed, so this set is small and loaded in one query.
+ */
+function findActionsWithLegacyHeaders() {
+  return prisma.$queryRaw<{ id: string; config: Prisma.JsonValue }[]>`
+    SELECT id, config
+    FROM actions
+    WHERE type = 'WEBHOOK'
+      AND jsonb_typeof(config -> 'headers') = 'object'
+      AND config -> 'headers' <> '{}'::jsonb
+    ORDER BY id`;
 }
 
 /**
@@ -128,19 +125,17 @@ export default class EncryptLegacyWebhookHeaders implements IBackgroundMigration
     const invalidIds: string[] = [];
     const failedIds: string[] = [];
 
-    for await (const actions of webhookActionBatches()) {
+    for (const action of await findActionsWithLegacyHeaders()) {
       if (this.isAborted) {
         logger.info(
           `[Background Migration] Legacy webhook header encryption aborted after encrypting ${encrypted} actions`,
         );
         return;
       }
-      for (const action of actions) {
-        const outcome = await encryptLegacyHeadersOfAction(action);
-        if (outcome === "encrypted") encrypted++;
-        if (outcome === "invalid") invalidIds.push(action.id);
-        if (outcome === "failed") failedIds.push(action.id);
-      }
+      const outcome = await encryptLegacyHeadersOfAction(action);
+      if (outcome === "encrypted") encrypted++;
+      if (outcome === "invalid") invalidIds.push(action.id);
+      if (outcome === "failed") failedIds.push(action.id);
     }
 
     if (invalidIds.length > 0) {
