@@ -16,6 +16,19 @@ const metadataFilter = (operator: string, value: string) => ({
   value,
 });
 
+describe("empty categorical selections", () => {
+  it.each(["stringOptions", "arrayOptions"])(
+    "accepts any of [] for %s in single-filter and list schemas",
+    (type) => {
+      const filter = { type, column: "name", operator: "any of", value: [] };
+      expect(singleFilter.parse(filter)).toEqual(filter);
+      expect(eventsTableSingleFilter.parse(filter)).toEqual(filter);
+      expect(singleFilterList.parse([filter])).toEqual([filter]);
+      expect(eventsTableSingleFilterList.parse([filter])).toEqual([filter]);
+    },
+  );
+});
+
 describe("stringObject empty substring handling", () => {
   it.each(["contains", "starts with", "ends with"])(
     "no longer rejects an empty value for the substring operator %s at the single-filter schema",
