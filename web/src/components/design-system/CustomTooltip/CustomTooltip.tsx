@@ -41,13 +41,19 @@ type CustomTooltipProps = {
       ref?: React.Ref<HTMLElement>;
     }) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
-  content: React.ReactElement;
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
   padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;
   overflow?: NonNullable<VariantProps<typeof tooltipVariants>["overflow"]>;
-};
+} & (
+  | { content: React.ReactElement; renderContent?: never }
+  | {
+      content?: never;
+      /** Receives `close`, e.g. for a link inside the tooltip that opens a dialog. */
+      renderContent: (controls: { close: () => void }) => React.ReactElement;
+    }
+);
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (value: T | null) => {
@@ -64,6 +70,7 @@ function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
 function CustomTooltip({
   children,
   content,
+  renderContent,
   delay = 150,
   hoverableContent = true,
   placement = "top",
@@ -129,7 +136,9 @@ function CustomTooltip({
             style={floatingStyles}
             {...getFloatingProps()}
           >
-            {content}
+            {renderContent
+              ? renderContent({ close: () => setIsOpen(false) })
+              : content}
           </div>
         </FloatingPortal>
       ) : null}

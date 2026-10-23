@@ -5,7 +5,10 @@
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
-import { UpsertModelFormDialogController } from "@/src/features/models";
+import {
+  prefilledPricesFromUsage,
+  UpsertModelFormDialogController,
+} from "@/src/features/models";
 
 export function ModelBadge({
   model,
@@ -36,18 +39,7 @@ export function ModelBadge({
       projectId={projectId}
       prefilledModelData={{
         modelName: model,
-        prices:
-          usageDetails && Object.keys(usageDetails).length > 0
-            ? Object.keys(usageDetails)
-                .filter((key) => key !== "total")
-                .reduce(
-                  (acc, key) => {
-                    acc[key] = 0.000001;
-                    return acc;
-                  },
-                  {} as Record<string, number>,
-                )
-            : undefined,
+        prices: prefilledPricesFromUsage(usageDetails),
       }}
     >
       {({ openDialog }) => (
