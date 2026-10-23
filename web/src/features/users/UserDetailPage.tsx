@@ -14,7 +14,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "@langfuse/icons";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { useReadPath } from "@/src/features/events";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 

@@ -40,4 +40,4 @@ export type {
 } from "@/src/features/widgets/utils/import-export-utils";
 export { DashboardWidget } from "@/src/features/widgets/components/DashboardWidget";
 export { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
-export { ConnectedDashboardWidgetTable } from "@/src/features/widgets/components/WidgetTable/ConnectedWidgetTable";
+export { ConnectedDashboardWidgetTable } from "@/src/features/widgets/components/WidgetTable/ConnectedDashboardWidgetTable";

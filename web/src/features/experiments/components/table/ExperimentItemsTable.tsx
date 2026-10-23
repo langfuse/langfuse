@@ -104,7 +104,7 @@ import {
   DiffLabel,
 } from "@/src/features/datasets";
 import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
-import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/TablePeekViewExperimentItemDetail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import {
   summariseScoreColumn,

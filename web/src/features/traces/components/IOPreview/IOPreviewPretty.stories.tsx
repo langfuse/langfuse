@@ -183,6 +183,42 @@ export const Loading = meta.story({
   },
 });
 
+export const SpanWithChatMessages = meta.story({
+  name: "(Test) Span keeps role titles",
+  args: {
+    observationType: "SPAN",
+    input: [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi, how can I help?" },
+      { role: "user", content: "a nice car" },
+    ],
+    output: [{ role: "assistant", content: "sure" }],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Each message mounts a formatted and a hidden JSON header.
+    await expect(canvas.getAllByText("user").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("assistant").length).toBeGreaterThan(0);
+    await expect(canvas.queryAllByText("Input")).toHaveLength(0);
+    await expect(canvas.queryAllByText("Output")).toHaveLength(0);
+  },
+});
+
+export const SpanWithPlainText = meta.story({
+  name: "(Test) Span titles plain text by side",
+  args: {
+    observationType: "SPAN",
+    input: "Summarize this support conversation.",
+    output: "The customer needs help configuring prompt caching.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Input").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("Output").length).toBeGreaterThan(0);
+    await expect(canvas.queryAllByText("user")).toHaveLength(0);
+  },
+});
+
 export const Empty = meta.story({
   name: "(Test) Empty",
   args: { input: undefined, output: undefined },

@@ -153,7 +153,10 @@ export const aiGatewayRouter = createTRPCRouter({
         GatewayConnectionStatus.ENABLED,
       );
       return {
-        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
+        gatewayBaseUrl: getGatewayBaseUrl(
+          getProductBaseUrl(),
+          env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
+        ),
         providers: [
           ...new Set(connections.map((connection) => connection.provider)),
         ],

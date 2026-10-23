@@ -2,14 +2,16 @@
 
 `createTraceBatchInputStorage()` provides `put` and `get` for versioned inputs,
 using a project/trace/revision reference and one lazily initialized provider
-client shared across factory calls. The live inputs contain a nullable transcript
-and required trace context. Session ID and trace name are nullable; context
+client shared across factory calls. The live inputs contain a nullable transcript,
+its execution issues (empty without a transcript) and required trace context. Session ID and trace name are nullable; context
 timestamps stay ISO strings.
 
 ## Stored format and versioning
 
-`versions/v1.ts` owns the complete V1 envelope: `schemaVersion`, `transcript`, and
-`traceContext`. It freezes the transcript and normalized message schemas with
+`versions/v1.ts` owns the complete V1 envelope: `schemaVersion`, `transcript`,
+`executionIssues`, and `traceContext`. `executionIssues` is a compatible optional
+addition: objects written before it read as an empty list, and older readers
+ignore it. It freezes the transcript and normalized message schemas with
 message dates as ISO strings, importing no live schema. Its compile-time JSON
 constraint rejects non-JSON fields. `serialization.ts` owns the typed
 `toStoredTranscriptV1` / `fromStoredTranscriptV1` adapters between the live

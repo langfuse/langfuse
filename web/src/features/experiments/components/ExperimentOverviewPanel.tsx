@@ -3,10 +3,8 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
-import {
-  ExperimentOverviewField,
-  ExperimentOverviewSectionHeading,
-} from "./ExperimentOverviewField";
+import { ExperimentOverviewField } from "./ExperimentOverviewField";
+import { ExperimentOverviewSectionHeading } from "./ExperimentOverviewSectionHeading";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
