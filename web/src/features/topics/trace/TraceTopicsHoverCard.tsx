@@ -82,7 +82,7 @@ function TopicChip({
           {name}
         </span>
         {count !== null && (
-          <span className="text-muted-foreground shrink-0">{count} traces</span>
+          <span className="text-muted-foreground shrink-0">{count}</span>
         )}
       </BadgeShell>
     </span>
@@ -148,7 +148,9 @@ export function TraceTopicsHoverCard({
                   )}
                 </div>
                 {facet.summary && (
-                  <p className="text-sm text-pretty">{facet.summary}</p>
+                  <p className="text-muted-foreground text-sm text-pretty">
+                    {facet.summary}
+                  </p>
                 )}
               </div>
             );
