@@ -1,15 +1,24 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import {
   OpenAIContentParts,
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy, type IconComponent } from "@langfuse/icons";
-import { type IOSectionAction } from "@/src/components/ui/IOSection";
+import {
+  Check,
+  Copy,
+  FoldVertical,
+  UnfoldVertical,
+  type IconComponent,
+} from "@langfuse/icons";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -191,20 +200,104 @@ export function MarkdownJsonView({
       onCollapsedChange={onCollapsedChange}
     />
   ) : (
-    <PrettyJsonView
+    <JsonViewController
       json={content ?? (audio ? { audio } : null)}
-      title={title}
-      titleIcon={titleIcon}
-      className={className}
       media={media}
       currentView="pretty"
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
-    />
+    >
+      {(state) => (
+        <MarkdownJsonFallbackSection
+          state={state}
+          title={title}
+          titleIcon={titleIcon}
+          className={className}
+          actions={actions}
+          defaultCollapsed={defaultCollapsed}
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
+          isSystemPrompt={isSystemPrompt}
+        />
+      )}
+    </JsonViewController>
+  );
+}
+
+function MarkdownJsonFallbackSection({
+  state,
+  title,
+  titleIcon,
+  className,
+  actions,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+}: Pick<
+  React.ComponentProps<typeof MarkdownJsonView>,
+  | "title"
+  | "titleIcon"
+  | "className"
+  | "actions"
+  | "defaultCollapsed"
+  | "collapsed"
+  | "onCollapsedChange"
+  | "beforeContent"
+  | "afterContent"
+  | "isSystemPrompt"
+> & {
+  state: React.ComponentProps<typeof PrettyJsonViewContent>["state"];
+}) {
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt:
+      !!title &&
+      !!isSystemPrompt &&
+      getJsonViewContentKind(state) === "markdown" &&
+      state.standaloneMediaReferenceStrings.length === 0,
+    content: state.markdownContent ?? "",
+  });
+  if (!title)
+    return <PrettyJsonViewContent state={state} className={className} />;
+  return (
+    <div className={className}>
+      <IOSection
+        title={title}
+        titleIcon={titleIcon}
+        onCopy={state.copy}
+        actions={
+          getJsonViewContentKind(state) === "table" && state.hasExpandableRows
+            ? [
+                {
+                  icon: state.allRowsExpanded ? FoldVertical : UnfoldVertical,
+                  label: state.allRowsExpanded
+                    ? "Collapse all rows"
+                    : "Expand all rows",
+                  onClick: state.toggleAllRows,
+                },
+                ...(actions ?? []),
+              ]
+            : actions
+        }
+        defaultCollapsed={defaultCollapsed}
+        collapsed={
+          systemPrompt.shouldBeCollapsible
+            ? systemPrompt.isCollapsed
+            : collapsed
+        }
+        onCollapsedChange={
+          systemPrompt.shouldBeCollapsible
+            ? systemPrompt.toggleCollapsed
+            : onCollapsedChange
+        }
+        variant={getJsonViewContentKind(state) === "table" ? "table" : "text"}
+      >
+        {beforeContent}
+        <PrettyJsonViewContent state={state} title={title} borderless />
+        {afterContent}
+      </IOSection>
+    </div>
   );
 }

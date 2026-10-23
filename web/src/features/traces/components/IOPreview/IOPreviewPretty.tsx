@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
@@ -8,7 +9,8 @@ import {
   type SkillsResourceLoaded,
   deepParseJson,
 } from "@langfuse/shared";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import {
   FoldVertical,
@@ -110,8 +112,7 @@ function JsonInputOutputView({
   return (
     <div className="space-y-2">
       {showInput && (
-        <PrettyJsonView
-          title="Input"
+        <JsonViewController
           json={parsedInput}
           isLoading={isLoading}
           isParsing={isParsing}
@@ -119,20 +120,75 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={inputExpansionState}
           onExternalExpansionChange={onInputExpansionChange}
-        />
+        >
+          {(state) => (
+            <IOSection
+              title="Input"
+              onCopy={state.copy}
+              actions={
+                getJsonViewContentKind(state) === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={
+                getJsonViewContentKind(state) === "table" ? "table" : "text"
+              }
+            >
+              <PrettyJsonViewContent state={state} title="Input" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
       )}
       {showOutput && (
-        <PrettyJsonView
-          title="Output"
+        <JsonViewController
           json={parsedOutput}
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
-          actions={outputActions}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
-        />
+        >
+          {(state) => (
+            <IOSection
+              title="Output"
+              onCopy={state.copy}
+              actions={
+                getJsonViewContentKind(state) === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                      ...(outputActions ?? []),
+                    ]
+                  : outputActions
+              }
+              variant={
+                getJsonViewContentKind(state) === "table" ? "table" : "text"
+              }
+            >
+              <PrettyJsonViewContent state={state} title="Output" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
       )}
     </div>
   );
@@ -731,11 +787,44 @@ export function IOPreviewPretty({
                 )}
               </div>
               {showData && additionalInputToShow && (
-                <PrettyJsonView
-                  title="Additional Input"
+                <JsonViewController
                   json={additionalInputToShow}
                   currentView={shouldRenderMarkdown ? "pretty" : "json"}
-                />
+                >
+                  {(state) => (
+                    <IOSection
+                      title="Additional Input"
+                      onCopy={state.copy}
+                      actions={
+                        getJsonViewContentKind(state) === "table" &&
+                        state.hasExpandableRows
+                          ? [
+                              {
+                                icon: state.allRowsExpanded
+                                  ? FoldVertical
+                                  : UnfoldVertical,
+                                label: state.allRowsExpanded
+                                  ? "Collapse all rows"
+                                  : "Expand all rows",
+                                onClick: state.toggleAllRows,
+                              },
+                            ]
+                          : undefined
+                      }
+                      variant={
+                        getJsonViewContentKind(state) === "table"
+                          ? "table"
+                          : "text"
+                      }
+                    >
+                      <PrettyJsonViewContent
+                        state={state}
+                        title="Additional Input"
+                        borderless
+                      />
+                    </IOSection>
+                  )}
+                </JsonViewController>
               )}
               {remainingMedia.length > 0 && (
                 <SectionMedia media={remainingMedia} />

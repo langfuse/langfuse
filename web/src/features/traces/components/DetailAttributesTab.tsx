@@ -1,10 +1,13 @@
 /** Trace metadata, or observation attributes, model parameters and metadata. */
 
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { useMemo } from "react";
 import { useRouter } from "next/router";
 import { type MediaReturnType } from "@/src/features/media";
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
 import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
@@ -68,29 +71,91 @@ export function DetailAttributesTab({
     >
       <div className="space-y-2 pt-3">
         {observation && hasAttributes ? (
-          <PrettyJsonView
-            title="Attributes"
+          <JsonViewController
             json={observation.attributes}
             currentView={currentView}
-            rowActions={(row) =>
-              getAttributeRowActions({
-                row,
-                projectId,
-                filterTarget: "observations",
-                anchorTime: observation.attributesAnchorTime,
-                analyticsTable: "attributes",
-                router,
-                capture,
-              })
-            }
-          />
+          >
+            {(state) => (
+              <IOSection
+                title="Attributes"
+                onCopy={state.copy}
+                actions={
+                  getJsonViewContentKind(state) === "table" &&
+                  state.hasExpandableRows
+                    ? [
+                        {
+                          icon: state.allRowsExpanded
+                            ? FoldVertical
+                            : UnfoldVertical,
+                          label: state.allRowsExpanded
+                            ? "Collapse all rows"
+                            : "Expand all rows",
+                          onClick: state.toggleAllRows,
+                        },
+                      ]
+                    : undefined
+                }
+                variant={
+                  getJsonViewContentKind(state) === "table" ? "table" : "text"
+                }
+              >
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Attributes"
+                  borderless
+                  rowActions={(row) =>
+                    getAttributeRowActions({
+                      row,
+                      projectId,
+                      filterTarget: "observations",
+                      anchorTime: observation.attributesAnchorTime,
+                      analyticsTable: "attributes",
+                      router,
+                      capture,
+                    })
+                  }
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
         ) : null}
         {observation?.modelParameters ? (
-          <PrettyJsonView
-            title="Model parameters"
+          <JsonViewController
             json={observation.modelParameters}
             currentView={currentView}
-          />
+          >
+            {(state) => (
+              <IOSection
+                title="Model parameters"
+                onCopy={state.copy}
+                actions={
+                  getJsonViewContentKind(state) === "table" &&
+                  state.hasExpandableRows
+                    ? [
+                        {
+                          icon: state.allRowsExpanded
+                            ? FoldVertical
+                            : UnfoldVertical,
+                          label: state.allRowsExpanded
+                            ? "Collapse all rows"
+                            : "Expand all rows",
+                          onClick: state.toggleAllRows,
+                        },
+                      ]
+                    : undefined
+                }
+                variant={
+                  getJsonViewContentKind(state) === "table" ? "table" : "text"
+                }
+              >
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Model parameters"
+                  borderless
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
         ) : null}
         {hasMetadata ? (
           <div>
@@ -106,22 +171,13 @@ export function DetailAttributesTab({
                 />
               </IOSection>
             ) : (
-              <PrettyJsonView
-                title="Metadata"
+              <JsonViewController
                 json={metadata}
                 parsedJson={parsedMetadata}
-                currentView={currentView}
-                rowActions={(row) =>
-                  getMetadataRowActions({
-                    row,
-                    projectId,
-                    filterTarget: observation ? "observations" : "traces",
-                    router,
-                  })
-                }
                 media={media?.filter(
                   (attachment) => attachment.field === "metadata",
                 )}
+                currentView={currentView}
                 externalExpansionState={
                   currentView === "pretty"
                     ? metadataExpansionState
@@ -134,7 +190,49 @@ export function DetailAttributesTab({
                   }
                   onMetadataExpansionChange?.(expansion);
                 }}
-              />
+              >
+                {(state) => (
+                  <IOSection
+                    title="Metadata"
+                    onCopy={state.copy}
+                    actions={
+                      getJsonViewContentKind(state) === "table" &&
+                      state.hasExpandableRows
+                        ? [
+                            {
+                              icon: state.allRowsExpanded
+                                ? FoldVertical
+                                : UnfoldVertical,
+                              label: state.allRowsExpanded
+                                ? "Collapse all rows"
+                                : "Expand all rows",
+                              onClick: state.toggleAllRows,
+                            },
+                          ]
+                        : undefined
+                    }
+                    variant={
+                      getJsonViewContentKind(state) === "table"
+                        ? "table"
+                        : "text"
+                    }
+                  >
+                    <PrettyJsonViewContent
+                      state={state}
+                      title="Metadata"
+                      borderless
+                      rowActions={(row) =>
+                        getMetadataRowActions({
+                          row,
+                          projectId,
+                          filterTarget: observation ? "observations" : "traces",
+                          router,
+                        })
+                      }
+                    />
+                  </IOSection>
+                )}
+              </JsonViewController>
             )}
           </div>
         ) : null}

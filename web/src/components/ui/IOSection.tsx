@@ -307,8 +307,10 @@ function IOSectionControls({
           size="icon-xs"
           type="button"
           onClick={(event) => {
+            event.preventDefault();
             setIsCopied(true);
             onCopy(event);
+            event.currentTarget.focus();
             setTimeout(() => setIsCopied(false), 1000);
           }}
           className={HEADER_CONTROL_CLASSES}

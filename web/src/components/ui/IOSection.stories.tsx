@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useState } from "react";
 import preview from "../../../.storybook/preview";
 import { expect, fn, userEvent, within } from "storybook/test";
 import Image from "next/image";
-import { FoldVertical, Pencil, Wrench } from "@langfuse/icons";
+import { FoldVertical, UnfoldVertical, Pencil, Wrench } from "@langfuse/icons";
 import { IOSection } from "./IOSection";
-import { PrettyJsonView } from "./PrettyJsonView";
+import { PrettyJsonViewContent } from "./PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 
 const meta = preview.meta({
@@ -110,7 +112,35 @@ export const VariantMatrix = meta.story({
       </Example>
 
       <Example caption="Table body: PrettyJsonView owns the section (variant table, py-1)">
-        <PrettyJsonView title="Input" json={TOOL_INPUT} currentView="pretty" />
+        <JsonViewController json={TOOL_INPUT} currentView="pretty">
+          {(state) => (
+            <IOSection
+              title="Input"
+              onCopy={state.copy}
+              actions={
+                getJsonViewContentKind(state) === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={
+                getJsonViewContentKind(state) === "table" ? "table" : "text"
+              }
+            >
+              <PrettyJsonViewContent state={state} title="Input" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
       </Example>
 
       <Example caption="Media body: tiles sit 12px from every edge (variant media)">
@@ -153,12 +183,36 @@ export const VariantMatrix = meta.story({
       </Example>
 
       <Example caption="Toned table: the plain table box with the tone as fill, neutral dividers">
-        <PrettyJsonView
-          title="Output"
-          json={ERROR_OUTPUT}
-          currentView="pretty"
-          tone="danger"
-        />
+        <JsonViewController json={ERROR_OUTPUT} currentView="pretty">
+          {(state) => (
+            <IOSection
+              title="Output"
+              onCopy={state.copy}
+              actions={
+                getJsonViewContentKind(state) === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={
+                getJsonViewContentKind(state) === "table" ? "table" : "text"
+              }
+              tone="danger"
+            >
+              <PrettyJsonViewContent state={state} title="Output" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
       </Example>
 
       <Example caption="Collapsed: header only, body not rendered">

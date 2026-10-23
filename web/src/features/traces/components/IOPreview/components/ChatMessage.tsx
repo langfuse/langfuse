@@ -1,10 +1,18 @@
 /* eslint-disable @repo/no-null-render */
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useState } from "react";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown } from "@langfuse/icons";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  ListChevronsDownUp,
+  ListChevronsUpDown,
+} from "@langfuse/icons";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -135,10 +143,10 @@ export function ChatMessage({
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
-          <PrettyJsonView
-            title="Placeholder"
+          <ChatMessageJsonSection
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
+            title="Placeholder"
             actions={actions}
             collapsed={collapsed}
             onCollapsedChange={setCollapsed}
@@ -152,10 +160,10 @@ export function ChatMessage({
   if (isOnlyJsonMessage(message)) {
     return (
       <div className="transition-colors">
-        <PrettyJsonView
-          title={sectionTitle}
+        <ChatMessageJsonSection
           json={message.json}
           currentView={currentView}
+          title={sectionTitle}
           actions={actions}
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
@@ -168,10 +176,10 @@ export function ChatMessage({
   if (showTableView) {
     return (
       <div className="transition-colors">
-        <PrettyJsonView
-          title={sectionTitle}
+        <ChatMessageJsonSection
           json={message.json}
           currentView="pretty"
+          title={sectionTitle}
           actions={actions}
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
@@ -264,10 +272,10 @@ export function ChatMessage({
 
         {/* JSON view */}
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
-          <PrettyJsonView
-            title={sectionTitle}
+          <ChatMessageJsonSection
             json={message.content}
             currentView={currentView}
+            title={sectionTitle}
             actions={actions}
             beforeContent={thinkingBlocks}
             afterContent={toolCallsView}
@@ -284,10 +292,10 @@ export function ChatMessage({
   if (hasAdditionalData(message)) {
     return (
       <div className="transition-colors">
-        <PrettyJsonView
-          title={sectionTitle}
+        <ChatMessageJsonSection
           json={withoutUnsetFields(message)}
           currentView={currentView}
+          title={sectionTitle}
           actions={actions}
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
@@ -297,4 +305,108 @@ export function ChatMessage({
   }
 
   return null;
+}
+
+function ChatMessageJsonSection({
+  json,
+  currentView,
+  title,
+  actions,
+  collapsed,
+  onCollapsedChange,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+}: Pick<
+  React.ComponentProps<typeof JsonViewController>,
+  "json" | "currentView"
+> &
+  Pick<
+    React.ComponentProps<typeof ChatMessageJsonSectionContent>,
+    | "title"
+    | "actions"
+    | "collapsed"
+    | "onCollapsedChange"
+    | "beforeContent"
+    | "afterContent"
+    | "isSystemPrompt"
+  >) {
+  return (
+    <JsonViewController json={json} currentView={currentView}>
+      {(state) => (
+        <ChatMessageJsonSectionContent
+          state={state}
+          title={title}
+          actions={actions}
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
+          isSystemPrompt={isSystemPrompt}
+        />
+      )}
+    </JsonViewController>
+  );
+}
+
+function ChatMessageJsonSectionContent({
+  state,
+  title,
+  actions,
+  collapsed,
+  onCollapsedChange,
+  beforeContent,
+  afterContent,
+  isSystemPrompt = false,
+}: {
+  state: React.ComponentProps<typeof PrettyJsonViewContent>["state"];
+  title: string;
+  actions?: IOSectionAction[];
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+  beforeContent?: React.ReactNode;
+  afterContent?: React.ReactNode;
+  isSystemPrompt?: boolean;
+}) {
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt:
+      isSystemPrompt &&
+      getJsonViewContentKind(state) === "markdown" &&
+      state.standaloneMediaReferenceStrings.length === 0,
+    content: state.markdownContent ?? "",
+  });
+
+  return (
+    <IOSection
+      title={title}
+      onCopy={state.copy}
+      actions={
+        getJsonViewContentKind(state) === "table" && state.hasExpandableRows
+          ? [
+              {
+                icon: state.allRowsExpanded ? FoldVertical : UnfoldVertical,
+                label: state.allRowsExpanded
+                  ? "Collapse all rows"
+                  : "Expand all rows",
+                onClick: state.toggleAllRows,
+              },
+              ...(actions ?? []),
+            ]
+          : actions
+      }
+      collapsed={
+        systemPrompt.shouldBeCollapsible ? systemPrompt.isCollapsed : collapsed
+      }
+      onCollapsedChange={
+        systemPrompt.shouldBeCollapsible
+          ? systemPrompt.toggleCollapsed
+          : onCollapsedChange
+      }
+      variant={getJsonViewContentKind(state) === "table" ? "table" : "text"}
+    >
+      {beforeContent}
+      <PrettyJsonViewContent state={state} title={title} borderless />
+      {afterContent}
+    </IOSection>
+  );
 }

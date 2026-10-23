@@ -1,11 +1,21 @@
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ReactNode } from "react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+vi.mock("@/src/utils/clipboard", () => ({
+  copyTextToClipboard: vi.fn(),
+}));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 
 function renderPrettyJson(ui: ReactNode) {
   return render(ui);
@@ -16,15 +26,102 @@ function prettyTable() {
 }
 
 describe("PrettyJsonView short-list expansion", () => {
+  it("owns expansion state without requiring a controller or section at the call site", () => {
+    const onExpansionChange = vi.fn();
+    render(
+      <PrettyJsonView
+        json={{ channels: ["email", "paid_social"] }}
+        externalExpansionState={false}
+        onExternalExpansionChange={onExpansionChange}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Copy to clipboard" }),
+    ).not.toBeInTheDocument();
+    expect(within(prettyTable()).queryByText("email")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand channels" }));
+
+    expect(within(prettyTable()).getByText("email")).toBeInTheDocument();
+    expect(onExpansionChange).toHaveBeenCalled();
+  });
+
+  it("lets the hosting section copy content and control row expansion", async () => {
+    const json = { channels: ["email", "paid_social"] };
+    render(
+      <JsonViewController json={json}>
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={[
+              {
+                icon: state.allRowsExpanded ? FoldVertical : UnfoldVertical,
+                label: state.allRowsExpanded
+                  ? "Collapse all rows"
+                  : "Expand all rows",
+                onClick: state.toggleAllRows,
+              },
+            ]}
+            variant="table"
+          >
+            <PrettyJsonViewContent state={state} borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all rows" }));
+    expect(within(prettyTable()).getByText("email")).toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Collapse all rows" }),
+    );
+    expect(within(prettyTable()).queryByText("email")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy to clipboard" }));
+    expect(copyTextToClipboard).toHaveBeenCalledWith(
+      JSON.stringify(json, null, 4),
+    );
+  });
+
   it("keeps a short primitive list collapsed so the preview is not duplicated", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           brand: "Acme",
           channels: ["email", "paid_social"],
         }}
-        title="Input"
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     const table = prettyTable();
@@ -39,12 +136,39 @@ describe("PrettyJsonView short-list expansion", () => {
 
   it("hides the parent-row list preview after the user expands it", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           channels: ["email", "paid_social"],
         }}
-        title="Input"
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     const table = prettyTable();
@@ -67,13 +191,40 @@ describe("PrettyJsonView short-list expansion", () => {
 
   it("keeps the parent preview when every expanded child is hidden", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           flags: [null, 0, ""],
         }}
-        title="Input"
         showNullValues={false}
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     const table = prettyTable();
@@ -93,12 +244,39 @@ describe("PrettyJsonView short-list expansion", () => {
 
   it("escapes quotes in the collapsed list preview", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           quoted: ['a"b'],
         }}
-        title="Input"
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     expect(within(prettyTable()).getByText('["a\\"b"]')).toBeInTheDocument();
@@ -106,12 +284,39 @@ describe("PrettyJsonView short-list expansion", () => {
 
   it("still expands a short list of objects and previews the collapsed object fields", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           users: [{ name: "Ada" }],
         }}
-        title="Input"
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     const table = prettyTable();
@@ -125,12 +330,39 @@ describe("PrettyJsonView short-list expansion", () => {
 
   it("hides a short object preview after the user expands it", () => {
     renderPrettyJson(
-      <PrettyJsonView
+      <JsonViewController
         json={{
           users: [{ name: "Ada" }],
         }}
-        title="Input"
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     const table = prettyTable();

@@ -1,6 +1,9 @@
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useMemo } from "react";
 import { IOSection } from "@/src/components/ui/IOSection";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   getStatusMessagePresentation,
@@ -23,13 +26,44 @@ export function StatusMessageSection({
 
   if (parsedStatusMessage !== undefined) {
     return (
-      <PrettyJsonView
-        title={presentation.title}
+      <JsonViewController
         json={status.message}
         parsedJson={parsedStatusMessage}
         currentView={currentView}
-        tone={presentation.tone}
-      />
+      >
+        {(state) => (
+          <IOSection
+            title={presentation.title}
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+            tone={presentation.tone}
+          >
+            <PrettyJsonViewContent
+              state={state}
+              title={presentation.title}
+              borderless
+            />
+          </IOSection>
+        )}
+      </JsonViewController>
     );
   }
 
