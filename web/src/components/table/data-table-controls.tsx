@@ -66,7 +66,7 @@ import {
   InputCommandList,
 } from "@/src/components/ui/input-command";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -926,9 +926,11 @@ export function DataTableControls({
                 }`}
                 className="mt-2 cursor-pointer"
               >
-                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                  {activeFilterCount}
-                </Badge>
+                <Badge
+                  color="filled"
+                  size="md"
+                  text={String(activeFilterCount)}
+                />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-64 text-xs">
@@ -1012,9 +1014,13 @@ export function DataTableControls({
             {/* Inline: the count already shows on the sheet's Filters trigger
                 and footer, so a bare number here (title hidden) is just noise. */}
             {layout !== "inline" && activeFilterCount > 0 && (
-              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
-                {activeFilterCount}
-              </Badge>
+              <span className="ml-1.5">
+                <Badge
+                  color="filled"
+                  size="md"
+                  text={String(activeFilterCount)}
+                />
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1">

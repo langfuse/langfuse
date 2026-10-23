@@ -21,7 +21,7 @@ import {
   type CustomHeights,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
@@ -412,14 +412,7 @@ function buildTraceColumns(
       loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-          >
-            {value}
-          </Badge>
-        ) : null;
+        return value ? <Badge color="filled" size="md" text={value} /> : null;
       },
     },
     createTagsTableColumn<TraceRow>({
@@ -496,12 +489,7 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
     header: "Environment",
     size: 130,
     cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className="max-w-fit truncate rounded-sm px-1 font-normal"
-      >
-        {row.original.environment}
-      </Badge>
+      <Badge color="filled" size="md" text={row.original.environment} />
     ),
   },
   {

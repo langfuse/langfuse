@@ -1,6 +1,5 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import type React from "react";
-import { Badge } from "@/src/components/ui/badge";
 import {
   CircleDot,
   ClipboardPen,
@@ -183,6 +182,10 @@ export function getItemTypeLabels(type: LangfuseItemType) {
   return { label, displayLabel: label.replace(/_/g, " ") };
 }
 
+/** Outline chip chrome for the type badge. */
+const itemBadgeClassName =
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border border-border pr-1.5 pl-2 text-xs leading-none font-normal text-foreground-secondary transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+
 export function ItemBadge({
   type,
   showLabel = false,
@@ -201,10 +204,10 @@ export function ItemBadge({
   const { label, displayLabel } = getItemTypeLabels(type);
 
   return (
-    <Badge
-      variant="outline"
+    <div
       title={label}
       className={cn(
+        itemBadgeClassName,
         "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap",
         // Icon-only: square box, `max-w-none` so the width is not capped at the icon.
         showLabel
@@ -224,6 +227,6 @@ export function ItemBadge({
           {displayLabel}
         </span>
       )}
-    </Badge>
+    </div>
   );
 }
