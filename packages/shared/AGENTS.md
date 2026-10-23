@@ -60,13 +60,7 @@
   `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
-- Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported
-  from the main barrel — the `Predicate` tree (`and | or | not | condition |
-  search`) with its zod schema, the `FilterState` + `searchQuery`/`searchType`
-  codec (`fromFilterState` / `toFilterState`), `analyzePredicate`
-  contradiction diagnostics, and the semantic source registry
-  (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events
-  search columns by `sources.test.ts`). No server imports here.
+- Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition | search`) with its zod schema, the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
