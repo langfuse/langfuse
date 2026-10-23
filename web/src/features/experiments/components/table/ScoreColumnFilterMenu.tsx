@@ -1,4 +1,9 @@
-import { type ComponentProps } from "react";
+/* eslint-disable @repo/component-file-structure */
+import {
+  forwardRef,
+  type ComponentProps,
+  type ComponentPropsWithoutRef,
+} from "react";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -9,8 +14,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Check } from "@langfuse/icons";
+import { Check, ListFilter } from "@langfuse/icons";
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
+import { cn } from "@/src/utils/tailwind";
 
 export type ScoreComparisonTarget = {
   experimentId: string;
@@ -28,6 +34,38 @@ const ORDERED_OPERATORS: ScoreComparisonOperator[] = [
   "higher",
   "differs",
 ];
+
+/**
+ * The score header's filter affordance. Spreads and forwards so a
+ * `<Trigger asChild>` at the call site can hand it Radix's open state and
+ * handlers, and takes its look from an explicit variant rather than a style
+ * prop.
+ */
+export const ScoreColumnFilterMenuTrigger = forwardRef<
+  HTMLButtonElement,
+  Omit<
+    ComponentPropsWithoutRef<"button">,
+    "className" | "style" | "children" | "aria-label"
+  > & {
+    /** A filter is set on this score, so the control stops hiding itself. */
+    isActive: boolean;
+  }
+>(({ isActive, ...triggerProps }, ref) => (
+  <button
+    ref={ref}
+    aria-label="Filter items by this score"
+    className={cn(
+      "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
+      isActive
+        ? "text-primary-accent"
+        : "text-muted-foreground opacity-0 group-hover:opacity-100",
+    )}
+    {...triggerProps}
+  >
+    <ListFilter size="sm" />
+  </button>
+));
+ScoreColumnFilterMenuTrigger.displayName = "ScoreColumnFilterMenuTrigger";
 
 /**
  * The score column's own way into the comparison filter: "show

@@ -112,8 +112,10 @@ import {
   type ScoreColumnSummary,
 } from "@/src/features/experiments/fns/summariseScoreColumn";
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
-import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
-import { ScoreColumnFilterMenuTrigger } from "./ScoreColumnFilterMenuTrigger";
+import {
+  ScoreColumnFilterMenu,
+  ScoreColumnFilterMenuTrigger,
+} from "./ScoreColumnFilterMenu";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
