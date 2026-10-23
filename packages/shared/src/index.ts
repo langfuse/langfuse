@@ -33,6 +33,7 @@ export * from "./domain/home-dashboard";
 
 // llm api
 export * from "./server/llm/types";
+export * from "./server/llm/promptModelConfig";
 export * from "./server/llm/promptToolConfig";
 
 // evals

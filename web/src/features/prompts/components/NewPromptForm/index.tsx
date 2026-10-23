@@ -28,6 +28,7 @@ import {
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
+import { PromptModelConfigSection } from "./PromptModelConfigSection";
 import { ReviewPromptDialog } from "./ReviewPromptDialog";
 import {
   NewPromptFormSchema,
@@ -42,11 +43,50 @@ import { PromptVariableListPreview } from "@/src/features/prompts/components/Pro
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { usePlaygroundCache } from "@/src/features/playground";
+import {
+  usePlaygroundCache,
+  type PlaygroundCache,
+} from "@/src/features/playground";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
+
+/** Reads a config JSON string, falling back to an empty object. */
+const safeParseConfig = (value: string): Record<string, unknown> => {
+  try {
+    const parsed = JSON.parse(value);
+
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Maps the playground's enabled model params onto prompt config keys. */
+const modelConfigFromPlayground = (
+  params: NonNullable<PlaygroundCache>["modelParams"],
+): Record<string, unknown> => {
+  const config: Record<string, unknown> = {};
+
+  Object.entries(params ?? {}).forEach(([key, entry]) => {
+    if (key === "adapter" || key === "maxTemperature") return;
+    if (
+      entry &&
+      typeof entry === "object" &&
+      "enabled" in entry &&
+      entry.enabled
+    ) {
+      config[key] = entry.value;
+    }
+  });
+
+  return config;
+};
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -76,6 +116,22 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     }
   }, [initialPrompt]);
 
+  const targetConfig =
+    JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}";
+  const playgroundModelConfig = shouldLoadPlaygroundCache
+    ? modelConfigFromPlayground(playgroundCache?.modelParams)
+    : {};
+  // Merged before the form mounts so the Model section never sees its config
+  // change underneath it.
+  const initialConfig =
+    Object.keys(playgroundModelConfig).length > 0
+      ? JSON.stringify(
+          { ...safeParseConfig(targetConfig), ...playgroundModelConfig },
+          null,
+          2,
+        )
+      : targetConfig;
+
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
@@ -87,7 +143,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ? initialPromptVariant?.prompt
         : "",
     name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
-    config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
+    config: initialConfig,
     isActive: !Boolean(initialPrompt),
     commitMessage: undefined,
   };
@@ -388,6 +444,19 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         {currentExtractedVariables.length > 0 && (
           <PromptVariableListPreview variables={currentExtractedVariables} />
         )}
+
+        <FormField
+          control={form.control}
+          name="config"
+          render={({ field }) => (
+            <FormItem>
+              <PromptModelConfigSection
+                value={field.value}
+                onChange={field.onChange}
+              />
+            </FormItem>
+          )}
+        />
 
         {/* Prompt Config field */}
         <FormField
