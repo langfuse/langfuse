@@ -283,9 +283,10 @@ function TopicsWorkspaceContent({
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
-  // A run worth inspecting: the one that failed, or a topic run with failed facets.
   const setupDetailsId =
-    setupRun && setup ? detailsRunId(setupRun, setup) : null;
+    setupRun && setup?.stage === "failed"
+      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
+      : null;
   const runFacets = (run: typeof setupRun) =>
     run?.process.facets.map((facet) => {
       return {
@@ -1058,18 +1059,4 @@ function startBlockedReason(running: boolean, automaticOn: boolean) {
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
-}
-
-function detailsRunId(
-  run: {
-    process: { id: string };
-    update: { id: string; facets: Array<{ outcome: string }> } | null;
-  },
-  setup: { stage: string; retryId: string | null },
-) {
-  if (setup.stage === "failed")
-    return setup.retryId ?? run.update?.id ?? run.process.id;
-  return run.update?.facets.some((facet) => facet.outcome === "failed")
-    ? run.update.id
-    : null;
 }

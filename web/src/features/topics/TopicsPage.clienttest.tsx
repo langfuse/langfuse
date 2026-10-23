@@ -230,9 +230,6 @@ vi.mock("@/src/utils/api", () => ({
               : null,
         }),
       },
-      setupTopicCounts: {
-        useQuery: () => ({ data: undefined }),
-      },
       setAutomaticProcessing: {
         useMutation: () => ({
           isPending: false,

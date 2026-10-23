@@ -82,7 +82,14 @@ export function TopicSetupProgressView({
       ) : null}
       {!failed && !waiting && (
         <div className="flex w-90 max-w-full flex-col gap-2">
-          <div className="bg-muted h-1.5 overflow-hidden rounded-sm">
+          <div
+            role="progressbar"
+            aria-label="Analysis progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(percent)}
+            className="bg-muted h-1.5 overflow-hidden rounded-sm"
+          >
             <div
               className="bg-foreground h-full rounded-sm transition-[width] duration-300"
               style={{ width: `${percent}%` }}
@@ -115,7 +122,7 @@ function usePileTick(enabled: boolean) {
     );
     return () => window.clearInterval(interval);
   }, [enabled]);
-  return tick;
+  return enabled ? tick : 0;
 }
 
 /** Piles fill and drain out of step; at tick 0 they sit near half full. */
@@ -154,7 +161,7 @@ type TopicSetupProgressViewProps = {
   stage: TopicSetupStage;
   retrying: boolean;
   canRetry: boolean;
-  /** Opens the run in History; set when a run or one of its facets failed. */
+  /** Opens the failed run in History. */
   onViewDetails?: () => void;
   onRetry: () => void;
   /** Automatic processing is on but no trace has been summarized yet. */
