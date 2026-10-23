@@ -546,14 +546,80 @@ function buildTraceTree(
 export function buildTraceUiData(
   trace: TraceType,
   observations: ObservationReturnType[],
+  sessionTraces?: TraceType[],
 ): {
   roots: TreeNode[];
   searchItems: TraceSearchListItem[];
   nodeMap: Map<string, TreeNode>;
   metricEmphasis: TraceMetricEmphasis;
 } {
-  const { roots, nodeMap } = buildTraceTree(trace, observations);
+  let { roots, nodeMap } = buildTraceTree(trace, observations);
+  if (sessionTraces) {
+    roots = [];
+    nodeMap = new Map();
+    const observationIdCounts = new Map<string, number>();
+    const observationsByTrace = new Map<string, ObservationReturnType[]>();
+    for (const observation of observations) {
+      observationIdCounts.set(
+        observation.id,
+        (observationIdCounts.get(observation.id) ?? 0) + 1,
+      );
+      const group = observationsByTrace.get(observation.traceId) ?? [];
+      group.push(observation);
+      observationsByTrace.set(observation.traceId, group);
+    }
+    let sessionStart = trace.timestamp.getTime();
+    for (const sessionTrace of sessionTraces) {
+      sessionStart = Math.min(sessionStart, sessionTrace.timestamp.getTime());
+    }
+    for (const sessionTrace of sessionTraces) {
+      const tree = buildTraceTree(
+        {
+          ...sessionTrace,
+          rootObservationType: undefined,
+          rootObservationId: undefined,
+        },
+        observationsByTrace.get(sessionTrace.id) ?? [],
+      );
+      for (const [id, node] of tree.nodeMap) {
+        if (node.type !== "TRACE") {
+          node.observationId = id;
+          if ((observationIdCounts.get(id) ?? 0) > 1) {
+            node.id = `${sessionTrace.id}:${id}`;
+          }
+        }
+        node.traceId = sessionTrace.id;
+        node.startTimeSinceTrace = node.startTime.getTime() - sessionStart;
+        nodeMap.set(node.id, node);
+      }
+      roots.push(...tree.roots);
+    }
+    roots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  }
   const metricEmphasis = computeTraceMetricEmphasis(roots);
+  if (sessionTraces) {
+    metricEmphasis.wholeTraceNodeIds.clear();
+    metricEmphasis.totals.traceTotalCost = roots.reduce<Decimal | undefined>(
+      (total, root) => {
+        if (!root.totalCost) return total;
+        return total ? total.plus(root.totalCost) : root.totalCost;
+      },
+      undefined,
+    );
+    let first = Infinity;
+    let last = -Infinity;
+    for (const node of nodeMap.values()) {
+      first = Math.min(first, node.startTime.getTime());
+      last = Math.max(
+        last,
+        node.endTime?.getTime() ??
+          node.startTime.getTime() + (node.latency ?? 0) * 1000,
+      );
+    }
+    metricEmphasis.totals.traceTotalDurationMs = nodeMap.size
+      ? last - first
+      : undefined;
+  }
 
   // Handle empty roots case
   if (roots.length === 0) {
@@ -574,7 +640,8 @@ export function buildTraceUiData(
     searchItems.push({
       node,
       emphasis: metricEmphasisFor(node, metricEmphasis),
-      observationId: node.type === "TRACE" ? undefined : node.id,
+      observationId:
+        node.type === "TRACE" ? undefined : (node.observationId ?? node.id),
     });
     // Push children in reverse order to maintain depth-first left-to-right traversal
     for (let i = node.children.length - 1; i >= 0; i--) {

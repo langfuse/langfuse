@@ -499,6 +499,43 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
+export const MAX_OBSERVATIONS_PER_SESSION = MAX_OBSERVATIONS_PER_TRACE;
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: params.projectId,
+      filter: [
+        {
+          column: "sessionId",
+          type: "string",
+          operator: "=",
+          value: params.sessionId,
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
+      offset: 0,
+      selectIOAndMetadata: false,
+      selectToolData: false,
+      select: "rows",
+      dedupeBySpanId: true,
+    });
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    params.projectId,
+    false,
+    null,
+  );
+  return {
+    observations: await enrichObservationsWithTraceFields(withModelData),
+    totalCount: records.length,
+  };
+};
+
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
@@ -989,7 +1026,11 @@ async function getObservationsFromEventsTableInternal<T>(
         return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
       }
       if (opts.dedupeBySpanId) {
-        return cursorOrderedBuilder.limitBy("e.span_id", "e.project_id");
+        return cursorOrderedBuilder.limitBy(
+          "e.span_id",
+          "e.trace_id",
+          "e.project_id",
+        );
       }
       return cursorOrderedBuilder;
     })
@@ -1009,7 +1050,7 @@ async function getObservationsFromEventsTableInternal<T>(
         ),
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
@@ -2647,17 +2688,21 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
-export async function getAgentGraphDataFromEventsTable(params: {
-  projectId: string;
-  traceId: string;
-  minStartTime: Date;
-  maxStartTime: Date;
-}) {
-  const { projectId, traceId, minStartTime, maxStartTime } = params;
+export async function getAgentGraphDataFromEventsTable(
+  params: {
+    projectId: string;
+    minStartTime: Date;
+    maxStartTime: Date;
+  } & (
+    | { traceId: string; sessionId?: never }
+    | { sessionId: string; traceId?: never }
+  ),
+) {
+  const { projectId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
-  const builder = db
+  const baseBuilder = db
     .selectFrom("events_truncated as e")
     .select((eb) => {
       const metadata = metadataMap(
@@ -2666,6 +2711,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
       );
       return [
         "e.span_id as id",
+        "e.trace_id as trace_id",
         "e.parent_span_id as parent_observation_id",
         "e.type as type",
         "e.name as name",
@@ -2675,9 +2721,15 @@ export async function getAgentGraphDataFromEventsTable(params: {
         mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
-    .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", minStartTime)
     .where("e.start_time", "<=", maxStartTime);
+
+  const builder =
+    params.sessionId !== undefined
+      ? baseBuilder
+          .where("e.session_id", "=", params.sessionId)
+          .limit(MAX_OBSERVATIONS_PER_SESSION)
+      : baseBuilder.where("e.trace_id", "=", params.traceId);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,

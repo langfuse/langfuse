@@ -105,7 +105,7 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
-    const { trace, serverScores } = useTraceData();
+    const { serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -117,8 +117,10 @@ export const ObservationDetailViewHeader = memo(
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
       ? {
-          environment: trace.environment,
-          scores: serverScores.filter((score) => !score.observationId),
+          environment: observation.environment,
+          scores: serverScores.filter(
+            (score) => !score.observationId && score.traceId === traceId,
+          ),
         }
       : undefined;
     const prompt = api.prompts.byId.useQuery(

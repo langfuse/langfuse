@@ -11,6 +11,8 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { useReadPath } from "@/src/features/events";
+import { ConnectedTraceScopeToggle } from "./components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
 
 export function TracePage({
   traceId,
@@ -21,6 +23,7 @@ export function TracePage({
 }) {
   const router = useRouter();
   const session = useSession();
+  const { isV4 } = useReadPath();
   const routeProjectId = (router.query.projectId as string) ?? "";
 
   // Shared, beta-aware fetch (same hook the peek uses).
@@ -94,14 +97,24 @@ export function TracePage({
       Public
     </Badge>
   ) : undefined;
+  const sessionId = trace.data.sessionId;
+  const canSelectSession = isV4 && hasProjectAccess && !!sessionId;
+  const isSessionScope =
+    router.query.aggregation === "session" && canSelectSession;
 
   return (
     <Page
       headerProps={{
-        // Route id, not the loaded one: the loaded trace may be the previous
-        // one kept as placeholder.
-        title: traceId,
-        itemType: "TRACE",
+        // Trace titles follow the route while the previous trace is kept as placeholder.
+        title: isSessionScope ? sessionId : traceId,
+        itemType: isSessionScope ? "SESSION" : "TRACE",
+        titleControl: isV4 ? (
+          <ConnectedTraceScopeToggle
+            value={isSessionScope ? "session" : "trace"}
+            canSelectSession={canSelectSession}
+            observations={trace.data.observations}
+          />
+        ) : undefined,
         divider: false,
         breadcrumb: [
           {
@@ -117,10 +130,11 @@ export function TracePage({
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
-                const { view, display, projectId } = router.query;
+                const { view, display, projectId, aggregation } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
+                  ...(aggregation === "session" ? { aggregation } : {}),
                 });
                 const timestamp =
                   entry.params && entry.params.timestamp

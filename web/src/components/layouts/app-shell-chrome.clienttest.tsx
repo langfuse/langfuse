@@ -107,6 +107,47 @@ const Shell = () => (
 );
 
 describe("app shell chrome row", () => {
+  it("replaces the desktop entity icon with a control before the page title", () => {
+    render(
+      <SidebarPresenceProvider>
+        <SidebarProvider>
+          <PageHeader
+            title="session-1"
+            itemType="SESSION"
+            titleControl={<button>Scope switch</button>}
+          />
+        </SidebarProvider>
+      </SidebarPresenceProvider>,
+    );
+    const title = screen.getByRole("heading", { name: "session-1", level: 2 });
+    expect(
+      screen
+        .getByRole("button", { name: "Scope switch" })
+        .compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("img", { name: "Session" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("places the same control before the mobile page title", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "session-1",
+          itemType: "SESSION",
+          titleControl: <button>Scope switch</button>,
+        }}
+      />,
+    );
+    const title = screen.getByRole("heading", { name: "session-1", level: 1 });
+    expect(
+      screen
+        .getByRole("button", { name: "Scope switch" })
+        .compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("puts the sidebar and page-header dividers on the same min-h-11 row", () => {
     const { container } = render(<Shell />);
 

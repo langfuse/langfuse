@@ -45,6 +45,13 @@ import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
+import { api } from "@/src/utils/api";
+import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import {
+  adaptEventsToTraceFormat,
+  type EventsTraceObservation,
+} from "@/src/features/events/lib/eventsToTraceAdapter";
 
 export type TraceProps = {
   isLoading?: false;
@@ -137,10 +144,64 @@ function TraceWithSelection({
   truncatedAtObservations,
   isPlaceholderData = false,
   desktopLayout,
-}: Omit<TraceProps, "context"> & {
+  context,
+}: TraceProps & {
   desktopLayout: DesktopLayout;
 }) {
   const { selectedNodeId } = useSelection();
+  const { isV4 } = useReadPath();
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const [aggregation] = useQueryParam("aggregation", StringParam);
+  const canSelectSession =
+    isV4 && isProjectMember && !!trace.sessionId && context !== "annotation";
+  const scopeToSession = aggregation === "session" && canSelectSession;
+  const sessionQuery = api.sessions.observationsForSessionFromEvents.useQuery(
+    { projectId, sessionId: trace.sessionId ?? "" },
+    {
+      enabled: scopeToSession && !isPlaceholderData,
+      staleTime: 60 * 1000,
+      retry: false,
+      meta: { silentHttpCodes: [401, 403, 404] },
+    },
+  );
+  const sessionData = useMemo(() => {
+    if (!scopeToSession || !sessionQuery.data) return undefined;
+    const grouped = new Map<string, EventsTraceObservation[]>();
+    for (const observation of sessionQuery.data.observations) {
+      if (!observation.traceId) continue;
+      const group = grouped.get(observation.traceId) ?? [];
+      group.push(observation);
+      grouped.set(observation.traceId, group);
+    }
+    const entries = [...grouped].map(([traceId, events]) =>
+      adaptEventsToTraceFormat({ events, traceId }),
+    );
+    const traces = entries.map((entry) =>
+      entry.trace.id === trace.id ? trace : entry.trace,
+    );
+    if (!grouped.has(trace.id)) traces.push(trace);
+    return {
+      traces,
+      observations: entries.flatMap((entry) => entry.observations),
+      scores: [
+        ...new Map(
+          [...scores, ...sessionQuery.data.scores].map((score) => [
+            score.id,
+            score,
+          ]),
+        ).values(),
+      ],
+      corrections: [
+        ...new Map(
+          [...corrections, ...sessionQuery.data.corrections].map((score) => [
+            score.id,
+            score,
+          ]),
+        ).values(),
+      ],
+    };
+  }, [scopeToSession, sessionQuery.data, trace, scores, corrections]);
+  const scopedObservations = sessionData?.observations ?? loadedObservations;
 
   // Fetch comment counts using existing hook
   const { observationCommentCounts, traceCommentCount } = useTraceComments({
@@ -161,10 +222,13 @@ function TraceWithSelection({
   // being invisible in it.
   const selected = useSelectedObservation({
     selectedNodeId,
-    traceId: trace.id,
+    traceId:
+      sessionData?.traces.find(
+        (entry) => traceNodeId(entry.id) === selectedNodeId,
+      )?.id ?? trace.id,
     projectId,
-    observations: loadedObservations,
-    enabled: !isPlaceholderData,
+    observations: scopedObservations,
+    enabled: !isPlaceholderData && (!scopeToSession || !!sessionData),
   });
   const detachedObservation =
     selected.kind === "observation" && selected.isOutsideLoadedList
@@ -177,43 +241,89 @@ function TraceWithSelection({
   // correctly, and a row with no parent at all genuinely is a root; neither is
   // misplaced.
   const detachedIsMisplaced = useMemo(() => {
-    const parentId = detachedObservation?.parentObservationId;
-    if (!parentId) return false;
-    return !loadedObservations.some((obs) => obs.id === parentId);
-  }, [detachedObservation, loadedObservations]);
+    if (!detachedObservation?.parentObservationId) return false;
+    const parentId = detachedObservation.parentObservationId;
+    return !scopedObservations.some(
+      (obs) =>
+        obs.id === parentId && obs.traceId === detachedObservation.traceId,
+    );
+  }, [detachedObservation, scopedObservations]);
 
   const observations = useMemo(
     () =>
       detachedObservation
-        ? [...loadedObservations, detachedObservation]
-        : loadedObservations,
-    [loadedObservations, detachedObservation],
+        ? [...scopedObservations, detachedObservation]
+        : scopedObservations,
+    [scopedObservations, detachedObservation],
   );
+  const scopedTruncation = (() => {
+    if (!sessionData) return truncatedAtObservations;
+    if (sessionQuery.data?.cutoffObservationsAfterMaxCount) {
+      return sessionQuery.data.maxObservationsPerSession;
+    }
+    return undefined;
+  })();
 
   return (
-    <TraceDataProvider
-      trace={trace}
-      observations={observations}
-      serverScores={scores}
-      corrections={corrections}
-      comments={commentsMap}
-      detachedObservationId={detachedObservation?.id ?? null}
-      detachedObservationIsMisplaced={detachedIsMisplaced}
-      truncatedAtObservations={truncatedAtObservations}
-      isPlaceholderData={isPlaceholderData}
-    >
-      <TraceGraphDataProvider
-        projectId={trace.projectId}
-        traceId={trace.id}
-        observations={observations}
-      >
-        <SearchProvider>
-          <JsonExpansionProvider>
-            <TraceContent desktopLayout={desktopLayout} />
-          </JsonExpansionProvider>
-        </SearchProvider>
-      </TraceGraphDataProvider>
-    </TraceDataProvider>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {scopeToSession && (sessionQuery.isLoading || sessionQuery.isError) && (
+        <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
+          {scopeToSession && sessionQuery.isLoading && (
+            <span role="status">Loading session…</span>
+          )}
+          {scopeToSession && sessionQuery.isError && (
+            <span role="alert">
+              Session unavailable.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void sessionQuery.refetch()}
+              >
+                Retry
+              </button>{" "}
+              or switch to Trace.
+            </span>
+          )}
+        </div>
+      )}
+      <div className="min-h-0 flex-1">
+        {scopeToSession && !sessionData && sessionQuery.isError && (
+          <div className="p-4 text-sm">Could not load this session.</div>
+        )}
+        {scopeToSession && !sessionData && !sessionQuery.isError && (
+          <TraceLoading desktopLayout={desktopLayout} />
+        )}
+        {(!scopeToSession || sessionData) && (
+          <TraceDataProvider
+            trace={trace}
+            sessionTraces={sessionData?.traces}
+            observations={observations}
+            serverScores={sessionData?.scores ?? scores}
+            corrections={sessionData?.corrections ?? corrections}
+            comments={commentsMap}
+            detachedObservationId={detachedObservation?.id ?? null}
+            detachedObservationIsMisplaced={detachedIsMisplaced}
+            truncatedAtObservations={scopedTruncation}
+            isPlaceholderData={isPlaceholderData}
+          >
+            <TraceGraphDataProvider
+              projectId={trace.projectId}
+              traceId={trace.id}
+              sessionId={
+                sessionData ? (trace.sessionId ?? undefined) : undefined
+              }
+              observations={observations}
+            >
+              <SearchProvider>
+                <JsonExpansionProvider>
+                  <TraceContent desktopLayout={desktopLayout} />
+                </JsonExpansionProvider>
+              </SearchProvider>
+            </TraceGraphDataProvider>
+          </TraceDataProvider>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -232,7 +342,7 @@ function TraceWithSelection({
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const { isPlaceholderData } = useTraceData();
+  const { isPlaceholderData, sessionTraces } = useTraceData();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
@@ -263,7 +373,10 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
           layout="fill"
         >
           <Tabs.List variant="underline">
-            <Tabs.Trigger value="trace" label="Trace" />
+            <Tabs.Trigger
+              value="trace"
+              label={sessionTraces ? "Session" : "Trace"}
+            />
             <Tabs.Trigger value="messages" label="Messages" internal />
           </Tabs.List>
           <Tabs.Content value="trace" layout="fill">

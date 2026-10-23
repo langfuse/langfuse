@@ -153,7 +153,8 @@ export function ConnectedObservationDetailView({
   // so they are omitted rather than guessed. A merged-in row whose parent is also
   // past the cap sits AMONG the roots without being one — root chrome there would
   // assert a position we don't know.
-  const treeNode = nodeMap.get(observation.id);
+  const treeNode =
+    nodeMap.get(`${traceId}:${observation.id}`) ?? nodeMap.get(observation.id);
   const isRoot =
     roots.some((root) => root.id === observation.id) &&
     !(
@@ -172,14 +173,16 @@ export function ConnectedObservationDetailView({
   const subtreeMetrics = useMemo(() => {
     if (!isRoot || !treeNode) return null;
     const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
+    const descendantIdSet = new Set(
+      descendantIds.map((id) => nodeMap.get(id)?.observationId ?? id),
+    );
 
-    const descendants = observations.filter((obs) =>
-      descendantIdSet.has(obs.id),
+    const descendants = observations.filter(
+      (obs) => obs.traceId === traceId && descendantIdSet.has(obs.id),
     );
     const allObservations = [observation, ...descendants];
     return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
+  }, [isRoot, treeNode, observations, observation, nodeMap, traceId]);
 
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 

@@ -24,6 +24,7 @@ import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
+import { traceNodeId } from "../fns/treeBuilding";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -49,12 +50,21 @@ export function TracePanelDetail({
 function TracePanelDetailContent() {
   const { selectedNodeId } = useSelection();
   const {
-    trace,
+    trace: anchorTrace,
+    sessionTraces,
     observations,
     serverScores: scores,
     corrections,
     isPlaceholderData,
   } = useTraceData();
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
+  const traceObservations = useMemo(
+    () =>
+      observations.filter((observation) => observation.traceId === trace.id),
+    [observations, trace.id],
+  );
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
@@ -75,7 +85,7 @@ function TracePanelDetailContent() {
           <ConnectedObservationDetailView
             observation={selected.observation}
             projectId={trace.projectId}
-            traceId={trace.id}
+            traceId={selected.observation.traceId}
           />
         );
       case "loading":
@@ -103,12 +113,14 @@ function TracePanelDetailContent() {
         return (
           <TraceDetailView
             trace={trace}
-            observations={observations}
-            scores={scores}
-            corrections={corrections}
+            observations={traceObservations}
+            scores={scores.filter((score) => score.traceId === trace.id)}
+            corrections={corrections.filter(
+              (score) => score.traceId === trace.id,
+            )}
             projectId={trace.projectId}
           />
         );
     }
-  }, [selected, trace, observations, scores, corrections]);
+  }, [selected, trace, traceObservations, scores, corrections]);
 }

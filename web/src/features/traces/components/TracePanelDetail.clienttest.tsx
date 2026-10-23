@@ -32,16 +32,26 @@ vi.mock("@/src/utils/api", () => ({
 // job is picking between them.
 vi.mock(
   "@/src/features/traces/components/TraceDetailView/TraceDetailView",
-  () => ({ TraceDetailView: () => <div data-testid="trace-detail" /> }),
+  () => ({
+    TraceDetailView: ({ trace }: { trace?: { id: string } }) => (
+      <div data-testid="trace-detail" data-trace-id={trace?.id} />
+    ),
+  }),
 );
 vi.mock(
   "@/src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView",
   () => ({
     ConnectedObservationDetailView: ({
       observation,
+      traceId,
     }: {
       observation: ObservationReturnTypeWithMetadata;
-    }) => <div data-testid="observation-detail">{observation.id}</div>,
+      traceId: string;
+    }) => (
+      <div data-testid="observation-detail" data-trace-id={traceId}>
+        {observation.id}
+      </div>
+    ),
   }),
 );
 
@@ -105,5 +115,42 @@ describe("TracePanelDetail", () => {
     render(<TracePanelDetail />);
 
     expect(screen.getByTestId("trace-detail")).toBeInTheDocument();
+  });
+
+  it("opens a session observation using its own trace, not the anchor trace", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "foreign-observation" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      observations: [
+        { ...observation("foreign-observation"), traceId: "other-trace" },
+      ],
+      serverScores: [],
+      corrections: [],
+    });
+    render(<TracePanelDetail />);
+    expect(screen.getByTestId("observation-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other-trace",
+    );
+  });
+
+  it("shows the selected session trace wrapper instead of fetching it as an observation", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      sessionTraces: [{ id: "other", projectId: "p" }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+    render(<TracePanelDetail />);
+    expect(screen.getByTestId("trace-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other",
+    );
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
   });
 });

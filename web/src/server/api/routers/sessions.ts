@@ -31,6 +31,10 @@ import {
   parseClickhouseUTCDateTimeFormat,
   isStorableTraceSessionId,
   storableTraceSessionIds,
+  getObservationsForSessionFromEventsTable,
+  MAX_OBSERVATIONS_PER_SESSION,
+  getScoresAndCorrectionsForTraces,
+  getAgentGraphDataFromEventsTable,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -50,6 +54,7 @@ import {
   type SessionOptions,
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -59,6 +64,10 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import {
+  AgentGraphDataSchema,
+  type AgentGraphDataResponse,
+} from "@/src/features/trace-graph-view/server";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -855,6 +864,92 @@ export const sessionRouter = createTRPCRouter({
           validatedScores.filter((s) => s.traceId === trace.id),
         ),
       }));
+    }),
+  agentGraphDataForSessionFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string().min(1),
+        minStartTime: z.string().datetime({ offset: true }),
+        maxStartTime: z.string().datetime({ offset: true }),
+      }),
+    )
+    .query(
+      async ({
+        input,
+      }): Promise<(AgentGraphDataResponse & { traceId: string })[]> => {
+        const records = await getAgentGraphDataFromEventsTable({
+          projectId: input.projectId,
+          sessionId: input.sessionId,
+          minStartTime: new Date(input.minStartTime),
+          maxStartTime: new Date(input.maxStartTime),
+        });
+        return records.flatMap((record) => {
+          const parsed = AgentGraphDataSchema.safeParse(record);
+          if (!parsed.success) return [];
+          const data = parsed.data;
+          const traceId = data.trace_id;
+          if (!traceId) return [];
+          const hasLangGraphData = data.step != null && data.node != null;
+          if (!hasLangGraphData && data.type === "EVENT") return [];
+          return [
+            {
+              id: data.id,
+              traceId,
+              node: hasLangGraphData ? (data.node ?? null) : data.name,
+              step: hasLangGraphData ? (data.step ?? null) : 0,
+              parentObservationId: data.parent_observation_id || null,
+              name: data.name,
+              startTime: data.start_time,
+              endTime: data.end_time || undefined,
+              observationType: data.type,
+            },
+          ];
+        });
+      },
+    ),
+  observationsForSessionFromEvents: protectedGetSessionProcedure
+    .input(z.object({ projectId: z.string(), sessionId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const { observations, totalCount } =
+        await getObservationsForSessionFromEventsTable(input);
+      const traceIds = [
+        ...new Set(
+          observations.flatMap((observation) =>
+            observation.traceId ? [observation.traceId] : [],
+          ),
+        ),
+      ];
+      const scores: Awaited<
+        ReturnType<typeof getScoresAndCorrectionsForTraces>
+      > = [];
+      // Bound concurrent score reads even for sessions containing many traces.
+      for (const batch of chunk(chunk(traceIds, 500), 4)) {
+        const results = await Promise.all(
+          batch.map((ids) =>
+            getScoresAndCorrectionsForTraces({
+              projectId: input.projectId,
+              traceIds: ids,
+            }),
+          ),
+        );
+        scores.push(...results.flat());
+      }
+      const validatedScores = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: ScoreDataTypeArray,
+        onParseError: traceException,
+      });
+      return {
+        observations: toDomainArrayWithStringifiedMetadata(observations),
+        scores: toDomainArrayWithStringifiedMetadata(
+          validatedScores.filter((s) => s.dataType !== "CORRECTION"),
+        ),
+        corrections: validatedScores.filter((s) => s.dataType === "CORRECTION"),
+        cutoffObservationsAfterMaxCount:
+          totalCount > MAX_OBSERVATIONS_PER_SESSION,
+        maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
+      };
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)

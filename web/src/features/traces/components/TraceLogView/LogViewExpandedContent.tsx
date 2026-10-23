@@ -42,8 +42,8 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
 }: LogViewExpandedContentProps) {
   // Fetch I/O data lazily
   const { data, isLoading, isError } = useLogViewObservationIO({
-    observationId: node.id,
-    traceId,
+    observationId: node.observationId ?? node.id,
+    traceId: node.traceId ?? traceId,
     projectId,
     startTime: node.startTime,
     enabled: true, // Always enabled when mounted (row is expanded)

@@ -48,6 +48,8 @@ export type PageHeaderProps = {
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
+  /** Replaces the entity icon immediately before the title. */
+  titleControl?: ReactNode;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
@@ -64,6 +66,7 @@ export type PageHeaderProps = {
 const PageHeader = ({
   title,
   itemType,
+  titleControl,
   actionButtonsLeft,
   actionButtonsRight,
   actionButtonsRightClassName,
@@ -162,10 +165,11 @@ const PageHeader = ({
             {/* Left side content */}
             <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex min-w-0 items-center gap-2">
+                {titleControl && <div className="shrink-0">{titleControl}</div>}
                 <div className="max-w-md min-w-0 md:max-w-none">
                   <EntityTitle
                     as="h2"
-                    type={itemType}
+                    type={titleControl ? undefined : itemType}
                     title={title}
                     tooltip={titleTooltip}
                     help={help}

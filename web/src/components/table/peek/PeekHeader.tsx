@@ -35,6 +35,7 @@ import {
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
   title: string;
+  titleControl?: React.ReactNode;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -50,7 +51,8 @@ type PeekHeaderProps = {
 };
 
 // The title keeps at least this much width before anything else collapses; the
-// type tile is fixed-width; the "…" trigger is an icon button. Tuned by eye —
+// type tile is fixed-width (a replacement control is measured); the "…" trigger
+// is an icon button. Tuned by eye —
 // planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const TILE_PX = 32;
@@ -84,6 +86,7 @@ const FULL: PeekHeaderPlan = {
 export function PeekHeader({
   itemType,
   title,
+  titleControl,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -98,6 +101,7 @@ export function PeekHeader({
   // controls settle (or data loads) after the first measurement — observe the
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
+  const [titleControlRef, titleControlSize] = useElementSize<HTMLDivElement>();
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -147,7 +151,11 @@ export function PeekHeader({
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      tileWidth: TILE_PX,
+      tileWidth: titleControl
+        ? (titleControlRef.current?.getBoundingClientRect().width ??
+          titleControlSize?.width ??
+          TILE_PX * 2)
+        : TILE_PX,
       navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
       navCompactWidth: hasNav
         ? (widthsRef.current.navCompact ?? NAV_FALLBACK_PX)
@@ -168,6 +176,9 @@ export function PeekHeader({
     hasOpenInTab,
     hasNav,
     plan,
+    titleControl,
+    titleControlRef,
+    titleControlSize?.width,
   ]);
 
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
@@ -178,7 +189,19 @@ export function PeekHeader({
         ref={headerRef}
         className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
       >
-        <EntityTitle as="span" type={itemType} title={title} isFocusable />
+        <div className="flex min-w-0 items-center gap-2">
+          {titleControl && (
+            <div ref={titleControlRef} className="shrink-0">
+              {titleControl}
+            </div>
+          )}
+          <EntityTitle
+            as="span"
+            type={titleControl ? undefined : itemType}
+            title={title}
+            isFocusable
+          />
+        </div>
         <div
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"

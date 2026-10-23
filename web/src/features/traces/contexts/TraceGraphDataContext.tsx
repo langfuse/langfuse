@@ -53,13 +53,15 @@ interface TraceGraphDataProviderProps {
   children: ReactNode;
   projectId: string;
   traceId: string;
-  observations: Array<{ startTime: Date }>;
+  sessionId?: string;
+  observations: Array<{ startTime: Date; id?: string; traceId?: string }>;
 }
 
 export function TraceGraphDataProvider({
   children,
   projectId,
   traceId,
+  sessionId,
   observations,
 }: TraceGraphDataProviderProps) {
   const { isV4 } = useReadPath();
@@ -111,19 +113,50 @@ export function TraceGraphDataProvider({
   // Beta OFF: Query from observations table (existing behavior)
   const tracesQuery = api.traces.getAgentGraphData.useQuery(queryInput, {
     ...queryOptions,
-    enabled: queryEnabled && !isV4,
+    enabled: queryEnabled && !isV4 && !sessionId,
   });
 
   // Beta ON: Query from events table (v4)
   const eventsQuery = api.events.getAgentGraphData.useQuery(queryInput, {
     ...queryOptions,
-    enabled: queryEnabled && isV4,
+    enabled: queryEnabled && isV4 && !sessionId,
   });
 
-  // Use appropriate query based on beta toggle
-  const query = isV4 ? eventsQuery : tracesQuery;
+  const sessionQuery = api.sessions.agentGraphDataForSessionFromEvents.useQuery(
+    { ...queryInput, sessionId: sessionId ?? "" },
+    { ...queryOptions, enabled: queryEnabled && isV4 && !!sessionId },
+  );
 
-  const agentGraphData = useMemo(() => query.data ?? [], [query.data]);
+  // Use appropriate query based on beta toggle
+  const query = (() => {
+    if (sessionId) return sessionQuery;
+    return isV4 ? eventsQuery : tracesQuery;
+  })();
+
+  const agentGraphData = useMemo(() => {
+    if (!sessionId) return query.data ?? [];
+    const counts = new Map<string, number>();
+    const loaded = new Set<string>();
+    for (const observation of observations) {
+      if (!observation.id || !observation.traceId) continue;
+      counts.set(observation.id, (counts.get(observation.id) ?? 0) + 1);
+      loaded.add(`${observation.traceId}:${observation.id}`);
+    }
+    return (sessionQuery.data ?? [])
+      .filter((record) => loaded.has(`${record.traceId}:${record.id}`))
+      .map((record) => ({
+        ...record,
+        id:
+          (counts.get(record.id) ?? 0) > 1
+            ? `${record.traceId}:${record.id}`
+            : record.id,
+        parentObservationId:
+          record.parentObservationId &&
+          (counts.get(record.parentObservationId) ?? 0) > 1
+            ? `${record.traceId}:${record.parentObservationId}`
+            : record.parentObservationId,
+      }));
+  }, [query.data, sessionQuery.data, sessionId, observations]);
 
   const graphAvailability = useMemo(
     () => resolveGraphAvailability(agentGraphData),

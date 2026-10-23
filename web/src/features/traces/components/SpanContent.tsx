@@ -114,7 +114,10 @@ function LoadedSpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(mergedScores, node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.observationId ?? node.id,
+  ).filter((score) => !node.traceId || score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;

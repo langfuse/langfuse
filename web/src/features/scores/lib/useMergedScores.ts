@@ -23,22 +23,35 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
  */
 export function useMergedScores(
   serverScores: WithStringifiedMetadata<ScoreDomain>[],
-  target: ScoreTarget,
+  target: ScoreTarget | ScoreTarget[],
   mode: "target-and-child-scores" | "target-scores-only" = "target-scores-only",
 ): WithStringifiedMetadata<ScoreDomain>[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  const cachedScores = getAllForTarget(mode, {
-    traceId: target.type === "trace" ? target.traceId : undefined,
-    observationId: target.type === "trace" ? target.observationId : undefined,
-    sessionId: target.type === "session" ? target.sessionId : undefined,
-  });
+  const targets = useMemo(
+    () => (Array.isArray(target) ? target : [target]),
+    [target],
+  );
+  const cachedScores = targets.flatMap((current) =>
+    getAllForTarget(mode, {
+      traceId: current.type === "trace" ? current.traceId : undefined,
+      observationId:
+        current.type === "trace" ? current.observationId : undefined,
+      sessionId: current.type === "session" ? current.sessionId : undefined,
+    }),
+  );
 
   // Filter server scores based on mode and target
-  const filteredServerScores = useMemo(
-    () => filterScoresByTarget(serverScores, target, mode),
-    [serverScores, target, mode],
-  );
+  const filteredServerScores = useMemo(() => {
+    const ids = new Set(
+      targets.flatMap((current) =>
+        filterScoresByTarget(serverScores, current, mode).map(
+          (score) => score.id,
+        ),
+      ),
+    );
+    return serverScores.filter((score) => ids.has(score.id));
+  }, [serverScores, targets, mode]);
 
   // Build deletedIds Set
   const deletedIds = useMemo(() => {

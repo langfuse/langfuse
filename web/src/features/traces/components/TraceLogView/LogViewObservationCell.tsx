@@ -57,7 +57,11 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
           // many requests during fast scrolling
           timeoutRef.current = setTimeout(() => {
             hasPrefetched.current = true;
-            prefetch(item.node.id, traceId, item.node.startTime);
+            prefetch(
+              item.node.observationId ?? item.node.id,
+              item.node.traceId ?? traceId,
+              item.node.startTime,
+            );
           }, PREFETCH_DEBOUNCE_MS);
         } else if (!entry?.isIntersecting && timeoutRef.current) {
           // Cancel pending prefetch if element leaves viewport
@@ -75,7 +79,15 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [item.node.id, item.node.type, item.node.startTime, traceId, prefetch]);
+  }, [
+    item.node.id,
+    item.node.observationId,
+    item.node.traceId,
+    item.node.type,
+    item.node.startTime,
+    traceId,
+    prefetch,
+  ]);
 
   const displayName = formatDisplayName(item.node);
   const childrenCount = item.node.children?.length ?? 0;

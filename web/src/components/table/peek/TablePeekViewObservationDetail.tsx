@@ -8,6 +8,8 @@ import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekT
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { ConnectedTraceScopeToggle } from "@/src/features/traces/components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -39,6 +41,13 @@ export const TablePeekViewObservationDetail = (
     traceId,
     timestamp,
   });
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const sessionId = trace.data?.sessionId;
+  const isSessionScope =
+    props.isV4 &&
+    isProjectMember &&
+    router.query.aggregation === "session" &&
+    !!sessionId;
 
   const actionProps = {
     trace: trace.data,
@@ -47,6 +56,8 @@ export const TablePeekViewObservationDetail = (
       ? buildTracePath({
           projectId,
           traceId,
+          aggregation:
+            router.query.aggregation === "session" ? "session" : "trace",
           observationId:
             typeof router.query.traceId === "string"
               ? peekObservationId
@@ -66,7 +77,17 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceId}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={isSessionScope ? sessionId : traceId}
+      titleControl={
+        props.isV4 ? (
+          <ConnectedTraceScopeToggle
+            value={isSessionScope ? "session" : "trace"}
+            canSelectSession={isProjectMember && !!sessionId}
+            observations={trace.data?.observations ?? []}
+          />
+        ) : undefined
+      }
       hideExpandToggle
       preserveContentAcrossItems
       actions={
