@@ -13,6 +13,7 @@ import {
 } from "@/src/features/memberships/orgMembershipRepository";
 import {
   createProjectMembership,
+  deleteProjectMemberships,
   findOrCreateProjectMembership,
   saveProjectMembership,
 } from "@/src/features/memberships/projectMembershipRepository";
@@ -342,6 +343,45 @@ describe("membership role assignments", () => {
         expect(await rolesOf(user.id)).toEqual([]);
       },
     );
+
+    it("deleteProjectMemberships removes the project's memberships and roles", async () => {
+      const [first, second] = await Promise.all([createUser(), createUser()]);
+      const otherProject = await prisma.project.create({
+        data: { name: randomUUID(), orgId },
+      });
+      for (const user of [first, second]) {
+        const orgMembership = await saveOrgMembership(prisma, {
+          orgId,
+          userId: user.id,
+          role: Role.VIEWER,
+        });
+        await saveProjectMembership(prisma, {
+          orgId,
+          orgMembershipId: orgMembership.id,
+          projectId,
+          userId: user.id,
+          role: Role.MEMBER,
+        });
+        await saveProjectMembership(prisma, {
+          orgId,
+          orgMembershipId: orgMembership.id,
+          projectId: otherProject.id,
+          userId: user.id,
+          role: Role.ADMIN,
+        });
+      }
+
+      await deleteProjectMemberships(prisma, { projectId });
+
+      expect(
+        await prisma.projectMembership.count({ where: { projectId } }),
+      ).toBe(0);
+      for (const user of [first, second]) {
+        expect(await rolesOf(user.id)).toEqual(
+          sorted([org(orgId, "VIEWER"), proj(orgId, otherProject.id, "ADMIN")]),
+        );
+      }
+    });
   });
 
   describe("tRPC", () => {

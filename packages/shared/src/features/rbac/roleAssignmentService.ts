@@ -80,19 +80,26 @@ export async function revokeRolesForPrincipal(
   });
 }
 
-/** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
-export async function transferRoleAssignments(
+/** revokeUserRoles removes every user's assignments on an owner. */
+export async function revokeUserRoles(
   prisma: Prisma.TransactionClient,
-  projectId: string,
-  targetOrgId: string,
+  { ownerId }: { ownerId: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { ownerId, userId: { not: null } },
+  });
+}
+
+/** transferApiKeyRoles moves an owner's api-key assignments to the tenant that now holds the owner. */
+export async function transferApiKeyRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId, newTenantId }: { ownerId: OwnerId; newTenantId: TenantId },
 ): Promise<void> {
   await withTransaction(prisma, async (tx) => {
+    await validateTenancy(tx, newTenantId, ownerId);
     await tx.roleAssignment.updateMany({
-      where: { projectId, apiKeyId: { not: null } },
-      data: { orgId: targetOrgId },
-    });
-    await tx.roleAssignment.deleteMany({
-      where: { projectId, userId: { not: null } },
+      where: { ownerId, apiKeyId: { not: null } },
+      data: { orgId: untag(newTenantId) },
     });
   });
 }

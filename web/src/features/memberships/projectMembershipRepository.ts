@@ -9,6 +9,7 @@ import {
 import {
   replaceRolesForPrincipal,
   revokeRolesForPrincipal,
+  revokeUserRoles,
 } from "@langfuse/shared/rbac/server";
 import {
   type Prisma,
@@ -87,6 +88,17 @@ export async function deleteProjectMembership(
       principalId: UserId(userId),
     });
     return membership;
+  });
+}
+
+/** deleteProjectMemberships deletes every membership on a project and revokes their role assignments. */
+export async function deleteProjectMemberships(
+  prisma: Prisma.TransactionClient,
+  { projectId }: { projectId: string },
+): Promise<void> {
+  await withTransaction(prisma, async (tx) => {
+    await tx.projectMembership.deleteMany({ where: { projectId } });
+    await revokeUserRoles(tx, { ownerId: ProjectId(projectId) });
   });
 }
 
