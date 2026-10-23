@@ -80,25 +80,13 @@ describe("MarkdownView composition", () => {
     expect(copyTextToClipboard).toHaveBeenLastCalledWith("First\nSecond");
   });
 
-  it("preserves caller-controlled collapse and surrounding content", () => {
-    const onCollapsedChange = vi.fn();
-    render(
-      <MarkdownJsonView
-        content="Message body"
-        title="assistant"
-        collapsed={false}
-        onCollapsedChange={onCollapsedChange}
-        beforeContent={<span>Before</span>}
-        afterContent={<span>After</span>}
-      />,
-    );
-    expect(screen.getByText("Before")).toBeInTheDocument();
-    expect(screen.getByText("After")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse assistant" }));
-    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+  it("renders MarkdownJsonView without section controls", () => {
+    render(<MarkdownJsonView content="Message body" />);
+    expect(screen.getByText("Message body")).toBeInTheDocument();
+    expect(screen.queryByTitle("Copy to clipboard")).not.toBeInTheDocument();
   });
 
-  it("does not count image payloads towards system-prompt collapse", () => {
+  it("renders multimodal content without a section", () => {
     render(
       <MarkdownJsonView
         content={[
@@ -108,42 +96,26 @@ describe("MarkdownView composition", () => {
             image_url: { url: `data:image/png;base64,${"A".repeat(1_000)}` },
           },
         ]}
-        title="system"
-        isSystemPrompt
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Collapse system" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Collapse system" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Short instruction")).toBeInTheDocument();
   });
 
-  it("collapses named system prompts based on text rather than their display title", () => {
-    const stored = localStorage.getItem("collapseSystemPrompt");
-    const legacyStored = localStorage.getItem("traceSystemPrompt:collapsed");
-    localStorage.removeItem("collapseSystemPrompt");
-    localStorage.removeItem("traceSystemPrompt:collapsed");
-    try {
-      render(
-        <MarkdownJsonView
-          content={"Long system instruction. ".repeat(30)}
-          title="Named prompt"
-          isSystemPrompt
-        />,
-      );
-      fireEvent.click(
-        screen.getByRole("button", { name: "Expand Named prompt" }),
-      );
-      expect(
-        screen.getByRole("button", { name: "Collapse Named prompt" }),
-      ).toBeInTheDocument();
-    } finally {
-      if (stored === null) localStorage.removeItem("collapseSystemPrompt");
-      else localStorage.setItem("collapseSystemPrompt", stored);
-      if (legacyStored === null)
-        localStorage.removeItem("traceSystemPrompt:collapsed");
-      else localStorage.setItem("traceSystemPrompt:collapsed", legacyStored);
-    }
+  it("does not collapse long content without a section caller", () => {
+    render(
+      <MarkdownJsonView content={"Long system instruction. ".repeat(30)} />,
+    );
+    expect(
+      screen.getByText("Long system instruction. ".repeat(30).trim()),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /(?:Expand|Collapse) Named prompt/,
+      }),
+    ).not.toBeInTheDocument();
   });
 });
 

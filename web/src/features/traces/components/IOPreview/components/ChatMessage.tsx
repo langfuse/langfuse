@@ -1,10 +1,18 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownViewController,
+  type MarkdownViewState,
+} from "@/src/components/ui/MarkdownViewController";
+import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { useTheme } from "next-themes";
+import { type OpenAIOutputAudioType } from "@langfuse/shared";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
 import {
@@ -134,7 +142,7 @@ export function ChatMessage({
     return (
       <div className="transition-colors">
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
-          <MarkdownJsonView
+          <ChatMessageMarkdownSection
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
             actions={actions}
@@ -257,7 +265,7 @@ export function ChatMessage({
       <div className="transition-colors">
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
-          <MarkdownJsonView
+          <ChatMessageMarkdownSection
             title={sectionTitle}
             content={message.content || ""}
             audio={message.audio}
@@ -305,6 +313,116 @@ export function ChatMessage({
   }
 
   return null;
+}
+
+function ChatMessageMarkdownSection({
+  content,
+  audio,
+  title,
+  actions,
+  collapsed,
+  onCollapsedChange,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+}: Pick<
+  React.ComponentProps<typeof ChatMessageJsonSection>,
+  | "title"
+  | "actions"
+  | "collapsed"
+  | "onCollapsedChange"
+  | "beforeContent"
+  | "afterContent"
+  | "isSystemPrompt"
+> & { content: unknown; audio?: OpenAIOutputAudioType }) {
+  const characterLimit = useMarkdownRenderCharacterLimit();
+  const markdownContent = useMemo(
+    () =>
+      canRenderContentAsMarkdown(content, characterLimit)
+        ? { value: content }
+        : null,
+    [content, characterLimit],
+  );
+
+  if (!markdownContent) {
+    return (
+      <ChatMessageJsonSection
+        json={content ?? (audio ? { audio } : null)}
+        currentView="pretty"
+        title={title}
+        actions={actions}
+        collapsed={collapsed}
+        onCollapsedChange={onCollapsedChange}
+        beforeContent={beforeContent}
+        afterContent={afterContent}
+        isSystemPrompt={isSystemPrompt}
+      />
+    );
+  }
+
+  return (
+    <MarkdownViewController markdown={markdownContent.value} audio={audio}>
+      {(state) => (
+        <ChatMessageMarkdownSectionContent
+          state={state}
+          title={title}
+          actions={actions}
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
+          isSystemPrompt={isSystemPrompt}
+        />
+      )}
+    </MarkdownViewController>
+  );
+}
+
+function ChatMessageMarkdownSectionContent({
+  state,
+  title,
+  actions,
+  collapsed,
+  onCollapsedChange,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+}: Pick<
+  React.ComponentProps<typeof ChatMessageJsonSection>,
+  | "title"
+  | "actions"
+  | "collapsed"
+  | "onCollapsedChange"
+  | "beforeContent"
+  | "afterContent"
+  | "isSystemPrompt"
+> & { state: MarkdownViewState }) {
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt: isSystemPrompt ?? title === "system",
+    content: state.textContent,
+  });
+
+  return (
+    <IOSection
+      key={forcedTheme ?? resolvedTheme}
+      title={title}
+      onCopy={state.copy}
+      actions={actions}
+      collapsed={
+        systemPrompt.shouldBeCollapsible ? systemPrompt.isCollapsed : collapsed
+      }
+      onCollapsedChange={
+        systemPrompt.shouldBeCollapsible
+          ? systemPrompt.toggleCollapsed
+          : onCollapsedChange
+      }
+    >
+      {beforeContent}
+      <MarkdownViewContent state={state} />
+      {afterContent}
+    </IOSection>
+  );
 }
 
 function ChatMessageJsonSection({

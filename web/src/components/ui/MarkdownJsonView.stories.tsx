@@ -1,22 +1,30 @@
 import preview from "../../../.storybook/preview";
-import { expect, waitFor, within } from "storybook/test";
+import { expect } from "storybook/test";
 import { MarkdownJsonView } from "./MarkdownJsonView";
 
 const meta = preview.meta({
   component: MarkdownJsonView,
 });
 
-export const HeaderControlsOnFocus = meta.story({
-  name: "(Test) Reveals Header Controls On Focus",
+export const ContentOnly = meta.story({
+  name: "(Test) Content only",
   args: {
     content: "Hover this message to reveal its header controls.",
-    title: "assistant",
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const copyButton = canvas.getByTitle("Copy to clipboard");
-    await waitFor(() => expect(copyButton).not.toBeVisible());
-    copyButton.focus();
-    await waitFor(() => expect(copyButton).toBeVisible());
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.queryByTitle("Copy to clipboard"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const JsonFallback = meta.story({
+  name: "(Test) JSON fallback",
+  args: { content: { status: "ready", count: 2 } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("ready")).toBeVisible();
+    await expect(
+      canvas.queryByTitle("Copy to clipboard"),
+    ).not.toBeInTheDocument();
   },
 });

@@ -1,29 +1,14 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
-import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import {
   OpenAIContentParts,
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
-import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
-import {
-  MarkdownViewController,
-  type MarkdownViewState,
-} from "./MarkdownViewController";
-import { useTheme } from "next-themes";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import {
-  Check,
-  Copy,
-  FoldVertical,
-  UnfoldVertical,
-  type IconComponent,
-} from "@langfuse/icons";
-import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -140,43 +125,16 @@ const isOpenAIContentWithExternalS3Image = (content: unknown) => {
   return hasExternalS3Image && hasOnlyRenderableParts;
 };
 
-// MarkdownJsonView renders markdown whenever the content is valid markdown
-// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
-  title,
-  titleIcon,
   className,
   audio,
   media,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
 }: {
   content?: unknown;
-  title?: string;
-  titleIcon?: IconComponent;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  /** Section header actions. */
-  actions?: IOSectionAction[];
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Long system prompts start collapsed (from raw `role === "system"`, since
-      the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -190,232 +148,17 @@ export function MarkdownJsonView({
   );
 
   return markdownContent ? (
-    <MarkdownSection
+    <MarkdownView
       markdown={markdownContent.value}
       audio={audio}
       media={media}
-      title={title}
-      titleIcon={titleIcon}
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
     />
   ) : (
-    <JsonViewController
+    <PrettyJsonView
       json={content ?? (audio ? { audio } : null)}
       media={media}
       currentView="pretty"
-    >
-      {(state) => (
-        <MarkdownJsonFallbackSection
-          state={state}
-          title={title}
-          titleIcon={titleIcon}
-          className={className}
-          actions={actions}
-          defaultCollapsed={defaultCollapsed}
-          collapsed={collapsed}
-          onCollapsedChange={onCollapsedChange}
-          beforeContent={beforeContent}
-          afterContent={afterContent}
-          isSystemPrompt={isSystemPrompt}
-        />
-      )}
-    </JsonViewController>
-  );
-}
-
-function MarkdownSection({
-  markdown,
-  audio,
-  media,
-  title,
-  titleIcon,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
-}: Pick<
-  React.ComponentProps<typeof MarkdownViewController>,
-  "markdown" | "audio" | "media"
-> &
-  Pick<
-    React.ComponentProps<typeof MarkdownSectionContent>,
-    | "title"
-    | "titleIcon"
-    | "actions"
-    | "beforeContent"
-    | "afterContent"
-    | "isSystemPrompt"
-    | "defaultCollapsed"
-    | "collapsed"
-    | "onCollapsedChange"
-  >) {
-  return (
-    <MarkdownViewController markdown={markdown} audio={audio} media={media}>
-      {(state) => (
-        <MarkdownSectionContent
-          state={state}
-          title={title}
-          titleIcon={titleIcon}
-          actions={actions}
-          beforeContent={beforeContent}
-          afterContent={afterContent}
-          isSystemPrompt={isSystemPrompt}
-          defaultCollapsed={defaultCollapsed}
-          collapsed={collapsed}
-          onCollapsedChange={onCollapsedChange}
-        />
-      )}
-    </MarkdownViewController>
-  );
-}
-
-function MarkdownSectionContent({
-  state,
-  title,
-  titleIcon,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
-}: Pick<
-  React.ComponentProps<typeof MarkdownJsonView>,
-  | "title"
-  | "titleIcon"
-  | "actions"
-  | "beforeContent"
-  | "afterContent"
-  | "isSystemPrompt"
-  | "defaultCollapsed"
-  | "collapsed"
-  | "onCollapsedChange"
-> & { state: MarkdownViewState }) {
-  const { forcedTheme, resolvedTheme } = useTheme();
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt: Boolean(title) && (isSystemPrompt ?? title === "system"),
-    content: state.textContent,
-  });
-
-  if (!title) {
-    return (
-      <div
-        className="io-message-content ph-no-capture px-1 pt-1 pb-2"
-        key={forcedTheme ?? resolvedTheme}
-      >
-        <MarkdownViewContent state={state} />
-      </div>
-    );
-  }
-
-  return (
-    <IOSection
-      key={forcedTheme ?? resolvedTheme}
-      title={title}
-      titleIcon={titleIcon}
-      onCopy={state.copy}
-      actions={actions}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={
-        systemPrompt.shouldBeCollapsible ? systemPrompt.isCollapsed : collapsed
-      }
-      onCollapsedChange={
-        systemPrompt.shouldBeCollapsible
-          ? systemPrompt.toggleCollapsed
-          : onCollapsedChange
-      }
-    >
-      {beforeContent}
-      <MarkdownViewContent state={state} />
-      {afterContent}
-    </IOSection>
-  );
-}
-
-function MarkdownJsonFallbackSection({
-  state,
-  title,
-  titleIcon,
-  className,
-  actions,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-}: Pick<
-  React.ComponentProps<typeof MarkdownJsonView>,
-  | "title"
-  | "titleIcon"
-  | "className"
-  | "actions"
-  | "defaultCollapsed"
-  | "collapsed"
-  | "onCollapsedChange"
-  | "beforeContent"
-  | "afterContent"
-  | "isSystemPrompt"
-> & {
-  state: React.ComponentProps<typeof PrettyJsonViewContent>["state"];
-}) {
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt:
-      !!title &&
-      !!isSystemPrompt &&
-      getJsonViewContentKind(state) === "markdown" &&
-      state.standaloneMediaReferenceStrings.length === 0,
-    content: state.markdownContent ?? "",
-  });
-  if (!title)
-    return <PrettyJsonViewContent state={state} className={className} />;
-  return (
-    <div className={className}>
-      <IOSection
-        title={title}
-        titleIcon={titleIcon}
-        onCopy={state.copy}
-        actions={
-          getJsonViewContentKind(state) === "table" && state.hasExpandableRows
-            ? [
-                {
-                  icon: state.allRowsExpanded ? FoldVertical : UnfoldVertical,
-                  label: state.allRowsExpanded
-                    ? "Collapse all rows"
-                    : "Expand all rows",
-                  onClick: state.toggleAllRows,
-                },
-                ...(actions ?? []),
-              ]
-            : actions
-        }
-        defaultCollapsed={defaultCollapsed}
-        collapsed={
-          systemPrompt.shouldBeCollapsible
-            ? systemPrompt.isCollapsed
-            : collapsed
-        }
-        onCollapsedChange={
-          systemPrompt.shouldBeCollapsible
-            ? systemPrompt.toggleCollapsed
-            : onCollapsedChange
-        }
-        variant={getJsonViewContentKind(state) === "table" ? "table" : "text"}
-      >
-        {beforeContent}
-        <PrettyJsonViewContent state={state} title={title} borderless />
-        {afterContent}
-      </IOSection>
-    </div>
+      className={className}
+    />
   );
 }
