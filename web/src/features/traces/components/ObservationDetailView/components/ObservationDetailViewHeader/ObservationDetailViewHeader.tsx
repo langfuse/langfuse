@@ -153,6 +153,7 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    const displayedTotalUsage = subtreeMetrics?.totalUsage ?? totalUsage;
     const showsOwnObservationCost = !subtreeMetrics;
     const showsNoCost = isGenerationMissingCost({
       type: observation.type,
@@ -189,7 +190,7 @@ export const ObservationDetailViewHeader = memo(
           <CostBadge
             variant="missing"
             projectId={projectId}
-            hasUsage={totalUsage > 0}
+            hasUsage={displayedTotalUsage > 0}
           />
         );
       if (displayedTotalCost == null || !displayedCostDetails) return null;
