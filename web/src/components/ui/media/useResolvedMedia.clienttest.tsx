@@ -9,13 +9,10 @@ import { type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useResolvedMedia } from "./useResolvedMedia";
+import { useMediaPeek } from "@/src/hooks/useMediaPeek";
+import { type RouterOutputs } from "@/src/utils/api";
 
-type MediaResponse = {
-  url: string;
-  urlExpiry: string;
-  urlTtlSeconds: number;
-  contentLength: number;
-};
+type MediaResponse = RouterOutputs["media"]["getById"];
 
 const { getMedia } = vi.hoisted(() => ({
   getMedia: vi.fn<() => Promise<MediaResponse>>(),
@@ -55,6 +52,8 @@ const descriptor = {
 const queryKey = ["media.getById", "project-1", descriptor.mediaId];
 // Received at 09:00:00 (the fake clock below), valid for 60s.
 const cachedMedia: MediaResponse = {
+  mediaId: descriptor.mediaId,
+  contentType: descriptor.contentType,
   url: "https://signed.example.com/document.pdf?signature=old",
   urlExpiry: "2026-10-22T09:01:00.000Z",
   urlTtlSeconds: 60,
@@ -87,8 +86,18 @@ describe("useResolvedMedia", () => {
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  // Wires the peek to the resolver the way `MediaReferenceTag` does.
   const renderMediaHook = () =>
-    renderHook(() => useResolvedMedia(descriptor), { wrapper });
+    renderHook(
+      () => {
+        const peek = useMediaPeek();
+        const media = useResolvedMedia(descriptor, { enabled: peek.armed });
+        const onOpenChange = (open: boolean) =>
+          peek.onOpenChange(open, media.refreshIfNeeded);
+        return { ...media, open: peek.open, onOpenChange };
+      },
+      { wrapper },
+    );
   const reopenAt = (
     result: ReturnType<typeof renderMediaHook>["result"],
     time: string,

@@ -6,14 +6,15 @@ import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useMediaPeek } from "@/src/hooks/useMediaPeek";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
 /**
- * Container that connects a classified media value to the pure `MediaTag`. The
- * resolver hooks own the peek: they arm the lazy fetch the first time it opens
- * (hover/focus) and serve re-hovers from the query cache until the URL nears
+ * Container that connects a classified media value to the pure `MediaTag`: it
+ * arms the lazy fetch the first time the peek opens (hover/focus), serves
+ * re-hovers from the query cache, and renews the URL on an open once it nears
  * expiry.
  */
 export function MediaReferenceTag({
@@ -57,10 +58,13 @@ function S3MediaTag({
     enableForAdmins: false,
     projectId,
   });
-  const { status, url, open, onOpenChange } = useResolvedExternalMedia(
+  const peek = useMediaPeek();
+  const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
     descriptor,
-    { enabled: isFeatureEnabled },
+    { enabled: isFeatureEnabled && peek.armed },
   );
+  const handleOpenChange = (open: boolean) =>
+    peek.onOpenChange(open, refreshIfNeeded);
 
   if (!isFeatureEnabled) {
     return (
@@ -81,8 +85,8 @@ function S3MediaTag({
       status={status}
       url={url}
       errorDetail={descriptor.uri}
-      open={open}
-      onOpenChange={onOpenChange}
+      open={peek.open}
+      onOpenChange={handleOpenChange}
     />
   );
 }
@@ -94,8 +98,13 @@ function LangfuseRefMediaTag({
   descriptor: LangfuseRefDescriptor;
   size?: MediaTagProps["size"];
 }) {
-  const { status, url, contentLength, open, onOpenChange } =
-    useResolvedMedia(descriptor);
+  const peek = useMediaPeek();
+  const { status, url, contentLength, refreshIfNeeded } = useResolvedMedia(
+    descriptor,
+    { enabled: peek.armed },
+  );
+  const handleOpenChange = (open: boolean) =>
+    peek.onOpenChange(open, refreshIfNeeded);
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
 
@@ -114,8 +123,8 @@ function LangfuseRefMediaTag({
       }
       openActionLabel={isOversizedField ? "Open original" : undefined}
       intent={isOversizedField ? "attachment" : undefined}
-      open={open}
-      onOpenChange={onOpenChange}
+      open={peek.open}
+      onOpenChange={handleOpenChange}
     />
   );
 }

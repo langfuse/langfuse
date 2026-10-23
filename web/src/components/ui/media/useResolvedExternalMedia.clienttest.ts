@@ -46,31 +46,27 @@ describe("useResolvedExternalMedia", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes a cached signed URL when it expires before the next open", () => {
+  it("resolves as soon as it is enabled, for views without a peek", () => {
     const { result } = renderHook(() =>
       useResolvedExternalMedia(descriptor, { enabled: true }),
     );
-    expect(result.current.status).toBe("idle");
 
-    act(() => result.current.onOpenChange(true));
     expect(result.current.status).toBe("ready");
-    expect(refetchMock).not.toHaveBeenCalled();
-
-    act(() => result.current.onOpenChange(false));
-    vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
-    act(() => result.current.onOpenChange(true));
-
-    expect(refetchMock).toHaveBeenCalledOnce();
+    expect(result.current.url).toBe(queryState.data.url);
   });
 
-  it("does not fetch while external media is disabled", () => {
-    vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
-    const { result } = renderHook(() =>
-      useResolvedExternalMedia(descriptor, { enabled: false }),
+  it("refreshes a cached signed URL when it expires before the next open", async () => {
+    const { result, rerender } = renderHook(() =>
+      useResolvedExternalMedia(descriptor, { enabled: true }),
     );
-
-    act(() => result.current.onOpenChange(true));
-    expect(result.current.status).toBe("idle");
+    await act(result.current.refreshIfNeeded);
     expect(refetchMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
+    rerender();
+    expect(result.current.url).toBeUndefined();
+    await act(result.current.refreshIfNeeded);
+
+    expect(refetchMock).toHaveBeenCalledOnce();
   });
 });
