@@ -999,6 +999,17 @@ describe("Organization membership safeguards", () => {
       expect(await logs()).toEqual([]);
     });
 
+    it("keeps an existing AI_GATEWAY member re-sent while the AI Gateway is off", async () => {
+      await prisma.organizationMembership.update({
+        where: { orgId_userId: { orgId, userId: memberId } },
+        data: { role: Role.AI_GATEWAY },
+      });
+
+      expect(await putRole(Role.AI_GATEWAY)).toBe(200);
+
+      expect((await membership(memberId))?.role).toBe(Role.AI_GATEWAY);
+    });
+
     it("sets AI_GATEWAY while the AI Gateway is on for the org", async () => {
       Object.assign(env, {
         LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [orgId],

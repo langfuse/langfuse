@@ -353,7 +353,7 @@ const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
       <CardHeader>
         <CardTitle className="text-base">No projects</CardTitle>
         <CardDescription>
-          You don&apos;t have access to any projects in this organization.
+          <NoProjectsDescription canCreateProject={canCreateProject} />
         </CardDescription>
       </CardHeader>
       <CardFooter className="gap-2">
@@ -374,6 +374,16 @@ const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
       </CardFooter>
     </Card>
   );
+};
+
+/** NoProjectsDescription explains an empty project list by whether the user can create projects */
+const NoProjectsDescription = ({
+  canCreateProject,
+}: {
+  canCreateProject: boolean;
+}) => {
+  if (canCreateProject) return <>This organization has no projects yet.</>;
+  return <>You don&apos;t have access to any projects in this organization.</>;
 };
 
 export const OrganizationProjectOverview = () => {

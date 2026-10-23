@@ -113,4 +113,17 @@ describe("OrganizationProjectOverview", () => {
         .map((link) => link.getAttribute("href")),
     ).toEqual([createProjectRoute("owner-org")]);
   });
+
+  it("tells only members who cannot create projects that they lack project access", () => {
+    render(<OrganizationProjectOverview />);
+
+    expect(
+      screen.getAllByText(
+        "You don't have access to any projects in this organization.",
+      ),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByText("This organization has no projects yet."),
+    ).toHaveLength(1);
+  });
 });
