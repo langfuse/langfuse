@@ -8,11 +8,8 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import {
-  ChatMessage,
-  getMessageTitle,
-  shouldRenderMessageForContentMode,
-} from "@/src/features/traces";
+import { shouldRenderMessageForContentMode } from "@/src/features/traces";
+import { PromptMessagePreview } from "./PromptMessagePreview/PromptMessagePreview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -738,15 +735,9 @@ export const PromptDetail = ({
                               )
                                 return null;
                               return (
-                                <ChatMessage
+                                <PromptMessagePreview
                                   key={index}
                                   message={message}
-                                  title={getMessageTitle(message)}
-                                  shouldRenderMarkdown={true}
-                                  currentView="pretty"
-                                  isOutputMessage={true}
-                                  contentMode="all"
-                                  defaultCollapsed={false}
                                 />
                               );
                             })}

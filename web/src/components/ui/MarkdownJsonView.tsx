@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 import { type MediaReturnType } from "@/src/features/media";
 import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
@@ -154,11 +154,12 @@ export function MarkdownJsonView({
       media={media}
     />
   ) : (
-    <PrettyJsonView
-      json={content ?? (audio ? { audio } : null)}
-      media={media}
-      currentView="pretty"
-      className={className}
-    />
+    <div className={className}>
+      <PrettyJsonView
+        json={content ?? (audio ? { audio } : null)}
+        media={media}
+        currentView="pretty"
+      />
+    </div>
   );
 }

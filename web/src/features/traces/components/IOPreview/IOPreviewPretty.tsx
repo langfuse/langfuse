@@ -1,5 +1,9 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { MarkdownViewController } from "@/src/components/ui/MarkdownViewController";
+import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
+import { useTheme } from "next-themes";
+import { assertUnreachable } from "@/src/utils/types";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
@@ -36,7 +40,9 @@ import {
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ChatMessage } from "./components/ChatMessage";
+import { ChatMessageController } from "./components/ChatMessageController";
+import { ChatMessageContent } from "./components/ChatMessageContent";
+import { SystemPromptCollapseController } from "./components/SystemPromptCollapseController";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import {
@@ -291,6 +297,7 @@ export function IOPreviewPretty({
   contentMode = "all",
   showSystemPrompt,
 }: IOPreviewPrettyProps) {
+  const { forcedTheme, resolvedTheme } = useTheme();
   const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
@@ -788,14 +795,14 @@ export function IOPreviewPretty({
                     // Folded messages do not mount (no parsing) until the row opens.
                     if (folded && !othersOpen) return null;
                     const chatMessage = (
-                      <ChatMessage
+                      <ChatMessageController
                         key={originalIndex}
                         message={message}
                         title={
-                          titleBySide[side] ? SIDE_TITLES[side] : getMessageTitle(message)
+                          titleBySide[side]
+                            ? SIDE_TITLES[side]
+                            : getMessageTitle(message)
                         }
-                        shouldRenderMarkdown={shouldRenderMarkdown}
-                        currentView="pretty"
                         toolCallNumbers={messageToToolCallNumbers.get(
                           originalIndex,
                         )}
@@ -813,7 +820,398 @@ export function IOPreviewPretty({
                             ? outputActions
                             : undefined
                         }
-                      />
+                      >
+                        {function renderMessage({
+                          title,
+                          data,
+                          body,
+                          actions,
+                          isSystemPrompt,
+                          collapsed,
+                          setCollapsed,
+                          copy,
+                        }): React.ReactNode {
+                          if (
+                            data.kind === "collapsed" ||
+                            data.kind === "tools"
+                          ) {
+                            return (
+                              <div className="transition-colors">
+                                <IOSection
+                                  title={title}
+                                  onCopy={
+                                    data.kind === "tools" ? copy : undefined
+                                  }
+                                  actions={
+                                    actions.length > 0 ? actions : undefined
+                                  }
+                                  collapsed={collapsed}
+                                  onCollapsedChange={setCollapsed}
+                                  variant="text"
+                                >
+                                  {data.kind === "tools" && (
+                                    <ChatMessageContent
+                                      body={body}
+                                      renderToolResponse={(response) => (
+                                        <ChatMessageController
+                                          message={response}
+                                          title={getMessageTitle(response)}
+                                          contentMode={contentMode}
+                                        >
+                                          {renderMessage}
+                                        </ChatMessageController>
+                                      )}
+                                    />
+                                  )}
+                                </IOSection>
+                              </div>
+                            );
+                          }
+                          if (data.kind === "data") {
+                            return (
+                              <JsonViewController
+                                json={data.value}
+                                currentView="pretty"
+                              >
+                                {(state) => {
+                                  const kind = getJsonViewContentKind(state);
+                                  const sectionActions = [
+                                    ...(kind === "table" &&
+                                    state.hasExpandableRows
+                                      ? [
+                                          {
+                                            icon: state.allRowsExpanded
+                                              ? FoldVertical
+                                              : UnfoldVertical,
+                                            label: state.allRowsExpanded
+                                              ? "Collapse all rows"
+                                              : "Expand all rows",
+                                            onClick: state.toggleAllRows,
+                                          },
+                                        ]
+                                      : []),
+                                    ...actions,
+                                  ];
+                                  return (
+                                    <div className="transition-colors">
+                                      <IOSection
+                                        title={title}
+                                        onCopy={state.copy}
+                                        actions={
+                                          sectionActions.length > 0
+                                            ? sectionActions
+                                            : undefined
+                                        }
+                                        collapsed={collapsed}
+                                        onCollapsedChange={setCollapsed}
+                                        variant={
+                                          kind === "table" ? "table" : "text"
+                                        }
+                                      >
+                                        {!collapsed && (
+                                          <ChatMessageContent
+                                            body={body}
+                                            renderToolResponse={(response) => (
+                                              <ChatMessageController
+                                                message={response}
+                                                title={getMessageTitle(
+                                                  response,
+                                                )}
+                                                contentMode={contentMode}
+                                              >
+                                                {renderMessage}
+                                              </ChatMessageController>
+                                            )}
+                                          >
+                                            <PrettyJsonViewContent
+                                              state={state}
+                                              title={title}
+                                              borderless
+                                            />
+                                          </ChatMessageContent>
+                                        )}
+                                      </IOSection>
+                                    </div>
+                                  );
+                                }}
+                              </JsonViewController>
+                            );
+                          }
+                          if (data.kind === "message") {
+                            const markdownContent = canRenderContentAsMarkdown(
+                              data.content,
+                              characterLimit,
+                            ) && {
+                              content: data.content,
+                            };
+                            // Keep both paths mounted to preserve each view's state.
+                            return (
+                              <>
+                                {markdownContent && (
+                                  <MarkdownViewController
+                                    markdown={markdownContent.content}
+                                    audio={data.audio}
+                                  >
+                                    {(state) => (
+                                      <SystemPromptCollapseController
+                                        isSystemPrompt={isSystemPrompt}
+                                        text={state.textContent}
+                                        collapsed={collapsed}
+                                        setCollapsed={setCollapsed}
+                                      >
+                                        {({
+                                          collapsed: sectionCollapsed,
+                                          setCollapsed: setSectionCollapsed,
+                                        }) => (
+                                          <div
+                                            className="transition-colors"
+                                            hidden={!shouldRenderMarkdown}
+                                          >
+                                            <IOSection
+                                              key={forcedTheme ?? resolvedTheme}
+                                              title={title}
+                                              onCopy={state.copy}
+                                              actions={
+                                                actions.length > 0
+                                                  ? actions
+                                                  : undefined
+                                              }
+                                              collapsed={sectionCollapsed}
+                                              onCollapsedChange={
+                                                setSectionCollapsed
+                                              }
+                                              variant="text"
+                                            >
+                                              {!sectionCollapsed && (
+                                                <ChatMessageContent
+                                                  body={body}
+                                                  renderToolResponse={(
+                                                    response,
+                                                  ) => (
+                                                    <ChatMessageController
+                                                      message={response}
+                                                      title={getMessageTitle(
+                                                        response,
+                                                      )}
+                                                      contentMode={contentMode}
+                                                    >
+                                                      {renderMessage}
+                                                    </ChatMessageController>
+                                                  )}
+                                                >
+                                                  <MarkdownViewContent
+                                                    state={state}
+                                                  />
+                                                </ChatMessageContent>
+                                              )}
+                                            </IOSection>
+                                          </div>
+                                        )}
+                                      </SystemPromptCollapseController>
+                                    )}
+                                  </MarkdownViewController>
+                                )}
+                                {!markdownContent && (
+                                  <JsonViewController
+                                    json={
+                                      data.content ??
+                                      (data.audio
+                                        ? { audio: data.audio }
+                                        : null)
+                                    }
+                                    currentView="pretty"
+                                  >
+                                    {(state) => {
+                                      const kind =
+                                        getJsonViewContentKind(state);
+                                      const sectionActions = [
+                                        ...(kind === "table" &&
+                                        state.hasExpandableRows
+                                          ? [
+                                              {
+                                                icon: state.allRowsExpanded
+                                                  ? FoldVertical
+                                                  : UnfoldVertical,
+                                                label: state.allRowsExpanded
+                                                  ? "Collapse all rows"
+                                                  : "Expand all rows",
+                                                onClick: state.toggleAllRows,
+                                              },
+                                            ]
+                                          : []),
+                                        ...actions,
+                                      ];
+                                      return (
+                                        <SystemPromptCollapseController
+                                          isSystemPrompt={
+                                            isSystemPrompt &&
+                                            kind === "markdown" &&
+                                            state
+                                              .standaloneMediaReferenceStrings
+                                              .length === 0
+                                          }
+                                          text={state.markdownContent ?? ""}
+                                          collapsed={collapsed}
+                                          setCollapsed={setCollapsed}
+                                        >
+                                          {({
+                                            collapsed: sectionCollapsed,
+                                            setCollapsed: setSectionCollapsed,
+                                          }) => (
+                                            <div
+                                              className="transition-colors"
+                                              hidden={!shouldRenderMarkdown}
+                                            >
+                                              <IOSection
+                                                title={title}
+                                                onCopy={state.copy}
+                                                actions={
+                                                  sectionActions.length > 0
+                                                    ? sectionActions
+                                                    : undefined
+                                                }
+                                                collapsed={sectionCollapsed}
+                                                onCollapsedChange={
+                                                  setSectionCollapsed
+                                                }
+                                                variant={
+                                                  kind === "table"
+                                                    ? "table"
+                                                    : "text"
+                                                }
+                                              >
+                                                {!sectionCollapsed && (
+                                                  <ChatMessageContent
+                                                    body={body}
+                                                    renderToolResponse={(
+                                                      response,
+                                                    ) => (
+                                                      <ChatMessageController
+                                                        message={response}
+                                                        title={getMessageTitle(
+                                                          response,
+                                                        )}
+                                                        contentMode={
+                                                          contentMode
+                                                        }
+                                                      >
+                                                        {renderMessage}
+                                                      </ChatMessageController>
+                                                    )}
+                                                  >
+                                                    <PrettyJsonViewContent
+                                                      state={state}
+                                                      title={title}
+                                                      borderless
+                                                    />
+                                                  </ChatMessageContent>
+                                                )}
+                                              </IOSection>
+                                            </div>
+                                          )}
+                                        </SystemPromptCollapseController>
+                                      );
+                                    }}
+                                  </JsonViewController>
+                                )}
+                                <JsonViewController
+                                  json={data.originalContent}
+                                  currentView="pretty"
+                                >
+                                  {(state) => {
+                                    const kind = getJsonViewContentKind(state);
+                                    const sectionActions = [
+                                      ...(kind === "table" &&
+                                      state.hasExpandableRows
+                                        ? [
+                                            {
+                                              icon: state.allRowsExpanded
+                                                ? FoldVertical
+                                                : UnfoldVertical,
+                                              label: state.allRowsExpanded
+                                                ? "Collapse all rows"
+                                                : "Expand all rows",
+                                              onClick: state.toggleAllRows,
+                                            },
+                                          ]
+                                        : []),
+                                      ...actions,
+                                    ];
+                                    return (
+                                      <SystemPromptCollapseController
+                                        isSystemPrompt={
+                                          isSystemPrompt &&
+                                          kind === "markdown" &&
+                                          state.standaloneMediaReferenceStrings
+                                            .length === 0
+                                        }
+                                        text={state.markdownContent ?? ""}
+                                        collapsed={collapsed}
+                                        setCollapsed={setCollapsed}
+                                      >
+                                        {({
+                                          collapsed: sectionCollapsed,
+                                          setCollapsed: setSectionCollapsed,
+                                        }) => (
+                                          <div
+                                            className="transition-colors"
+                                            hidden={shouldRenderMarkdown}
+                                          >
+                                            <IOSection
+                                              title={title}
+                                              onCopy={state.copy}
+                                              actions={
+                                                sectionActions.length > 0
+                                                  ? sectionActions
+                                                  : undefined
+                                              }
+                                              collapsed={sectionCollapsed}
+                                              onCollapsedChange={
+                                                setSectionCollapsed
+                                              }
+                                              variant={
+                                                kind === "table"
+                                                  ? "table"
+                                                  : "text"
+                                              }
+                                            >
+                                              {!sectionCollapsed && (
+                                                <ChatMessageContent
+                                                  body={body}
+                                                  renderToolResponse={(
+                                                    response,
+                                                  ) => (
+                                                    <ChatMessageController
+                                                      message={response}
+                                                      title={getMessageTitle(
+                                                        response,
+                                                      )}
+                                                      contentMode={contentMode}
+                                                    >
+                                                      {renderMessage}
+                                                    </ChatMessageController>
+                                                  )}
+                                                >
+                                                  <PrettyJsonViewContent
+                                                    state={state}
+                                                    title={title}
+                                                    borderless
+                                                  />
+                                                </ChatMessageContent>
+                                              )}
+                                            </IOSection>
+                                          </div>
+                                        )}
+                                      </SystemPromptCollapseController>
+                                    );
+                                  }}
+                                </JsonViewController>
+                              </>
+                            );
+                          }
+                          return assertUnreachable(data);
+                        }}
+                      </ChatMessageController>
                     );
                     if (foldsMiddle && filteredIndex === 0) {
                       return (
