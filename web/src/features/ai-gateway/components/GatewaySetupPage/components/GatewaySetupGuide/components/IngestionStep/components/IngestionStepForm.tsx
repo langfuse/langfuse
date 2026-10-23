@@ -31,7 +31,7 @@ export function IngestionStepForm({
   }
 
   return (
-    <div className="flex flex-col items-start gap-4 pt-2">
+    <div className="flex flex-col items-start gap-4 pt-1">
       <IngestionSettingsFields
         settings={settings}
         projects={projects}

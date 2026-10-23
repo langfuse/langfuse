@@ -18,6 +18,7 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
       size="sm"
       status={status}
       isCollapsible={false}
+      compactBottomSpacing
       docsHref={GATEWAY_SETUP.docsUrl}
       description="Members can create their own gateway keys and use the models you enabled. New people join as Member."
     >

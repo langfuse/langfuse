@@ -40,6 +40,7 @@ export function IngestionStep({
       size="sm"
       status={status}
       isCollapsible={false}
+      compactBottomSpacing
       docsHref={GATEWAY_SETUP.docsUrl}
       description={description}
     >
