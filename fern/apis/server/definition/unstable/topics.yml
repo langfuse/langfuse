@@ -20,7 +20,7 @@ service:
         `name` (string, stringOptions), `description` (string), `isBuiltIn`
         (boolean), `active` (boolean).
       method: GET
-      path: /topics/facets
+      path: /topic-facets
       request:
         name: ListTopicFacetsRequest
         query-parameters:
@@ -48,7 +48,7 @@ service:
 
         Get one Topics facet by id, including inactive facets.
       method: GET
-      path: /topics/facets/{facetId}
+      path: /topic-facets/{facetId}
       path-parameters:
         facetId: string
       response: TopicFacet

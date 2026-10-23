@@ -7494,7 +7494,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
-  /api/public/unstable/topics/facets:
+  /api/public/unstable/topic-facets:
     get:
       description: |-
         Unstable: Topics is in closed beta. The shape may change without notice.
@@ -7579,7 +7579,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
-  /api/public/unstable/topics/facets/{facetId}:
+  /api/public/unstable/topic-facets/{facetId}:
     get:
       description: |-
         Unstable: Topics is in closed beta. The shape may change without notice.
