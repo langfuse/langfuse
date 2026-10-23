@@ -152,17 +152,20 @@ Every outbound-URL surface MUST apply **all three** of:
   the AWS transport (VPC endpoints resolve to private IPs). When the list is
   set, that provider checks the host the transport calls:
   `bedrock-runtime.<region>.<partition>`, or the host of
-  `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` / `AWS_ENDPOINT_URL` when set. Blob storage
-  has no positive host list. For external media S3 virtual-hosted addressing,
-  connect-time validation also trusts `{bucket}.{allowlisted endpoint host}`
-  for that bucket.
+  `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` / `AWS_ENDPOINT_URL` when set. For
+  external media S3 virtual-hosted addressing, connect-time validation also
+  trusts `{bucket}.{allowlisted endpoint host}` for that bucket. Blob storage
+  accepts any bucket-shaped `{bucket}.{listed host}` (`allowedBucketHostParents`),
+  so all blob integrations share one pooled agent policy. Those names still get
+  the private-address block; only exact listed hosts skip it, because the
+  parent zone's DNS or the bucket name decides where they resolve.
 - `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
   private-address block for outbound URL checks that already run. Blob
   storage stays opt-in, so these ranges do not by themselves turn blob
   validation on. Per-surface exemptions still win over those ranges.
 - Blob storage endpoint validation is **opt-in** today on self-hosted (the
   helper is a no-op until the operator configures one of the exemption env
-  vars). There is a `TODO(next major)` in `blobStorageEndpointValidation.ts`
+  vars or `LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS`). There is a `TODO(next major)` in `blobStorageEndpointValidation.ts`
   to flip the default; until then, do not rely on blob storage validation
   for new surfaces — wire your own wrapper that defaults to strict.
 

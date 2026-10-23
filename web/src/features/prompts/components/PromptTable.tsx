@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { useEffect, useMemo } from "react";
 import {
   normalizeOrderByForTable,

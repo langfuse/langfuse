@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useSession } from "next-auth/react";
 import { type ReactNode } from "react";
 

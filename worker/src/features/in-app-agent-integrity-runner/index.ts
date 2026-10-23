@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { logger, recordGauge, redis } from "@langfuse/shared/src/server";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";

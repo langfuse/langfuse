@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AISDKError, APICallError, RetryError } from "ai";
 
 const LLM_VALIDATION_ERROR_MARKER = Symbol.for(

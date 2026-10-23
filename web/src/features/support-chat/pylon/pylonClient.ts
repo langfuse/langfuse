@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { logger } from "@langfuse/shared/src/server";
 import {
   isEnterpriseSupportPlan,

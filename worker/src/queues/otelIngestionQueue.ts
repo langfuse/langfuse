@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job, Processor } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { z } from "zod";

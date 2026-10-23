@@ -29,6 +29,9 @@
 - `ee` depends on `@langfuse/shared`; coordinate shared type changes carefully.
 - Validate downstream usage in `../web/src/ee/*` and `../worker/src/ee/*` when EE
   exports change.
+- EE logic that `worker` must import lives in
+  `../packages/shared/src/server/ee/*` (also under the Enterprise License);
+  `worker` does not depend on `@langfuse/ee`.
 
 ## Package-Specific Rules
 

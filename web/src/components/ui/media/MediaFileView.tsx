@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { ExternalLink } from "@langfuse/icons";
 

@@ -581,15 +581,12 @@ describe("Admin Organizations API", () => {
       testOrgId = org.id;
 
       // Create a test API key for the organization
-      await prisma.apiKey.create({
-        data: {
-          orgId: testOrgId,
-          publicKey: `pk-lf-test-${randomUUID()}`,
-          hashedSecretKey: "hashed-secret",
-          displaySecretKey: "sk-lf-test...1234",
-          note: "Test API Key",
-          scope: "ORGANIZATION",
-        },
+      await createApiKey(prisma, {
+        tenant: OrganizationId(testOrgId),
+        scope: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: "system",
+        name: "Test API Key",
       });
     });
 
@@ -623,7 +620,7 @@ describe("Admin Organizations API", () => {
       expect(response.body.apiKeys[0]).toMatchObject({
         name: "Test API Key",
         note: "Test API Key",
-        role: null,
+        role: "LEGACY_ORGANIZATION_API_KEY",
       });
     });
 
@@ -855,15 +852,12 @@ describe("Admin Organizations API", () => {
       testOrgId = org.id;
 
       // Create a test API key for the organization
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          orgId: testOrgId,
-          publicKey: `pk-lf-test-${randomUUID()}`,
-          hashedSecretKey: "hashed-secret",
-          displaySecretKey: "sk-lf-test...1234",
-          note: "Test API Key",
-          scope: "ORGANIZATION",
-        },
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(testOrgId),
+        scope: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: "system",
+        name: "Test API Key",
       });
       testApiKeyId = apiKey.id;
     });

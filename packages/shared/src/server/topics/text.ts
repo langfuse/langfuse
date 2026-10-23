@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { UnrecoverableError } from "bullmq";
 import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import pLimit from "p-limit";

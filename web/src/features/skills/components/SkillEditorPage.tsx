@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";

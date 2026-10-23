@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * `layout()` — the one pure function that owns every timeline coordinate.
  *

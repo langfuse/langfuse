@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 "use client";
 import {
   type CSSProperties,

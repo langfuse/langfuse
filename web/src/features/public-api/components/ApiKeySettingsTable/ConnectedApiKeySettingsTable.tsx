@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 

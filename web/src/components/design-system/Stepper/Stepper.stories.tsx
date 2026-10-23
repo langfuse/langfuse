@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
 
-import preview from "../../../../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { Stepper } from "./Stepper";
 
 const meta = preview.meta({ component: Stepper });
@@ -24,6 +24,36 @@ export const Collapsed = meta.story({
     onOpenChange: fn(),
     children: <div>Score configuration</div>,
   },
+});
+
+export const OutlineStatic = meta.story({
+  render: () => (
+    <div className="flex max-w-xl flex-col">
+      <Stepper
+        number={1}
+        title="Log out of any existing session"
+        description="An existing login sends conflicting credentials."
+        variant="outline"
+        size="sm"
+        isCollapsible={false}
+        compactBottomSpacing
+      >
+        <div className="rounded-md border p-3 font-mono text-xs">
+          claude /logout
+        </div>
+      </Stepper>
+      <Stepper
+        number={2}
+        title="Start the agent"
+        variant="outline"
+        size="sm"
+        isCollapsible={false}
+        compactBottomSpacing
+      >
+        <div className="rounded-md border p-3 font-mono text-xs">claude</div>
+      </Stepper>
+    </div>
+  ),
 });
 
 export const MultiStep = meta.story({
