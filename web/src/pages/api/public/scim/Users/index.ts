@@ -7,6 +7,7 @@ import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
@@ -205,6 +206,7 @@ export default async function handler(
         from: undefined,
         to: role,
       });
+      requireGatewayEnabledForRole(authCheck.scope.orgId, role);
 
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant

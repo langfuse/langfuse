@@ -35,6 +35,7 @@ import {
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
@@ -240,6 +241,7 @@ export const membersRouter = createTRPCRouter({
         ownRole: ctx.session.orgRole,
         role: input.orgRole,
       });
+      requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
       // check for entilement (project role)
       if (input.projectId && input.projectRole) {
@@ -691,6 +693,7 @@ export const membersRouter = createTRPCRouter({
         ownRole: ctx.session.orgRole,
         role: input.role, // new
       });
+      requireGatewayEnabledForRole(input.orgId, input.role);
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
         role: membership.role, // old

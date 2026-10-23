@@ -41,6 +41,7 @@ type CreateProjectMemberDialogProps = {
   hasProjectRoleEntitlement: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
+  isAiGatewayEnabled: boolean;
   isPending: boolean;
   createProjectMember: (values: FormValues) => Promise<void>;
   onSuccess: () => void;
@@ -52,6 +53,7 @@ export function CreateProjectMemberDialog({
   hasProjectRoleEntitlement,
   canManageOrgOwnership,
   canManageProjectOwnership,
+  isAiGatewayEnabled,
   isPending,
   createProjectMember,
   onSuccess,
@@ -125,7 +127,10 @@ export function CreateProjectMemberDialog({
                   <FormItem>
                     <FormLabel>Organization Role</FormLabel>
                     <RoleSelect
-                      roles={Object.values(roleValues)}
+                      roles={Object.values(roleValues).filter(
+                        (role) =>
+                          isAiGatewayEnabled || role !== roleValues.AI_GATEWAY,
+                      )}
                       canManageOwnership={canManageOrgOwnership}
                       value={field.value}
                       onValueChange={field.onChange}
