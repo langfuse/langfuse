@@ -3,7 +3,17 @@ import { fn } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { CredentialFields } from "./CredentialFields";
 
-const meta = preview.meta({ component: CredentialFields });
+const meta = preview.meta({
+  component: CredentialFields,
+  // The fields render as siblings; the provider dialog body spaces them.
+  decorators: [
+    (Story) => (
+      <div className="flex flex-col gap-4">
+        <Story />
+      </div>
+    ),
+  ],
+});
 
 const callbacks = {
   onNameChange: fn(),
