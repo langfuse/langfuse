@@ -18,6 +18,8 @@ export type PredicateSourceField = {
   type: PredicateSourceFieldType;
   /** Condition variants accepted on this field, each with its operators. */
   operators: Partial<Record<ConditionType, readonly PredicateOperator[]>>;
+  /** A row can match several values, e.g. one per comment. */
+  multiValued?: boolean;
 };
 
 export type PredicateSource = {
@@ -49,12 +51,17 @@ const field = (
   id: string,
   label: string,
   type: PredicateSourceFieldType,
-  opts: { aliases?: readonly string[]; matches?: boolean } = {},
+  opts: {
+    aliases?: readonly string[];
+    matches?: boolean;
+    multiValued?: boolean;
+  } = {},
 ): PredicateSourceField => ({
   id,
   label,
   aliases: opts.aliases ?? [],
   type,
+  ...(opts.multiValued ? { multiValued: true } : {}),
   operators: Object.fromEntries(
     CONDITION_TYPES_BY_FIELD_TYPE[type].map((conditionType) => [
       conditionType,
@@ -129,7 +136,9 @@ export const eventsPredicateSource: PredicateSource = {
     ),
     field("trace_score_booleans", "Trace Scores (boolean)", "booleanObject"),
     field("commentCount", "Comment Count", "number"),
-    field("commentContent", "Comment Content", "string"),
+    field("commentContent", "Comment Content", "string", {
+      multiValued: true,
+    }),
     field("hasParentObservation", "Has Parent Observation", "boolean"),
     field("isRootObservation", "Is Root Observation", "boolean"),
     field("hasInput", "Has Input", "boolean"),

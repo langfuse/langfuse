@@ -63,11 +63,20 @@ export const analyzePredicate = (
     for (const node of conjuncts) {
       if (node.kind !== "condition") continue;
       const field = resolvePredicateSourceField(source, node.field.id);
-      if (!field || !SINGLE_VALUED_FIELD_TYPES.has(field.type)) continue;
+      if (
+        !field ||
+        field.multiValued ||
+        !SINGLE_VALUED_FIELD_TYPES.has(field.type)
+      ) {
+        continue;
+      }
       const constraint = equalityConstraint(node);
       if (!constraint) continue;
 
-      const groupKey = `${field.id}\u0000${constraint.domain}`;
+      // A target scopes a condition to other rows (e.g. another experiment run).
+      const groupKey = [field.id, node.target ?? "", constraint.domain].join(
+        "\u0000",
+      );
       const group = groups.get(groupKey);
       if (!group) {
         groups.set(groupKey, {
@@ -113,7 +122,8 @@ export const analyzePredicate = (
       case "not":
         walk(node.child);
         return;
-      default:
+      case "condition":
+      case "search":
         return;
     }
   };

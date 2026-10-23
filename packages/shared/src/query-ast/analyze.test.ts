@@ -126,8 +126,31 @@ describe("analyzePredicate", () => {
       ],
     ],
     ["unknown fields", [eq("unknownColumn", "a"), eq("unknownColumn", "b")]],
+    // A row can have several comments, and `=` matches each by substring.
+    [
+      "comment content",
+      [eq("commentContent", "foo"), eq("commentContent", "bar")],
+    ],
+    [
+      "conditions on different targets",
+      [
+        { ...eq("userId", "a"), target: "run-a" },
+        { ...eq("userId", "b"), target: "run-b" },
+      ],
+    ],
   ])("does not flag %s", (_, filters) => {
     expect(analyze(fromFilterState(filters))).toEqual([]);
+  });
+
+  it("flags disjoint equalities on the same target", () => {
+    expect(
+      analyze(
+        fromFilterState([
+          { ...eq("userId", "a"), target: "run-a" },
+          { ...eq("userId", "b"), target: "run-a" },
+        ]),
+      ),
+    ).toHaveLength(1);
   });
 
   it("analyzes each conjunction once, including nested and negated ones", () => {
