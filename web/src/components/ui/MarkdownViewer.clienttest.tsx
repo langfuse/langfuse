@@ -238,6 +238,20 @@ describe("MarkdownView code blocks", () => {
 
     expect(container.querySelectorAll(".codeblock")).toHaveLength(2);
   });
+
+  // Prism renders an unregistered language as plain text without an error.
+  it.each(["bash", "sh", "shell", "toml"])(
+    "syntax-highlights a %s fence",
+    (language) => {
+      const { container } = renderMarkdown(
+        `\`\`\`${language}\nexport KEY="value"\n\`\`\``,
+      );
+
+      expect(
+        container.querySelector(".codeblock .token.string"),
+      ).not.toBeNull();
+    },
+  );
 });
 
 describe("prependBasePathToInternalHref", () => {

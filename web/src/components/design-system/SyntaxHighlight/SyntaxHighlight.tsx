@@ -2,6 +2,7 @@
 import { type ComponentProps, type ReactNode } from "react";
 import { Highlight, themes, type PrismTheme } from "prism-react-renderer";
 import { useTheme } from "next-themes";
+import "./prismLanguages";
 
 /** JSON token colors shared with the table JSON viewer; Prism aliases `null` to `keyword`. */
 const JSON_TOKEN_STYLES: PrismTheme["styles"] = [
