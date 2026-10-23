@@ -12,7 +12,7 @@ import {
 export function CustomerDataWarningBannerView(warning: CustomerDataWarning) {
   return (
     <div
-      className="border-customer-data-banner-border bg-customer-data-banner text-customer-data-banner-foreground flex w-full items-center justify-center border-b px-4 py-1"
+      className="ph-no-capture border-customer-data-banner-border bg-customer-data-banner text-customer-data-banner-foreground flex w-full items-center justify-center border-b px-4 py-1"
       role="status"
     >
       <p className="text-center text-sm text-balance">
