@@ -1,59 +1,43 @@
 import { type ReactNode } from "react";
-import { History, Play, RefreshCw } from "@langfuse/icons";
+import { History, RefreshCw } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+
+type TopicsActionsMenuProps = {
+  /** Settings row, when the project has saved settings. */
+  children?: ReactNode;
+  regenerate: { disabled: boolean; onSelect: () => void };
+  closeMenu: (options?: { handoffFocus?: boolean }) => void;
+  onOpenHistory: () => void;
+};
 
 export function TopicsActionsMenu({
   children,
-  triggerAction,
+  regenerate,
   closeMenu,
   onOpenHistory,
-  onRefresh,
 }: TopicsActionsMenuProps) {
-  function processTraces() {
+  function regenerateTopics() {
     closeMenu();
-    triggerAction?.onSelect();
+    regenerate.onSelect();
   }
   function openHistory() {
     closeMenu({ handoffFocus: true });
     onOpenHistory();
   }
-  function refreshResults() {
-    closeMenu();
-    onRefresh();
-  }
   return (
     <>
-      {children}
-      {triggerAction && (
-        <HeaderActionMenuRow
-          label={triggerAction.label}
-          icon={<Play size="base" color="default" />}
-          disabled={triggerAction.disabled}
-          onClick={processTraces}
-        />
-      )}
+      <HeaderActionMenuRow
+        label="Regenerate topics"
+        icon={<RefreshCw size="base" color="default" />}
+        disabled={regenerate.disabled}
+        onClick={regenerateTopics}
+      />
       <HeaderActionMenuRow
         label="History"
         icon={<History size="base" color="default" />}
         onClick={openHistory}
       />
-      <HeaderActionMenuRow
-        label="Refresh results"
-        icon={<RefreshCw size="base" color="default" />}
-        onClick={refreshResults}
-      />
+      {children}
     </>
   );
 }
-
-type TopicsActionsMenuProps = {
-  children?: ReactNode;
-  triggerAction: {
-    label: string;
-    disabled: boolean;
-    onSelect: () => void;
-  } | null;
-  closeMenu: (options?: { handoffFocus?: boolean }) => void;
-  onOpenHistory: () => void;
-  onRefresh: () => void;
-};
