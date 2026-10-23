@@ -83,12 +83,16 @@ project permissions. Processing additionally requires the project allowlist.
   to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
   without losing the reviewed cohort. Explicit preview counts the cohort;
-  changing criteria invalidates it. Rows can be excluded across preview pages.
+  changing criteria invalidates it. Previewed rows can be excluded.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional
-  sampling. Manual processing is capped at 1,000 traces per run. Preview rows and current results render
-  in pages of 20; selected IDs are frozen by the server at submission. All predicates match
+  sampling. Manual processing is capped at 1,000 traces per run. Previews show
+  at most 20 trace IDs with a stored trace name and matching time; automatic
+  previews use the same selection over the last 7 days. Trace names are optional
+  and do not fall back to root observations. Trace-name filters accept typed
+  values without root-derived suggestions or facet counts. Current results render in pages
+  of 20; selected IDs are frozen by the server at submission. All predicates match
   the same observation; the worker reads the
   whole containing trace, including observations outside the selection window.
   Preview only reads identifiers and display metadata and never calls a model.

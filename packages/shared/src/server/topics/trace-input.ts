@@ -1,4 +1,3 @@
-import { isRootObservation } from "../../eventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {
   queryClickhouse,
@@ -33,7 +32,6 @@ type SnapshotRow = {
   trace_name: string;
   span_id: string;
   parent_span_id: string | null;
-  is_app_root: boolean;
   start_time: string;
   end_time: string | null;
   type: TranscriptObservation["type"];
@@ -84,7 +82,6 @@ export async function loadTopicTranscript(params: {
       "e.session_id",
       "e.environment",
       "e.trace_name",
-      "e.is_app_root",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -116,7 +113,7 @@ export async function loadTopicTranscript(params: {
       // Equal storage timestamps need a stable choice; they do not establish causal order.
       {
         column:
-          "cityHash64(tuple(e.environment, e.trace_name, e.is_app_root, e.parent_span_id, e.start_time, e.end_time, e.type, e.name, e.level, e.status_message, e.input, e.output, e.metadata_names, e.metadata_values))",
+          "cityHash64(tuple(e.environment, e.trace_name, e.parent_span_id, e.start_time, e.end_time, e.type, e.name, e.level, e.status_message, e.input, e.output, e.metadata_names, e.metadata_values))",
         direction: "DESC",
       },
     ])
@@ -127,7 +124,6 @@ export async function loadTopicTranscript(params: {
   let sessionId: string | null = null;
   let environment = "";
   let traceName = "";
-  let rootName = "";
   let bytes = 0;
   try {
     for await (const row of queryClickhouseStream<SnapshotRow>({
@@ -149,15 +145,6 @@ export async function loadTopicTranscript(params: {
       // Rows arrive newest first; retain the latest non-empty session and name metadata.
       if (!sessionId && row.session_id) sessionId = row.session_id;
       if (!traceName && row.trace_name) traceName = row.trace_name;
-      if (
-        !rootName &&
-        row.name &&
-        isRootObservation({
-          parentObservationId: row.parent_span_id,
-          isAppRoot: row.is_app_root,
-        })
-      )
-        rootName = row.name;
       bytes += Buffer.byteLength(JSON.stringify(row));
       if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS)
         throw new TopicTraceTooLarge();
@@ -196,7 +183,7 @@ export async function loadTopicTranscript(params: {
     unitStartTime: observations[0].startTime.toISOString(),
     sessionId,
     environment,
-    traceName: traceName || rootName,
+    traceName,
     // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
     transcript: assembleTranscript(orderObservations(observations)),
   };

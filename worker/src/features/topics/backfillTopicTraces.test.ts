@@ -108,6 +108,13 @@ describe("Topics trace selection and backfill", () => {
         name: "root",
         start_time: new Date("2026-09-22T23:59:00Z"),
       }),
+      createEvent({
+        project_id: projectId,
+        trace_id: "trace-new",
+        parent_span_id: "missing-parent",
+        name: "finish",
+        start_time: new Date("2026-09-24T01:00:00Z"),
+      }),
     ]);
   });
   beforeEach(() => {
@@ -127,6 +134,12 @@ describe("Topics trace selection and backfill", () => {
         limit: 1,
         filter: [
           {
+            column: "traceName",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["agent-turn"],
+          },
+          {
             column: "name",
             type: "stringOptions",
             operator: "any of",
@@ -144,10 +157,20 @@ describe("Topics trace selection and backfill", () => {
     expect(addJob).not.toHaveBeenCalled();
   });
 
-  it("enqueues each selected trace with its matching observation time bounds", async () => {
+  it("enqueues each selected trace with its full observation time bounds", async () => {
     const result = await enqueueTopicTraceBackfill({
       projectId,
-      selection,
+      selection: {
+        ...selection,
+        filter: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["fetch_context"],
+          },
+        ],
+      },
       apply: true,
     });
     expect(result.enqueued).toBe(2);
@@ -158,8 +181,8 @@ describe("Topics trace selection and backfill", () => {
       expect.objectContaining({
         projectId,
         traceId: "trace-new",
-        minStart: Date.parse("2026-09-23T09:00:00.000Z"),
-        maxStart: Date.parse("2026-09-23T09:01:00.000Z"),
+        minStart: Date.parse("2026-09-22T23:59:00.000Z"),
+        maxStart: Date.parse("2026-09-24T01:00:00.000Z"),
       }),
     ]);
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);

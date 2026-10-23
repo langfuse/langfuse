@@ -13,7 +13,13 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  fetch: vi.fn(),
+  options: vi.fn(),
+  requestColumns: vi.fn(),
+  searchBar: vi.fn(),
+  builder: vi.fn(),
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
@@ -29,20 +35,24 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
-  useEventsFilterOptions: () => ({
-    filterOptions: {},
-    isFilterOptionsPending: false,
-  }),
+  useEventsFilterOptions: (input: unknown) => {
+    mocks.options(input);
+    return {
+      filterOptions: { traceName: [{ value: "Root fallback", count: 2 }] },
+      isFilterOptionsPending: false,
+      requestColumns: mocks.requestColumns,
+    };
+  },
 }));
 vi.mock("@/src/features/search-bar", () => ({
-  TableSearchBar: () => <div>Query editor</div>,
-  toObservedOptions: () => ({}),
+  TableSearchBar: mocks.searchBar,
+  toObservedOptions: (options: unknown) => options,
   fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
 }));
 vi.mock(
   "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
   () => ({
-    ObservationFilterBuilder: () => <div>Filter builder</div>,
+    ObservationFilterBuilder: mocks.builder,
   }),
 );
 
@@ -91,6 +101,10 @@ function selected() {
 
 beforeEach(() => {
   mocks.fetch.mockReset();
+  mocks.options.mockClear();
+  mocks.requestColumns.mockClear();
+  mocks.searchBar.mockReset().mockImplementation(() => <div>Query editor</div>);
+  mocks.builder.mockReset().mockImplementation(() => <div>Filter builder</div>);
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -103,6 +117,48 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Topics trace selection", () => {
+  it("keeps entered trace names in selection without root-derived suggestions", async () => {
+    const filter = [
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["Support agent"],
+      },
+    ];
+    mocks.fetch.mockResolvedValue(result("trace"));
+    setup();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Query" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(mocks.searchBar.mock.lastCall?.[0].observed.traceName).toEqual([]);
+    act(() => {
+      mocks.searchBar.mock.lastCall?.[0].onRequestColumns([
+        "traceName",
+        "environment",
+      ]);
+      mocks.searchBar.mock.lastCall?.[0].setFilterState(filter);
+    });
+    expect(mocks.requestColumns).toHaveBeenLastCalledWith(["environment"]);
+    expect(mocks.options.mock.lastCall?.[0].refiningFilter).toEqual([]);
+    expect(mocks.options.mock.lastCall?.[0].columns).not.toContain("traceName");
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await waitFor(() =>
+      expect(selected()).toMatchObject({ selection: { filter } }),
+    );
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      expect.objectContaining({ filter }),
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Builder" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(mocks.builder.mock.lastCall?.[0].columns).toContainEqual(
+      expect.objectContaining({ id: "traceName", options: [] }),
+    );
+  });
+
   it("opens preview traces in a new tab without changing the selected batch", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     mocks.fetch.mockResolvedValue(result("trace-0", "trace-1"));

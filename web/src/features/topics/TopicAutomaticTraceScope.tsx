@@ -20,27 +20,21 @@ import {
   type TracingSearchType,
 } from "@langfuse/shared";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { api, sendAsPostOption } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { relativeTopicTimeRange } from "./time-range";
 
 const SAMPLE_TRACES_IN_SCOPE = [
   {
     start: "2026-10-08 15:58:44",
-    type: "GENERATION",
     name: "billing-question",
-    input: '{"role":"user","content":"My subscription invoice..."}',
   },
   {
     start: "2026-10-08 15:58:43",
-    type: "GENERATION",
     name: "weather-question",
-    input: '{"role":"user","content":"I\'m visiting Lisbon this..."}',
   },
   {
     start: "2026-10-08 15:54:02",
-    type: "SPAN",
     name: "weather-question",
-    input: '{"role":"user","content":"What is the weather in..."}',
   },
 ];
 
@@ -63,7 +57,6 @@ const BUILDER_OPTION_COLUMNS = [
   "environment",
   "name",
   "traceTags",
-  "traceName",
   "calledToolNames",
 ] as const;
 
@@ -74,12 +67,6 @@ function authoredTraceFilters(filters: FilterState): FilterState {
       return [{ ...filter, column: "traceTags" as const }];
     return [filter];
   });
-}
-
-function matchCountLabel(count: number | null) {
-  if (count === null) return null;
-  const noun = count === 1 ? "match" : "matches";
-  return `(${count} ${noun})`;
 }
 
 function previewStatus(
@@ -163,64 +150,27 @@ function ProjectTraceScope({
   const options = useEventsFilterOptions({
     projectId,
     startTimeFilter,
-    refiningFilter: authored,
-    isRootObservation: true,
-    includeApproxCount: true,
+    refiningFilter: authored.filter((filter) => filter.column !== "traceName"),
     lazy: mode === "query",
     columns: mode === "query" ? undefined : [...BUILDER_OPTION_COLUMNS],
     enabled: true,
   });
   const observed = useMemo(
     () =>
-      toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
+      toObservedOptions(
+        { ...options.filterOptions, traceName: [] },
+        options.isFilterOptionsPending,
+      ),
     [options.filterOptions, options.isFilterOptionsPending],
   );
-  const previewFilters = useMemo<FilterState>(
-    () => [
-      ...authored,
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
-      ...startTimeFilter,
-    ],
-    [authored, startTimeFilter],
-  );
-  const preview = api.events.listCursor.useQuery({
+  const preview = api.topics.previewTraces.useQuery({
     projectId,
-    filter: previewFilters,
-    searchQuery,
-    searchType,
-    limit: 10,
+    filter: authored,
+    ...range,
+    limit: 20,
+    sampling: "latest",
+    seed: "automatic-preview",
   });
-  const observations = preview.data?.observations ?? [];
-  const ioTargets = observations.flatMap((observation) =>
-    observation.traceId
-      ? [{ id: observation.id, traceId: observation.traceId }]
-      : [],
-  );
-  const startTimes = observations.map((observation) =>
-    observation.startTime.getTime(),
-  );
-  const io = api.events.batchIO.useQuery(
-    {
-      projectId,
-      observations: ioTargets,
-      minStartTime: new Date(
-        startTimes.length > 0 ? Math.min(...startTimes) : 0,
-      ),
-      maxStartTime: new Date(
-        startTimes.length > 0 ? Math.max(...startTimes) : 0,
-      ),
-    },
-    {
-      ...sendAsPostOption,
-      enabled: preview.isSuccess && ioTargets.length > 0,
-    },
-  );
-  const inputById = new Map((io.data ?? []).map((row) => [row.id, row.input]));
   const builderColumns = useMemo(
     () =>
       experimentEvalFilterColsWithOptions(
@@ -228,6 +178,7 @@ function ProjectTraceScope({
         observationEvalFilterColsWithOptions(
           {
             ...options.filterOptions,
+            traceName: [],
             tags: options.filterOptions?.traceTags,
           },
           [...eventsEvalFilterColumns],
@@ -237,12 +188,10 @@ function ProjectTraceScope({
       ),
     [options.filterOptions],
   );
-  const rows = observations.map((observation) => ({
-    id: observation.id,
-    start: format(observation.startTime, "yyyy-MM-dd HH:mm:ss"),
-    type: observation.type,
-    name: observation.name ?? "—",
-    input: inputById.get(observation.id) ?? (io.isPending ? "…" : ""),
+  const rows = (preview.data?.traces ?? []).map((trace) => ({
+    id: trace.id,
+    start: format(trace.timestamp, "yyyy-MM-dd HH:mm:ss"),
+    name: trace.name || trace.id,
   }));
   const status = previewStatus(
     preview.isPending,
@@ -259,10 +208,14 @@ function ProjectTraceScope({
       observed={observed}
       builderColumns={builderColumns}
       erroredColumns={options.erroredColumns}
-      onRequestColumns={options.requestColumns}
-      countLabel={matchCountLabel(options.approxTotalCount)}
-      description="Root observations from the last 7 days. Topics summarizes the whole trace."
-      tooltip="The same filter Topics uses when it selects traces, limited to the last 7 days. Only root observations are shown."
+      onRequestColumns={(columns) =>
+        options.requestColumns(
+          columns.filter((column) => column !== "traceName"),
+        )
+      }
+      countLabel={preview.isSuccess ? `(${rows.length} shown)` : null}
+      description="Up to 20 matching traces from the last 7 days. Topics summarizes the whole trace."
+      tooltip="Each trace appears once, with a representative name and matching time."
       rows={rows}
       status={status}
       searchType={searchType}
@@ -309,9 +262,7 @@ function TraceScopeFrame({
   rows: Array<{
     id?: string;
     start: string;
-    type: string;
     name: string;
-    input: string;
   }>;
   status?: string | null;
   onModeChange?: (mode: EvaluatorFilterExperience) => void;
@@ -416,16 +367,14 @@ function TraceScopeFrame({
           <table className="w-full text-left text-sm">
             <thead className="text-muted-foreground bg-background sticky top-0">
               <tr className="border-b">
-                <th className="px-3 py-2 font-normal">Start time</th>
-                <th className="px-3 py-2 font-normal">Type</th>
-                <th className="px-3 py-2 font-normal">Name</th>
-                <th className="px-3 py-2 font-normal">Input</th>
+                <th className="px-3 py-2 font-normal">Matching time</th>
+                <th className="px-3 py-2 font-normal">Trace</th>
               </tr>
             </thead>
             <tbody>
               {status ? (
                 <tr>
-                  <td className="text-muted-foreground px-3 py-2" colSpan={4}>
+                  <td className="text-muted-foreground px-3 py-2" colSpan={2}>
                     {status}
                   </td>
                 </tr>
@@ -436,14 +385,7 @@ function TraceScopeFrame({
                     className="border-b last:border-b-0"
                   >
                     <td className="px-3 py-2 whitespace-nowrap">{row.start}</td>
-                    <td className="px-3 py-2">{row.type}</td>
                     <td className="px-3 py-2">{row.name}</td>
-                    <td
-                      className="text-muted-foreground max-w-48 truncate px-3 py-2"
-                      title={row.input}
-                    >
-                      {row.input}
-                    </td>
                   </tr>
                 ))
               )}

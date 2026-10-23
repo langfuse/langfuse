@@ -1,10 +1,12 @@
 import type { z } from "zod";
 import type { PrismaClient } from "../../db";
-import { eventsTableTraceNameSelectSql } from "../../eventsTable";
+import { eventsTableCols } from "../../eventsTable";
 import type { topicTraceSelectionCriteriaSchema } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
+import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { queryClickhouse } from "../repositories/clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
@@ -15,8 +17,6 @@ type SelectionRows = {
   ids: { id: string };
   backfill: {
     id: string;
-    timestampMs: string | number;
-    latestMs: string | number;
     matchedTraceCount: string | number;
   };
   preview: {
@@ -48,16 +48,39 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: filterState.concat([
-      {
-        column: "startTime",
-        type: "datetime",
-        operator: ">=",
-        value: input.from,
-      },
-      { column: "startTime", type: "datetime", operator: "<", value: input.to },
-    ]),
+    filter: filterState
+      .filter((filter) => filter.column !== "traceName")
+      .concat([
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: input.from,
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: "<",
+          value: input.to,
+        },
+      ]),
   });
+  queryBuilder.applyFilters(
+    new FilterList(
+      createFilterFromFilterState(
+        filterState.filter((filter) => filter.column === "traceName"),
+        [
+          {
+            uiTableName: "Trace Name",
+            uiTableId: "traceName",
+            clickhouseTableName: "events_proto",
+            clickhouseSelect: "nullIf(e.trace_name, '')",
+          },
+        ],
+        eventsTableCols,
+      ),
+    ),
+  );
   const preview = mode === "preview";
   const matching = queryBuilder
     .selectRaw(
@@ -66,7 +89,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       "e.span_id AS span_id",
       "e.event_ts AS event_ts",
       "e.environment AS environment",
-      ...(preview ? [`${eventsTableTraceNameSelectSql} AS trace_name`] : []),
+      ...(preview ? ["e.trace_name AS trace_name"] : []),
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
@@ -85,12 +108,12 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     .from("matching_observations", "m")
     .select(
       "m.id AS id",
-      "min(m.start_time) AS timestamp",
       "max(m.start_time) AS latest_match",
       "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
       ...(preview
         ? [
-            "argMaxIf(m.trace_name, tuple(m.event_ts, m.span_id, m.trace_name), m.trace_name != '') AS name",
+            "min(m.start_time) AS timestamp",
+            "anyIf(m.trace_name, m.trace_name != '') AS name",
           ]
         : []),
     )
@@ -108,10 +131,9 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ...traces,
       schema: [
         "id",
-        "timestamp",
         "latest_match",
         "environment",
-        ...(preview ? (["name"] as const) : []),
+        ...(preview ? (["name", "timestamp"] as const) : []),
       ] as const,
     })
     .from("matching_traces", "t")
@@ -120,11 +142,14 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ...(mode === "ids"
         ? []
         : [
-            "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
             "count() OVER () AS matchedTraceCount",
             ...(preview
-              ? ["t.name AS name", "t.environment AS environment"]
-              : ["toUnixTimestamp64Milli(t.latest_match) AS latestMs"]),
+              ? [
+                  "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
+                  "t.name AS name",
+                  "t.environment AS environment",
+                ]
+              : []),
           ]),
     )
     .orderByColumns([
@@ -136,7 +161,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         : { column: "t.latest_match", direction: "DESC" },
       { column: "t.id", direction: "ASC" },
     ]);
-  const limit = preview ? Math.min(input.limit ?? Infinity, 100) : input.limit;
+  const limit = preview ? Math.min(input.limit ?? Infinity, 20) : input.limit;
   if (limit !== null) selection.limit(limit);
   const selected = selection.buildWithParams();
   return queryClickhouse<SelectionRows[Mode]>({

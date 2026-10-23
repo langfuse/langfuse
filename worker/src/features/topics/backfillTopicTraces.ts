@@ -1,10 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
+import { chunk } from "lodash";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  CTEQueryBuilder,
+  EventsQueryBuilder,
   QueueJobs,
   TraceBatchEventSchema,
   TraceBatchQueue,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { topicTraceSelectionCriteriaSchema } from "@langfuse/shared/topics";
 import {
@@ -61,30 +65,71 @@ export async function enqueueTopicTraceBackfill(params: {
     throw new Error(
       "Trace batch queue is unavailable. NEXT_PUBLIC_LANGFUSE_CLOUD_REGION must be set in this process.",
     );
-  for (const trace of rows) {
-    const minStart = Number(trace.timestampMs);
-    const maxStart = Math.max(minStart, Number(trace.latestMs));
-    const jobTrace = {
-      projectId: params.projectId,
-      traceId: trace.id,
-      minStart,
-      maxStart,
-      revision: randomUUID(),
-    };
-    const id = createHash("sha256")
-      .update(JSON.stringify([jobTrace]))
-      .digest("hex");
-    const data = TraceBatchEventSchema.parse({
-      id,
-      timestamp: new Date(),
-      name: QueueJobs.TraceBatch,
-      payload: { traces: [jobTrace] },
+  let enqueued = 0;
+  for (const ids of chunk(traceIds, 1_000)) {
+    // Matching observations select traces; batch reads need their full bounds.
+    const observations = new EventsQueryBuilder({ projectId: params.projectId })
+      .selectRaw("e.trace_id", "e.start_time")
+      .forceFullTable()
+      .whereRaw("e.trace_id IN ({traceIds: Array(String)})", { traceIds: ids })
+      .whereRaw(
+        "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
+      )
+      .buildWithParams();
+    const boundsQuery = new CTEQueryBuilder()
+      .withCTE("observations", {
+        ...observations,
+        schema: ["trace_id", "start_time"] as const,
+      })
+      .from("observations", "o")
+      .select(
+        "o.trace_id AS traceId",
+        "min(toUnixTimestamp64Milli(o.start_time)) AS minStart",
+        "max(toUnixTimestamp64Milli(o.start_time)) AS maxStart",
+      )
+      .groupBy("o.trace_id")
+      .buildWithParams();
+    const bounds = await queryClickhouse<{
+      traceId: string;
+      minStart: string;
+      maxStart: string;
+    }>({
+      ...boundsQuery,
+      preferredClickhouseService: "EventsReadOnly",
+      tags: { projectId: params.projectId, route: "topics-backfill-bounds" },
+      clickhouseSettings: {
+        max_threads: 2,
+        max_execution_time: 30,
+        timeout_overflow_mode: "throw",
+      },
     });
-    await queue.add(QueueJobs.TraceBatch, data, { jobId: id });
+    const boundsById = new Map(bounds.map((bound) => [bound.traceId, bound]));
+    for (const traceId of ids) {
+      const bound = boundsById.get(traceId);
+      if (!bound) continue;
+      const jobTrace = {
+        projectId: params.projectId,
+        traceId,
+        minStart: Number(bound.minStart),
+        maxStart: Number(bound.maxStart),
+        revision: randomUUID(),
+      };
+      const id = createHash("sha256")
+        .update(JSON.stringify([jobTrace]))
+        .digest("hex");
+      const data = TraceBatchEventSchema.parse({
+        id,
+        timestamp: new Date(),
+        name: QueueJobs.TraceBatch,
+        payload: { traces: [jobTrace] },
+      });
+      await queue.add(QueueJobs.TraceBatch, data, { jobId: id });
+      enqueued++;
+    }
   }
   return {
     matched,
     traceIds,
-    enqueued: rows.length,
+    enqueued,
   };
 }

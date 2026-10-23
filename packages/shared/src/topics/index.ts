@@ -81,8 +81,13 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) => !filters.some((item) => item.type === "positionInTrace"),
-      "Position-in-trace filters are not supported for Topics selection.",
+      (filters) =>
+        !filters.some(
+          (item) =>
+            item.type === "positionInTrace" ||
+            item.column === "isRootObservation",
+        ),
+      "Root and position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema

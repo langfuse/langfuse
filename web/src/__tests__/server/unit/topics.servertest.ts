@@ -413,6 +413,12 @@ describe("Topics filtered trace preview", () => {
           operator: "any of",
           value: ["billing"],
         },
+        {
+          column: "traceName",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Support agent"],
+        },
       ],
     });
     expect(response).toMatchObject({
@@ -441,11 +447,11 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).toContain("e.start_time < {");
     expect(request.query).toContain("e.trace_id != ''");
     expect(request.query).not.toMatch(
-      /e\.(input|output)\b|\bFINAL\b|\bSAMPLE\b/,
+      /e\.(input|output|is_app_root|parent_span_id)\b|\bFINAL\b|\bSAMPLE\b/,
     );
     expect(request.params).toMatchObject({
       projectId,
-      limit: 100,
+      limit: 20,
       samplingSeed: "sample-seed",
     });
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
@@ -467,9 +473,9 @@ describe("Topics filtered trace preview", () => {
     });
     expect(response.matchedTraceCount).toBe(1001);
     expect(response.selectedTraceCount).toBe(1000);
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(20);
     await caller().previewTraces({ ...selection, limit: 500 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
+    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(20);
   });
 
   it("caps filtered triggers before excluding unchecked traces", async () => {
@@ -679,6 +685,17 @@ describe("Topics filtered trace preview", () => {
       { ...selection, from: selection.to },
       { ...selection, from: new Date("2025-01-01") },
       { ...selection, projectId: "foreign-project" },
+      {
+        ...selection,
+        filter: [
+          {
+            column: "isRootObservation",
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: true,
+          },
+        ],
+      },
       {
         ...selection,
         filter: [
