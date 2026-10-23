@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { get_encoding } from "tiktoken";
 import { createHash } from "node:crypto";
 import { z } from "zod";

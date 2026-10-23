@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import {
   customRowHeightMenu,

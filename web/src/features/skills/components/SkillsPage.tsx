@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import Link from "next/link";
 import {

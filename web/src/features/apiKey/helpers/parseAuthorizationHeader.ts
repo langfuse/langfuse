@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /** basicPrefix is the HTTP Basic auth scheme prefix. */
 const basicPrefix = "Basic ";
 

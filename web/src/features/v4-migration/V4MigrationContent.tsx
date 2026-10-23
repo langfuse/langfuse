@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";

@@ -280,6 +280,7 @@ export function AnnotationScoreRow({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
+                    className="ph-no-capture"
                     onCloseAutoFocus={(event) => {
                       if (!isActive) event.preventDefault();
                     }}

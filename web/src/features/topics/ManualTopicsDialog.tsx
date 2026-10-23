@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 import { Info } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -13,7 +14,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 export function ManualTopicsDialog({
   operation,

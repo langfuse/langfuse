@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ApiKey, Prisma, Role } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys, logger } from "@langfuse/shared/src/server";
 import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";

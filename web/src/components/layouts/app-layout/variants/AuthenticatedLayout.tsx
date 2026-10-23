@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner

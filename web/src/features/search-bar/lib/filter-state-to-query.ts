@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 // Reverse adapter: flat Langfuse `FilterState` (+ full-text searchQuery and
 // searchType scopes) → query text.
 //

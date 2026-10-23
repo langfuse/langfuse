@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   act,
   fireEvent,
@@ -633,6 +634,7 @@ describe("unified annotation targets", () => {
       ).toHaveTextContent("Saved"),
     );
     fireEvent.click(screen.getByTitle("Add or view score comment"));
+    expect(screen.getByRole("dialog")).toHaveClass("ph-no-capture");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Unsent score comment" },
     });
