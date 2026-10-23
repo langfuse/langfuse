@@ -32,7 +32,7 @@ import { FilterState } from "../../types";
 import {
   createDisplayHeaders,
   decryptSecretHeaders,
-  mergeHeaders,
+  getLegacyOnlyHeaders,
 } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
@@ -58,10 +58,10 @@ export const getActionByIdWithSecrets = async ({
 
     // Legacy headers are plaintext but flagged secret, so they are merged in
     // after decryption.
-    const decryptedHeaders = mergeHeaders(
-      config.headers,
-      decryptSecretHeaders(config.requestHeaders ?? {}),
-    );
+    const decryptedHeaders = {
+      ...getLegacyOnlyHeaders(config),
+      ...decryptSecretHeaders(config.requestHeaders ?? {}),
+    };
 
     return {
       ...actionConfig,
@@ -163,18 +163,11 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
  * a stored `displayHeaders` entry lists them unmasked.
  */
 const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
-  const legacyHeaders = Object.fromEntries(
-    Object.entries(config.headers ?? {}).filter(
-      ([key]) => !(key in (config.requestHeaders ?? {})),
-    ),
-  );
+  const legacyHeaders = createDisplayHeaders(getLegacyOnlyHeaders(config));
   if (!config.displayHeaders && Object.keys(legacyHeaders).length === 0) {
     return config.displayHeaders;
   }
-  return {
-    ...config.displayHeaders,
-    ...createDisplayHeaders(mergeHeaders(legacyHeaders)),
-  };
+  return { ...config.displayHeaders, ...legacyHeaders };
 };
 
 /**
