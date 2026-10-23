@@ -36,12 +36,15 @@ function outcomeLabel(outcome: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Treemap hue, nudged toward the text color so it reads on the chip tint. */
 function TopicDot({ rank }: { rank: number }) {
   return (
     <span
       aria-hidden
       className="size-2 shrink-0 rounded-xs"
-      style={{ backgroundColor: treemapSwatchColor(rank) }}
+      style={{
+        backgroundColor: `color-mix(in oklch, ${treemapSwatchColor(rank)} 65%, hsl(var(--foreground)))`,
+      }}
     />
   );
 }
