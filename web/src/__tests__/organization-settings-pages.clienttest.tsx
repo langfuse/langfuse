@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { renderHook } from "@testing-library/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
