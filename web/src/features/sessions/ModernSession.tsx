@@ -15,6 +15,9 @@ import {
 type ModernSessionProps = {
   headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
+  transcriptSource: ComponentProps<
+    typeof ConnectedModernSessionBodyTimeline
+  >["transcriptSource"];
   session: Pick<
     EventSession,
     | "countTraces"
@@ -52,6 +55,7 @@ type ModernSessionProps = {
 export function ModernSession({
   headerDividerTone,
   isTimelineEnabled,
+  transcriptSource,
   session,
   tracesState,
   projectId,
@@ -113,6 +117,7 @@ export function ModernSession({
       </SessionMetadataJsonPathControl>
       {isTimelineEnabled ? (
         <ConnectedModernSessionBodyTimeline
+          transcriptSource={transcriptSource}
           tracesState={tracesState}
           projectId={projectId}
           sessionId={sessionId}

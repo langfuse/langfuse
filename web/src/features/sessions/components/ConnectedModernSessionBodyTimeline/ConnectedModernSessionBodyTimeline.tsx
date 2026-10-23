@@ -1,6 +1,4 @@
 import { useRef, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 import {
   ConnectedSessionConversationTimeline,
@@ -22,6 +20,7 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 type OpenPeek = (id: string, row: EventSessionTrace) => void;
 
 type ConnectedModernSessionBodyTimelineProps = {
+  transcriptSource: "root" | "generations";
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
@@ -31,20 +30,12 @@ type ConnectedModernSessionBodyTimelineProps = {
 };
 
 export function ConnectedModernSessionBodyTimeline({
+  transcriptSource,
   tracesState,
   projectId,
   sessionId,
   openPeek,
 }: ConnectedModernSessionBodyTimelineProps) {
-  const [transcriptSourceParam] = useQueryParam(
-    "transcriptSource",
-    StringParam,
-  );
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const transcriptSource =
-    internalFeaturesEnabled && transcriptSourceParam === "root"
-      ? "root"
-      : "generations";
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
   const [timelineVisibleTraceIds, setTimelineVisibleTraceIds] = useState<
