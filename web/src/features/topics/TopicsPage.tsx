@@ -537,7 +537,7 @@ function TopicsWorkspaceContent({
                     triggerAction={
                       pipeline.available
                         ? {
-                            label: "Manual processing",
+                            label: "Analyze traces now…",
                             disabled: false,
                             onSelect: openManualProcessing,
                           }
