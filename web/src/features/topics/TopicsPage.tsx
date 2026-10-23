@@ -423,9 +423,6 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
-        function openManualProcessing() {
-          openManual("process");
-        }
         function openTopicGeneration() {
           openManual("update");
         }
@@ -478,12 +475,11 @@ function TopicsWorkspaceContent({
                   automaticProcessing={automaticProcessing}
                   configure={modelSettings.configure}
                   canWrite={canWrite}
-                  manualAvailable={pipeline.available}
-                  openManual={openManualProcessing}
+                  regenerateAvailable={pipeline.available}
+                  onRegenerate={openTopicGeneration}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
-                  onRefresh={refreshResults}
                   menuOnly={
                     showLanding && !showSetupProgress && !setupBlockedReason
                   }
@@ -496,22 +492,16 @@ function TopicsWorkspaceContent({
                 }
                 return (
                   <TopicsActionsMenu
-                    triggerAction={
-                      pipeline.available
-                        ? {
-                            label: "Analyze traces now…",
-                            disabled: false,
-                            onSelect: openManualProcessing,
-                          }
-                        : null
-                    }
+                    regenerate={{
+                      disabled: !pipeline.available,
+                      onSelect: openTopicGeneration,
+                    }}
                     closeMenu={closeMenu}
                     onOpenHistory={openHistory}
-                    onRefresh={refreshResults}
                   >
                     {configured ? (
                       <HeaderActionMenuRow
-                        label="Configure Topics"
+                        label="Settings"
                         icon={<Settings size="base" color="default" />}
                         onClick={handleConfigureFromMenu}
                       />
