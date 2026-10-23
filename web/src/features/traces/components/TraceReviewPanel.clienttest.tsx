@@ -17,7 +17,7 @@ vi.mock("next/router", () => ({
     replace: state.replace,
   }),
 }));
-vi.mock("../contexts/TraceReviewPanelContext", () => ({
+vi.mock("../contexts/TraceReviewPanelProvider", () => ({
   useTraceReviewPanel: () => store,
 }));
 vi.mock("../contexts/SelectionProvider", () => ({

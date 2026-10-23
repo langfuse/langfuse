@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { SessionReviewLeading } from "./SessionReviewLeadingProvider";
 import { SessionReviewWorkspace } from "./SessionReviewWorkspace";
 

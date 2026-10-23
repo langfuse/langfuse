@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import {

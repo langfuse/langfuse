@@ -124,7 +124,7 @@ import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sess
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
-import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { SessionReviewWorkspace } from "@/src/features/sessions/SessionReviewWorkspace";
 import { useHistoryEntryRevisit } from "@/src/features/sessions/useHistoryEntryRevisit";
 import {

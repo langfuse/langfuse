@@ -15,7 +15,7 @@ import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
-import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
+import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
 

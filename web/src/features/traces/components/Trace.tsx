@@ -34,7 +34,7 @@ import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/
 import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";

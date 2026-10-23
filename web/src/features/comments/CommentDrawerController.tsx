@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 import {
   useTraceReviewPanelOptional,
   useReviewPanelOpen,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import {
   createCommentOverlayStore,
   type CommentTarget,
