@@ -10,7 +10,7 @@ import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageC
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { LatencyTable } from "@/src/features/dashboard/components/LatencyTables";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { GenerationLatencyChart } from "@/src/features/dashboard/components/GenerationLatencyChart";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 
 /**
