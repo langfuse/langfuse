@@ -62,6 +62,18 @@ const ctx: SidebarFilterActionContext = {
 };
 
 describe("applySelection", () => {
+  it.each(["any of", "all of", "none of"] as const)(
+    "keeps an empty tag selection when toggling to %s",
+    (operator) => {
+      const empty = applyCheckboxSelection(ctx, [], "tags", []);
+      const change = deriveOperatorChange(ctx, empty, "tags")!;
+      expect(change.values).toEqual([]);
+      expect(applySelection(ctx, empty, "tags", change.values, operator)).toBe(
+        empty,
+      );
+    },
+  );
+
   it.each(["env", "tags"])(
     "matches nothing when every default %s option is unchecked",
     (column) => {
