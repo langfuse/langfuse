@@ -1,0 +1,146 @@
+{
+  "2025-07-28-pulse": {
+    "title": "Explore traffic with Pulse",
+    "description": "Tracing page, Pulse strip above the table. Hover a bar to see its count, switch the metric dropdown from Count to Cost, click the highest cost bar to filter the table to that time window, then reset the time range to the past 30 days and the metric to Count."
+  },
+  "2025-10-20-custom-model-definition-169": {
+    "title": "Add a custom model price from a generation",
+    "description": "Trace detail with a generation on model grok-4-fast that shows \"no cost\". Click the model badge in the generation header to open the \"Create Model\" dialog, prefilled with the model name, match pattern and usage types. Enter prices per unit for input and output, review the price preview and click \"Submit\". Langfuse opens the new model under Project Settings > Models."
+  },
+  "2025-12-16-prompt-config": {
+    "title": "Add a model config to a prompt version",
+    "description": "Prompts > support-reply. Click \"New version\", replace the JSON in the \"Config\" editor with {\"model\": \"gpt-4.1\", \"temperature\": 0} and click \"Save new prompt version\". On the new version, open the \"Config\" tab to see the saved config."
+  },
+  "2025-12-19-annotation-queues": {
+    "title": "Create and work an annotation queue",
+    "description": "Human Annotation > \"New queue\": name it \"Error Analysis\", add the \"First Pass\" score config and click \"Create queue\". In Tracing, select three traces, choose \"Add to Annotation Queue\" in the selection bar and pick \"Error Analysis\". Open the queue with \"Process queue\" and annotate the first item in the Annotate panel."
+  },
+  "2025-12-19-manual-scoring": {
+    "title": "Score a generation manually",
+    "description": "Trace detail with a generation selected. Click \"Annotate\" in the observation header, use \"Add score\" to add the Accuracy and Helpfulness score configs, pick \"Correct\" for Accuracy and enter 4 for Helpfulness. Scores save automatically."
+  },
+  "2026-03-06-add-llm-connection-v3": {
+    "title": "Add an LLM connection",
+    "description": "Project Settings > \"LLM Connections\". Click \"+ Project Connection\", choose the LLM adapter (openai), enter a provider name and an API key; \"Show advanced settings\" holds the base URL and custom models, and \"Create connection\" saves it. The video closes the dialog without creating the connection."
+  },
+  "2026-06-17-create-multimodal-dataset-item": {
+    "title": "Add an image to a dataset item",
+    "description": "Datasets > support-screenshots. Click \"New item\", type the input JSON, then use the attach (paperclip) button of the Input editor to upload a checkout screenshot; the editor inserts a media reference with an image preview. Click \"Add to dataset\" and the item appears in the list."
+  },
+  "2026-06-19-filter-search-bar": {
+    "title": "Filter with the search bar",
+    "description": "Tracing page, search bar above the table. Type \"level:\" and pick WARNING from the observed values, add \"metadata.scenario\" with the value refund-request from the suggestions, then run a full-text search for \"Happy to help\" scoped to output. Each filter shows as a chip and narrows the table; clearing the bar restores the unfiltered table."
+  },
+  "2026-07-13-graph-view-modes": {
+    "title": "Switch the agent graph between aggregated and expanded",
+    "description": "Trace detail of an agent trace, \"Graph\" tab next to Tree and Timeline. In the default Aggregated mode, repeated steps collapse into one node such as \"llm.chat (3/3)\"; select it to see its observations. Switch the toggle to Expanded to see the run as it happened, click a tool call node, then switch back to Aggregated."
+  },
+  "2026-08-21-evaluator-code-setup": {
+    "title": "Set up a code evaluator",
+    "description": "Evaluators > \"New evaluator\" > browse templates, search for and pick \"Detect User Frustration (ALL CAPS)\" (TypeScript code evaluator). In \"Test with sample observations\", filter to the support chatbot's generations, select one and click \"Run test on this sample\" to see the score and comment. \"Create evaluator\" at the bottom right saves it."
+  },
+  "2026-08-21-evaluator-llmaaj-setup": {
+    "title": "Set up an LLM-as-a-judge evaluator",
+    "description": "Evaluators > \"New evaluator\" > template \"Classify Input Topic\" (LLM-as-a-judge). Filter the sample observations to the support chatbot, map the {{input}} variable to payload.message under \"Map variables to data\", run the judge on one sample to see its score and reasoning, then click \"Create evaluator\" and confirm the rule in the \"Evaluator saved\" dialog."
+  },
+  "2026-08-22-new-eval-experience": {
+    "title": "Set up online evaluation end to end",
+    "description": "Evaluators > \"New evaluator\" > LLM-as-a-judge template \"Detect Out-of-Scope Request\". Filter the sample to the support chatbot's generations, run the judge on one sample (score false with reasoning), click \"Create evaluator\" and, in the \"Evaluator saved\" dialog, reuse the configured filters as the rule for incoming observations."
+  },
+  "250210-trace-log-level-filter": {
+    "title": "Show and hide DEBUG observations",
+    "description": "Trace detail of a LangGraph trace. The tree notes \"5 hidden observations below DEFAULT level\"; click \"Show all\" to reveal the DEBUG spans. Open the tree's \"⋯\" menu > \"Min Level\" and choose DEFAULT to hide them again."
+  },
+  "create-dashboard": {
+    "title": "Create a dashboard",
+    "description": "Dashboards > \"New dashboard\": name it \"Observation Performance\", add a description and create it. On the new dashboard, set the time range to \"Past 7 days\", click \"Add Widget\" and pick the saved \"Observation Latencies\" widget, which renders as a line chart."
+  },
+  "create-widget": {
+    "title": "Create a dashboard widget",
+    "description": "Dashboards > \"Widgets\" tab > \"New widget\". Keep the Observations view, set Metric to Latency with aggregation P 95, set \"Breakdown Dimension\" to Level, rename it \"Observation Latencies\" and click \"Save Widget\". The widget appears in the Widgets list."
+  },
+  "dataset-item-create": {
+    "title": "Add a dataset item manually",
+    "description": "Datasets > san-francisco-sites. Click \"New item\", enter {\"question\": \"Which Art Deco tower stands on Telegraph Hill?\"} as Input and \"Coit Tower\" as Expected output, then click \"Add to dataset\". The item appears at the top of the Items table."
+  },
+  "dataset-item-upload": {
+    "title": "Import dataset items from CSV",
+    "description": "An empty dataset > \"Upload CSV\": choose a CSV file, then drag the CSV columns input, expected_output and metadata onto the Input, Expected Output and Metadata fields under \"Map to Dataset Items\" and click \"Import\". The rows appear as dataset items."
+  },
+  "datasets-add-from-trace": {
+    "title": "Add a generation to a dataset",
+    "description": "Trace detail with the generate-reply generation selected. Click \"Add to\" in the observation header > \"Dataset\" > support-replies. The \"Add item to datasets\" dialog opens prefilled with the generation's input and output as expected output; click \"Add to dataset\"."
+  },
+  "datasets-compare": {
+    "title": "Compare experiment runs",
+    "description": "Datasets > capital-cities > \"Experiments\" tab. Tick three experiments, click \"Compare\" in the selection bar to see each item's outputs and scores side by side, then click an output to open the item's trace in a side panel and select its generation."
+  },
+  "deploy-prompt": {
+    "title": "Promote a prompt version to production",
+    "description": "Prompts > qa-answer-with-context-chat with the latest version (#12) selected. Click \"Add label\", tick production under \"Promote to production?\" and click \"Save and promote to production\"; the production label moves to #12. The video then selects #9 and promotes it back to production."
+  },
+  "download-chart-data-as-csv": {
+    "title": "Download widget data as CSV",
+    "description": "Dashboards > Langfuse Cost Dashboard. Open the \"⋯\" menu of the \"Total costs\" widget and click \"Download data as CSV\"."
+  },
+  "full-text-search-launch": {
+    "title": "Find traces with full-text search",
+    "description": "Tracing page search bar: type \"cracked bumper\" and pick the full-text suggestion content:\"cracked bumper\" to search inputs and outputs. The table narrows to the matching rows; click one to open the generation in the peek panel."
+  },
+  "playground-open-generation": {
+    "title": "Open a generation in the playground",
+    "description": "Trace detail with a qa-answer generation selected. Click \"Add to\" in the observation header > \"Playground\" > \"Fresh playground\"; the playground opens with the generation's system and user messages and model settings. Click \"Submit\" to rerun it."
+  },
+  "playground-open-prompt": {
+    "title": "Open a prompt in the playground",
+    "description": "Prompts > movie-critic, version 3. Click \"Playground\" > \"Fresh playground\", fill the variables criticlevel (expert) and movie (Dune: Part Two) in the Variables panel and click \"Submit\" to get the model's answer in Output."
+  },
+  "playground-save-prompt": {
+    "title": "Save a playground prompt to Prompt Management",
+    "description": "Playground with a chat prompt. Click \"Save as prompt\" in the window header > \"Save as new prompt\". The new-prompt form opens with the playground's messages; enter the name movie-critic-chat, keep \"Set the production label\" checked and click \"Create prompt\". It lands on version 1 with the production and latest labels."
+  },
+  "playground-side-by-side-comparison": {
+    "title": "Compare prompts side by side in the playground",
+    "description": "Playground with one window. Click \"New split window\" to copy it, open the copy's \"Variables\" and change language from typescript to go, then click \"Run All\" to run both windows at once and compare their outputs. Close the copy with \"Remove window\"."
+  },
+  "project_menu": {
+    "title": "Switch organizations and projects",
+    "description": "Breadcrumb at the top left. Click the organization name (Acme Corp) to list your organizations and \"New Organization\", then click the project name (customer-support) to list the organization's projects and \"New Project\"."
+  },
+  "prompt-changes": {
+    "title": "Compare two prompt versions",
+    "description": "Prompts > support-reply with the latest version (#5) selected. Hover an older version in the version list and click its compare icon; the \"Changes v2 → v5\" dialog shows the content and config diff. Close it."
+  },
+  "prompt-composability": {
+    "title": "Reference another prompt",
+    "description": "Prompts > qa-answer-with-context-chat > \"New version\". Click \"Add prompt reference\", choose the prompt guidelines, reference it by label production and click \"Copy and close\". Paste the copied @@@langfusePrompt tag into the user message, save the version, and open \"Resolved prompt\" to see the guidelines inlined."
+  },
+  "prompt-experiments": {
+    "title": "Run a prompt experiment from the UI",
+    "description": "Datasets > capital-cities > \"Run experiment\" > \"via User Interface\" > Configure. Select prompt answer-question, version 3, and model gpt-4.1, keep the dataset capital-cities, skip evaluators, name the run and click \"Run Experiment\". A toast confirms the experiment was triggered."
+  },
+  "prompt-folders": {
+    "title": "Organize prompts in folders",
+    "description": "Prompts > \"New prompt\": name it onboarding/welcome-email (the slash creates a folder), enter the prompt text and click \"Create prompt\". Back in the Prompts list, the onboarding folder appears; open it to see welcome-email."
+  },
+  "prompt-linking": {
+    "title": "See which prompt version a generation used",
+    "description": "Trace detail with a generation that used movie-critic v3. Click the prompt badge \"movie-critic - v3\" in the generation header to open the prompt, then open its \"Linked Generations\" tab and the \"Metrics\" tab with latency, cost and scores per version."
+  },
+  "prompt-metrics": {
+    "title": "Compare prompt versions by metrics",
+    "description": "Prompts > qa-answer-with-context-chat > \"Metrics\" tab: one row per version with median latency, input and output tokens, cost, generation count and score columns such as accuracy and helpfulness. Switch back with the \"Versions\" tab."
+  },
+  "security-pii-redaction": {
+    "title": "Trace PII redaction around an LLM call",
+    "description": "Trace detail of a call-summary trace. Select the anonymize span to see names, emails and phone numbers replaced by placeholders, select the summarize generation that only sees the placeholders, then select the deanonymize span that restores the original values in the final output."
+  },
+  "share-trace": {
+    "title": "Share a trace publicly",
+    "description": "Trace detail. Open the \"⋯\" (More actions) menu in the trace header and click \"Make Public\"; a toast confirms \"Trace shared publicly\" and that the link was copied. Reopening the menu now offers \"Copy share link\" and \"Unshare\"."
+  },
+  "trace-new-ui": {
+    "title": "Inspect a trace",
+    "description": "Trace detail of a RAG answer with the generation selected. Hover the cost and token values in the generation header to see the cost and usage breakdowns, expand the collapsed chat history, then select the retrieval span in the tree to see the context it returned."
+  }
+}

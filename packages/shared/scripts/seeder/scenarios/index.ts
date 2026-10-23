@@ -3,6 +3,13 @@ import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
+import { docsDemoDatasetsScenario } from "./docs-demo-datasets";
+import { docsDemoEvalsScenario } from "./docs-demo-evals";
+import { docsDemoProjectScenario } from "./docs-demo-project";
+import { docsDemoPromptUsageScenario } from "./docs-demo-prompt-usage";
+import { docsDemoPromptsScenario } from "./docs-demo-prompts";
+import { docsDemoTracesScenario } from "./docs-demo-traces";
+import { docsDemoTrafficScenario } from "./docs-demo-traffic";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
@@ -28,6 +35,13 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "agent-timeline": agentTimelineScenario,
   "agent-graph": agentGraphScenario,
   "deep-chain": deepChainScenario,
+  "docs-demo-datasets": docsDemoDatasetsScenario,
+  "docs-demo-evals": docsDemoEvalsScenario,
+  "docs-demo-project": docsDemoProjectScenario,
+  "docs-demo-prompt-usage": docsDemoPromptUsageScenario,
+  "docs-demo-prompts": docsDemoPromptsScenario,
+  "docs-demo-traces": docsDemoTracesScenario,
+  "docs-demo-traffic": docsDemoTrafficScenario,
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
   "experiment-filters": experimentFiltersScenario,
