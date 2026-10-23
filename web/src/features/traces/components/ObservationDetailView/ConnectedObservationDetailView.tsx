@@ -36,7 +36,7 @@ import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
 import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,

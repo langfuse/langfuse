@@ -14,7 +14,7 @@ import {
 } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
-import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,

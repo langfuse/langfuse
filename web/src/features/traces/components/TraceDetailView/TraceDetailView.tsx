@@ -24,7 +24,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { IOPreviewJSON } from "@/src/features/traces/components/IOPreview/IOPreviewJSON";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 

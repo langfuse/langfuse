@@ -38,7 +38,7 @@ import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTrac
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
