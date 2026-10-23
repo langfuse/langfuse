@@ -62,7 +62,7 @@ import type { ResolvedReadPath } from "@/src/features/events";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -639,12 +639,10 @@ export function DashboardWidget({
           </span>
           {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
             <Badge
-              variant="secondary"
-              className="shrink-0"
+              color="filled"
+              text="Langfuse"
               title="Maintained by Langfuse — editing creates your own copy"
-            >
-              Langfuse
-            </Badge>
+            />
           )}
         </span>
         <div className="flex space-x-2">

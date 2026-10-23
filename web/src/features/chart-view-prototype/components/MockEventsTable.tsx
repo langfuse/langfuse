@@ -1,19 +1,21 @@
-import React from "react";
-import { Badge } from "@/src/components/ui/badge";
+import React, { type ComponentProps } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { cn } from "@/src/utils/tailwind";
 import { type ObservationLevel, type PrototypeEvent } from "../types";
 
 const VISIBLE_ROWS = 14;
 
-const LEVEL_CLASS: Record<ObservationLevel, string> = {
-  ERROR: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  WARNING: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  DEFAULT: "bg-muted text-muted-foreground",
-  DEBUG: "bg-muted text-muted-foreground",
+const LEVEL_COLOR: Record<
+  ObservationLevel,
+  ComponentProps<typeof Badge>["color"]
+> = {
+  ERROR: "red",
+  WARNING: "yellow",
+  DEFAULT: "filled",
+  DEBUG: "filled",
 };
 
 const formatLatency = (ms: number): string =>
@@ -40,9 +42,12 @@ const columns: LangfuseColumnDef<PrototypeEvent>[] = [
     header: "Type",
     cell: ({ getValue }) =>
       getValue<PrototypeEvent["type"]>() ? (
-        <Badge variant="outline" className="font-mono text-[10px]">
-          {getValue<PrototypeEvent["type"]>()}
-        </Badge>
+        <Badge
+          color="primary"
+          size="sm"
+          font="mono"
+          text={getValue<PrototypeEvent["type"]>()}
+        />
       ) : null,
   },
   createTextTableColumn<PrototypeEvent>({
@@ -65,11 +70,7 @@ const columns: LangfuseColumnDef<PrototypeEvent>[] = [
     cell: ({ getValue }) => {
       const level = getValue<ObservationLevel>();
       return level ? (
-        <Badge
-          className={cn("border-transparent text-[10px]", LEVEL_CLASS[level])}
-        >
-          {level}
-        </Badge>
+        <Badge color={LEVEL_COLOR[level]} size="sm" text={level} />
       ) : null;
     },
   },

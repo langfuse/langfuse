@@ -10,7 +10,7 @@ import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeadi
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   DetailPageNav,
   useDetailPageLists,
@@ -172,13 +172,13 @@ function SessionUsers({
             href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
             target="_blank"
             rel="noopener noreferrer"
+            className="inline-flex max-w-[300px]"
           >
-            <Badge className="max-w-[300px]">
-              <span className="truncate" title={userBadgeText}>
-                {userBadgeText}
-              </span>
-              <ExternalLinkIcon size="sm" __rawClassName="ml-1" />
-            </Badge>
+            <Badge
+              color="inverted"
+              text={userBadgeText}
+              trailingIcon={ExternalLinkIcon}
+            />
           </Link>
         );
       })}
@@ -206,16 +206,15 @@ function SessionUsers({
                       <Link
                         key={userId}
                         href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                        className="hover:bg-accent block"
+                        className="hover:bg-accent block max-w-[260px]"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        <Badge className="max-w-[260px]">
-                          <span className="truncate" title={userBadgeText}>
-                            {userBadgeText}
-                          </span>
-                          <ExternalLinkIcon size="sm" __rawClassName="ml-1" />
-                        </Badge>
+                        <Badge
+                          color="inverted"
+                          text={userBadgeText}
+                          trailingIcon={ExternalLinkIcon}
+                        />
                       </Link>
                     );
                   })}
@@ -940,13 +939,15 @@ export const SessionPage: React.FC<{
                     users={session.data.users}
                   />
                 ) : null}
-                <Badge variant="outline">
-                  Total traces: {session.data?.traces.length}
-                </Badge>
+                <Badge
+                  color="primary"
+                  text={`Total traces: ${session.data?.traces.length ?? ""}`}
+                />
                 {session.data && (
-                  <Badge variant="outline">
-                    Total cost: {usdFormatter(session.data.totalCost, 2)}
-                  </Badge>
+                  <Badge
+                    color="primary"
+                    text={`Total cost: ${usdFormatter(session.data.totalCost, 2)}`}
+                  />
                 )}
                 <SessionScores scores={session.data?.scores ?? []} />
               </SessionControlsBar>
@@ -2157,12 +2158,14 @@ const LoadedSessionEventsPage: React.FC<{
                 Session shows trace count and cost in its minimap header. */}
                   {!isModernSessionEnabled ? (
                     <>
-                      <Badge variant="outline">
-                        Total traces: {session.countTraces}
-                      </Badge>
-                      <Badge variant="outline">
-                        Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
-                      </Badge>
+                      <Badge
+                        color="primary"
+                        text={`Total traces: ${session.countTraces}`}
+                      />
+                      <Badge
+                        color="primary"
+                        text={`Total cost: ${usdFormatter(session.totalCost ?? 0, 2)}`}
+                      />
                     </>
                   ) : null}
 

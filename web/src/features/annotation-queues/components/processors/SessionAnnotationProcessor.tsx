@@ -14,7 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
@@ -176,11 +176,12 @@ export const SessionAnnotationProcessor: React.FC<
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
-                <Badge variant="tertiary">Env: {data.environment}</Badge>
+                <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
-              <Badge variant="outline">
-                Total traces: {totalTracesForBadge}
-              </Badge>
+              <Badge
+                color="primary"
+                text={`Total traces: ${totalTracesForBadge}`}
+              />
             </div>
           </div>
         </div>
