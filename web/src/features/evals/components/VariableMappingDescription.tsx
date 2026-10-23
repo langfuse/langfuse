@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Label } from "@/src/components/ui/label";
 
