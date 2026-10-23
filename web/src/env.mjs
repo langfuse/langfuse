@@ -377,7 +377,8 @@ export const env = createEnv({
     // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
     // Unset means true, except on Langfuse Cloud where it means false.
     LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).optional(),
-    // Public gateway URL shown to users. Unset derives it from NEXTAUTH_URL.
+    // Public gateway root URL shown to users. Unset derives it from NEXTAUTH_URL.
+    // Path prefixes are rejected because the setup instructions use the origin.
     LANGFUSE_AI_GATEWAY_PUBLIC_URL: z
       .url({ protocol: /^https?$/ })
       .refine(
@@ -385,11 +386,16 @@ export const env = createEnv({
           // z.url() already reports unparseable values; refine still runs on them.
           if (!URL.canParse(value)) return true;
           const url = new URL(value);
-          return !url.username && !url.password && !/[?#]/.test(value);
+          return (
+            !url.username &&
+            !url.password &&
+            url.pathname === "/" &&
+            !/[?#]/.test(value)
+          );
         },
         {
           message:
-            "LANGFUSE_AI_GATEWAY_PUBLIC_URL must be an http(s) URL without credentials, query or fragment",
+            "LANGFUSE_AI_GATEWAY_PUBLIC_URL must be an http(s) origin without credentials, path, query or fragment",
         },
       )
       .optional(),
