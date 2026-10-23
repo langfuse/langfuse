@@ -29,6 +29,10 @@ interface MembershipInvitationTemplateProps {
 const formatRole = (role: string) =>
   role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 
+// Base URLs can lack a scheme (e.g. Vercel's VERCEL_URL), which `new URL` rejects.
+const getHost = (link: string) =>
+  URL.canParse(link) ? new URL(link).host : link.split("/")[0];
+
 export const MembershipInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
@@ -40,7 +44,9 @@ export const MembershipInvitationTemplate = ({
   emailFromAddress,
   langfuseCloudRegion,
 }: MembershipInvitationTemplateProps) => {
-  const inviteHost = new URL(inviteLink).host;
+  const inviteHost = getHost(inviteLink);
+  // Project-only invites carry no organization role.
+  const shownRole = orgRole && orgRole !== "NONE" ? orgRole : undefined;
 
   return (
     <Html>
@@ -71,10 +77,10 @@ export const MembershipInvitationTemplate = ({
               {langfuseCloudRegion
                 ? ` Langfuse (${langfuseCloudRegion} data region)`
                 : " Langfuse"}
-              {orgRole ? (
+              {shownRole ? (
                 <>
                   {" "}
-                  with the <strong>{formatRole(orgRole)}</strong> role
+                  with the <strong>{formatRole(shownRole)}</strong> role
                 </>
               ) : null}
               .
