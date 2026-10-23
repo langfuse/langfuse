@@ -211,7 +211,7 @@ describe("deselecting the last checkbox", () => {
   );
 
   it.each([false, true])(
-    "keeps neither boolean selected until reset (inverted: %s)",
+    "returns to both boolean labels checked after unchecking the last (inverted: %s)",
     (invertValue) => {
       const config: FilterConfig = {
         tableName: "traces",
@@ -231,9 +231,9 @@ describe("deselecting the last checkbox", () => {
       const facet = () => result.current.filters[0] as CategoricalUIFilter;
       act(() => facet().onChange(["True"]));
       act(() => facet().onChange([]));
-      expect(facet().value).toEqual([]);
-      expect(facet().isActive).toBe(true);
-      expect(result.current.filterState).toHaveLength(2);
+      expect(facet().value).toEqual(["True", "False"]);
+      expect(facet().isActive).toBe(false);
+      expect(result.current.filterState).toEqual([]);
       act(() => facet().onChange(["False"]));
       expect(facet().value).toEqual(["False"]);
       act(() => facet().onReset?.());

@@ -254,16 +254,7 @@ export function applySelection(
     const falseLabel = facet.falseLabel ?? "False";
     const invert = facet.invertValue ?? false;
 
-    if (values.length === 2) return other;
-    if (values.length === 0) {
-      // Boolean filters have no empty-set operator. Both conditions are
-      // ANDed, so this represents neither value without inventing a sentinel.
-      return [
-        ...other,
-        { column, ...target, type: "boolean", operator: "=", value: true },
-        { column, ...target, type: "boolean", operator: "=", value: false },
-      ];
-    }
+    if (values.length === 0 || values.length === 2) return other;
     if (values.includes(trueLabel)) {
       return [
         ...other,
