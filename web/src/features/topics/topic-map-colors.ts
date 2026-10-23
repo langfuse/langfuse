@@ -70,19 +70,19 @@ export const unassignedTileClasses = {
 
 export const UNASSIGNED_SWATCH_COLOR = "var(--category-neutral-highlight)";
 
-export type TopicTone = "good" | "mixed" | "bad" | "failed" | "neutral";
+export type TopicTone = "good" | "bad" | "neutral";
 
 /** Built-in facets answer with a fixed label before the colon. */
 const LABEL_TONES: Record<string, TopicTone> = {
   Positive: "good",
   Neutral: "neutral",
-  Mixed: "mixed",
+  Mixed: "neutral",
   Negative: "bad",
   Completed: "good",
-  Partial: "mixed",
-  Unconfirmed: "mixed",
+  Partial: "neutral",
+  Unconfirmed: "neutral",
   "Needs input": "neutral",
-  "Not completed": "failed",
+  "Not completed": "bad",
 };
 
 export const summaryTone = (summary: string): TopicTone | null =>
@@ -90,22 +90,18 @@ export const summaryTone = (summary: string): TopicTone | null =>
 
 const TONE_TOKENS: Record<TopicTone, string> = {
   good: "--category-emerald-highlight",
-  mixed: "--category-amber-highlight",
-  bad: "--category-pink-highlight",
-  failed: "--category-orange-highlight",
+  bad: "--category-orange-highlight",
   neutral: "--category-neutral-highlight",
 };
 
 const TONE_HEX: Record<TopicTone, string> = {
   good: "#059669",
-  mixed: "#d97706",
-  bad: "#db2777",
-  failed: "#c2410c",
+  bad: "#c2410c",
   neutral: "#71717a",
 };
 
-/** Topics sharing a tone step away from the base: positive mixes toward the text color, negative toward the page. */
-const SHADE_STEPS = [0, 24, -24, 44, -40];
+/** Every topic of a tone shares one flat color. */
+const SHADE_STEPS = [0];
 
 const shadeStep = (shade: number) => SHADE_STEPS[shade % SHADE_STEPS.length];
 

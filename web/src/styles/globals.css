@@ -158,7 +158,6 @@
   --color-category-blue-highlight: var(--category-blue-highlight);
   --color-category-amber-highlight: var(--category-amber-highlight);
   --color-category-emerald-highlight: var(--category-emerald-highlight);
-  --color-category-pink-highlight: var(--category-pink-highlight);
   --color-category-orange-highlight: var(--category-orange-highlight);
   --color-category-neutral-tint: var(--category-neutral-tint);
   --color-category-neutral-highlight: var(--category-neutral-highlight);
@@ -353,7 +352,6 @@
     --category-blue-highlight: oklch(0.82 0.11 252);
     --category-amber-highlight: oklch(0.82 0.11 70);
     --category-emerald-highlight: oklch(0.82 0.11 163);
-    --category-pink-highlight: oklch(0.82 0.11 354);
     --category-orange-highlight: oklch(0.82 0.11 42);
     --category-neutral-tint: oklch(0.92 0 0);
     --category-neutral-highlight: oklch(0.82 0 0);
@@ -592,7 +590,6 @@
     --category-blue-highlight: oklch(0.45 0.11 252);
     --category-amber-highlight: oklch(0.45 0.11 70);
     --category-emerald-highlight: oklch(0.45 0.11 163);
-    --category-pink-highlight: oklch(0.45 0.11 354);
     --category-orange-highlight: oklch(0.45 0.11 42);
     --category-neutral-tint: oklch(0.3 0 0);
     --category-neutral-highlight: oklch(0.45 0 0);
