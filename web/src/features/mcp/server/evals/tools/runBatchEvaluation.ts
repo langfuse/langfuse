@@ -72,6 +72,7 @@ export const [runBatchEvaluationTool, handleRunBatchEvaluation] = defineTool({
             projectId: context.projectId,
             query: { filter: input.filter, orderBy: null },
             evaluatorIds: input.evaluatorIds,
+            sourceTable: "events",
             evalVersion: "v2",
             sampling: input.sampling,
             rowLimit: input.rowLimit,

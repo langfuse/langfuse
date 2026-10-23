@@ -31,17 +31,15 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
-        const service = new BatchEvaluationService(
-          ctx.prisma,
-          ({ batchAction }) =>
-            auditLog({
-              session: ctx.session,
-              resourceType: "batchAction",
-              resourceId: batchAction.id,
-              projectId: batchAction.projectId,
-              action: ActionId.ObservationBatchEvaluation,
-              after: batchAction,
-            }),
+        const service = new BatchEvaluationService(ctx.prisma, (batchAction) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "batchAction",
+            resourceId: batchAction.id,
+            projectId: batchAction.projectId,
+            action: ActionId.ObservationBatchEvaluation,
+            after: batchAction,
+          }),
         );
 
         const plan = ctx.session.user.admin

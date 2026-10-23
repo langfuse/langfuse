@@ -5,7 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import type { ServerContext } from "../../types";
 
 export function createMcpBatchEvaluationService(context: ServerContext) {
-  return new BatchEvaluationService(prisma, ({ batchAction }) =>
+  return new BatchEvaluationService(prisma, (batchAction) =>
     auditLog({
       action: ActionId.ObservationBatchEvaluation,
       resourceType: "batchAction",

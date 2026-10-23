@@ -23,25 +23,9 @@ import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/eval
 import type { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
 
-type ParsedBatchEvaluationInput = z.output<
+type CreateBatchEvaluationInput = z.output<
   typeof CreateObservationBatchEvaluationActionSchema
 >;
-
-export type CreateBatchEvaluationInput = Omit<
-  ParsedBatchEvaluationInput,
-  "sourceTable"
-> &
-  Partial<Pick<ParsedBatchEvaluationInput, "sourceTable">>;
-
-export type BatchEvaluationActor = {
-  userId: string;
-  /** Plan of the project's organization; limits selection to its data-access window. */
-  plan: Plan | null;
-};
-
-export type BatchEvaluationAuditEvent = {
-  batchAction: BatchAction;
-};
 
 function withDataAccessFloor(
   query: BatchActionQuery,
@@ -91,16 +75,17 @@ function missingEvaluatorsMessage(params: {
 export class BatchEvaluationService {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly audit: (event: BatchEvaluationAuditEvent) => Promise<void>,
+    private readonly audit: (batchAction: BatchAction) => Promise<void>,
   ) {}
 
   async create(
     input: CreateBatchEvaluationInput,
-    actor: BatchEvaluationActor,
+    /** `plan` limits the selection to the organization's data-access window. */
+    actor: { userId: string; plan: Plan | null },
   ): Promise<{ id: string }> {
     const {
       projectId,
-      sourceTable = BatchEvalSourceTable.EVENTS,
+      sourceTable,
       evaluatorMappings: rawEvaluatorMappings,
       sampling,
       rowLimit,
@@ -164,7 +149,7 @@ export class BatchEvaluationService {
       },
     });
 
-    await this.audit({ batchAction });
+    await this.audit(batchAction);
 
     await BatchActionQueue.getInstance()?.add(
       QueueJobs.BatchActionProcessingJob,
