@@ -44,7 +44,16 @@ export const runEvaluationRouter = createTRPCRouter({
             }),
         );
 
-        return await service.create(input, { userId: ctx.session.user.id });
+        const plan = ctx.session.user.admin
+          ? null
+          : (ctx.session.user.organizations.find(
+              (org) => org.id === ctx.session.orgId,
+            )?.plan ?? null);
+
+        return await service.create(input, {
+          userId: ctx.session.user.id,
+          plan,
+        });
       } catch (e) {
         logger.error(e);
         if (e instanceof TRPCError) {

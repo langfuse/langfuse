@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { z } from "zod";
 import {
   ActionId,
@@ -7,6 +6,8 @@ import {
   BatchTableNames,
   getEvalTargetObjectFromSourceTable,
   InvalidRequestError,
+  type BatchActionQuery,
+  type Plan,
 } from "@langfuse/shared";
 import type { BatchAction, PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -17,6 +18,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import type { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
@@ -31,9 +33,56 @@ export type CreateBatchEvaluationInput = Omit<
 > &
   Partial<Pick<ParsedBatchEvaluationInput, "sourceTable">>;
 
+export type BatchEvaluationActor = {
+  userId: string;
+  /** Plan of the project's organization; limits selection to its data-access window. */
+  plan: Plan | null;
+};
+
 export type BatchEvaluationAuditEvent = {
   batchAction: BatchAction;
 };
+
+function withDataAccessFloor(
+  query: BatchActionQuery,
+  plan: Plan | null,
+): BatchActionQuery {
+  const { accessFloor } = clampToDataAccessDays({ plan });
+  if (!accessFloor) return query;
+
+  return {
+    ...query,
+    filter: [
+      ...(query.filter ?? []),
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+        value: accessFloor,
+      },
+    ],
+  };
+}
+
+function missingEvaluatorsMessage(params: {
+  missingEvaluatorIds: string[];
+  isEvaluatorV2: boolean;
+  sourceTable: BatchEvalSourceTable;
+}): string {
+  const { missingEvaluatorIds, isEvaluatorV2, sourceTable } = params;
+  const subject =
+    missingEvaluatorIds.length > 0
+      ? `Evaluators [${missingEvaluatorIds.join(", ")}]`
+      : "Selected evaluators";
+
+  if (isEvaluatorV2) {
+    return `${subject} are missing or incompatible with batch evaluation.`;
+  }
+
+  const scopeLabel =
+    sourceTable === BatchEvalSourceTable.EVENTS ? "observation" : "experiment";
+  return `${subject} are missing or not ${scopeLabel}-scoped.`;
+}
 
 /**
  * Queues a batch evaluation over the observations matching a table query.
@@ -47,12 +96,10 @@ export class BatchEvaluationService {
 
   async create(
     input: CreateBatchEvaluationInput,
-    actor: { userId: string },
+    actor: BatchEvaluationActor,
   ): Promise<{ id: string }> {
     const {
       projectId,
-      query,
-      evaluatorIds: rawEvaluatorIds,
       sourceTable = BatchEvalSourceTable.EVENTS,
       evaluatorMappings: rawEvaluatorMappings,
       sampling,
@@ -65,54 +112,8 @@ export class BatchEvaluationService {
       );
     }
 
-    const targetObject = getEvalTargetObjectFromSourceTable(sourceTable);
-    const scopeLabel =
-      sourceTable === BatchEvalSourceTable.EVENTS
-        ? "observation"
-        : "experiment";
-
-    const requestedEvaluatorIds = Array.from(new Set(rawEvaluatorIds));
-
-    const evaluatorIds = (
-      input.evalVersion === "v2"
-        ? await this.prisma.evaluator.findMany({
-            where: {
-              id: { in: requestedEvaluatorIds },
-              projectId,
-              ...batchEligibleEvaluatorWhere,
-            },
-            select: { id: true },
-          })
-        : await this.prisma.evaluationRule.findMany({
-            where: {
-              id: {
-                in: requestedEvaluatorIds,
-              },
-              projectId,
-              targetObject,
-            },
-            select: {
-              id: true,
-            },
-          })
-    ).map((e) => e.id);
-
-    if (evaluatorIds.length !== requestedEvaluatorIds.length) {
-      const foundIds = new Set(evaluatorIds);
-      const missingEvaluatorIds = requestedEvaluatorIds.filter(
-        (id) => !foundIds.has(id),
-      );
-
-      throw new InvalidRequestError(
-        missingEvaluatorIds.length > 0
-          ? input.evalVersion === "v2"
-            ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or incompatible with batch evaluation.`
-            : `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or not ${scopeLabel}-scoped.`
-          : input.evalVersion === "v2"
-            ? "Selected evaluators are missing or incompatible with batch evaluation."
-            : `Selected evaluators are missing or not ${scopeLabel}-scoped.`,
-      );
-    }
+    const query = withDataAccessFloor(input.query, actor.plan);
+    const evaluatorIds = await this.findEvaluatorIds(input, sourceTable);
 
     const evaluatorMappings =
       input.evalVersion === "v2" && rawEvaluatorMappings
@@ -123,27 +124,11 @@ export class BatchEvaluationService {
           })
         : undefined;
 
-    // Event comments live in Postgres, so resolve them for the preflight
-    // count while retaining the original query for the queued worker.
-    const commentFilterResult =
-      sourceTable === BatchEvalSourceTable.EVENTS
-        ? await applyCommentFilters({
-            filterState: query.filter ?? [],
-            prisma: this.prisma,
-            projectId,
-            objectType: "OBSERVATION",
-          })
-        : null;
-
-    const observationCount = commentFilterResult?.hasNoMatches
-      ? 0
-      : await getObservationsCountFromEventsTable({
-          projectId,
-          filter: commentFilterResult?.filterState ?? query.filter ?? [],
-          searchQuery: query.searchQuery,
-          searchType: query.searchType,
-        });
-
+    const observationCount = await this.countMatchingObservations({
+      projectId,
+      query,
+      sourceTable,
+    });
     if (
       rowLimit === undefined &&
       observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT
@@ -193,13 +178,7 @@ export class BatchEvaluationService {
           projectId,
           cutoffCreatedAt: new Date(),
           query,
-          evaluatorIds: batchConfig.evaluatorIds,
-          ...(batchConfig.evalVersion
-            ? { evalVersion: batchConfig.evalVersion }
-            : {}),
-          ...(evaluatorMappings ? { evaluatorMappings } : {}),
-          ...(sampling !== undefined ? { sampling } : {}),
-          ...(rowLimit !== undefined ? { rowLimit } : {}),
+          ...batchConfig,
         },
       },
       {
@@ -208,5 +187,77 @@ export class BatchEvaluationService {
     );
 
     return { id: batchAction.id };
+  }
+
+  private async findEvaluatorIds(
+    input: CreateBatchEvaluationInput,
+    sourceTable: BatchEvalSourceTable,
+  ): Promise<string[]> {
+    const { projectId } = input;
+    const requestedEvaluatorIds = Array.from(new Set(input.evaluatorIds));
+
+    const found =
+      input.evalVersion === "v2"
+        ? await this.prisma.evaluator.findMany({
+            where: {
+              id: { in: requestedEvaluatorIds },
+              projectId,
+              ...batchEligibleEvaluatorWhere,
+            },
+            select: { id: true },
+          })
+        : await this.prisma.evaluationRule.findMany({
+            where: {
+              id: { in: requestedEvaluatorIds },
+              projectId,
+              targetObject: getEvalTargetObjectFromSourceTable(sourceTable),
+            },
+            select: { id: true },
+          });
+    const evaluatorIds = found.map((e) => e.id);
+
+    if (evaluatorIds.length !== requestedEvaluatorIds.length) {
+      const foundIds = new Set(evaluatorIds);
+      throw new InvalidRequestError(
+        missingEvaluatorsMessage({
+          missingEvaluatorIds: requestedEvaluatorIds.filter(
+            (id) => !foundIds.has(id),
+          ),
+          isEvaluatorV2: input.evalVersion === "v2",
+          sourceTable,
+        }),
+      );
+    }
+
+    return evaluatorIds;
+  }
+
+  private async countMatchingObservations(params: {
+    projectId: string;
+    query: BatchActionQuery;
+    sourceTable: BatchEvalSourceTable;
+  }): Promise<number> {
+    const { projectId, query, sourceTable } = params;
+
+    // Event comments live in Postgres, so resolve them for the preflight
+    // count while retaining the original query for the queued worker.
+    const commentFilterResult =
+      sourceTable === BatchEvalSourceTable.EVENTS
+        ? await applyCommentFilters({
+            filterState: query.filter ?? [],
+            prisma: this.prisma,
+            projectId,
+            objectType: "OBSERVATION",
+          })
+        : null;
+
+    if (commentFilterResult?.hasNoMatches) return 0;
+
+    return getObservationsCountFromEventsTable({
+      projectId,
+      filter: commentFilterResult?.filterState ?? query.filter ?? [],
+      searchQuery: query.searchQuery,
+      searchType: query.searchType,
+    });
   }
 }

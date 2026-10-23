@@ -98,6 +98,13 @@ function prepare({
   foundEvaluatorIds = [evaluatorId],
   missingPromptVariable = false,
   decisionModel = false,
+  plan,
+}: {
+  v4BetaEnabled?: boolean;
+  foundEvaluatorIds?: string[];
+  missingPromptVariable?: boolean;
+  decisionModel?: boolean;
+  plan?: string;
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -161,7 +168,14 @@ function prepare({
     ...createInnerTRPCContext({
       session: {
         ...session,
-        user: { ...session.user, v4BetaEnabled },
+        user: {
+          ...session.user,
+          v4BetaEnabled,
+          organizations: session.user!.organizations.map((org) => ({
+            ...org,
+            plan,
+          })),
+        },
       } as Session,
       headers: {},
     }),
@@ -357,6 +371,33 @@ describe("batched evaluation version selection", () => {
         }),
       }),
       expect.anything(),
+    );
+  });
+
+  it("limits the selection to the organization plan's data-access window", async () => {
+    const context = prepare({ plan: "cloud:hobby" });
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+    });
+
+    const accessFloorFilter = expect.objectContaining({
+      type: "datetime",
+      column: "startTime",
+      operator: ">=",
+      value: expect.any(Date),
+    });
+    expect(context.batchActionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          query: expect.objectContaining({
+            filter: [rawCommentFilter, accessFloorFilter],
+          }),
+        }),
+      }),
     );
   });
 
