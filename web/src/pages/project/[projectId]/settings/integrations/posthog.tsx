@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import {
   AnalyticsIntegrationExportSource,
   validateExportSource,
@@ -142,6 +143,19 @@ export default function PosthogIntegrationSettings() {
   );
 }
 
+function getApiKeyDescription(
+  isConfigured: boolean,
+  isHostnameChanged: boolean,
+): string | undefined {
+  if (isHostnameChanged) {
+    return "Enter the API key again when changing the hostname.";
+  }
+  if (isConfigured) {
+    return "Leave blank to keep the current API key.";
+  }
+  return undefined;
+}
+
 const PostHogIntegrationSettings = ({
   state,
   projectId,
@@ -207,6 +221,21 @@ const PostHogIntegrationSettings = ({
             message: "PostHog Project API Key is required",
           });
         }
+        if (
+          state &&
+          !data.posthogProjectApiKey &&
+          !areDestinationUrlsEquivalent(
+            data.posthogHostname,
+            state.posthogHostName,
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["posthogProjectApiKey"],
+            message:
+              "PostHog Project API Key is required when changing the hostname",
+          });
+        }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
@@ -248,6 +277,11 @@ const PostHogIntegrationSettings = ({
   }, [state]);
 
   const watchedExportSource = posthogForm.watch("exportSource");
+  const watchedHostname = posthogForm.watch("posthogHostname");
+  const isHostnameChanged =
+    !!state &&
+    !areDestinationUrlsEquivalent(watchedHostname, state.posthogHostName);
+  const apiKeyDescription = getApiKeyDescription(!!state, isHostnameChanged);
   const watchedValidation =
     watchedExportSource != null
       ? validateExportSource(watchedExportSource, exportSourceCtx)
@@ -307,10 +341,8 @@ const PostHogIntegrationSettings = ({
                   placeholder={state?.posthogApiKeyDisplay}
                 />
               </FormControl>
-              {state && (
-                <FormDescription>
-                  Leave blank to keep the current API key.
-                </FormDescription>
+              {apiKeyDescription && (
+                <FormDescription>{apiKeyDescription}</FormDescription>
               )}
               <FormMessage />
             </FormItem>

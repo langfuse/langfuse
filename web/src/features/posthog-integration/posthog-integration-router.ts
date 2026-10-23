@@ -13,6 +13,7 @@ import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
@@ -122,8 +123,25 @@ export const posthogIntegrationRouter = createTRPCRouter({
             exportSource: true,
             createdAt: true,
             encryptedPosthogApiKey: true,
+            posthogHostName: true,
           },
         });
+
+      // A stored key is only sent to the hostname it was entered for.
+      if (
+        existingIntegration &&
+        !input.posthogProjectApiKey &&
+        !areDestinationUrlsEquivalent(
+          input.posthogHostname,
+          existingIntegration.posthogHostName,
+        )
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "PostHog Project API Key is required when changing the hostname",
+        });
+      }
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
       // value (LFE-14384).
