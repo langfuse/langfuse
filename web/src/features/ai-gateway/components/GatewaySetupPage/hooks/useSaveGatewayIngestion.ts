@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
@@ -12,6 +12,8 @@ export function useSaveGatewayIngestion(organizationId: string) {
   const updateConfig = api.aiGateway.updateConfig.useMutation();
   // Spans every request and the refetch, so callers stay busy until the saved config is shown.
   const [isSaving, setIsSaving] = useState(false);
+  // A save can fail after creating the project; the retry must not create it again.
+  const createdProjectRef = useRef<{ name: string; id: string } | null>(null);
 
   async function resolveProjectId(settings: GatewayIngestionSettings) {
     if (settings.projectTarget === "existing") {
@@ -19,10 +21,15 @@ export function useSaveGatewayIngestion(organizationId: string) {
     }
     // None keeps an already linked project but never creates one.
     if (settings.ingestionMode === "NONE") return null;
+    const name = settings.newProjectName.trim();
+    if (createdProjectRef.current?.name === name) {
+      return createdProjectRef.current.id;
+    }
     const project = await createProject.mutateAsync({
       orgId: organizationId,
-      name: settings.newProjectName.trim(),
+      name,
     });
+    createdProjectRef.current = { name, id: project.id };
     // The organization's project list comes from the session.
     await session.update();
     return project.id;
