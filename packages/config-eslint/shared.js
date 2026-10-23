@@ -4,12 +4,16 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
-// Files allowed to make each Prisma model's restricted writes; globs match trailing path segments.
 const membershipTestWriters = [
   "__tests__/**",
   "*.test.ts",
   "scripts/seeder/**",
 ];
+/**
+ * allowedPrismaWriters contains the list of files allowed to write to the following Prisma collections.
+ * No config permits writes from the entire application.
+ * Globs match trailing path segments.
+ */
 const allowedPrismaWriters = {
   apiKey: allowPrismaCreate("packages/shared/src/server/auth/apiKeys.ts"),
   roleAssignment: allowPrismaCreate(
