@@ -1,6 +1,7 @@
 import { expect } from "storybook/test";
-import preview from "../../.storybook/preview";
-import { ItemBadge, type LangfuseItemType } from "./ItemBadge";
+import preview from "../../../.storybook/preview";
+import { ItemBadge } from "./ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 
 const meta = preview.meta({
   component: ItemBadge,

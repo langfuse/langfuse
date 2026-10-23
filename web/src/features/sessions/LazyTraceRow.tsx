@@ -5,7 +5,7 @@ import { Card } from "@/src/components/ui/card";
 import { type RouterOutputs } from "@/src/utils/api";
 import Link from "next/link";
 import React, { useEffect, useCallback, useRef } from "react";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
 import { useSessionDetailStore } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
 

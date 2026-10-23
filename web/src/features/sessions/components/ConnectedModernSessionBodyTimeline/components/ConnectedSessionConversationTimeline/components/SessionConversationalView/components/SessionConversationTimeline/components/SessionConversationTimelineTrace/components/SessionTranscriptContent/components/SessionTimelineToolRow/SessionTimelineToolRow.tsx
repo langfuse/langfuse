@@ -1,7 +1,7 @@
 import { Bug, CircleAlert, Info, TriangleAlert } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
-import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -45,7 +45,7 @@ export function SessionTimelineToolRow({
     <SessionTimelineCollapsibleRow
       label={name}
       searchableLabel
-      icon={renderFilterIcon("TOOL")}
+      icon={<ItemTypeIcon type="TOOL" size="base" color="type" />}
       isExpanded={isExpanded}
       onExpandedChange={onExpandedChange}
       trailingContent={trailingContent}

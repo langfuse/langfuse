@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";

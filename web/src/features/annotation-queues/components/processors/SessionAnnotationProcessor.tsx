@@ -13,7 +13,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";

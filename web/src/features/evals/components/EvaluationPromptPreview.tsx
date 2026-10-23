@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";

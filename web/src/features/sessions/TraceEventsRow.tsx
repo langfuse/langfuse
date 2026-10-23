@@ -5,7 +5,7 @@ import { Card } from "@/src/components/ui/card";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import Link from "next/link";
 import React from "react";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/features/sessions/SessionObservationIO";
 import { FilterX } from "@langfuse/icons";
