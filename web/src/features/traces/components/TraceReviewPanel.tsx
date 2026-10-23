@@ -168,7 +168,9 @@ function TraceAnnotationPanel() {
     projectId: trace.projectId,
     environment: observation?.environment ?? trace.environment,
     observationId: observation?.id,
-    scores: serverScores,
+    scores: serverScores.filter(
+      (score) => score.traceId === (observation?.traceId ?? trace.id),
+    ),
     isV4,
   });
   return (

@@ -26,14 +26,25 @@ vi.mock("../contexts/SelectionContext", () => ({
 vi.mock("../contexts/TraceDataContext", () => ({
   useTraceData: () => ({
     trace: { id: "trace", projectId: "project", environment: "default" },
+    sessionTraces: [
+      { id: "trace", projectId: "project", environment: "default" },
+      { id: "other-trace", projectId: "project", environment: "default" },
+    ],
     observations: [
-      { id: "first", environment: "default" },
-      { id: "second", environment: "default" },
+      { id: "first", traceId: "trace", environment: "default" },
+      { id: "second", traceId: "trace", environment: "default" },
+      { id: "first", traceId: "other-trace", environment: "default" },
     ],
     serverScores: [
-      { id: "trace-score", observationId: null },
-      { id: "first-score", observationId: "first" },
-      { id: "second-score", observationId: "second" },
+      { id: "trace-score", traceId: "trace", observationId: null },
+      { id: "first-score", traceId: "trace", observationId: "first" },
+      { id: "second-score", traceId: "trace", observationId: "second" },
+      { id: "other-trace-score", traceId: "other-trace", observationId: null },
+      {
+        id: "other-first-score",
+        traceId: "other-trace",
+        observationId: "first",
+      },
     ],
   }),
 }));
@@ -95,6 +106,36 @@ it("follows the selected annotation target and switches panels through the URL",
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
+  );
+});
+
+it("scopes annotations to the selected session trace, including reused observation IDs", () => {
+  state.query = { annotation: "open" };
+  state.selectedNodeId = "trace-trace";
+  const view = render(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("annotation")).toHaveTextContent(
+    "trace:trace-score",
+  );
+  expect(screen.getByTestId("annotation")).not.toHaveTextContent(
+    "other-trace-score",
+  );
+
+  state.selectedNodeId = "trace-other-trace";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("annotation")).toHaveTextContent(
+    "trace:other-trace-score",
+  );
+
+  state.selectedNodeId = "other-trace:first";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("annotation")).toHaveTextContent(
+    "first:other-first-score",
+  );
+  expect(screen.getByTestId("annotation")).not.toHaveTextContent(
+    "first:first-score",
+  );
+  expect(screen.getByTestId("trace-scope")).toHaveTextContent(
+    "other-trace-score",
   );
 });
 

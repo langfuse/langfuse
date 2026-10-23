@@ -95,7 +95,27 @@ export const TraceLogView = ({
   currentView = "pretty",
   target = "trace",
 }: TraceLogViewProps) => {
-  const { roots, observations } = useTraceData();
+  const {
+    roots: contextRoots,
+    observations: contextObservations,
+    sessionTraces,
+  } = useTraceData();
+  const roots = useMemo(
+    () =>
+      sessionTraces
+        ? contextRoots.filter((root) => root.traceId === traceId)
+        : contextRoots,
+    [contextRoots, sessionTraces, traceId],
+  );
+  const observations = useMemo(
+    () =>
+      sessionTraces
+        ? contextObservations.filter(
+            (observation) => observation.traceId === traceId,
+          )
+        : contextObservations,
+    [contextObservations, sessionTraces, traceId],
+  );
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
   const capture = usePostHogClientCapture();

@@ -25,6 +25,7 @@ import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
 import { traceNodeId } from "../fns/treeBuilding";
+import { useTraceDetailData } from "../hooks/useTraceDetailData";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -110,6 +111,15 @@ function TracePanelDetailContent() {
           />
         );
       case "trace":
+        if (trace.id !== anchorTrace.id) {
+          return (
+            <ConnectedSessionTraceDetail
+              projectId={trace.projectId}
+              traceId={trace.id}
+              timestamp={trace.timestamp}
+            />
+          );
+        }
         return (
           <TraceDetailView
             trace={trace}
@@ -122,5 +132,45 @@ function TracePanelDetailContent() {
           />
         );
     }
-  }, [selected, trace, traceObservations, scores, corrections]);
+  }, [selected, trace, anchorTrace.id, traceObservations, scores, corrections]);
+}
+
+function ConnectedSessionTraceDetail({
+  projectId,
+  traceId,
+  timestamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+}) {
+  const result = useTraceDetailData({ projectId, traceId, timestamp });
+  if (result.isError) {
+    return (
+      <PanelMessage
+        title="Could not load trace"
+        body="Loading this trace failed. Reload the page to try again."
+      />
+    );
+  }
+  if (result.isNotFound) {
+    return (
+      <PanelMessage
+        title="Trace not found"
+        body="This trace may have been deleted."
+      />
+    );
+  }
+  if (!result.data || result.isPlaceholderData || result.data.id !== traceId) {
+    return <TraceDetailView isLoading />;
+  }
+  return (
+    <TraceDetailView
+      trace={result.data}
+      observations={result.data.observations}
+      scores={result.data.scores}
+      corrections={result.data.corrections}
+      projectId={projectId}
+    />
+  );
 }
