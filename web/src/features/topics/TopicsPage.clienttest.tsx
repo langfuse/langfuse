@@ -516,10 +516,8 @@ it.each([
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
   const view = render(<TopicsPage />);
-  const status = screen.getByRole("dialog", { name: "Run status" });
-  fireEvent.click(
-    within(status).getByRole("button", { name: "Resume interrupted stages" }),
-  );
+  const status = screen.getByRole("dialog", { name: "Analyze traces" });
+  fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
     executionId: "execution",
