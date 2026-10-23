@@ -144,17 +144,24 @@ export function BadgeShell({
   );
 }
 
-type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
+type BadgeColor = NonNullable<BadgeShellProps["color"]>;
+
+type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
   leadingIcon?: IconComponent;
-  /** `warning` tints only the leading icon, e.g. a ghost "no cost" badge. */
-  leadingIconTone?: "default" | "warning";
   trailingIcon?: IconComponent;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
-};
+} & (
+    | {
+        color: "ghost";
+        /** `warning` tints only the leading icon, e.g. a "no cost" badge. */
+        leadingIconTone?: "default" | "warning";
+      }
+    | { color?: Exclude<BadgeColor, "ghost">; leadingIconTone?: never }
+  );
 
 /**
  * Pick the colour by the badge's job:
@@ -167,6 +174,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
  * - Category `Tint` / `Highlight`: tell categories apart (topics, treemap). Text stays
  *   neutral; the hue carries the category.
  *
+ * `font="mono"` for values (metrics, IDs, versions, scores, counts); words stay sans.
  * Links use `LinkBadge`.
  */
 export function Badge({
