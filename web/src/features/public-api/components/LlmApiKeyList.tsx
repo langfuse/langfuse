@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useMemo } from "react";
 import { Building2, Plug } from "@langfuse/icons";
 

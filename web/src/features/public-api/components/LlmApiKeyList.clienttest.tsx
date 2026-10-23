@@ -4,7 +4,7 @@ import type { PropsWithChildren } from "react";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
-import { LlmApiKeyList } from "./LLMApiKeyList";
+import { LlmApiKeyList } from "./LlmApiKeyList";
 
 const organizationQueryResult = vi.hoisted(() => ({
   data: { data: [] },
