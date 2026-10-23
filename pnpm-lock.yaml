@@ -1194,6 +1194,9 @@ importers:
       '@prisma/instrumentation':
         specifier: ^6.19.3
         version: 6.19.3(@opentelemetry/api@1.9.1)(supports-color@8.1.1)
+      '@react-email/render':
+        specifier: ^1.2.1
+        version: 1.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@repo/langfuse-skills':
         specifier: workspace:*
         version: link:../packages/langfuse-skills
