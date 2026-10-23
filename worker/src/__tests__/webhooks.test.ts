@@ -254,6 +254,123 @@ describe("Webhook Integration Tests", () => {
     webhookServer.teardown();
   });
 
+  describe("skill version delivery", () => {
+    it.each([
+      { github: false, oversized: false },
+      { github: true, oversized: false },
+      { github: true, oversized: true },
+    ])(
+      "serializes skill metadata (github=$github, oversized=$oversized)",
+      async ({ github, oversized }) => {
+        if (github) {
+          await prisma.action.update({
+            where: { id: actionId, projectId },
+            data: {
+              type: "GITHUB_DISPATCH",
+              config: {
+                type: "GITHUB_DISPATCH",
+                url: "https://webhook.example.com/dispatches",
+                eventType: "skill-update",
+                githubToken: encrypt("github-test-token"),
+                displayGitHubToken: "github-...",
+              },
+            },
+          });
+        }
+        const skillId = v4();
+        const webhookInput: WebhookInput = {
+          projectId,
+          automationId,
+          executionId,
+          payload: {
+            type: "skill-version",
+            action: "created",
+            skill: {
+              id: skillId,
+              projectId,
+              name: "test-skill",
+              description: "Test skill",
+              version: 2,
+              frontmatter: oversized ? { detail: "x".repeat(70_000) } : {},
+              tags: [],
+              labels: ["latest"],
+              commitMessage: null,
+              createdBy: "test-user",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-01T00:00:00Z"),
+              files: [
+                {
+                  id: "file-id",
+                  blobId: "blob-id",
+                  path: "SKILL.md",
+                  sha256Hash: "file-hash",
+                  contentType: "text/markdown",
+                  contentLength: 42,
+                },
+              ],
+            },
+            user: {
+              id: "internal-user",
+              name: "Test user",
+              email: "test@example.com",
+            },
+          },
+        };
+        Object.assign(webhookInput.payload.skill.files[0], {
+          content: "must not be exported",
+        });
+        await prisma.automationExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            triggerId,
+            actionId,
+            automationId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: skillId,
+            input: {},
+          },
+        });
+        await executeWebhook(webhookInput, { skipValidation: true });
+        const requests = webhookServer.getReceivedRequests();
+        expect(requests).toHaveLength(1);
+        const request = requests[0];
+        const parsed = JSON.parse(request.body);
+        const payload = github ? parsed.client_payload : parsed;
+        expect(payload).toMatchObject({
+          id: executionId,
+          type: "skill-version",
+          action: "created",
+          apiVersion: "v1",
+          skill: { id: skillId, projectId, name: "test-skill", version: 2 },
+        });
+        expect(payload).not.toHaveProperty("prompt");
+        expect(payload.user?.id).toBeUndefined();
+        if (github) {
+          expect(parsed.event_type).toBe("skill-update");
+          expect(Buffer.byteLength(request.body, "utf8")).toBeLessThan(
+            64 * 1024,
+          );
+        }
+        if (oversized) {
+          expect(payload.truncation.payloadTruncated).toBe(true);
+          expect(payload.skill.files).toBeUndefined();
+        } else {
+          expect(payload.skill.createdAt).toBe("2026-01-01T00:00:00.000Z");
+          expect(payload.skill.files).toMatchObject([
+            { path: "SKILL.md", sha256Hash: "file-hash", contentLength: 42 },
+          ]);
+          expect(payload.skill.files[0].content).toBeUndefined();
+        }
+        expect(
+          await prisma.automationExecution.findUnique({
+            where: { id: executionId },
+          }),
+        ).toMatchObject({ status: ActionExecutionStatus.COMPLETED });
+      },
+    );
+  });
+
   describe("executeWebhook function", () => {
     it("should execute webhook successfully with signature", async () => {
       // Get the full prompt for the payload

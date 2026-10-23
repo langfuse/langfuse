@@ -43,6 +43,8 @@ const apiVersionForEventSource = (
   eventSource?: TriggerEventSource,
 ): z.infer<typeof AvailableWebhookApiSchema> => {
   switch (eventSource) {
+    case TriggerEventSource.Skill:
+      return { skill: "v1" };
     case TriggerEventSource.Monitor:
       return { monitor: "v1" };
     case TriggerEventSource.ProjectNotification:
