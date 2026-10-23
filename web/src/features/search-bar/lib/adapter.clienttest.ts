@@ -725,7 +725,53 @@ describe("astToFilterState", () => {
     expect(validateQuery("-name:=abc").valid).toBe(true);
   });
 
-  it("preserves an empty Name facet through a search-bar edit", () => {
+  it.each([
+    {
+      column: "ingestionApiKey",
+      value: "pk-lf-1234567890",
+      text: "-ingestionApiKey:pk-lf-1234567890",
+    },
+    { column: "name", value: "checkout", text: "-name:=checkout" },
+    { column: "traceTags", value: "prod", text: "-traceTags:prod" },
+  ])(
+    "shows only an exclusion when the sole $column option is unchecked",
+    ({ column, value, text }) => {
+      const ctx: SidebarFilterActionContext = {
+        facets: [{ type: "categorical", column, label: column }],
+        columnDefinitions: [
+          {
+            id: column,
+            name: column,
+            type: column === "traceTags" ? "arrayOptions" : "stringOptions",
+            options: [],
+            internal: column,
+          },
+        ],
+        options: { [column]: [value] },
+      };
+      const empty = applyCheckboxSelection(ctx, [], column, []);
+      expect(empty).toEqual([
+        {
+          column,
+          type: column === "traceTags" ? "arrayOptions" : "stringOptions",
+          operator: "none of",
+          value: [value],
+        },
+      ]);
+      expect(filterStateToQueryText(empty).text).toBe(text);
+      const commit = planCommit(`${text} env:prod`);
+      expect(commit.status).toBe("committed");
+      if (commit.status !== "committed") return;
+      expect(
+        commit.filters.filter((filter) => filter.column === column),
+      ).toEqual(empty);
+      expect(
+        applyCheckboxSelection(ctx, commit.filters, column, [value]),
+      ).toEqual(commit.filters.filter((filter) => filter.column !== column));
+    },
+  );
+
+  it("preserves a legacy empty Name pair through a search-bar edit", () => {
     const ctx: SidebarFilterActionContext = {
       facets: [{ type: "categorical", column: "name", label: "Name" }],
       columnDefinitions: [
@@ -739,7 +785,20 @@ describe("astToFilterState", () => {
       ],
       options: { name: ["checkout", "chat"] },
     };
-    const empty = applyCheckboxSelection(ctx, [], "name", []);
+    const empty: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["checkout"],
+      },
+    ];
     const { text, skippedFilters } = filterStateToQueryText(empty);
     expect(text).toBe("name:=checkout -name:=checkout");
     expect(skippedFilters).toEqual([]);

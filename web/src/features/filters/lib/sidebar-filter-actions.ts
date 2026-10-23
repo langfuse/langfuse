@@ -314,30 +314,20 @@ export function applySelection(
       existingFilter?.type === "arrayOptions"
         ? existingFilter.value
         : [];
-    // Blank option arrays have ambiguous legacy URL encodings. Any nonblank
-    // witness works here, even if it is an actual stored value.
-    const value =
-      previousValues.find((value) => value !== "") ??
-      availableValues.find((value) => value !== "") ??
-      "empty selection";
-
-    // Contradictory valid filters match nothing without depending on the
-    // completeness of the available option list.
+    // Exclude unchecked options, including values no longer in the loaded
+    // option list. Unlisted values may still match; this is not match-nothing.
+    const excludedValues = [
+      ...new Set([...availableValues, ...previousValues]),
+    ];
+    if (excludedValues.length === 0) return other;
     return [
       ...other,
       {
         column,
         ...target,
         type: filterType,
-        operator: "any of",
-        value: [value],
-      },
-      {
-        column,
-        ...target,
-        type: filterType,
         operator: "none of",
-        value: [value],
+        value: excludedValues,
       },
     ];
   }
