@@ -18,7 +18,7 @@ import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,
   useModelSelection,
-} from "@/src/features/dashboard/components/ModelSelector";
+} from "@/src/features/dashboard/components/ModelSelectorPopover";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";

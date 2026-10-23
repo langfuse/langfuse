@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import { useAllModels } from "@/src/features/dashboard/components/hooks";
 import { type FilterState } from "@langfuse/shared";
