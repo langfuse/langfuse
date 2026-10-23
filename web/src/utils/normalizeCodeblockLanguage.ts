@@ -1,6 +1,6 @@
 import type { CodeblockLanguage } from "@/src/components/design-system/Codeblock/Codeblock";
 
-// Grammars and aliases registered with Prism in `SyntaxHighlight`.
+// Grammars and aliases available to Prism in `SyntaxHighlight`.
 const supportedLanguages = [
   "plain",
   "plaintext",

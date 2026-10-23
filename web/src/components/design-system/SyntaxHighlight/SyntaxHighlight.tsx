@@ -1,8 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, type ReactNode } from "react";
-import { Highlight, themes, type PrismTheme } from "prism-react-renderer";
+import {
+  Highlight,
+  Prism,
+  themes,
+  type PrismTheme,
+} from "prism-react-renderer";
 import { useTheme } from "next-themes";
-import "./prismLanguages";
+import bash from "refractor/bash";
+import toml from "refractor/toml";
+
+// prism-react-renderer bundles no shell or TOML grammar. `bash` also registers `sh` and `shell`.
+bash(Prism);
+toml(Prism);
 
 /** JSON token colors shared with the table JSON viewer; Prism aliases `null` to `keyword`. */
 const JSON_TOKEN_STYLES: PrismTheme["styles"] = [
