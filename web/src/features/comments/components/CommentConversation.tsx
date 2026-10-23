@@ -4,7 +4,7 @@ import { type CommentObjectType } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Search, Trash, X } from "@langfuse/icons";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { stripMarkdown } from "@/src/utils/markdown";
@@ -181,9 +181,11 @@ export function CommentConversation({
               location={
                 comment.dataField && comment.path.length > 0 ? (
                   <div className="flex min-w-0 items-center gap-2">
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
-                      {comment.dataField.toUpperCase()}
-                    </Badge>
+                    <Badge
+                      color="primary"
+                      size="sm"
+                      text={comment.dataField.toUpperCase()}
+                    />
                     <span className="truncate" title={comment.path[0]}>
                       {humanizeJsonPath(comment.path[0])}
                     </span>

@@ -9,7 +9,7 @@ import {
   ExternalLinkIcon,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Popover,
   PopoverContent,
@@ -224,9 +224,9 @@ export const TemplateSelector = ({
                           )}
                           {template.name}
                           {isLegacy && (
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              legacy
-                            </Badge>
+                            <span className="ml-2">
+                              <Badge color="primary" text="legacy" />
+                            </span>
                           )}
                           {isInvalid && (
                             <Tooltip>
@@ -320,9 +320,9 @@ export const TemplateSelector = ({
                           maintainer={getMaintainer(template)}
                         />
                         {isLegacy && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            legacy
-                          </Badge>
+                          <span className="ml-2">
+                            <Badge color="primary" text="legacy" />
+                          </span>
                         )}
                         {isInvalid && (
                           <Tooltip>

@@ -6,7 +6,7 @@ import {
   type SystemRolePolicy,
 } from "@langfuse/shared/rbac";
 import { type SystemRole } from "@langfuse/shared/src/db";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 
 const resourceKindLabels: Record<ResourceKind, string> = {
@@ -101,11 +101,11 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
                   {group.actions.map((action) => (
                     <Badge
                       key={action}
-                      variant="outline"
-                      className="px-1.5 py-0 font-mono text-[0.65rem] font-normal"
-                    >
-                      {action}
-                    </Badge>
+                      color="primary"
+                      size="sm"
+                      font="mono"
+                      text={action}
+                    />
                   ))}
                 </div>
               </div>

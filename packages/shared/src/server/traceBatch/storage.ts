@@ -7,9 +7,14 @@ import {
   safeBlobFilenameStem,
   safeBlobKeySegment,
 } from "../services/safeBlobKeySegment";
-import type { Transcript } from "../transcript/types";
+import type { ExecutionIssue, Transcript } from "../transcript/types";
 import { createW3CTraceId } from "../utils/traceId";
-import { toStoredTranscriptV1, fromStoredTranscriptV1 } from "./serialization";
+import {
+  fromStoredExecutionIssuesV1,
+  fromStoredTranscriptV1,
+  toStoredExecutionIssuesV1,
+  toStoredTranscriptV1,
+} from "./serialization";
 import { traceBatchInputsVersionSchema } from "./storage-schema";
 import {
   traceBatchInputsV1Schema,
@@ -24,6 +29,8 @@ export type TraceBatchInputReference = {
 
 export type TraceBatchInputData = {
   transcript: Transcript | null;
+  /** Empty when there is no transcript. */
+  executionIssues: ExecutionIssue[];
   traceContext: TraceBatchInputsV1["traceContext"];
 };
 
@@ -59,11 +66,12 @@ let storage: StorageService | undefined;
 /** Storage dependencies share one lazily initialized provider client. */
 export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   return {
-    async put(reference, { transcript, traceContext }) {
+    async put(reference, { transcript, executionIssues, traceContext }) {
       const inputs: TraceBatchInputsV1 = {
         schemaVersion: 1,
         transcript:
           transcript === null ? null : toStoredTranscriptV1(transcript),
+        executionIssues: toStoredExecutionIssuesV1(executionIssues),
         traceContext,
       };
       const json = JSON.stringify(inputs);
@@ -95,6 +103,7 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
           inputs.transcript === null
             ? null
             : fromStoredTranscriptV1(inputs.transcript),
+        executionIssues: fromStoredExecutionIssuesV1(inputs.executionIssues),
         traceContext: inputs.traceContext,
       };
     },
