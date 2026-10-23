@@ -230,7 +230,7 @@ async function loadPublicTopics(
     facetFilter,
     facetSummaryColumns,
   ).map(({ facet }) => facet.id);
-  const results = await currentTopicResults(projectId, window, facetIds);
+  const results = await currentTopicResults(projectId, window, { facetIds });
   return results.facets.map((facet) => {
     const ref = {
       id: facet.facetId,

@@ -1303,11 +1303,13 @@ describe("Topics current results", () => {
       "intent",
       undefined,
       timeRange,
+      undefined,
     );
     expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
       projectId,
       "intent",
       timeRange,
+      undefined,
     );
     await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -1407,6 +1409,7 @@ describe("Topics current results", () => {
         projectId,
         "intent",
         timeRange,
+        undefined,
       );
       expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
       expect(result[0]).toMatchObject({

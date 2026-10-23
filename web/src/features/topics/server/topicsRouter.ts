@@ -67,7 +67,7 @@ import {
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults } from "./currentResults";
+import { currentTopicResults, traceFacetResults } from "./currentResults";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
@@ -320,6 +320,14 @@ export const topicsRouter = createTRPCRouter({
     .input(resultInput)
     .query(({ input }) =>
       currentTopicResults(input.projectId, input.timeRange),
+    ),
+  /** Trace header: every facet result of one trace, with its summary. */
+  forTrace: topicsProcedure
+    .input(
+      projectInput.extend({ traceId: z.string().min(1), timestamp: z.date() }),
+    )
+    .query(({ input }) =>
+      traceFacetResults(input.projectId, input.traceId, input.timestamp),
     ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
