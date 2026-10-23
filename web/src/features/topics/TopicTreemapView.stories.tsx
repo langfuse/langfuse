@@ -131,7 +131,7 @@ export const ManyClusters = meta.story({
   },
 });
 
-/** About half of the traces fit no topic. */
+/** About half of the traces fit no topic; Unassigned stays at ~10% of the area. */
 export const LargeUnassigned = meta.story({
   args: {
     facet: {

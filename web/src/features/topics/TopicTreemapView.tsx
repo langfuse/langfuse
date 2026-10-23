@@ -120,7 +120,12 @@ function TopicTreemap({
     );
   }
   const tiles = size
-    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
+    ? layoutTreemap(
+        layoutWeights(topics),
+        size.width,
+        size.height,
+        TILE_GAP,
+      ).map((tile) => ({ ...tile, item: tile.item.topic }))
     : [];
   return (
     <section
@@ -238,13 +243,27 @@ function TopicTileButton({
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
             {topic.count.toLocaleString()}
           </span>
-          {tier === "large" && (
+          {(tier === "large" || topic.id === UNASSIGNED_ID) && (
             <span className="text-xs opacity-80">{shareLabel}</span>
           )}
         </span>
       )}
     </button>
   );
+}
+
+/** Unassigned never takes more than ~10% of the area; its tile still shows the real count. */
+function layoutWeights(topics: FacetTopic[]) {
+  const assigned = topics
+    .filter((topic) => topic.id !== UNASSIGNED_ID)
+    .reduce((sum, topic) => sum + topic.count, 0);
+  return topics.map((topic) => ({
+    topic,
+    count:
+      topic.id === UNASSIGNED_ID
+        ? Math.min(topic.count, Math.max(1, assigned / 9))
+        : topic.count,
+  }));
 }
 
 function tileTier(width: number, height: number): TileTier {
