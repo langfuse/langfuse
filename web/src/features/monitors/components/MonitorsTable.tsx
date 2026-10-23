@@ -11,7 +11,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useMediaQuery } from "react-responsive";
 
-import { DeleteMonitorButton } from "@/src/components/deleteButton";
+import { ConnectedDeleteMonitorButton } from "@/src/features/monitors/components/ConnectedDeleteMonitorButton/ConnectedDeleteMonitorButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -466,7 +466,7 @@ function MonitorRowActions({
   );
 
   const deleteButton = (
-    <DeleteMonitorButton
+    <ConnectedDeleteMonitorButton
       itemId={monitor.id}
       projectId={projectId}
       isTableAction
