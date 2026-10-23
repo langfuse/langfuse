@@ -21,7 +21,6 @@
 import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { SlowestBadge } from "@/src/features/traces/components/SlowestBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -79,7 +78,7 @@ function LoadedSpanContent({
   surface = "default",
   className,
 }: SpanContentProps) {
-  const { mergedScores, slowestObservationId } = useTraceData();
+  const { mergedScores } = useTraceData();
   const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
@@ -102,7 +101,6 @@ function LoadedSpanContent({
   const durationMs = duration || (node.latency ? node.latency * 1000 : 0);
 
   const shouldRenderDuration = showDuration && Boolean(durationMs);
-  const shouldRenderSlowest = showDuration && node.id === slowestObservationId;
   const emphasizeDuration = isEmphasizedShare(
     durationMs,
     emphasis?.traceTotalDurationMs,
@@ -114,8 +112,7 @@ function LoadedSpanContent({
   const shouldRenderCostTokens =
     showCostTokens && Boolean(ownCost || tokenTotal);
 
-  const shouldRenderAnyMetrics =
-    shouldRenderDuration || shouldRenderSlowest || shouldRenderCostTokens;
+  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   const nodeScores = selectNodeScores(mergedScores, node.id);
   const shouldRenderScores = showScores && nodeScores.length > 0;
@@ -180,8 +177,6 @@ function LoadedSpanContent({
                 {formatIntervalSeconds(durationMs / 1000)}
               </span>
             ) : null}
-
-            {shouldRenderSlowest ? <SlowestBadge /> : null}
 
             {/* Tokens, only without a cost */}
             {shouldRenderCostTokens && tokenTotal ? (

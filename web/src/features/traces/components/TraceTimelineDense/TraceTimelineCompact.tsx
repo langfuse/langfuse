@@ -23,7 +23,7 @@ import { detectPointerModality } from "../../fns/timeline/density";
 import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
-  const { roots, nodeMap, slowestObservationId } = useTraceData();
+  const { roots, nodeMap } = useTraceData();
   const { selectedNodeId, collapsedNodes } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
@@ -85,15 +85,10 @@ export function TraceTimelineCompact() {
   const metricsOf = useCallback(
     (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      return {
-        costText:
-          node?.totalCost && showCostTokens
-            ? usdFormatter(node.totalCost.toNumber())
-            : null,
-        slowest: showDuration && nodeId === slowestObservationId,
-      };
+      if (!node?.totalCost || !showCostTokens) return {};
+      return { costText: usdFormatter(node.totalCost.toNumber()) };
     },
-    [nodeMap, showCostTokens, showDuration, slowestObservationId],
+    [nodeMap, showCostTokens],
   );
 
   return (

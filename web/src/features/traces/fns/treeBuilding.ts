@@ -28,7 +28,6 @@ import {
   metricEmphasisFor,
   type TraceMetricEmphasis,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { findSlowestObservationId } from "@/src/features/traces/fns/slowestObservation";
 import {
   type ObservationLevelType,
   ObservationLevel,
@@ -543,7 +542,6 @@ function buildTraceTree(
  * - roots: Array of root TreeNodes (single TRACE root for traditional, multiple obs roots for events-based)
  * - nodeMap: Map<id, TreeNode> for O(1) lookup
  * - searchItems: Flattened list for search/virtualized rendering
- * - slowestObservationId: the observation with the most self time, if any
  */
 export function buildTraceUiData(
   trace: TraceType,
@@ -553,24 +551,13 @@ export function buildTraceUiData(
   searchItems: TraceSearchListItem[];
   nodeMap: Map<string, TreeNode>;
   metricEmphasis: TraceMetricEmphasis;
-  slowestObservationId: string | null;
 } {
   const { roots, nodeMap } = buildTraceTree(trace, observations);
   const metricEmphasis = computeTraceMetricEmphasis(roots);
-  const slowestObservationId = findSlowestObservationId(
-    roots,
-    trace.rootObservationId,
-  );
 
   // Handle empty roots case
   if (roots.length === 0) {
-    return {
-      roots,
-      searchItems: [],
-      nodeMap,
-      metricEmphasis,
-      slowestObservationId,
-    };
+    return { roots, searchItems: [], nodeMap, metricEmphasis };
   }
 
   // Build flat search items list (iterative to avoid stack overflow on deep trees)
@@ -595,7 +582,7 @@ export function buildTraceUiData(
     }
   }
 
-  return { roots, searchItems, nodeMap, metricEmphasis, slowestObservationId };
+  return { roots, searchItems, nodeMap, metricEmphasis };
 }
 
 /**

@@ -5,7 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
@@ -36,7 +36,7 @@ interface BreakdownTooltipProps {
   costSource?: CostSource;
 }
 
-export const BreakdownTooltip = ({
+const BreakdownTooltipRoot = ({
   details,
   children,
   isCost = false,
@@ -44,8 +44,6 @@ export const BreakdownTooltip = ({
   priceSource,
   costSource,
 }: BreakdownTooltipProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-
   // Aggregate details if array is provided
   const aggregatedDetails = Array.isArray(details)
     ? details.reduce<Details>((acc, curr) => {
@@ -107,113 +105,141 @@ export const BreakdownTooltip = ({
   };
 
   return (
+    <BreakdownTooltipShell trigger={children} shares={showShares}>
+      <div className="col-span-full flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm font-bold">
+          {isCost ? "Cost breakdown" : "Usage breakdown"}
+        </span>
+
+        {isCost && resolvedCostSource === "provided" ? (
+          <span className="text-muted-foreground text-xs">
+            Provided at ingestion
+          </span>
+        ) : null}
+
+        {isCost && resolvedCostSource === "calculated" && priceSource ? (
+          <Link
+            href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
+            className="text-muted-foreground inline-flex min-w-0 items-center gap-1 text-xs underline-offset-4 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span
+              className="min-w-0 truncate"
+              title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
+            >
+              Calculated · {priceSource.pricingTierName} Tier Pricing
+            </span>
+            <ExternalLink size="sm" />
+          </Link>
+        ) : null}
+
+        {isCost && resolvedCostSource === "calculated" && !priceSource ? (
+          <span className="text-muted-foreground text-xs">
+            Calculated from model pricing
+          </span>
+        ) : null}
+
+        {Array.isArray(details) && details.length > 0 && (
+          <span className="text-muted-foreground text-xs">
+            Aggregate across {details.length}{" "}
+            {details.length === 1 ? "generation" : "generations"}
+          </span>
+        )}
+        {pricingTierName && (
+          <BreakdownRow
+            label="Pricing Tier:"
+            value={pricingTierName}
+            variant="item"
+            layout="inline"
+          />
+        )}
+      </div>
+
+      <Section
+        title={isCost ? "Input cost" : "Input usage"}
+        entries={inputEntries}
+        lastRow={
+          cacheHitRate === null ? null : <CacheHitRateRow rate={cacheHitRate} />
+        }
+        {...sectionProps}
+      />
+
+      <Section
+        title={isCost ? "Output cost" : "Output usage"}
+        entries={outputEntries}
+        separated
+        {...sectionProps}
+      />
+
+      {otherEntries.length > 0 && (
+        <Section
+          title={isCost ? "Other cost" : "Other usage"}
+          entries={otherEntries}
+          separated
+          {...sectionProps}
+        />
+      )}
+
+      <BreakdownRow
+        label={isCost ? "Total cost" : "Total usage"}
+        value={formatValue(displayedTotal)}
+        exactValue={formatExactValue(displayedTotal)}
+        variant="total"
+        showShares={showShares}
+      />
+    </BreakdownTooltipShell>
+  );
+};
+
+/**
+ * The card every breakdown shares: a hover/click trigger and a grid whose
+ * columns are label, bar, value and share (`shares`), or label and value.
+ * Children may take `close`, for rows that navigate.
+ */
+function BreakdownTooltipShell({
+  trigger,
+  shares,
+  children,
+}: {
+  trigger: ReactNode;
+  /** The grid carries bar and share columns. */
+  shares: boolean;
+  children: ReactNode | ((close: () => void) => ReactNode);
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const close = () => setIsOpen(false);
+
+  return (
     <TooltipProvider>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
         <TooltipTrigger
           className="flex cursor-pointer"
           onClick={() => setIsOpen(!isOpen)}
         >
-          {children}
+          {trigger}
         </TooltipTrigger>
         <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-3">
           <div
             className={cn(
               "grid min-w-0 gap-x-3 gap-y-3 max-sm:w-full",
-              showShares
+              shares
                 ? "grid-cols-[repeat(4,max-content)] max-sm:grid-cols-[minmax(0,1fr)_repeat(3,max-content)]"
                 : "grid-cols-[repeat(2,max-content)] max-sm:grid-cols-[minmax(0,1fr)_max-content]",
             )}
           >
-            <div className="col-span-full flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-bold">
-                {isCost ? "Cost breakdown" : "Usage breakdown"}
-              </span>
-
-              {isCost && resolvedCostSource === "provided" ? (
-                <span className="text-muted-foreground text-xs">
-                  Provided at ingestion
-                </span>
-              ) : null}
-
-              {isCost && resolvedCostSource === "calculated" && priceSource ? (
-                <Link
-                  href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
-                  className="text-muted-foreground inline-flex min-w-0 items-center gap-1 text-xs underline-offset-4 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
-                  >
-                    Calculated · {priceSource.pricingTierName} Tier Pricing
-                  </span>
-                  <ExternalLink size="sm" />
-                </Link>
-              ) : null}
-
-              {isCost && resolvedCostSource === "calculated" && !priceSource ? (
-                <span className="text-muted-foreground text-xs">
-                  Calculated from model pricing
-                </span>
-              ) : null}
-
-              {Array.isArray(details) && details.length > 0 && (
-                <span className="text-muted-foreground text-xs">
-                  Aggregate across {details.length}{" "}
-                  {details.length === 1 ? "generation" : "generations"}
-                </span>
-              )}
-              {pricingTierName && (
-                <BreakdownRow
-                  label="Pricing Tier:"
-                  value={pricingTierName}
-                  variant="item"
-                  layout="inline"
-                />
-              )}
-            </div>
-
-            <Section
-              title={isCost ? "Input cost" : "Input usage"}
-              entries={inputEntries}
-              lastRow={
-                cacheHitRate === null ? null : (
-                  <CacheHitRateRow rate={cacheHitRate} />
-                )
-              }
-              {...sectionProps}
-            />
-
-            <Section
-              title={isCost ? "Output cost" : "Output usage"}
-              entries={outputEntries}
-              separated
-              {...sectionProps}
-            />
-
-            {otherEntries.length > 0 && (
-              <Section
-                title={isCost ? "Other cost" : "Other usage"}
-                entries={otherEntries}
-                separated
-                {...sectionProps}
-              />
-            )}
-
-            <BreakdownRow
-              label={isCost ? "Total cost" : "Total usage"}
-              value={formatValue(displayedTotal)}
-              exactValue={formatExactValue(displayedTotal)}
-              variant="total"
-              showShares={showShares}
-            />
+            {typeof children === "function" ? children(close) : children}
           </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
-};
+}
+
+export const BreakdownTooltip = Object.assign(BreakdownTooltipRoot, {
+  Shell: BreakdownTooltipShell,
+  Row: BreakdownRow,
+});
 
 const breakdownRowVariants = cva("min-w-0 items-center text-sm leading-5", {
   variants: {
@@ -235,30 +261,51 @@ const breakdownRowVariants = cva("min-w-0 items-center text-sm leading-5", {
 
 function BreakdownRow({
   label,
+  title,
   value,
   exactValue,
   variant,
   layout = "grid",
   share,
+  shareLabel,
   offset = 0,
   showShares = false,
+  onClick,
 }: {
-  label: string;
+  label: ReactNode;
+  /** Full label for the truncating cell; defaults to a string label. */
+  title?: string;
   value: string;
   exactValue?: string;
   variant: NonNullable<BreakdownRowVariants["variant"]>;
   layout?: BreakdownRowVariants["layout"];
   /** Share of all components in percent; shown as a bar on item rows. */
   share?: number;
+  /** Replaces the rounded share text. */
+  shareLabel?: string;
   /** Where the bar starts: the summed share of the rows before it. */
   offset?: number;
   /** The grid carries bar and share columns. */
   showShares?: boolean;
+  /** The whole row is a target; a link inside it that handled the click wins. */
+  onClick?: () => void;
 }) {
   const hasBar = layout === "grid" && variant === "item" && showShares;
 
   return (
-    <div className={breakdownRowVariants({ layout, variant })}>
+    <div
+      className={cn(
+        breakdownRowVariants({ layout, variant }),
+        onClick && "cursor-pointer",
+      )}
+      onClick={
+        onClick
+          ? (event) => {
+              if (!event.defaultPrevented) onClick();
+            }
+          : undefined
+      }
+    >
       <span
         className={cn(
           "min-w-0 truncate",
@@ -266,7 +313,7 @@ function BreakdownRow({
           layout === "grid" && variant === "item" && "max-w-52",
           layout === "grid" && variant !== "item" && showShares && "col-span-2",
         )}
-        title={label}
+        title={title ?? (typeof label === "string" ? label : undefined)}
       >
         {label}
       </span>
@@ -289,7 +336,7 @@ function BreakdownRow({
       </span>
       {share !== undefined ? (
         <span className="text-muted-foreground text-right font-mono text-xs font-normal tabular-nums">
-          {formatShare(share)}
+          {shareLabel ?? formatShare(share)}
         </span>
       ) : null}
     </div>

@@ -70,7 +70,6 @@ import {
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
-import { SlowestBadge } from "@/src/features/traces/components/SlowestBadge";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -1770,8 +1769,6 @@ export function TimelineDense({
                 {metricsOf?.(focused.id)?.costText ? (
                   <span>{metricsOf(focused.id).costText}</span>
                 ) : null}
-                {/* The lane may have had no room for the chip. */}
-                {metricsOf?.(focused.id)?.slowest ? <SlowestBadge /> : null}
               </span>
             </div>
           </Layer>
