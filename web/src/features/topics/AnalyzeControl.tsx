@@ -1,3 +1,4 @@
+import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 
 export type AutomaticProcessingState =
@@ -12,19 +13,7 @@ type AnalyzeControlProps = {
   onClick: () => void;
 };
 
-const LABEL: Record<AutomaticProcessingState["status"], string> = {
-  unconfigured: "Off",
-  off: "Off",
-  on: "On",
-  paused: "Paused",
-};
-
-const DOT: Record<AutomaticProcessingState["status"], string> = {
-  unconfigured: "bg-muted-foreground",
-  off: "bg-muted-foreground",
-  on: "bg-dark-green",
-  paused: "bg-dark-yellow",
-};
+const DOT = { on: "bg-dark-green", paused: "bg-dark-yellow" };
 
 /** Why the dialog cannot open, or null when it can. */
 function automaticDisabledReason(
@@ -36,13 +25,25 @@ function automaticDisabledReason(
   return null;
 }
 
-/** Topics header status control; opens the Analyze traces dialog. */
+/** Off: an Analyze button. On or paused: the auto-analyze status. Both open the Analyze traces dialog. */
 export function AnalyzeControl({
   canWrite,
   onClick,
   state,
 }: AnalyzeControlProps) {
   const disabledReason = automaticDisabledReason(state, canWrite);
+  if (state.status === "off" || state.status === "unconfigured") {
+    return (
+      <span title={disabledReason ?? undefined} className="inline-flex">
+        <Button
+          text="Analyze"
+          size="sm"
+          disabled={disabledReason !== null}
+          onClick={onClick}
+        />
+      </span>
+    );
+  }
   const title =
     state.status === "paused"
       ? state.shortLabel
@@ -59,7 +60,7 @@ export function AnalyzeControl({
         aria-hidden
         className={cn("inline-flex size-2 rounded-full", DOT[state.status])}
       />
-      Auto-analyze: {LABEL[state.status]}
+      {state.status === "on" ? "Auto-analyze: On" : "Auto-analyze: Paused"}
     </button>
   );
 }

@@ -612,10 +612,10 @@ function withSummaries() {
   ];
 }
 
-it("shows the auto-analyze status in the header and keeps the menu to regenerate, history and settings", async () => {
+it("shows Analyze in the header while auto-analyze is off and keeps the menu to regenerate, history and settings", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Auto-analyze: Off" }));
+  fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
   expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
@@ -1090,7 +1090,9 @@ it("shows the setup landing until the project's first stored summary exists", ()
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
-  expect(screen.queryByRole("button", { name: /Auto-analyze/ })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /^(Analyze|Auto-analyze)/ }),
+  ).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);

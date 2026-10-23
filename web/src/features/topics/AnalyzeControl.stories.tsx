@@ -46,9 +46,12 @@ export const DisabledWithoutSettings = meta.story({
   args: { state: { status: "unconfigured" } },
   play: async ({ canvasElement }) => {
     const button = within(canvasElement).getByRole("button", {
-      name: "Auto-analyze: Off",
+      name: "Analyze",
     });
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("title", "Configure Topics first.");
+    await expect(button.parentElement).toHaveAttribute(
+      "title",
+      "Configure Topics first.",
+    );
   },
 });
