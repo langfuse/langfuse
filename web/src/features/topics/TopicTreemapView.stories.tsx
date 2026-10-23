@@ -123,6 +123,29 @@ const manyRows = manyTopics.flatMap((topic) =>
 );
 
 /** Forty clusters: small tiles drop the count, then the name, keeping both in the tooltip. */
+const manyTopic = { ...topics[0], count: 350 };
+const bigTopicRows = Array.from({ length: manyTopic.count }, (_, index) => ({
+  ...assignedRows[0],
+  traceId: `${manyTopic.id}-many-${index}`,
+  summary: `${manyTopic.name} question ${index + 1}`,
+}));
+
+/** One topic with 350 traces; its list adds 100 rows each time you scroll near the end. */
+export const ManyTraces = meta.story({
+  args: {
+    sideBySide: true,
+    facet: {
+      ...facet,
+      rows: [
+        ...bigTopicRows,
+        ...rows.filter((row) => row.topicId !== manyTopic.id),
+      ],
+      topics: [manyTopic, ...topics.slice(1)],
+      usableCount: bigTopicRows.length + rows.length - topics[0].count,
+    },
+  },
+});
+
 export const ManyClusters = meta.story({
   args: {
     facet: {
