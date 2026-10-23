@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
@@ -8,7 +9,6 @@ import {
   type toObservedOptions,
   useEventsSearchBar,
 } from "@/src/features/search-bar";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
   type experimentEvalFilterColsWithOptions,
@@ -45,11 +45,30 @@ export type TopicTraceFilterSectionProps = {
   onFiltersChange?: (filters: FilterState) => void;
   onSearchQueryChange?: (query: string | null) => void;
   onSearchTypeChange?: (searchType: TracingSearchType[]) => void;
-  description?: string;
 };
 
-/** The trace filter, shown disabled until custom filters ship. */
-export function TopicTraceFilterSection({
+/** Custom trace filters are not available yet; the live filter stays wired for when they ship. */
+const TRACE_FILTERS_AVAILABLE = false;
+
+function ComingSoonTraceFilter() {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-muted-foreground text-sm font-bold">
+          Filter traces
+        </h3>
+        <Badge text="Coming soon" color="filled" size="sm" />
+      </div>
+      <Input
+        disabled
+        aria-label="Filter traces"
+        placeholder="level:ERROR -env:dev tags:billing"
+      />
+    </section>
+  );
+}
+
+function LiveTraceFilter({
   projectId,
   mode: modeProp,
   filters: filtersProp,
@@ -63,7 +82,6 @@ export function TopicTraceFilterSection({
   onFiltersChange,
   onSearchQueryChange,
   onSearchTypeChange,
-  description = "The sampling rate applies to all incoming traces. Custom trace filters are coming soon.",
 }: TopicTraceFilterSectionProps) {
   const [localMode, setLocalMode] =
     useState<EvaluatorFilterExperience>("query");
@@ -96,24 +114,22 @@ export function TopicTraceFilterSection({
 
   return (
     <section className="flex flex-col gap-2">
-      <SectionHeader
-        title="Filter traces"
-        meta={<Badge text="Coming soon" color="info" size="sm" />}
-        description={description}
-        tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
-        trailing={
-          <div inert className="opacity-50">
-            <FilterModeToggle
-              mode={mode}
-              onChange={(next) => {
-                if (next === "builder" && searchQuery !== null)
-                  search.applyFilters(filters);
-                setMode(next);
-              }}
-            />
-          </div>
-        }
-      />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
+          <Badge text="Coming soon" color="info" size="sm" />
+        </div>
+        <div inert className="opacity-50">
+          <FilterModeToggle
+            mode={mode}
+            onChange={(next) => {
+              if (next === "builder" && searchQuery !== null)
+                search.applyFilters(filters);
+              setMode(next);
+            }}
+          />
+        </div>
+      </div>
       <div inert aria-disabled className="opacity-50">
         {mode === "query" ? (
           <EventsSearchBarRow
@@ -139,4 +155,10 @@ export function TopicTraceFilterSection({
       </div>
     </section>
   );
+}
+
+/** The trace filter, shown as coming soon until custom filters ship. */
+export function TopicTraceFilterSection(props: TopicTraceFilterSectionProps) {
+  if (!TRACE_FILTERS_AVAILABLE) return <ComingSoonTraceFilter />;
+  return <LiveTraceFilter {...props} />;
 }
