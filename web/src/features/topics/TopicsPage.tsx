@@ -5,7 +5,6 @@ import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -18,8 +17,6 @@ import {
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Button as PopoverButton } from "@/src/components/ui/button";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Sheet,
   SheetContent,
@@ -27,16 +24,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { PopoverController } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
-  type TopicExecutionStatus,
-  type TopicFacetOutcome,
   type TopicOperation,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
@@ -66,6 +58,10 @@ import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { TopicRunDetails } from "./TopicRunDetails";
+import { TopicRunHistoryList } from "./TopicRunHistoryList";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
+import { busy } from "./topic-run-labels";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -75,36 +71,6 @@ const topicsTimeRangePresets = sharedTimeRangePresets.filter(
   (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
 );
 
-const operationLabels: Record<TopicOperation, string> = {
-  process: "Process traces",
-  update: "Update topics",
-};
-const busy = (status: string) => status === "queued" || status === "running";
-const executionLabels: Record<TopicExecutionStatus, string> = {
-  queued: "Run queued",
-  running: "Run in progress",
-  completed: "Run complete",
-  completed_with_errors: "Run finished with issues",
-  failed: "Run failed",
-};
-const executionPhaseLabels: Record<string, string> = {
-  queued: "Waiting for a worker",
-  summarizing: "Preparing summaries and embeddings",
-  clustering: "Clustering summaries",
-  naming: "Naming topics",
-  assigning: "Assigning traces to topics",
-  processing: "Processing facets",
-};
-const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
-  pending: "Waiting for results",
-  published: "Topics ready",
-  assigned: "Traces assigned",
-  awaiting_topics: "Awaiting topics",
-  insufficient_data: "More traces needed",
-  no_applicable_summaries: "No applicable traces",
-  no_topics: "No topics found",
-  failed: "Facet failed",
-};
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
     <Spinner message="Loading topics" />
@@ -585,7 +551,7 @@ function TopicsWorkspaceContent({
                 </p>
               )}
               {!validTimeRange && (
-                <ErrorMessage message="Select a time range of at most 90 days." />
+                <TopicsErrorMessage message="Select a time range of at most 90 days." />
               )}
               <TopicSetupNotice
                 notice={modelSettings.notice}
@@ -676,46 +642,12 @@ function TopicsWorkspaceContent({
                         />
                       </>
                     ) : (
-                      <>
-                        <div className="self-end">
-                          <Button
-                            text="Refresh"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => executions.refetch()}
-                          />
-                        </div>
-                        {executions.error && (
-                          <ErrorMessage message={executions.error.message} />
-                        )}
-                        {!executions.data?.length && (
-                          <p className="text-muted-foreground text-sm">
-                            Your triggered batches will appear here.
-                          </p>
-                        )}
-                        {executions.data?.map((execution) => (
-                          <button
-                            key={execution.id}
-                            onClick={() => openExecution(execution.id)}
-                            className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                          >
-                            <span className="capitalize">
-                              {operationLabels[execution.input.operation]} ·{" "}
-                              {new Date(execution.createdAt).toLocaleString()}
-                            </span>
-                            <span>{execution.facets.length} facets</span>
-                            <Badge text={executionLabels[execution.status]} />
-                            {execution.input.operation === "process" && (
-                              <span className="text-muted-foreground w-full tabular-nums">
-                                Estimated cost:{" "}
-                                {estimatedExecutionCost(
-                                  execution.estimatedCost,
-                                )}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </>
+                      <TopicRunHistoryList
+                        executions={executions.data ?? []}
+                        errorMessage={executions.error?.message}
+                        onOpen={openExecution}
+                        onRefresh={() => executions.refetch()}
+                      />
                     )}
                   </div>
                 </SheetContent>
@@ -751,7 +683,7 @@ function TopicsWorkspaceContent({
                 )}
                 {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
-                  <ErrorMessage message={facets.error.message} />
+                  <TopicsErrorMessage message={facets.error.message} />
                 )}
               </div>
             </div>
@@ -792,265 +724,33 @@ function ExecutionPanel({
     { enabled: traceErrorsOpen },
   );
   const execution = query.data;
-  if (query.error) return <ErrorMessage message={query.error.message} />;
+  if (query.error) return <TopicsErrorMessage message={query.error.message} />;
   if (!execution) return <p>Loading execution…</p>;
-  const isUpdate = execution.input.operation === "update";
-  const selectionDescription = isUpdate
-    ? `${execution.facets.reduce((count, facet) => count + facet.counts.requested, 0).toLocaleString()} stored facet summaries`
-    : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
-  const facetCount = execution.facets.length;
-  const operationLabel = operationLabels[execution.input.operation];
-  const modeLabel = (() => {
-    if (execution.input.operation !== "update")
-      return "Assign to current topics";
-    return execution.input.exploratory ? "Small sample" : "Standard";
-  })();
-  const selectionPrefix = (() => {
-    if (execution.status === "running") return "Running on ";
-    if (execution.status === "queued") return "Queued for ";
-    return "Run selection: ";
-  })();
   return (
-    <section className="flex w-full min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge text={executionLabels[execution.status]} />
-          {execution.input.operation === "update" &&
-            execution.input.exploratory && (
-              <Badge text="Small sample · provisional" />
-            )}
-        </div>
-        <PopoverController
-          align="end"
-          contentClassName="w-80 max-w-[calc(100vw-2rem)]"
-          disabled={false}
-          modal={false}
-          renderContent={() => (
-            <div className="ph-no-capture flex flex-col gap-3 text-sm">
-              <h3 className="font-bold">Run details</h3>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <dt className="text-muted-foreground">Triggered</dt>
-                <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
-                <dt className="text-muted-foreground">Operation</dt>
-                <dd>{operationLabel}</dd>
-                <dt className="text-muted-foreground">Mode</dt>
-                <dd>{modeLabel}</dd>
-                <dt className="text-muted-foreground">Last step</dt>
-                <dd className="capitalize">
-                  {execution.phase.replaceAll("_", " ")}
-                </dd>
-                <dt className="text-muted-foreground">Embedding dimensions</dt>
-                <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
-                {execution.input.operation === "update" && (
-                  <>
-                    <dt className="text-muted-foreground">
-                      Minimum traces for clustering
-                    </dt>
-                    <dd>
-                      {execution.input.minimumTraceCount ??
-                        (execution.input.exploratory ? 10 : 100)}
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          )}
-        >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <PopoverButton variant="ghost" size="sm">
-                Run details
-              </PopoverButton>
-            </Trigger>
-          )}
-        </PopoverController>
-      </div>
-      <div
-        className="flex flex-col gap-1"
-        role={busy(execution.status) ? "status" : undefined}
-      >
-        <p className="text-sm">
-          {operationLabel} · {selectionPrefix}
-          {selectionDescription} across {facetCount.toLocaleString()}{" "}
-          {facetCount === 1 ? "facet" : "facets"}.
-        </p>
-        {busy(execution.status) && (
-          <p className="text-muted-foreground text-sm">
-            {executionPhaseLabels[execution.phase] ??
-              execution.phase.replaceAll("_", " ")}
-            . Counts update after each processing batch. You can leave this page
-            and reopen the run.
-          </p>
-        )}
-      </div>
-      {!isUpdate && (
-        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
-          <p className="flex items-center justify-between gap-3">
-            <span className="font-bold">Estimated cost</span>
-            <span className="tabular-nums">
-              {estimatedExecutionCost(execution.estimatedCost)}
-            </span>
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Estimated cost for this run’s currently stored summaries and
-            embeddings. Costs may decrease when summaries are reused,
-            reprocessed, or deleted.
-          </p>
-        </section>
-      )}
-      {execution.error && <ErrorMessage message={execution.error} />}
-      {execution.facets.some((facet) => facet.counts.failed > 0) && (
-        <details
-          className="ph-no-capture text-sm"
-          onToggle={(event) => setTraceErrorsOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer">Trace errors</summary>
-          {traceErrorsOpen && (
-            <div className="flex flex-col gap-2 pt-2">
-              {traceErrors.isPending && <p>Loading trace errors…</p>}
-              {traceErrors.error && (
-                <ErrorMessage message={traceErrors.error.message} />
-              )}
-              {traceErrors.data?.expired && (
-                <p>
-                  Trace error details have expired. The run counts are still
-                  available.
-                </p>
-              )}
-              {traceErrors.data?.errors.map((item) => (
-                <p
-                  key={`${item.traceId}:${item.error}`}
-                  className="break-words"
-                >
-                  <TextLink
-                    path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                    value={item.traceId}
-                  />
-                  : {item.error}
-                </p>
-              ))}
-              {traceErrors.data &&
-                !traceErrors.data.expired &&
-                traceErrors.data.errors.length === 0 && (
-                  <p>No trace-level errors were recorded.</p>
-                )}
-            </div>
-          )}
-        </details>
-      )}
-      {canWrite &&
-        !busy(execution.status) &&
-        (execution.status === "failed" ||
-          (execution.status === "completed_with_errors" &&
-            execution.facets.some(
-              (facet) =>
-                facet.outcome === "pending" || facet.outcome === "failed",
-            ))) && (
-          <div className="self-start">
-            <Button
-              text="Resume interrupted stages"
-              disabled={retry.isPending}
-              onClick={() => retry.mutate({ projectId, executionId })}
-            />
-          </div>
-        )}
-      {retry.error && <ErrorMessage message={retry.error.message} />}
-      {execution.facets.map((progress) => {
-        const facet = facets.find((item) => item.id === progress.facetId);
-        return (
-          <div
-            key={`${progress.facetId}:${progress.facetVersion}`}
-            className="flex flex-col gap-3 border-t pt-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold">{facet?.name ?? "Facet"}</h3>
-              <Badge text={facetOutcomeLabels[progress.outcome]} />
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {[
-                `${progress.counts.complete.toLocaleString()} / ${progress.counts.requested.toLocaleString()} traces have summaries and embeddings ready`,
-                ...(progress.runId
-                  ? [
-                      `${progress.counts.assigned.toLocaleString()} assigned`,
-                      `${progress.counts.outlier.toLocaleString()} outliers`,
-                    ]
-                  : []),
-                ...(progress.counts.nonApplicable
-                  ? [
-                      `${progress.counts.nonApplicable.toLocaleString()} not applicable`,
-                    ]
-                  : []),
-                ...(progress.counts.insufficientInput
-                  ? [
-                      `${progress.counts.insufficientInput.toLocaleString()} insufficient input`,
-                    ]
-                  : []),
-                `${progress.counts.failed.toLocaleString()} failed`,
-              ].join(" · ")}
-            </p>
-            {progress.outcome === "awaiting_topics" && (
-              <p className="text-sm">
-                {progress.counts.complete.toLocaleString()} summaries are ready.
-                Run Update topics to create topics for this facet and embedding
-                configuration.
-              </p>
-            )}
-            {progress.error &&
-              (progress.outcome === "published" ? (
-                <Alert variant="warning">
-                  <Alert.Description>{progress.error}</Alert.Description>
-                </Alert>
-              ) : (
-                <ErrorMessage message={progress.error} />
-              ))}
-            {progress.outcome === "insufficient_data" &&
-              execution.input.operation === "update" && (
-                <p className="text-sm">
-                  Clustering needs at least{" "}
-                  {execution.input.minimumTraceCount ??
-                    (execution.input.exploratory ? 10 : 100)}{" "}
-                  compatible stored summaries for this facet. Process more
-                  traces or lower the minimum when starting a new update.
-                </p>
-              )}
-            {progress.outcome === "no_topics" && (
-              <p className="text-sm">
-                No stable groups found. Inspect the summaries, adjust the facet,
-                or try a larger and more varied batch.
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {!busy(execution.status) && (
-        <div className="self-start">
-          <Button
-            text="Refresh status"
-            variant="ghost"
-            onClick={() => {
-              query.refetch();
-              utils.topics.currentResults.invalidate({ projectId });
-              utils.topics.executions.invalidate({ projectId });
-              utils.topics.summaryCounts.invalidate({ projectId });
-            }}
-          />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function estimatedExecutionCost(cost: number | null) {
-  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
-}
-
-function ErrorMessage({ message }: { message: string }) {
-  return (
-    <Alert variant="destructive">
-      <Alert.Description>
-        <p className="break-words">{message}</p>
-      </Alert.Description>
-    </Alert>
+    <TopicRunDetails
+      execution={execution}
+      facets={facets}
+      projectId={projectId}
+      canWrite={canWrite}
+      traceErrors={{
+        open: traceErrorsOpen,
+        onOpenChange: setTraceErrorsOpen,
+        isPending: traceErrors.isPending,
+        errorMessage: traceErrors.error?.message,
+        data: traceErrors.data,
+      }}
+      retry={{
+        isPending: retry.isPending,
+        errorMessage: retry.error?.message,
+        onRetry: () => retry.mutate({ projectId, executionId }),
+      }}
+      onRefresh={() => {
+        query.refetch();
+        utils.topics.currentResults.invalidate({ projectId });
+        utils.topics.executions.invalidate({ projectId });
+        utils.topics.summaryCounts.invalidate({ projectId });
+      }}
+    />
   );
 }
 
