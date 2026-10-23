@@ -2139,7 +2139,7 @@ describe("automations trpc", () => {
           actionType: "WEBHOOK",
           actionConfig: {
             type: "WEBHOOK",
-            url: "https://example.com/updated-webhook",
+            url: "https://example.com/webhook",
             requestHeaders,
             apiVersion: { prompt: "v1" },
           },
