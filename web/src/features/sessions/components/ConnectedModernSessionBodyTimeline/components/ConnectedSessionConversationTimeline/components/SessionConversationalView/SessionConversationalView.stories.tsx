@@ -2308,6 +2308,7 @@ function SessionConversationalViewStory({
   pageOffset = 0,
   delayedLoad = false,
   delayedSearch = false,
+  sidebarMode,
 }: {
   workflowTraces?: WorkflowFixture[];
   transcriptTraces?: TraceProps[];
@@ -2320,6 +2321,7 @@ function SessionConversationalViewStory({
   pageOffset?: number;
   delayedLoad?: boolean;
   delayedSearch?: boolean;
+  sidebarMode?: ComponentProps<typeof SessionConversationalView>["sidebarMode"];
 }) {
   const [transcriptsLoaded, setTranscriptsLoaded] = useState(!delayedLoad);
   const [search, setSearch] = useState("");
@@ -2422,6 +2424,7 @@ function SessionConversationalViewStory({
     return (
       <div className="@container/session-workspace flex h-screen min-w-[320px]">
         <SessionConversationalView
+          sidebarMode={sidebarMode}
           state="loading"
           traces={displayedTraces.map((item) => ({
             ...item,
@@ -2456,6 +2459,7 @@ function SessionConversationalViewStory({
         </button>
       )}
       <SessionConversationalView
+        sidebarMode={sidebarMode}
         state="loaded"
         search={search}
         searchQuery={
@@ -2627,6 +2631,100 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const CollapsibleSidebar = meta.story({
+  name: "(Test) Collapsible annotation sidebar",
+  args: {
+    sidebarMode: "collapsible",
+    viewportWidth: 1000,
+    viewportHeight: 600,
+  },
+  beforeEach: () => {
+    sessionStorage.removeItem("annotation-session-conversation-sidebar:open");
+    return () =>
+      sessionStorage.removeItem("annotation-session-conversation-sidebar:open");
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const search = await canvas.findByRole("textbox", {
+      name: "Search session",
+    });
+    await userEvent.type(search, "order");
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Hide session sidebar" }),
+    );
+    await expect(search).not.toBeVisible();
+    await expect(
+      canvas.getByLabelText("Session conversation timeline"),
+    ).toBeVisible();
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Show session sidebar" }),
+    );
+    await expect(search).toBeVisible();
+    await expect(search).toHaveValue("order");
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    timeline.scrollTop = 100;
+    const workspace = canvas.getByRole("group", { name: "Session workspace" });
+    workspace.style.width = "700px";
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Search session" }),
+      ).toBeVisible(),
+    );
+    await expect(canvas.getByLabelText("Session conversation timeline")).toBe(
+      timeline,
+    );
+    await expect(timeline.scrollTop).toBeGreaterThan(0);
+    workspace.style.width = "1000px";
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Hide session sidebar" }),
+      ).toBeVisible(),
+    );
+    await expect(canvas.getByLabelText("Session conversation timeline")).toBe(
+      timeline,
+    );
+    await expect(search).toHaveValue("order");
+  },
+});
+
+export const SidebarPreferenceAcrossQueueItems = meta.story({
+  name: "(Test) Sidebar preference across queue items",
+  args: {
+    sidebarMode: "collapsible",
+    viewportWidth: 1000,
+    viewportHeight: 600,
+  },
+  beforeEach: () => {
+    sessionStorage.removeItem("annotation-session-conversation-sidebar:open");
+    return () =>
+      sessionStorage.removeItem("annotation-session-conversation-sidebar:open");
+  },
+  render: function QueueNavigation(args) {
+    const [item, setItem] = useState(0);
+    return (
+      <>
+        <button onClick={() => setItem((current) => current + 1)}>
+          Next session
+        </button>
+        <SessionConversationalViewStory key={item} {...args} />
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Hide session sidebar" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Next session" }));
+    await expect(
+      await canvas.findByRole("button", { name: "Show session sidebar" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Hide session sidebar" }),
+    ).not.toBeInTheDocument();
+  },
+});
 
 export const MixedToolContent = meta.story({
   name: "(Test) Mixed Tool Content",
