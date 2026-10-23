@@ -54,7 +54,7 @@ export function TopicSetupNotice({
         </Alert>
       ) : null}
       {showOnboarding ? (
-        <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-14">
+        <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
           <SortingIllustration />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
