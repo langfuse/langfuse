@@ -13,7 +13,7 @@
 
 import { ObservationLevel } from "@langfuse/shared";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 
 export function TracePanelNavigationHiddenNotice() {
   const { hiddenObservationsCount } = useTraceData();

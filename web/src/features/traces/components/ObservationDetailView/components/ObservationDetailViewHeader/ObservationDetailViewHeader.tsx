@@ -49,7 +49,7 @@ import {
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";

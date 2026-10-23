@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 
 export function useTraceMessagesNavigation() {
   const { trace, isPlaceholderData } = useTraceData();

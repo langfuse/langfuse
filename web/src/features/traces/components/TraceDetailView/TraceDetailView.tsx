@@ -30,7 +30,7 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,

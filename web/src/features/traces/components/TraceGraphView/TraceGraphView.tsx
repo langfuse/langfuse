@@ -12,7 +12,7 @@ import {
   type GraphViewMode,
 } from "@/src/features/trace-graph-view";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";

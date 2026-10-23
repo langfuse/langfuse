@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 /**
  * ViewPreferencesContext - Manages user display preferences persisted to localStorage.
  *

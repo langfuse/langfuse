@@ -44,7 +44,7 @@ import {
 } from "@/src/features/traces/contexts/SelectionProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,

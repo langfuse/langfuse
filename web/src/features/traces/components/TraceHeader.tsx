@@ -21,7 +21,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
 

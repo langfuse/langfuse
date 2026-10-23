@@ -7,7 +7,7 @@ import {
   TraceDataProvider,
   useTraceData,
 } from "@/src/features/traces/contexts/TraceDataProvider";
-import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   SelectionProvider,
   useSelection,

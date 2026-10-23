@@ -28,7 +28,7 @@ import {
   removeHiddenNodes,
 } from "../fns/treeBuilding";
 import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "./ViewPreferencesContext";
+import { useViewPreferences } from "./ViewPreferencesProvider";
 import { useMergedScores } from "@/src/features/scores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
 

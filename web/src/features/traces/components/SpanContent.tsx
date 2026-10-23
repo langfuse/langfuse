@@ -30,7 +30,7 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 

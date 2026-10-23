@@ -31,7 +31,7 @@ import {
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useViewPreferences } from "./ViewPreferencesContext";
+import { useViewPreferences } from "./ViewPreferencesProvider";
 import { type MobileTraceTab } from "../components/TraceLayoutMobile";
 import {
   isPrettyLikeJsonView,
