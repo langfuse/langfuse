@@ -100,7 +100,7 @@ export function ScoreAnalyticsHeader({
         >
           {({ getTriggerProps }) => (
             <Badge
-              color="yellow"
+              color="warning"
               text="Beta Feature"
               tabIndex={0}
               {...getTriggerProps()}

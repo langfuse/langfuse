@@ -7,9 +7,9 @@ import { type ComponentProps } from "react";
 
 const getColor = (direction: "+" | "-", preferNegativeDirection: boolean) => {
   if (preferNegativeDirection) {
-    return direction === "-" ? "green" : "red";
+    return direction === "-" ? "success" : "error";
   }
-  return direction === "+" ? "green" : "red";
+  return direction === "+" ? "success" : "error";
 };
 
 /**
@@ -56,7 +56,7 @@ export function DiffLabel({
     // A named move can be longer than the cell it sits in; the badge
     // truncates it and keeps the full move on hover.
     return (
-      <Badge color={variant ?? "yellow"} text={move} title={title ?? move} />
+      <Badge color={variant ?? "warning"} text={move} title={title ?? move} />
     );
   }
 }

@@ -534,7 +534,7 @@ function FacetPicker({
         </div>
       ) : (
         <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <Badge text="Coming soon" color="blue" size="sm" />
+          <Badge text="Coming soon" color="info" size="sm" />
           Custom facets with your own questions. This setup uses the built-in
           facets for now.
         </p>

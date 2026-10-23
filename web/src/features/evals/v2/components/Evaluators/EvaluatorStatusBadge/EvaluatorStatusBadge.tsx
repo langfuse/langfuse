@@ -27,11 +27,11 @@ function getStatus({
 }
 
 const colors = {
-  Blocked: "red",
+  Blocked: "error",
   Inactive: "outline",
-  Healthy: "green",
-  Degraded: "yellow",
-  Failing: "red",
+  Healthy: "success",
+  Degraded: "warning",
+  Failing: "error",
   Unknown: "outline",
 } as const;
 

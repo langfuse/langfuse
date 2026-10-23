@@ -98,7 +98,7 @@ export function TopicTraceFilterSection({
     <section className="flex flex-col gap-2">
       <SectionHeader
         title="Filter traces"
-        meta={<Badge text="Coming soon" color="blue" size="sm" />}
+        meta={<Badge text="Coming soon" color="info" size="sm" />}
         description={description}
         tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
         trailing={

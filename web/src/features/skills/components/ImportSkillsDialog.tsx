@@ -379,8 +379,8 @@ export function ImportSkillsDialog({
                                         }
                                         color={
                                           skill.exists && !skill.hasChanges
-                                            ? "yellow"
-                                            : "blue"
+                                            ? "warning"
+                                            : "info"
                                         }
                                         size="sm"
                                       />

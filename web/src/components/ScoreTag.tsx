@@ -63,12 +63,12 @@ export const scoreLevelFromScore = (score: {
 // observation=blue, trace=violet, session=teal, experiment=yellow.
 const scoreTagColors: Record<
   ScoreLevel,
-  "blue" | "violet" | "teal" | "yellow"
+  "info" | "violet" | "teal" | "warning"
 > = {
-  observation: "blue",
+  observation: "info",
   trace: "violet",
   session: "teal",
-  experiment: "yellow",
+  experiment: "warning",
 };
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {

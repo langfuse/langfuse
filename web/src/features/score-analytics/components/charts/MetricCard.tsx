@@ -52,7 +52,7 @@ export function MetricCard({
       case "blue":
         return "filled";
       case "red":
-        return "red";
+        return "error";
       case "yellow":
       case "orange":
       case "gray":

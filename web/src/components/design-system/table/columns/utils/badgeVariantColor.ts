@@ -24,11 +24,11 @@ export type BadgeVariant =
 type BadgeColor = NonNullable<ComponentProps<typeof Badge>["color"]>;
 
 const badgeVariantColors: Record<BadgeVariant, BadgeColor> = {
-  destructive: "red",
-  error: "red",
-  success: "green",
-  warning: "yellow",
-  blue: "blue",
+  destructive: "error",
+  error: "error",
+  success: "success",
+  warning: "warning",
+  blue: "info",
   violet: "violet",
   teal: "teal",
   emerald: "emeraldTint",

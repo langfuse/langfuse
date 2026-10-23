@@ -12,8 +12,8 @@ const LEVEL_COLOR: Record<
   ObservationLevel,
   ComponentProps<typeof Badge>["color"]
 > = {
-  ERROR: "red",
-  WARNING: "yellow",
+  ERROR: "error",
+  WARNING: "warning",
   DEFAULT: "filled",
   DEBUG: "filled",
 };

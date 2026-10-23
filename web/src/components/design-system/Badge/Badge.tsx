@@ -29,12 +29,13 @@ const badgeVariants = cva(
         filled:
           "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         inverted: "border-transparent bg-primary text-primary-foreground",
-        red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow:
+        error:
+          "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
+        warning:
           "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
-        green:
+        success:
           "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-transparent dark:bg-light-green dark:text-dark-green",
-        blue: "border-blue-100 bg-blue-50 text-blue-800 dark:border-transparent dark:bg-light-blue dark:text-dark-blue",
+        info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-transparent dark:bg-light-blue dark:text-dark-blue",
         violet:
           "border-violet-100 bg-violet-50 text-violet-800 dark:border-transparent dark:bg-light-violet dark:text-dark-violet",
         teal: "border-teal-100 bg-teal-50 text-teal-800 dark:border-transparent dark:bg-light-teal dark:text-dark-teal",
@@ -169,8 +170,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
  * - `outline` (default): read. Attributes such as environment, release, version.
  * - `filled`: data chips. Scores, tags, counts.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
- * - Status hues: a state or level, never decoration. `red` error, `yellow` warning,
- *   `green` success; `blue`, `violet`, `teal` mark score levels.
+ * - `error`, `warning`, `success`, `info`: a state, never decoration.
+ *   `violet`, `teal` mark score levels.
  * - Category `Tint` / `Highlight`: tell categories apart (topics, treemap). Text stays
  *   neutral; the hue carries the category.
  *
