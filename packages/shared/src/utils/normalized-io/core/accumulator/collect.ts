@@ -16,7 +16,6 @@ import {
   normalizeMessage,
   normalizeFinishReason,
 } from "../normalize";
-import { withDeclaredRole } from "../normalize/role";
 import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 
 export type ParsedIOValue = {
@@ -178,27 +177,23 @@ function emitRootSource(
   messages: NormalizedMessage[],
   accumulator: NormalizedIOAccumulator,
 ): void {
-  // A claimed source's fallback role is the provider's convention, not a guess.
   if (rootSource.kind === "sequence") {
-    const claimed: NormalizedMessage[] = [];
     collectMessageSequence(
       rootSource.values,
       rootSource.fallbackRole,
       parserContext,
-      claimed,
+      messages,
       accumulator,
     );
-    messages.push(...claimed.map(withDeclaredRole));
     return;
   }
 
-  const normalized = normalizeMessage(
+  const message = normalizeMessage(
     rootSource.value,
     rootSource.fallbackRole,
     parserContext,
   );
-  if (!normalized) return;
-  const message = withDeclaredRole(normalized);
+  if (!message) return;
 
   const finishReason =
     (rootSource.finishReasonCarrier

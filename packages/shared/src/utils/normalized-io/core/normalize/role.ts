@@ -1,10 +1,6 @@
 import { toolResultOutput } from "./message-parts/tool-results";
 import { registeredProviders } from "../../conventions";
-import type {
-  NormalizedMessage,
-  NormalizedMessagePart,
-  NormalizedMessageRole,
-} from "../../types";
+import type { NormalizedMessagePart, NormalizedMessageRole } from "../../types";
 import { ownLookup } from "../utils/json";
 const CANONICAL_ROLES = new Set(["system", "user", "assistant", "tool"]);
 
@@ -31,16 +27,6 @@ export function normalizeRole(
     if (role) return role;
   }
   return undefined;
-}
-
-/** A provider convention named the role; drop the side-default marker. */
-export function withDeclaredRole(
-  message: NormalizedMessage,
-): NormalizedMessage {
-  if (!message.roleInferred) return message;
-  const declared = { ...message };
-  delete declared.roleInferred;
-  return declared;
 }
 
 /**

@@ -49,7 +49,6 @@ export const looseProviderMessageShapesFixture = {
       },
       {
         role: "user",
-        roleInferred: true,
         parts: [
           {
             type: "text",
@@ -89,13 +88,11 @@ export const looseProviderMessageShapesFixture = {
       {
         role: "user",
         senderName: "get_weather",
-        roleInferred: true,
         parts: [{ type: "text", text: "Sunny, 22 degrees (echo)" }],
         source: "input",
       },
       {
         role: "user",
-        roleInferred: true,
         parts: [
           { type: "data", value: { unrecognized_payload: { rows: [1, 2] } } },
         ],

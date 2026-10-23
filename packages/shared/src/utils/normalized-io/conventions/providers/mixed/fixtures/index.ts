@@ -20,7 +20,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -31,7 +30,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -125,7 +123,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -251,7 +248,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "data",
@@ -264,7 +260,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",

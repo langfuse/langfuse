@@ -47,7 +47,6 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
         {
           source: "input",
           role: "user",
-          roleInferred: true,
           parts: [{ type: "data", value: { input: "invoice", total: 42 } }],
         },
       ],

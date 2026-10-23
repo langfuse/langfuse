@@ -897,7 +897,6 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
         {
           senderName: "get_weather",
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "text",

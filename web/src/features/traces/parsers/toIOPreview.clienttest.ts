@@ -164,34 +164,4 @@ describe("toIOPreview", () => {
       },
     ]);
   });
-
-  it("reports per side whether every role was the side default", () => {
-    const io: NormalizedIO = {
-      span: emptySpan,
-      toolDefinitions: [],
-      messages: [
-        {
-          role: "user",
-          source: "input",
-          parts: [{ type: "text", text: "hello" }],
-        },
-        {
-          role: "assistant",
-          source: "input",
-          parts: [{ type: "text", text: "hi" }],
-        },
-        {
-          role: "assistant",
-          roleInferred: true,
-          source: "output",
-          parts: [{ type: "text", text: "sure" }],
-        },
-      ],
-    };
-
-    expect(toIOPreview(io).rolesInferred).toEqual({
-      input: false,
-      output: true,
-    });
-  });
 });

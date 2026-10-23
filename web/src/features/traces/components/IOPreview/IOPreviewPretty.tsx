@@ -17,6 +17,7 @@ import {
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
+import { isChatMessageIO } from "../../parsers/isChatMessageIO";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
   SectionSkills,
@@ -223,7 +224,6 @@ export function IOPreviewPretty({
     toolCallsByName,
     messageToToolCallNumbers,
     inputMessageCount,
-    rolesInferred,
   } = parserResult;
 
   const characterLimit = useMarkdownRenderCharacterLimit();
@@ -338,14 +338,14 @@ export function IOPreviewPretty({
       onClosed={() => setCorrectionOpen(false)}
     />
   ) : null;
-  // Non-generation I/O that the parser had to wrap into messages (plain
-  // strings, loose records) is titled Input / Output; declared chat roles
-  // keep their role titles everywhere. Generations always title by role.
+  // Non-generation I/O that is not chat (plain strings, loose records) is
+  // titled Input / Output; declared chat roles keep their role titles on
+  // every observation type. Generations always title by role.
   const canTitleBySide =
     observationType !== undefined && observationType !== "GENERATION";
   const titleBySide = {
-    input: canTitleBySide && rolesInferred.input,
-    output: canTitleBySide && rolesInferred.output,
+    input: canTitleBySide && !isChatMessageIO(parsedInput),
+    output: canTitleBySide && !isChatMessageIO(parsedOutput),
   };
 
   return (
