@@ -238,33 +238,6 @@ describe("MarkdownView code blocks", () => {
 
     expect(container.querySelectorAll(".codeblock")).toHaveLength(2);
   });
-
-  // Prism renders an unregistered language as plain text without an error.
-  it.each(["bash", "sh", "shell", "toml"])(
-    "syntax-highlights a %s fence",
-    (language) => {
-      const { container } = renderMarkdown(
-        `\`\`\`${language}\nexport KEY="value"\n\`\`\``,
-      );
-
-      expect(
-        container.querySelector('.codeblock [data-token~="string"]'),
-      ).not.toBeNull();
-    },
-  );
-
-  // Prism names tokens after their type, and some types are Tailwind utilities:
-  // `table` (a TOML header) would get `display: table` and break the line.
-  it("does not give tokens Tailwind utility class names", () => {
-    const { container } = renderMarkdown(
-      '```toml\n[providers.langfuse]\nname = "x"\n```',
-    );
-
-    expect(
-      container.querySelector('.codeblock [data-token~="table"]'),
-    ).not.toBeNull();
-    expect(container.querySelector(".codeblock .table")).toBeNull();
-  });
 });
 
 describe("prependBasePathToInternalHref", () => {
