@@ -1,0 +1,69 @@
+/* The form's softer ink (the PNG's grey text), the hatched remainder, ruler ticks and the chevron. */
+
+.form {
+  --illustration-annotation-ink: color-mix(
+    in srgb,
+    var(--illustration-ink) 65%,
+    var(--illustration-panel)
+  );
+}
+.form .soft {
+  fill: var(--illustration-annotation-ink);
+}
+.form .chevron {
+  fill: none;
+  stroke: var(--illustration-annotation-ink);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The flash is an ink copy fading in and out: Chrome interpolates a color-mix() stroke into garbage */
+.form .chevronFlash {
+  stroke: var(--illustration-ink);
+  opacity: 0;
+}
+.form .tick {
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.hatchLine {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 0.7;
+}
+.remainderMask {
+  transform-box: fill-box;
+  transform-origin: right center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-running] .form .chevronFlash {
+    animation: chevron-flash 420ms ease var(--at);
+  }
+  /* The hatch widens to the whole bar as the form clears, then gives way to the fill */
+  [data-running] .remainderMask {
+    animation:
+      remainder-empty var(--illustration-clear-for, 180ms)
+        var(--illustration-ease-out) forwards,
+      remainder-fill var(--dur) var(--illustration-ease-out) var(--at) forwards;
+  }
+}
+
+@keyframes chevron-flash {
+  30% {
+    opacity: 1;
+  }
+}
+@keyframes remainder-empty {
+  to {
+    transform: scaleX(var(--empty-scale));
+  }
+}
+@keyframes remainder-fill {
+  from {
+    transform: scaleX(var(--empty-scale));
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
