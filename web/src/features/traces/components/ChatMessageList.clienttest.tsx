@@ -34,7 +34,10 @@ vi.mock(
 );
 
 import { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
-import { type ChatMlMessage } from "@/src/features/traces/fns/chatMessageUtils";
+import {
+  type ChatMlMessage,
+  getMessageTitle,
+} from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
 // Pin the limit so the test does not depend on the ambient .env value.
 const { TEST_LIMIT } = vi.hoisted(() => ({ TEST_LIMIT: 1_000 }));
@@ -53,6 +56,7 @@ const renderList = (message: ChatMlMessage, mediaIds: string[]) =>
       media={mediaIds.map((mediaId) => ({ mediaId }) as MediaReturnType)}
       currentView="pretty"
       messageToToolCallNumbers={new Map()}
+      getMessageTitle={getMessageTitle}
     />,
   );
 
@@ -78,6 +82,7 @@ describe("ChatMessageList long history", () => {
         shouldRenderMarkdown={true}
         currentView="pretty"
         messageToToolCallNumbers={new Map()}
+        getMessageTitle={getMessageTitle}
       />,
     );
 
@@ -107,6 +112,7 @@ describe("ChatMessageList long history", () => {
         shouldRenderMarkdown={true}
         currentView="pretty"
         messageToToolCallNumbers={new Map()}
+        getMessageTitle={getMessageTitle}
       />,
     );
 
@@ -176,6 +182,7 @@ describe("ChatMessageList long history", () => {
         shouldRenderMarkdown={true}
         currentView="pretty"
         messageToToolCallNumbers={new Map()}
+        getMessageTitle={getMessageTitle}
         collapseLongHistory={false}
       />,
     );

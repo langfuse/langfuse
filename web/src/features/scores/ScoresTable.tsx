@@ -36,7 +36,7 @@ import {
   sortOptionValues,
 } from "@/src/features/filters";
 
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   getScoreFilterConfig,

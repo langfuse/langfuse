@@ -10,7 +10,7 @@ import type { TraceSearchListItem as TraceSearchListItemData } from "@/src/featu
 import { ItemTypeIcon } from "@/src/components/ItemBadge";
 import { SpanContent } from "./SpanContent";
 import { cn } from "@/src/utils/tailwind";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 interface TraceSearchListItemProps {

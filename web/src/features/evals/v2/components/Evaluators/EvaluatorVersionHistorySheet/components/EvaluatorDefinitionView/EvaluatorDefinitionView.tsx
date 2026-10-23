@@ -12,7 +12,7 @@ import {
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Label } from "@/src/components/ui/label";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
@@ -80,7 +80,7 @@ function CodeEvaluatorDefinitionView({
             disabled
           />
         ) : (
-          <Badge variant="outline">Language unavailable</Badge>
+          <Badge color="primary" text="Language unavailable" />
         )}
       </EvaluationTypeConfiguration>
       <section className="flex flex-col gap-2">
@@ -216,11 +216,15 @@ function DecisionModelDefinitionView({
         onModeChange={noop}
         disabled
       >
-        <Badge variant="outline" className="font-mono">
-          {definition.selectedModel
-            ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
-            : "No model"}
-        </Badge>
+        <Badge
+          color="primary"
+          font="mono"
+          text={
+            definition.selectedModel
+              ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
+              : "No model"
+          }
+        />
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Questions</Label>

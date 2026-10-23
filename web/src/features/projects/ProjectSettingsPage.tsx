@@ -6,7 +6,7 @@ import { HostNameProject } from "@/src/features/projects/components/HostNameProj
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
+import { LlmApiKeyList } from "@/src/features/public-api/components/LlmApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";

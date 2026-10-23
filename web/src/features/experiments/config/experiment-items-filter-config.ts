@@ -1,5 +1,5 @@
 import type { FilterConfig } from "@/src/features/filters";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
 
 /**
