@@ -113,6 +113,26 @@ describe("useResolvedMedia", () => {
     },
   );
 
+  it("renews a URL shortly before it expires, but not early in its lifetime", async () => {
+    getMedia.mockResolvedValue(refreshedMedia);
+    const { result, rerender } = renderHook(
+      () => useResolvedMedia(descriptor, { enabled: true }),
+      { wrapper },
+    );
+
+    vi.setSystemTime(new Date("2026-10-22T09:00:30.000Z"));
+    rerender();
+    expect(result.current.url).toBe(cachedMedia.url);
+    await act(result.current.refreshIfNeeded);
+    expect(getMedia).not.toHaveBeenCalled();
+
+    vi.setSystemTime(new Date("2026-10-22T09:00:50.000Z"));
+    rerender();
+    expect(result.current.url).toBeUndefined();
+    await act(result.current.refreshIfNeeded);
+    expect(getMedia).toHaveBeenCalledTimes(1);
+  });
+
   it("hides the expired URL during renewal and shares concurrent refreshes", async () => {
     const signing = Promise.withResolvers<MediaResponse>();
     getMedia.mockReturnValue(signing.promise);

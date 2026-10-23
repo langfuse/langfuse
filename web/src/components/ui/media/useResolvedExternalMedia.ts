@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type MediaTagStatus } from "../../MediaTag/MediaTag";
-import { type MediaDescriptor } from "./mediaUtils";
+import { isSignedUrlExpired, type MediaDescriptor } from "./mediaUtils";
 
 export function useResolvedExternalMedia(
   descriptor: S3MediaDescriptor,
@@ -26,8 +25,10 @@ export function useResolvedExternalMedia(
       staleTime: 4 * 60 * 1000,
     },
   );
+  const isExpired = () =>
+    isSignedUrlExpired(query.data?.expiresAt, query.dataUpdatedAt);
   const refreshIfNeeded = async () => {
-    if (!query.isError && !isExpired(query.data?.expiresAt)) return;
+    if (!query.isError && !isExpired()) return;
     await query.refetch();
   };
 
@@ -37,7 +38,7 @@ export function useResolvedExternalMedia(
   if (query.isError) {
     return { status: "error", refreshIfNeeded };
   }
-  if (isExpired(query.data?.expiresAt)) {
+  if (isExpired()) {
     return {
       status: query.isFetching ? "loading" : "error",
       refreshIfNeeded,
@@ -53,9 +54,4 @@ export function useResolvedExternalMedia(
   }
   return { status: "loading", refreshIfNeeded };
 }
-
-function isExpired(expiresAt?: Date) {
-  return expiresAt !== undefined && expiresAt.getTime() <= Date.now();
-}
-
 type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;

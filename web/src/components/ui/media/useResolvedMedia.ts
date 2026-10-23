@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { type MediaDescriptor } from "./mediaUtils";
+import { isSignedUrlExpired, type MediaDescriptor } from "./mediaUtils";
 import { type MediaTagStatus } from "../../MediaTag/MediaTag";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
@@ -9,8 +9,8 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
  * Resolves the previewable URL for a media descriptor.
  *
  * URLs are resolved lazily when media opens, so a JSON view with N media leaves
- * does not fetch N URLs on render. Cached URLs are reused until their returned
- * expiry; callers check for renewal when opening media.
+ * does not fetch N URLs on render. Cached URLs are reused until shortly before
+ * their returned expiry; callers check for renewal when opening media.
  */
 export function useResolvedMedia(
   descriptor: LangfuseRefDescriptor,
@@ -23,28 +23,30 @@ export function useResolvedMedia(
 } {
   const projectId = useProjectIdFromURL();
 
-  const { data, isError, isFetching, refetch } = api.media.getById.useQuery(
-    {
-      mediaId: descriptor.mediaId,
-      projectId: projectId as string,
-    },
-    {
-      enabled: enabled && Boolean(projectId),
-      meta: { silentHttpCodes: [404] },
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000,
-    },
-  );
+  const { data, dataUpdatedAt, isError, isFetching, refetch } =
+    api.media.getById.useQuery(
+      {
+        mediaId: descriptor.mediaId,
+        projectId: projectId as string,
+      },
+      {
+        enabled: enabled && Boolean(projectId),
+        meta: { silentHttpCodes: [404] },
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        staleTime: 55 * 60 * 1000,
+      },
+    );
+  const isExpired = () => isSignedUrlExpired(data?.urlExpiry, dataUpdatedAt);
 
   const refreshIfNeeded = async () => {
-    if (!projectId || (!isError && !isExpired(data?.urlExpiry))) return;
+    if (!projectId || (!isError && !isExpired())) return;
     await refetch({ cancelRefetch: false });
   };
 
   if (!enabled || !projectId) return { status: "idle", refreshIfNeeded };
-  if (isExpired(data?.urlExpiry)) {
+  if (isExpired()) {
     return {
       status: isFetching ? "loading" : "error",
       refreshIfNeeded,
@@ -59,8 +61,4 @@ export function useResolvedMedia(
       refreshIfNeeded,
     };
   return { status: "loading", refreshIfNeeded };
-}
-
-function isExpired(urlExpiry?: string) {
-  return urlExpiry !== undefined && new Date(urlExpiry).getTime() <= Date.now();
 }
