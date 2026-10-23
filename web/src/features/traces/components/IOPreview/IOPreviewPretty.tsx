@@ -61,8 +61,9 @@ import {
   getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { StatusMessageSection } from "./components/StatusMessageSection";
-import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useStatusMessage } from "./hooks/useStatusMessage";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 const TOOLS_COLLAPSE_THRESHOLD = 5;
 // The user's collapse choice lasts the session, across observations.
@@ -290,6 +291,7 @@ export function IOPreviewPretty({
   contentMode = "all",
   showSystemPrompt,
 }: IOPreviewPrettyProps) {
+  const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
   const [othersOpen, setOthersOpen] = useState(false);
@@ -561,9 +563,61 @@ export function IOPreviewPretty({
 
   return (
     <div className="space-y-2 pt-3">
-      {showData && status ? (
-        <StatusMessageSection status={status} currentView="pretty" />
-      ) : null}
+      {showData && status && statusPresentation && (
+        <JsonViewController
+          json={status.message}
+          parsedJson={
+            // Do not retry parsing text rejected by the status parser's size limit.
+            parsedStatusMessage ?? null
+          }
+          currentView="pretty"
+        >
+          {(state) => (
+            <IOSection
+              title={statusPresentation.title}
+              onCopy={
+                parsedStatusMessage !== undefined
+                  ? state.copy
+                  : () => copyTextToClipboard(status.message)
+              }
+              actions={
+                parsedStatusMessage !== undefined &&
+                getJsonViewContentKind(state) === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={
+                parsedStatusMessage !== undefined &&
+                getJsonViewContentKind(state) === "table"
+                  ? "table"
+                  : "text"
+              }
+              tone={statusPresentation.tone}
+            >
+              {parsedStatusMessage !== undefined ? (
+                <PrettyJsonViewContent
+                  state={state}
+                  title={statusPresentation.title}
+                  borderless
+                />
+              ) : (
+                status.message
+              )}
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
 
       {showData && allTools.length > 0 ? (
         <IOSection

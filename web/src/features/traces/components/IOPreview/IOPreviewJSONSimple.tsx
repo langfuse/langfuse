@@ -14,8 +14,9 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
-import { StatusMessageSection } from "./components/StatusMessageSection";
-import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useStatusMessage } from "./hooks/useStatusMessage";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -91,6 +92,7 @@ export function IOPreviewJSONSimple({
   environment = "default",
   showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
+  const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
   // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
@@ -164,9 +166,39 @@ export function IOPreviewJSONSimple({
 
   return (
     <div className="space-y-2 pt-3">
-      {status ? (
-        <StatusMessageSection status={status} currentView="json" />
-      ) : null}
+      {status && statusPresentation && (
+        <JsonViewController
+          json={status.message}
+          parsedJson={
+            // Do not retry parsing text rejected by the status parser's size limit.
+            parsedStatusMessage ?? null
+          }
+          currentView="json"
+        >
+          {(state) => (
+            <IOSection
+              title={statusPresentation.title}
+              onCopy={
+                parsedStatusMessage !== undefined
+                  ? state.copy
+                  : () => copyTextToClipboard(status.message)
+              }
+              variant="text"
+              tone={statusPresentation.tone}
+            >
+              {parsedStatusMessage !== undefined ? (
+                <PrettyJsonViewContent
+                  state={state}
+                  title={statusPresentation.title}
+                  borderless
+                />
+              ) : (
+                status.message
+              )}
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
       {showInput &&
         (inputTooLarge ? (
           <IOSection title="Input">
