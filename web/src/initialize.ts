@@ -2,10 +2,8 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import {
-  saveOrgMembership,
-  saveProjectMembership,
-} from "@/src/features/memberships/membershipService";
+import { saveOrgMembership } from "@/src/features/memberships/orgMembershipRepository";
+import { saveProjectMembership } from "@/src/features/memberships/projectMembershipRepository";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";

@@ -19,7 +19,7 @@ const options = [
       roleAssignment: ["rbac/roleAssignmentService.ts", "*.servertest.ts"],
       membership: ["*.test.ts"],
       projectMembership: {
-        files: ["memberships/membershipService.ts"],
+        files: ["memberships/projectMembershipRepository.ts"],
         writes: "all" as const,
       },
     },
@@ -70,7 +70,8 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
     },
     {
       code: `await tx.projectMembership.delete({ where });`,
-      filename: "/repo/web/src/features/memberships/membershipService.ts",
+      filename:
+        "/repo/web/src/features/memberships/projectMembershipRepository.ts",
       options,
     },
   ],
@@ -196,7 +197,7 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
         restricted(
           "projectMembership",
           method,
-          "memberships/membershipService.ts",
+          "memberships/projectMembershipRepository.ts",
         ),
       ],
     })),
@@ -207,7 +208,7 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
         restricted(
           "projectMembership",
           "upsert",
-          "memberships/membershipService.ts",
+          "memberships/projectMembershipRepository.ts",
         ),
       ],
     },

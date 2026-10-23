@@ -5,9 +5,9 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  saveProjectMembership,
   deleteProjectMembership,
-} from "@/src/features/memberships/membershipService";
+  saveProjectMembership,
+} from "@/src/features/memberships/projectMembershipRepository";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";

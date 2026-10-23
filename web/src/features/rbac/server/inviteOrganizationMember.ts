@@ -7,10 +7,8 @@ import {
   createWithinEntitlementLimit,
   hasEntitlement,
 } from "@/src/features/entitlements/server";
-import {
-  createOrgMembership,
-  createProjectMembership,
-} from "@/src/features/memberships/membershipService";
+import { createOrgMembership } from "@/src/features/memberships/orgMembershipRepository";
+import { createProjectMembership } from "@/src/features/memberships/projectMembershipRepository";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";

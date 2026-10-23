@@ -2,10 +2,10 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
-  saveOrgMembership,
   createOrgMembership,
   deleteOrgMembership,
-} from "@/src/features/memberships/membershipService";
+  saveOrgMembership,
+} from "@/src/features/memberships/orgMembershipRepository";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,

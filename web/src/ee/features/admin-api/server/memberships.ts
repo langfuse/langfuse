@@ -10,9 +10,9 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
-  saveOrgMembership,
   deleteOrgMembership,
-} from "@/src/features/memberships/membershipService";
+  saveOrgMembership,
+} from "@/src/features/memberships/orgMembershipRepository";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";

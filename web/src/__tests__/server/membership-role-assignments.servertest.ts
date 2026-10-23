@@ -8,13 +8,15 @@ import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import {
-  createProjectMembership,
   findOrCreateOrgMembership,
+  saveOrgMembership,
+} from "@/src/features/memberships/orgMembershipRepository";
+import {
+  createProjectMembership,
   findOrCreateProjectMembership,
   ProjectNotInOrgError,
-  saveOrgMembership,
   saveProjectMembership,
-} from "@/src/features/memberships/membershipService";
+} from "@/src/features/memberships/projectMembershipRepository";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
 import projectMembershipsRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
 import scimUsersRoute from "@/src/pages/api/public/scim/Users";
@@ -231,7 +233,7 @@ describe("membership role assignments", () => {
     ownerId = owner.id;
   });
 
-  describe("membershipService", () => {
+  describe("membership repositories", () => {
     it("findOrCreateOrgMembership creates a missing membership", async () => {
       const user = await createUser();
 

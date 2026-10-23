@@ -20,11 +20,13 @@ import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   createOrgMembership,
-  createProjectMembership,
   findOrCreateOrgMembership,
+} from "@/src/features/memberships/orgMembershipRepository";
+import {
+  createProjectMembership,
   findOrCreateProjectMembership,
   ProjectNotInOrgError,
-} from "@/src/features/memberships/membershipService";
+} from "@/src/features/memberships/projectMembershipRepository";
 
 export async function createProjectMembershipsOnSignup(
   user: {

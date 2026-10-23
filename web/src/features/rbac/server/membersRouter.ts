@@ -37,11 +37,13 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
-  saveOrgMembership,
-  saveProjectMembership,
   deleteOrgMembership,
+  saveOrgMembership,
+} from "@/src/features/memberships/orgMembershipRepository";
+import {
   deleteProjectMembership,
-} from "@/src/features/memberships/membershipService";
+  saveProjectMembership,
+} from "@/src/features/memberships/projectMembershipRepository";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
