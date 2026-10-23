@@ -16,7 +16,6 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
-import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Sheet,
   SheetContent,
@@ -607,31 +606,26 @@ function TopicsWorkspaceContent({
                   className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
                   aria-describedby={undefined}
                 >
-                  <SheetHeader className="border-b px-5 py-4">
-                    <SheetTitle>
-                      {executionId ? selectedRunTitle : "Run history"}
+                  {executionId ? (
+                    <SheetTitle className="sr-only">
+                      {selectedRunTitle}
                     </SheetTitle>
-                  </SheetHeader>
+                  ) : (
+                    <SheetHeader className="border-b px-5 py-4">
+                      <SheetTitle>Run history</SheetTitle>
+                    </SheetHeader>
+                  )}
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {executionId ? (
-                      <div className="flex flex-col gap-3 px-5 py-4">
-                        <div className="self-start">
-                          <Button
-                            text="All runs"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => showExecutionList(true)}
-                          />
-                        </div>
-                        <ExecutionPanel
-                          key={executionId}
-                          projectId={projectId}
-                          executionId={executionId}
-                          query={selectedExecution}
-                          facets={facets.data ?? []}
-                          canWrite={canWrite}
-                        />
-                      </div>
+                      <ExecutionPanel
+                        key={executionId}
+                        projectId={projectId}
+                        executionId={executionId}
+                        query={selectedExecution}
+                        facets={facets.data ?? []}
+                        canWrite={canWrite}
+                        onBack={() => showExecutionList(true)}
+                      />
                     ) : (
                       <TopicRunHistoryList
                         executions={executions.data ?? []}
@@ -691,6 +685,7 @@ function ExecutionPanel({
   query,
   facets,
   canWrite,
+  onBack,
 }: {
   projectId: string;
   executionId: string;
@@ -700,6 +695,7 @@ function ExecutionPanel({
   >;
   facets: TopicFacet[];
   canWrite: boolean;
+  onBack: () => void;
 }) {
   const utils = api.useUtils();
   const retry = api.topics.retry.useMutation({
@@ -709,14 +705,23 @@ function ExecutionPanel({
         utils.topics.executions.invalidate({ projectId }),
       ]),
   });
-  const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
+  // Trace errors start expanded for failed runs until the user toggles them.
+  const [traceErrorsToggled, setTraceErrorsToggled] = useState<boolean | null>(
+    null,
+  );
+  const execution = query.data;
+  const traceErrorsOpen = traceErrorsToggled ?? execution?.status === "failed";
   const traceErrors = api.topics.traceErrors.useQuery(
     { projectId, executionId },
     { enabled: traceErrorsOpen },
   );
-  const execution = query.data;
-  if (query.error) return <TopicsErrorMessage message={query.error.message} />;
-  if (!execution) return <p>Loading execution…</p>;
+  if (query.error)
+    return (
+      <div className="p-4">
+        <TopicsErrorMessage message={query.error.message} />
+      </div>
+    );
+  if (!execution) return <p className="p-4 text-sm">Loading execution…</p>;
   return (
     <TopicRunDetails
       execution={execution}
@@ -725,7 +730,7 @@ function ExecutionPanel({
       canWrite={canWrite}
       traceErrors={{
         open: traceErrorsOpen,
-        onOpenChange: setTraceErrorsOpen,
+        onOpenChange: setTraceErrorsToggled,
         isPending: traceErrors.isPending,
         errorMessage: traceErrors.error?.message,
         data: traceErrors.data,
@@ -735,12 +740,7 @@ function ExecutionPanel({
         errorMessage: retry.error?.message,
         onRetry: () => retry.mutate({ projectId, executionId }),
       }}
-      onRefresh={() => {
-        query.refetch();
-        utils.topics.currentResults.invalidate({ projectId });
-        utils.topics.executions.invalidate({ projectId });
-        utils.topics.summaryCounts.invalidate({ projectId });
-      }}
+      onBack={onBack}
     />
   );
 }

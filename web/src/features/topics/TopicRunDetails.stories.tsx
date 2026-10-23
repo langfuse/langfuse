@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { type RouterOutputs } from "@/src/utils/api";
 import { TopicRunDetails } from "./TopicRunDetails";
@@ -50,7 +50,7 @@ function processRun(overrides: Partial<Run>): Run {
     createdAt: "2026-10-23T09:12:00Z",
     updatedAt: "2026-10-23T09:40:00Z",
     error: null,
-    estimatedCost: 1.84,
+    estimatedCost: 1.62,
     facets: facetRefs.map(({ facetId }) => facetProgress(facetId)),
     input: {
       operation: "process",
@@ -73,7 +73,7 @@ const traceErrorsClosed = {
 
 const retryIdle = { isPending: false, onRetry: fn() };
 
-const updateRun: Run = {
+const doneWithIssues: Run = {
   id: "run-update",
   projectId: "project",
   status: "completed_with_errors",
@@ -139,13 +139,52 @@ const updateRun: Run = {
   },
 };
 
+const failedRun = processRun({
+  id: "run-failed",
+  status: "failed",
+  phase: "summarizing",
+  error: "Summary model returned 429 Too Many Requests for 3 batches.",
+  estimatedCost: 0.62,
+  facets: facetRefs.map(({ facetId }) =>
+    facetProgress(facetId, {
+      outcome: "failed",
+      runId: null,
+      error: "Summary model returned 429 Too Many Requests for 3 batches.",
+      counts: { complete: 310, failed: 3, assigned: 0, outlier: 0 },
+    }),
+  ),
+});
+
+const failedTraceErrors = {
+  open: true,
+  onOpenChange: fn(),
+  isPending: false,
+  data: {
+    expired: false,
+    errors: [
+      {
+        traceId: "7f3a9c2e1b8d4f6a",
+        error: "Input exceeds 120,000 tokens after truncation.",
+      },
+      {
+        traceId: "c41d8e7a9b2f3056",
+        error: "Summary model returned 429 Too Many Requests.",
+      },
+      {
+        traceId: "e92b7f1c3d5a8604",
+        error: "Trace has no observations with text content.",
+      },
+    ],
+  },
+};
+
 const meta = preview.meta({
   component: TopicRunDetails,
   args: {
     facets,
     projectId: "project",
     canWrite: true,
-    onRefresh: fn(),
+    onBack: fn(),
   },
 });
 
@@ -167,53 +206,18 @@ export const Running = meta.story({
   },
 });
 
-export const CompletedUpdate = meta.story({
+export const DoneWithIssues = meta.story({
   args: {
-    execution: updateRun,
+    execution: doneWithIssues,
     traceErrors: traceErrorsClosed,
     retry: retryIdle,
   },
 });
 
-export const FailedWithTraceErrors = meta.story({
+export const Failed = meta.story({
   args: {
-    execution: processRun({
-      id: "run-failed",
-      status: "failed",
-      phase: "summarizing",
-      error: "Summary model returned 429 Too Many Requests for 3 batches.",
-      estimatedCost: 0.62,
-      facets: facetRefs.map(({ facetId }) =>
-        facetProgress(facetId, {
-          outcome: "failed",
-          runId: null,
-          error: "Batch 2 of 5 could not be summarized.",
-          counts: { complete: 310, failed: 190, assigned: 0, outlier: 0 },
-        }),
-      ),
-    }),
-    traceErrors: {
-      open: true,
-      onOpenChange: fn(),
-      isPending: false,
-      data: {
-        expired: false,
-        errors: [
-          {
-            traceId: "7f3a9c2e1b8d4f6a",
-            error: "Input exceeds 120,000 tokens after truncation.",
-          },
-          {
-            traceId: "c41d8e7a9b2f3056",
-            error: "Summary model returned 429 Too Many Requests.",
-          },
-          {
-            traceId: "e92b7f1c3d5a8604",
-            error: "Trace has no observations with text content.",
-          },
-        ],
-      },
-    },
+    execution: failedRun,
+    traceErrors: failedTraceErrors,
     retry: retryIdle,
   },
 });
@@ -240,5 +244,93 @@ export const ExpiredTraceErrors = meta.story({
       data: { expired: true, errors: [] },
     },
     retry: retryIdle,
+  },
+});
+
+export const Complete = meta.story({
+  args: {
+    execution: processRun({
+      facets: facetRefs.map(({ facetId }) =>
+        facetProgress(facetId, {
+          counts: { complete: 488, failed: 12, assigned: 470, outlier: 18 },
+        }),
+      ),
+    }),
+    traceErrors: traceErrorsClosed,
+    retry: retryIdle,
+  },
+});
+
+export const FailedRunResumes = meta.story({
+  name: "(Test) Failed run shows the error once and resumes",
+  args: {
+    execution: failedRun,
+    traceErrors: failedTraceErrors,
+    retry: retryIdle,
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const banner = canvas.getByRole("alert");
+    await expect(banner).toHaveTextContent("Run stopped");
+    await expect(banner).toHaveTextContent(
+      "Summary model returned 429 Too Many Requests for 3 batches.",
+    );
+    await expect(banner).toHaveTextContent(
+      "310 traces are already summarized and will be kept.",
+    );
+    await expect(
+      canvas.getAllByText(
+        "Summary model returned 429 Too Many Requests for 3 batches.",
+      ),
+    ).toHaveLength(1);
+    await expect(
+      canvas.getAllByText("310 of 500 summarized · 190 left"),
+    ).toHaveLength(4);
+    await expect(canvas.getAllByText("Stopped")).toHaveLength(4);
+    await expect(
+      canvas.getByText("Summarized before it stopped"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Est. cost")).toBeVisible();
+    await expect(
+      canvas.getByRole("link", { name: "7f3a9c2e1b8d4f6a" }),
+    ).toHaveAttribute("href", "/project/project/traces/7f3a9c2e1b8d4f6a");
+    await userEvent.click(canvas.getByRole("button", { name: "Resume run" }));
+    await expect(args.retry.onRetry).toHaveBeenCalledOnce();
+    await userEvent.click(canvas.getByRole("button", { name: "All runs" }));
+    await expect(args.onBack).toHaveBeenCalledOnce();
+  },
+});
+
+export const QuestionStatusesExplainThemselves = meta.story({
+  name: "(Test) Done with issues maps question outcomes and notes",
+  args: {
+    execution: doneWithIssues,
+    traceErrors: traceErrorsClosed,
+    retry: retryIdle,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("alert")).toBeNull();
+    await expect(canvas.queryByText("Est. cost")).toBeNull();
+    await expect(canvas.getByText("Done with issues")).toBeVisible();
+    await expect(
+      canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Waiting")).toBeVisible();
+    await expect(canvas.getByText("Needs more traces")).toBeVisible();
+    await expect(
+      canvas.getByText("64 summarized · 12 had too little text"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText(
+        "Grouping needs at least 100 summaries. Run on more traces, or lower the minimum.",
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByText("No topics found")).toBeVisible();
+    await expect(
+      canvas.getByText(
+        "The other 340 didn’t form clear groups. Try a larger, more varied set of traces.",
+      ),
+    ).toBeVisible();
   },
 });

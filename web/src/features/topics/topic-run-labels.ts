@@ -2,7 +2,6 @@ import {
   type TopicExecutionStatus,
   type TopicOperation,
 } from "@langfuse/shared/topics";
-import { costFormatter } from "@/src/utils/numbers";
 
 export const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
@@ -27,7 +26,3 @@ export const executionDotClasses: Record<TopicExecutionStatus, string> = {
 
 export const busy = (status: string) =>
   status === "queued" || status === "running";
-
-export function estimatedExecutionCost(cost: number | null) {
-  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
-}

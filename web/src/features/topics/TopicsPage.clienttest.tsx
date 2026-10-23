@@ -518,9 +518,7 @@ it("refreshes current results through retry and completion for a selected run ou
   state.executionId = "execution";
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   const status = screen.getByRole("dialog", { name: "Analyze traces" });
-  fireEvent.click(
-    within(status).getByRole("button", { name: "Resume interrupted stages" }),
-  );
+  fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
     executionId: "execution",
