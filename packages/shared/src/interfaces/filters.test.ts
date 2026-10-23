@@ -18,13 +18,15 @@ const metadataFilter = (operator: string, value: string) => ({
 
 describe("empty categorical selections", () => {
   it.each(["stringOptions", "arrayOptions"])(
-    "accepts any of [] for %s in single-filter and list schemas",
+    "rejects any of [] for %s in single-filter and list schemas",
     (type) => {
       const filter = { type, column: "name", operator: "any of", value: [] };
-      expect(singleFilter.parse(filter)).toEqual(filter);
-      expect(eventsTableSingleFilter.parse(filter)).toEqual(filter);
-      expect(singleFilterList.parse([filter])).toEqual([filter]);
-      expect(eventsTableSingleFilterList.parse([filter])).toEqual([filter]);
+      expect(singleFilter.safeParse(filter).success).toBe(false);
+      expect(eventsTableSingleFilter.safeParse(filter).success).toBe(false);
+      expect(singleFilterList.safeParse([filter]).success).toBe(false);
+      expect(eventsTableSingleFilterList.safeParse([filter]).success).toBe(
+        false,
+      );
     },
   );
 });
