@@ -3,11 +3,11 @@ import { useState, type ComponentProps } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
-import { PromptEditorContent } from "./PromptEditor";
+import { PromptEditor } from "./PromptEditor";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
-const meta = preview.meta({ component: PromptEditorContent });
+const meta = preview.meta({ component: PromptEditor });
 
 function PromptEditorStory({
   messages,
@@ -18,7 +18,7 @@ function PromptEditorStory({
   messages: EvaluatorPromptMessage[];
   compact?: boolean;
   previewEnabled?: boolean;
-  sampleObject?: ComponentProps<typeof PromptEditorContent>["sampleObject"];
+  sampleObject?: ComponentProps<typeof PromptEditor>["sampleObject"];
 }) {
   const [store] = useState(() => {
     const nextStore = createEvaluatorSetupStore({
@@ -40,7 +40,7 @@ function PromptEditorStory({
 
   return (
     <div className={compact ? "w-64 max-w-full" : "w-[42rem] max-w-full"}>
-      <PromptEditorContent store={store} sampleObject={sampleObject} />
+      <PromptEditor store={store} sampleObject={sampleObject} />
     </div>
   );
 }

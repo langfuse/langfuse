@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -55,7 +55,6 @@ import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
 } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
@@ -71,18 +70,6 @@ const ROLES: Array<{ value: EvaluatorPromptMessage["role"]; label: string }> = [
 type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
 export function PromptEditor({
-  projectId,
-  store,
-}: {
-  projectId: string;
-  store: EvaluatorSetupStore;
-}) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
-  return <PromptEditorContent store={store} sampleObject={sampleObject} />;
-}
-
-/** Presentational prompt editor used by the connected editor and Storybook. */
-export function PromptEditorContent({
   store,
   sampleObject,
 }: {
