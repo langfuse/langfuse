@@ -9,7 +9,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
-import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
+import { ConnectedDeleteEvaluationModelButton } from "@/src/features/evals/components/ConnectedDeleteEvaluationModelButton/ConnectedDeleteEvaluationModelButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { useState } from "react";
 import {
@@ -189,7 +189,7 @@ export function DefaultEvalModelSetup({
 
       <div className="mt-2 flex justify-end gap-2">
         {setup.selectedModel && (
-          <DeleteEvaluationModelButton
+          <ConnectedDeleteEvaluationModelButton
             projectId={projectId}
             scope="evalDefaultModel:CUD"
           />
