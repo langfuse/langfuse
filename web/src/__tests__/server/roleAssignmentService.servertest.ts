@@ -675,6 +675,26 @@ describe("role assignment foreign keys", () => {
   });
 });
 
+/** createUnassignedApiKey creates an api key whose role assignments were never written. */
+async function createUnassignedApiKey(scope: "ORGANIZATION" | "PROJECT") {
+  const { orgId, projectId } = await createOrgProjectAndApiKey();
+  const key = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    ...(scope === "PROJECT"
+      ? {
+          scope: ProjectId(projectId),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        }
+      : {
+          scope: OrganizationId(orgId),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        }),
+    createdBy: "system",
+  });
+  await prisma.roleAssignment.deleteMany({ where: { apiKeyId: key.id } });
+  return { orgId, projectId, apiKeyId: ApiKeyId(key.id) };
+}
+
 /** createUnmirroredMember creates org and project memberships without role assignments. */
 async function createUnmirroredMember() {
   const { orgId, projectId } = await createOrgProjectAndApiKey();
@@ -757,5 +777,54 @@ describe("getRoleAssignmentsForPrincipal membership backfill", () => {
         where: { principalId: UserId(user.id) },
       }),
     ).toBe(2);
+  });
+});
+
+describe("getRoleAssignmentsForPrincipal api key backfill", () => {
+  it("backfills a project key's legacy role in its project's current org", async () => {
+    const { projectId, apiKeyId } = await createUnassignedApiKey("PROJECT");
+    const { orgId: currentOrgId } = await createOrgProjectAndApiKey();
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { orgId: currentOrgId },
+    });
+
+    const assignments = await getRoleAssignmentsForPrincipal(prisma, apiKeyId);
+
+    expect(assignments).toMatchObject([
+      {
+        orgId: currentOrgId,
+        ownerId: ProjectId(projectId),
+        roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      },
+    ]);
+  });
+
+  it("backfills an organization key's legacy role", async () => {
+    const { orgId, apiKeyId } = await createUnassignedApiKey("ORGANIZATION");
+
+    const assignments = await getRoleAssignmentsForPrincipal(prisma, apiKeyId);
+
+    expect(assignments).toMatchObject([
+      {
+        orgId,
+        ownerId: OrganizationId(orgId),
+        roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      },
+    ]);
+  });
+
+  it("backfills once under concurrent reads", async () => {
+    const { apiKeyId } = await createUnassignedApiKey("PROJECT");
+
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        getRoleAssignmentsForPrincipal(prisma, apiKeyId),
+      ),
+    );
+
+    expect(
+      await prisma.roleAssignment.count({ where: { principalId: apiKeyId } }),
+    ).toBe(1);
   });
 });

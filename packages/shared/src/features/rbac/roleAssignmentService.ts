@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 
 import { InvalidRequestError, NotImplementedError } from "../../errors";
+import { getApiKeyRoles } from "../../server/auth/apiKeys";
 import { withTransaction } from "../../server/utils/withTransaction";
 import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
 import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
@@ -20,18 +21,17 @@ import {
   type RoleAssignment,
   type RoleId,
   type TenantId,
-  type UserId,
 } from "./types";
 
-/** getRoleAssignmentsForPrincipal loads a principal's stored assignments, backfilling a user without any from their memberships. */
+/** getRoleAssignmentsForPrincipal loads a principal's stored assignments, backfilling a principal without any from its legacy rows. */
 export async function getRoleAssignmentsForPrincipal(
   prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
   const assignments = await findRoleAssignments(prisma, principalId);
-  if (assignments.length > 0 || !hasUserKind(principalId)) return assignments;
+  if (assignments.length > 0) return assignments;
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
-  await backfillUserRoleAssignments(prisma, principalId);
+  await backfillRoleAssignments(prisma, principalId);
   return await findRoleAssignments(prisma, principalId);
 }
 
@@ -119,23 +119,19 @@ async function findRoleAssignments(
 }
 
 /**
- * backfillUserRoleAssignments assigns a user without assignments their membership roles while holding the memberships against concurrent writes.
+ * backfillRoleAssignments assigns a principal without assignments the roles its legacy rows imply while holding those rows against concurrent writes.
  * @deprecated RoleAssignment backfill will be removed in the next major version.
  */
-async function backfillUserRoleAssignments(
+async function backfillRoleAssignments(
   prisma: Prisma.TransactionClient,
-  principalId: UserId,
+  principalId: PrincipalId,
 ): Promise<void> {
   await withTransaction(prisma, async (tx) => {
-    const userId = untag(principalId);
-    const membershipRoles = [
-      ...(await getOrgMembershipRoles(tx, { userId })),
-      ...(await getProjectMembershipRoles(tx, { userId })),
-    ];
+    const impliedRoles = await getImpliedRoles(tx, principalId);
     const assignments = await findRoleAssignments(tx, principalId);
     if (assignments.length > 0) return;
     const data: Prisma.RoleAssignmentCreateManyInput[] = [];
-    for (const ra of membershipRoles) {
+    for (const ra of impliedRoles) {
       data.push({
         ...(await validateTenancy(tx, ra.tenantId, ra.ownerId)),
         ...principalFields(ra.principalId),
@@ -144,6 +140,22 @@ async function backfillUserRoleAssignments(
     }
     await tx.roleAssignment.createMany({ data, skipDuplicates: true });
   });
+}
+
+/** getImpliedRoles share-locks a principal's api key or memberships and returns the role assignments they imply. */
+async function getImpliedRoles(
+  tx: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
+  if (hasApiKeyKind(principalId)) {
+    return await getApiKeyRoles(tx, { apiKeyId: untag(principalId) });
+  }
+  if (!hasUserKind(principalId)) return [];
+  const userId = untag(principalId);
+  return [
+    ...(await getOrgMembershipRoles(tx, { userId })),
+    ...(await getProjectMembershipRoles(tx, { userId })),
+  ];
 }
 
 /** validateTenancy holds project ownership stable until the transaction ends. */
