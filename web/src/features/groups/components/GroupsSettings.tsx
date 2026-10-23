@@ -35,6 +35,11 @@ const ROLE_OPTIONS: { value: GroupRole; label: string }[] = [
   { value: "MEMBER", label: "Member" },
   { value: "ADMIN", label: "Admin" },
 ];
+const roleLabel = (role: string) =>
+  role === "NONE" ? "None" : role.charAt(0) + role.slice(1).toLowerCase();
+
+const MAX_PROJECTS_IN_SUMMARY = 2;
+
 const ORG_ROLE_OPTIONS: { value: GroupRole | "NONE"; label: string }[] = [
   { value: "NONE", label: "No organization role" },
   ...ROLE_OPTIONS,
@@ -130,17 +135,16 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>Group</TableHead>
-              <TableHead>External ID</TableHead>
               <TableHead>Members</TableHead>
-              <TableHead>Roles</TableHead>
-              <TableHead>Last change</TableHead>
+              <TableHead>Grants</TableHead>
+              <TableHead>Last synced</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!groups.isLoading && data.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={5}
                   className="text-muted-foreground py-8 text-center"
                 >
                   No groups have been pushed by your identity provider yet.
@@ -155,39 +159,52 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
                     className="cursor-pointer"
                     onClick={() => toggle(group.id)}
                   >
-                    <TableCell>
+                    <TableCell className="py-3">
                       {isOpen ? (
                         <ChevronDown aria-hidden />
                       ) : (
                         <ChevronRight aria-hidden />
                       )}
                     </TableCell>
-                    <TableCell className="font-bold">
-                      {group.displayName}
+                    <TableCell className="py-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-bold">
+                          {group.displayName}
+                        </span>
+                        <span className="text-muted-foreground font-mono text-xs">
+                          {group.externalId
+                            ? `IdP ID: ${group.externalId}`
+                            : "No IdP ID"}
+                        </span>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs">
-                      {group.externalId ?? "—"}
+                    <TableCell className="py-3 text-sm whitespace-nowrap tabular-nums">
+                      {group.members.length}{" "}
+                      {group.members.length === 1 ? "member" : "members"}
                     </TableCell>
-                    <TableCell>{group.members.length}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-3">
                       <GroupRolesSummary group={group} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground py-3 whitespace-nowrap">
                       {group.updatedAt.toLocaleString()}
                     </TableCell>
                   </TableRow>
                   {isOpen && (
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
-                      <TableCell colSpan={5} className="pb-4">
-                        <div className="flex flex-col gap-6">
-                          <GroupRolesEditor
-                            orgId={orgId}
-                            group={group}
-                            canEdit={canEditRoles}
-                            canSetProjectRoles={hasProjectRoles}
-                          />
-                          <GroupMembers group={group} />
+                      <TableCell colSpan={4} className="pt-0 pb-4">
+                        <div className="bg-muted/30 flex flex-col divide-y rounded-md border">
+                          <div className="p-4">
+                            <GroupRolesEditor
+                              orgId={orgId}
+                              group={group}
+                              canEdit={canEditRoles}
+                              canSetProjectRoles={hasProjectRoles}
+                            />
+                          </div>
+                          <div className="p-4">
+                            <GroupMembers group={group} />
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -203,19 +220,42 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
 }
 
 function GroupRolesSummary({ group }: { group: Group }) {
+  const organization = useQueryOrganization();
   if (!group.orgRole && group.projectRoles.length === 0) {
-    return <Badge variant="outline">No roles mapped</Badge>;
+    return (
+      <span className="text-muted-foreground text-sm">No roles mapped</span>
+    );
   }
+  const projectName = (projectId: string) =>
+    organization?.projects.find((project) => project.id === projectId)?.name ??
+    projectId;
+  const shown = group.projectRoles.slice(0, MAX_PROJECTS_IN_SUMMARY);
+  const hidden = group.projectRoles.slice(MAX_PROJECTS_IN_SUMMARY);
   return (
-    <div className="flex flex-wrap gap-1">
-      {group.orgRole && (
-        <Badge variant="tertiary">Organization: {group.orgRole}</Badge>
-      )}
-      {group.projectRoles.length > 0 && (
-        <Badge variant="tertiary">
-          {group.projectRoles.length}{" "}
-          {group.projectRoles.length === 1 ? "project" : "projects"}
-        </Badge>
+    <div className="flex flex-col gap-1 text-sm">
+      <div>
+        <span className="text-muted-foreground">Organization: </span>
+        {group.orgRole ? roleLabel(group.orgRole) : "—"}
+      </div>
+      {shown.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-muted-foreground">Projects:</span>
+          {shown.map((entry) => (
+            <Badge key={entry.projectId} variant="outline">
+              {projectName(entry.projectId)}: {roleLabel(entry.role)}
+            </Badge>
+          ))}
+          {hidden.length > 0 && (
+            <span
+              className="text-muted-foreground text-xs"
+              title={hidden
+                .map((e) => `${projectName(e.projectId)}: ${roleLabel(e.role)}`)
+                .join("\n")}
+            >
+              +{hidden.length} more
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
@@ -268,7 +308,13 @@ function GroupRolesEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-bold">Roles</h3>
+      <div>
+        <h3 className="text-sm font-bold">Roles</h3>
+        <p className="text-muted-foreground text-xs">
+          Members get the highest of their own role and the roles of all their
+          groups.
+        </p>
+      </div>
       <div className="flex items-center gap-3">
         <span className="w-40 text-sm">Organization</span>
         <div className="w-56">
@@ -325,8 +371,9 @@ function GroupRolesEditor({
           ))}
           {canEdit && unusedProjects.length > 0 && (
             <div className="flex items-center gap-3">
-              <span className="w-40 text-sm">
-                <Plus aria-hidden /> Add project
+              <span className="text-muted-foreground flex w-40 items-center gap-1 text-sm">
+                <Plus aria-hidden />
+                Add project
               </span>
               <div className="w-56">
                 <SelectInput
@@ -377,9 +424,12 @@ function GroupRolesEditor({
 function GroupMembers({ group }: { group: Group }) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-bold">
-        Members (managed by your identity provider)
-      </h3>
+      <div>
+        <h3 className="text-sm font-bold">Members ({group.members.length})</h3>
+        <p className="text-muted-foreground text-xs">
+          Managed by your identity provider.
+        </p>
+      </div>
       {group.members.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           This group has no members.
@@ -390,19 +440,39 @@ function GroupMembers({ group }: { group: Group }) {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Direct organization role</TableHead>
+              <TableHead>Direct org role</TableHead>
+              <TableHead>Org role from groups</TableHead>
+              <TableHead>Effective org role</TableHead>
               <TableHead>Added</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {group.members.map((member) => (
               <TableRow key={member.userId}>
-                <TableCell>{member.name ?? "—"}</TableCell>
-                <TableCell>{member.email ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant="tertiary">{member.orgRole}</Badge>
+                <TableCell className="py-2.5">{member.name ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground py-2.5">
+                  {member.email ?? "—"}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell>
+                  <Badge variant="outline">
+                    {roleLabel(member.directOrgRole)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {member.groupOrgRole ? (
+                    <Badge variant="outline">
+                      {roleLabel(member.groupOrgRole)}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="tertiary">
+                    {roleLabel(member.effectiveOrgRole)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap">
                   {member.addedAt.toLocaleString()}
                 </TableCell>
               </TableRow>

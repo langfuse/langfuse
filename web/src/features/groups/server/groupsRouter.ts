@@ -8,6 +8,7 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
+import { resolveOrganizationRole } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -72,6 +73,19 @@ export const groupsRouter = createTRPCRouter({
                 select: {
                   role: true,
                   user: { select: { id: true, name: true, email: true } },
+                  // Org-wide roles from all of the member's groups, not only this one.
+                  groupMemberships: {
+                    select: {
+                      group: {
+                        select: {
+                          roleAssignments: {
+                            where: { projectId: null },
+                            select: { systemRole: true },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -86,13 +100,32 @@ export const groupsRouter = createTRPCRouter({
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
         ...toGroupRoles(group.roleAssignments),
-        members: group.members.map(({ organizationMembership, createdAt }) => ({
-          userId: organizationMembership.user.id,
-          name: organizationMembership.user.name,
-          email: organizationMembership.user.email,
-          orgRole: organizationMembership.role,
-          addedAt: createdAt,
-        })),
+        members: group.members.map(({ organizationMembership, createdAt }) => {
+          const groupRoles = organizationMembership.groupMemberships.flatMap(
+            ({ group }) =>
+              group.roleAssignments.map((assignment) => ({
+                projectId: null,
+                role: assignment.systemRole as Role,
+              })),
+          );
+          // Highest org-wide role across all of the member's groups; null if none maps one.
+          const groupOrgRole = resolveOrganizationRole({
+            orgMembershipRole: Role.NONE,
+            groupRoles,
+          });
+          return {
+            userId: organizationMembership.user.id,
+            name: organizationMembership.user.name,
+            email: organizationMembership.user.email,
+            directOrgRole: organizationMembership.role,
+            groupOrgRole: groupOrgRole === Role.NONE ? null : groupOrgRole,
+            effectiveOrgRole: resolveOrganizationRole({
+              orgMembershipRole: organizationMembership.role,
+              groupRoles,
+            }),
+            addedAt: createdAt,
+          };
+        }),
       }));
     }),
 
