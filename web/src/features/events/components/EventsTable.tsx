@@ -69,7 +69,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 import { cn } from "@/src/utils/tailwind";
-import { ObservationLevelTag } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/ObservationLevelTag";
 import {
   compactNumberFormatter,
   numberFormatter,

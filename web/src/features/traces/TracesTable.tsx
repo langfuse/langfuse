@@ -38,7 +38,7 @@ import {
   formatAsLabel,
   LevelSymbols,
   getObservationLevelStatus,
-} from "@/src/components/level-colors";
+} from "@/src/components/ObservationLevelTag";
 import {
   detailPageListKeys,
   useDetailPageLists,

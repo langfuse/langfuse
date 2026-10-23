@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import type React from "react";
 import { type ObservationLevelType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";

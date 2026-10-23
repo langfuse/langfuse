@@ -57,7 +57,7 @@ import {
 } from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { ObservationLevelTag } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/ObservationLevelTag";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   formatObservationCost,
