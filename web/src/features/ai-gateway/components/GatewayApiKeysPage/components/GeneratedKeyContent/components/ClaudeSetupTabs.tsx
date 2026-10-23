@@ -7,6 +7,10 @@ const CLAUDE_VARIANTS: { id: ClaudeAgentId; label: string }[] = [
   { id: "claude-desktop", label: "Desktop" },
 ];
 
+function isClaudeAgentId(value: string): value is ClaudeAgentId {
+  return CLAUDE_VARIANTS.some((variant) => variant.id === value);
+}
+
 type ClaudeSetupTabsProps = {
   instructions: AgentSetupInstructions[];
   value: ClaudeAgentId;
@@ -46,10 +50,6 @@ export function ClaudeSetupTabs({
       })}
     </Tabs>
   );
-}
-
-function isClaudeAgentId(value: string): value is ClaudeAgentId {
-  return CLAUDE_VARIANTS.some((variant) => variant.id === value);
 }
 
 export type ClaudeAgentId = Extract<
