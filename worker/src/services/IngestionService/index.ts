@@ -65,7 +65,7 @@ import {
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
   type PricingTierMatchAttributes,
-  isAiGatewayIngestionApiKey,
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -74,6 +74,8 @@ import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
+  hasAiGatewayScope,
+  isAiGatewayGenerationEvent,
   overwriteObject,
 } from "./utils";
 import { randomUUID } from "crypto";
@@ -363,9 +365,11 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
-            isAiGatewayGeneration: isAiGatewayIngestionApiKey(
-              eventData.ingestionApiKey,
-            ),
+            isAiGatewayGeneration: isAiGatewayGenerationEvent({
+              ingestionApiKey: eventData.ingestionApiKey,
+              hasGatewayScope: () =>
+                eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+            }),
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -1106,9 +1110,13 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
-      isAiGatewayGeneration: isAiGatewayIngestionApiKey(
-        attribution.ingestionApiKey,
-      ),
+      isAiGatewayGeneration: isAiGatewayGenerationEvent({
+        ingestionApiKey: attribution.ingestionApiKey,
+        hasGatewayScope: () =>
+          timeSortedEvents.some((event) =>
+            hasAiGatewayScope(event.body?.metadata),
+          ),
+      }),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {

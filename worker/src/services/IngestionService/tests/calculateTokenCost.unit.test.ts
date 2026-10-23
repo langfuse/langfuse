@@ -1588,6 +1588,62 @@ describe("Token Cost Calculation", () => {
         total: 14,
       });
     });
+
+    it("should not tokenize a replayed cancelled gateway generation on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          statusMessage: "Client cancelled the response",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          ingestionApiKey: "",
+          input: "hello world",
+          output: "[]",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should not tokenize a replayed cancelled gateway generation on the observations table", async () => {
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            level: "WARNING",
+            statusMessage: "Client cancelled the response",
+            metadata: { scope: gatewayScope },
+            input: "hello world",
+            output: "[]",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+        attribution: { ...sdkAttribution, ingestionApiKey: "" },
+      });
+
+      const [, generation] = mockAddToClickhouseWriter.mock.calls[0];
+      expect(generation.usage_details).toEqual({});
+      expect(generation.cost_details).toEqual({});
+    });
   });
 
   it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
