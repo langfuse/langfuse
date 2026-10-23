@@ -60,7 +60,7 @@ export function TopicSetupNotice({
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
             </h2>
-            <p className="text-muted-foreground max-w-100 text-sm text-pretty">
+            <p className="text-muted-foreground max-w-100 text-base text-pretty">
               Every trace is labeled by intent, sentiment, outcome and issues,
               so recurring patterns surface on their own.
             </p>
