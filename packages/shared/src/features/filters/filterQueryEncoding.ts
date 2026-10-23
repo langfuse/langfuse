@@ -6,10 +6,6 @@ import {
 import { type SingleValueOption } from "../../tableDefinitions/types";
 import { normalizeLegacySessionPositionInTraceKey } from "./sessionPositionInTrace";
 
-// A blank stringOptions field means [""] in existing shared URLs. Literal
-// backslashes are escaped, so this marker cannot collide with an option value.
-const EMPTY_STRING_OPTIONS_ARRAY = "\\e";
-
 const encodeDelimitedArray = (values: string[], delimiter: string): string =>
   values.join(delimiter);
 
@@ -131,11 +127,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
           ) {
             // Escape pipe characters in individual values before joining with pipe delimiter
             const escapedValues = (f.value as string[]).map(escapePipeInValue);
-            encodedValue = encodeURIComponent(
-              f.type === "stringOptions" && f.value.length === 0
-                ? EMPTY_STRING_OPTIONS_ARRAY
-                : escapedValues.join("|"),
-            );
+            encodedValue = encodeURIComponent(escapedValues.join("|"));
           } else if (f.type === "positionInTrace") {
             encodedValue =
               f.value === undefined || f.value === null
@@ -197,12 +189,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "categoryOptions"
     ) {
       // Split on unescaped pipe characters only, then unescape each value
-      if (
-        type === "stringOptions" &&
-        decodedValue === EMPTY_STRING_OPTIONS_ARRAY
-      ) {
-        parsedValue = [];
-      } else if (decodedValue) {
+      if (decodedValue) {
         parsedValue =
           splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
       } else if (type === "arrayOptions") {

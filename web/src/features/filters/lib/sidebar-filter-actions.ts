@@ -16,6 +16,27 @@ import { partitionNoneOfEnvironmentValues } from "./managedEnvironmentPolicy";
 export type CheckboxOperator = "any of" | "all of" | "none of";
 export type TextFilterOperator = "contains" | "does not contain";
 
+export function hasEmptyCheckboxSelection(
+  current: FilterState,
+  column: string,
+) {
+  return current.some(
+    (filter) =>
+      filter.column === column &&
+      (filter.type === "stringOptions" || filter.type === "arrayOptions") &&
+      filter.operator === "any of" &&
+      filter.value.length > 0 &&
+      current.some(
+        (exclusion) =>
+          exclusion.column === column &&
+          exclusion.target === filter.target &&
+          exclusion.type === filter.type &&
+          exclusion.operator === "none of" &&
+          filter.value.every((value) => exclusion.value.includes(value)),
+      ),
+  );
+}
+
 /** Options as the sidebar hook receives them (per-column value lists, or
  *  nested key→values records for keyed facets). */
 type SidebarFilterOptions = Record<
@@ -340,12 +361,6 @@ export function applySelection(
       availableValues,
     }));
 
-    // "all of []" is vacuously true, not an empty selection. Positive
-    // selections must use "any of []" when their last value is unchecked.
-    if (values.length === 0 && finalOperator === "all of") {
-      finalOperator = "any of";
-    }
-
     // Re-checking the last excluded value empties the exclusion set:
     // return to the implicit-all default instead of persisting an empty
     // "none of" filter.
@@ -378,6 +393,40 @@ export function applySelection(
 
   const filterType: "arrayOptions" | "stringOptions" =
     colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
+
+  if (finalValues.length === 0 && finalOperator !== "none of") {
+    const previousValues =
+      existingFilter?.type === "stringOptions" ||
+      existingFilter?.type === "arrayOptions"
+        ? existingFilter.value
+        : [];
+    // Blank option arrays have ambiguous legacy URL encodings. Any nonblank
+    // witness works here, even if it is an actual stored value.
+    const value =
+      previousValues.find((value) => value !== "") ??
+      availableValues.find((value) => value !== "") ??
+      "empty selection";
+
+    // Contradictory valid filters match nothing without changing shared schemas
+    // or depending on the completeness of the available option list.
+    return [
+      ...other,
+      {
+        column,
+        ...target,
+        type: filterType,
+        operator: "any of",
+        value: [value],
+      },
+      {
+        column,
+        ...target,
+        type: filterType,
+        operator: "none of",
+        value: [value],
+      },
+    ];
+  }
 
   if (filterType === "arrayOptions") {
     return [
@@ -510,6 +559,10 @@ export function deriveOperatorChange(
     existingFilter.type !== "stringOptions"
   ) {
     return null;
+  }
+
+  if (hasEmptyCheckboxSelection(current, column)) {
+    return { values: [], fromOperator: existingFilter.operator };
   }
 
   // For "none of", the SELECTED values are the complement of the stored
