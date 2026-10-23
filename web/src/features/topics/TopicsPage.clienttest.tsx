@@ -517,7 +517,7 @@ it.each([
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  const status = screen.getByRole("dialog", { name: "Run status" });
+  const status = screen.getByRole("dialog", { name: "Analyze traces" });
   fireEvent.click(
     within(status).getByRole("button", { name: "Resume interrupted stages" }),
   );

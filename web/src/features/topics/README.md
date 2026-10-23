@@ -71,7 +71,7 @@ project permissions. Processing additionally requires the project allowlist.
   limit custom ranges to 90 days, matching the Topics header.
   All steps start expanded; model details and reuse settings live in review.
   Preview trace clicks open a new tab, preserving the run dialog and selection.
-  Without a compatible map, summaries wait for an explicit Update topics run.
+  Without a compatible map, summaries wait for an explicit Regenerate topics run.
   Generate topics defaults to compatible summaries from the past seven days,
   with its picker limited to a maximum thirty-day range. Its own time-range
   picker uses the same frozen range for counts and submission, independently of

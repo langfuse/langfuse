@@ -247,8 +247,8 @@ export function TopicRunDetails({
             {progress.outcome === "awaiting_topics" && (
               <p className="text-sm">
                 {progress.counts.complete.toLocaleString()} summaries are ready.
-                Run Update topics to create topics for this facet and embedding
-                configuration.
+                Run Regenerate topics to create topics for this facet and
+                embedding configuration.
               </p>
             )}
             {progress.error &&

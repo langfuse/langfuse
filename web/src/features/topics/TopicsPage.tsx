@@ -22,7 +22,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/src/components/ui/sheet";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -61,7 +60,7 @@ import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-import { busy } from "./topic-run-labels";
+import { busy, operationLabels } from "./topic-run-labels";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -282,6 +281,9 @@ function TopicsWorkspaceContent({
         !query.state.data || busy(query.state.data.status) ? 1500 : false,
     },
   );
+  const selectedRunTitle = selectedExecution.data
+    ? operationLabels[selectedExecution.data.input.operation]
+    : "Run";
   const completedAt = Math.max(
     0,
     ...[...(executions.data ?? []), selectedExecution.data].flatMap(
@@ -601,19 +603,18 @@ function TopicsWorkspaceContent({
                 open={historyOpen || executionId !== null}
                 onOpenChange={showExecutionList}
               >
-                <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-                  <SheetHeader>
+                <SheetContent
+                  className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+                  aria-describedby={undefined}
+                >
+                  <SheetHeader className="border-b px-5 py-4">
                     <SheetTitle>
-                      {executionId ? "Run status" : "Past executions"}
+                      {executionId ? selectedRunTitle : "Run history"}
                     </SheetTitle>
-                    <SheetDescription>
-                      Review progress, costs, errors, and retry interrupted
-                      runs.
-                    </SheetDescription>
                   </SheetHeader>
-                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {executionId ? (
-                      <>
+                      <div className="flex flex-col gap-3 px-5 py-4">
                         <div className="self-start">
                           <Button
                             text="All runs"
@@ -630,13 +631,13 @@ function TopicsWorkspaceContent({
                           facets={facets.data ?? []}
                           canWrite={canWrite}
                         />
-                      </>
+                      </div>
                     ) : (
                       <TopicRunHistoryList
                         executions={executions.data ?? []}
                         errorMessage={executions.error?.message}
                         onOpen={openExecution}
-                        onRefresh={() => executions.refetch()}
+                        onRetry={() => executions.refetch()}
                       />
                     )}
                   </div>

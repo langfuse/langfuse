@@ -5,16 +5,24 @@ import {
 import { costFormatter } from "@/src/utils/numbers";
 
 export const operationLabels: Record<TopicOperation, string> = {
-  process: "Process traces",
-  update: "Update topics",
+  process: "Analyze traces",
+  update: "Regenerate topics",
 };
 
 export const executionLabels: Record<TopicExecutionStatus, string> = {
-  queued: "Run queued",
-  running: "Run in progress",
-  completed: "Run complete",
-  completed_with_errors: "Run finished with issues",
-  failed: "Run failed",
+  queued: "Queued",
+  running: "Running",
+  completed: "Complete",
+  completed_with_errors: "Done with issues",
+  failed: "Failed",
+};
+
+export const executionDotClasses: Record<TopicExecutionStatus, string> = {
+  queued: "bg-muted-foreground",
+  running: "bg-dark-blue",
+  completed: "bg-dark-green",
+  completed_with_errors: "bg-dark-yellow",
+  failed: "bg-dark-red",
 };
 
 export const busy = (status: string) =>
