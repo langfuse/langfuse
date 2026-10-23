@@ -7,6 +7,21 @@ export { DEFAULT_TOPIC_FACETS };
 export const TOPICS_BEDROCK_ACCESS_ERROR =
   "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
 
+/** Tracing filter column: key is the facet name, values are topic names. */
+const TOPIC_FILTER_COLUMN = "topics";
+
+export function isTopicFilter<T extends { type: string; column: string }>(
+  filter: T,
+): filter is Extract<T, { type: "categoryOptions" }> {
+  return (
+    filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
+  );
+}
+
+/** Batch jobs read without topic membership, so they must not drop a topic filter silently. */
+export const TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE =
+  "Topic filters can't be used for batch exports or actions yet. Remove the topic filter and try again.";
+
 export const topicIdSchema = z
   .string()
   .min(1)

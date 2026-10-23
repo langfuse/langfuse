@@ -248,6 +248,15 @@ function fieldOptions(
     });
   }
   if (includeVirtual) {
+    for (const namespace of Object.keys(registry.keyedOptionNamespaces ?? {})) {
+      opts.push({
+        id: `field:${namespace}.`,
+        kind: "field",
+        label: `${namespace}.`,
+        detail: `${namespace} by key, e.g. ${namespace}.<key>:<value>`,
+        fieldId: `${namespace}.`,
+      });
+    }
     for (const namespace of Object.keys(registry.metadataNamespaces ?? {})) {
       opts.push({
         id: `field:${namespace}.`,
@@ -396,18 +405,7 @@ function matchingFilterOptions(
   for (const f of valueMatchFields) {
     for (const o of observedValues(observed, f.id)) {
       const v = o.value.toLowerCase();
-      const rank = (() => {
-        if (v === q) {
-          return 0;
-        }
-        if (v.startsWith(q)) {
-          return 1;
-        }
-        if (v.includes(q)) {
-          return 2;
-        }
-        return null;
-      })();
+      const rank = matchRank(v, q);
       if (rank === null) continue;
       const insert = `${f.id}:${serializeValue(o.value)}`;
       ranked.push({
@@ -424,8 +422,40 @@ function matchingFilterOptions(
       });
     }
   }
+  for (const [namespace, column] of Object.entries(
+    registry.keyedOptionNamespaces ?? {},
+  )) {
+    for (const key of observedValues(observed, column)) {
+      for (const o of observedValues(observed, `${column}.${key.value}`)) {
+        const v = o.value.toLowerCase();
+        const rank = matchRank(v, q);
+        if (rank === null) continue;
+        const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
+        ranked.push({
+          rank,
+          count: o.count ?? 0,
+          option: {
+            id: `match:${insert}`,
+            kind: "pattern",
+            label: insert,
+            detail: `${namespace}: ${key.value}`,
+            insert,
+            replaceSpan: span,
+          },
+        });
+      }
+    }
+  }
   ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
   return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
+}
+
+/** Exact match first, then prefix, then substring; null when the value does not match. */
+function matchRank(value: string, query: string) {
+  if (value === query) return 0;
+  if (value.startsWith(query)) return 1;
+  if (value.includes(query)) return 2;
+  return null;
 }
 
 /**
@@ -701,9 +731,10 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  for (const [namespace, column] of Object.entries(
-    registry.metadataNamespaces ?? {},
-  )) {
+  for (const [namespace, column] of Object.entries({
+    ...registry.metadataNamespaces,
+    ...registry.keyedOptionNamespaces,
+  })) {
     const prefix = `${namespace}.`;
     if (lower.startsWith(prefix.toLowerCase())) {
       return {
@@ -968,6 +999,23 @@ function valueStageSections(input: ValueStageInput): {
         ],
         loading: false,
       };
+    }
+
+    case "keyedOptions": {
+      const all = observedValues(observed, `${ref.column}.${ref.key}`).map(
+        (o) => ({
+          id: `value:${o.value}`,
+          kind: "value" as const,
+          label: o.value,
+          value: o.value,
+        }),
+      );
+      return all.length > 0
+        ? {
+            sections: section(SECTION_VALUES, valueOptions(all, typed)),
+            loading: false,
+          }
+        : null;
     }
 
     case "scores": {

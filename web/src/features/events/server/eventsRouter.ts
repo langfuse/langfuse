@@ -13,6 +13,7 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  InvalidRequestError,
   isoDateTime,
   type OrderByState,
   type SkillsAvailable,
@@ -38,6 +39,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { isTopicFilter } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -187,6 +189,8 @@ export const eventsRouter = createTRPCRouter({
               column !== "commentContent" && column !== "commentCount",
           );
 
+      if (filter.some(isTopicFilter))
+        throw new InvalidRequestError("Topic filters are not available here.");
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: filter,
         prisma: ctx.prisma,

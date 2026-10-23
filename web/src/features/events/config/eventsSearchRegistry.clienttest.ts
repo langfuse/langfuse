@@ -16,6 +16,19 @@ describe("events search scope", () => {
     expect(eventsSearchRegistry([])).toBe(EVENTS_FIELD_REGISTRY);
   });
 
+  it("offers the topics syntax only when Topics is available, without touching Ask AI", () => {
+    expect(EVENTS_FIELD_REGISTRY.resolveField("topics.Intent")).toBeNull();
+    const hidden = eventsSearchRegistry(["topics"]);
+    expect(hidden.resolveField("topics.Intent")).toBeNull();
+    expect(hidden.aiFilterPrompt).toBe(true);
+    const available = eventsSearchRegistry([], false, true);
+    expect(available.resolveField("topics.Intent")).toMatchObject({
+      type: "keyedOptions",
+      column: "topics",
+    });
+    expect(available.aiFilterPrompt).toBe(true);
+  });
+
   it("keeps remaining fields' meaning while closing host-owned fields and aliases", () => {
     const registry = eventsSearchRegistry([
       "userId",

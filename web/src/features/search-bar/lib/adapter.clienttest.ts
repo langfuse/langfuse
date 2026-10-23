@@ -1335,3 +1335,36 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(v.ast).filters).toEqual(filters);
   });
 });
+
+describe("topic filters", () => {
+  it("round-trips the sidebar's topic filters through topics.<facet> text", () => {
+    const filters: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Flight cancellation and refund", "Order Exchange Requests"],
+      },
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Issues",
+        operator: "none of",
+        value: ["Missing requested final results"],
+      },
+    ];
+    // The tracing table adds `topics.` only for projects that can view Topics.
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      keyedOptionNamespaces: { topics: "topics" },
+    });
+    const { text, skipped } = filterStateToQueryText(filters, {}, registry);
+    expect(skipped).toEqual([]);
+    const v = validateQuery(text, undefined, registry);
+    expect(v.valid, text).toBe(true);
+    expect(astToFilterState(v.ast, undefined, registry).filters).toEqual(
+      filters,
+    );
+  });
+});

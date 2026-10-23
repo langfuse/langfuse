@@ -67,6 +67,7 @@ import {
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
+import { topicFilterOptions, tracesTopics } from "./traceTopics";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
@@ -320,6 +321,20 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       currentTopicResults(input.projectId, input.timeRange),
     ),
+  /** Tracing table column: current topics for the visible page, loaded after the rows. */
+  forTraces: topicsProcedure
+    .input(
+      projectInput.extend({
+        traces: z
+          .array(z.object({ traceId: z.string().min(1), timestamp: z.date() }))
+          .min(1)
+          .max(500),
+      }),
+    )
+    .query(({ input }) => tracesTopics(input.projectId, input.traces)),
+  filterOptions: topicsProcedure.query(({ input }) =>
+    topicFilterOptions(input.projectId),
+  ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),

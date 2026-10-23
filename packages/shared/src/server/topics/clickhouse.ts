@@ -4,6 +4,7 @@ import {
   convertDateToClickhouseDateTime,
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
+import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
 import {
   queryClickhouse,
   queryClickhouseStream,
@@ -45,8 +46,12 @@ const summarySourceKeySql =
 // outside that window. State, model and dimension filters apply after this check.
 // Candidate keys scope the metadata scan; a scalar facet_version predicate there
 // prevents ClickHouse from selecting the latest_source_versions projection.
-function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
-  return `(${summaryVersionKeySql}) IN (
+function latestSummaryFilterSql(
+  scopeSql: string,
+  latestKeySql = sourceKeySql,
+  versionKeySql = summaryVersionKeySql,
+) {
+  return `(${versionKeySql}) IN (
     SELECT ${summaryVersionKeySql} FROM topic_facet_summaries
     WHERE project_id = {projectId:String}
       AND (${summarySourceKeySql}) IN (
@@ -66,6 +71,10 @@ function timeRangeParams(timeRange: TopicTimeRange) {
     to: convertDateToClickhouseDateTime(to),
   };
 }
+
+/** Summaries start at a trace's first observation; later observations can follow within this window. */
+export const TRACE_START_SLACK_MS =
+  OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 86_400_000;
 
 const LOOKUP_BATCH_SIZE = 1000;
 const INSERT_BATCH_SIZE = 10_000;
@@ -968,4 +977,109 @@ export async function readLatestTopicAssignments(
     tags: { route: "topics-current-assignments", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+/** Current topic per facet for a page of traces; empty topic ids are outliers. */
+export async function readCurrentTraceTopics(
+  projectId: string,
+  {
+    traces,
+    facetIds,
+    publishedRunIds,
+  }: {
+    traces: { traceId: string; timestamp: Date }[];
+    facetIds: string[];
+    publishedRunIds: string[];
+  },
+) {
+  const times = traces.map((trace) => trace.timestamp.getTime());
+  // A row can start up to OBSERVATIONS_TO_TRACE_INTERVAL_DAYS after the trace's first observation.
+  const timeRange = {
+    from: new Date(Math.min(...times) - TRACE_START_SLACK_MS),
+    to: new Date(Math.max(...times) + 1),
+  };
+  const rows = await queryClickhouse<{
+    traceId: string;
+    facetId: string;
+    topicId: string;
+    topicVersionId: string;
+    runId: string;
+  }>({
+    query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_id AS topicId,
+        topic_version_id AS topicVersionId, clustering_run_id AS runId
+      FROM (${currentTraceAssignmentsSql(
+        "facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}",
+      )})`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetIds,
+      traceIds: [...new Set(traces.map((trace) => trace.traceId))],
+      publishedRunIds,
+    },
+    tags: { route: "topics-trace-topics", projectId },
+  });
+  return rows.filter((row) => row.topicId !== "");
+}
+
+/**
+ * `e.trace_id [NOT] IN (…)` for traces whose current topic in one facet is one of the
+ * stable topic ids. Parameters carry `prefix` so several filters fit one events query.
+ */
+export function currentTopicTraceIdsCondition(
+  prefix: string,
+  {
+    projectId,
+    facetId,
+    topicIds,
+    publishedRunIds,
+    timeRange,
+    negated,
+  }: {
+    projectId: string;
+    facetId: string;
+    topicIds: string[];
+    publishedRunIds: string[];
+    timeRange: TopicTimeRange;
+    negated: boolean;
+  },
+) {
+  const sql = `SELECT trace_id FROM (${currentTraceAssignmentsSql(
+    "facet_id = {facetId:String} AND trace_id != ''",
+  )}) WHERE topic_id IN {topicIds:Array(String)}`;
+  const params: Record<string, unknown> = {
+    projectId,
+    ...timeRangeParams(timeRange),
+    facetId,
+    topicIds,
+    publishedRunIds,
+  };
+  return {
+    query: `e.trace_id ${negated ? "NOT IN" : "IN"} (${sql.replace(
+      /\{(\w+):/g,
+      `{${prefix}_$1:`,
+    )})`,
+    params: Object.fromEntries(
+      Object.entries(params).map(([name, value]) => [
+        `${prefix}_${name}`,
+        value,
+      ]),
+    ),
+  };
+}
+
+// Same rule as readLatestTopicAssignments + currentTopicResults: the newest assignment
+// per trace and facet counts only while it still points at the trace's latest summary.
+function currentTraceAssignmentsSql(scopeSql: string) {
+  return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id FROM (
+      SELECT * FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+        AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
+      ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
+      LIMIT 1 BY project_id, facet_id, trace_id
+    ) WHERE ${latestSummaryFilterSql(
+      scopeSql,
+      summarySourceKeySql,
+      "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, summary_processed_at",
+    )}`;
 }

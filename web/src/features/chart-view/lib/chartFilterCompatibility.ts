@@ -1,5 +1,5 @@
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
-import { resolveField } from "@/src/features/search-bar";
+import { type FieldRegistry, resolveField } from "@/src/features/search-bar";
 
 /**
  * Which of the events table's sidebar/search filters a chart can honour, and a
@@ -182,12 +182,17 @@ export function toChartFilters(filterState: FilterState): FilterState {
  * `scores.accuracy`, `metadata.region`) to its filter column via the bar's own
  * `resolveField`, so a token deactivates identically to its sidebar facet.
  */
-export function chartSearchFieldReason(fieldName: string): string | null {
-  const ref = resolveField(fieldName);
+export function chartSearchFieldReason(
+  fieldName: string,
+  registry?: FieldRegistry,
+): string | null {
+  const ref = resolveField(fieldName, registry);
   if (!ref) return null;
   // A metadata dot-path lowers to the keyed `stringObject` shape the chart
   // query accepts, so it deactivates only if the column policy says so.
   if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
+  if (ref.type === "keyedOptions")
+    return chartFilterExclusionReason(ref.column);
   if (ref.type === "scores")
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",

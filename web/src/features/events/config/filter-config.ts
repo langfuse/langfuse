@@ -70,7 +70,8 @@ const migrateLegacyRootObservationFilters = (
 export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
-  | "promptName";
+  | "promptName"
+  | "topics";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
@@ -345,6 +346,13 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Comment Content",
     },
   ],
+};
+
+/** Added by the tracing table only when canViewTopics passes, so inheriting sidebars never show it. */
+export const topicsFilterFacet = {
+  type: "keyValue" as const,
+  column: "topics",
+  label: "Topics",
 };
 
 export function getObservationEventsFilterConfig(
