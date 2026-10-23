@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { createOrgMembership } from "@/src/features/memberships/orgMembershipRepository";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,

@@ -8,15 +8,13 @@ import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import {
-  findOrCreateOrgMembership,
-  saveOrgMembership,
-} from "@/src/features/memberships/orgMembershipRepository";
-import {
   createProjectMembership,
   deleteProjectMemberships,
+  findOrCreateOrgMembership,
   findOrCreateProjectMembership,
+  saveOrgMembership,
   saveProjectMembership,
-} from "@/src/features/memberships/projectMembershipRepository";
+} from "@langfuse/shared/memberships";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
 import projectMembershipsRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
 import scimUsersRoute from "@/src/pages/api/public/scim/Users";

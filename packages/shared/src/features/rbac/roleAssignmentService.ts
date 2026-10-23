@@ -7,14 +7,13 @@ import {
 
 import { InvalidRequestError, NotImplementedError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
+import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
+import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
 import {
   hasApiKeyKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
   untag,
   type PrincipalId,
   type OwnerId,
@@ -128,11 +127,15 @@ async function backfillUserRoleAssignments(
   principalId: UserId,
 ): Promise<void> {
   await withTransaction(prisma, async (tx) => {
-    await lockMemberships(tx, principalId);
+    const userId = untag(principalId);
+    const membershipRoles = [
+      ...(await getOrgMembershipRoles(tx, { userId })),
+      ...(await getProjectMembershipRoles(tx, { userId })),
+    ];
     const assignments = await findRoleAssignments(tx, principalId);
     if (assignments.length > 0) return;
     const data: Prisma.RoleAssignmentCreateManyInput[] = [];
-    for (const ra of await getMembershipRoles(tx, principalId)) {
+    for (const ra of membershipRoles) {
       data.push({
         ...(await validateTenancy(tx, ra.tenantId, ra.ownerId)),
         ...principalFields(ra.principalId),
@@ -141,58 +144,6 @@ async function backfillUserRoleAssignments(
     }
     await tx.roleAssignment.createMany({ data, skipDuplicates: true });
   });
-}
-
-/** lockMemberships share-locks a user's memberships until the transaction ends. */
-async function lockMemberships(
-  tx: Prisma.TransactionClient,
-  principalId: UserId,
-): Promise<void> {
-  const userId = untag(principalId);
-  await tx.$queryRaw`
-    SELECT id FROM organization_memberships WHERE user_id = ${userId} FOR SHARE
-  `;
-  await tx.$queryRaw`
-    SELECT project_id FROM project_memberships WHERE user_id = ${userId} FOR SHARE
-  `;
-}
-
-/** getMembershipRoles maps a user's org and project memberships to the role assignments they imply. */
-async function getMembershipRoles(
-  prisma: Prisma.TransactionClient,
-  principalId: UserId,
-): Promise<MembershipRole[]> {
-  const userId = untag(principalId);
-  const [orgMemberships, projectMemberships] = await Promise.all([
-    prisma.organizationMembership.findMany({
-      where: { userId },
-      select: { orgId: true, role: true },
-    }),
-    prisma.projectMembership.findMany({
-      where: { userId },
-      select: {
-        projectId: true,
-        role: true,
-        project: { select: { orgId: true } },
-      },
-    }),
-  ]);
-  return [
-    ...orgMemberships.map(({ orgId, role }) => ({
-      tenantId: OrganizationId(orgId),
-      ownerId: OrganizationId(orgId),
-      principalId,
-      roleId: SystemRoleId(role),
-      tags: [],
-    })),
-    ...projectMemberships.map(({ projectId, role, project }) => ({
-      tenantId: OrganizationId(project.orgId),
-      ownerId: ProjectId(projectId),
-      principalId,
-      roleId: SystemRoleId(role),
-      tags: [],
-    })),
-  ];
 }
 
 /** validateTenancy holds project ownership stable until the transaction ends. */
@@ -244,5 +195,3 @@ function validateRole(roleId: RoleId) {
   }
   return { roleId, systemRole };
 }
-
-type MembershipRole = Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">;

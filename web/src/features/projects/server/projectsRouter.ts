@@ -24,7 +24,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
-import { deleteProjectMemberships } from "@/src/features/memberships/projectMembershipRepository";
+import { deleteProjectMemberships } from "@langfuse/shared/memberships";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";

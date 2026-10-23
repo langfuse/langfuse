@@ -12,7 +12,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   deleteOrgMembership,
   saveOrgMembership,
-} from "@/src/features/memberships/orgMembershipRepository";
+} from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";

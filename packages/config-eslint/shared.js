@@ -20,11 +20,11 @@ const allowedPrismaWriters = {
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
   ),
   organizationMembership: allowPrismaWrites(
-    "web/src/features/memberships/orgMembershipRepository.ts",
+    "packages/shared/src/features/memberships/orgMembershipRepository.ts",
     ...membershipTestWriters,
   ),
   projectMembership: allowPrismaWrites(
-    "web/src/features/memberships/projectMembershipRepository.ts",
+    "packages/shared/src/features/memberships/projectMembershipRepository.ts",
     ...membershipTestWriters,
   ),
 };

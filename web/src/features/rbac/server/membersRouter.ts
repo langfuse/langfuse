@@ -38,12 +38,10 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
   deleteOrgMembership,
-  saveOrgMembership,
-} from "@/src/features/memberships/orgMembershipRepository";
-import {
   deleteProjectMembership,
+  saveOrgMembership,
   saveProjectMembership,
-} from "@/src/features/memberships/projectMembershipRepository";
+} from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";

@@ -5,7 +5,7 @@ import {
   createOrgMembership,
   deleteOrgMembership,
   saveOrgMembership,
-} from "@/src/features/memberships/orgMembershipRepository";
+} from "@langfuse/shared/memberships";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,

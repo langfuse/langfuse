@@ -23,12 +23,10 @@ import {
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   createOrgMembership,
-  findOrCreateOrgMembership,
-} from "@/src/features/memberships/orgMembershipRepository";
-import {
   createProjectMembership,
+  findOrCreateOrgMembership,
   findOrCreateProjectMembership,
-} from "@/src/features/memberships/projectMembershipRepository";
+} from "@langfuse/shared/memberships";
 
 export async function createProjectMembershipsOnSignup(
   user: {
