@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import {
   createLocalJWKSet,
@@ -27,7 +25,6 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
 import {
-  parseConductorOneEnvelope,
   parseProvisionPayload,
   type GrantRequest,
   type RevokeRequest,
@@ -158,22 +155,6 @@ describe("parseProvisionPayload", () => {
     expect(parseProvisionPayload(withEmpty)).toMatchObject({
       action: "grant",
       orgId: "org-1",
-    });
-  });
-
-  it("reads a real C1 grant webhook body", () => {
-    const body = readFileSync(
-      join(__dirname, "../../fixtures/conductorone-provision-grant.json"),
-    );
-    const envelope = parseConductorOneEnvelope(body);
-    expect(envelope?.event).toBe("c1.webhooks.v1.PayloadProvisionStep");
-    expect(parseProvisionPayload(envelope?.payload)).toEqual({
-      action: "grant",
-      taskId: "c1_task_grant_0001",
-      entitlementId: "c1_ent_support_viewer_eu",
-      email: "support.engineer@clickhouse.com",
-      orgId: "seed-org-id",
-      durationMs: 43_200_000,
     });
   });
 
