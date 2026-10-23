@@ -5,7 +5,7 @@ import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   saveOrgMembership,
   saveProjectMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";

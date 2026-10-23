@@ -5,7 +5,7 @@ import {
   saveOrgMembership,
   createOrgMembership,
   deleteOrgMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,

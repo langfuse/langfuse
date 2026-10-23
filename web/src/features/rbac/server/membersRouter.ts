@@ -41,7 +41,7 @@ import {
   saveProjectMembership,
   deleteOrgMembership,
   deleteProjectMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";

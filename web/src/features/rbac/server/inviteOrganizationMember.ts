@@ -10,7 +10,7 @@ import {
 import {
   createOrgMembership,
   createProjectMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";

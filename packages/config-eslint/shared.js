@@ -4,12 +4,23 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
-// Files allowed to create each Prisma model's rows; globs match trailing path segments.
+// Files allowed to create each Prisma model's rows, or to write them at all; globs match trailing path segments.
+const membershipWriters = {
+  files: [
+    "web/src/features/memberships/membershipService.ts",
+    "__tests__/**",
+    "*.test.ts",
+    "scripts/seeder/**",
+  ],
+  writes: "all",
+};
 const prismaWriters = {
   apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
   roleAssignment: [
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
   ],
+  organizationMembership: membershipWriters,
+  projectMembership: membershipWriters,
 };
 
 export default [

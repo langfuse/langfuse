@@ -23,7 +23,7 @@ import {
 } from "@/src/ee/features/billing/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
-import { createOrgMembership } from "@/src/features/memberships/helpers";
+import { createOrgMembership } from "@/src/features/memberships/membershipService";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,

@@ -7,7 +7,7 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
   saveProjectMembership,
   deleteProjectMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";

@@ -328,6 +328,7 @@ export const projectsRouter = createTRPCRouter({
       });
 
       await ctx.prisma.$transaction(async (tx) => {
+        // eslint-disable-next-line @repo/no-restricted-prisma-writes -- transferRoleAssignments drops the matching user role assignments below.
         await tx.projectMembership.deleteMany({
           where: {
             projectId: input.projectId,

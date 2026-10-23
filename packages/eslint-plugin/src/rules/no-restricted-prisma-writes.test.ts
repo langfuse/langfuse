@@ -18,6 +18,10 @@ const options = [
       apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
       roleAssignment: ["rbac/roleAssignmentService.ts", "*.servertest.ts"],
       membership: ["*.test.ts"],
+      projectMembership: {
+        files: ["memberships/membershipService.ts"],
+        writes: "all" as const,
+      },
     },
   },
 ] satisfies [object];
@@ -59,6 +63,15 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
       code: `await prisma.roleAssignment.create({ data });`,
       filename: "/repo/web/src/__tests__/server/roles.servertest.ts",
       options: [{ models: { roleAssignment: ["*.servertest.ts"] } }],
+    },
+    {
+      code: `await prisma.projectMembership.findMany({ where });`,
+      options,
+    },
+    {
+      code: `await tx.projectMembership.delete({ where });`,
+      filename: "/repo/web/src/features/memberships/membershipService.ts",
+      options,
     },
   ],
   invalid: [
@@ -169,6 +182,34 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
       code: `await prisma.membership.create({ data });`,
       options,
       errors: [restricted("membership", "create", "an allowed file")],
+    },
+    ...[
+      "update",
+      "updateMany",
+      "updateManyAndReturn",
+      "delete",
+      "deleteMany",
+    ].map((method) => ({
+      code: `await tx.projectMembership.${method}({ where });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          method,
+          "memberships/membershipService.ts",
+        ),
+      ],
+    })),
+    {
+      code: `await tx.projectMembership.upsert({ where, create, update });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          "upsert",
+          "memberships/membershipService.ts",
+        ),
+      ],
     },
   ],
 });

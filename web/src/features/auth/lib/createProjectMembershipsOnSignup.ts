@@ -21,7 +21,7 @@ import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   createOrgMembership,
   createProjectMembership,
-} from "@/src/features/memberships/helpers";
+} from "@/src/features/memberships/membershipService";
 
 export async function createProjectMembershipsOnSignup(
   user: {
