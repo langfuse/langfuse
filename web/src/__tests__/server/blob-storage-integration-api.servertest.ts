@@ -1023,6 +1023,39 @@ describe("Blob Storage Integrations API", () => {
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
+    it("PUT LEGACY_TRACES_OBSERVATIONS hides UI-set trace groups and keeps them on update", async () => {
+      await seedGrandfatheredLegacyRow({
+        exportFieldGroups: ["core", "io", "trace_core", "trace_metadata"],
+      });
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: ["core", "metadata"],
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.body.exportFieldGroups).toStrictEqual([
+        "core",
+        "metadata",
+      ]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual([
+        "core",
+        "metadata",
+        "trace_core",
+        "trace_metadata",
+      ]);
+    });
+
     // ---- Response shape ----
 
     it("PUT response includes exportSource and exportFieldGroups for LEGACY_TRACES_OBSERVATIONS", async () => {

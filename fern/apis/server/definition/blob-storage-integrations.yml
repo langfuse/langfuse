@@ -92,7 +92,6 @@ types:
       Field group selecting which columns are included in the export. Applies to all export sources.
       - Observation groups (`core` through `trace_context`) select observation columns; groups without a counterpart in the legacy data model (e.g. `trace_context`) are omitted from the legacy observations export.
       - Score groups (`score_` prefix) add optional columns to the scores export. The core score columns (`id`, `timestamp`, `trace_id`, `name`, `value`, …) are always exported and are not a selectable group; score groups add columns on top of them. `score_metadata` adds the score `metadata` column. `score_provenance` adds the references to where a score came from: `author_user_id`, `config_id`, `queue_id`, `evaluator_id`, `evaluation_rule_id`, `execution_trace_id`. Score groups are never selected by default.
-      - Trace groups (`trace_` prefix) select columns of the legacy traces export. `trace_core` holds every column except the large and privacy-sensitive ones and is always exported; `trace_io` adds `input` and `output`; `trace_metadata` adds `metadata`. Include `trace_core` to apply the trace groups: when no trace group is provided, every trace column is exported.
     enum:
       - core
       - basic
@@ -107,9 +106,6 @@ types:
       - trace_context
       - score_metadata
       - score_provenance
-      - trace_core
-      - trace_io
-      - trace_metadata
 
   CreateBlobStorageIntegrationRequest:
     properties:
@@ -165,7 +161,7 @@ types:
       exportFieldGroups:
         type: optional<list<BlobStorageExportFieldGroup>>
         docs: |
-          Field groups to include in each exported trace, observation and score row. Applies to all export sources; must include the observation `core` group if provided. Core score columns are always exported; score groups add columns on top. Traces are exported with every column unless a trace group is provided. When omitted on create, all observation groups are selected, no score groups, and no trace groups. When omitted on update, the existing value is preserved.
+          Field groups to include in each exported observation and score row. Applies to all export sources; must include the observation `core` group if provided. Core score columns are always exported; score groups add columns on top. When omitted on create, all observation groups are selected and no score groups. When omitted on update, the existing value is preserved.
 
           `exportFieldGroups` requires `exportSource` to be provided in the same request.
 
@@ -190,7 +186,7 @@ types:
       exportFieldGroups:
         type: nullable<list<BlobStorageExportFieldGroup>>
         docs: |
-          Field groups included in each exported trace, observation and score row. An empty list is treated as all observation groups and no score groups during export. Core score columns are always exported. Without a trace group, every trace column is exported.
+          Field groups included in each exported observation and score row. An empty list is treated as all observation groups and no score groups during export. Core score columns are always exported.
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>

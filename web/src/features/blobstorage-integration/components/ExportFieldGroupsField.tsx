@@ -1,5 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useFormState, useWatch } from "react-hook-form";
+import { AlertTriangle } from "@langfuse/icons";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   FormDescription,
   FormField,
@@ -98,6 +100,13 @@ export const ExportFieldGroupsField = ({
                   ),
                 )}
               </div>
+              <Alert variant="warning" size="sm" icon={AlertTriangle}>
+                <Alert.Description>
+                  Trace field groups can only be set here. The public API
+                  doesn&apos;t show them, and updating field groups through the
+                  API keeps this selection.
+                </Alert.Description>
+              </Alert>
             </>
           )}
           <div className="text-sm font-bold">Observations</div>
