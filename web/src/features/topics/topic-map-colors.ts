@@ -57,7 +57,9 @@ export const treemapSwatchColor = (rank: number) =>
 export const treemapBadgeColor = (rank: number) =>
   rank < 0
     ? ("filled" as const)
-    : (["topicViolet", "topicBlue", "topicAmber"] as const)[rank % 3];
+    : (["violetHighlight", "blueHighlight", "amberHighlight"] as const)[
+        rank % 3
+      ];
 
 /** Grey tile for traces without a topic. */
 export const unassignedTileClasses = {
