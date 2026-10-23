@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 
 import Header from "@/src/components/layouts/header";

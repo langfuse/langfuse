@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Reusable ClickHouse query fragments and CTEs
  */

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, type Ref } from "react";
 import { PencilLine } from "@langfuse/icons";
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";

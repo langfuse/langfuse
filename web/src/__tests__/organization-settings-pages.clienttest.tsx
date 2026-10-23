@@ -113,9 +113,8 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/features/ai-gateway", () => ({
   GatewayApiKeysPage: () => null,
-  GatewayConfigurationPage: () => null,
   GatewayModelsPage: () => null,
-  GatewayProvidersPage: () => null,
+  GatewaySetupPage: () => null,
 }));
 
 const organization = {
@@ -275,7 +274,6 @@ describe("useOrganizationSettingsPages", () => {
 
     expect(gatewayPages.map((page) => page.slug)).toEqual([
       "ai-gateway",
-      "ai-gateway-providers",
       "ai-gateway-models",
       "ai-gateway-api-keys",
     ]);
@@ -283,7 +281,7 @@ describe("useOrganizationSettingsPages", () => {
     expect(gatewayPages.every((page) => !page.disabledReason)).toBe(true);
   });
 
-  it("disables every AI Gateway page except Configuration for managers until ingestion is set up", () => {
+  it("disables every AI Gateway page except Setup for managers until ingestion is set up", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) =>
         scope === "gateway:manage" ||
@@ -304,7 +302,6 @@ describe("useOrganizationSettingsPages", () => {
         .map((page) => [page.slug, !!page.disabledReason]),
     ).toEqual([
       ["ai-gateway", false],
-      ["ai-gateway-providers", true],
       ["ai-gateway-models", true],
       ["ai-gateway-api-keys", true],
     ]);

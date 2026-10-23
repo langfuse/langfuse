@@ -1,18 +1,40 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
+const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
+  getNotificationJob: vi.fn<(jobId: string) => Promise<unknown>>(),
+  addNotificationJobs:
+    vi.fn<
+      (
+        jobs: Array<{ data: { payload: SharedServer.NotificationEventType } }>,
+      ) => Promise<unknown>
+    >(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
   return {
     ...actual,
     testModelCall: vi.fn().mockResolvedValue(undefined),
+    NotificationQueue: {
+      getInstance: () => ({
+        addBulk: addNotificationJobs,
+        getJob: getNotificationJob,
+      }),
+    },
   };
 });
+
+function queuedNotifications(): SharedServer.NotificationEventType[] {
+  return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
+    jobs.map((job) => job.data.payload),
+  );
+}
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
@@ -21,6 +43,7 @@ import {
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
@@ -48,6 +71,10 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+const originalEmailConfig = {
+  smtpConnectionUrl: env.SMTP_CONNECTION_URL,
+  emailFromAddress: env.EMAIL_FROM_ADDRESS,
+};
 const originalGatewayJwtConfig = {
   privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
   publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
@@ -103,6 +130,8 @@ afterEach(async () => {
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
     LANGFUSE_AI_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
     LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
+    SMTP_CONNECTION_URL: originalEmailConfig.smtpConnectionUrl,
+    EMAIL_FROM_ADDRESS: originalEmailConfig.emailFromAddress,
   });
   vi.clearAllMocks();
 });
@@ -246,7 +275,7 @@ describe("AI gateway control plane", () => {
 
       try {
         await expect(
-          caller.aiGateway.getConfig({ orgId: org.id }),
+          caller.aiGateway.getClientSetup({ orgId: org.id }),
         ).resolves.toMatchObject({ gatewayBaseUrl: gatewayUrl });
       } finally {
         (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = originalNextAuthUrl;
@@ -268,6 +297,32 @@ describe("AI gateway control plane", () => {
       await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     }
   });
+
+  it.skipIf(env.NODE_ENV === "development")(
+    "turns the gateway off on a self-hosted deployment without a gateway",
+    async () => {
+      const { caller, org } = await prepare();
+      const original = {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+        LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      };
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "false",
+        LANGFUSE_AI_GATEWAY_ENABLED: "true",
+      });
+
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        Object.assign(env, original);
+      }
+    },
+  );
 
   it("enforces admin scope and validates the ingestion project organization", async () => {
     const owner = await prepare();
@@ -340,7 +395,30 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isConfigured: false });
   });
 
-  it("redirects gateway managers to Configuration until ingestion is set up", async () => {
+  it("gives key owners the gateway URL and enabled providers without connection details", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-test-client-setup",
+    });
+
+    const setup = await member.aiGateway.getClientSetup({
+      orgId: owner.org.id,
+    });
+    expect(setup).toEqual({
+      gatewayBaseUrl: expect.any(String),
+      providers: ["OPENAI"],
+    });
+    await expect(
+      viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("redirects gateway managers to Setup until ingestion is set up", async () => {
     const owner = await prepare();
     const memberSession = {
       ...owner.session,
@@ -359,11 +437,11 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const configurationPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
 
     await expect(
-      redirectFor(owner.session, "ai-gateway-providers"),
-    ).resolves.toBe(configurationPath);
+      redirectFor(owner.session, "ai-gateway-api-keys"),
+    ).resolves.toBe(setupPath);
     await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
     await expect(
       redirectFor(memberSession, "ai-gateway-models"),
@@ -375,8 +453,192 @@ describe("AI gateway control plane", () => {
       ingestionMode: "USAGE",
     });
     await expect(
-      redirectFor(owner.session, "ai-gateway-providers"),
+      redirectFor(owner.session, "ai-gateway-api-keys"),
     ).resolves.toBeNull();
+  });
+
+  it("notifies only members who can use the gateway", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const memberEmails = await prisma.organizationMembership.findMany({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+
+    const notifiableMembers = await owner.caller.aiGateway.getNotifiableMembers(
+      {
+        orgId: owner.org.id,
+      },
+    );
+    expect(notifiableMembers).toMatchObject({
+      isEmailConfigured: true,
+      count: 1,
+    });
+
+    const inviteeEmail = `gateway-invitee-${randomUUID()}@example.test`;
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [inviteeEmail],
+      notifyMembers: true,
+    });
+    expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
+
+    expect(queuedNotifications()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: inviteeEmail,
+          audience: { kind: "invitee", hasAccount: false },
+        }),
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: memberEmails[0]?.user.email?.toLowerCase(),
+          audience: { kind: "member" },
+          inviterName: "Gateway tester",
+        }),
+      ]),
+    );
+    expect(queuedNotifications()).toHaveLength(2);
+    await expect(
+      prisma.membershipInvitation.findFirst({
+        where: { orgId: owner.org.id, email: inviteeEmail },
+        select: { orgRole: true },
+      }),
+    ).resolves.toEqual({ orgRole: Role.MEMBER });
+  });
+
+  it.each([false, true])(
+    "announces the gateway once to a typed address of a member (notifyMembers: %s)",
+    async (notifyMembers) => {
+      const owner = await prepare();
+      Object.assign(env, {
+        SMTP_CONNECTION_URL: "smtp://localhost:1025",
+        EMAIL_FROM_ADDRESS: "gateway@example.test",
+      });
+      await createCallerForOrganizationRole(owner, Role.MEMBER);
+      const membership = await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: owner.org.id, role: Role.MEMBER },
+        select: { user: { select: { email: true } } },
+      });
+      const memberEmail = membership.user.email!;
+
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [memberEmail.toUpperCase()],
+        notifyMembers,
+      });
+
+      expect(result).toEqual({
+        invitedCount: 0,
+        failed: [],
+        notifiedCount: 1,
+      });
+      expect(queuedNotifications()).toEqual([
+        expect.objectContaining({
+          audience: { kind: "member" },
+          to: memberEmail.toLowerCase(),
+          receiverName: "Gateway member",
+        }),
+      ]);
+    },
+  );
+
+  it("re-sends an email whose earlier job failed", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmail = membership.user.email!.toLowerCase();
+    const removeFailedJob = vi.fn().mockResolvedValue(undefined);
+    getNotificationJob.mockResolvedValueOnce({
+      isFailed: () => Promise.resolve(true),
+      remove: removeFailedJob,
+    });
+
+    await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [memberEmail],
+      notifyMembers: false,
+    });
+
+    expect(getNotificationJob).toHaveBeenCalledWith(
+      `ai-gateway-invitation-${owner.org.id}-member-${createHash("sha256").update(memberEmail).digest("hex")}`,
+    );
+    expect(removeFailedJob).toHaveBeenCalledOnce();
+    expect(removeFailedJob.mock.invocationCallOrder[0]).toBeLessThan(
+      addNotificationJobs.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("reports typed members who cannot use the gateway and skips the sender", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.VIEWER },
+      select: { user: { select: { email: true } } },
+    });
+    const viewerEmail = membership.user.email!;
+
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [viewerEmail, owner.user.email!],
+      notifyMembers: false,
+    });
+
+    expect(result).toEqual({
+      invitedCount: 0,
+      failed: [
+        {
+          email: viewerEmail,
+          message: "Already a member, but their role can't use the AI Gateway",
+        },
+      ],
+      notifiedCount: 0,
+    });
+    expect(queuedNotifications()).toEqual([]);
+  });
+
+  it("rejects more than MAX_TEAM_INVITES addresses in one request", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+
+    await expect(
+      owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: Array.from(
+          { length: MAX_TEAM_INVITES + 1 },
+          (_, index) => `gateway-invitee-${index}@example.test`,
+        ),
+        notifyMembers: false,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(queuedNotifications()).toEqual([]);
+    await expect(
+      prisma.membershipInvitation.count({ where: { orgId: owner.org.id } }),
+    ).resolves.toBe(0);
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {

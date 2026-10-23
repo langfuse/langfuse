@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";

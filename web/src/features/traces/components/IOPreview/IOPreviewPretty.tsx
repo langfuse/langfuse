@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
@@ -358,7 +358,11 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && skills && skills.items.length > 0 ? (
-        <SectionSkills projectId={projectId} skills={skills} />
+        <SectionSkills
+          projectId={projectId}
+          skills={skills}
+          toolCallsByName={toolCallsByName}
+        />
       ) : null}
 
       {shouldRenderMessages ? (

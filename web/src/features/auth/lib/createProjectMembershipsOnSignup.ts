@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import {
   prisma,
