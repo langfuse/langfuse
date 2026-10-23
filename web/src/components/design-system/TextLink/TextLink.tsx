@@ -7,12 +7,15 @@ export function TextLink({
   icon,
   onClick,
   title,
+  external = false,
 }: {
   path: string;
   value: string;
   icon?: IconComponent;
   onClick?: (event: React.MouseEvent) => void;
   title?: string;
+  /** Opens in a new tab. */
+  external?: boolean;
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
@@ -32,6 +35,7 @@ export function TextLink({
       title={title ?? value}
       prefetch={false}
       onClick={handleClick}
+      {...(external && { target: "_blank", rel: "noopener noreferrer" })}
     >
       <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
         {Icon ? (

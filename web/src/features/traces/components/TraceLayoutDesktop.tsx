@@ -22,11 +22,11 @@ import {
 import { PanelRightOpen } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { TraceReviewLayout } from "./TraceReviewLayout";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";

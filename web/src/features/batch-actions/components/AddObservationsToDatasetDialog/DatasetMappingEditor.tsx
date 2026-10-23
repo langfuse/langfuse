@@ -5,10 +5,8 @@ import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/Combobox";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
-import {
-  DatasetItemEditorLayout,
-  DatasetItemPreviewField,
-} from "@/src/features/datasets/components/DatasetItemEditorLayout";
+import { DatasetItemEditorLayout } from "@/src/features/datasets/components/DatasetItemEditorLayout";
+import { DatasetItemPreviewField } from "@/src/features/datasets/components/DatasetItemPreviewField";
 import { MappingStep } from "./MappingStep";
 import type { DatasetMappingStore } from "./datasetMappingStore";
 import { prepareDatasetMapping } from "./prepareDatasetMapping";

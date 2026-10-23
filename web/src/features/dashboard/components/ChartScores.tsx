@@ -18,7 +18,7 @@ import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashb
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 // Static — hoisted so its reference is stable across re-renders (keeps the
 // memoized <Chart> from reconciling on dashboard scheduler re-renders).

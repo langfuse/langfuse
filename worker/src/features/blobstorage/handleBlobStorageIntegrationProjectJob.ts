@@ -30,6 +30,7 @@ import {
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -1280,6 +1281,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // DNS-rebinding defense for each SDK connection.
     if (blobStorageIntegration.endpoint) {
       await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+      await validateBlobStorageBucketHost(blobStorageIntegration);
     }
 
     // Process the export based on the integration configuration

@@ -8,7 +8,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/features/traces";
+import { ChatMessageList, getMessageTitle } from "@/src/features/traces";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -55,7 +55,7 @@ import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -727,6 +727,7 @@ export const PromptDetail = ({
                         currentView="pretty"
                         messageToToolCallNumbers={new Map()}
                         collapseLongHistory={false}
+                        getMessageTitle={getMessageTitle}
                       />
                     </div>
                   ) : typeof prompt.prompt === "string" ? (

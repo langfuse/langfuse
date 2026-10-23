@@ -8,7 +8,7 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
