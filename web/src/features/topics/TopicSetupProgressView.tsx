@@ -10,8 +10,6 @@ export type TopicSetupProgressFacet = {
   name: string;
   complete: number;
   requested: number;
-  outcome: string | null;
-  topicCount: number | null;
 };
 
 const RUNNING = {
@@ -40,18 +38,12 @@ const TOPIC_STEPS = [
   { stage: "grouping", label: "Identifying clusters" },
   { stage: "naming", label: "Generating & refining topics" },
 ] as const;
-const NO_TOPICS = new Set([
-  "no_topics",
-  "insufficient_data",
-  "no_applicable_summaries",
-]);
 
 /** First-run progress in two phases: summaries, then topics. */
 export function TopicSetupProgressView({
   canRetry,
   facets,
   onViewDetails,
-  onDisplayResults,
   onRetry,
   retrying,
   stage,
@@ -61,7 +53,6 @@ export function TopicSetupProgressView({
   stage: TopicSetupStage;
   retrying: boolean;
   canRetry: boolean;
-  onDisplayResults: () => void;
   // Opens the run in History; set when a run or one of its facets failed.
   onViewDetails?: () => void;
   onRetry: () => void;
@@ -138,26 +129,8 @@ export function TopicSetupProgressView({
               ))}
             </ul>
           ) : null}
-          {stage === "done" ? (
-            <ul className="flex flex-col gap-1.5">
-              {facets.map((facet) => (
-                <li
-                  key={facet.key}
-                  className="flex items-center justify-between gap-2 text-xs"
-                >
-                  <span>{facet.name}</span>
-                  <span className="text-muted-foreground">
-                    {facetResult(facet)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </section>
       </div>
-      {stage === "done" ? (
-        <Button text="Display results" onClick={onDisplayResults} />
-      ) : null}
       {stage === "failed" && canRetry ? (
         <Button text="Retry" loading={retrying} onClick={onRetry} />
       ) : null}
@@ -210,13 +183,6 @@ function stepState(index: number, current: number) {
   if (index < current) return "done";
   if (index === current) return "active";
   return "waiting";
-}
-
-function facetResult(facet: TopicSetupProgressFacet) {
-  if (facet.outcome === "failed") return "Failed";
-  if (NO_TOPICS.has(facet.outcome ?? "")) return "Not enough data yet";
-  if (facet.topicCount === null) return "Topics ready";
-  return `${facet.topicCount} ${facet.topicCount === 1 ? "topic" : "topics"}`;
 }
 
 function PhaseMarker({

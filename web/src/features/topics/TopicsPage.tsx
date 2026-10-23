@@ -271,26 +271,16 @@ function TopicsWorkspaceContent({
     },
   );
   const [mountedAt] = useState(Date.now);
-  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
-    null,
-  );
   const setupRun = topicSetupRun(executions.data ?? []);
   const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A run that finished before this visit is not replayed; results show instead.
+  // A finished run hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setupRun !== null &&
     setup !== null &&
-    setupRun.process.id !== acknowledgedSetupId &&
     (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
-  const setupRunIds =
-    setupRun?.update?.facets.flatMap((facet) =>
-      facet.runId ? [facet.runId] : [],
-    ) ?? [];
-  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
-    { projectId, runIds: setupRunIds },
-    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
-  );
+      (setup.stage === "failed" &&
+        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
+          mountedAt));
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
@@ -299,11 +289,6 @@ function TopicsWorkspaceContent({
     setupRun && setup ? detailsRunId(setupRun, setup) : null;
   const runFacets = (run: typeof setupRun) =>
     run?.process.facets.map((facet) => {
-      const update = run.update?.facets.find(
-        (item) =>
-          item.facetId === facet.facetId &&
-          item.facetVersion === facet.facetVersion,
-      );
       return {
         key: `${facet.facetId}:${facet.facetVersion}`,
         name:
@@ -311,10 +296,6 @@ function TopicsWorkspaceContent({
           "Facet",
         complete: facet.counts.complete,
         requested: facet.counts.requested,
-        outcome: update?.outcome ?? null,
-        topicCount:
-          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
-            ?.topicCount ?? null,
       };
     }) ?? [];
   const setupFacets = runFacets(setupRun);
@@ -629,7 +610,6 @@ function TopicsWorkspaceContent({
                   canRetry={false}
                   onViewDetails={() => openExecution(landingRun.process.id)}
                   onRetry={refreshResults}
-                  onDisplayResults={refreshResults}
                 />
               ) : null}
               {waitingForTraces ? (
@@ -640,7 +620,6 @@ function TopicsWorkspaceContent({
                   retrying={false}
                   canRetry={false}
                   onRetry={refreshResults}
-                  onDisplayResults={refreshResults}
                 />
               ) : null}
               {showSetupProgress && setup ? (
@@ -660,10 +639,6 @@ function TopicsWorkspaceContent({
                         projectId,
                         executionId: setup.retryId,
                       });
-                  }}
-                  onDisplayResults={() => {
-                    setAcknowledgedSetupId(setupRun.process.id);
-                    return utils.topics.invalidate();
                   }}
                 />
               ) : null}

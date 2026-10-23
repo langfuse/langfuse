@@ -7,8 +7,6 @@ const facets = ["Intent", "Sentiment", "Outcome", "Issues"].map((name) => ({
   name,
   complete: 200,
   requested: 500,
-  outcome: null as string | null,
-  topicCount: null as number | null,
 }));
 
 const meta = preview.meta({
@@ -18,7 +16,6 @@ const meta = preview.meta({
     facets,
     retrying: false,
     canRetry: true,
-    onDisplayResults: fn(),
     onRetry: fn(),
   },
 });
@@ -29,18 +26,6 @@ export const Naming = meta.story({
   args: {
     stage: "naming" as const,
     facets: facets.map((facet) => ({ ...facet, complete: 500 })),
-  },
-});
-
-export const Done = meta.story({
-  args: {
-    stage: "done" as const,
-    facets: facets.map((facet, index) => ({
-      ...facet,
-      complete: 500,
-      outcome: index === 3 ? "insufficient_data" : "published",
-      topicCount: index === 3 ? null : 4 + index,
-    })),
   },
 });
 
