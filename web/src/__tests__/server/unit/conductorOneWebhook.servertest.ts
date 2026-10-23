@@ -84,7 +84,7 @@ describe("verifyConductorOneRequest", () => {
     });
 
   it("accepts a valid token for this body", async () => {
-    await expect(verify(`Bearer ${await sign()}`)).resolves.toBeUndefined();
+    await expect(verify(`bearer ${await sign()}`)).resolves.toBeUndefined();
   });
 
   it.each([
@@ -93,13 +93,13 @@ describe("verifyConductorOneRequest", () => {
     ["another body's hash", { htb_s256: "AAAA" }],
     ["no body hash", { htb_s256: undefined }],
   ])("rejects %s", async (_, claims) => {
-    await expect(verify(`Bearer ${await sign(claims)}`)).rejects.toThrow();
+    await expect(verify(`bearer ${await sign(claims)}`)).rejects.toThrow();
   });
 
   it("rejects a token moved onto a different body", async () => {
     const token = await sign();
     await expect(
-      verify(`Bearer ${token}`, Buffer.from('{"event":"y"}')),
+      verify(`bearer ${token}`, Buffer.from('{"event":"y"}')),
     ).rejects.toThrow();
   });
 
@@ -110,7 +110,7 @@ describe("verifyConductorOneRequest", () => {
       Buffer.from(JSON.stringify(v)).toString("base64url");
     const unsigned = `${part({ alg: "none" })}.${part({ iss: issuer, aud: audience, htb_s256: bodyHash })}.`;
     for (const token of [forged, expired, unsigned]) {
-      await expect(verify(`Bearer ${token}`)).rejects.toThrow();
+      await expect(verify(`bearer ${token}`)).rejects.toThrow();
     }
   });
 
