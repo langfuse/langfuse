@@ -316,5 +316,9 @@ describe("listCurrentTopicTraces", () => {
     expect(projected.rows[0].results.map((facet) => facet.facetId)).toEqual([
       intent,
     ]);
+
+    expect(await list([], { facetIds: [], projectedFacetIds: [] })).toEqual({
+      rows: [],
+    });
   });
 });

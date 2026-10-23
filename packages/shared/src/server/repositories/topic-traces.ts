@@ -400,7 +400,8 @@ export async function listCurrentTopicTraces(input: {
   next?: TopicTraceCursor;
   total?: number;
 }> {
-  if (input.facetIds.length === 0) return { rows: [], total: 0 };
+  if (input.facetIds.length === 0)
+    return { rows: [], ...(input.includeTotal ? { total: 0 } : {}) };
   const publishedRunIds = (
     await prisma.topicClusteringRun.findMany({
       where: {
