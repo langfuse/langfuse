@@ -1,5 +1,4 @@
 import { EllipsisVertical, Settings } from "@langfuse/icons";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { AnalyzeMenu } from "./AnalyzeMenu";
@@ -8,7 +7,6 @@ import { type useTopicModelSettings } from "./TopicModelSettings";
 export function TopicsHeaderActions({
   automaticProcessing,
   configure,
-  configured,
   canWrite,
   manualAvailable,
   openManual,
@@ -29,30 +27,20 @@ export function TopicsHeaderActions({
           onManual={openManual}
         />
       )}
-      {!menuOnly && !configured ? (
-        <Button
-          text="Configure Topics"
-          variant={configure.triggerVariant}
-          size="sm"
-          disabled={!configure.settings}
-          onClick={onConfigure}
-        />
-      ) : null}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
-          ...(configured
-            ? [
-                {
-                  id: "configure",
-                  type: "item" as const,
-                  title: "Configure Topics",
-                  icon: Settings,
-                  onClick: onConfigure,
-                },
-              ]
-            : []),
+          {
+            id: "configure",
+            type: "item",
+            title: "Configure Topics",
+            icon: Settings,
+            ...(configure.settings
+              ? {}
+              : { disabled: { reason: "Topics settings are still loading." } }),
+            onClick: onConfigure,
+          },
           {
             id: "history",
             type: "item",
@@ -87,7 +75,6 @@ type TopicsHeaderActionsProps = {
     "state" | "saving"
   >;
   configure: Pick<ModelSettings["configure"], "settings" | "triggerVariant">;
-  configured: boolean;
   canWrite: boolean;
   manualAvailable: boolean;
   openManual: () => void;

@@ -511,7 +511,6 @@ function TopicsWorkspaceContent({
                 <TopicsHeaderActions
                   automaticProcessing={automaticProcessing}
                   configure={modelSettings.configure}
-                  configured={configured}
                   canWrite={canWrite}
                   manualAvailable={pipeline.available}
                   openManual={openManualProcessing}
