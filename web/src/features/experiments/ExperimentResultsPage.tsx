@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
 import { ExperimentOverviewPanel } from "@/src/features/experiments/components/ExperimentOverviewPanel";

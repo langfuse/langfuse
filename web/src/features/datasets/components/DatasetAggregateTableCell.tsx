@@ -2,8 +2,8 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellProvider";
+import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsProvider";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
