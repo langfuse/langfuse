@@ -142,10 +142,10 @@ ARG MICRO_BASE_IMAGE
 # and created labels.
 LABEL name="langfuse/ai-gateway" \
     summary="Langfuse AI Gateway" \
-    description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
+    description="Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse." \
     io.k8s.display-name="Langfuse AI Gateway" \
-    io.k8s.description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
-    org.opencontainers.image.description="Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations." \
+    io.k8s.description="Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse." \
+    org.opencontainers.image.description="Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse." \
     org.opencontainers.image.title="ai-gateway" \
     org.opencontainers.image.licenses="MIT" \
     vendor="ClickHouse, Inc." \

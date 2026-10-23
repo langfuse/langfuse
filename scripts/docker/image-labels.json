@@ -48,7 +48,7 @@
       "name": "langfuse/ai-gateway",
       "summary": "Langfuse AI Gateway",
       "displayName": "Langfuse AI Gateway",
-      "description": "Langfuse AI Gateway: relays OpenAI and Anthropic provider APIs and ingests their generations.",
+      "description": "Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse.",
       "title": "ai-gateway",
       "licenses": "MIT"
     }
