@@ -2,18 +2,19 @@
 
 import { cva } from "class-variance-authority";
 import {
-  Check,
   ChevronsDownUp,
   ChevronsUpDown,
-  Copy as CopyIcon,
   type IconComponent,
 } from "@langfuse/icons";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
+import { cn } from "@/src/utils/tailwind";
+import { Button } from "../Button/Button";
+import { CopyButton } from "../CopyButton/CopyButton";
+import { CopyIconButton } from "../CopyIconButton/CopyIconButton";
 import { IconButton } from "../IconButton/IconButton";
 import { SyntaxHighlight } from "../SyntaxHighlight/SyntaxHighlight";
 import { Tooltip } from "../Tooltip/Tooltip";
-import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 const bodyVariants = cva("relative flex min-w-0 max-w-full items-start", {
   variants: {
@@ -29,16 +30,18 @@ const bodyVariants = cva("relative flex min-w-0 max-w-full items-start", {
 });
 
 const codeVariants = cva(
-  "ph-no-capture min-w-0 max-w-full flex-1 px-4 py-3 font-mono text-xs",
+  "ph-no-capture min-w-0 max-w-full flex-1 px-4 pt-3 font-mono text-xs",
   {
     variants: {
       wrap: {
         true: "wrap-break-word whitespace-pre-wrap",
         false: "overflow-x-auto whitespace-pre",
       },
-      collapsed: {
-        true: "line-clamp-6",
-        false: "block",
+      clamp: {
+        none: "block pb-3",
+        six: "line-clamp-6 pb-3",
+        preview:
+          "line-clamp-3 [mask-image:linear-gradient(to_bottom,black_35%,transparent)]",
       },
       // Keeps text clear of the floating body actions; unwrapped lines can scroll out from under them.
       reservedButtons: {
@@ -51,14 +54,15 @@ const codeVariants = cva(
     },
     defaultVariants: {
       wrap: true,
-      collapsed: false,
+      clamp: "none",
     },
   },
 );
 
 const actionGroupVariants = cva(
-  // Revealed on hover/focus only; touch devices have no hover, so the controls stay visible there.
-  "flex min-w-0 shrink-0 items-center gap-1 group-hover/codesection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
+  // Revealed on hover/focus only; touch devices have no hover, so the controls stay visible there. Copy feedback
+  // keeps them shown after the pointer has left.
+  "flex min-w-0 shrink-0 items-center gap-1 group-hover/codesection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 has-[[data-copied]]:opacity-100",
   {
     variants: {
       placement: {
@@ -71,7 +75,6 @@ const actionGroupVariants = cva(
         outline: "bg-background",
         plain: "bg-background",
       },
-      // Copy feedback stays visible even when the pointer has already left.
       isPinned: {
         true: "opacity-100",
         false: "opacity-0",
@@ -89,6 +92,9 @@ const actionGroupVariants = cva(
   },
 );
 
+/** Lets right-to-left lines read in their own direction inside the left-to-right block. */
+const CODE_STYLE = { unicodeBidi: "plaintext" } as const;
+
 type CodeSectionAction = {
   /** Stable React key; set it when `label` changes so focus survives the change. */
   id?: string;
@@ -97,8 +103,37 @@ type CodeSectionAction = {
   onClick: () => void;
 };
 
+/** How the content is copied: the copy icon (optionally with a message after copying), or a labelled button. */
+type CopyProps =
+  | {
+      /** Shown next to the check icon after copying, and read out instead of "Copied". */
+      copiedMessage?: string;
+      copyButton?: never;
+    }
+  | {
+      /** A labelled copy button, e.g. "Copy prompt", in place of the copy icon; always visible, so it sits in the header. */
+      copyButton: { text: string; variant: "primary" | "secondary" };
+      title: string;
+      copiedMessage?: never;
+    };
+
+/** How a long body is shortened: a six-line clamp toggled from the header, or a three-line preview opened below. */
+type LengthProps =
+  | {
+      /** Clamps the body to six lines and adds an expand/collapse control. */
+      isCollapsible?: boolean;
+      defaultCollapsed?: boolean;
+      expandLabel?: never;
+    }
+  | {
+      /** Starts as a three-line preview that fades out, with a toggle below reading this label, e.g. "Show the full prompt". */
+      expandLabel: string;
+      isCollapsible?: never;
+      defaultCollapsed?: never;
+    };
+
 type CodeSectionProps = {
-  /** Text copied by the built-in copy button; also the body when there are no children. */
+  /** Text copied by the built-in copy control; also the body when there are no children. */
   content: string;
   /** Custom body, e.g. highlighted variables; copy still uses `content`. */
   children?: ReactNode;
@@ -109,15 +144,17 @@ type CodeSectionProps = {
   variant?: "filled" | "outline" | "plain";
   /** Extra icon actions rendered before expand/collapse and copy. */
   actions?: CodeSectionAction[];
-  /** Shown next to the check icon after copying. */
-  copiedMessage?: string;
-  /** Called after the built-in copy button wrote `content` to the clipboard. */
-  onAfterCopy?: () => void;
-  /** Clamps the body to six lines and adds an expand/collapse control. */
-  isCollapsible?: boolean;
-  defaultCollapsed?: boolean;
   shouldWrapLines?: boolean;
-};
+  /** Called after the built-in copy control wrote `content` to the clipboard. */
+  onAfterCopy?: () => void;
+} & CopyProps &
+  LengthProps;
+
+function clampFor(isPreview: boolean, isCollapsed: boolean) {
+  if (isPreview) return "preview";
+  if (isCollapsed) return "six";
+  return "none";
+}
 
 export function CodeSection({
   content,
@@ -131,22 +168,15 @@ export function CodeSection({
   isCollapsible = false,
   defaultCollapsed = false,
   shouldWrapLines = true,
+  copyButton,
+  expandLabel,
 }: CodeSectionProps) {
+  const codeId = useId();
   const [isCollapsed, setIsCollapsed] = useState(
     isCollapsible && defaultCollapsed,
   );
-  const { copy, isCopied } = useCopyToClipboard({
-    successDuration: copiedMessage ? 3_000 : 1_000,
-  });
-
-  const handleCopy = async () => {
-    try {
-      await copy(content);
-      onAfterCopy?.();
-    } catch {
-      // Clipboard writes can be rejected when the browser denies permission.
-    }
-  };
+  const hasPreview = expandLabel !== undefined;
+  const [isPreview, setIsPreview] = useState(hasPreview);
 
   const bodyButtonCount = Math.min(
     actions.length + (isCollapsible ? 1 : 0) + 1,
@@ -158,17 +188,9 @@ export function CodeSection({
       className={actionGroupVariants({
         placement: title ? "header" : "body",
         surface: title ? undefined : variant,
-        isPinned: isCopied,
+        isPinned: copyButton !== undefined,
       })}
     >
-      {isCopied && copiedMessage ? (
-        <span
-          className="text-muted-foreground min-w-0 truncate text-xs"
-          title={copiedMessage}
-        >
-          {copiedMessage}
-        </span>
-      ) : null}
       {actions.map((action) => (
         <Tooltip key={action.id ?? action.label} label={action.label}>
           {({ getTriggerProps }) => (
@@ -192,31 +214,42 @@ export function CodeSection({
               label={isCollapsed ? "Expand" : "Collapse"}
               size="sm"
               variant="ghost"
+              aria-controls={codeId}
               aria-expanded={!isCollapsed}
               onClick={() => setIsCollapsed((value) => !value)}
             />
           )}
         </Tooltip>
       ) : null}
-      <Tooltip label={isCopied ? "Copied" : "Copy"}>
-        {({ getTriggerProps }) => (
-          <IconButton
-            {...getTriggerProps()}
-            icon={isCopied ? Check : CopyIcon}
-            label="Copy to clipboard"
-            size="sm"
-            variant="ghost"
-            onClick={handleCopy}
-          />
-        )}
-      </Tooltip>
+      {copyButton ? (
+        <CopyButton
+          text={copyButton.text}
+          variant={copyButton.variant}
+          size="sm"
+          value={content}
+          onAfterCopy={onAfterCopy}
+        />
+      ) : (
+        <CopyIconButton
+          label="Copy to clipboard"
+          size="sm"
+          value={content}
+          copiedMessage={copiedMessage}
+          onAfterCopy={onAfterCopy}
+        />
+      )}
     </div>
   );
 
   return (
-    <div className="group/codesection flex max-w-full min-w-0 flex-col gap-1">
+    <div
+      className={cn(
+        "group/codesection flex max-w-full min-w-0 flex-col",
+        copyButton ? "gap-2" : "gap-1",
+      )}
+    >
       {title ? (
-        <div className="flex h-6 shrink-0 items-center justify-between gap-2">
+        <div className="flex min-h-6 shrink-0 items-center justify-between gap-2">
           <div className="min-w-0 truncate text-sm font-bold" title={title}>
             {title}
           </div>
@@ -225,13 +258,14 @@ export function CodeSection({
       ) : null}
       <div className={bodyVariants({ variant })}>
         <code
+          id={codeId}
           className={codeVariants({
             wrap: shouldWrapLines,
-            collapsed: isCollapsed,
+            clamp: clampFor(isPreview, isCollapsed),
             reservedButtons: title ? 0 : bodyButtonCount,
           })}
           dir="auto"
-          style={{ unicodeBidi: "plaintext" }}
+          style={CODE_STYLE}
         >
           {children ??
             (language === undefined ? (
@@ -244,6 +278,18 @@ export function CodeSection({
         </code>
         {title ? null : actionGroup}
       </div>
+      {hasPreview ? (
+        <div>
+          <Button
+            text={isPreview ? expandLabel : "Show less"}
+            variant="text"
+            size="sm"
+            aria-controls={codeId}
+            aria-expanded={!isPreview}
+            onClick={() => setIsPreview((value) => !value)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
