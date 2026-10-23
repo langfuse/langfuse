@@ -8,8 +8,6 @@ type TopicSetupNoticeProps = {
   canWrite: boolean;
   canConfigure: boolean;
   onStart: () => void;
-  // Set when analysis is already running, so setup cannot start a second backfill.
-  startBlockedReason?: string | null;
   onKeepOff: () => void;
   onTurnBackOn: () => void;
   showOnboarding?: boolean;
@@ -21,7 +19,6 @@ export function TopicSetupNotice({
   canWrite,
   canConfigure,
   onStart,
-  startBlockedReason = null,
   onKeepOff,
   onTurnBackOn,
   showOnboarding = notice.status?.kind === "setup",
@@ -65,17 +62,11 @@ export function TopicSetupNotice({
               so recurring patterns surface on their own.
             </p>
           </div>
-          {startBlockedReason ? (
-            <p role="status" className="text-muted-foreground text-sm">
-              {startBlockedReason}
-            </p>
-          ) : (
-            <Button
-              text="Set up topics"
-              disabled={!canWrite || !canConfigure}
-              onClick={onStart}
-            />
-          )}
+          <Button
+            text="Set up topics"
+            disabled={!canWrite || !canConfigure}
+            onClick={onStart}
+          />
         </div>
       ) : null}
     </>

@@ -45,3 +45,7 @@ export const Done = meta.story({
 });
 
 export const Failed = meta.story({ args: { stage: "failed" as const } });
+
+export const WaitingForTraces = meta.story({
+  args: { waiting: true, facets: [], canRetry: false },
+});

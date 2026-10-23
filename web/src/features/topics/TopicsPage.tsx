@@ -297,9 +297,9 @@ function TopicsWorkspaceContent({
   // A run worth inspecting: the one that failed, or a topic run with failed facets.
   const setupDetailsId =
     setupRun && setup ? detailsRunId(setupRun, setup) : null;
-  const setupFacets =
-    setupRun?.process.facets.map((facet) => {
-      const update = setupRun.update?.facets.find(
+  const runFacets = (run: typeof setupRun) =>
+    run?.process.facets.map((facet) => {
+      const update = run.update?.facets.find(
         (item) =>
           item.facetId === facet.facetId &&
           item.facetVersion === facet.facetVersion,
@@ -317,6 +317,12 @@ function TopicsWorkspaceContent({
             ?.topicCount ?? null,
       };
     }) ?? [];
+  const setupFacets = runFacets(setupRun);
+  const busyProcess =
+    (executions.data ?? []).find(
+      (execution) =>
+        execution.input.operation === "process" && busy(execution.status),
+    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -487,6 +493,16 @@ function TopicsWorkspaceContent({
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+        const landingRun =
+          showLanding && !showSetupProgress && busyProcess
+            ? { process: busyProcess, update: null }
+            : null;
+        const waitingForTraces =
+          showLanding &&
+          !showSetupProgress &&
+          !landingRun &&
+          modelSettings.automaticProcessing.state.status === "on";
         const showOnboarding = showSetupProgress || showLanding;
         return (
           <Page
@@ -596,11 +612,37 @@ function TopicsWorkspaceContent({
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
                 onStart={openSetup}
-                startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showLanding && !showSetupProgress}
+                showOnboarding={
+                  showLanding &&
+                  !showSetupProgress &&
+                  !landingRun &&
+                  !waitingForTraces
+                }
               />
+              {landingRun ? (
+                <TopicSetupProgressView
+                  stage={topicSetupStage(landingRun, Date.now()).stage}
+                  facets={runFacets(landingRun)}
+                  retrying={false}
+                  canRetry={false}
+                  onViewDetails={() => openExecution(landingRun.process.id)}
+                  onRetry={refreshResults}
+                  onDisplayResults={refreshResults}
+                />
+              ) : null}
+              {waitingForTraces ? (
+                <TopicSetupProgressView
+                  waiting
+                  stage="summarizing"
+                  facets={[]}
+                  retrying={false}
+                  canRetry={false}
+                  onRetry={refreshResults}
+                  onDisplayResults={refreshResults}
+                />
+              ) : null}
               {showSetupProgress && setup ? (
                 <TopicSetupProgressView
                   stage={setup.stage}
