@@ -6,7 +6,7 @@ import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
+import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { PublishSessionSwitch } from "@/src/components/PublishSessionSwitch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";

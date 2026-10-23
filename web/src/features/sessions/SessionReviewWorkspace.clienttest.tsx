@@ -14,7 +14,7 @@ import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
 } from "@/src/features/traces/contexts/TraceReviewPanelContext";
-import { SessionReviewLeading } from "./sessionReviewLeading";
+import { SessionReviewLeading } from "./SessionReviewLeadingProvider";
 import { SessionReviewWorkspace } from "./SessionReviewWorkspace";
 
 const { groupRef, router } = vi.hoisted(() => ({
