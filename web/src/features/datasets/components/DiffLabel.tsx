@@ -35,15 +35,17 @@ export function DiffLabel({
   variant?: ComponentProps<typeof Badge>["color"];
 }) {
   if (diff.type === "NUMERIC") {
-    // A number never truncates, so it carries no native tooltip unless the
-    // caller names what the chip means.
+    // A number never truncates or wraps, so it carries no native tooltip
+    // unless the caller names what the chip means.
     return (
       <BadgeShell
         color={variant ?? getColor(diff.direction, preferNegativeDiff)}
         title={title}
       >
-        {diff.direction}
-        {formatValue(diff.absoluteDifference)}
+        <span className="whitespace-nowrap">
+          {diff.direction}
+          {formatValue(diff.absoluteDifference)}
+        </span>
       </BadgeShell>
     );
   }

@@ -26,12 +26,15 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
   return (
     <li className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <BadgeShell color="filled" font="mono">
-          <copy.icon size="base" aria-label={copy.label} />
-          <span className="truncate" title={result.scoreName}>
-            {result.scoreName}
-          </span>
-        </BadgeShell>
+        {/* Shrinkable wrapper so the name truncates next to the confidence. */}
+        <span className="flex min-w-0">
+          <BadgeShell color="filled" font="mono">
+            <copy.icon size="base" aria-label={copy.label} />
+            <span className="truncate" title={result.scoreName}>
+              {result.scoreName}
+            </span>
+          </BadgeShell>
+        </span>
         {result.type !== "noul" && result.confidence !== null ? (
           <ConfidenceBadge confidence={result.confidence} />
         ) : null}
