@@ -124,7 +124,6 @@ function TraceTreeRow({
   onHover: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
-  const surface = isSelected || isHovered ? "muted" : "default";
 
   return (
     <VirtualizedTreeNodeWrapper
@@ -136,23 +135,22 @@ function TraceTreeRow({
       isSelected={isSelected}
       onSelect={onSelect}
       onHoverChange={setIsHovered}
-      trailing={
-        longestLeaf && (
-          <LongestObservationIndicator
-            durationMs={longestLeaf.durationMs}
-            shareOfTrace={longestLeaf.shareOfTrace}
-            surface={surface}
-          />
-        )
-      }
     >
       <SpanContent
         node={node}
         emphasis={emphasis}
         commentCount={commentCount}
+        durationAdornment={
+          longestLeaf && (
+            <LongestObservationIndicator
+              durationMs={longestLeaf.durationMs}
+              shareOfTrace={longestLeaf.shareOfTrace}
+            />
+          )
+        }
         onSelect={onSelect}
         onHover={onHover}
-        surface={surface}
+        surface={isSelected || isHovered ? "muted" : "default"}
       />
     </VirtualizedTreeNodeWrapper>
   );

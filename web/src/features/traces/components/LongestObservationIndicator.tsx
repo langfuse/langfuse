@@ -1,19 +1,14 @@
 import { Snail } from "@langfuse/icons";
 
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LongestLeafObservation } from "@/src/features/traces/fns/longestLeafObservation";
 
-/** Icon-only marker on the tree row of the trace's longest leaf observation. */
+/** Icon-only marker rendered after the duration of the trace's longest leaf. */
 export function LongestObservationIndicator({
   durationMs,
   shareOfTrace,
-  surface = "default",
-}: Pick<LongestLeafObservation, "durationMs" | "shareOfTrace"> & {
-  /** The row surface behind the chip; it flips its fill on `muted`. */
-  surface?: "default" | "muted";
-}) {
+}: Pick<LongestLeafObservation, "durationMs" | "shareOfTrace">) {
   const label = [
     "Longest observation",
     formatIntervalSeconds(durationMs / 1000),
@@ -25,11 +20,10 @@ export function LongestObservationIndicator({
   return (
     <Tooltip label={label} hoverableContent={false}>
       {({ getTriggerProps }) => (
-        <BadgeShell
+        <span
           {...getTriggerProps()}
           aria-label={label}
-          color={surface === "muted" ? "filledOnMuted" : "filled"}
-          size="sm"
+          className="inline-flex items-center"
         >
           <Snail
             aria-hidden
@@ -37,7 +31,7 @@ export function LongestObservationIndicator({
             color="inherit"
             __rawClassName="text-dark-yellow"
           />
-        </BadgeShell>
+        </span>
       )}
     </Tooltip>
   );
