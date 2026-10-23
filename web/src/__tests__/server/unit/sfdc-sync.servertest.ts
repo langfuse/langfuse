@@ -69,7 +69,7 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         create: vi.fn(async () => ({})),
       },
       roleAssignment: {
-        createMany: vi.fn(async () => ({ count: 1 })),
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       apiKey: {

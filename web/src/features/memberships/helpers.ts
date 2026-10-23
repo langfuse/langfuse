@@ -5,9 +5,8 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import {
-  replaceRoles,
-  unassignRoles,
-  unassignTenantRoles,
+  replaceRolesForPrincipal,
+  revokeRolesForPrincipal,
 } from "@langfuse/shared/rbac/server";
 import { type Prisma, type Role } from "@langfuse/shared/src/db";
 
@@ -16,7 +15,7 @@ export async function assignOrgMembershipRole(
   prisma: Prisma.TransactionClient,
   { orgId, userId, role }: { orgId: string; userId: string; role: Role },
 ): Promise<void> {
-  await replaceRoles(prisma, {
+  await replaceRolesForPrincipal(prisma, {
     tenantId: OrganizationId(orgId),
     ownerId: OrganizationId(orgId),
     principalId: UserId(userId),
@@ -35,7 +34,7 @@ export async function assignProjectMembershipRole(
     role,
   }: { orgId: string; projectId: string; userId: string; role: Role },
 ): Promise<void> {
-  await replaceRoles(prisma, {
+  await replaceRolesForPrincipal(prisma, {
     tenantId: OrganizationId(orgId),
     ownerId: ProjectId(projectId),
     principalId: UserId(userId),
@@ -49,7 +48,7 @@ export async function unassignOrgMembershipRoles(
   prisma: Prisma.TransactionClient,
   { orgId, userId }: { orgId: string; userId: string },
 ): Promise<void> {
-  await unassignTenantRoles(prisma, {
+  await revokeRolesForPrincipal(prisma, {
     tenantId: OrganizationId(orgId),
     principalId: UserId(userId),
   });
@@ -60,7 +59,7 @@ export async function unassignProjectMembershipRole(
   prisma: Prisma.TransactionClient,
   { projectId, userId }: { projectId: string; userId: string },
 ): Promise<void> {
-  await unassignRoles(prisma, {
+  await revokeRolesForPrincipal(prisma, {
     ownerId: ProjectId(projectId),
     principalId: UserId(userId),
   });

@@ -51,53 +51,36 @@ export async function assignRole(
   });
 }
 
-/** replaceRoles makes a system role the principal's only assignment on its owner. */
-export async function replaceRoles(
+/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
+export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
-): Promise<void> {
-  const roleFields = validateRole(ra.roleId);
-  await withTransaction(prisma, async (tx) => {
-    const ownerAndTenantFields = await validateTenancy(
-      tx,
-      ra.tenantId,
-      ra.ownerId,
-    );
-    await tx.roleAssignment.deleteMany({
-      where: {
-        ownerId: ra.ownerId,
-        principalId: ra.principalId,
-        roleId: { not: ra.roleId },
-      },
+): Promise<StoredRoleAssignment> {
+  return await withTransaction(prisma, async (tx) => {
+    await revokeRolesForPrincipal(tx, {
+      principalId: ra.principalId,
+      ownerId: ra.ownerId,
     });
-    await tx.roleAssignment.createMany({
-      data: [
-        {
-          ...ownerAndTenantFields,
-          ...principalFields(ra.principalId),
-          ...roleFields,
-        },
-      ],
-      skipDuplicates: true,
-    });
+    return await assignRole(tx, ra);
   });
 }
 
-/** unassignRoles removes a principal's assignments on an owner. */
-export async function unassignRoles(
+/** revokeRolesForPrincipal removes a principal's assignments on an owner or on every owner in a tenant. */
+export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
-  { principalId, ownerId }: { principalId: PrincipalId; ownerId: OwnerId },
+  scope: { principalId: PrincipalId } & (
+    | { ownerId: OwnerId }
+    | { tenantId: TenantId }
+  ),
 ): Promise<void> {
-  await prisma.roleAssignment.deleteMany({ where: { principalId, ownerId } });
-}
-
-/** unassignTenantRoles removes a principal's assignments on every owner in a tenant. */
-export async function unassignTenantRoles(
-  prisma: Prisma.TransactionClient,
-  { principalId, tenantId }: { principalId: PrincipalId; tenantId: TenantId },
-): Promise<void> {
+  if ("ownerId" in scope) {
+    await prisma.roleAssignment.deleteMany({
+      where: { principalId: scope.principalId, ownerId: scope.ownerId },
+    });
+    return;
+  }
   await prisma.roleAssignment.deleteMany({
-    where: { principalId, orgId: untag(tenantId) },
+    where: { principalId: scope.principalId, orgId: untag(scope.tenantId) },
   });
 }
 

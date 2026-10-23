@@ -6,7 +6,7 @@ import {
   type MembershipInvitation,
   type Prisma,
 } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, withTransaction } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import {
   getOrganizationPlanServerSide,
@@ -55,7 +55,7 @@ export async function createProjectMembershipsOnSignup(
           })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
-      await upsertOrgMembership({
+      await upsertOrgMembership(prisma, {
         userId: user.id,
         orgId: demoProject.orgId,
         role: Role.VIEWER,
@@ -79,7 +79,7 @@ export async function createProjectMembershipsOnSignup(
       { id: string; orgId: string; userId: string }
     >();
     for (const org of defaultOrgs) {
-      const membership = await upsertOrgMembership({
+      const membership = await upsertOrgMembership(prisma, {
         orgId: org.id,
         userId: user.id,
         role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
@@ -111,7 +111,7 @@ export async function createProjectMembershipsOnSignup(
       if (existingOrgMembership) {
         // (1) project's org is in the default org list -> create project membership if entitled
         if (hasProjectRolesEntitlement) {
-          await upsertProjectMembership(project.orgId, {
+          await upsertProjectMembership(prisma, project.orgId, {
             userId: user.id,
             orgMembershipId: existingOrgMembership.id,
             projectId: project.id,
@@ -120,7 +120,7 @@ export async function createProjectMembershipsOnSignup(
         }
       } else {
         // (2) project's org is NOT in the default org list (legacy behavior) -> create org membership for the project's org first
-        const orgMembership = await upsertOrgMembership({
+        const orgMembership = await upsertOrgMembership(prisma, {
           orgId: project.orgId,
           userId: user.id,
           role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
@@ -129,7 +129,7 @@ export async function createProjectMembershipsOnSignup(
         orgMembershipMap.set(project.orgId, orgMembership);
 
         if (hasProjectRolesEntitlement) {
-          await upsertProjectMembership(project.orgId, {
+          await upsertProjectMembership(prisma, project.orgId, {
             userId: user.id,
             orgMembershipId: orgMembership.id,
             projectId: project.id,
@@ -387,12 +387,11 @@ async function isProjectInOrg(
 }
 
 /** upsertOrgMembership creates a missing org membership, preserving an existing role, and mirrors it. */
-function upsertOrgMembership(data: {
-  orgId: string;
-  userId: string;
-  role: Role;
-}) {
-  return prisma.$transaction(async (tx) => {
+function upsertOrgMembership(
+  prisma: Prisma.TransactionClient,
+  data: { orgId: string; userId: string; role: Role },
+) {
+  return withTransaction(prisma, async (tx) => {
     const membership = await tx.organizationMembership.upsert({
       where: { orgId_userId: { orgId: data.orgId, userId: data.userId } },
       update: {},
@@ -405,6 +404,7 @@ function upsertOrgMembership(data: {
 
 /** upsertProjectMembership creates a missing project membership, preserving an existing role, and mirrors it. */
 function upsertProjectMembership(
+  prisma: Prisma.TransactionClient,
   orgId: string,
   data: {
     userId: string;
@@ -413,7 +413,7 @@ function upsertProjectMembership(
     role: Role;
   },
 ) {
-  return prisma.$transaction(async (tx) => {
+  return withTransaction(prisma, async (tx) => {
     const membership = await tx.projectMembership.upsert({
       where: {
         projectId_userId: { projectId: data.projectId, userId: data.userId },

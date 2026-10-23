@@ -485,7 +485,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
-      roleAssignment: { deleteMany: vi.fn(), createMany: vi.fn() },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
@@ -585,7 +585,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
-      roleAssignment: { deleteMany: vi.fn(), createMany: vi.fn() },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
