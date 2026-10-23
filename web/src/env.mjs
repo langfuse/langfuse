@@ -366,6 +366,11 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    // ConductorOne support access webhook (Langfuse Cloud only), disabled
+    // unless both are set. ISSUER is the C1 tenant domain, e.g.
+    // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
+    LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. When false, every gateway
@@ -1155,6 +1160,9 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
+      process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
