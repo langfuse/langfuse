@@ -1557,7 +1557,7 @@ export const promptRouter = createTRPCRouter({
 
       if (count > 10_000) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "UNPROCESSABLE_CONTENT",
           message: `Project has ${count} prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.`,
         });
       }

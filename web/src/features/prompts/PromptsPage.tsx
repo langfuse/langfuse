@@ -61,10 +61,18 @@ export default function PromptsPage() {
   const handleExport = async (mode: "latest" | "all") => {
     setIsExporting(true);
     try {
-      const data = await utils.prompts.exportAll.fetch({
-        projectId,
-        includeAllVersions: mode === "all",
-      });
+      const data = await utils.prompts.exportAll.fetch(
+        {
+          projectId,
+          includeAllVersions: mode === "all",
+        },
+        {
+          meta: {
+            silentAllErrors: true,
+            toastOperation: "prompt.export",
+          },
+        },
+      );
       const json = JSON.stringify(data, null, 2);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -77,7 +85,10 @@ export default function PromptsPage() {
     } catch (error) {
       showToast({
         type: "ERROR",
-        title: "Failed to export prompts. Please try again.",
+        title:
+          error instanceof Error
+            ? error.message
+            : "Failed to export prompts. Please try again.",
         analytics: classifyTrpcToastError(error, "prompt.export"),
       });
     } finally {
