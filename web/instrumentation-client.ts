@@ -30,8 +30,8 @@ Sentry.init({
     userInfo: false,
     cookies: false,
     httpHeaders: {
-      request: { deny: sensitiveFieldNames },
-      response: { deny: sensitiveFieldNames },
+      request: false,
+      response: false,
     },
     httpBodies: [],
     urlQueryParams: { deny: sensitiveFieldNames },

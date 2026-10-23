@@ -109,8 +109,8 @@ describe("Session Replay masking is unconditional (compliance guard)", () => {
         userInfo: false,
         cookies: false,
         httpHeaders: {
-          request: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
-          response: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+          request: false,
+          response: false,
         },
         httpBodies: [],
         urlQueryParams: {
