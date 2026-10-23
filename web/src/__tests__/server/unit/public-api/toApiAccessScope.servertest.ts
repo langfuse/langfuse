@@ -53,7 +53,6 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("ORGANIZATION"), {
         orgId: "org_1",
         projectId: null,
-        accessAuditLogEnabled: false,
       }),
     ).toEqual({
       projectId: null,
@@ -75,7 +74,6 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("PROJECT"), {
         orgId: "org_1",
         projectId: "prj_1",
-        accessAuditLogEnabled: false,
       }),
     ).toEqual(projectScope);
   });
@@ -85,7 +83,6 @@ describe("toApiAccessScope", () => {
       toApiAccessScope(apiKeyPrincipal("PROJECT", "publicKey"), {
         orgId: "org_1",
         projectId: "prj_1",
-        accessAuditLogEnabled: false,
       }).accessLevel,
     ).toBe("scores");
   });
@@ -94,7 +91,7 @@ describe("toApiAccessScope", () => {
     expect(
       toApiAccessScope(
         { kind: "admin", userId: null },
-        { orgId: "org_1", projectId: "prj_1", accessAuditLogEnabled: false },
+        { orgId: "org_1", projectId: "prj_1" },
       ),
     ).toEqual({
       projectId: "prj_1",
@@ -106,7 +103,7 @@ describe("toApiAccessScope", () => {
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
-      accessAuditLogEnabled: false,
+      accessAuditLogEnabled: null,
     });
   });
 
@@ -114,7 +111,7 @@ describe("toApiAccessScope", () => {
     expect(() =>
       toApiAccessScope(
         { kind: "user", userId: "u_1", organizations: [] },
-        { orgId: "org_1", projectId: null, accessAuditLogEnabled: false },
+        { orgId: "org_1", projectId: null },
       ),
     ).toThrow(InternalServerError);
   });

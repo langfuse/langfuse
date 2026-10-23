@@ -15,7 +15,7 @@ export type McpPublicApiAuth = {
     rateLimitOverrides: [];
     isIngestionSuspended: false;
     isInAppAgentKey: boolean;
-    accessAuditLogEnabled: boolean;
+    accessAuditLogEnabled: boolean | null;
   };
 };
 

@@ -259,22 +259,21 @@ describe("enforceAuth access-audit opt-in", () => {
     },
   );
 
-  it("carries the admin target org's opt-in onto the scope", async () => {
+  it("leaves the opt-in unresolved for the admin key, which carries no org", async () => {
     vi.mocked(authenticator.authenticate).mockResolvedValue({
       success: true,
       context: adminKey(),
     });
     vi.mocked(prisma.project.findUnique).mockResolvedValue({
       orgId: ORG,
-      organization: { accessAuditLogEnabled: true },
-    } as unknown as Awaited<ReturnType<typeof prisma.project.findUnique>>);
+    } as Awaited<ReturnType<typeof prisma.project.findUnique>>);
     expect(
       await enforceAuth({
         req: req({}, { "x-langfuse-project-id": PRJ }),
         action: "traces:read",
         isAdminApiKeyAuthAllowed: true,
       }),
-    ).toMatchObject({ success: true, scope: { accessAuditLogEnabled: true } });
+    ).toMatchObject({ success: true, scope: { accessAuditLogEnabled: null } });
   });
 });
 
@@ -454,10 +453,7 @@ describe("enforceAuth span metadata", () => {
       vi.mocked(prisma.project.findUnique).mockResolvedValue(
         missing
           ? null
-          : ({
-              orgId: ORG,
-              organization: { accessAuditLogEnabled: false },
-            } as unknown as Awaited<
+          : ({ orgId: ORG } as Awaited<
               ReturnType<typeof prisma.project.findUnique>
             >),
       );

@@ -1,9 +1,11 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AccessLoggingSwitch } from "@/src/ee/features/access-audit-log";
+import {
+  AccessLoggingSwitch,
+  useShowAccessLoggingSetting,
+} from "@/src/ee/features/access-audit-log";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
@@ -12,8 +14,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     scope: "orgAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
-  // Internal until read access is recorded on every surface.
-  const showAccessLogging = useInternalFeaturesEnabled() && hasEntitlement;
+  const showAccessLogging = useShowAccessLoggingSetting();
 
   const body = (() => {
     if (!hasEntitlement) {

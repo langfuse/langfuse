@@ -730,9 +730,12 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true"),
 
-    // Read-access audit events (EE, requires the audit-logs entitlement).
-    // "org": recorded for organizations that enable access logging in their
-    // settings. "enforced": recorded for every entitled organization.
+    // Read-access audit events (EE).
+    // "org": recorded for organizations whose plan includes audit logs and
+    // that enable access logging in their settings.
+    // "enforced": recorded for every organization. On Langfuse Cloud this
+    // covers every plan; self-hosted instances need an enterprise license,
+    // without one nothing is recorded.
     // "disabled": never recorded.
     LANGFUSE_AUDIT_LOG_ACCESS_EVENTS: z
       .enum(["org", "enforced", "disabled"])

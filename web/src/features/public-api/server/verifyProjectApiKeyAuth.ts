@@ -148,11 +148,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   // Verify project exists
   const project = await prisma.project.findUnique({
     where: { id: projectIdHeader, deletedAt: null },
-    select: {
-      id: true,
-      orgId: true,
-      organization: { select: { accessAuditLogEnabled: true } },
-    },
+    select: { id: true, orgId: true },
   });
 
   if (!project) {
@@ -172,7 +168,8 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
-      accessAuditLogEnabled: project.organization.accessAuditLogEnabled,
+      // The admin key carries no org.
+      accessAuditLogEnabled: null,
     },
   };
 }

@@ -18,7 +18,7 @@ type SessionUser = NonNullable<Session["user"]>;
  *
  * Used by `startRun` to build the same org-scoped API access shape as other
  * authenticated project requests. The scope only keys the rate limit and never
- * authorizes a read, so it carries no access-audit opt-in.
+ * authorizes a read, so it leaves the access-audit opt-in unresolved.
  *
  * TODO: this bucket is org-scoped only; a per-user submission cap needs the
  * rate-limit service to support non-org keys. Concurrency is capped per user by
@@ -51,7 +51,7 @@ export function getInAppAgentApiAccessScope(
         apiKeyId: "in-app-agent-session",
         publicKey: "in-app-agent-session",
         isIngestionSuspended: false,
-        accessAuditLogEnabled: false,
+        accessAuditLogEnabled: null,
       };
     }
 
@@ -67,7 +67,7 @@ export function getInAppAgentApiAccessScope(
     apiKeyId: "in-app-agent-session",
     publicKey: "in-app-agent-session",
     isIngestionSuspended: false,
-    accessAuditLogEnabled: false,
+    accessAuditLogEnabled: null,
   };
 }
 

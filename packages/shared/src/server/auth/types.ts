@@ -79,8 +79,9 @@ type ApiAccessScopeMetadata = {
   isIngestionSuspended: boolean | null | undefined;
   isInAppAgentKey?: boolean;
   // The org's opt-in for read-access audit events, carried here so recording
-  // a read needs no extra query.
-  accessAuditLogEnabled: boolean;
+  // a read needs no extra query. Null for credentials that carry no org, such
+  // as the self-hosted admin key; read it from the org instead.
+  accessAuditLogEnabled: boolean | null;
 };
 
 export type ApiAccessScopeIngestion = BaseApiAccessScope &
