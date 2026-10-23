@@ -58,7 +58,7 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 

@@ -150,6 +150,22 @@ const config: StorybookConfig = {
     };
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
+      {
+        // The Next.js framework aliases `react-dom` by prefix, which turns this
+        // subpath (imported by @react-email/render in email template stories)
+        // into `react-dom/index.js/server.browser`. Its aliases are merged
+        // after viteFinal, so this rule has to be prepended once resolved.
+        name: "react-dom-server-browser-alias",
+        configResolved({ resolve }) {
+          resolve.alias.unshift({
+            find: /^react-dom\/server\.browser$/,
+            replacement: fileURLToPath(
+              import.meta
+                .resolve("next/dist/compiled/react-dom/server.browser.js"),
+            ),
+          });
+        },
+      },
       ...(viteConfig.plugins ?? []),
       {
         name: "exclude-generated-icons-from-docgen",

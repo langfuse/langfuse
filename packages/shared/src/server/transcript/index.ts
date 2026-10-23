@@ -1,5 +1,6 @@
 export { orderObservations } from "./ordering";
 export { assembleTranscript } from "./transcript";
+export { assembleTranscriptContext, isExecutionIssue } from "./context";
 export {
   renderTranscript,
   renderTranscriptFromObservations,

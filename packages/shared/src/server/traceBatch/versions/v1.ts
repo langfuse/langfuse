@@ -155,10 +155,37 @@ const storedTranscriptV1Schema = z.object({
 
 export type StoredTranscriptV1 = z.infer<typeof storedTranscriptV1Schema>;
 
+const storedExecutionIssueV1Schema = z.object({
+  observationId: z.string(),
+  traceId: z.string().nullable(),
+  type: z.enum([
+    "SPAN",
+    "EVENT",
+    "GENERATION",
+    "AGENT",
+    "TOOL",
+    "CHAIN",
+    "RETRIEVER",
+    "EVALUATOR",
+    "EMBEDDING",
+    "GUARDRAIL",
+  ]),
+  name: z.string().nullable(),
+  level: z.enum(["ERROR", "WARNING"]),
+  statusMessage: z.string().nullable(),
+  startTime: isoTimestampSchema,
+}) satisfies z.ZodType<JsonValue>;
+
+export type StoredExecutionIssueV1 = z.infer<
+  typeof storedExecutionIssueV1Schema
+>;
+
 // Add breaking versions alongside v1; deploy readers before enabling new writers.
 export const traceBatchInputsV1Schema = z.object({
   schemaVersion: z.literal(1),
   transcript: storedTranscriptV1Schema.nullable(),
+  /** Optional addition: objects written before it was added read as empty. */
+  executionIssues: z.array(storedExecutionIssueV1Schema).default([]),
   // Mirrors the event observation domain fields without importing the domain
   // schema; the writer's typed assignment keeps both compatible.
   traceContext: z.object({

@@ -16,21 +16,78 @@ import {
 } from "@/src/components/ui/collapsible";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
+import { getSkillLoadRequests } from "../../../fns/getSkillLoadRequests";
+import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
-export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
+export function SectionSkills({
+  projectId,
+  skills,
+  toolCallsByName,
+}: SectionSkillsProps) {
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [activeTab, setActiveTab] = useState("requested");
   const groups = groupSkills(skills.items);
+  const [collapsed, setCollapsed] = useState(groups.length > 5);
+  const loadRequests = getSkillLoadRequests(
+    skills.kind === "available" ? groups.map((group) => group.skill) : [],
+    toolCallsByName,
+  );
   const singleLoadedSkill =
     skills.kind === "loaded" && groups.length === 1 ? groups[0] : undefined;
-  const title =
-    skills.kind === "available" ? "Available skills" : "Loaded skills";
+  const title = skills.kind === "available" ? "Skills" : "Loaded skills";
+  const requestedGroups = groups.filter((group) =>
+    loadRequests.has(group.skill),
+  );
+  const notRequestedGroups = groups.filter(
+    (group) => !loadRequests.has(group.skill),
+  );
+  const hasSwitch = requestedGroups.length > 0 && notRequestedGroups.length > 0;
+  const tabGroups =
+    activeTab === "requested" ? requestedGroups : notRequestedGroups;
+  const visibleGroups = hasSwitch ? tabGroups : groups;
 
   return (
     <IOSection
       title={singleLoadedSkill ? "Loaded skill" : title}
-      count={singleLoadedSkill ? undefined : groups.length}
+      count={
+        singleLoadedSkill || (hasSwitch && !collapsed)
+          ? undefined
+          : groups.length
+      }
       variant="table"
-      defaultCollapsed={groups.length > 5}
+      collapsed={collapsed}
+      onCollapsedChange={setCollapsed}
+      tabs={
+        hasSwitch
+          ? {
+              value: activeTab,
+              onValueChange: (value) => {
+                setActiveTab(value);
+                setExpandedSkillKey("");
+              },
+              items: [
+                {
+                  value: "requested",
+                  label: "Requested",
+                  count: requestedGroups.length,
+                },
+                {
+                  value: "not-requested",
+                  label: "Not requested",
+                  count: notRequestedGroups.length,
+                },
+              ],
+            }
+          : undefined
+      }
+      info={
+        loadRequests.size > 0
+          ? {
+              label: "About skill load requests",
+              text: `${loadRequests.size} of ${groups.length} available skills requested by this generation's output tool calls. A request does not confirm that the skill was loaded successfully.`,
+            }
+          : undefined
+      }
     >
       {singleLoadedSkill ? (
         <div className="min-w-0">
@@ -47,14 +104,22 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
         </div>
       ) : (
         <ul className="divide-border flex flex-col divide-y">
-          {groups.map((group, index) => (
+          {visibleGroups.map((group, index) => (
             <SkillRow
               key={group.key}
               projectId={projectId}
-              group={group}
+              group={
+                skills.kind === "available"
+                  ? {
+                      ...group,
+                      files: loadRequests.get(group.skill) ?? new Set<string>(),
+                    }
+                  : group
+              }
               rowNumber={index + 1}
               expanded={expandedSkillKey === group.key}
               onExpandedChange={setExpandedSkillKey}
+              fileState={skills.kind === "available" ? "requested" : "loaded"}
             />
           ))}
         </ul>
@@ -69,6 +134,7 @@ function SkillRow({
   rowNumber,
   expanded,
   onExpandedChange,
+  fileState,
 }: SkillRowProps) {
   const { skill, files } = group;
 
@@ -88,7 +154,7 @@ function SkillRow({
           {files.size > 0 ? (
             <CollapsibleTrigger
               className="hover:bg-muted/20 flex shrink-0 cursor-pointer items-center rounded-sm"
-              aria-label={`Files loaded for ${skill.skillName}`}
+              aria-label={`Files ${fileState} for ${skill.skillName}`}
             >
               <DropdownIndicator direction={expanded ? "down" : "right"} />
             </CollapsibleTrigger>
@@ -179,6 +245,7 @@ function groupSkills(
 
 export interface SectionSkillsProps {
   projectId: string;
+  toolCallsByName: Map<string, ToolCallInvocation[]>;
   skills:
     | { kind: "available"; items: SkillsAvailable }
     | { kind: "loaded"; items: SkillsResourceLoaded };
@@ -190,6 +257,7 @@ type SkillRowProps = {
   rowNumber: number;
   expanded: boolean;
   onExpandedChange: (key: string) => void;
+  fileState: "requested" | "loaded";
 };
 
 type SkillGroup = {

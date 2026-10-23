@@ -4,7 +4,7 @@ import {
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {

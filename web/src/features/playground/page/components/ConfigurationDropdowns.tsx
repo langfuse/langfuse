@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
 import {
   PlaygroundTools,
