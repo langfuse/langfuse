@@ -674,3 +674,88 @@ describe("role assignment foreign keys", () => {
     ]);
   });
 });
+
+/** createUnmirroredMember creates org and project memberships without role assignments. */
+async function createUnmirroredMember() {
+  const { orgId, projectId } = await createOrgProjectAndApiKey();
+  const user = await prisma.user.create({
+    data: { email: `backfill-${v4()}@example.com` },
+  });
+  const orgMembership = await prisma.organizationMembership.create({
+    data: { orgId, userId: user.id, role: "VIEWER" },
+  });
+  await prisma.projectMembership.create({
+    data: {
+      orgMembershipId: orgMembership.id,
+      projectId,
+      userId: user.id,
+      role: "ADMIN",
+    },
+  });
+  return { orgId, projectId, user };
+}
+
+/** ownerRoles formats assignments as sorted owner/role pairs. */
+function ownerRoles(assignments: { ownerId: string; roleId: string }[]) {
+  return assignments.map((a) => `${a.ownerId} ${a.roleId}`).sort();
+}
+
+describe("getRoleAssignmentsForPrincipal membership backfill", () => {
+  it("backfills a user's missing org and project role assignments", async () => {
+    const { orgId, projectId, user } = await createUnmirroredMember();
+
+    const assignments = await getRoleAssignmentsForPrincipal(
+      prisma,
+      UserId(user.id),
+    );
+
+    const expected = [
+      `${OrganizationId(orgId)} ${SystemRoleId("VIEWER")}`,
+      `${ProjectId(projectId)} ${SystemRoleId("ADMIN")}`,
+    ].sort();
+    expect(ownerRoles(assignments)).toEqual(expected);
+    expect(
+      ownerRoles(
+        await prisma.roleAssignment.findMany({
+          where: { principalId: UserId(user.id) },
+        }),
+      ),
+    ).toEqual(expected);
+  });
+
+  it("skips the backfill for a user with role assignments", async () => {
+    const { orgId, user } = await createUnmirroredMember();
+    await assignRole(prisma, {
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("MEMBER"),
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      tags: [],
+    });
+
+    const assignments = await getRoleAssignmentsForPrincipal(
+      prisma,
+      UserId(user.id),
+    );
+
+    expect(ownerRoles(assignments)).toEqual([
+      `${OrganizationId(orgId)} ${SystemRoleId("MEMBER")}`,
+    ]);
+  });
+
+  it("backfills once under concurrent reads", async () => {
+    const { user } = await createUnmirroredMember();
+
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+      ),
+    );
+
+    expect(
+      await prisma.roleAssignment.count({
+        where: { principalId: UserId(user.id) },
+      }),
+    ).toBe(2);
+  });
+});

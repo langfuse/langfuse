@@ -11,22 +11,29 @@ import {
   hasApiKeyKind,
   hasOrganizationKind,
   hasSystemRoleKind,
+  hasUserKind,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
   untag,
   type PrincipalId,
   type OwnerId,
   type RoleAssignment,
   type RoleId,
   type TenantId,
+  type UserId,
 } from "./types";
 
-/** getRoleAssignmentsForPrincipal loads a principal's stored assignments. */
+/** getRoleAssignmentsForPrincipal loads a principal's stored assignments, backfilling a user without any from their memberships. */
 export async function getRoleAssignmentsForPrincipal(
-  tx: Prisma.TransactionClient,
+  prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
-  return await tx.roleAssignment.findMany({
-    where: { principalId },
-  });
+  const assignments = await findRoleAssignments(prisma, principalId);
+  if (assignments.length > 0 || !hasUserKind(principalId)) return assignments;
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+  await backfillUserRoleAssignments(prisma, principalId);
+  return await findRoleAssignments(prisma, principalId);
 }
 
 /** assignRole persists a system-role assignment in the supplied tenant. */
@@ -104,6 +111,90 @@ export async function transferApiKeyRoles(
   });
 }
 
+/** findRoleAssignments reads a principal's stored assignments. */
+async function findRoleAssignments(
+  prisma: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<StoredRoleAssignment[]> {
+  return await prisma.roleAssignment.findMany({ where: { principalId } });
+}
+
+/**
+ * backfillUserRoleAssignments assigns a user without assignments their membership roles while holding the memberships against concurrent writes.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
+async function backfillUserRoleAssignments(
+  prisma: Prisma.TransactionClient,
+  principalId: UserId,
+): Promise<void> {
+  await withTransaction(prisma, async (tx) => {
+    await lockMemberships(tx, principalId);
+    const assignments = await findRoleAssignments(tx, principalId);
+    if (assignments.length > 0) return;
+    const data: Prisma.RoleAssignmentCreateManyInput[] = [];
+    for (const ra of await getMembershipRoles(tx, principalId)) {
+      data.push({
+        ...(await validateTenancy(tx, ra.tenantId, ra.ownerId)),
+        ...principalFields(ra.principalId),
+        ...validateRole(ra.roleId),
+      });
+    }
+    await tx.roleAssignment.createMany({ data, skipDuplicates: true });
+  });
+}
+
+/** lockMemberships share-locks a user's memberships until the transaction ends. */
+async function lockMemberships(
+  tx: Prisma.TransactionClient,
+  principalId: UserId,
+): Promise<void> {
+  const userId = untag(principalId);
+  await tx.$queryRaw`
+    SELECT id FROM organization_memberships WHERE user_id = ${userId} FOR SHARE
+  `;
+  await tx.$queryRaw`
+    SELECT project_id FROM project_memberships WHERE user_id = ${userId} FOR SHARE
+  `;
+}
+
+/** getMembershipRoles maps a user's org and project memberships to the role assignments they imply. */
+async function getMembershipRoles(
+  prisma: Prisma.TransactionClient,
+  principalId: UserId,
+): Promise<MembershipRole[]> {
+  const userId = untag(principalId);
+  const [orgMemberships, projectMemberships] = await Promise.all([
+    prisma.organizationMembership.findMany({
+      where: { userId },
+      select: { orgId: true, role: true },
+    }),
+    prisma.projectMembership.findMany({
+      where: { userId },
+      select: {
+        projectId: true,
+        role: true,
+        project: { select: { orgId: true } },
+      },
+    }),
+  ]);
+  return [
+    ...orgMemberships.map(({ orgId, role }) => ({
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId,
+      roleId: SystemRoleId(role),
+      tags: [],
+    })),
+    ...projectMemberships.map(({ projectId, role, project }) => ({
+      tenantId: OrganizationId(project.orgId),
+      ownerId: ProjectId(projectId),
+      principalId,
+      roleId: SystemRoleId(role),
+      tags: [],
+    })),
+  ];
+}
+
 /** validateTenancy holds project ownership stable until the transaction ends. */
 async function validateTenancy(
   tx: Prisma.TransactionClient,
@@ -153,3 +244,5 @@ function validateRole(roleId: RoleId) {
   }
   return { roleId, systemRole };
 }
+
+type MembershipRole = Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">;
