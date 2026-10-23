@@ -49,7 +49,6 @@ export function IngestionStep({
       size="sm"
       status={status}
       isCollapsible={false}
-      compactBottomSpacing
       description={description}
     >
       {status === "current" ? (

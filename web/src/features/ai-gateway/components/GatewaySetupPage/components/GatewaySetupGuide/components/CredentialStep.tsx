@@ -51,7 +51,6 @@ export function CredentialStep({
       size="sm"
       status={status}
       isCollapsible={false}
-      compactBottomSpacing
       description={
         <CredentialStepDescription
           status={status}
