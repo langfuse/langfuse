@@ -16,8 +16,7 @@ import {
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ChatMessageList } from "../ChatMessageList";
-import { isChatMessageIO } from "../../parsers/isChatMessageIO";
+import { ChatMessageList, type ChatMessageListProps } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
   SectionSkills,
@@ -32,7 +31,10 @@ import {
   useCorrectOutputAction,
 } from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
-import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
+import {
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -105,6 +107,30 @@ function JsonInputOutputView({
     </div>
   );
 }
+
+function hasDeclaredRole(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { role?: unknown }).role === "string"
+  );
+}
+
+/**
+ * Chat I/O: a message array, bare or under `messages`, or a single message,
+ * with at least one declared string `role`. Anything else is non-chat I/O
+ * that the preview wraps into messages itself.
+ */
+function isChatIO(value: unknown): boolean {
+  const messages =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as { messages?: unknown }).messages
+      : value;
+  if (Array.isArray(messages)) return messages.some(hasDeclaredRole);
+  return hasDeclaredRole(value);
+}
+
+const SIDE_TITLES = { input: "Input", output: "Output" } as const;
 
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
   skills?: SectionSkillsProps["skills"];
@@ -344,9 +370,13 @@ export function IOPreviewPretty({
   const canTitleBySide =
     observationType !== undefined && observationType !== "GENERATION";
   const titleBySide = {
-    input: canTitleBySide && !isChatMessageIO(parsedInput),
-    output: canTitleBySide && !isChatMessageIO(parsedOutput),
+    input: canTitleBySide && !isChatIO(parsedInput),
+    output: canTitleBySide && !isChatIO(parsedOutput),
   };
+  const messageTitle: ChatMessageListProps["getMessageTitle"] = (
+    message,
+    side,
+  ) => (titleBySide[side] ? SIDE_TITLES[side] : getMessageTitle(message));
 
   return (
     <div className="space-y-2 pt-3">
@@ -382,7 +412,7 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
-            titleBySide={titleBySide}
+            getMessageTitle={messageTitle}
             outputActions={outputActions}
           />
           {correctedOutputField}

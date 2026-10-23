@@ -15,7 +15,6 @@ import {
 import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
-  getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
@@ -44,8 +43,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  /** Title a side's messages Input / Output instead of by role. */
-  titleBySide?: { input: boolean; output: boolean };
+  /** Section title per message; the caller owns the rule. */
+  getMessageTitle: (message: ChatMlMessage, side: "input" | "output") => string;
   /** Header actions for the last output-side message (e.g. Correct output). */
   outputActions?: IOSectionAction[];
 }
@@ -72,7 +71,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
-  titleBySide,
+  getMessageTitle,
   outputActions,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
@@ -142,10 +141,6 @@ export function ChatMessageList({
         <div className="flex flex-col gap-2">
           {messagesToRender.map(({ message, originalIndex }, filteredIndex) => {
             const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
-            const sideTitle = isOutputMessage ? "Output" : "Input";
-            const titledBySide = isOutputMessage
-              ? titleBySide?.output
-              : titleBySide?.input;
             const folded = isFolded(filteredIndex);
             // Folded messages do not mount (no parsing) until the row opens.
             if (folded && !othersOpen) return null;
@@ -153,7 +148,10 @@ export function ChatMessageList({
               <ChatMessage
                 key={originalIndex}
                 message={message}
-                title={titledBySide ? sideTitle : getMessageTitle(message)}
+                title={getMessageTitle(
+                  message,
+                  isOutputMessage ? "output" : "input",
+                )}
                 shouldRenderMarkdown={shouldRenderMarkdown}
                 currentView={currentView}
                 toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
