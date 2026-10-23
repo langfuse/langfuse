@@ -43,6 +43,7 @@ import {
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
@@ -589,6 +590,29 @@ describe("AI gateway control plane", () => {
       notifiedCount: 0,
     });
     expect(queuedNotifications()).toEqual([]);
+  });
+
+  it("rejects more than MAX_TEAM_INVITES addresses in one request", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+
+    await expect(
+      owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: Array.from(
+          { length: MAX_TEAM_INVITES + 1 },
+          (_, index) => `gateway-invitee-${index}@example.test`,
+        ),
+        notifyMembers: false,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(queuedNotifications()).toEqual([]);
+    await expect(
+      prisma.membershipInvitation.count({ where: { orgId: owner.org.id } }),
+    ).resolves.toBe(0);
   });
 
   it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {

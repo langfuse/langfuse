@@ -1,1 +1,1 @@
-export const MAX_TEAM_INVITES = 50;
+export const MAX_TEAM_INVITES = 100;

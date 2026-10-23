@@ -45,7 +45,7 @@ export const WithEmails = meta.story({
 export const WithError = meta.story({
   args: {
     ...WithEmails.input.args,
-    errorMessage: "You can invite up to 50 people at once.",
+    errorMessage: "You can invite up to 100 people at once.",
   },
 });
 
