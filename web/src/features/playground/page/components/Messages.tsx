@@ -15,7 +15,7 @@ import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys"
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 import { GenerationOutput } from "./GenerationOutput";
-import { ChatMessages } from "@/src/components/ChatMessages";
+import { ChatMessages } from "@/src/components/ChatMessages/ChatMessages";
 import { type MessagesContext } from "@/src/components/ChatMessages/types";
 import {
   ResizableHandle,
