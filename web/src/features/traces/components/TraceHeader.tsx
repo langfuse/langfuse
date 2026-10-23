@@ -13,7 +13,7 @@ import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
 import {
   CostBadge,
   UsageBadge,

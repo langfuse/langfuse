@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
@@ -8,21 +7,6 @@ export function LatencyBadge({ latencySeconds }: { latencySeconds: number }) {
       font="mono"
       color="ghost"
       text={formatIntervalSeconds(latencySeconds)}
-    />
-  );
-}
-
-export function TimeToFirstTokenBadge({
-  timeToFirstToken,
-}: {
-  timeToFirstToken: number;
-}) {
-  return (
-    <Badge
-      font="mono"
-      color="ghost"
-      label="ttft"
-      text={formatIntervalSeconds(timeToFirstToken)}
     />
   );
 }
