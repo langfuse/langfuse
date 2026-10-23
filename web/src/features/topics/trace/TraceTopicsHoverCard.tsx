@@ -40,7 +40,7 @@ function TopicDot({ rank }: { rank: number }) {
   return (
     <span
       aria-hidden
-      className="size-2 shrink-0 rounded-full"
+      className="size-2 shrink-0 rounded-xs"
       style={{ backgroundColor: treemapSwatchColor(rank) }}
     />
   );
