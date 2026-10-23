@@ -28,12 +28,14 @@ type CostBadgeProps =
       priceSource?: PriceSource;
       costSource?: CostSource;
     }
-  /** A generation with tokens but no cost. */
-  | { variant: "missing"; projectId: string };
+  /** A generation nothing priced; the tooltip differs when no usage was sent either. */
+  | { variant: "missing"; projectId: string; hasUsage: boolean };
 
 export function CostBadge(props: CostBadgeProps) {
   if (props.variant === "missing") {
-    return <MissingCostBadge projectId={props.projectId} />;
+    return (
+      <MissingCostBadge projectId={props.projectId} hasUsage={props.hasUsage} />
+    );
   }
   const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
@@ -63,14 +65,21 @@ export function CostBadge(props: CostBadgeProps) {
   );
 }
 
-function MissingCostBadge({ projectId }: { projectId: string }) {
+function MissingCostBadge({
+  projectId,
+  hasUsage,
+}: {
+  projectId: string;
+  hasUsage: boolean;
+}) {
   return (
     <CustomTooltip
       content={
         <div className="flex flex-col gap-1">
           <p className="text-xs">
-            No model price matched this generation. Add a model price, or send
-            the cost from your SDK.
+            {hasUsage
+              ? "No model price matched this generation. Add a model price, or send the cost from your SDK."
+              : "No usage or cost was sent for this generation. Send usage (e.g. characters) and add a model price, or send the cost from your SDK."}
           </p>
           <div className="flex items-center gap-1.5">
             <TextLink
