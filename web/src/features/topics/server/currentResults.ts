@@ -8,6 +8,7 @@ import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
   getTopicRuns,
+  getTopicTraceUnitTimeRange,
   hasStoredTopicSummaries,
   listTopicFacets,
   listTopicRules,
@@ -192,14 +193,15 @@ export async function traceFacetResults(
   timestamp: Date,
 ) {
   const slackMs = OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 86_400_000;
-  const { facets } = await currentTopicResults(
-    projectId,
-    {
-      from: new Date(timestamp.getTime() - slackMs),
-      to: new Date(timestamp.getTime() + slackMs),
-    },
-    [traceId],
-  );
+  // Narrow to the trace's exact source time so assignment reads prune to its minute.
+  const unitTimeRange = await getTopicTraceUnitTimeRange(projectId, traceId, {
+    from: new Date(timestamp.getTime() - slackMs),
+    to: new Date(timestamp.getTime() + slackMs),
+  });
+  if (!unitTimeRange) return [];
+  const { facets } = await currentTopicResults(projectId, unitTimeRange, [
+    traceId,
+  ]);
   return facets.map((facet) => {
     const row = facet.rows.find((item) => item.traceId === traceId);
     return {
