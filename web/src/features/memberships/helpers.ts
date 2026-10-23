@@ -57,9 +57,14 @@ export async function unassignOrgMembershipRoles(
 /** unassignProjectMembershipRole removes a project membership's role assignment. */
 export async function unassignProjectMembershipRole(
   prisma: Prisma.TransactionClient,
-  { projectId, userId }: { projectId: string; userId: string },
+  {
+    orgId,
+    projectId,
+    userId,
+  }: { orgId: string; projectId: string; userId: string },
 ): Promise<void> {
   await revokeRolesForPrincipal(prisma, {
+    tenantId: OrganizationId(orgId),
     ownerId: ProjectId(projectId),
     principalId: UserId(userId),
   });

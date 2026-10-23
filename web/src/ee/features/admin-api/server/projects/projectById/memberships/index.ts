@@ -228,7 +228,7 @@ async function deleteMembership(
   const membership = await tx.projectMembership.delete({
     where: { projectId_userId: { projectId, userId: before.userId } },
   });
-  await unassignProjectMembershipRole(tx, membership);
+  await unassignProjectMembershipRole(tx, { ...membership, orgId });
   await auditMembershipDeletion(tx, params, membership);
   return true;
 }

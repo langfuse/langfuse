@@ -543,7 +543,10 @@ export const membersRouter = createTRPCRouter({
                 orgMembershipId: input.orgMembershipId,
               },
             });
-            await unassignProjectMembershipRole(tx, deleted);
+            await unassignProjectMembershipRole(tx, {
+              ...deleted,
+              orgId: input.orgId,
+            });
           });
 
           await auditLog({
