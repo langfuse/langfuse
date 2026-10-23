@@ -145,7 +145,10 @@ function QuestionRow({
   execution: Run;
   minimum: number | null;
 }) {
-  const status = questionStatuses[progress.outcome];
+  const status = questionStatuses[progress.outcome] ?? {
+    label: progress.outcome,
+    dot: "bg-muted-foreground",
+  };
   const note = questionNote(progress, minimum);
   const facetError =
     progress.error && progress.error !== execution.error

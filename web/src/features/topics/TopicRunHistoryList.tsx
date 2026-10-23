@@ -13,6 +13,7 @@ import {
   executionLabels,
   operationLabels,
 } from "./topic-run-labels";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
 type Run = RouterOutputs["topics"]["executions"][number];
 
@@ -132,7 +133,15 @@ function StatusDot({ status }: { status: Run["status"] }) {
   );
 }
 
-function ActiveRun({ run, next }: { run: Run; next: Run | null }) {
+function ActiveRun({
+  run,
+  next,
+  onOpen,
+}: {
+  run: Run;
+  next: Run | null;
+  onOpen: (id: string) => void;
+}) {
   const total = traceCount(run);
   const processed = Math.min(
     total,
@@ -144,7 +153,11 @@ function ActiveRun({ run, next }: { run: Run; next: Run | null }) {
       role="status"
       className="bg-muted/40 flex flex-col gap-2 border-b px-4 py-3.5"
     >
-      <div className="flex items-center justify-between gap-3">
+      <button
+        type="button"
+        onClick={() => onOpen(run.id)}
+        className="flex items-center justify-between gap-3 text-left hover:underline"
+      >
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
           <StatusDot status={run.status} />
           <span
@@ -157,7 +170,7 @@ function ActiveRun({ run, next }: { run: Run; next: Run | null }) {
         <span className="text-muted-foreground font-mono text-xs">
           {format(new Date(run.createdAt), "HH:mm")}
         </span>
-      </div>
+      </button>
       {showProgress && (
         <div className="bg-muted h-1.5 overflow-hidden rounded-sm">
           <div
@@ -168,12 +181,18 @@ function ActiveRun({ run, next }: { run: Run; next: Run | null }) {
       )}
       {(next || showProgress) && (
         <div className="flex items-center justify-between gap-3 text-xs">
-          <span
-            className="text-muted-foreground truncate"
-            title={next ? operationLabels[next.input.operation] : undefined}
-          >
-            {next ? `Then: ${operationLabels[next.input.operation]}` : ""}
-          </span>
+          {next ? (
+            <button
+              type="button"
+              onClick={() => onOpen(next.id)}
+              className="text-muted-foreground truncate hover:underline"
+              title={operationLabels[next.input.operation]}
+            >
+              Then: {operationLabels[next.input.operation]}
+            </button>
+          ) : (
+            <span />
+          )}
           {showProgress && (
             <span className="font-mono">
               {formatCount(processed)} / {formatCount(total)}
@@ -293,7 +312,12 @@ export function TopicRunHistoryList({
   const past = runs.filter((run) => run !== active && run !== next);
   return (
     <div className="flex flex-col">
-      {active && <ActiveRun run={active} next={next} />}
+      {errorMessage && (
+        <div className="px-4 pt-4">
+          <TopicsErrorMessage message={errorMessage} />
+        </div>
+      )}
+      {active && <ActiveRun run={active} next={next} onOpen={onOpen} />}
       {groupByDay(past).map((group) => (
         <section key={group.runs[0].id} className="px-2 pt-2.5 pb-1">
           <h3 className="text-muted-foreground px-2 text-xs font-bold">

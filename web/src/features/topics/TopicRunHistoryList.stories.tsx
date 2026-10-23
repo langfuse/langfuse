@@ -212,7 +212,18 @@ export const PinsRunningAndGroupsByDay = meta.story({
       canvas.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
-    const rows = canvas.getAllByRole("button");
+    await userEvent.click(
+      within(active).getByRole("button", { name: /Analyze traces/ }),
+    );
+    await expect(args.onOpen).toHaveBeenCalledWith("analyze-running");
+    await userEvent.click(
+      within(active).getByRole("button", { name: "Then: Regenerate topics" }),
+    );
+    await expect(args.onOpen).toHaveBeenCalledWith("regenerate-queued");
+
+    const rows = canvas
+      .getAllByRole("button")
+      .filter((row) => !active.contains(row));
     await expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Analyze traces1,412 traces · $4.20"),
       expect.stringContaining("Analyze traces12 traces failed"),
@@ -228,6 +239,21 @@ export const PinsRunningAndGroupsByDay = meta.story({
 
     await userEvent.click(rows[1]);
     await expect(args.onOpen).toHaveBeenCalledWith("analyze-issues");
+  },
+});
+
+export const ShowsRefetchErrorAboveRuns = meta.story({
+  name: "(Test) A refetch error shows above the cached runs",
+  args: {
+    executions: runs.slice(2, 4),
+    errorMessage: "Request timed out.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("alert")).toHaveTextContent(
+      "Request timed out.",
+    );
+    await expect(canvas.getAllByRole("button")).toHaveLength(2);
   },
 });
 

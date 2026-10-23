@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
-import { Settings } from "@langfuse/icons";
+import { ChevronLeft, Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
@@ -41,6 +41,7 @@ import {
   useTopicsResultsView,
 } from "./TopicsResultsViewSelect";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
@@ -700,18 +701,36 @@ function ExecutionPanel({
     null,
   );
   const execution = query.data;
-  const traceErrorsOpen = traceErrorsToggled ?? execution?.status === "failed";
+  const traceErrorsOpen =
+    traceErrorsToggled ??
+    (execution?.status === "failed" &&
+      execution.facets.some((facet) => facet.counts.failed > 0));
   const traceErrors = api.topics.traceErrors.useQuery(
     { projectId, executionId },
     { enabled: traceErrorsOpen },
   );
-  if (query.error)
+  if (query.error || !execution) {
     return (
-      <div className="p-4">
-        <TopicsErrorMessage message={query.error.message} />
-      </div>
+      <>
+        <header className="flex items-center border-b py-3.5 pr-12 pl-3">
+          <IconButton
+            icon={ChevronLeft}
+            label="All runs"
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+          />
+        </header>
+        {query.error ? (
+          <div className="p-4">
+            <TopicsErrorMessage message={query.error.message} />
+          </div>
+        ) : (
+          <p className="p-4 text-sm">Loading execution…</p>
+        )}
+      </>
     );
-  if (!execution) return <p className="p-4 text-sm">Loading execution…</p>;
+  }
   return (
     <TopicRunDetails
       execution={execution}
