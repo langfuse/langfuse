@@ -57,6 +57,10 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import {
+  CustomerDataWarningBannerView,
+  getCustomerDataWarning,
+} from "@/src/features/customer-data-warning";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
@@ -139,7 +143,24 @@ export function AuthenticatedLayout({
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-  const { organization: currentOrganization } = useQueryProjectOrOrganization();
+  const { organization: currentOrganization, project: currentProject } =
+    useQueryProjectOrOrganization();
+  const customerDataWarning = getCustomerDataWarning({
+    email: user.email,
+    isAdmin: user.admin === true,
+    isLangfuseCloud,
+    projectId:
+      typeof router.query.projectId === "string"
+        ? router.query.projectId
+        : null,
+    organizationId:
+      typeof router.query.organizationId === "string"
+        ? router.query.organizationId
+        : null,
+    memberships: user.organizations,
+    organizationName: currentOrganization?.name ?? null,
+    projectName: currentProject?.name ?? null,
+  });
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -293,6 +314,9 @@ export function AuthenticatedLayout({
               ref={topBannerRef}
               className="fixed top-0 z-51 flex w-full flex-col"
             >
+              {customerDataWarning && (
+                <CustomerDataWarningBannerView {...customerDataWarning} />
+              )}
               {paymentBanner && (
                 <PaymentBannerView
                   organizationName={paymentBanner.organizationName}
