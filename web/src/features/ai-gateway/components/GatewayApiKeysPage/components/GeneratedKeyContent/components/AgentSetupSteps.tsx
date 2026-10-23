@@ -45,6 +45,7 @@ export function AgentSetupSteps({ instructions }: AgentSetupStepsProps) {
               <CodeSection
                 variant="outline"
                 content={step.code}
+                language={step.language}
                 shouldWrapLines={false}
               />
             )}
