@@ -1,15 +1,13 @@
 import { useMemo, useState } from "react";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Edit, Trash2 } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { formatDistanceToNow } from "date-fns";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
-import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -40,6 +38,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
     data: spendAlerts,
     isLoading,
     isError,
+    error,
     refetch,
   } = api.spendAlerts.getSpendAlerts.useQuery(
     { orgId },
@@ -47,7 +46,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   );
 
   const rows = useMemo<AlertRow[]>(() => {
-    return (spendAlerts ?? []).map((a: any) => ({
+    return (spendAlerts ?? []).map((a) => ({
       id: a.id,
       title: a.title,
       threshold: parseFloat(a.threshold?.toString?.() ?? "0"),
@@ -56,16 +55,15 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
     }));
   }, [spendAlerts]);
 
-  const data = useMemo(() => {
-    if (isLoading) return { isLoading: true, isError: false } as const;
+  const data = useMemo<AsyncTableData<AlertRow[]>>(() => {
+    if (isLoading) return { status: "loading" };
     if (isError)
       return {
-        isLoading: false,
-        isError: false,
-        data: [] as AlertRow[],
-      } as const;
-    return { isLoading: false, isError: false, data: rows } as const;
-  }, [isLoading, isError, rows]);
+        status: "error",
+        error: error.message,
+      };
+    return { status: "success", data: rows };
+  }, [isLoading, isError, error, rows]);
 
   const columns: LangfuseColumnDef<AlertRow>[] = [
     createTextTableColumn<AlertRow>({
@@ -100,36 +98,35 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
             })
           : "Never",
     },
-    createDropdownTableColumn<AlertRow, string>({
-      id: "actions",
-      accessorFn: (row) => row.id,
-      header: "Actions",
-      size: 120,
-      renderMenu: (id) =>
-        id ? (
-          <>
-            <DropdownMenuItem onClick={() => setEditingAlert(id)}>
-              <Edit size="base" color="default" __rawClassName="mr-2" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => setDeletingAlert(id)}
-              className="text-destructive"
-            >
-              <Trash2 size="base" __rawClassName="mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </>
-        ) : null,
-    }),
   ];
 
   const editingAlertData = spendAlerts?.find((a) => a.id === editingAlert);
 
   return (
     <>
-      <DataTableToolbar columns={columns} tableName="spend-alerts" />
-      <DataTable tableName="spend-alerts" columns={columns} data={data} />
+      <SettingsTable
+        tableName="spend-alerts"
+        columnVisibilityKey="spend-alertsColumnVisibility"
+        columns={columns}
+        data={data}
+        actions={(row) => [
+          {
+            id: "edit",
+            type: "item",
+            title: "Edit",
+            icon: Edit,
+            onClick: () => setEditingAlert(row.id),
+          },
+          {
+            id: "delete",
+            type: "item",
+            title: "Delete",
+            icon: Trash2,
+            variant: "destructive",
+            onClick: () => setDeletingAlert(row.id),
+          },
+        ]}
+      />
 
       {editingAlert && editingAlertData && (
         <SpendAlertDialog
