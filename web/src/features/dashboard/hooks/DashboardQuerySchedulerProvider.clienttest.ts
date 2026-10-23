@@ -11,7 +11,7 @@ import { act, renderHook } from "@testing-library/react";
 import {
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { type DashboardQuerySchedulerStore } from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
 
 describe("getDashboardSchedulerResetKey", () => {

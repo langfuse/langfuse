@@ -40,7 +40,7 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "@langfuse/icons";
 import { showErrorToast } from "@/src/features/notifications";

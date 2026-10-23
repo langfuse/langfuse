@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import {
   type TimeRange,
   toAbsoluteTimeRange,

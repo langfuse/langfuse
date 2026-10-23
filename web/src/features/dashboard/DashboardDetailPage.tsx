@@ -71,7 +71,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import {
   isPasteablePlacementPayload,
   parseDashboardImport,
