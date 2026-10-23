@@ -5,7 +5,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   ExperimentGridCell,
   ExperimentGridCellEmpty,
@@ -167,11 +167,9 @@ export const ExperimentGridView = ({
               </span>
               {useExperimentColors && (
                 <Badge
-                  variant="outline"
-                  className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
-                >
-                  {isBaseline ? "Baseline" : "Comp"}
-                </Badge>
+                  color="primary"
+                  text={isBaseline ? "Baseline" : "Comp"}
+                />
               )}
             </div>
             <ExperimentGridSummaryValues

@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useExperimentPeekNavigation } from "../hooks/useExperimentPeekNavigation";
 import { useExperimentNames } from "../hooks/useExperimentNames";
 import { getExperimentColorStyles } from "./table/types";
@@ -38,11 +38,9 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           {currentName}
         </span>
         <Badge
-          variant="outline"
-          className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
-        >
-          {currentIndex === 0 ? "Baseline" : "Comp"}
-        </Badge>
+          color="primary"
+          text={currentIndex === 0 ? "Baseline" : "Comp"}
+        />
       </div>
       <div className="flex items-center gap-1">
         <Button

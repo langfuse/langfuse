@@ -78,7 +78,7 @@ import {
 } from "./types";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -390,12 +390,12 @@ const matchesExpectedOutput = (
 };
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
-  <Badge
-    variant={matches ? "success" : "error"}
-    className="mt-0.5 ml-1 shrink-0 font-bold"
-  >
-    {matches ? "match" : "differs"}
-  </Badge>
+  <span className="mt-0.5 ml-1 inline-flex shrink-0">
+    <Badge
+      color={matches ? "green" : "red"}
+      text={matches ? "match" : "differs"}
+    />
+  </span>
 );
 
 /**

@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
@@ -230,32 +230,31 @@ const DatasetAggregateCellContent = ({
           >
             {!!latency &&
               (latencyDiff ? (
-                <DiffLabel
-                  diff={latencyDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => formatIntervalSeconds(value)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={latencyDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => formatIntervalSeconds(value)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <ClockIcon size="sm" __rawClassName="mr-1 mb-0.5" />
-                  <span className="capitalize">
-                    {formatIntervalSeconds(latency)}
-                  </span>
-                </Badge>
+                <Badge
+                  color="filled"
+                  leadingIcon={ClockIcon}
+                  text={formatIntervalSeconds(latency)}
+                />
               ))}
             {totalCost &&
               (totalCostDiff ? (
-                <DiffLabel
-                  diff={totalCostDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => usdFormatter(value, 2, 4)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={totalCostDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => usdFormatter(value, 2, 4)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <span className="mr-0.5">{usdFormatter(totalCost)}</span>
-                </Badge>
+                <Badge color="filled" text={usdFormatter(totalCost)} />
               ))}
           </div>
           {!(isSilentError || isLoading) && (
