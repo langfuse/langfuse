@@ -1,7 +1,7 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
-import { DashboardWidgetTable } from "./WidgetTable";
+import { DashboardWidgetTable } from "./DashboardWidgetTable";
 
 const onCopy = fn();
 

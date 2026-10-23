@@ -23,7 +23,10 @@ import { PaginationBar } from "@/src/components/design-system/PaginationBar/Pagi
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { assertUnreachable } from "@/src/utils/types";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { DashboardWidgetTable, type WidgetTableRow } from "./WidgetTable";
+import {
+  DashboardWidgetTable,
+  type WidgetTableRow,
+} from "./DashboardWidgetTable";
 
 export function ConnectedDashboardWidgetTable() {
   const projectId = useProjectIdFromURL();

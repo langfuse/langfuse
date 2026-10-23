@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useCallback, useMemo } from "react";
 import { Copy, CopyPlus, FileJson, Trash } from "@langfuse/icons";
 import startCase from "lodash/startCase";
