@@ -1,22 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MediaReferenceTag } from "./MediaReferenceTag";
+import { classifyMediaValue } from "./mediaUtils";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const { refreshIfNeeded } = vi.hoisted(() => ({
   refreshIfNeeded: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock("@/src/utils/api", () => ({ api: {} }));
-vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
-  default: () => "project-1",
-}));
-vi.mock("@/src/features/feature-flags", () => ({
-  useIsFeatureEnabled: () => false,
-}));
-vi.mock("@langfuse/shared", () => ({
-  OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE: "field_size_limit",
 }));
 
 vi.mock("./useResolvedMedia", () => ({
@@ -29,20 +19,13 @@ vi.mock("./useResolvedMedia", () => ({
 }));
 
 describe("MediaReferenceTag", () => {
-  beforeEach(() => {
-    refreshIfNeeded.mockClear();
-  });
+  it("checks for an expired URL on the first open and on every reopen", async () => {
+    const descriptor = classifyMediaValue(
+      "@@@langfuseMedia:type=application/pdf|id=document|source=bytes@@@",
+    );
 
-  it("checks the cached URL on both the first open and a later reopen", async () => {
-    const descriptor = {
-      kind: "langfuseRef",
-      contentType: "application/pdf",
-      mediaId: "document",
-      source: "bytes",
-      referenceString:
-        "@@@langfuseMedia:type=application/pdf|id=document|source=bytes@@@",
-    } as const;
-    render(<MediaReferenceTag descriptor={descriptor} />, {
+    expect(descriptor).not.toBeNull();
+    render(<MediaReferenceTag descriptor={descriptor!} />, {
       wrapper: LayerProvider,
     });
 
@@ -61,15 +44,12 @@ describe("MediaReferenceTag", () => {
   });
 
   it("keeps focus on the media trigger when resolution starts", () => {
-    const descriptor = {
-      kind: "langfuseRef",
-      contentType: "image/png",
-      mediaId: "image",
-      source: "bytes",
-      referenceString:
-        "@@@langfuseMedia:type=image/png|id=image|source=bytes@@@",
-    } as const;
-    render(<MediaReferenceTag descriptor={descriptor} />, {
+    const descriptor = classifyMediaValue(
+      "@@@langfuseMedia:type=image/png|id=image|source=bytes@@@",
+    );
+
+    expect(descriptor).not.toBeNull();
+    render(<MediaReferenceTag descriptor={descriptor!} />, {
       wrapper: LayerProvider,
     });
 
@@ -81,15 +61,12 @@ describe("MediaReferenceTag", () => {
   });
 
   it("renders a field-limit media reference as an attachment", () => {
-    const descriptor = {
-      kind: "langfuseRef",
-      contentType: "text/plain",
-      mediaId: "oversized-field",
-      source: "field_size_limit",
-      referenceString:
-        "@@@langfuseMedia:type=text/plain|id=oversized-field|source=field_size_limit@@@",
-    } as const;
-    render(<MediaReferenceTag descriptor={descriptor} />, {
+    const descriptor = classifyMediaValue(
+      "@@@langfuseMedia:type=text/plain|id=oversized-field|source=field_size_limit@@@",
+    );
+
+    expect(descriptor).not.toBeNull();
+    render(<MediaReferenceTag descriptor={descriptor!} />, {
       wrapper: LayerProvider,
     });
 
