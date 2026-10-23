@@ -66,12 +66,8 @@ function audit(
 async function grant(
   request: GrantRequest,
   user: User | null,
-  region: string,
   now: Date,
 ): Promise<ProvisionResult> {
-  if (request.region !== region) {
-    return rejected(`Request is not for region ${region}`);
-  }
   if (!request.durationMs || request.durationMs > MAX_GRANT_MS) {
     return rejected("Grant must be time-bound to at most 12h");
   }
@@ -117,16 +113,16 @@ async function revoke(
 
 export async function provisionSupportAccess(
   request: SupportAccessRequest,
-  config: { entitlementId: string; region: string },
+  entitlementId: string,
   now: Date = new Date(),
 ): Promise<ProvisionResult> {
-  if (request.entitlementId !== config.entitlementId) {
+  if (request.entitlementId !== entitlementId) {
     return rejected("Entitlement is not handled by this Langfuse region");
   }
 
   const user = await findUser(request.email);
   if (request.action === "grant") {
-    return grant(request, user, config.region, now);
+    return grant(request, user, now);
   }
   return revoke(request, user);
 }

@@ -134,10 +134,10 @@ describe("parseProvisionPayload", () => {
       c1User,
     ],
   });
+  // C1 puts submitted values in `task.data`; `task.form` only holds field definitions.
   const form = {
-    form: {
-      data: { langfuse_region: "US", langfuse_organization_id: "org-1" },
-    },
+    form: { fields: [{ name: "langfuse_organization_id_0" }] },
+    data: { langfuse_organization_id_0: "org-1" },
   };
 
   it("reads a grant", () => {
@@ -147,7 +147,6 @@ describe("parseProvisionPayload", () => {
       taskId: "task-1",
       entitlementId: "ent-1",
       email: "eng@clickhouse.com",
-      region: "US",
       orgId: "org-1",
       durationMs: 43_200_000,
     });
@@ -155,7 +154,8 @@ describe("parseProvisionPayload", () => {
 
   it("reads a revoke", () => {
     const revoke = { appEntitlementId: "ent-1" };
-    expect(parseProvisionPayload(payload({ revoke }))).toEqual({
+    const extra = { data: { Justification_0: "done" } };
+    expect(parseProvisionPayload(payload({ revoke }, extra))).toEqual({
       action: "revoke",
       taskId: "task-1",
       entitlementId: "ent-1",
@@ -177,6 +177,13 @@ describe("parseProvisionPayload", () => {
       "a grant without form values",
       payload({ grant: { appEntitlementId: "e" } }),
     ],
+    [
+      "form values nested under task.form",
+      payload(
+        { grant: { appEntitlementId: "e" } },
+        { form: { data: { langfuse_organization_id_0: "org-1" } } },
+      ),
+    ],
     ["no task type", payload({})],
     ["something that isn't a task", { hello: "world" }],
   ])("returns null for %s", (_, value) => {
@@ -185,7 +192,7 @@ describe("parseProvisionPayload", () => {
 });
 
 describe("provisionSupportAccess", () => {
-  const config = { entitlementId: "ent-1", region: "US" };
+  const entitlementId = "ent-1";
   const now = new Date("2026-10-23T12:00:00.000Z");
   const ssoUser = {
     id: "user-1",
@@ -198,7 +205,6 @@ describe("provisionSupportAccess", () => {
     taskId: "task-1",
     entitlementId: "ent-1",
     email: "eng@clickhouse.com",
-    region: "US",
     orgId: "org-1",
     durationMs: 12 * 3_600_000,
   };
@@ -217,7 +223,9 @@ describe("provisionSupportAccess", () => {
   });
 
   it("grants VIEWER until now + duration", async () => {
-    expect(await provisionSupportAccess(grantRequest, config, now)).toEqual({
+    expect(
+      await provisionSupportAccess(grantRequest, entitlementId, now),
+    ).toEqual({
       ok: true,
       message: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
     });
@@ -229,13 +237,14 @@ describe("provisionSupportAccess", () => {
 
   it.each([
     ["another entitlement", { entitlementId: "ent-admin" }],
-    ["another region", { region: "EU" }],
     ["no duration (permanent)", { durationMs: null }],
     ["a duration above 12h", { durationMs: 24 * 3_600_000 }],
     ["a non-ClickHouse email", { email: "eng@evil-clickhouse.com" }],
   ])("rejects %s", async (_, change) => {
     const request = { ...grantRequest, ...change };
-    expect(await provisionSupportAccess(request, config, now)).toMatchObject({
+    expect(
+      await provisionSupportAccess(request, entitlementId, now),
+    ).toMatchObject({
       ok: false,
     });
     expect(db.$executeRaw).not.toHaveBeenCalled();
@@ -253,7 +262,7 @@ describe("provisionSupportAccess", () => {
   ])("rejects %s", async (_, user) => {
     db.user.findUnique.mockResolvedValue(user);
     expect(
-      await provisionSupportAccess(grantRequest, config, now),
+      await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({
       ok: false,
     });
@@ -263,7 +272,7 @@ describe("provisionSupportAccess", () => {
   it("rejects when clickhouse.com has no enforced SSO", async () => {
     getSsoProvider.mockResolvedValue(null);
     expect(
-      await provisionSupportAccess(grantRequest, config, now),
+      await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({
       ok: false,
     });
@@ -272,14 +281,16 @@ describe("provisionSupportAccess", () => {
   it("rejects an unknown organization", async () => {
     db.organization.findUnique.mockResolvedValue(null);
     expect(
-      await provisionSupportAccess(grantRequest, config, now),
+      await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({
       ok: false,
     });
   });
 
   it("revokes all support access", async () => {
-    expect(await provisionSupportAccess(revokeRequest, config)).toMatchObject({
+    expect(
+      await provisionSupportAccess(revokeRequest, entitlementId),
+    ).toMatchObject({
       ok: true,
     });
     expect(db.user.update).toHaveBeenCalledWith({
@@ -290,7 +301,7 @@ describe("provisionSupportAccess", () => {
 
   it("ignores revokes for another entitlement", async () => {
     const request = { ...revokeRequest, entitlementId: "other" };
-    expect(await provisionSupportAccess(request, config)).toMatchObject({
+    expect(await provisionSupportAccess(request, entitlementId)).toMatchObject({
       ok: false,
     });
     expect(db.user.update).not.toHaveBeenCalled();

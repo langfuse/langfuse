@@ -8,7 +8,6 @@ export type GrantRequest = {
   taskId: string;
   entitlementId: string;
   email: string;
-  region: string;
   orgId: string;
   durationMs: number | null;
 };
@@ -20,10 +19,14 @@ export type RevokeRequest = {
 };
 export type SupportAccessRequest = GrantRequest | RevokeRequest;
 
+// C1 assigns form field ids itself; this is the "Langfuse Form" field holding
+// the organization id. C1 sends submitted form values in `task.data`, keyed by
+// field id.
+const ORG_ID_FORM_FIELD = "langfuse_organization_id_0";
+
 const EnvelopeSchema = z.object({ event: z.string(), payload: z.unknown() });
 
 // https://www.c1.ai/docs/api-reference/task/get
-// TODO: confirm `task.form.data` against a real C1 payload.
 const ProvisionPayloadSchema = z.object({
   taskView: z.object({
     task: z.object({
@@ -38,15 +41,8 @@ const ProvisionPayloadSchema = z.object({
           .nullish(),
         revoke: z.object({ appEntitlementId: z.string() }).nullish(),
       }),
-      form: z
-        .object({
-          data: z
-            .object({
-              langfuse_region: z.string(),
-              langfuse_organization_id: z.string(),
-            })
-            .nullish(),
-        })
+      data: z
+        .object({ [ORG_ID_FORM_FIELD]: z.string().min(1).optional() })
         .nullish(),
     }),
   }),
@@ -93,15 +89,14 @@ export function parseProvisionPayload(
   if (!email) return null;
 
   if (grant && !revoke) {
-    const form = task.form?.data;
-    if (!form) return null;
+    const orgId = task.data?.[ORG_ID_FORM_FIELD];
+    if (!orgId) return null;
     return {
       action: "grant",
       taskId: task.id,
       entitlementId: grant.appEntitlementId,
       email,
-      region: form.langfuse_region,
-      orgId: form.langfuse_organization_id,
+      orgId,
       durationMs: parseDurationMs(grant.grantDuration),
     };
   }
