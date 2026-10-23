@@ -59,9 +59,19 @@ export function SyntaxHighlight({
           style,
           content: tokens.map((line, index) => (
             <div key={index} {...getLineProps({ line })}>
-              {line.map((token, key) => (
-                <span key={key} {...getTokenProps({ token })} />
-              ))}
+              {line.map((token, key) => {
+                // Prism's per-type class names include Tailwind utilities such as `table`; the theme styles tokens inline instead.
+                const { style, children } = getTokenProps({ token });
+                return (
+                  <span
+                    key={key}
+                    style={style}
+                    data-token={token.types.join(" ")}
+                  >
+                    {children}
+                  </span>
+                );
+              })}
             </div>
           )),
         })

@@ -248,10 +248,23 @@ describe("MarkdownView code blocks", () => {
       );
 
       expect(
-        container.querySelector(".codeblock .token.string"),
+        container.querySelector('.codeblock [data-token~="string"]'),
       ).not.toBeNull();
     },
   );
+
+  // Prism names tokens after their type, and some types are Tailwind utilities:
+  // `table` (a TOML header) would get `display: table` and break the line.
+  it("does not give tokens Tailwind utility class names", () => {
+    const { container } = renderMarkdown(
+      '```toml\n[providers.langfuse]\nname = "x"\n```',
+    );
+
+    expect(
+      container.querySelector('.codeblock [data-token~="table"]'),
+    ).not.toBeNull();
+    expect(container.querySelector(".codeblock .table")).toBeNull();
+  });
 });
 
 describe("prependBasePathToInternalHref", () => {
