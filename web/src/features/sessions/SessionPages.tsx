@@ -121,7 +121,10 @@ import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBa
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -1129,6 +1132,7 @@ function SessionEventsLoadingPage({
               </div>
             </SessionReviewLeading>
             <ConnectedModernSessionBodyTimeline
+              transcriptSource="generations"
               tracesState={{ type: "loading" }}
               projectId={projectId}
               sessionId={sessionId}
@@ -1323,10 +1327,23 @@ const LoadedSessionEventsPage: React.FC<{
     };
   }, [positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
-  const [transcriptSource, setTranscriptSource] = useQueryParam(
+  const [urlTranscriptSource, setUrlTranscriptSource] = useQueryParam(
     "transcriptSource",
     StringParam,
   );
+  const [storedTranscriptSource, setStoredTranscriptSource] = useLocalStorage<
+    "root" | "generations"
+  >("sessionTranscriptSource", "generations");
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const transcriptSource =
+    internalFeaturesEnabled &&
+    (urlTranscriptSource ?? storedTranscriptSource) === "root"
+      ? "root"
+      : "generations";
+  const setTranscriptSource = (source: typeof storedTranscriptSource) => {
+    setStoredTranscriptSource(source);
+    setUrlTranscriptSource(source);
+  };
   const filtersQuery = React.useMemo(
     () =>
       urlFiltersQuery ??
@@ -2216,6 +2233,7 @@ const LoadedSessionEventsPage: React.FC<{
                 </div>
               ) : (
                 <ModernSession
+                  transcriptSource={transcriptSource}
                   headerDividerTone={showRedesignBanner ? "orange" : "default"}
                   isTimelineEnabled={isSessionTimelineEnabled}
                   session={session}
