@@ -31,7 +31,12 @@ export function LongestObservationIndicator({
           color={surface === "muted" ? "filledOnMuted" : "filled"}
           size="sm"
         >
-          <Snail aria-hidden size="sm" color="muted" />
+          <Snail
+            aria-hidden
+            size="sm"
+            color="inherit"
+            __rawClassName="text-dark-yellow"
+          />
         </BadgeShell>
       )}
     </Tooltip>
