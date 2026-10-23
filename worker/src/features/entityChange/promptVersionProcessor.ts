@@ -183,24 +183,65 @@ async function enqueueAutomationAction({
   );
 
   // Queue to webhook processor (handles both webhook and Slack actions)
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
+  const webhookQueue = WebhookQueue.getInstance();
+
+  if (!webhookQueue) {
+    await markAutomationExecutionFailed(
       executionId,
+      new InternalServerError("Webhook queue is not initialized"),
+    );
+    throw new InternalServerError("Webhook queue is not initialized");
+  }
+
+  try {
+    await webhookQueue.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: v4(),
       payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
+        projectId,
+        automationId: automations[0].id,
+        executionId,
+        payload: {
+          action: action as TriggerEventAction,
+          type: "prompt-version",
+          prompt: {
+            ...promptData,
+            prompt: jsonSchemaNullable.parse(promptData.prompt),
+            config: jsonSchemaNullable.parse(promptData.config),
+          },
+          ...(user ? { user } : {}),
         },
-        ...(user ? { user } : {}),
       },
-    },
-    name: QueueJobs.WebhookJob,
-  });
+      name: QueueJobs.WebhookJob,
+    });
+  } catch (error) {
+    await markAutomationExecutionFailed(executionId, error);
+    throw error;
+  }
+}
+
+/**
+ * The per-trigger error handling in promptVersionProcessor logs and swallows
+ * errors, so an execution whose job never got enqueued would otherwise stay
+ * PENDING forever with no retry. Best-effort: the original error must keep
+ * propagating.
+ */
+async function markAutomationExecutionFailed(
+  executionId: string,
+  error: unknown,
+): Promise<void> {
+  try {
+    await prisma.automationExecution.update({
+      where: { id: executionId },
+      data: {
+        status: ActionExecutionStatus.ERROR,
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
+  } catch (updateError) {
+    logger.error(
+      `Failed to record automation execution ${executionId} as errored: ${updateError}`,
+    );
+  }
 }
