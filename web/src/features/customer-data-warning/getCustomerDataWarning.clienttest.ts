@@ -24,22 +24,28 @@ describe("getCustomerDataWarning", () => {
     });
   });
 
-  it("matches the ClickHouse email domain case-insensitively", () => {
-    expect(
-      getCustomerDataWarning({
-        ...viewingCustomerProject,
-        email: "Ada@ClickHouse.COM",
-      }),
-    ).toMatchObject({ scope: "project" });
-  });
+  it.each(["Ada@ClickHouse.COM", "Ada@Langfuse.COM"])(
+    "matches staff email %s case-insensitively",
+    (email) => {
+      expect(
+        getCustomerDataWarning({
+          ...viewingCustomerProject,
+          email,
+        }),
+      ).toMatchObject({ scope: "project" });
+    },
+  );
 
   it.each([
-    "ada@langfuse.com",
     "ada@example.com",
     "ada@clickhouse.com.evil",
     "ada@notclickhouse.com",
     "clickhouse.com@example.com",
     "ada@clickhouse.co",
+    "ada@langfuse.com.evil",
+    "ada@notlangfuse.com",
+    "langfuse.com@example.com",
+    "ada@langfuse.co",
     undefined,
     null,
   ])("hides for email %s", (email) => {
@@ -48,11 +54,18 @@ describe("getCustomerDataWarning", () => {
     ).toBeNull();
   });
 
-  it("hides when the ClickHouse user is not an admin", () => {
-    expect(
-      getCustomerDataWarning({ ...viewingCustomerProject, isAdmin: false }),
-    ).toBeNull();
-  });
+  it.each(["ada@clickhouse.com", "ada@langfuse.com"])(
+    "hides when %s is not an admin",
+    (email) => {
+      expect(
+        getCustomerDataWarning({
+          ...viewingCustomerProject,
+          email,
+          isAdmin: false,
+        }),
+      ).toBeNull();
+    },
+  );
 
   it("hides on self-hosted deployments", () => {
     expect(

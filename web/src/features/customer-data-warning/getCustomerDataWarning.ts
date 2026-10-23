@@ -1,4 +1,4 @@
-const CLICKHOUSE_STAFF_EMAIL_DOMAIN = "@clickhouse.com";
+const STAFF_EMAIL_DOMAINS = ["@clickhouse.com", "@langfuse.com"] as const;
 
 /**
  * Real org and project memberships from the session. Admins who are not
@@ -32,8 +32,10 @@ type CustomerDataWarningInput = {
   projectName: string | null;
 };
 
-function isClickHouseStaffEmail(email: string | null | undefined): boolean {
-  return email?.toLowerCase().endsWith(CLICKHOUSE_STAFF_EMAIL_DOMAIN) === true;
+function isStaffEmail(email: string | null | undefined): boolean {
+  const normalized = email?.toLowerCase();
+  if (!normalized) return false;
+  return STAFF_EMAIL_DOMAINS.some((domain) => normalized.endsWith(domain));
 }
 
 function isProjectMember(
@@ -55,19 +57,20 @@ function isOrganizationMember(
 /**
  * Confidentiality strip for ClickHouse staff on Langfuse Cloud.
  *
- * Shown when the signed-in user is a ClickHouse admin viewing a project or
- * organization through staff access: the deployment has a Cloud region, the
- * email domain is @clickhouse.com, `users.admin` is set, and the current
- * project or organization is absent from their session memberships. Genuine
- * members, other email domains, and self-hosted deployments are excluded.
- * Names come from the resolved project or organization and are required, so
- * the strip stays hidden while that lookup is still in flight.
+ * Shown when the signed-in user is a ClickHouse or Langfuse admin viewing a
+ * project or organization through staff access: the deployment has a Cloud
+ * region, the email domain is @clickhouse.com or @langfuse.com, `users.admin`
+ * is set, and the current project or organization is absent from their
+ * session memberships. Genuine members, other email domains, and self-hosted
+ * deployments are excluded. Names come from the resolved project or
+ * organization and are required, so the strip stays hidden while that lookup
+ * is still in flight.
  */
 export function getCustomerDataWarning(
   input: CustomerDataWarningInput,
 ): CustomerDataWarning | null {
   if (!input.isLangfuseCloud || !input.isAdmin) return null;
-  if (!isClickHouseStaffEmail(input.email)) return null;
+  if (!isStaffEmail(input.email)) return null;
 
   if (input.projectId) {
     if (isProjectMember(input.memberships, input.projectId)) return null;

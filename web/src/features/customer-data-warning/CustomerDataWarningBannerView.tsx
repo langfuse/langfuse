@@ -4,8 +4,8 @@ import {
 } from "./getCustomerDataWarning";
 
 /**
- * Top-of-page strip for ClickHouse staff viewing a customer project or
- * organization through admin access. Same placement and shape as the preview
+ * Top-of-page strip for ClickHouse and Langfuse staff viewing a customer
+ * project or organization through admin access. Same placement and shape as the preview
  * deployment strip, in amber so the two cannot be confused. It is not
  * dismissible.
  */

@@ -6,7 +6,7 @@ const meta = preview.meta({
 });
 
 /**
- * ClickHouse staff viewing a customer project they are not a member of.
+ * ClickHouse or Langfuse staff viewing a customer project they are not a member of.
  * The strip stays up for the page load; it has no dismiss control.
  */
 export const Project = meta.story({
