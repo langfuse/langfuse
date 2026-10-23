@@ -6,7 +6,6 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FacetRow, topicTracesHref } from "./facet-topics";
@@ -45,8 +44,8 @@ export function TopicTraceList({
     {
       accessorKey: "traceId",
       header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: 128,
-      minSize: 96,
+      size: 208,
+      minSize: 128,
       cell: ({ row }) => (
         <span
           className={cn(
@@ -73,17 +72,6 @@ export function TopicTraceList({
           </p>
         );
       },
-    },
-    {
-      accessorKey: "unitStartTime",
-      header: () => <span className={CELL}>Started</span>,
-      size: 96,
-      minSize: 88,
-      cell: ({ row }) => (
-        <span className={cn("text-muted-foreground block tabular-nums", CELL)}>
-          {compactAge(row.original.unitStartTime)}
-        </span>
-      ),
     },
   ];
   return (
@@ -181,8 +169,4 @@ function traceListEyebrow(count: number, total: number) {
   const traces = `${count.toLocaleString()} traces`;
   if (total === 0 || count === total) return traces;
   return `${traces} · ${Math.round((count / total) * 100)}% of all`;
-}
-
-function compactAge(timestamp: string) {
-  return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
 }
