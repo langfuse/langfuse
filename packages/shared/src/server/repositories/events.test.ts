@@ -60,6 +60,19 @@ const captureQuery = () => {
   return (call?.[0] as { query: string }).query;
 };
 
+const scanBounds = ({
+  query,
+  params,
+}: {
+  query: string;
+  params: Record<string, string>;
+}) =>
+  Object.fromEntries(
+    [...query.matchAll(/e\.start_time (>=|<=?) \{(\w+):/g)].map(
+      ([, operator, name]) => [operator === ">=" ? "from" : "to", params[name]],
+    ),
+  );
+
 const baseOpts = { projectId: "proj-1", page: 1, limit: 50 } as const;
 const boundedOpts = {
   ...baseOpts,
@@ -165,7 +178,7 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     const calls = mockQueryClickhouseWithProgress.mock.calls.map(
       ([opts]) => opts,
     );
-    expect(calls.map((opts) => opts.params.scanFrom)).toEqual([
+    expect(calls.map((opts) => scanBounds(opts).from)).toEqual([
       "2026-10-12 00:00:00.000",
       "2026-10-05 00:00:00.000",
       "2026-10-01 00:00:00.000",
@@ -197,11 +210,22 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(page).toEqual({ items: [], cursor: undefined });
     expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(1);
     const call = mockQueryClickhouseWithProgress.mock.calls[0][0];
-    expect(call.params).toMatchObject({
-      scanFrom: "2026-10-17 00:00:00.000",
-      scanTo: "2026-10-18 00:00:00.000",
+    expect(scanBounds(call)).toEqual({
+      from: "2026-10-17 00:00:00.000",
+      to: "2026-10-18 00:00:00.000",
     });
-    expect(call.query).toContain("e.start_time <= {scanTo: DateTime64(6)}");
+    expect(
+      [
+        ...call.query.matchAll(
+          /e\.start_time (>=|<=?) \{\w+: (DateTime64\([^)]+\))\}/g,
+        ),
+      ]
+        .slice(-2)
+        .map((match) => match.slice(1)),
+    ).toEqual([
+      [">=", "DateTime64(3, 'UTC')"],
+      ["<=", "DateTime64(3, 'UTC')"],
+    ]);
     expect(call.query).toContain("FROM base");
   });
 
@@ -290,9 +314,9 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     });
     expect(resumed.items.map((row) => row.id)).toEqual(["unfinished"]);
     expect(resumed.cursor).toBeUndefined();
-    expect(mockQueryClickhouseWithProgress.mock.calls[2][0].params.scanTo).toBe(
-      "2026-10-12 00:00:00.000",
-    );
+    expect(
+      scanBounds(mockQueryClickhouseWithProgress.mock.calls[2][0]).to,
+    ).toBe("2026-10-12 00:00:00.000");
   });
 
   it("bounds an unbounded request by the project's oldest row and preserves future timestamps", async () => {
@@ -315,8 +339,8 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     );
     expect(probe.query).toContain("e.start_time ASC");
     expect(probe.params.limit).toBe(1);
-    expect(scan.params.scanFrom).toBe("2026-10-17 00:00:00.000");
-    expect(scan.params.scanTo).toBeUndefined();
+    expect(scanBounds(scan).from).toBe("2026-10-17 00:00:00.000");
+    expect(scanBounds(scan).to).toBeUndefined();
   });
 
   it("maps an aborted oldest-row lookup to the API timeout error", async () => {
@@ -400,11 +424,11 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
       expect(calls).toHaveLength(2);
       const upper = Date.parse("2099-12-25T00:00:00Z");
       const lower = new Date(upper - days * 86_400_000);
-      expect(calls[0][0].params.scanFrom).toBe("2099-12-25 00:00:00.000");
-      expect(calls[1][0].params.scanFrom).toBe(
+      expect(scanBounds(calls[0][0]).from).toBe("2099-12-25 00:00:00.000");
+      expect(scanBounds(calls[1][0]).from).toBe(
         lower.toISOString().replace("T", " ").replace("Z", ""),
       );
-      expect(calls[1][0].params.scanTo).toBe("2099-12-25 00:00:00.000");
+      expect(scanBounds(calls[1][0]).to).toBe("2099-12-25 00:00:00.000");
       expect(page.cursor?.lastStartTimeTo).toEqual(lower);
     },
   );
@@ -431,8 +455,8 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(
       scans.map(
         ([opts]) =>
-          (Date.parse(opts.params.scanTo.replace(" ", "T") + "Z") -
-            Date.parse(opts.params.scanFrom.replace(" ", "T") + "Z")) /
+          (Date.parse(scanBounds(opts).to.replace(" ", "T") + "Z") -
+            Date.parse(scanBounds(opts).from.replace(" ", "T") + "Z")) /
           86_400_000,
       ),
     ).toEqual([7, 28, 14]);
