@@ -79,7 +79,8 @@ export function TopicSetupProgressView({
             />
           )}
         </div>
-      ) : (
+      ) : null}
+      {!failed && !waiting && (
         <div className="flex w-90 max-w-full flex-col gap-2">
           <div className="bg-muted h-1.5 overflow-hidden rounded-sm">
             <div
@@ -88,10 +89,8 @@ export function TopicSetupProgressView({
             />
           </div>
           <div className="text-muted-foreground flex justify-between gap-2 text-xs">
-            <span>
-              {waiting ? "Waiting for new traces" : STAGE_LABEL[stage]}
-            </span>
-            {!waiting && requested > 0 && (
+            <span>{STAGE_LABEL[stage]}</span>
+            {requested > 0 && (
               <span className="text-foreground font-mono">
                 {processed.toLocaleString("en-US")} /{" "}
                 {requested.toLocaleString("en-US")}
