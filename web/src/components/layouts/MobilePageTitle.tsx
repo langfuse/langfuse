@@ -40,6 +40,7 @@ export const MobilePageTitle = ({
     titleTooltip,
     help,
     itemType,
+    titleControl,
     actionButtonsLeft,
     actionButtonsRight,
     mobileActionButtons,
@@ -89,7 +90,8 @@ export const MobilePageTitle = ({
       <div className="mt-2 flex min-w-0 items-center gap-2">
         {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
             session id, the common case) squeezes it. */}
-        {itemType && (
+        {titleControl && <div className="shrink-0">{titleControl}</div>}
+        {!titleControl && itemType && (
           <span className="flex shrink-0 items-center">
             <ItemBadge type={itemType} />
           </span>

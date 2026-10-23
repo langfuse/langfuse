@@ -5,11 +5,13 @@ import { castToNumberMap } from "@/src/utils/map-utils";
 export type UseTraceCommentsParams = {
   projectId: string;
   traceId: string;
+  sessionId: string | undefined;
 };
 
 export function useTraceComments({
   projectId,
   traceId,
+  sessionId,
 }: UseTraceCommentsParams) {
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -37,6 +39,15 @@ export function useTraceComments({
     },
   );
 
+  const sessionTraceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      { projectId, sessionId: sessionId ?? "" },
+      {
+        refetchOnMount: false,
+        enabled: isAuthenticatedAndProjectMember && !!sessionId,
+      },
+    );
+
   // Extract trace comment count from the Map response
   const traceCommentCountMap = traceCommentCounts.data
     ? castToNumberMap(traceCommentCounts.data)
@@ -48,7 +59,12 @@ export function useTraceComments({
       ? castToNumberMap(observationCommentCounts.data)
       : new Map<string, number>(),
     traceCommentCount: traceCount,
+    sessionTraceCommentCounts:
+      castToNumberMap(sessionId ? sessionTraceCommentCounts.data : undefined) ??
+      new Map<string, number>(),
     isLoading:
-      observationCommentCounts.isLoading || traceCommentCounts.isLoading,
+      observationCommentCounts.isLoading ||
+      traceCommentCounts.isLoading ||
+      (!!sessionId && sessionTraceCommentCounts.isLoading),
   };
 }

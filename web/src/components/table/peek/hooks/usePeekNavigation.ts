@@ -115,6 +115,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         }
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
+        if (config.expandConfig?.reader) params.delete("aggregation");
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
         // Re-clicking the already-peeked row is a no-op open — don't count it.
@@ -177,6 +178,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
     // Close peek view - clear all peek-related params
     params.delete(PEEK_PARAM);
     params.delete(PEEK_VIEW_PARAM);
+    if (config.expandConfig?.reader) params.delete("aggregation");
     config?.queryParams?.forEach((param) => params.delete(param));
 
     router.push(
@@ -251,7 +253,10 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         ? resolved.traceId
         : (params.get(pathParam) ?? params.get(PEEK_PARAM));
       const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
-      const queryParams = config?.queryParams
+      const forwardedParams = resolved
+        ? [...new Set([...(config.queryParams ?? []), "aggregation"])]
+        : config.queryParams;
+      const queryParams = forwardedParams
         ?.map((param) => {
           // The resolved trace id is the path segment; don't repeat it.
           if (resolved && param === "traceId") return null;

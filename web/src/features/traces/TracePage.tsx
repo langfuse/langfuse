@@ -11,6 +11,10 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { TraceScopeToggle } from "./components/TraceScopeToggle/TraceScopeToggle";
+import { resolveTraceScope } from "./fns/resolveTraceScope";
 
 export function TracePage({
   traceId,
@@ -21,6 +25,8 @@ export function TracePage({
 }) {
   const router = useRouter();
   const session = useSession();
+  const { isV4 } = useReadPath();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const routeProjectId = (router.query.projectId as string) ?? "";
 
   // Shared, beta-aware fetch (same hook the peek uses).
@@ -92,14 +98,51 @@ export function TracePage({
   const sharedBadge = showPublicIndicators ? (
     <Badge color="primary" text="Public" />
   ) : undefined;
+  const sessionId = trace.data.sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      internalFeaturesEnabled,
+      isV4,
+      isProjectMember: hasProjectAccess,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: traceContext,
+    });
 
   return (
     <Page
       headerProps={{
-        // Route id, not the loaded one: the loaded trace may be the previous
-        // one kept as placeholder.
-        title: traceId,
-        itemType: "TRACE",
+        // Trace titles follow the route while the previous trace is kept as placeholder.
+        title: isSessionScope && sessionId ? sessionId : traceId,
+        itemType: isSessionScope ? "SESSION" : "TRACE",
+        titleControl: showScopeToggle ? (
+          <TraceScopeToggle
+            value={isSessionScope ? "session" : "trace"}
+            canSelectSession={canSelectSession}
+            onValueChange={(next) => {
+              const query = { ...router.query };
+              if (next === "session") {
+                query.aggregation = "session";
+              } else {
+                delete query.aggregation;
+                if (
+                  !trace.data?.observations.some(
+                    (observation) => observation.id === query.observation,
+                  )
+                ) {
+                  delete query.observation;
+                }
+              }
+              return router.replace(
+                { pathname: router.pathname, query },
+                undefined,
+                {
+                  shallow: true,
+                },
+              );
+            }}
+          />
+        ) : undefined,
         divider: false,
         breadcrumb: [
           {
@@ -115,10 +158,11 @@ export function TracePage({
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
-                const { view, display, projectId } = router.query;
+                const { view, display, projectId, aggregation } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
+                  ...(aggregation === "session" ? { aggregation } : {}),
                 });
                 const timestamp =
                   entry.params && entry.params.timestamp

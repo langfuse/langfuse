@@ -9,6 +9,10 @@ import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekT
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { TraceScopeToggle } from "@/src/features/traces/components/TraceScopeToggle/TraceScopeToggle";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -19,6 +23,7 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
 
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
@@ -40,6 +45,17 @@ export const TablePeekViewObservationDetail = (
     traceId,
     timestamp,
   });
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const sessionId = trace.data?.sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      internalFeaturesEnabled,
+      isV4: !!props.isV4,
+      isProjectMember,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: "peek",
+    });
 
   const actionProps = {
     trace: trace.data,
@@ -48,6 +64,8 @@ export const TablePeekViewObservationDetail = (
       ? buildTracePath({
           projectId,
           traceId,
+          aggregation:
+            router.query.aggregation === "session" ? "session" : "trace",
           observationId:
             typeof router.query.traceId === "string"
               ? peekObservationId
@@ -67,7 +85,38 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceId}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={isSessionScope && sessionId ? sessionId : traceId}
+      titleControl={
+        showScopeToggle ? (
+          <TraceScopeToggle
+            value={isSessionScope ? "session" : "trace"}
+            canSelectSession={canSelectSession}
+            onValueChange={(next) => {
+              const query = { ...router.query };
+              if (next === "session") {
+                query.aggregation = "session";
+              } else {
+                delete query.aggregation;
+                if (
+                  !trace.data?.observations.some(
+                    (observation) => observation.id === query.observation,
+                  )
+                ) {
+                  delete query.observation;
+                }
+              }
+              return router.replace(
+                { pathname: router.pathname, query },
+                undefined,
+                {
+                  shallow: true,
+                },
+              );
+            }}
+          />
+        ) : undefined
+      }
       hideExpandToggle
       preserveContentAcrossItems
       actions={

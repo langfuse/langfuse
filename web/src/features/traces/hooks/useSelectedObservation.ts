@@ -13,6 +13,7 @@ import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
+import { getSelectedObservation } from "@/src/features/traces/fns/getSelectedObservation";
 
 export type SelectedObservation =
   | { kind: "trace" }
@@ -48,11 +49,8 @@ export function useSelectedObservation({
   // are caller-supplied, so an observation really can be called
   // `trace-<traceId>`, and a real row is the stronger evidence.
   const loadedRow = useMemo(
-    () =>
-      selectedNodeId
-        ? observations.find((obs) => obs.id === selectedNodeId)
-        : undefined,
-    [observations, selectedNodeId],
+    () => getSelectedObservation(observations, selectedNodeId, traceId),
+    [observations, selectedNodeId, traceId],
   );
 
   // Otherwise derived from the id alone, never from a nodeMap hit: past the cap
