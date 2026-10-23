@@ -1,12 +1,11 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useMemo, type ComponentProps } from "react";
 import { api } from "@/src/utils/api";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { ConnectedSpendAlertDialogController } from "./ConnectedSpendAlertDialogController";
-import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
+import { ConnectedDeleteSpendAlertDialogController } from "./ConnectedDeleteSpendAlertDialogController";
 
 export function ConnectedSpendAlertsTable({ orgId }: { orgId: string }) {
-  const [deletingAlert, setDeletingAlert] = useState<string | null>(null);
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "langfuseCloudBilling:CRUD",
@@ -37,37 +36,32 @@ export function ConnectedSpendAlertsTable({ orgId }: { orgId: string }) {
   }, [isLoading, isError, error, spendAlerts]);
 
   return (
-    <>
-      <ConnectedSpendAlertDialogController
-        orgId={orgId}
-        onSuccess={() => {
-          refetch();
-        }}
-      >
-        {({ openDialog }) => (
-          <SpendAlertsTable
-            data={data}
-            onEdit={(id) => {
-              const alert = spendAlerts?.find((alert) => alert.id === id);
-              if (!alert) return;
-              openDialog({ mode: "edit", alert });
-            }}
-            onDelete={setDeletingAlert}
-          />
-        )}
-      </ConnectedSpendAlertDialogController>
-      {deletingAlert && (
-        <DeleteSpendAlertDialog
+    <ConnectedDeleteSpendAlertDialogController
+      orgId={orgId}
+      onSuccess={() => {
+        refetch();
+      }}
+    >
+      {({ openDialog: openDeleteDialog }) => (
+        <ConnectedSpendAlertDialogController
           orgId={orgId}
-          alertId={deletingAlert}
-          open={!!deletingAlert}
-          onOpenChange={(open) => !open && setDeletingAlert(null)}
           onSuccess={() => {
-            setDeletingAlert(null);
             refetch();
           }}
-        />
+        >
+          {({ openDialog }) => (
+            <SpendAlertsTable
+              data={data}
+              onEdit={(id) => {
+                const alert = spendAlerts?.find((alert) => alert.id === id);
+                if (!alert) return;
+                openDialog({ mode: "edit", alert });
+              }}
+              onDelete={openDeleteDialog}
+            />
+          )}
+        </ConnectedSpendAlertDialogController>
       )}
-    </>
+    </ConnectedDeleteSpendAlertDialogController>
   );
 }
