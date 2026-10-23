@@ -21,6 +21,34 @@ export const Pressed = meta.story({
   },
 });
 
+export const Chip = meta.story({
+  args: {
+    variant: "chip",
+    children: "Frameworks",
+    count: 24,
+    pressed: true,
+  },
+});
+
+export const VariantMatrix = meta.story({
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Toggle pressed={false}>Comparison</Toggle>
+      <Toggle pressed>Baseline</Toggle>
+      <Toggle variant="chip" count={126} pressed>
+        All
+      </Toggle>
+      <Toggle variant="chip" count={24} pressed={false}>
+        Frameworks
+      </Toggle>
+      <Toggle variant="chip" count={null} pressed={false}>
+        OpenAI
+      </Toggle>
+    </div>
+  ),
+});
+
 export const TestHandlesClick = meta.story({
   name: "(Test) Handles Click",
   args: {
@@ -36,5 +64,21 @@ export const TestHandlesClick = meta.story({
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await expect(args.onClick).toHaveBeenCalledOnce();
+  },
+});
+
+export const TestChipReadsItsCount = meta.story({
+  name: "(Test) Chip Reads Its Count",
+  args: {
+    variant: "chip",
+    children: "Frameworks",
+    count: 24,
+    pressed: true,
+  },
+  play: async ({ canvasElement }) => {
+    const chip = within(canvasElement).getByRole("button", {
+      name: "Frameworks 24",
+    });
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
   },
 });
