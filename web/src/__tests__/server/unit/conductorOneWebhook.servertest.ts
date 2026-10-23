@@ -14,16 +14,12 @@ const db = vi.hoisted(() => ({
   organization: { findUnique: vi.fn(), findMany: vi.fn() },
   $executeRaw: vi.fn(),
 }));
-const getSsoProvider = vi.hoisted(() => vi.fn());
 const auditLog = vi.hoisted(() => vi.fn());
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
-}));
-vi.mock("@/src/ee/features/multi-tenant-sso/server", () => ({
-  getSsoAuthProviderIdForDomain: getSsoProvider,
 }));
 vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
 
@@ -194,12 +190,7 @@ describe("parseProvisionPayload", () => {
 describe("provisionSupportAccess", () => {
   const entitlementId = "ent-1";
   const now = new Date("2026-10-23T12:00:00.000Z");
-  const ssoUser = {
-    id: "user-1",
-    password: null,
-    supportAccess: null,
-    accounts: [{ provider: "clickhouse.com.okta" }],
-  };
+  const user = { id: "user-1", supportAccess: null };
   const grantRequest: GrantRequest = {
     action: "grant",
     taskId: "task-1",
@@ -217,9 +208,8 @@ describe("provisionSupportAccess", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    db.user.findUnique.mockResolvedValue(ssoUser);
+    db.user.findUnique.mockResolvedValue(user);
     db.organization.findUnique.mockResolvedValue({ id: "org-1" });
-    getSsoProvider.mockResolvedValue("clickhouse.com.okta");
   });
 
   it("grants VIEWER until now + duration", async () => {
@@ -250,32 +240,14 @@ describe("provisionSupportAccess", () => {
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["no Langfuse user", null],
-    // e.g. created by a customer's SCIM client or an unverified OAuth login
-    ["a user without an SSO login", { ...ssoUser, accounts: [] }],
-    [
-      "a user from another provider",
-      { ...ssoUser, accounts: [{ provider: "github" }] },
-    ],
-    ["a user with a password", { ...ssoUser, password: "hash" }],
-  ])("rejects %s", async (_, user) => {
-    db.user.findUnique.mockResolvedValue(user);
+  it("rejects when there is no Langfuse user", async () => {
+    db.user.findUnique.mockResolvedValue(null);
     expect(
       await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({
       ok: false,
     });
     expect(db.$executeRaw).not.toHaveBeenCalled();
-  });
-
-  it("rejects when clickhouse.com has no enforced SSO", async () => {
-    getSsoProvider.mockResolvedValue(null);
-    expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
-    ).toMatchObject({
-      ok: false,
-    });
   });
 
   it("rejects an unknown organization", async () => {

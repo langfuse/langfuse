@@ -1,4 +1,3 @@
-import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -25,27 +24,11 @@ function rejected(message: string): ProvisionResult {
 function findUser(email: string) {
   return prisma.user.findUnique({
     where: { email },
-    select: {
-      id: true,
-      password: true,
-      supportAccess: true,
-      accounts: { select: { provider: true } },
-    },
+    select: { id: true, supportAccess: true },
   });
 }
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
-
-// SCIM or OAuth can create a user for any email; only the enforced SSO login
-// proves who owns it.
-async function hasEnforcedSsoLogin(user: User): Promise<boolean> {
-  const ssoProvider = await getSsoAuthProviderIdForDomain(SUPPORT_EMAIL_DOMAIN);
-  return (
-    ssoProvider !== null &&
-    user.password === null &&
-    user.accounts.some((account) => account.provider === ssoProvider)
-  );
-}
 
 function audit(
   action: "grant" | "revoke",
@@ -74,8 +57,8 @@ async function grant(
   if (!request.email.endsWith(`@${SUPPORT_EMAIL_DOMAIN}`)) {
     return rejected("Requester email domain is not allowed");
   }
-  if (!user || !(await hasEnforcedSsoLogin(user))) {
-    return rejected("Sign in to this Langfuse region via SSO once, then retry");
+  if (!user) {
+    return rejected("Sign in to this Langfuse region once, then retry");
   }
 
   const org = await prisma.organization.findUnique({
