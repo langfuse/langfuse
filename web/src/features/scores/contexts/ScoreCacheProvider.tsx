@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { type ScoreDomain } from "@langfuse/shared";
 import {
   createContext,
