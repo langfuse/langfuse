@@ -37,6 +37,8 @@ pnpm run seed -- experiment-io --compare  # same dataset plus a second run with 
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 pnpm run seed -- docs-demo-project  # clean "Acme Corp / customer-support" project (id docs-demo) for docs videos; DOCS_DEMO_LLM_API_KEY adds an LLM connection
 pnpm run seed -- docs-demo-prompts --project docs-demo  # then docs-demo-{prompt-usage,traces,traffic,datasets,evals}; used by scripts/docs-videos
+pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
+pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

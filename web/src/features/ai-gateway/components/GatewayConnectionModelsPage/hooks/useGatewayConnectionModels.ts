@@ -1,3 +1,4 @@
+import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import { api } from "@/src/utils/api";
 
 export function useGatewayConnectionModels({
@@ -9,7 +10,16 @@ export function useGatewayConnectionModels({
 }) {
   const utils = api.useUtils();
   const input = { orgId: organizationId, id: connectionId };
-  const connectionQuery = api.aiGateway.getConnection.useQuery(input);
+  const connectionQuery = api.aiGateway.getConnection.useQuery(input, {
+    placeholderData: () =>
+      utils.aiGateway.listConnections
+        .getInfiniteData({
+          orgId: organizationId,
+          limit: gatewayConnectionsPageSize,
+        })
+        ?.pages.flatMap((page) => page.data)
+        .find((connection) => connection.id === connectionId),
+  });
   const modelsQuery = api.aiGateway.getConnectionModels.useQuery(input);
   const updateModels = api.aiGateway.updateConnectionModels.useMutation({
     onSuccess: async (connection) => {

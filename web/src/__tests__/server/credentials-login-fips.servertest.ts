@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { hash } from "bcryptjs";
 import type { CredentialsConfig } from "next-auth/providers/credentials";

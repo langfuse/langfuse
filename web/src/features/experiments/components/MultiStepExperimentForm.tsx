@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /**
  * NavigationHeader - Responsive search and controls for the navigation panel
  *
@@ -11,10 +11,10 @@
  * input so focus and the current query survive panel resizing.
  */
 
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import {
   Tooltip,

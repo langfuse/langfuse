@@ -1,3 +1,5 @@
+import { useSession } from "next-auth/react";
+
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
@@ -18,12 +20,23 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     organizationId,
     scope: "gateway:read",
   });
+  const canInvokeGateway = useHasOrganizationAccess({
+    organizationId,
+    scope: "gateway:invoke",
+  });
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     enableForAdmins: false,
     organizationId,
   });
+  const session = useSession();
+
+  /** Self-hosted without a gateway: managers get a pointer to the docs. */
+  const showNotDeployedNotice =
+    session.data?.environment.aiGatewayDeployed === false && canManageGateway;
 
   const showManagement = isAiGatewayEnabled && canManageGateway;
+  /** Members manage their own gateway keys; managers see every key. */
+  const showApiKeys = isAiGatewayEnabled && canInvokeGateway;
   const showModels =
     isAiGatewayEnabled &&
     organizationId !== undefined &&
@@ -36,13 +49,19 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
 
   const setupStatus = api.aiGateway.getSetupStatus.useQuery(
     { orgId: organizationId ?? "" },
-    { enabled: organizationId !== undefined && (showManagement || showModels) },
+    {
+      enabled:
+        organizationId !== undefined &&
+        (showManagement || showModels || showApiKeys),
+    },
   );
 
   return {
     canManageGateway,
+    showNotDeployedNotice,
     showManagement,
     showModels,
+    showApiKeys,
     isIngestionConfigured: setupStatus.data?.isConfigured,
     isSetupStatusPending: setupStatus.isPending,
   };

@@ -12,6 +12,10 @@ use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use serde::Serialize;
 use tokio::{net::TcpListener, sync::oneshot};
 
+mod connection;
+
+pub(crate) use connection::ConnectionId;
+
 #[derive(Clone, Default)]
 pub struct GatewayLifecycleState {
     ready: Arc<AtomicBool>,
@@ -85,19 +89,22 @@ pub async fn serve(
 ) -> io::Result<()> {
     let (draining_tx, draining_rx) = oneshot::channel();
     let shutdown_state = state.clone();
-    let server = axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            shutdown.await;
-            shutdown_state.ready.store(false, Ordering::Release);
-            *shutdown_state
-                .drain_deadline
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) =
-                Some(tokio::time::Instant::now() + shutdown_timeout);
-            tracing::info!("gateway draining");
-            let _ = draining_tx.send(());
-        })
-        .into_future();
+    let server = axum::serve(
+        connection::ObservedListener(listener),
+        app.into_make_service_with_connect_info::<ConnectionId>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown.await;
+        shutdown_state.ready.store(false, Ordering::Release);
+        *shutdown_state
+            .drain_deadline
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            Some(tokio::time::Instant::now() + shutdown_timeout);
+        tracing::info!("gateway draining");
+        let _ = draining_tx.send(());
+    })
+    .into_future();
     tokio::pin!(server);
     state.ready.store(true, Ordering::Release);
     let result = tokio::select! {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
@@ -148,6 +149,7 @@ export class GatewayApiKeyAuthenticator {
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
+      userId: row.userId,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)

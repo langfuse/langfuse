@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import {
@@ -150,6 +151,7 @@ type DropdownMenuSubmenu = {
   disabled?: { reason: string };
   id: string;
   title: string;
+  internal?: boolean;
   icon?: IconComponent;
   items: DropdownMenuItemDefinition[];
   searchBehavior?: SearchBehavior;
@@ -472,6 +474,13 @@ function DropdownMenuNode({
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
+                              {item.internal ? (
+                                <Badge
+                                  text="Internal"
+                                  color="yellow"
+                                  size="sm"
+                                />
+                              ) : null}
                               <span className="ml-2 flex">
                                 <DropdownIndicator direction="right" />
                               </span>

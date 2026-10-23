@@ -1,26 +1,27 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { Button } from "@/src/components/design-system/Button/Button";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo, useState, type ReactNode } from "react";
 
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TagList } from "@/src/features/tag";
 import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
 import {
   CostBadge,
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
 
@@ -67,6 +68,9 @@ function TraceHeaderLoading() {
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
+  const handleShowFewerTags = () => {
+    setShowAllTags(false);
+  };
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
@@ -129,14 +133,11 @@ function LoadedTraceHeader() {
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
               <Button
-                variant="tertiary"
-                size="icon-sm"
-                className="w-fit"
-                aria-label="Show fewer tags"
-                onClick={() => setShowAllTags(false)}
-              >
-                Show fewer
-              </Button>
+                variant="text"
+                size="sm"
+                text="Show fewer"
+                onClick={handleShowFewerTags}
+              />
             )}
           </div>
         )}

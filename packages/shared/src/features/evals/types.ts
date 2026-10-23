@@ -120,6 +120,8 @@ export const EvalTargetObject = {
   EXPERIMENT: "experiment",
 } as const;
 
+export const TopicsTargetObject = "trace_transcript" as const;
+
 export type EvalTargetObject =
   (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
 

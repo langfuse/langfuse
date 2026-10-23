@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -64,6 +65,7 @@ import {
   deleteScores,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
@@ -635,6 +637,7 @@ export const scoresRouter = createTRPCRouter({
         input.configId,
         input.dataType,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp ?? new Date();
 
@@ -648,6 +651,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             timestamp,
+            updatedAt: new Date(),
           }
         : {
             id: input.id ?? v4(),
@@ -712,6 +716,8 @@ export const scoresRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "scores:save",
       });
+
+      throwIfScoreEditsDisabled(input.projectId);
 
       let updatedScore: ScoreDomain | null | undefined = null;
 
@@ -900,6 +906,8 @@ export const scoresRouter = createTRPCRouter({
           }
         }
 
+        const updatedAt = new Date();
+
         await upsertScore({
           id: input.id,
           project_id: input.projectId,
@@ -918,12 +926,13 @@ export const scoresRouter = createTRPCRouter({
           session_id: score.sessionId,
           environment: score.environment,
           created_at: convertDateToClickhouseDateTime(score.createdAt),
-          updated_at: convertDateToClickhouseDateTime(score.updatedAt),
+          updated_at: convertDateToClickhouseDateTime(updatedAt),
           metadata: score.metadata as Record<string, string>,
         });
 
         const baseScore = {
           ...score,
+          updatedAt,
           value: input.value,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
@@ -1050,6 +1059,7 @@ export const scoresRouter = createTRPCRouter({
         undefined,
         ScoreDataTypeEnum.CORRECTION,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp;
 
@@ -1063,6 +1073,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             longStringValue: input.value,
+            updatedAt: new Date(),
           }
         : {
             id: input.id,
@@ -1190,3 +1201,14 @@ export const scoresRouter = createTRPCRouter({
       return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
 });
+
+// Projects that read scores without dedup must not rewrite an existing score
+// id: every rewrite is a new row and would surface as a duplicate.
+function throwIfScoreEditsDisabled(projectId: string) {
+  if (shouldSkipScoresDedup(projectId)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Existing scores cannot be edited in this project.",
+    });
+  }
+}

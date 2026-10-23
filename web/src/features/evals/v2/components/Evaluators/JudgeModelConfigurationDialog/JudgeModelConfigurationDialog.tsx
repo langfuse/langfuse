@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { ModelParameterSettings } from "@/src/components/ModelParameters";
 import { Button } from "@/src/components/ui/button";
 import {

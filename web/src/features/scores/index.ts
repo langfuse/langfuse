@@ -17,11 +17,11 @@ export {
 export { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 export { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 export { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-export { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+export { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSelectKeyValues";
 export {
   ScoreCacheProvider,
   type CachedScore,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 export { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 export {
   createScoreColumns,

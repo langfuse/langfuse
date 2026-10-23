@@ -278,6 +278,56 @@ describe("applySelection", () => {
 });
 
 describe("applyCheckboxSelection", () => {
+  it("keeps excluding user IDs when the last value is unchecked and clears on re-selection", () => {
+    const userCtx: SidebarFilterActionContext = {
+      facets: [{ type: "categorical", column: "userId", label: "User ID" }],
+      columnDefinitions: [
+        {
+          id: "userId",
+          name: "User ID",
+          type: "stringOptions",
+          options: [],
+          internal: "user_id",
+        },
+      ],
+      options: { userId: ["user-a", "user-b"] },
+    };
+    const first = applyCheckboxSelection(userCtx, [], "userId", ["user-b"]);
+    expect(first).toEqual([
+      {
+        column: "userId",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["user-a"],
+      },
+    ]);
+    const second = applyCheckboxSelection(userCtx, first, "userId", []);
+    expect(second).toEqual([{ ...first[0], value: ["user-a", "user-b"] }]);
+    const reselected = applyCheckboxSelection(userCtx, second, "userId", [
+      "user-a",
+    ]);
+    expect(reselected).toEqual([{ ...first[0], value: ["user-b"] }]);
+    expect(
+      applyCheckboxSelection(userCtx, reselected, "userId", [
+        "user-a",
+        "user-b",
+      ]),
+    ).toEqual([]);
+  });
+
+  it("keeps the managed environment reset when the last value is unchecked", () => {
+    const managedCtx = { ...ctx, managedEnvironmentColumn: "env" };
+    const current: FilterState = [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["prod", "dev"],
+      },
+    ];
+    expect(applyCheckboxSelection(managedCtx, current, "env", [])).toEqual([]);
+  });
+
   it("drops the column's text filters before applying the selection", () => {
     const current: FilterState = [
       { column: "env", type: "string", operator: "contains", value: "pr" },

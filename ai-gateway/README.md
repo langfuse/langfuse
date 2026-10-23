@@ -73,6 +73,7 @@ do not load dotenv files:
 | ---------------------------------------------- | -------------- | -------------------------------------------------- |
 | `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
 | `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
+| `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL` | `false` | `true`, `false`; `true` also accepts a plain `http://` Web URL on any host. Only for internal traffic, such as Web's in-cluster Kubernetes Service (`http://<release>-web.<namespace>.svc.cluster.local:3000`) or another private network; never for a URL that crosses the public internet, because resolve responses carry provider API keys and requests carry the service key and ingestion tokens unencrypted. Resolution, model catalogs and trace uploads all use this URL. The gateway logs a warning at startup when it is used |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
@@ -499,6 +500,7 @@ each field describes:
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
 | `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
+| `api_key.user.id`                                                                           | Langfuse user the gateway key belongs to; null for keys created before keys were bound to users |
 | `ingestion.mode`                                                                            | Effective capture mode                                                      |
 | `request.api_format`                                                                        | Native API contract: `openai.responses`, `openai.chat-completions` or `anthropic.messages` |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
@@ -817,7 +819,15 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 
 ## Container
 
-From the repository root:
+Each Langfuse release publishes a multi-platform (linux/amd64, linux/arm64)
+image to `langfuse/ai-gateway` on Docker Hub and
+`ghcr.io/langfuse/ai-gateway`, tagged like the web and worker images.
+Every release publishes `<version>` and `sha-<commit>`. Stable releases also
+update `<major>.<minor>` and `<major>`, plus `latest` for v4; release candidates
+(`-rc`) do not move these tags. Release images build on the Iron Bank UBI9
+bases.
+
+To build locally, from the repository root:
 
 ```sh
 docker build --target runtime \
@@ -851,13 +861,7 @@ the file locally: `cargo about generate --locked --fail about.hbs`.
 
 ### Web resolution client
 
-`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
-base URL. The binary initializes it when a Web URL is configured. The
-caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
-development. URLs cannot contain credentials, a query or fragment. Include the
-Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
-`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web base URL. The binary initializes it when a Web URL is configured. The caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local development; `ControlPlaneConfig::with_plain_http`, which the binary uses when `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for internal traffic only. URLs cannot contain credentials, a query or fragment. Include the Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
 use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};

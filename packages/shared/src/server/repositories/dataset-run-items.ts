@@ -1,3 +1,4 @@
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { type OrderByState } from "../../interfaces/orderBy";
@@ -358,7 +359,7 @@ const getDatasetRunsTableInternal = async <T>(
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores s FINAL
+        FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
         WHERE ${appliedScoresFilter.query}
         AND s.trace_id IN (
           SELECT dri.trace_id
@@ -670,7 +671,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
          data_type,
          string_value,
          avg(value) as avg_value
-       FROM scores s FINAL
+       FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
        WHERE ${appliedScoresFilter.query}
        AND s.trace_id IN (
          SELECT dri.trace_id
@@ -853,7 +854,7 @@ const getDatasetRunItemsTableInternal = async <
          data_type,
          string_value,
          avg(value) as avg_value
-       FROM scores s FINAL
+       FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
        WHERE ${appliedScoresFilter.query}
        AND s.trace_id IN (
         SELECT dri.trace_id

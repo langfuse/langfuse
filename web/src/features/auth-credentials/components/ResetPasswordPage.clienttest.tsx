@@ -72,7 +72,7 @@ vi.mock("@/src/env.mjs", async () => {
 });
 
 vi.mock(
-  "@/src/features/auth-credentials/components/ResetPasswordButton",
+  "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton",
   () => ({
     RequestResetPasswordEmailButton: ({
       email,

@@ -42,6 +42,7 @@ type SectionId =
   | "qlang"
   | "sidebar"
   | "findMatch"
+  | "category"
   | "other";
 
 /**
@@ -67,6 +68,7 @@ const SECTION_MATCHERS: Array<{
   { id: "qlang", test: (n) => n.startsWith("--qlang-") },
   { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
   { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
+  { id: "category", test: (n) => n.startsWith("--category-") },
   { id: "controls", test: (n) => n.startsWith("--control-") },
   {
     id: "brand",
@@ -137,6 +139,11 @@ const VISIBLE_SECTIONS: SectionDef[] = [
     id: "sidebar",
     title: "Sidebar",
     blurb: "Side navigation chrome, nav-item states and its hairline.",
+  },
+  {
+    id: "category",
+    title: "Category fills",
+    blurb: "Tint and highlight pairs for categorical tiles (treemap).",
   },
 ];
 
@@ -211,7 +218,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
           state="Hover · row"
           classes="hover:bg-muted/50"
           tokens="--muted at 50%"
-          seenIn="DataTable / SimpleDataTable"
+          seenIn="DataTable"
           sample={
             <div
               className="flex flex-col rounded-md border text-xs"
@@ -231,7 +238,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
           state="Selected · row"
           classes="data-[state=selected]:bg-muted"
           tokens="--muted"
-          seenIn="DataTable / SimpleDataTable"
+          seenIn="DataTable"
           sample={
             <div
               className="flex flex-col rounded-md border text-xs"

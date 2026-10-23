@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 
@@ -8,7 +8,7 @@ import {
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,

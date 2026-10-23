@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
