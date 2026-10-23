@@ -5,12 +5,12 @@ import { buildClaudeDesktopInstructions } from "./buildClaudeDesktopInstructions
 import { buildCodexInstructions } from "./buildCodexInstructions";
 import { buildOpenCodeInstructions } from "./buildOpenCodeInstructions";
 
-/** Tab order of the "Gateway key created" dialog. */
+/** One entry per tool in the "Gateway key created" dialog. */
 export function buildAgentSetupInstructions(context: AgentSetupContext) {
   return [
     buildApiInstructions(context),
-    buildClaudeDesktopInstructions(context),
     buildClaudeCodeInstructions(context),
+    buildClaudeDesktopInstructions(context),
     buildCodexInstructions(context),
     buildOpenCodeInstructions(context),
   ];
