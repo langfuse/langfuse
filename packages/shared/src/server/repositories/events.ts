@@ -1861,6 +1861,14 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
+async function getProjectCreationTime(projectId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, deletedAt: null },
+    select: { createdAt: true },
+  });
+  return project?.createdAt.getTime();
+}
+
 /** Assemble a page from completed windows, including empty continuations. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
@@ -1875,13 +1883,7 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       const bounds = extractObservationsStartTimeBounds(opts);
       // Backfilled timestamps before project creation require an explicit lower bound.
       const from =
-        bounds.from ??
-        (
-          await prisma.project.findUnique({
-            where: { id: opts.projectId, deletedAt: null },
-            select: { createdAt: true },
-          })
-        )?.createdAt.getTime();
+        bounds.from ?? (await getProjectCreationTime(opts.projectId));
       if (from === undefined || (bounds.to !== undefined && from > bounds.to)) {
         return { items: [], cursor: undefined };
       }
