@@ -7,7 +7,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
@@ -57,7 +57,7 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/server";
-import { getActiveSupportAccessOrgIds } from "@/src/ee/features/support-access/supportAccess";
+import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
@@ -851,37 +851,11 @@ export async function getAuthOptions(
           });
 
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          // Support engineers with an unexpired ConductorOne grant see the org
-          // as VIEWER. Real memberships take precedence.
-          const supportAccessOrgIds = getActiveSupportAccessOrgIds(
-            dbUser?.supportAccess,
-          ).filter(
-            (orgId) =>
-              !dbUser?.organizationMemberships.some(
-                (m) => m.organization.id === orgId,
-              ),
-          );
-          const supportAccessMemberships =
-            supportAccessOrgIds.length > 0
-              ? (
-                  await prisma.organization.findMany({
-                    where: { id: { in: supportAccessOrgIds } },
-                    include: {
-                      projects: {
-                        where: { deletedAt: { equals: null } },
-                        orderBy: { createdAt: "desc" },
-                      },
-                    },
-                  })
-                ).map((organization) => ({
-                  organization,
-                  role: Role.VIEWER,
-                  ProjectMemberships: [],
-                }))
-              : [];
+          // Support engineers with an unexpired ConductorOne grant see the
+          // org as VIEWER.
           const organizationMemberships = [
             ...(dbUser?.organizationMemberships ?? []),
-            ...supportAccessMemberships,
+            ...(await getSupportAccessMemberships(dbUser)),
           ];
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer

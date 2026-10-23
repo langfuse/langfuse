@@ -10,7 +10,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
-import { SupportAccessSchema, type SupportAccessEntry } from "../supportAccess";
+import { SupportAccessSchema, type SupportAccessEntry } from "./supportAccess";
 
 // ConductorOne webhooks: https://www.c1.ai/docs/product/admin/webhooks
 // Each request carries a JWT signed by our C1 tenant, valid for two minutes,

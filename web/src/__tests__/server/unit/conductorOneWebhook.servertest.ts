@@ -11,7 +11,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
-  organization: { findUnique: vi.fn() },
+  organization: { findUnique: vi.fn(), findMany: vi.fn() },
   $executeRaw: vi.fn(),
 }));
 const getSsoProvider = vi.hoisted(() => vi.fn());
@@ -21,6 +21,7 @@ vi.mock("@/src/env.mjs", () => ({ env: {} }));
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
+  Role: { VIEWER: "VIEWER" },
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -35,7 +36,10 @@ import {
   ProvisionPayloadSchema,
   verifyConductorOneRequest,
 } from "@/src/ee/features/support-access/server/conductorOneWebhook";
-import { getActiveSupportAccessOrgIds } from "@/src/ee/features/support-access/supportAccess";
+import {
+  getActiveSupportAccessOrgIds,
+  getSupportAccessMemberships,
+} from "@/src/ee/features/support-access/server/supportAccess";
 
 describe("verifyConductorOneRequest", () => {
   const issuer = "clickhouse.conductor.one";
@@ -279,5 +283,43 @@ describe("getActiveSupportAccessOrgIds", () => {
     ).toEqual([]);
     expect(getActiveSupportAccessOrgIds(null, now)).toEqual([]);
     expect(getActiveSupportAccessOrgIds("garbage", now)).toEqual([]);
+  });
+});
+
+describe("getSupportAccessMemberships", () => {
+  const active = {
+    role: "VIEWER",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+    c1TaskId: "t",
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("adds VIEWER only for orgs the user is not a member of", async () => {
+    db.organization.findMany.mockResolvedValue([{ id: "org-2", projects: [] }]);
+    const memberships = await getSupportAccessMemberships({
+      supportAccess: { "org-1": active, "org-2": active },
+      organizationMemberships: [{ organization: { id: "org-1" } }],
+    });
+    expect(db.organization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["org-2"] } } }),
+    );
+    expect(memberships).toEqual([
+      {
+        organization: { id: "org-2", projects: [] },
+        role: "VIEWER",
+        ProjectMemberships: [],
+      },
+    ]);
+  });
+
+  it("does not query when there is no active grant", async () => {
+    expect(
+      await getSupportAccessMemberships({
+        supportAccess: null,
+        organizationMemberships: [],
+      }),
+    ).toEqual([]);
+    expect(db.organization.findMany).not.toHaveBeenCalled();
   });
 });

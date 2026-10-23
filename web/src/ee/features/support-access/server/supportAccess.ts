@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { prisma, Role } from "@langfuse/shared/src/db";
+
 // Shape of users.support_access. Each key is an organization id the user may
 // view as a Langfuse support engineer until expiresAt. Only the ConductorOne
 // webhook writes this column.
@@ -33,4 +35,40 @@ export function getActiveSupportAccessOrgIds(
   return Object.entries(parsed.data)
     .filter(([, entry]) => new Date(entry.expiresAt) > now)
     .map(([orgId]) => orgId);
+}
+
+/**
+ * Org memberships to add to the session for unexpired support access grants:
+ * VIEWER on every project. Orgs the user is a real member of are skipped, so
+ * their own role wins.
+ */
+export async function getSupportAccessMemberships(
+  user: {
+    supportAccess: unknown;
+    organizationMemberships: { organization: { id: string } }[];
+  } | null,
+) {
+  if (!user) return [];
+  const memberOrgIds = new Set(
+    user.organizationMemberships.map((m) => m.organization.id),
+  );
+  const orgIds = getActiveSupportAccessOrgIds(user.supportAccess).filter(
+    (orgId) => !memberOrgIds.has(orgId),
+  );
+  if (orgIds.length === 0) return [];
+
+  const organizations = await prisma.organization.findMany({
+    where: { id: { in: orgIds } },
+    include: {
+      projects: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  return organizations.map((organization) => ({
+    organization,
+    role: Role.VIEWER,
+    ProjectMemberships: [],
+  }));
 }
