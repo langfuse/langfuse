@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { vi } from "vitest";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { AddObservationsToDatasetDialog } from "./index";
+import { AddObservationsToDatasetDialog } from "./AddObservationsToDatasetDialog";
 
 const { submit, submitted, previewQuery } = vi.hoisted(() => ({
   submit: vi.fn<() => Promise<{ id: string }>>(),
