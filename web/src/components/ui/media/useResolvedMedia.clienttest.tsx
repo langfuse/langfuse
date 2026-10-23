@@ -73,7 +73,8 @@ describe("useResolvedMedia", () => {
     vi.setSystemTime(new Date("2026-10-22T09:00:00.000Z"));
     getMedia.mockReset();
     queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      // The app's default retries failed queries up to 3 times.
+      defaultOptions: { queries: { retry: 3, gcTime: Infinity } },
     });
     queryClient.setQueryData(queryKey, cachedMedia);
   });
@@ -181,7 +182,7 @@ describe("useResolvedMedia", () => {
     await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
   });
 
-  it("retries a failed fetch on the next open", async () => {
+  it("retries a failed fetch only on the next open, once per open", async () => {
     queryClient.removeQueries({ queryKey });
     getMedia
       .mockRejectedValueOnce(new Error("signing failed"))
@@ -190,6 +191,7 @@ describe("useResolvedMedia", () => {
 
     act(() => result.current.onOpenChange(true));
     await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(getMedia).toHaveBeenCalledTimes(1);
 
     reopenAt(result, "2026-10-22T09:00:05.000Z");
     await waitFor(() => expect(result.current.status).toBe("ready"));
