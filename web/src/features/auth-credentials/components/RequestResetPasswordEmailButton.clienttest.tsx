@@ -49,7 +49,7 @@ vi.mock("@/src/features/auth/components/TurnstileWidget", async () => {
   };
 });
 
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
+import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton";
 import {
   TURNSTILE_ACTIONS,
   TURNSTILE_FAILED_MESSAGE,
