@@ -1,7 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Clock, RefreshCw } from "@langfuse/icons";
+import { useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  ArrowUpRight,
+  Plug,
+  RefreshCw,
+} from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -51,6 +59,10 @@ export type TopicSetupFlowDialogProps = {
   canWrite: boolean;
   clustering: JudgeModel | null;
   connectionCaption: string;
+  /** False when the project has no AI connection yet; models cannot be picked. */
+  hasConnection: boolean;
+  /** Whether this user may add an AI connection; others are asked to contact an admin. */
+  canAddConnection: boolean;
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
@@ -84,6 +96,8 @@ export function TopicSetupFlowDialog({
   canWrite,
   clustering,
   connectionCaption,
+  hasConnection,
+  canAddConnection,
   embedding,
   embeddingProviderGroups,
   error,
@@ -127,13 +141,18 @@ export function TopicSetupFlowDialog({
   });
   // The server picks its own traces, so a failed estimate must not block Start.
   const canStart = canWrite && !busy && pastCount.status !== "loading";
-  const nextDisabled = nextStepDisabled({
-    step,
-    busy,
-    canWrite,
-    canLeaveQuestions,
-    canStart,
-  });
+  const connectionActionRef = useRef<HTMLButtonElement>(null);
+  // Without a connection Next stays clickable and points at the banner instead.
+  const needsConnection = step === "questions" && !hasConnection;
+  const nextDisabled = needsConnection
+    ? false
+    : nextStepDisabled({
+        step,
+        busy,
+        canWrite,
+        canLeaveQuestions,
+        canStart,
+      });
   const notice =
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
 
@@ -172,31 +191,79 @@ export function TopicSetupFlowDialog({
                   <h2 className="text-sm font-bold">
                     Select models for analysis
                   </h2>
-                  <span className="text-muted-foreground text-xs">
-                    {connectionCaption}
-                  </span>
+                  {hasConnection && (
+                    <span className="text-muted-foreground text-xs">
+                      {connectionCaption}
+                    </span>
+                  )}
                 </div>
-                <div className="divide-y rounded-md border">
-                  {MODEL_ROWS.map((row) => {
-                    const model = models[row.slot];
-                    return (
-                      <ModelRow
+                {!hasConnection && (
+                  <div className="bg-light-yellow text-foreground flex items-center gap-3 rounded-lg px-3.5 py-3 text-sm">
+                    <Plug size="base" aria-hidden="true" />
+                    <span className="flex-1">
+                      {canAddConnection
+                        ? "No AI connection in this project yet."
+                        : "An admin needs to add an AI connection."}
+                    </span>
+                    <button
+                      ref={connectionActionRef}
+                      type="button"
+                      onClick={
+                        canAddConnection
+                          ? onConfigureProviders
+                          : () => copySettingsLink(projectId)
+                      }
+                      className="focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-sm font-bold whitespace-nowrap focus-visible:ring-2 focus-visible:outline-hidden"
+                    >
+                      {canAddConnection
+                        ? "Add connection"
+                        : "Copy settings link"}
+                      {canAddConnection && (
+                        <ArrowUpRight size="sm" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
+                )}
+                {!hasConnection ? (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none divide-y rounded-lg border text-sm opacity-45"
+                  >
+                    {MODEL_ROWS.map((row) => (
+                      <div
                         key={row.slot}
-                        label={row.label}
-                        model={model}
-                        recommended={
-                          model
-                            ? isRecommendedTopicModel(row.slot, model.model)
-                            : false
-                        }
-                        disabled={!canWrite}
-                        providerGroups={groups[row.slot]}
-                        onConfigureProviders={onConfigureProviders}
-                        onSelect={onModelChange[row.slot]}
-                      />
-                    );
-                  })}
-                </div>
+                        className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.75"
+                      >
+                        <span>{row.label}</span>
+                        <span className="text-muted-foreground">
+                          No models yet
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="divide-y rounded-md border">
+                    {MODEL_ROWS.map((row) => {
+                      const model = models[row.slot];
+                      return (
+                        <ModelRow
+                          key={row.slot}
+                          label={row.label}
+                          model={model}
+                          recommended={
+                            model
+                              ? isRecommendedTopicModel(row.slot, model.model)
+                              : false
+                          }
+                          disabled={!canWrite}
+                          providerGroups={groups[row.slot]}
+                          onConfigureProviders={onConfigureProviders}
+                          onSelect={onModelChange[row.slot]}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
                 ) : null}
@@ -377,13 +444,19 @@ export function TopicSetupFlowDialog({
               onClick={onBack}
             />
           )}
-          <Button
-            text={step === "review" ? "Start analyzing" : "Next"}
-            variant="primary"
-            loading={busy}
-            disabled={nextDisabled}
-            onClick={onNext}
-          />
+          <div className="flex items-center gap-3">
+            <Button
+              text={step === "review" ? "Start analyzing" : "Next"}
+              variant="primary"
+              loading={busy}
+              disabled={nextDisabled}
+              onClick={
+                needsConnection
+                  ? () => connectionActionRef.current?.focus()
+                  : onNext
+              }
+            />
+          </div>
         </div>
       </div>
     </Dialog>
@@ -528,5 +601,12 @@ function ReviewRow({
       </div>
       <Button text="Edit" variant="ghost" size="sm" onClick={onEdit} />
     </div>
+  );
+}
+
+function copySettingsLink(projectId: string | undefined) {
+  if (!projectId) return;
+  copyTextToClipboard(
+    `${window.location.origin}/project/${projectId}/settings/llm-connections`,
   );
 }

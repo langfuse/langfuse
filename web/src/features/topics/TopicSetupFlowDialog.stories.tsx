@@ -31,7 +31,14 @@ const questions: TopicSetupQuestion[] = TOPIC_SETUP_QUESTIONS.map(
   }),
 );
 
-function SetupStory({ step }: { step: "questions" | "traces" | "review" }) {
+function SetupStory({
+  step,
+  connection = "ready",
+}: {
+  step: "questions" | "traces" | "review";
+  /** "none": no AI connection yet; "viewer": none, and this user cannot add one. */
+  connection?: "ready" | "none" | "viewer";
+}) {
   const [selected, setSelected] = useState(questions);
   return (
     <TopicSetupFlowDialog
@@ -43,6 +50,8 @@ function SetupStory({ step }: { step: "questions" | "traces" | "review" }) {
         model: "us.anthropic.claude-sonnet-5-5",
       }}
       connectionCaption="Amazon Bedrock"
+      hasConnection={connection === "ready"}
+      canAddConnection={connection !== "viewer"}
       embedding={{
         provider: "Amazon Bedrock",
         model: "us.cohere.embed-v4:0",
@@ -100,6 +109,15 @@ const meta = preview.meta({
 
 export const Questions = meta.story({
   args: { step: "questions" },
+});
+
+export const NoConnection = meta.story({
+  args: { step: "questions", connection: "none" },
+});
+
+export const NoConnectionViewer = meta.story({
+  name: "No connection, cannot add one",
+  args: { step: "questions", connection: "viewer" },
 });
 
 export const Traces = meta.story({
