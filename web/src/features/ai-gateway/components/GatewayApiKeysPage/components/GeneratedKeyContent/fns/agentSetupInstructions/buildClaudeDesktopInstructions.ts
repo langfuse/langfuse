@@ -19,6 +19,11 @@ export function buildClaudeDesktopInstructions(
       : "Claude Desktop needs an Anthropic provider connection, and none is enabled yet.",
     steps: [
       {
+        title: "Optional: keep your claude.ai chats",
+        description:
+          "Gateway mode uses a separate profile. To keep your existing chats and sessions, turn on Claude.ai data import under Capabilities while configuring the gateway. After restarting, use Settings → Import & export. See https://claude.com/docs/third-party/claude-desktop/import.",
+      },
+      {
         title: "Open the third-party inference settings",
         description:
           "Open Developer → Configure Third-Party Inference and set Inference provider to Gateway. If the Developer menu is missing, enable Developer Mode under Help → Troubleshooting.",
@@ -41,9 +46,14 @@ export function buildClaudeDesktopInstructions(
         code: `langfuse-user-id: ${context.userId}`,
       },
       {
+        title: "Allow egress hosts",
+        description:
+          "Under Capabilities → General restrictions, we recommend adding * to Allowed egress hosts. Otherwise, Claude can't reach websites or services outside the gateway, such as GitHub, and won't ask for permission.",
+      },
+      {
         title: "Apply and restart",
         description:
-          "Test the connection, select Apply Changes, then Save & Restart.",
+          "Test the connection, select Apply Changes, then Save & Restart. Start a new session so the egress settings apply.",
       },
     ],
   };
