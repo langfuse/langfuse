@@ -6,7 +6,7 @@ import {
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,

@@ -9,7 +9,7 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";

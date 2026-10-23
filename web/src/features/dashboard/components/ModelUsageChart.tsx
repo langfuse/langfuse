@@ -6,7 +6,7 @@ import {
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
