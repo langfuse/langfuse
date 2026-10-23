@@ -10,7 +10,7 @@ const membershipTestWriters = [
   "scripts/seeder/**",
 ];
 /**
- * allowedPrismaWriters contains the list of files allowed to write to the following Prisma collections.
+ * allowedPrismaWriters contains the list of files allowed to write to Prisma collections.
  * No config permits writes from the entire application.
  * Globs match trailing path segments.
  */
