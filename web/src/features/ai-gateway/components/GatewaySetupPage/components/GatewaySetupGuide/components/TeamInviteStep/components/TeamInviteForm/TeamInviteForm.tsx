@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { z } from "zod/v4";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
+import { TeamInviteFailuresAlert } from "@/src/features/ai-gateway/components/TeamInviteFailuresAlert";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/TeamInviteFields/TeamInviteFields";
 import type {
   GatewayNotifiableMembers,
   GatewayTeamInviteResult,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
 
 export type TeamInviteFormProps = {
   /** Undefined while loading. */
@@ -34,11 +33,8 @@ export function TeamInviteForm({
   onInvite,
   onFinish,
 }: TeamInviteFormProps) {
-  const [emails, setEmails] = useState<string[]>([]);
+  const invitees = useTeamInviteEmails();
   const [notifyMembers, setNotifyMembers] = useState(true);
-  const [failures, setFailures] = useState<
-    Array<{ email: string; message: string }>
-  >([]);
   // Retrying failed invites must not announce the gateway to every member again.
   const [haveMembersBeenNotified, setHaveMembersBeenNotified] = useState(false);
 
@@ -48,19 +44,18 @@ export function TeamInviteForm({
     notifiableMembers.isEmailConfigured &&
     notifiableMembers.count > 0;
   const willNotify = canNotify && notifyMembers;
-  const hasInvalidEmail = emails.some(
-    (email) => !z.email().safeParse(email).success,
-  );
-  const hasTooManyEmails = emails.length > MAX_TEAM_INVITES;
-  const sendLabel = getSendLabel(emails.length);
+  const sendLabel = getSendLabel(invitees.emails.length);
 
   async function handleSend() {
-    const result = await onInvite({ emails, notifyMembers: willNotify });
+    invitees.startAttempt();
+    const result = await onInvite({
+      emails: invitees.emails,
+      notifyMembers: willNotify,
+    });
     if (!result) return;
     if (willNotify) setHaveMembersBeenNotified(true);
     if (result.failed.length > 0) {
-      setFailures(result.failed);
-      setEmails(result.failed.map((failure) => failure.email));
+      invitees.keepFailed(result.failed);
       return;
     }
     onFinish();
@@ -69,13 +64,9 @@ export function TeamInviteForm({
   return (
     <div className="flex flex-col gap-4 pt-1">
       <TeamInviteFields
-        emails={emails}
-        onEmailsChange={setEmails}
-        errorMessage={
-          hasTooManyEmails
-            ? `You can invite up to ${MAX_TEAM_INVITES} people at once.`
-            : undefined
-        }
+        emails={invitees.emails}
+        onEmailsChange={invitees.setEmails}
+        errorMessage={invitees.errorMessage}
         notifyMembers={
           canNotify
             ? {
@@ -87,28 +78,15 @@ export function TeamInviteForm({
             : undefined
         }
       />
-      {failures.length > 0 ? (
-        <Alert variant="destructive">
-          <Alert.Title>Some invitations were not sent</Alert.Title>
-          <Alert.Description>
-            <ul className="ph-no-capture">
-              {failures.map((failure) => (
-                <li key={failure.email}>
-                  {failure.email}: {failure.message}
-                </li>
-              ))}
-            </ul>
-          </Alert.Description>
-        </Alert>
+      {invitees.failures.length > 0 ? (
+        <TeamInviteFailuresAlert failures={invitees.failures} />
       ) : null}
       <div className="flex items-center gap-2">
         <Button
           text={sendLabel}
           loading={isInviting}
           disabled={
-            hasInvalidEmail ||
-            hasTooManyEmails ||
-            (emails.length === 0 && !willNotify)
+            !invitees.isValid || (invitees.emails.length === 0 && !willNotify)
           }
           onClick={handleSend}
         />
