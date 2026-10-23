@@ -1,4 +1,10 @@
-import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
+import {
+  type ComponentProps,
+  useLayoutEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { PanelLeftOpen, Search } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
