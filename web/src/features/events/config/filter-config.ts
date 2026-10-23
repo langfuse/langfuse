@@ -309,6 +309,16 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Tool Names (Called)",
     },
     {
+      type: "categorical" as const,
+      column: "skillNamesAvailable",
+      label: "Skill Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "skillsNamesLoaded",
+      label: "Skill Names (Loaded)",
+    },
+    {
       type: "numeric" as const,
       column: "toolDefinitions",
       label: "Available Tools",
