@@ -468,6 +468,40 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
   });
 
   describe("Round-trip consistency", () => {
+    it.each(["stringOptions", "arrayOptions"] as const)(
+      "round-trips an empty %s selection with and without a target",
+      (type) => {
+        for (const target of [undefined, "run-b"]) {
+          const filters: FilterState = [
+            {
+              column: "name",
+              type,
+              operator: "any of",
+              value: [],
+              ...(target ? { target } : {}),
+            },
+          ];
+          expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+        }
+      },
+    );
+
+    it.each([
+      { value: [] },
+      { value: [""] },
+      { value: ["\\e"] },
+      { value: ["\\\\e"] },
+      { value: ["", "\\e", "a|b"] },
+    ])(
+      "keeps empty arrays distinct from empty strings and escaped values ($value)",
+      ({ value }) => {
+        const filters: FilterState = [
+          { column: "name", type: "stringOptions", operator: "any of", value },
+        ];
+        expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+      },
+    );
+
     it("should maintain consistency through encode -> decode", () => {
       const originalFilters: FilterState = [
         {

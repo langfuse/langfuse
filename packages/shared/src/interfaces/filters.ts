@@ -56,26 +56,15 @@ export const stringOptionsFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.stringOptions),
   // do not filter on empty arrays, use refine to check this only at runtime (no type checking)
-  value: z.array(z.string()).refine((v) => v.length > 0),
+  value: z.array(z.string()),
   type: z.literal("stringOptions"),
 });
-export const arrayOptionsFilter = z
-  .object({
-    column: z.string(),
-    operator: z.enum(filterOperators.arrayOptions),
-    value: z.array(z.string()),
-    type: z.literal("arrayOptions"),
-  })
-  .refine(
-    (data) =>
-      data.operator === "all of" ||
-      data.operator === "none of" ||
-      data.value.length > 0,
-    {
-      message:
-        "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
-    },
-  );
+export const arrayOptionsFilter = z.object({
+  column: z.string(),
+  operator: z.enum(filterOperators.arrayOptions),
+  value: z.array(z.string()),
+  type: z.literal("arrayOptions"),
+});
 // A substring operator with an empty value skips the ngram prefilter and
 // degrades to a full-scan key-existence check over the whole time window — the
 // same semantics the `is set` presence operator now expresses cleanly. Empty
