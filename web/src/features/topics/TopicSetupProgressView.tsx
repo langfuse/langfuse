@@ -80,7 +80,7 @@ export function TopicSetupProgressView({
         <h2 className="text-2xl font-bold">{COPY[stage].title}</h2>
         <p className="text-muted-foreground text-sm">
           {stage === "failed" && !canRetry
-            ? "Topics could not start. Use Generate topics in the menu."
+            ? "Topics could not start. Use Regenerate topics in the menu."
             : COPY[stage].detail}
         </p>
       </div>
