@@ -2,6 +2,7 @@ import { ForbiddenError } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import {
+  isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
   requireGatewayEnabledForOrganization,
 } from "./availability";
@@ -66,6 +67,29 @@ describe("self-hosted deployments", () => {
       expect(() =>
         requireGatewayEnabledForOrganization("org-1", ["org-1"], notDeployed),
       ).toThrow(ForbiddenError);
+    },
+  );
+
+  it.each([
+    { environment: { nodeEnv: "production" }, expected: false },
+    {
+      environment: { nodeEnv: "production", deployed: "false" },
+      expected: false,
+    },
+    { environment: deployedSelfHosted, expected: true },
+    {
+      environment: { nodeEnv: "production", cloudRegion: "EU" },
+      expected: true,
+    },
+    { environment: { nodeEnv: "development" }, expected: true },
+    {
+      environment: { nodeEnv: "production", previewPrUrl: PREVIEW_PR_URL },
+      expected: true,
+    },
+  ] as const)(
+    "reports the instance gateway as deployed=$expected for $environment",
+    ({ environment, expected }) => {
+      expect(isGatewayDeployedOnInstance(environment)).toBe(expected);
     },
   );
 

@@ -28,6 +28,7 @@ import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flag
 import {
   GatewayApiKeysPage,
   GatewayModelsPage,
+  GatewayNotDeployedNotice,
   GatewaySetupPage,
 } from "@/src/features/ai-gateway";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -90,6 +91,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     isLangfuseCloud,
     showV4Migration,
     showAiGatewayManagement: gatewayAccess.showManagement,
+    showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
     showAiGatewayModels: gatewayAccess.showModels,
     showAiGatewayApiKeys: gatewayAccess.showApiKeys,
     /** Only managers get disabled entries; others see a notice on the page. */
@@ -113,6 +115,7 @@ const getOrganizationSettingsPages = ({
   isLangfuseCloud,
   showV4Migration,
   showAiGatewayManagement,
+  showAiGatewayNotDeployedNotice,
   showAiGatewayModels,
   showAiGatewayApiKeys,
   gatewaySetupDisabledReason,
@@ -137,6 +140,7 @@ const getOrganizationSettingsPages = ({
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
   showAiGatewayManagement: boolean;
+  showAiGatewayNotDeployedNotice: boolean;
   showAiGatewayModels: boolean;
   showAiGatewayApiKeys: boolean;
   gatewaySetupDisabledReason: string | undefined;
@@ -333,13 +337,15 @@ const getOrganizationSettingsPages = ({
       "openai",
       "anthropic",
     ],
-    content: (
+    content: showAiGatewayNotDeployedNotice ? (
+      <GatewayNotDeployedNotice />
+    ) : (
       <GatewaySetupPage
         organizationId={organization.id}
         projects={organization.projects}
       />
     ),
-    show: showAiGatewayManagement,
+    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
   },
   {
     title: "Models",

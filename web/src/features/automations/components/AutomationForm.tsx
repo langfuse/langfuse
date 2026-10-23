@@ -490,6 +490,7 @@ export const AutomationForm = ({
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
+          originalUrl: webhookDefaults.webhook.originalUrl,
         },
       };
     } else if (actionType === "SLACK") {

@@ -5,24 +5,27 @@ import { SiClaude, SiOpenai } from "@langfuse/icons/si";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { ExpandableContentPeek } from "@/src/components/design-system/ExpandableContentPeek/ExpandableContentPeek";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import { AgentSetupSteps } from "./components/AgentSetupSteps";
-import { CopyForAgentButton } from "./components/CopyForAgentButton";
+import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentInstructionsPanel";
+import {
+  ClaudeSetupTabs,
+  type ClaudeAgentId,
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/ClaudeSetupTabs";
 import { MaskedGatewayKey } from "./components/MaskedGatewayKey";
 import { useAgentSetupInstructions } from "./hooks/useAgentSetupInstructions";
 
-const DEFAULT_TAB: AgentSetupInstructions["id"] = "api";
+type TabId = Exclude<AgentSetupInstructions["id"], ClaudeAgentId> | "claude";
 
-const TAB_ICONS: Record<AgentSetupInstructions["id"], IconComponent> = {
-  api: Braces,
-  "claude-desktop": SiClaude,
-  "claude-code": SiClaude,
-  codex: SiOpenai,
-  opencode: SquareTerminal,
-};
+const DEFAULT_TAB: TabId = "api";
+
+const TABS: { id: TabId; label: string; icon: IconComponent }[] = [
+  { id: "api", label: "API", icon: Braces },
+  { id: "claude", label: "Claude", icon: SiClaude },
+  { id: "codex", label: "Codex", icon: SiOpenai },
+  { id: "opencode", label: "OpenCode", icon: SquareTerminal },
+];
 
 type SetupInstructionsProps = {
   organizationId: string;
@@ -32,6 +35,8 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
   const { instructions, isPending, isError } =
     useAgentSetupInstructions(organizationId);
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
+  const [claudeVariant, setClaudeVariant] =
+    useState<ClaudeAgentId>("claude-code");
 
   if (isPending) {
     return <Skeleton className="h-48 w-full" />;
@@ -47,8 +52,11 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
     );
   }
 
+  const findEntry = (id: string) =>
+    instructions.find((entry) => entry.id === id);
   const activeEntry =
-    instructions.find((entry) => entry.id === activeTab) ?? instructions[0];
+    findEntry(activeTab === "claude" ? claudeVariant : activeTab) ??
+    instructions[0];
 
   return (
     <div className="flex flex-col gap-2">
@@ -77,29 +85,39 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
             overflow="menu"
             aria-label="Setup instructions"
           >
-            {instructions.map((entry) => (
+            {TABS.map((tab) => (
               <Tabs.Trigger
-                key={entry.id}
-                value={entry.id}
-                label={entry.label}
-                icon={TAB_ICONS[entry.id]}
+                key={tab.id}
+                value={tab.id}
+                label={tab.label}
+                icon={tab.icon}
               />
             ))}
           </Tabs.List>
         </div>
-        {instructions.map((entry) => (
-          <Tabs.Content key={entry.id} value={entry.id}>
-            <div className="flex flex-col items-start gap-3 pt-4">
-              <CopyForAgentButton instructions={entry} />
-              {/* Inactive tabs unmount, so switching tabs collapses the peek again. */}
-              <div className="w-full">
-                <ExpandableContentPeek expandLabel="Show all steps">
-                  <AgentSetupSteps instructions={entry} />
-                </ExpandableContentPeek>
+        {TABS.map((tab) => {
+          if (tab.id === "claude") {
+            return (
+              <Tabs.Content key={tab.id} value={tab.id}>
+                <div className="pt-4">
+                  <ClaudeSetupTabs
+                    instructions={instructions}
+                    value={claudeVariant}
+                    onValueChange={setClaudeVariant}
+                  />
+                </div>
+              </Tabs.Content>
+            );
+          }
+          const entry = findEntry(tab.id);
+          return entry ? (
+            <Tabs.Content key={tab.id} value={tab.id}>
+              <div className="pt-4">
+                <AgentInstructionsPanel instructions={entry} />
               </div>
-            </div>
-          </Tabs.Content>
-        ))}
+            </Tabs.Content>
+          ) : null;
+        })}
       </Tabs>
     </div>
   );
