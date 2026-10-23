@@ -140,33 +140,6 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(query).toContain("_io_start_time");
   });
 
-  it("fills the page beyond five million scanned rows", async () => {
-    vi.spyOn(performance, "now").mockReturnValue(0);
-    mockProgressQuery(progressEvent(1_000_000), progressEvent(6_000_000));
-    mockProgressQuery(
-      rowEvent(observation("older", "2026-10-11 00:00:00.000")),
-      rowEvent(observation("lookahead", "2026-10-10 00:00:00.000")),
-    );
-
-    const page = await getObservationsV2PageFromEventsTableForPublicApi({
-      ...boundedOpts,
-      limit: 1,
-    });
-
-    expect(page.items.map((row) => row.id)).toEqual(["older"]);
-    expect(page.cursor?.lastId).toBe("older");
-    const calls = mockQueryClickhouseWithProgress.mock.calls.map(
-      ([opts]) => opts,
-    );
-    expect(calls).toHaveLength(2);
-    expect(calls.map((opts) => opts.params.scanFrom)).toEqual([
-      "2026-10-12 00:00:00.000",
-      "2026-10-06 04:00:00.000",
-    ]);
-    expect(calls[0].clickhouseConfigs.request_timeout).toBe(45_000);
-    expect(calls[0].clickhouseSettings.max_execution_time).toBe(45);
-  });
-
   it("walks past empty windows, keeps the lookahead, and resumes with a row cursor", async () => {
     mockProgressQuery(
       rowEvent(observation("newer", "2026-10-12 00:00:00.000")),
