@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
-import { SpendAlertsTable } from "./SpendAlertsTable";
+import { ConnectedSpendAlertsTable } from "./ConnectedSpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 
 interface SpendAlertsSectionProps {
@@ -31,7 +31,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
           </Button>
         </div>
 
-        <SpendAlertsTable orgId={orgId} key={refetchTrigger} />
+        <ConnectedSpendAlertsTable orgId={orgId} key={refetchTrigger} />
       </div>
 
       <SpendAlertDialog
