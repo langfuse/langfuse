@@ -24,6 +24,10 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
+import {
+  TraceTopicsHoverCard,
+  useTraceTopicFacets,
+} from "@/src/features/topics/trace/TraceTopicsHoverCard";
 
 const MAX_VISIBLE_TAGS = 3;
 
@@ -68,6 +72,7 @@ function TraceHeaderLoading() {
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
+  const topicFacets = useTraceTopicFacets(trace);
   const handleShowFewerTags = () => {
     setShowAllTags(false);
   };
@@ -117,6 +122,19 @@ function LoadedTraceHeader() {
         )}
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
+        )}
+        {topicFacets.some((facet) => facet.summary) && (
+          <TraceTopicsHoverCard
+            projectId={trace.projectId}
+            facets={topicFacets}
+          >
+            {(triggerProps) => (
+              <TraceTopicsHoverCard.Trigger
+                facets={topicFacets}
+                triggerProps={triggerProps}
+              />
+            )}
+          </TraceTopicsHoverCard>
         )}
         {(traceScores.length > 0 || trace.tags.length > 0) && (
           <div className="flex min-w-0 flex-wrap items-center gap-1">
