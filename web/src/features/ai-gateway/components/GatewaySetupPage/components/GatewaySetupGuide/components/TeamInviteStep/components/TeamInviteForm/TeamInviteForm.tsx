@@ -22,6 +22,12 @@ export type TeamInviteFormProps = {
   onFinish: () => void;
 };
 
+function getSendLabel(emailCount: number) {
+  if (emailCount === 0) return "Notify members";
+  if (emailCount === 1) return "Send 1 invite";
+  return `Send ${emailCount} invites`;
+}
+
 export function TeamInviteForm({
   notifiableMembers,
   isInviting,
@@ -46,10 +52,7 @@ export function TeamInviteForm({
     (email) => !z.email().safeParse(email).success,
   );
   const hasTooManyEmails = emails.length > MAX_TEAM_INVITES;
-  const sendLabel =
-    emails.length > 0
-      ? `Send ${emails.length} invite${emails.length === 1 ? "" : "s"}`
-      : "Notify members";
+  const sendLabel = getSendLabel(emails.length);
 
   async function handleSend() {
     const result = await onInvite({ emails, notifyMembers: willNotify });

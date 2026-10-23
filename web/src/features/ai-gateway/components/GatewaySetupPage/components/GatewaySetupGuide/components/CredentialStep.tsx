@@ -13,32 +13,37 @@ export type CredentialStepProps = {
   onAddCredential: () => void;
 };
 
+function CredentialStepDescription({
+  status,
+  firstConnection,
+}: Pick<CredentialStepProps, "status" | "firstConnection">) {
+  if (status === "complete" && firstConnection) {
+    return <>{providerLabels[firstConnection.provider]} credential added</>;
+  }
+  return (
+    <>
+      Connect {Object.values(providerLabels).join(" or ")} with an API key.
+      Available models are loaded from the provider.
+      {status === "current" ? (
+        <>
+          {" "}
+          <Button
+            variant="text"
+            size="sm"
+            text="How provider credentials work"
+            href={GATEWAY_SETUP.docsUrl}
+          />
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function CredentialStep({
   status,
   firstConnection,
   onAddCredential,
 }: CredentialStepProps) {
-  const description =
-    status === "complete" && firstConnection ? (
-      `${providerLabels[firstConnection.provider]} credential added`
-    ) : (
-      <>
-        Connect {Object.values(providerLabels).join(" or ")} with an API key.
-        Available models are loaded from the provider.
-        {status === "current" ? (
-          <>
-            {" "}
-            <Button
-              variant="text"
-              size="sm"
-              text="How provider credentials work"
-              href={GATEWAY_SETUP.docsUrl}
-            />
-          </>
-        ) : null}
-      </>
-    );
-
   return (
     <Stepper
       number={2}
@@ -47,7 +52,12 @@ export function CredentialStep({
       status={status}
       isCollapsible={false}
       compactBottomSpacing
-      description={description}
+      description={
+        <CredentialStepDescription
+          status={status}
+          firstConnection={firstConnection}
+        />
+      }
     >
       {status === "current" ? (
         <div className="flex flex-col items-start pt-1">
