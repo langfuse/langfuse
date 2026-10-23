@@ -77,7 +77,6 @@ function SelectInputInner<V extends string>(
             aria-controls={listId}
             aria-expanded={open}
             title={selectedOption?.label}
-            className="ph-no-capture"
             {...triggerProps}
           >
             <span
@@ -97,7 +96,6 @@ function SelectInputInner<V extends string>(
             <PopoverPrimitive.Content
               align="start"
               sideOffset={4}
-              className="ph-no-capture"
               onWheel={stopScrollPropagation()}
               onTouchMove={stopScrollPropagation()}
             >
@@ -185,11 +183,7 @@ function SelectInputInner<V extends string>(
     >
       {({ getTriggerProps, selectedLabel }) => (
         <InputControl contentLayout="spread" error={error}>
-          <button
-            {...getTriggerProps({
-              className: "ph-no-capture",
-            })}
-          >
+          <button {...getTriggerProps()}>
             <span
               className={cn(
                 "min-w-0 flex-1 truncate text-left",

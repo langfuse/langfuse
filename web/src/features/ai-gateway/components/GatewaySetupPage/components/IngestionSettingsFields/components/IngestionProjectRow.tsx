@@ -73,7 +73,7 @@ export function IngestionProjectRow({
           />
         </div>
       ) : (
-        <div className="w-fit">
+        <div className="ph-no-capture w-fit">
           <SelectInput
             aria-label="Ingestion project"
             placeholder="Select a project"

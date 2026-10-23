@@ -207,11 +207,7 @@ export function SelectDropdown<V extends string>({
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
-          <SelectPrimitive.Content
-            position="popper"
-            sideOffset={4}
-            className="ph-no-capture"
-          >
+          <SelectPrimitive.Content position="popper" sideOffset={4}>
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
