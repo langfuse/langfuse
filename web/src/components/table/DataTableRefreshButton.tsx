@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { RefreshCw, ChevronDown } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {

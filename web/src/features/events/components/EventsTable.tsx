@@ -98,7 +98,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/DataTableRefreshButton";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
