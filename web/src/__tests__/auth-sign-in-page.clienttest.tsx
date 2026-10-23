@@ -46,7 +46,7 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   isAnySsoConfigured: async () => false,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
+vi.mock("@/src/features/auth/components/CloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
