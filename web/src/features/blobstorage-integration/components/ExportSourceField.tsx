@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

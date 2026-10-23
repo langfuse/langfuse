@@ -26,6 +26,7 @@ export const GATEWAY_RESOLVE_KEY_NON_EXISTENT = "gateway-key-non-existent";
 export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
+  userId: z.string().nullable(),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),

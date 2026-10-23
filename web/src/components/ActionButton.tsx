@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import React, { useMemo } from "react";
 import { Lock, AlertCircle, Sparkle } from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";

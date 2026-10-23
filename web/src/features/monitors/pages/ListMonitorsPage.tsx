@@ -1,8 +1,8 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { AutomationButton } from "@/src/features/automations";

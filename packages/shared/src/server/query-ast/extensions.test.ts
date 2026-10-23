@@ -1,7 +1,11 @@
 import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
+import {
+  compileClickhouseQuery,
+  renderClickhouseExpression,
+  renderClickhouseSelections,
+} from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
@@ -33,7 +37,7 @@ import { defineView, fromView } from "./views";
 const projectId = "proj-1";
 
 const eventsMetadata = (
-  eb: ExpressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">,
+  eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">,
   key: string,
 ) =>
   metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
@@ -41,7 +45,7 @@ const eventsMetadata = (
 describe("schema-typed selection (condition 7)", () => {
   it("accepts sum() over a numeric column and emits SQL", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select((eb) => [eb.fn.sum("total_cost").as("s")]);
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
@@ -51,7 +55,7 @@ describe("schema-typed selection (condition 7)", () => {
 
   it("rejects sum() over a String column at the runtime validation pass", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select((eb) => [eb.fn.sum("environment").as("s")]);
 
     expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
@@ -81,7 +85,7 @@ describe("metadata subscript access (condition 7b)", () => {
   // parameter-bound) from "the compiler rendered that tree correctly".
   it("lowers metadata[key] to ArrayIndexNode + mapFromArrays FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select((eb) => [eventsMetadata(eb, "a").as("a")])
       .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
@@ -103,7 +107,7 @@ describe("metadata subscript access (condition 7b)", () => {
 
   it("emits subscript + bound key param in SELECT and WHERE", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select((eb) => [eventsMetadata(eb, "a").as("a")])
       .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
@@ -120,7 +124,7 @@ describe("metadata subscript access (condition 7b)", () => {
 
   it("emits the same lowering in HAVING", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select("environment")
       .groupBy("environment")
       .having((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
@@ -137,10 +141,7 @@ describe("metadata subscript access (condition 7b)", () => {
   // by trusting the lookup's marker, so the lookup may only read the metadata
   // columns of one relation.
   describe("rejects a lookup over anything but one relation's metadata columns", () => {
-    const eb = expressionBuilder<
-      { e: ClickHouseDatabase["events_core"] },
-      "e"
-    >();
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
     it.each([
       // Any expression, not only `input`: the pass doesn't walk the
       // arguments, so a column inside `values` would escape routing.
@@ -183,8 +184,8 @@ describe("metadata subscript access (condition 7b)", () => {
     it("rejects names and values from two relations", () => {
       const joined = expressionBuilder<
         {
-          e: ClickHouseDatabase["events_core"];
-          f: ClickHouseDatabase["events_core"];
+          e: ClickHouseDatabase["events"];
+          f: ClickHouseDatabase["events"];
         },
         "e" | "f"
       >();
@@ -203,10 +204,7 @@ describe("virtual view (condition 8)", () => {
   const environmentsView = defineView("environments_view")<{
     environment: string;
   }>(() =>
-    getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment")
-      .distinct(),
+    getClickhouseKysely().selectFrom("events").select("environment").distinct(),
   );
 
   it("treats the view as a table and emits a WITH CTE", () => {
@@ -255,7 +253,7 @@ describe("ArrayIndexNode identity", () => {
 describe("leftUTF8", () => {
   it("inlines a positive integer length", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select((eb) => [leftUTF8(eb.ref("e.input"), 100).as("input")]);
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
@@ -265,7 +263,7 @@ describe("leftUTF8", () => {
   it.each([0, -1, 1.5, Number.NaN])("rejects length %s", (length) => {
     expect(() =>
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
     ).toThrow(QueryCompileError);
   });
@@ -274,7 +272,7 @@ describe("leftUTF8", () => {
 describe("arrayMap", () => {
   it("names nested lambda parameters apart so the inner one does not shadow", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select((eb) => [
         arrayMap<string, string[]>(
           (name) =>
@@ -300,10 +298,7 @@ describe("arrayMap", () => {
 
 describe("arrayExists", () => {
   it("names nested lambda parameters apart so the inner one does not shadow", () => {
-    const eb = expressionBuilder<
-      { e: ClickHouseDatabase["events_core"] },
-      "e"
-    >();
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
     const nested = arrayExists<string>(
       (name) =>
         arrayExists<string>((tag) => eb(tag, "=", name), eb.ref("e.tags")),
@@ -317,7 +312,7 @@ describe("arrayExists", () => {
 });
 
 describe("renderClickhouseExpression", () => {
-  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
   const metadata = metadataMap(
     eb.ref("e.metadata_names"),
     eb.ref("e.metadata_values"),
@@ -336,7 +331,7 @@ describe("renderClickhouseExpression", () => {
 
   it("rejects a subquery", () => {
     const subquery = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("trace_id");
     expect(() => renderClickhouseExpression(subquery)).toThrow(
       UnscopedRelationError,
@@ -356,8 +351,65 @@ describe("renderClickhouseExpression", () => {
   });
 });
 
+describe("renderClickhouseSelections", () => {
+  const events = getClickhouseKysely().selectFrom("events as e");
+
+  it("keys each select by its output name, in select order", () => {
+    const rendered = renderClickhouseSelections(
+      events.select((eb) => [
+        "e.span_id as id",
+        "e.trace_id",
+        eb.fn.min("e.start_time").as("start"),
+      ]),
+    );
+    expect(Object.entries(rendered)).toEqual([
+      ["id", "e.span_id as id"],
+      ["trace_id", "e.trace_id"],
+      ["start", "min(e.start_time) as start"],
+    ]);
+    expectTypeOf(rendered).toEqualTypeOf<
+      Record<"id" | "trace_id" | "start", string>
+    >();
+  });
+
+  it("keys an output name that is also an Object prototype key", () => {
+    expect(
+      renderClickhouseSelections(
+        events.select((eb) => eb.ref("e.trace_id").as("constructor")),
+      ),
+    ).toEqual({ constructor: "e.trace_id as constructor" });
+  });
+
+  it("rejects a select without an output name", () => {
+    expect(() => renderClickhouseSelections(events.selectAll())).toThrow(
+      QueryCompileError,
+    );
+  });
+
+  it("rejects two selects with one output name", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) => [
+          "e.trace_id",
+          eb.ref("e.span_id").as("trace_id"),
+        ]),
+      ),
+    ).toThrow(/share the output name "trace_id"/);
+  });
+
+  it("rejects a select containing a subquery", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) =>
+          eb.selectFrom("events as x").select("x.trace_id").as("t"),
+        ),
+      ),
+    ).toThrow(UnscopedRelationError);
+  });
+});
+
 describe("64-bit results", () => {
-  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
   const isError = eb("e.level", "=", literal("ERROR"));
 
   // ClickHouse 25.8+ (Langfuse v4 needs 25.12) sends (U)Int64 as JSON numbers.
@@ -395,7 +447,7 @@ describe("startsWith", () => {
   it("binds a string prefix and inlines a literal one", () => {
     const { sql, params } = compileClickhouseQuery(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .where((eb) => startsWith(eb.ref("e.name"), "caller"))
         .where((eb) => startsWith(eb.ref("e.user_id"), literal("const"))),

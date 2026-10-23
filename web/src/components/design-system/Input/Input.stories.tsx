@@ -38,6 +38,22 @@ export const Disabled = meta.story({
   },
 });
 
+export const Inline = meta.story({
+  args: {
+    "aria-label": "Project name",
+    defaultValue: "ai-gateway",
+    layout: "inline",
+  },
+  render: (args) => (
+    <p className="flex items-center gap-2 text-sm">
+      Record in a new project named
+      <span className="w-fit">
+        <Input {...args} />
+      </span>
+    </p>
+  ),
+});
+
 export const TestAcceptsText = meta.story({
   name: "(Test) Accepts Text",
   args: {

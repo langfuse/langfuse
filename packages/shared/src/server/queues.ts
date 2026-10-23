@@ -288,6 +288,20 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     projectId: z.string(),
     mentionedUserIds: z.array(z.string()),
   }),
+  /** One AI Gateway invitation or announcement email, rendered as-is by the worker. */
+  z.object({
+    type: z.literal("AI_GATEWAY_INVITATION"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("invitee"), hasAccount: z.boolean() }),
+      z.object({ kind: z.literal("member") }),
+    ]),
+    inviterName: z.string(),
+    inviterEmail: z.string(),
+  }),
   // Future notification types can be added here
 ]);
 

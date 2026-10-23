@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   Combobox,
   type ComboboxOptionGroup,
-} from "@/src/components/ui/combobox";
+} from "@/src/components/ui/Combobox";
 import { X } from "@langfuse/icons";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";

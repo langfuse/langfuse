@@ -55,6 +55,10 @@
       "import": "./dist/src/server/transcript/types.js",
       "require": "./dist/src/server/transcript/types.js"
     },
+    "./src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate": {
+      "import": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js",
+      "require": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -262,7 +266,6 @@
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
     "kysely": "0.28.17",
-    "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
@@ -290,7 +293,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

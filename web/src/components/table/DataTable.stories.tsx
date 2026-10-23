@@ -46,8 +46,11 @@ import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
-import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
+} from "@/src/components/LevelCountsDisplay";
+import {
+  formatAsLabel,
+  LevelSymbols,
+} from "@/src/components/ObservationLevelTag";
 import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";

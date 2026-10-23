@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";

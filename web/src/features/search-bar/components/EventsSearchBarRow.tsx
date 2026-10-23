@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 // Search-bar row: the query composer at full width, with an AI sub-mode.
 // EventsTable owns the sticky stack around this row + the toolbar so the toolbar
 // cannot scroll under the composer. Time-range + refresh controls live in the

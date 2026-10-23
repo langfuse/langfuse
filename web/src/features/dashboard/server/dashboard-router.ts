@@ -20,6 +20,7 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -629,7 +630,9 @@ export const dashboardRouter = createTRPCRouter({
       const existingClones = await ctx.prisma.dashboard.findMany({
         where: {
           projectId: input.projectId,
-          name: { startsWith: `${sourceDashboard.name} (Clone` },
+          name: {
+            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
+          },
         },
         select: { name: true },
       });

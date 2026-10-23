@@ -94,7 +94,7 @@ vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
   default: () => null,
 }));
 
@@ -113,9 +113,8 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/features/ai-gateway", () => ({
   GatewayApiKeysPage: () => null,
-  GatewayConfigurationPage: () => null,
   GatewayModelsPage: () => null,
-  GatewayProvidersPage: () => null,
+  GatewaySetupPage: () => null,
 }));
 
 const organization = {
@@ -245,7 +244,10 @@ describe("useOrganizationSettingsPages", () => {
 
   it("hides all AI Gateway settings when the internal flag is disabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "gateway:manage" || scope === "gateway:read",
+      ({ scope }) =>
+        scope === "gateway:manage" ||
+        scope === "gateway:read" ||
+        scope === "gateway:invoke",
     );
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
@@ -258,7 +260,10 @@ describe("useOrganizationSettingsPages", () => {
 
   it("shows all AI Gateway settings when the internal flag and gateway management access are enabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "gateway:manage" || scope === "gateway:read",
+      ({ scope }) =>
+        scope === "gateway:manage" ||
+        scope === "gateway:read" ||
+        scope === "gateway:invoke",
     );
     vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
 
@@ -269,7 +274,6 @@ describe("useOrganizationSettingsPages", () => {
 
     expect(gatewayPages.map((page) => page.slug)).toEqual([
       "ai-gateway",
-      "ai-gateway-providers",
       "ai-gateway-models",
       "ai-gateway-api-keys",
     ]);
@@ -277,9 +281,12 @@ describe("useOrganizationSettingsPages", () => {
     expect(gatewayPages.every((page) => !page.disabledReason)).toBe(true);
   });
 
-  it("disables every AI Gateway page except Configuration for managers until ingestion is set up", () => {
+  it("disables every AI Gateway page except Setup for managers until ingestion is set up", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "gateway:manage" || scope === "gateway:read",
+      ({ scope }) =>
+        scope === "gateway:manage" ||
+        scope === "gateway:read" ||
+        scope === "gateway:invoke",
     );
     vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
     getSetupStatusQuery.mockReturnValue({
@@ -295,7 +302,6 @@ describe("useOrganizationSettingsPages", () => {
         .map((page) => [page.slug, !!page.disabledReason]),
     ).toEqual([
       ["ai-gateway", false],
-      ["ai-gateway-providers", true],
       ["ai-gateway-models", true],
       ["ai-gateway-api-keys", true],
     ]);
@@ -318,6 +324,28 @@ describe("useOrganizationSettingsPages", () => {
 
     expect(models?.show).toBe(true);
     expect(models?.disabledReason).toBeUndefined();
+  });
+
+  it("shows members their AI Gateway keys alongside models, even before ingestion is set up", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:read" || scope === "gateway:invoke",
+    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
+    getSetupStatusQuery.mockReturnValue({
+      data: { isConfigured: false },
+      isPending: false,
+    });
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(
+      result.current
+        .filter((page) => page.slug.startsWith("ai-gateway") && page.show)
+        .map((page) => [page.slug, !!page.disabledReason]),
+    ).toEqual([
+      ["ai-gateway-models", false],
+      ["ai-gateway-api-keys", false],
+    ]);
   });
 
   it("shows the usage page instead of the billing page without cloud billing", () => {

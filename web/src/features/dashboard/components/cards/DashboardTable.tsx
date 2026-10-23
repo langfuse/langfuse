@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { ExpandListButton } from "@/src/features/dashboard/components/cards/ExpandListButton";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";

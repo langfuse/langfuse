@@ -1,4 +1,5 @@
-import Page from "@/src/components/layouts/page";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,

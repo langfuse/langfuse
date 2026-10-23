@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type EditorView, ViewPlugin } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
 

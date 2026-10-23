@@ -6,15 +6,15 @@ import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/serve
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 
 const SETUP_GATED_SETTINGS_SLUGS = new Set([
-  "ai-gateway-providers",
   "ai-gateway-models",
   "ai-gateway-api-keys",
 ]);
 
 /**
- * Gateway managers cannot open provider, model or API key settings before an
- * ingestion project is configured; they are sent to the configuration page.
- * Readers are not redirected because their Models page explains the state.
+ * Gateway managers cannot open model or API key settings before an ingestion
+ * project is configured; they are sent to the setup page.
+ * Other members are not redirected because their Models and API key pages
+ * explain the state.
  */
 export async function getGatewaySetupRedirect(params: {
   prisma: PrismaClient;

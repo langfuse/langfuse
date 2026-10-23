@@ -10,7 +10,7 @@ import {
   Calendar,
 } from "@langfuse/icons";
 import { SiDiscord, SiGithub } from "@langfuse/icons/si";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements";
 import { isCloudPlan } from "@langfuse/shared";

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 const COPY = {
   variables: {

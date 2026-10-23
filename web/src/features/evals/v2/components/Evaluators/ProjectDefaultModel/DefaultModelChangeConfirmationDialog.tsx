@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ArrowRight } from "@langfuse/icons";
 
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 export function DefaultModelChangeConfirmationDialog({

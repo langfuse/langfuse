@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -13,7 +14,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,

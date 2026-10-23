@@ -9,7 +9,7 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
   defineTool({
     name: "batchUpsertDatasetItems",
     description:
-      "Upsert multiple dataset items in one dataset. Items are processed in order. The operation stops on the first failure and is not atomic.",
+      "Upsert up to 100 dataset items in one dataset. Items are processed in order. The operation stops on the first failure and is not atomic.",
     action: "datasets:CUD",
     baseSchema: BatchUpsertDatasetItemsMcpInput,
     inputSchema: BatchUpsertDatasetItemsMcpInput,

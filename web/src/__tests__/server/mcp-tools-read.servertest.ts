@@ -56,7 +56,12 @@ import {
   buildSessionUrl,
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
-import { ScoreConfigDataType } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  ScoreConfigDataType,
+  supportedModels,
+} from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
@@ -197,6 +202,10 @@ import {
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
 } from "@/src/features/mcp/server/datasets/schema";
+import {
+  handleListLlmConnections,
+  listLlmConnectionsTool,
+} from "@/src/features/mcp/server/llmConnections/tools/listLlmConnections";
 import { SkillService } from "@/src/features/skills/server";
 import { handleListSkills } from "@/src/features/mcp/server/skills/tools/listSkills";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
@@ -723,6 +732,114 @@ describe("MCP Read Tools", () => {
       await expect(
         handleGetMonitor({ monitorId: monitor.id }, otherSetup.context),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("listLlmConnections tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listLlmConnectionsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listLlmConnectionsTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should list effective project and organization connections without credentials", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const secret = `sk-mcp-secret-${nanoid()}`;
+      const sharedProvider = `shared-${nanoid()}`;
+      const orgOnlyProvider = `org-only-${nanoid()}`;
+      const otherOrgProvider = `other-org-${nanoid()}`;
+      const connection = (
+        owner: { projectId: string } | { organizationId: string },
+        data: {
+          provider: string;
+          adapter: LLMAdapter;
+          customModels?: string[];
+          withDefaultModels?: boolean;
+        },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            ...data,
+            secretKey: encrypt(secret),
+            displaySecretKey: "...cret",
+            extraHeaders: encrypt(JSON.stringify({ "x-secret": secret })),
+          },
+        });
+
+      await connection(
+        { projectId: setup.projectId },
+        {
+          provider: sharedProvider,
+          adapter: LLMAdapter.OpenAI,
+          customModels: ["my-model", "gpt-4o"],
+          withDefaultModels: true,
+        },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        { provider: sharedProvider, adapter: LLMAdapter.Anthropic },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: orgOnlyProvider,
+          adapter: LLMAdapter.Anthropic,
+          customModels: ["claude-custom"],
+          withDefaultModels: false,
+        },
+      );
+      await connection(
+        { organizationId: otherSetup.orgId },
+        { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
+      );
+
+      const result = (await handleListLlmConnections({}, setup.context)) as {
+        data: Array<Record<string, unknown>>;
+      };
+
+      expect(result.data.map((c) => c.provider).sort()).toEqual(
+        [orgOnlyProvider, sharedProvider].sort(),
+      );
+      expect(result.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: sharedProvider,
+            adapter: LLMAdapter.OpenAI,
+            scope: "project",
+            displaySecretKey: "...cret",
+            availableModels: Array.from(
+              new Set([
+                "my-model",
+                "gpt-4o",
+                ...supportedModels[LLMAdapter.OpenAI],
+              ]),
+            ),
+          }),
+          expect.objectContaining({
+            provider: orgOnlyProvider,
+            adapter: LLMAdapter.Anthropic,
+            scope: "organization",
+            availableModels: ["claude-custom"],
+          }),
+        ]),
+      );
+      for (const item of result.data) {
+        expect(item).not.toHaveProperty("secretKey");
+        expect(item).not.toHaveProperty("extraHeaders");
+        expect(item).not.toHaveProperty("projectId");
+        expect(item).not.toHaveProperty("organizationId");
+      }
+      expect(JSON.stringify(result)).not.toContain(secret);
     });
   });
 

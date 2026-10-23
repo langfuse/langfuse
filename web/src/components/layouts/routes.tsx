@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Flag } from "@/src/features/feature-flags/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
@@ -37,6 +38,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 
 export enum RouteSection {
   Main = "main",
@@ -154,6 +159,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
+    label: <TopicsInternalBadge />,
     show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -315,6 +321,11 @@ export const ROUTES: Route[] = [
     menuNode: <SupportButton />,
   },
 ];
+
+function TopicsInternalBadge() {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+}
 
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();

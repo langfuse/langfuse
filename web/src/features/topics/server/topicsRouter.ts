@@ -1,12 +1,17 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import { getTracingReadinessSettings } from "@langfuse/shared/src/server";
+import {
+  getTopicSetupTraceCounts,
+  getTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
   topicFacetRefSchema,
+  topicProcessingConfigSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
@@ -56,13 +61,18 @@ import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
+  selectTopicSetupTraces,
+  topicSetupIdleMs,
   topicTraceSelectionSchema,
   topicTriggerInputSchema,
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
+// Covers the gap between a trace's first and last event (p99 is about 4 minutes).
+const SETUP_TRACE_SPAN_MARGIN_MS = 5 * 60_000;
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const resultInput = projectInput.extend({
   timeRange: topicTimeRangeSchema.refine(
@@ -455,6 +465,101 @@ export const topicsRouter = createTRPCRouter({
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
+    }),
+  /** Topics each grouping run published, for the setup progress view. */
+  setupTopicCounts: topicsProcedure
+    .input(projectInput.extend({ runIds: z.array(topicIdSchema).max(20) }))
+    .query(async ({ input, ctx }) => {
+      const runs = await ctx.prisma.topicClusteringRun.findMany({
+        where: { projectId: input.projectId, id: { in: input.runIds } },
+        select: { id: true, topicVersionIds: true },
+      });
+      return runs.map((run) => ({
+        runId: run.id,
+        topicCount: run.topicVersionIds.length,
+      }));
+    }),
+  setupTraceCounts: topicsProcedure.query(async ({ input }) =>
+    getTopicSetupTraceCounts({
+      projectId: input.projectId,
+      idleMs: await topicSetupIdleMs(input.projectId),
+      now: new Date(),
+    }),
+  ),
+  /** Summarizes recent finished traces, then generates topics over the same window. */
+  startSetup: topicsWriteProcedure
+    .input(
+      projectInput.extend({
+        requestId: topicIdSchema,
+        sampling: z.number().gt(0).max(1),
+        facets: z.array(topicFacetRefSchema).min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { summary, embedding } = await requireTopicsModels(input.projectId);
+      // Hash only the caller's input: a retry must find this run, not re-select traces.
+      const requestHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            input,
+            summaryModel: summary.model,
+            embeddingModel: embedding.model,
+          }),
+        )
+        .digest("hex");
+      const existing = await readTopicExecutionForRequest(
+        input.projectId,
+        input.requestId,
+        requestHash,
+      );
+      if (existing) {
+        if (existing.status === "queued")
+          await enqueueTopicExecution(input.projectId, existing.id);
+        return {
+          id: existing.id,
+          traceCount: existing.facets[0]?.counts.requested ?? 0,
+        };
+      }
+      await requireFacetVersions(input.projectId, input.facets);
+      const now = new Date();
+      const { traceIds, days } = await selectTopicSetupTraces({
+        projectId: input.projectId,
+        sampling: input.sampling,
+        limit: TOPIC_SETUP_BACKFILL_LIMIT,
+        now,
+      });
+      if (traceIds.length === 0) return { id: null, traceCount: 0 };
+      const execution = await createTopicExecution(
+        {
+          operation: "process",
+          projectId: input.projectId,
+          requestId: input.requestId,
+          facets: input.facets,
+          traceIds,
+          reuseExistingSummaries: true,
+          embeddingConfig: {
+            embeddingModel: embedding.model,
+            embeddingDimensions: embedding.dimensions,
+          },
+          processingConfig: topicProcessingConfigSchema.parse({
+            summaryModel: summary.model,
+          }),
+          thenUpdate: {
+            // Summaries date from a trace's first event, which can precede the window.
+            timeRange: {
+              from: new Date(
+                now.getTime() - days * 86_400_000 - SETUP_TRACE_SPAN_MARGIN_MS,
+              ),
+              to: now,
+            },
+          },
+        },
+        requestHash,
+        ctx.session.user.id,
+      );
+      if (execution.status === "queued")
+        await enqueueTopicExecution(input.projectId, execution.id, traceIds);
+      return { id: execution.id, traceCount: traceIds.length };
     }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)

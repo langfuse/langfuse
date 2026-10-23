@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -7,6 +8,9 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { isValidTopicTimeRange } from "./time-range";
 import { CurrentTopicsView } from "./CurrentTopicsView";
+import { TopicGridView } from "./TopicGridView";
+import { TopicTreemapView } from "./TopicTreemapView";
+import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 export function CurrentTopics({
@@ -14,6 +18,7 @@ export function CurrentTopics({
   timeRange,
   result,
   selectedFacetId,
+  view,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
@@ -45,6 +50,7 @@ export function CurrentTopics({
           projectId={projectId}
           facet={selectedFacet}
           timeRange={timeRange}
+          view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
@@ -59,25 +65,53 @@ function CurrentFacet({
   projectId,
   facet,
   timeRange,
+  view,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentFacetProps) {
-  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
+  const mapResult = useCurrentTopicMap(
+    projectId,
+    view === "treemap" ? undefined : facet.map?.runId,
+    timeRange,
+  );
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
+  if (view === "treemap")
+    return (
+      <TopicTreemapView
+        projectId={projectId}
+        facet={facet}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        peekView={peekView}
+      />
+    );
+  if (view === "map")
+    return (
+      <CurrentTopicsView
+        projectId={projectId}
+        facet={facet}
+        mapResult={mapResult}
+        tracePanelRef={tracePanelRef}
+        traceFilters={traceFilters}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        onOpenTrace={peekNavigation.openPeek}
+        peekView={peekView}
+      />
+    );
   return (
-    <CurrentTopicsView
+    <TopicGridView
       projectId={projectId}
       facet={facet}
       mapResult={mapResult}
       tracePanelRef={tracePanelRef}
-      traceFilters={traceFilters}
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
       onOpenTrace={peekNavigation.openPeek}
@@ -143,6 +177,7 @@ type CurrentTopicsProps = {
     "data" | "isLoading" | "error"
   >;
   selectedFacetId: string | undefined;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
@@ -153,6 +188,7 @@ type CurrentFacetProps = {
   projectId: string;
   facet: Facet;
   timeRange: TopicTimeRange;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;

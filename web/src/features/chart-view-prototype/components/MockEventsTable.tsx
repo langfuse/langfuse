@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/src/components/ui/badge";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -122,13 +122,12 @@ export const MockEventsTable = React.memo(function MockEventsTable({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <SimpleDataTable
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Table
+          tableName="Events"
           columns={columns}
-          data={rows}
-          isLoading={false}
-          noResults={null}
-          presentation="dense"
+          data={{ status: "success", data: rows }}
+          noResultsMessage={null}
         />
       </div>
       <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
@@ -80,6 +80,7 @@ import {
   logger,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -989,6 +990,9 @@ export async function getAuthOptions(
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
+                                scoreEditsDisabled: shouldSkipScoresDedup(
                                   project.id,
                                 ),
                                 deletedAt: project.deletedAt,
