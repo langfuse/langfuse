@@ -27,11 +27,19 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
-/** Vertical padding, name line height and count block height (px) for tiers that show a count; share only on large. */
-const PADDING_Y_PX = 24;
-const NAME_LINE_PX = { large: 28, medium: 20 };
-const FOOTER_PX = { large: 54, medium: 28 };
-const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
+/** Padding (px), name line height, approximate bold character width and count block height per tier. */
+const PADDING_PX = { large: 24, medium: 24, small: 16, tiny: 0 };
+const NAME_LINE_PX = { large: 28, medium: 20, small: 16, tiny: 16 };
+const NAME_CHAR_PX = { large: 10, medium: 7.6, small: 6.8, tiny: 6.8 };
+const FOOTER_PX = { large: 54, medium: 28, small: 0, tiny: 0 };
+const NAME_CLAMP = [
+  "line-clamp-1",
+  "line-clamp-2",
+  "line-clamp-3",
+  "line-clamp-4",
+  "line-clamp-5",
+  "line-clamp-6",
+];
 
 const NAME_SIZE: Record<TileTier, string> = {
   large: "text-lg",
@@ -213,19 +221,7 @@ function TopicTileButton({
   function selectTopic() {
     onSelect(topic.id);
   }
-  const showCount = tier === "large" || tier === "medium";
-  /** Name lines that fit above the count; small tiles show only the name. */
-  const nameLines = showCount
-    ? Math.min(
-        3,
-        Math.max(
-          1,
-          Math.floor(
-            (rect.height - PADDING_Y_PX - FOOTER_PX[tier]) / NAME_LINE_PX[tier],
-          ),
-        ),
-      )
-    : 2;
+  const { showCount, nameLines } = tileLabelLayout(topic.name, rect, tier);
   return (
     <button
       {...triggerProps}
@@ -253,7 +249,7 @@ function TopicTileButton({
         <span
           className={cn(
             NAME_CLAMP[nameLines - 1],
-            "font-bold",
+            "mask-r-from-80% font-bold",
             NAME_SIZE[tier],
           )}
         >
@@ -272,6 +268,34 @@ function TopicTileButton({
       )}
     </button>
   );
+}
+
+/** The name comes first: the count shows only when the full name still fits above it. */
+function tileLabelLayout(
+  name: string,
+  rect: { width: number; height: number },
+  tier: TileTier,
+) {
+  const lines = (reserved: number) =>
+    Math.floor(
+      (rect.height - PADDING_PX[tier] - reserved) / NAME_LINE_PX[tier],
+    );
+  const perLine = Math.max(
+    1,
+    Math.floor((rect.width - PADDING_PX[tier]) / NAME_CHAR_PX[tier]),
+  );
+  const needed = Math.ceil(name.length / perLine);
+  const withCount = lines(FOOTER_PX[tier]);
+  const countFits =
+    (tier === "large" || tier === "medium") && needed <= withCount;
+  const available = countFits ? withCount : lines(0);
+  return {
+    showCount: countFits,
+    nameLines: Math.min(
+      NAME_CLAMP.length,
+      Math.max(1, Math.min(needed, available)),
+    ),
+  };
 }
 
 /** Unassigned never takes more than ~10% of the area; its tile still shows the real count. */
