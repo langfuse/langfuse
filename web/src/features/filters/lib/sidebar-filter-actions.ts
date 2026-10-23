@@ -296,6 +296,43 @@ export function applySelection(
     return current;
   }
 
+  const filterType: "arrayOptions" | "stringOptions" =
+    colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
+
+  if (operator === undefined && values.length === 0) {
+    const previousValues =
+      existingFilter?.type === "stringOptions" ||
+      existingFilter?.type === "arrayOptions"
+        ? existingFilter.value
+        : [];
+    // Blank option arrays have ambiguous legacy URL encodings. Any nonblank
+    // witness works here, even if it is an actual stored value.
+    const value =
+      previousValues.find((value) => value !== "") ??
+      availableValues.find((value) => value !== "") ??
+      "empty selection";
+
+    // Contradictory valid filters match nothing without depending on the
+    // completeness of the available option list.
+    return [
+      ...other,
+      {
+        column,
+        ...target,
+        type: filterType,
+        operator: "any of",
+        value: [value],
+      },
+      {
+        column,
+        ...target,
+        type: filterType,
+        operator: "none of",
+        value: [value],
+      },
+    ];
+  }
+
   // Determine operator and values based on context
   let finalOperator: CheckboxOperator;
   let finalValues: string[];
@@ -389,43 +426,6 @@ export function applySelection(
       finalOperator = "any of";
       finalValues = values;
     }
-  }
-
-  const filterType: "arrayOptions" | "stringOptions" =
-    colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
-
-  if (finalValues.length === 0 && finalOperator !== "none of") {
-    const previousValues =
-      existingFilter?.type === "stringOptions" ||
-      existingFilter?.type === "arrayOptions"
-        ? existingFilter.value
-        : [];
-    // Blank option arrays have ambiguous legacy URL encodings. Any nonblank
-    // witness works here, even if it is an actual stored value.
-    const value =
-      previousValues.find((value) => value !== "") ??
-      availableValues.find((value) => value !== "") ??
-      "empty selection";
-
-    // Contradictory valid filters match nothing without changing shared schemas
-    // or depending on the completeness of the available option list.
-    return [
-      ...other,
-      {
-        column,
-        ...target,
-        type: filterType,
-        operator: "any of",
-        value: [value],
-      },
-      {
-        column,
-        ...target,
-        type: filterType,
-        operator: "none of",
-        value: [value],
-      },
-    ];
   }
 
   if (filterType === "arrayOptions") {
