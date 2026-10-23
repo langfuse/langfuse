@@ -29,12 +29,9 @@ export function TeamInviteFields({
   return (
     <div className="has-[input:focus]:border-ring flex max-w-xl flex-col rounded-md border">
       <div className="flex items-start gap-2.5 px-3 py-2.5">
-        <Mail
-          size="base"
-          color="tertiary"
-          aria-hidden
-          __rawClassName="mt-1 shrink-0"
-        />
+        <span className="flex h-6 shrink-0 items-center">
+          <Mail size="base" color="tertiary" aria-hidden />
+        </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <EmailTagInput
             id={inputId}
