@@ -216,28 +216,34 @@ export function TopicSetupFlowDialog({
                   )}
                 </button>
                 {advancedOpen ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm">Wait before summarizing</span>
-                    <div className="flex gap-1.5">
-                      {TOPIC_SETUP_WAIT_MINUTES.map((minutes) => {
-                        const selected = waitMinutes === minutes;
-                        return (
-                          <button
-                            key={minutes}
-                            type="button"
-                            className={
-                              selected
-                                ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
-                                : "rounded-full border px-3 py-1 text-sm"
-                            }
-                            aria-pressed={selected}
-                            onClick={() => onWaitMinutesChange(minutes)}
-                          >
-                            {minutes} min
-                          </button>
-                        );
-                      })}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-sm">Wait before summarizing</span>
+                      <div className="flex gap-1.5">
+                        {TOPIC_SETUP_WAIT_MINUTES.map((minutes) => {
+                          const selected = waitMinutes === minutes;
+                          return (
+                            <button
+                              key={minutes}
+                              type="button"
+                              className={
+                                selected
+                                  ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
+                                  : "rounded-full border px-3 py-1 text-sm"
+                              }
+                              aria-pressed={selected}
+                              onClick={() => onWaitMinutesChange(minutes)}
+                            >
+                              {minutes} min
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+                    <p className="text-muted-foreground text-xs">
+                      A trace is summarized once no new events arrive for this
+                      long, so long-running traces aren&apos;t cut off.
+                    </p>
                   </div>
                 ) : null}
               </div>
