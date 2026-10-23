@@ -45,9 +45,15 @@ export function buildClaudeDesktopInstructions(
       },
       {
         title: "Add the user header",
-        description: "Under Custom headers, add this header.",
+        description: "Under Custom headers, add a header with this name.",
         language: "text",
-        code: `langfuse-user-id: ${context.userId}`,
+        code: "langfuse-user-id",
+      },
+      {
+        title: "Set the header value",
+        description: "Enter your email or handle as its value.",
+        language: "text",
+        code: context.userId,
       },
       {
         title: "Allow egress hosts",
