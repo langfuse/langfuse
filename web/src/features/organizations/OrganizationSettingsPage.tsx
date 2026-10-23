@@ -27,10 +27,9 @@ import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEn
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 import {
   GatewayApiKeysPage,
-  GatewayConfigurationPage,
   GatewayModelsPage,
   GatewayNotDeployedNotice,
-  GatewayProvidersPage,
+  GatewaySetupPage,
 } from "@/src/features/ai-gateway";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -38,7 +37,7 @@ import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 
 const GATEWAY_SETUP_REQUIRED_REASON =
-  "Set up an ingestion project in Configuration first.";
+  "Set up an ingestion project in Setup first.";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -324,34 +323,29 @@ const getOrganizationSettingsPages = ({
     show: showV4Migration,
   },
   {
-    title: "Configuration",
+    title: "Setup",
     slug: "ai-gateway",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
-    content: showAiGatewayNotDeployedNotice ? (
-      <GatewayNotDeployedNotice />
-    ) : (
-      <GatewayConfigurationPage
-        organizationId={organization.id}
-        projects={organization.projects}
-      />
-    ),
-    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
-  },
-  {
-    title: "Provider credentials",
-    slug: "ai-gateway-providers",
     section: "AI Gateway",
     cmdKKeywords: [
       "gateway",
+      "llm",
+      "setup",
+      "configuration",
+      "ingestion",
       "providers",
       "credentials",
       "openai",
       "anthropic",
     ],
-    content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showAiGatewayManagement,
-    disabledReason: gatewaySetupDisabledReason,
+    content: showAiGatewayNotDeployedNotice ? (
+      <GatewayNotDeployedNotice />
+    ) : (
+      <GatewaySetupPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
   },
   {
     title: "Models",

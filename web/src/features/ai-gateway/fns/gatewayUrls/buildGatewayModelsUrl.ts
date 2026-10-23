@@ -4,5 +4,5 @@ export function buildGatewayModelsUrl(
 ) {
   const params = new URLSearchParams({ connectionId });
 
-  return `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers?${params.toString()}`;
+  return `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway?${params.toString()}`;
 }

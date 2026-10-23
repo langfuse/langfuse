@@ -8,7 +8,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/features/traces";
+import { ChatMessageList, getMessageTitle } from "@/src/features/traces";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -727,6 +727,7 @@ export const PromptDetail = ({
                         currentView="pretty"
                         messageToToolCallNumbers={new Map()}
                         collapseLongHistory={false}
+                        getMessageTitle={getMessageTitle}
                       />
                     </div>
                   ) : typeof prompt.prompt === "string" ? (
