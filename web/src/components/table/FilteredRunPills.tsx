@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { api } from "@/src/utils/api";
 import { ListFilter } from "@langfuse/icons";
@@ -103,16 +103,12 @@ export function FilteredRunPills({
           >
             {({ getTriggerProps }) => (
               <Badge
-                variant="secondary"
-                className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
+                color="filled"
+                text={formatFilterForPill(item.filter)}
+                leadingIcon={ListFilter}
                 tabIndex={0}
                 {...getTriggerProps()}
-              >
-                <ListFilter size="sm" __rawClassName="mr-1" />
-                <div className="font-normal">
-                  {formatFilterForPill(item.filter)}
-                </div>
-              </Badge>
+              />
             )}
           </HoverCard>
         );

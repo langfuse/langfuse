@@ -5,7 +5,7 @@ import { ChevronDown, RefreshCw } from "@langfuse/icons";
 
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { ControlsContext } from "@/src/components/table/data-table-controls";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 
@@ -56,9 +56,7 @@ const fakeHeaderControls = (
 const fakePresets = (
   <div className="flex flex-wrap gap-2">
     {["Quality", "Slow", "Cost"].map((chip) => (
-      <Badge key={chip} variant="outline" className="cursor-pointer">
-        {chip}
-      </Badge>
+      <Badge key={chip} color="primary" text={chip} />
     ))}
   </div>
 );

@@ -16,6 +16,8 @@ const {
   mockLoggerError,
   mockRecordIncrement,
   mockTraceException,
+  mockCompareWithBillingLedger,
+  mockEnv,
 } = vi.hoisted(() => ({
   mockCronJobsUpsert: vi.fn(),
   mockCronJobsUpdate: vi.fn(),
@@ -31,6 +33,12 @@ const {
   mockLoggerError: vi.fn(),
   mockRecordIncrement: vi.fn(),
   mockTraceException: vi.fn(),
+  mockCompareWithBillingLedger: vi.fn(),
+  mockEnv: {
+    STRIPE_SECRET_KEY: "sk_test",
+    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: undefined,
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: "false",
+  },
 }));
 
 vi.mock("@langfuse/shared", () => ({
@@ -58,6 +66,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   CloudSpendAlertQueue: {
     getInstance: () => ({ add: mockSpendAlertQueueAdd }),
   },
+  compareWithBillingLedger: mockCompareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval: mockObservationCounts,
   getTraceCountsByProjectInCreationInterval: mockTraceCounts,
   getScoreCountsByProjectInCreationInterval: mockScoreCounts,
@@ -80,12 +89,7 @@ vi.mock("stripe", () => ({
   },
 }));
 
-vi.mock("../../../env", () => ({
-  env: {
-    STRIPE_SECRET_KEY: "sk_test",
-    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: undefined,
-  },
-}));
+vi.mock("../../../env", () => ({ env: mockEnv }));
 
 import { handleCloudUsageMeteringJob } from "../handleCloudUsageMeteringJob";
 import { CloudUsageMeteringDbCronJobStates } from "../constants";
@@ -132,6 +136,7 @@ describe("handleCloudUsageMeteringJob", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(NOW);
+    mockEnv.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED = "false";
 
     mockCronJobsUpsert.mockResolvedValue({
       name: "cloud_usage_metering",
@@ -140,6 +145,7 @@ describe("handleCloudUsageMeteringJob", () => {
       jobStartedAt: null,
     });
     mockCronJobsUpdate.mockResolvedValue({});
+    mockMeterEventsCreate.mockResolvedValue({});
     mockOrganizationFindMany.mockResolvedValue([
       {
         id: "org-1",
@@ -304,5 +310,39 @@ describe("handleCloudUsageMeteringJob", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it("compares the interval with the billing ledger after sending it to Stripe", async () => {
+    mockEnv.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED = "true";
+
+    await handleCloudUsageMeteringJob(createJob());
+
+    expect(mockCompareWithBillingLedger).toHaveBeenCalledTimes(1);
+    expect(mockCompareWithBillingLedger).toHaveBeenCalledWith({
+      source: "stripe_metering",
+      from: INTERVAL_START,
+      to: new Date(INTERVAL_START.getTime() + 3600000),
+      legacy: {
+        traces: [{ projectId: "project-1", count: 3 }],
+        observations: [{ projectId: "project-1", count: 5 }],
+        scores: [{ projectId: "project-1", count: 2 }],
+      },
+      orgIdByProjectId: new Map([["project-1", "org-1"]]),
+    });
+    // The comparison must not hold up metering: it starts only once Stripe
+    // has the interval and the lease is released.
+    const comparedAt = mockCompareWithBillingLedger.mock.invocationCallOrder[0];
+    expect(comparedAt).toBeGreaterThan(
+      Math.max(...mockMeterEventsCreate.mock.invocationCallOrder),
+    );
+    expect(comparedAt).toBeGreaterThan(
+      mockCronJobsUpdate.mock.invocationCallOrder.at(-1) ?? Infinity,
+    );
+  });
+
+  it("does not read the billing ledger unless enabled", async () => {
+    await handleCloudUsageMeteringJob(createJob());
+
+    expect(mockCompareWithBillingLedger).not.toHaveBeenCalled();
   });
 });
