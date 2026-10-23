@@ -120,6 +120,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_loadSkillResource: [],
   langfuse_createSkillVersion: ["skills"],
   langfuse_updateSkillLabels: ["skills"],
+  langfuse_updateSkillTags: ["skills"],
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],

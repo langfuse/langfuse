@@ -285,6 +285,7 @@ describe("MCP public API tools", () => {
         "updatePromptLabels",
         "updateScoreConfig",
         "updateSkillLabels",
+        "updateSkillTags",
         "upsertDataset",
         "upsertDatasetItem",
       ].sort(),

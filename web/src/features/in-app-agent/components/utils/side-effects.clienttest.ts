@@ -10,13 +10,14 @@ function createUtils() {
 }
 
 describe("skill tool side effects", () => {
-  it("invalidates skills for both approved skill write tools", async () => {
+  it("invalidates skills for approved skill write tools", async () => {
     const { utils, invalidate } = createUtils();
     const handledToolCallIds = new Set<string>();
 
     for (const toolName of [
       "langfuse_createSkillVersion",
       "langfuse_updateSkillLabels",
+      "langfuse_updateSkillTags",
     ]) {
       await performToolSideEffectsForCompletedToolCalls({
         toolCalls: [{ toolCallId: toolName, toolName }],
@@ -25,7 +26,7 @@ describe("skill tool side effects", () => {
       });
     }
 
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(3);
   });
 
   it("does not invalidate skills for a rejected call", async () => {

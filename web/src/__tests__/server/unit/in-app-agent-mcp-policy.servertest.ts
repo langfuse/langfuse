@@ -31,7 +31,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     }
   });
 
-  it.each(["createSkillVersion", "updateSkillLabels"])(
+  it.each(["createSkillVersion", "updateSkillLabels", "updateSkillTags"])(
     "requires approval for %s and excludes viewers even with a stored grant",
     (toolName) => {
       const memberPolicy = createInAppAgentToolPolicy({

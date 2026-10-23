@@ -78,6 +78,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getSkill: "Inspecting skill",
   createSkillVersion: "Creating skill version",
   updateSkillLabels: "Updating skill labels",
+  updateSkillTags: "Updating skill tags",
   listDashboardWidgets: "Browsing widgets",
   listLlmConnections: "Browsing LLM connections",
   listSkills: "Browsing skills",

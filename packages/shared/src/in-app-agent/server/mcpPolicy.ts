@@ -333,6 +333,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "skills:CUD" },
   },
+  updateSkillTags: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
   listScores: {
     approval: "auto",
     availability: { scope: "project:read" },

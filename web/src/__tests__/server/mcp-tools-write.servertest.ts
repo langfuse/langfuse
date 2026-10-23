@@ -47,6 +47,7 @@ import { z } from "zod";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SkillVersionSchema } from "@langfuse/shared";
 import { handleUpdateSkillLabels } from "@/src/features/mcp/server/skills/tools/updateSkillLabels";
+import { handleUpdateSkillTags } from "@/src/features/mcp/server/skills/tools/updateSkillTags";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
 import { handleCreateSkillVersion } from "@/src/features/mcp/server/skills/tools/createSkillVersion";
 import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
@@ -194,7 +195,7 @@ const createLlmEvaluationRuleForMcpWriteTest = async (
 };
 
 describe("MCP Write Tools", () => {
-  describe("skill labels", () => {
+  describe("skill metadata", () => {
     const createVersion = async (
       setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
       name: string,
@@ -205,13 +206,74 @@ describe("MCP Write Tools", () => {
             files: [
               {
                 path: "SKILL.md",
-                content: `---\nname: ${name}\ndescription: Label test\n---\nInstructions.`,
+                content: `---\nname: ${name}\ndescription: Metadata test\n---\nInstructions.`,
               },
             ],
           },
           setup.context,
         ),
       );
+
+    it("replaces tags across versions with audit logging and project isolation", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `tags-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 1, labels: ["production"] },
+        setup.context,
+      );
+      const second = await createVersion(setup, name);
+
+      await expect(
+        handleUpdateSkillTags(
+          { name, tags: [" support ", "support"] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: second.id,
+        version: 2,
+        tags: ["support"],
+        labels: ["latest"],
+      });
+      await expect(
+        handleGetSkill({ name, version: 1 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"], labels: ["production"] });
+      expect(
+        await prisma.auditLog.findFirst({
+          where: {
+            projectId: setup.projectId,
+            apiKeyId: setup.apiKeyId,
+            resourceType: "skill",
+            resourceId: name,
+            action: "setTag",
+            after: JSON.stringify(["support"]),
+          },
+        }),
+      ).not.toBeNull();
+
+      const otherProject = await createMcpTestSetup();
+      await expect(
+        handleUpdateSkillTags({ name, tags: ["other"] }, otherProject.context),
+      ).rejects.toThrow("Skill not found");
+      await expect(
+        handleUpdateSkillTags({ name, tags: [" "] }, setup.context),
+      ).rejects.toThrow();
+      await expect(
+        handleGetSkill({ name, version: 2 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"] });
+
+      await handleUpdateSkillTags({ name, tags: [] }, setup.context);
+      for (const version of [1, 2]) {
+        await expect(
+          handleGetSkill({ name, version }, setup.context),
+        ).resolves.toMatchObject({ tags: [] });
+      }
+      expect(
+        await prisma.skill.count({
+          where: { projectId: setup.projectId, name },
+        }),
+      ).toBe(2);
+    });
 
     it("moves production, replaces user labels, preserves latest, and audits changes", async () => {
       const setup = await createMcpTestSetup();
