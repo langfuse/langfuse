@@ -11,15 +11,15 @@ const membershipTestWriters = [
   "scripts/seeder/**",
 ];
 const allowedPrismaWriters = {
-  apiKey: restrictPrismaCreates("packages/shared/src/server/auth/apiKeys.ts"),
-  roleAssignment: restrictPrismaCreates(
+  apiKey: allowPrismaCreate("packages/shared/src/server/auth/apiKeys.ts"),
+  roleAssignment: allowPrismaCreate(
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
   ),
-  organizationMembership: restrictPrismaWrites(
+  organizationMembership: allowPrismaWrites(
     "web/src/features/memberships/orgMembershipRepository.ts",
     ...membershipTestWriters,
   ),
-  projectMembership: restrictPrismaWrites(
+  projectMembership: allowPrismaWrites(
     "web/src/features/memberships/projectMembershipRepository.ts",
     ...membershipTestWriters,
   ),
@@ -114,12 +114,12 @@ export default [
   },
 ];
 
-/** restrictPrismaCreates restricts a Prisma model's creates to the given files */
-function restrictPrismaCreates(...files) {
+/** allowPrismaCreate allows only the given files to create a Prisma model's rows */
+function allowPrismaCreate(...files) {
   return { files, create: true };
 }
 
-/** restrictPrismaWrites restricts every Prisma write on a model to the given files */
-function restrictPrismaWrites(...files) {
+/** allowPrismaWrites allows only the given files to write a Prisma model's rows */
+function allowPrismaWrites(...files) {
   return { files, create: true, update: true, delete: true };
 }
