@@ -1,4 +1,4 @@
-import Header, { SubHeader } from "@/src/components/layouts/header";
+import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AccessLoggingSwitch } from "@/src/ee/features/access-audit-log";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
@@ -38,20 +38,22 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   })();
 
   return (
-    <>
-      <Header title="Organization Audit Logs" />
-      <p className="text-muted-foreground mb-2 text-sm">
-        Track who changed what in your organization and when. Monitor
-        organization settings, project creation/deletion, and membership changes
-        over time.
-      </p>
+    <div className="flex flex-col gap-6">
       {showAccessLogging && (
-        <div className="mb-4">
-          <SubHeader title="Access logging" labelBadge="Internal" />
+        <div>
+          <Header title="Access Logging" internal />
           <AccessLoggingSwitch orgId={props.orgId} />
         </div>
       )}
-      {body}
-    </>
+      <div>
+        <Header title="Organization Audit Logs" />
+        <p className="text-muted-foreground mb-2 text-sm">
+          Track who changed what in your organization and when. Monitor
+          organization settings, project creation/deletion, and membership
+          changes over time.
+        </p>
+        {body}
+      </div>
+    </div>
   );
 }
