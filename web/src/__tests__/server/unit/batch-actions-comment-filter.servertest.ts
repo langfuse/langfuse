@@ -617,6 +617,28 @@ describe("batched evaluation version selection", () => {
 
     expect(context.batchActionCreate).not.toHaveBeenCalled();
   });
+
+  it("validates inherited mappings when no override is sent", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      missingPromptVariable: true,
+    });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining('Evaluator "Quality"'),
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
 });
 
 describe("batch action history", () => {

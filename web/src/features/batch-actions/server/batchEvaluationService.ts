@@ -100,12 +100,23 @@ export class BatchEvaluationService {
     const query = withDataAccessFloor(input.query, actor.plan);
     const evaluatorIds = await this.findEvaluatorIds(input, sourceTable);
 
+    // Every v2 evaluator is validated, including those that inherit their
+    // version mapping, so a run never executes with unmapped prompt variables.
+    const overrides = new Map(
+      (rawEvaluatorMappings ?? []).map((m) => [m.evaluatorId, m]),
+    );
     const evaluatorMappings =
-      input.evalVersion === "v2" && rawEvaluatorMappings
+      input.evalVersion === "v2"
         ? await prepareBatchEvalEvaluatorMappings({
             prisma: this.prisma,
             projectId,
-            mappings: rawEvaluatorMappings,
+            mappings: evaluatorIds.map(
+              (evaluatorId) =>
+                overrides.get(evaluatorId) ?? {
+                  evaluatorId,
+                  variableMapping: null,
+                },
+            ),
           })
         : undefined;
 
