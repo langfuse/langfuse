@@ -246,50 +246,6 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-ARG MICRO_BASE_IMAGE
-
-# BEGIN generated image labels from scripts/docker/image-labels.json;
-# edit that file and run `pnpm run docker:labels`.
-# Identify the image as Langfuse, not its UBI base. Inherited labels cannot be
-# removed, so the Red Hat and Iron Bank ones that would describe this image as
-# theirs are set empty; com.redhat.license_terms stays as the EULA pointer.
-# Release builds override the title, description, licenses, version, revision
-# and created labels.
-LABEL name="langfuse/langfuse" \
-    summary="Langfuse web" \
-    description="Langfuse web application: UI, public API and tRPC backend." \
-    io.k8s.display-name="Langfuse Web" \
-    io.k8s.description="Langfuse web application: UI, public API and tRPC backend." \
-    org.opencontainers.image.description="Langfuse web application: UI, public API and tRPC backend." \
-    org.opencontainers.image.title="langfuse" \
-    org.opencontainers.image.licenses="MIT AND LicenseRef-Langfuse-EE" \
-    vendor="ClickHouse, Inc." \
-    maintainer="ClickHouse, Inc." \
-    url="https://langfuse.com" \
-    org.opencontainers.image.vendor="ClickHouse, Inc." \
-    org.opencontainers.image.url="https://langfuse.com" \
-    org.opencontainers.image.source="https://github.com/langfuse/langfuse" \
-    org.opencontainers.image.base.name="${MICRO_BASE_IMAGE}" \
-    org.opencontainers.image.version="" \
-    org.opencontainers.image.created="" \
-    org.opencontainers.image.revision="" \
-    version="" \
-    release="" \
-    build-date="" \
-    vcs-ref="" \
-    vcs-type="" \
-    cpe="" \
-    com.redhat.component="" \
-    distribution-scope="" \
-    io.buildah.version="" \
-    io.openshift.expose-services="" \
-    mil.dso.ironbank.image.keywords="" \
-    mil.dso.ironbank.image.parent="" \
-    mil.dso.ironbank.image.type="" \
-    mil.dso.ironbank.os-type="" \
-    mil.dso.ironbank.product.name="" \
-    mil.dso.ironbank.project.id=""
-# END generated image labels
 
 WORKDIR /app
 
