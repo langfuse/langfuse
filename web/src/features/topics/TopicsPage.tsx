@@ -45,6 +45,7 @@ import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { resolveTopicFacetId } from "./topic-facet-selection";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
@@ -105,8 +106,8 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   failed: "Facet failed",
 };
 const loadingPage = (
-  <Page headerProps={{ title: "Topics" }} withPadding>
-    <p>Loading topics…</p>
+  <Page headerProps={{ title: "Topics" }}>
+    <Spinner message="Loading topics" />
   </Page>
 );
 
@@ -487,6 +488,8 @@ function TopicsWorkspaceContent({
           !results.error &&
           !hasStoredSummaries;
         const showOnboarding = showSetupProgress || showLanding;
+        const landingOnly =
+          showLanding && !showSetupProgress && !setupBlockedReason;
         return (
           <Page
             headerProps={{
@@ -521,6 +524,7 @@ function TopicsWorkspaceContent({
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
+                  menuOnly={landingOnly}
                 />
               ),
               actionButtonsMenu: ({ closeMenu }) => {
@@ -531,7 +535,7 @@ function TopicsWorkspaceContent({
                 return (
                   <TopicsActionsMenu
                     triggerAction={
-                      pipeline.available
+                      pipeline.available && !landingOnly
                         ? {
                             label: "Manual processing",
                             disabled: false,
