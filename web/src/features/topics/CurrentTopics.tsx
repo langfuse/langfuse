@@ -93,6 +93,7 @@ function CurrentFacet({
         canGenerateTopics={canGenerateTopics}
         peekView={peekView}
         sideBySide={view === "treemap-side"}
+        tracePanelRef={tracePanelRef}
       />
     );
   if (view === "map")
