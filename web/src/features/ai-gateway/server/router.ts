@@ -116,9 +116,6 @@ function requireGatewayRead(params: { session: Session; orgId: string }) {
   });
 }
 
-const getShownGatewayBaseUrl = () =>
-  getGatewayBaseUrl(getProductBaseUrl(), env.LANGFUSE_AI_GATEWAY_PUBLIC_URL);
-
 export const aiGatewayRouter = createTRPCRouter({
   getConfig: protectedOrganizationProcedure
     .input(organizationInput)
@@ -149,7 +146,10 @@ export const aiGatewayRouter = createTRPCRouter({
         GatewayConnectionStatus.ENABLED,
       );
       return {
-        gatewayBaseUrl: getShownGatewayBaseUrl(),
+        gatewayBaseUrl: getGatewayBaseUrl(
+          getProductBaseUrl(),
+          env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
+        ),
         providers: [
           ...new Set(connections.map((connection) => connection.provider)),
         ],
