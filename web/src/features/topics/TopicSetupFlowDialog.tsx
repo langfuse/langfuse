@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Clock,
   ArrowUpRight,
+  Copy,
+  Lock,
   Plug,
   RefreshCw,
 } from "@langfuse/icons";
@@ -14,6 +16,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
@@ -142,6 +145,8 @@ export function TopicSetupFlowDialog({
   // The server picks its own traces, so a failed estimate must not block Start.
   const canStart = canWrite && !busy && pastCount.status !== "loading";
   const connectionActionRef = useRef<HTMLButtonElement>(null);
+  // Without a connection, people who cannot add one only get a link to share and Close.
+  const viewerBlocked = !hasConnection && !canAddConnection;
   // Without a connection Next stays clickable and points at the banner instead.
   const needsConnection = step === "questions" && !hasConnection;
   const nextDisabled = needsConnection
@@ -157,7 +162,10 @@ export function TopicSetupFlowDialog({
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
 
   return (
-    <Dialog title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}>
+    <Dialog
+      title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}
+      {...(viewerBlocked ? { closeLabel: "Close" } : {})}
+    >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
@@ -197,34 +205,27 @@ export function TopicSetupFlowDialog({
                     </span>
                   )}
                 </div>
-                {!hasConnection && (
+                {viewerBlocked && (
+                  <AskAdminForConnection projectId={projectId} />
+                )}
+                {!hasConnection && canAddConnection && (
                   <div className="bg-light-yellow text-foreground flex items-center gap-3 rounded-lg px-3.5 py-3 text-sm">
                     <Plug size="base" aria-hidden="true" />
                     <span className="flex-1">
-                      {canAddConnection
-                        ? "No AI connection in this project yet."
-                        : "An admin needs to add an AI connection."}
+                      No AI connection in this project yet.
                     </span>
                     <button
                       ref={connectionActionRef}
                       type="button"
-                      onClick={
-                        canAddConnection
-                          ? onConfigureProviders
-                          : () => copySettingsLink(projectId)
-                      }
+                      onClick={onConfigureProviders}
                       className="focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-sm font-bold whitespace-nowrap focus-visible:ring-2 focus-visible:outline-hidden"
                     >
-                      {canAddConnection
-                        ? "Add connection"
-                        : "Copy settings link"}
-                      {canAddConnection && (
-                        <ArrowUpRight size="sm" aria-hidden="true" />
-                      )}
+                      Add connection
+                      <ArrowUpRight size="sm" aria-hidden="true" />
                     </button>
                   </div>
                 )}
-                {!hasConnection ? (
+                {!viewerBlocked && !hasConnection && (
                   <div
                     aria-hidden="true"
                     className="pointer-events-none divide-y rounded-lg border text-sm opacity-45"
@@ -241,7 +242,8 @@ export function TopicSetupFlowDialog({
                       </div>
                     ))}
                   </div>
-                ) : (
+                )}
+                {hasConnection && (
                   <div className="divide-y rounded-md border">
                     {MODEL_ROWS.map((row) => {
                       const model = models[row.slot];
@@ -433,31 +435,33 @@ export function TopicSetupFlowDialog({
             <p className="text-destructive text-sm">{error}</p>
           ) : null}
         </div>
-        <div className="flex items-center justify-between border-t px-4 py-3">
-          {step === "questions" ? (
-            <span />
-          ) : (
-            <Button
-              text="Back"
-              variant="ghost"
-              disabled={busy}
-              onClick={onBack}
-            />
-          )}
-          <div className="flex items-center gap-3">
-            <Button
-              text={step === "review" ? "Start analyzing" : "Next"}
-              variant="primary"
-              loading={busy}
-              disabled={nextDisabled}
-              onClick={
-                needsConnection
-                  ? () => connectionActionRef.current?.focus()
-                  : onNext
-              }
-            />
+        {!viewerBlocked && (
+          <div className="flex items-center justify-between border-t px-4 py-3">
+            {step === "questions" ? (
+              <span />
+            ) : (
+              <Button
+                text="Back"
+                variant="ghost"
+                disabled={busy}
+                onClick={onBack}
+              />
+            )}
+            <div className="flex items-center gap-3">
+              <Button
+                text={step === "review" ? "Start analyzing" : "Next"}
+                variant="primary"
+                loading={busy}
+                disabled={nextDisabled}
+                onClick={
+                  needsConnection
+                    ? () => connectionActionRef.current?.focus()
+                    : onNext
+                }
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Dialog>
   );
@@ -604,9 +608,33 @@ function ReviewRow({
   );
 }
 
-function copySettingsLink(projectId: string | undefined) {
-  if (!projectId) return;
-  copyTextToClipboard(
-    `${window.location.origin}/project/${projectId}/settings/llm-connections`,
+function AskAdminForConnection({ projectId }: { projectId?: string }) {
+  const url = connectionSettingsUrl(projectId);
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex items-center gap-2.5 text-sm font-bold">
+        <Lock size="base" aria-hidden="true" />
+        An admin needs to add an AI connection
+      </div>
+      <p className="text-muted-foreground text-sm">
+        You don&apos;t have permission to add one. Share this with an admin:
+      </p>
+      <div className="bg-muted flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs" title={url}>
+          {url}
+        </span>
+        <IconButton
+          icon={Copy}
+          label="Copy link"
+          size="sm"
+          onClick={() => copyTextToClipboard(url)}
+        />
+      </div>
+    </div>
   );
+}
+
+function connectionSettingsUrl(projectId: string | undefined) {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}/project/${projectId ?? ""}/settings/llm-connections`;
 }

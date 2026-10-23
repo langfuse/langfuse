@@ -49,6 +49,7 @@ function SetupStory({
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
       }}
+      projectId="demo-project"
       connectionCaption="Amazon Bedrock"
       hasConnection={connection === "ready"}
       canAddConnection={connection !== "viewer"}
