@@ -9,7 +9,10 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import {
   createProjectMembership,
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
   ProjectNotInOrgError,
+  saveOrgMembership,
   saveProjectMembership,
 } from "@/src/features/memberships/membershipService";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
@@ -229,9 +232,89 @@ describe("membership role assignments", () => {
   });
 
   describe("membershipService", () => {
+    it("findOrCreateOrgMembership creates a missing membership", async () => {
+      const user = await createUser();
+
+      const membership = await findOrCreateOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+
+      expect(membership.role).toBe(Role.VIEWER);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
+    });
+
+    it("findOrCreateOrgMembership keeps an existing role", async () => {
+      const user = await createUser();
+      await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.ADMIN,
+      });
+
+      const membership = await findOrCreateOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+
+      expect(membership.role).toBe(Role.ADMIN);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("findOrCreateProjectMembership creates a missing membership", async () => {
+      const user = await createUser();
+      const orgMembership = await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+
+      const membership = await findOrCreateProjectMembership(prisma, {
+        orgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId: user.id,
+        role: Role.MEMBER,
+      });
+
+      expect(membership.role).toBe(Role.MEMBER);
+      expect(await rolesOf(user.id)).toEqual(
+        sorted([org(orgId, "VIEWER"), proj(orgId, projectId, "MEMBER")]),
+      );
+    });
+
+    it("findOrCreateProjectMembership keeps an existing role", async () => {
+      const user = await createUser();
+      const orgMembership = await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+      const input = {
+        orgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId: user.id,
+      };
+      await saveProjectMembership(prisma, { ...input, role: Role.ADMIN });
+
+      const membership = await findOrCreateProjectMembership(prisma, {
+        ...input,
+        role: Role.MEMBER,
+      });
+
+      expect(membership.role).toBe(Role.ADMIN);
+      expect(await rolesOf(user.id)).toEqual(
+        sorted([org(orgId, "VIEWER"), proj(orgId, projectId, "ADMIN")]),
+      );
+    });
+
     it.each([
       ["saveProjectMembership", saveProjectMembership],
       ["createProjectMembership", createProjectMembership],
+      ["findOrCreateProjectMembership", findOrCreateProjectMembership],
     ])(
       "%s rejects a project outside the organization",
       async (_, writeProjectMembership) => {

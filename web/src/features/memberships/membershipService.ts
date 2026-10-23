@@ -48,6 +48,22 @@ export async function createOrgMembership(
   });
 }
 
+/** findOrCreateOrgMembership creates a missing organization membership, keeping an existing one's role, and mirrors it into role assignments. */
+export async function findOrCreateOrgMembership(
+  prisma: Prisma.TransactionClient,
+  { orgId, userId, role }: { orgId: string; userId: string; role: Role },
+): Promise<OrganizationMembership> {
+  return await withTransaction(prisma, async (tx) => {
+    const membership = await tx.organizationMembership.upsert({
+      where: { orgId_userId: { orgId, userId } },
+      update: {},
+      create: { orgId, userId, role },
+    });
+    await replaceOrgRole(tx, membership);
+    return membership;
+  });
+}
+
 /** saveProjectMembership upserts a user's project membership with a role and mirrors it into role assignments. */
 export async function saveProjectMembership(
   prisma: Prisma.TransactionClient,
@@ -75,6 +91,25 @@ export async function createProjectMembership(
   return await withTransaction(prisma, async (tx) => {
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
     const membership = await tx.projectMembership.create({ data });
+    await replaceProjectRole(tx, { ...membership, orgId });
+    return membership;
+  });
+}
+
+/** findOrCreateProjectMembership creates a missing project membership, keeping an existing one's role, and mirrors it into role assignments. */
+export async function findOrCreateProjectMembership(
+  prisma: Prisma.TransactionClient,
+  { orgId, ...data }: ProjectMembershipInput,
+): Promise<ProjectMembership> {
+  return await withTransaction(prisma, async (tx) => {
+    await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
+    const membership = await tx.projectMembership.upsert({
+      where: {
+        projectId_userId: { projectId: data.projectId, userId: data.userId },
+      },
+      update: {},
+      create: data,
+    });
     await replaceProjectRole(tx, { ...membership, orgId });
     return membership;
   });
