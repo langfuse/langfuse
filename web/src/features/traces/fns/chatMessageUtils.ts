@@ -153,3 +153,115 @@ export function hasRedactedThinkingContent(message: ChatMlMessage): boolean {
     message.redacted_thinking.length > 0
   );
 }
+
+/**
+ * Check if a raw value looks like a chat message or collection of chat messages.
+ */
+export function isExplicitChatMessage(value: unknown): boolean {
+  if (value == null) return false;
+
+  if (Array.isArray(value)) {
+    return (
+      value.length > 0 &&
+      value.some(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          ("role" in item || "tool_calls" in item || "toolCalls" in item),
+      )
+    );
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.messages)) {
+      return isExplicitChatMessage(record.messages);
+    }
+    if ("role" in record && typeof record.role === "string") {
+      return ["system", "user", "assistant", "tool"].includes(
+        record.role.toLowerCase(),
+      );
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Determine if the input side of an observation represents a chat conversation/messages.
+ */
+export function isInputChat({
+  input,
+  messages,
+  inputMessageCount,
+}: {
+  input?: unknown;
+  messages?: ChatMlMessage[];
+  inputMessageCount?: number;
+}): boolean {
+  if ((inputMessageCount ?? 0) > 1) {
+    return true;
+  }
+
+  if (messages && messages.length > 0) {
+    const inputMessages = messages.slice(0, inputMessageCount ?? 0);
+    if (
+      inputMessages.some(
+        (m) =>
+          m.role === "assistant" ||
+          m.role === "system" ||
+          m.role === "tool" ||
+          (m.tool_calls && m.tool_calls.length > 0),
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return isExplicitChatMessage(input);
+}
+
+/**
+ * Determine if the output side of an observation represents chat messages.
+ */
+export function isOutputChat({
+  output,
+  messages,
+  inputMessageCount,
+}: {
+  output?: unknown;
+  messages?: ChatMlMessage[];
+  inputMessageCount?: number;
+}): boolean {
+  const outputMessages = (messages ?? []).slice(inputMessageCount ?? 0);
+  if (outputMessages.length > 1) {
+    return true;
+  }
+
+  if (outputMessages.some((m) => m.tool_calls && m.tool_calls.length > 0)) {
+    return true;
+  }
+
+  return isExplicitChatMessage(output);
+}
+
+/**
+ * Determine if an observation's I/O represents a chat conversation
+ * (as opposed to non-chat JSON or plain string I/O).
+ */
+export function isChatConversation({
+  input,
+  output,
+  messages,
+  inputMessageCount,
+}: {
+  input?: unknown;
+  output?: unknown;
+  messages?: ChatMlMessage[];
+  inputMessageCount?: number;
+}): boolean {
+  return (
+    isInputChat({ input, messages, inputMessageCount }) ||
+    isOutputChat({ output, messages, inputMessageCount })
+  );
+}

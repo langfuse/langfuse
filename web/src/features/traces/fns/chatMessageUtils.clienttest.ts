@@ -12,6 +12,10 @@ import {
   shouldRenderMessage,
   shouldRenderMessageForContentMode,
   parseToolCallsFromMessage,
+  isExplicitChatMessage,
+  isInputChat,
+  isOutputChat,
+  isChatConversation,
 } from "./chatMessageUtils";
 
 // Helper to create test messages - only includes fields that are explicitly passed
@@ -368,6 +372,263 @@ describe("chat-message-utils", () => {
       expect(shouldRenderMessageForContentMode(systemMessage, "all")).toBe(
         true,
       );
+    });
+  });
+
+  describe("isExplicitChatMessage", () => {
+    it("returns true for array of message objects with role", () => {
+      expect(
+        isExplicitChatMessage([
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "hi" },
+        ]),
+      ).toBe(true);
+    });
+
+    it("returns true for array of objects with tool calls", () => {
+      expect(
+        isExplicitChatMessage([
+          { tool_calls: [{ name: "search", id: "1" }] },
+        ]),
+      ).toBe(true);
+    });
+
+    it("returns true for record containing messages array", () => {
+      expect(
+        isExplicitChatMessage({
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true for single message object with valid role", () => {
+      expect(isExplicitChatMessage({ role: "user", content: "hello" })).toBe(
+        true,
+      );
+      expect(isExplicitChatMessage({ role: "assistant", content: "hi" })).toBe(
+        true,
+      );
+      expect(isExplicitChatMessage({ role: "system", content: "prompt" })).toBe(
+        true,
+      );
+      expect(isExplicitChatMessage({ role: "tool", content: "res" })).toBe(
+        true,
+      );
+    });
+
+    it("returns false for non-chat JSON values", () => {
+      expect(isExplicitChatMessage(null)).toBe(false);
+      expect(isExplicitChatMessage(undefined)).toBe(false);
+      expect(isExplicitChatMessage([])).toBe(false);
+      expect(isExplicitChatMessage("plain string")).toBe(false);
+      expect(isExplicitChatMessage({ city: "London", temp: 20 })).toBe(false);
+      expect(isExplicitChatMessage({ query: "find docs" })).toBe(false);
+    });
+  });
+
+  describe("isInputChat", () => {
+    it("returns true when inputMessageCount > 1 (multi-turn conversation)", () => {
+      expect(
+        isInputChat({
+          messages: [
+            createMessage({ role: "user", content: "one" }),
+            createMessage({ role: "assistant", content: "two" }),
+          ],
+          inputMessageCount: 2,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true when input contains assistant or system message", () => {
+      expect(
+        isInputChat({
+          messages: [
+            createMessage({ role: "assistant", content: "how can I help?" }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(true);
+      expect(
+        isInputChat({
+          messages: [
+            createMessage({ role: "system", content: "You are an assistant." }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true when raw input is array of chat messages (issue #19198)", () => {
+      expect(
+        isInputChat({
+          input: [
+            { role: "user", content: "hello" },
+            { role: "assistant", content: "hi" },
+          ],
+          messages: [
+            createMessage({ role: "user", content: "hello" }),
+            createMessage({ role: "assistant", content: "hi" }),
+          ],
+          inputMessageCount: 2,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns false for non-chat tool / span input", () => {
+      expect(
+        isInputChat({
+          input: { city: "London" },
+          messages: [
+            createMessage({ role: "user", json: { city: "London" } }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
+      expect(
+        isInputChat({
+          input: "raw query",
+          messages: [
+            createMessage({ role: "user", content: "raw query" }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("isOutputChat", () => {
+    it("returns true when output message count > 1", () => {
+      expect(
+        isOutputChat({
+          messages: [
+            createMessage({ role: "user", content: "input" }),
+            createMessage({ role: "assistant", content: "one" }),
+            createMessage({ role: "assistant", content: "two" }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true when raw output is array of chat messages", () => {
+      expect(
+        isOutputChat({
+          output: [{ role: "assistant", content: "response" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true when raw output is single chat message object with role", () => {
+      expect(
+        isOutputChat({
+          output: { role: "assistant", content: "response" },
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true when output message has tool calls", () => {
+      expect(
+        isOutputChat({
+          messages: [
+            createMessage({
+              role: "assistant",
+              tool_calls: [{ name: "search", id: "1" }],
+            }),
+          ],
+          inputMessageCount: 0,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns false for plain string output (guardrails span, etc.)", () => {
+      expect(
+        isOutputChat({
+          output: "safe",
+          messages: [
+            createMessage({ role: "user", content: "input" }),
+            createMessage({ role: "assistant", content: "safe" }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
+    });
+
+    it("returns false for non-chat JSON output", () => {
+      expect(
+        isOutputChat({
+          output: { passed: true, score: 0.99 },
+          messages: [
+            createMessage({ role: "user", content: "input" }),
+            createMessage({
+              role: "assistant",
+              json: { passed: true, score: 0.99 },
+            }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("isChatConversation", () => {
+    it("returns true for mixed I/O where input is chat and output is plain string", () => {
+      expect(
+        isChatConversation({
+          input: [
+            { role: "user", content: "hello" },
+            { role: "assistant", content: "hi" },
+          ],
+          output: "safe",
+          messages: [
+            createMessage({ role: "user", content: "hello" }),
+            createMessage({ role: "assistant", content: "hi" }),
+            createMessage({ role: "assistant", content: "safe" }),
+          ],
+          inputMessageCount: 2,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true for mixed I/O where input is plain string and output is chat", () => {
+      expect(
+        isChatConversation({
+          input: "summarize conversation",
+          output: [{ role: "assistant", content: "summary..." }],
+          messages: [
+            createMessage({ role: "user", content: "summarize conversation" }),
+            createMessage({ role: "assistant", content: "summary..." }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns false for non-chat tool / span I/O", () => {
+      expect(
+        isChatConversation({
+          input: { city: "London" },
+          output: { temp: 20 },
+          messages: [
+            createMessage({ role: "user", json: { city: "London" } }),
+            createMessage({ role: "assistant", json: { temp: 20 } }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
+    });
+
+    it("returns false for plain string I/O", () => {
+      expect(
+        isChatConversation({
+          input: "raw input query",
+          output: "raw output result",
+          messages: [
+            createMessage({ role: "user", content: "raw input query" }),
+            createMessage({ role: "assistant", content: "raw output result" }),
+          ],
+          inputMessageCount: 1,
+        }),
+      ).toBe(false);
     });
   });
 });

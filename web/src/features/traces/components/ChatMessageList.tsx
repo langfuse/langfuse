@@ -44,8 +44,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  /** Title messages Input / Output by side instead of by role. */
-  titleBySide?: boolean;
+  /** Title messages Input / Output by side instead of by role. Accepts boolean or per-side flags. */
+  titleBySide?: boolean | { input?: boolean; output?: boolean };
   /** Header actions for the last output-side message (e.g. Correct output). */
   outputActions?: IOSectionAction[];
 }
@@ -143,6 +143,11 @@ export function ChatMessageList({
           {messagesToRender.map(({ message, originalIndex }, filteredIndex) => {
             const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
             const sideTitle = isOutputMessage ? "Output" : "Input";
+            const sideTitled =
+              typeof titleBySide === "object" && titleBySide !== null
+                ? (isOutputMessage ? titleBySide.output : titleBySide.input) ??
+                  false
+                : Boolean(titleBySide);
             const folded = isFolded(filteredIndex);
             // Folded messages do not mount (no parsing) until the row opens.
             if (folded && !othersOpen) return null;
@@ -150,7 +155,17 @@ export function ChatMessageList({
               <ChatMessage
                 key={originalIndex}
                 message={message}
-                title={titleBySide ? sideTitle : getMessageTitle(message)}
+                title={
+                  sideTitled &&
+                  !(
+                    !isOutputMessage &&
+                    (message.role === "assistant" ||
+                      message.role === "system" ||
+                      message.role === "tool")
+                  )
+                    ? sideTitle
+                    : getMessageTitle(message)
+                }
                 shouldRenderMarkdown={shouldRenderMarkdown}
                 currentView={currentView}
                 toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
