@@ -3519,16 +3519,8 @@ paths:
 
         Continue requesting pages until `meta.cursor` is absent.
 
-        With adaptive scanning enabled (the default), requests without a lower
-        start-time bound
-
-        search from the project's creation time. Customers can backfill
-        observations with earlier
-
-        timestamps; to retrieve those observations, provide an explicit
-        `fromStartTime` or a
-
-        lower `startTime` bound in the structured `filter`.
+        Requests without a lower start-time bound may search only from the
+        project's creation time.
 
 
         ## Field Selection
@@ -3715,14 +3707,6 @@ paths:
           description: >-
             Retrieve only observations with a start_time on or after this
             datetime (ISO 8601).
-
-            With adaptive scanning enabled (the default), the project's creation
-            time is used
-
-            when no lower start-time bound is supplied. Set an explicit lower
-            bound to retrieve
-
-            backfilled observations whose timestamps precede project creation.
           required: false
           schema:
             type: string
