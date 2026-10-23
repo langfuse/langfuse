@@ -43,7 +43,7 @@ function TopicDot({ rank }: { rank: number }) {
       aria-hidden
       className="size-2 shrink-0 rounded-xs"
       style={{
-        backgroundColor: `color-mix(in oklch, ${treemapSwatchColor(rank)} 65%, hsl(var(--foreground)))`,
+        backgroundColor: `color-mix(in oklch, ${treemapSwatchColor(rank)} 80%, hsl(var(--foreground)))`,
       }}
     />
   );
