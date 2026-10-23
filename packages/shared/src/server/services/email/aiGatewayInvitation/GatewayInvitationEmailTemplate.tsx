@@ -84,8 +84,9 @@ export const GatewayInvitationEmailTemplate = ({
               {regionSuffix}.
             </Text>
             <Text className="text-sm leading-6 text-black">
-              Create your own gateway key to call the models your team enabled
-              through one endpoint. Usage is recorded in Langfuse.
+              One key for every model your team enabled. Create a gateway key
+              and call any of them through a single endpoint, with no provider
+              keys to collect or manage.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               {/* Note: link always refers to a root langfuse url and is not vulnerable to hyperlink injection attacks */}
