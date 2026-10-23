@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { getSignedUrlState } from "@/src/features/media";
+import { getSignedUrlState, mediaUrlQueryOptions } from "@/src/features/media";
 import { type MediaDescriptor } from "./mediaUtils";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
@@ -24,11 +24,7 @@ export function useResolvedMedia(
     },
     {
       enabled: enabled && Boolean(projectId),
-      meta: { silentHttpCodes: [404] },
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000,
+      ...mediaUrlQueryOptions,
     },
   );
 
