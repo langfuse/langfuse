@@ -9,7 +9,6 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
-  getBillableUnitCountsByProjectInRange,
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -31,7 +30,7 @@ const THREE_DAYS_AGO = Date.now() - 72 * HOUR;
 
 /** Ledger id of an observation: span ids are only unique within a trace. */
 const observationEventId = (traceId: string, spanId: string) =>
-  `${traceId.length}:${traceId}${spanId}`;
+  `${traceId.length}:${traceId}:${spanId}`;
 
 const getBillableRows = (projectId: string) =>
   queryClickhouse<{
@@ -92,6 +91,8 @@ describe("billable_events materialized views", () => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     const traceId = randomUUID();
+    // Sorts right after traceId, which keeps the expected row order fixed.
+    const experimentTraceId = `${traceId}-experiment`;
     const backfilledTraceId = randomUUID();
 
     await createEventsCh([
@@ -112,7 +113,33 @@ describe("billable_events materialized views", () => {
         project_id: projectId,
         trace_id: traceId,
         span_id: `t-${traceId}`,
+        source: "ingestion-api-dual-write",
         event_bytes: 7,
+      }),
+      // The experiment backfill derives trace spans the same way.
+      createEvent({
+        project_id: projectId,
+        trace_id: experimentTraceId,
+        span_id: `t-${experimentTraceId}`,
+        source: "ingestion-api-dual-write-experiments",
+        event_bytes: 5,
+      }),
+      // Event propagation writes real observations with a dual-write source.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "span-dual-write",
+        source: "ingestion-api-dual-write",
+        event_bytes: 30,
+      }),
+      // A client may choose a 't-' span id itself; outside dual-write it is
+      // an observation.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: `t-${traceId}`,
+        source: "otel",
+        event_bytes: 40,
       }),
       // Tombstone: not usage.
       createEvent({
@@ -170,9 +197,20 @@ describe("billable_events materialized views", () => {
         id: observationEventId(traceId, "span-2"),
         bytes: 20,
       },
+      {
+        type: "observation",
+        id: observationEventId(traceId, "span-dual-write"),
+        bytes: 30,
+      },
+      {
+        type: "observation",
+        id: observationEventId(traceId, `t-${traceId}`),
+        bytes: 40,
+      },
       { type: "score", id: "score-correction", bytes: expect.any(Number) },
       { type: "score", id: "score-numeric", bytes: expect.any(Number) },
       { type: "trace", id: traceId, bytes: 7 },
+      { type: "trace", id: experimentTraceId, bytes: 5 },
     ]);
   });
 
@@ -325,49 +363,5 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
-  });
-});
-
-describe("getBillableUnitCountsByProjectInRange", () => {
-  const T0 = new Date("2026-01-12T00:00:00.000Z");
-  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
-
-  it("sums the 15-minute windows instead of counting one long window", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
-    const projectId = randomUUID();
-    await insertBillableEvents(projectId, [
-      { eventType: "trace", eventId: "in-two-windows", at: at(MINUTE) },
-      { eventType: "trace", eventId: "in-two-windows", at: at(20 * MINUTE) },
-      // 23h40m before T0: inside the first window's lookback, but not inside
-      // the lookback of the third window (from 23h30m before T0), where it
-      // appears again and is billed. One hour-long window would not bill it.
-      {
-        eventType: "trace",
-        eventId: "outside-later-lookback",
-        at: at(-24 * HOUR + 20 * MINUTE),
-      },
-      {
-        eventType: "trace",
-        eventId: "outside-later-lookback",
-        at: at(30 * MINUTE),
-      },
-    ]);
-
-    expect(
-      await getBillableUnitCountsByProjectInRange({
-        from: T0,
-        to: at(HOUR),
-        projectId,
-      }),
-    ).toEqual([{ projectId, eventType: "trace", count: 2 }]);
-  });
-
-  it("rejects a range off the 15-minute boundaries", async () => {
-    await expect(
-      getBillableUnitCountsByProjectInRange({
-        from: at(5 * MINUTE),
-        to: at(HOUR),
-      }),
-    ).rejects.toThrow("whole 15-minute windows");
   });
 });

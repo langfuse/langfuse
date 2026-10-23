@@ -12,7 +12,7 @@ vi.mock("../instrumentation", () => ({
 }));
 vi.mock("../repositories/billable-events", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../repositories/billable-events")>()),
-  getBillableUnitCountsByProjectInRange: mocks.ledgerCounts,
+  getBillableUnitCountsByProjectInWindow: mocks.ledgerCounts,
 }));
 
 import { compareWithBillingLedger } from "./billingLedgerShadow";
@@ -34,6 +34,7 @@ describe("compareWithBillingLedger", () => {
     mocks.ledgerCounts.mockResolvedValue([
       { projectId: "p-diverging", eventType: "observation", count: 200 },
       { projectId: "p-busy", eventType: "observation", count: 99_000 },
+      { projectId: "p-steady", eventType: "observation", count: 9_990 },
       { projectId: "p-ledger-only", eventType: "score", count: 150 },
     ]);
 
@@ -45,10 +46,12 @@ describe("compareWithBillingLedger", () => {
         traces: [],
         observations: [
           { projectId: "p-diverging", count: 1_000 },
-          // Below the unit threshold: not diverging, but one-sided.
+          // Below the unit threshold, but 100% of its usage, and one-sided.
           { projectId: "p-small", count: 50 },
-          // 1,000 units apart, but only 1% of its usage.
+          // Only 1% of its usage, but 1,000 units apart.
           { projectId: "p-busy", count: 100_000 },
+          // 10 units and 0.1% apart: not diverging.
+          { projectId: "p-steady", count: 10_000 },
         ],
         scores: [],
       },
@@ -56,14 +59,14 @@ describe("compareWithBillingLedger", () => {
     });
 
     expect(mocks.ledgerCounts).toHaveBeenCalledWith({
-      from: FROM,
-      to: TO,
+      windowFrom: FROM,
+      windowTo: TO,
       projectId: undefined,
     });
     expect(incrementsOf("langfuse.billing.ledger_shadow.units")).toEqual(
       expect.arrayContaining([
         {
-          value: 101_050,
+          value: 111_050,
           tags: {
             source: "stripe_metering",
             side: "legacy",
@@ -71,7 +74,7 @@ describe("compareWithBillingLedger", () => {
           },
         },
         {
-          value: 99_200,
+          value: 109_190,
           tags: {
             source: "stripe_metering",
             side: "ledger",
@@ -90,7 +93,7 @@ describe("compareWithBillingLedger", () => {
     );
     expect(
       incrementsOf("langfuse.billing.ledger_shadow.diverging_projects"),
-    ).toEqual([{ value: 2, tags: { source: "stripe_metering" } }]);
+    ).toEqual([{ value: 4, tags: { source: "stripe_metering" } }]);
     expect(
       incrementsOf("langfuse.billing.ledger_shadow.one_sided_projects"),
     ).toEqual([
@@ -101,17 +104,44 @@ describe("compareWithBillingLedger", () => {
     expect(mocks.logger.info).toHaveBeenCalledTimes(1);
     const [, logged] = mocks.logger.info.mock.calls[0];
     expect(
-      logged.projects.map(
-        ({ projectId, orgId, delta }: Record<string, unknown>) => ({
-          projectId,
-          orgId,
-          delta,
-        }),
-      ),
+      logged.projects.map(({ projectId, orgId }: Record<string, unknown>) => ({
+        projectId,
+        orgId,
+      })),
     ).toEqual([
-      { projectId: "p-diverging", orgId: "org-1", delta: -800 },
-      { projectId: "p-ledger-only", orgId: undefined, delta: 150 },
+      { projectId: "p-busy", orgId: undefined },
+      { projectId: "p-diverging", orgId: "org-1" },
+      { projectId: "p-ledger-only", orgId: undefined },
+      { projectId: "p-small", orgId: undefined },
     ]);
+  });
+
+  it("flags a project whose unit types diverge in opposite directions", async () => {
+    mocks.ledgerCounts.mockResolvedValue([
+      { projectId: "p-offsetting", eventType: "trace", count: 300 },
+      { projectId: "p-offsetting", eventType: "score", count: 200 },
+    ]);
+
+    await compareWithBillingLedger({
+      source: "stripe_metering",
+      from: FROM,
+      to: TO,
+      legacy: {
+        traces: [{ projectId: "p-offsetting", count: 500 }],
+        observations: [],
+        scores: [],
+      },
+    });
+
+    expect(
+      incrementsOf("langfuse.billing.ledger_shadow.diverging_projects"),
+    ).toEqual([{ value: 1, tags: { source: "stripe_metering" } }]);
+    const [, logged] = mocks.logger.info.mock.calls[0];
+    expect(logged.projects[0].delta).toEqual({
+      trace: -200,
+      observation: 0,
+      score: 200,
+    });
   });
 
   it("does not throw when the ledger read fails", async () => {
@@ -135,22 +165,31 @@ describe("compareWithBillingLedger", () => {
     expect(mocks.logger.warn).toHaveBeenCalled();
   });
 
-  it.each([
-    [
-      "off the 15-minute boundaries",
-      "2026-10-16T08:05:00.000Z",
-      "2026-10-16T08:20:00.000Z",
-    ],
-    [
-      "longer than an hour",
-      "2026-10-16T08:00:00.000Z",
-      "2026-10-16T09:15:00.000Z",
-    ],
-  ])("skips a range %s", async (_label, from, to) => {
+  it("reads the ledger for the exact range it is given", async () => {
+    mocks.ledgerCounts.mockResolvedValue([]);
+    const from = new Date("2026-10-16T08:05:00.000Z");
+    const to = new Date("2026-10-16T08:20:00.000Z");
+
     await compareWithBillingLedger({
       source: "chb_metrics_api",
-      from: new Date(from),
-      to: new Date(to),
+      from,
+      to,
+      projectId: "p-1",
+      legacy: { traces: [], observations: [], scores: [] },
+    });
+
+    expect(mocks.ledgerCounts).toHaveBeenCalledWith({
+      windowFrom: from,
+      windowTo: to,
+      projectId: "p-1",
+    });
+  });
+
+  it("skips a range longer than an hour", async () => {
+    await compareWithBillingLedger({
+      source: "chb_metrics_api",
+      from: FROM,
+      to: new Date("2026-10-16T09:00:01.000Z"),
       projectId: "p-1",
       legacy: { traces: [], observations: [], scores: [] },
     });

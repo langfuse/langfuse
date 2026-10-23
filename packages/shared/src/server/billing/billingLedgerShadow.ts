@@ -1,9 +1,8 @@
 import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import {
-  BILLING_WINDOW_MS,
   type BillableEventType,
-  getBillableUnitCountsByProjectInRange,
+  getBillableUnitCountsByProjectInWindow,
 } from "../repositories/billable-events";
 
 /** Billing consumer whose legacy counts the ledger is compared against. */
@@ -12,13 +11,13 @@ export type BillingLedgerShadowSource = "stripe_metering" | "chb_metrics_api";
 type ProjectCount = { projectId: string; count: number };
 type Units = Record<BillableEventType, number>;
 
-// Stripe meters one hour and CHB polls 15 minutes. Longer ranges would take one
-// ledger query per 15-minute window, so they are not compared.
+// Bounds the ledger scan of one comparison. Stripe meters one hour, and the
+// CHB endpoint accepts ranges of up to 35 days.
 const MAX_COMPARED_RANGE_MS = 60 * 60 * 1000;
 
-// A project only counts as diverging when the gap is large both in units and
-// relative to its usage. Small projects and the created_at vs ingested_at
-// boundary drift of busy projects would otherwise fill the log.
+// A project diverges when one of its unit types is at least 100 units or 5% of
+// its legacy count apart. Unit types are compared separately, so a gap in one
+// cannot hide a gap of the opposite sign in another.
 const DIVERGENCE_MIN_UNITS = 100;
 const DIVERGENCE_MIN_RATIO = 0.05;
 const LOGGED_PROJECTS = 10;
@@ -28,10 +27,6 @@ const UNIT_TYPES: readonly BillableEventType[] = [
   "observation",
   "score",
 ];
-
-const zeroUnits = (): Units => ({ trace: 0, observation: 0, score: 0 });
-const totalUnits = (units: Units) =>
-  units.trace + units.observation + units.score;
 
 /**
  * Compares the legacy billing counts of `[from, to)` with the billable_events
@@ -63,12 +58,8 @@ export const compareWithBillingLedger = async ({
   };
   orgIdByProjectId?: Map<string, string>;
 }): Promise<void> => {
-  if (
-    from.getTime() % BILLING_WINDOW_MS !== 0 ||
-    to.getTime() % BILLING_WINDOW_MS !== 0 ||
-    to.getTime() <= from.getTime() ||
-    to.getTime() - from.getTime() > MAX_COMPARED_RANGE_MS
-  ) {
+  const rangeMs = to.getTime() - from.getTime();
+  if (rangeMs <= 0 || rangeMs > MAX_COMPARED_RANGE_MS) {
     recordIncrement("langfuse.billing.ledger_shadow.skipped_comparisons", 1, {
       source,
       reason: "unsupported_range",
@@ -77,9 +68,9 @@ export const compareWithBillingLedger = async ({
   }
 
   try {
-    const ledger = await getBillableUnitCountsByProjectInRange({
-      from,
-      to,
+    const ledger = await getBillableUnitCountsByProjectInWindow({
+      windowFrom: from,
+      windowTo: to,
       projectId,
     });
 
@@ -110,16 +101,11 @@ export const compareWithBillingLedger = async ({
       orgId: orgIdByProjectId?.get(id),
       legacy: units.legacy,
       ledger: units.ledger,
-      delta: totalUnits(units.ledger) - totalUnits(units.legacy),
+      delta: deltaUnits(units),
     }));
     const diverging = comparisons
-      .filter(
-        (comparison) =>
-          Math.abs(comparison.delta) >= DIVERGENCE_MIN_UNITS &&
-          Math.abs(comparison.delta) >=
-            DIVERGENCE_MIN_RATIO * Math.max(totalUnits(comparison.legacy), 1),
-      )
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      .filter(isDiverging)
+      .sort((a, b) => largestGap(b.delta) - largestGap(a.delta));
 
     const totals = { legacy: zeroUnits(), ledger: zeroUnits() };
     for (const comparison of comparisons) {
@@ -184,3 +170,34 @@ export const compareWithBillingLedger = async ({
     });
   }
 };
+
+const zeroUnits = (): Units => ({ trace: 0, observation: 0, score: 0 });
+
+const totalUnits = (units: Units) =>
+  units.trace + units.observation + units.score;
+
+/** Ledger minus legacy, per unit type. */
+const deltaUnits = ({
+  legacy,
+  ledger,
+}: {
+  legacy: Units;
+  ledger: Units;
+}): Units => ({
+  trace: ledger.trace - legacy.trace,
+  observation: ledger.observation - legacy.observation,
+  score: ledger.score - legacy.score,
+});
+
+const largestGap = (delta: Units) =>
+  Math.max(...UNIT_TYPES.map((unitType) => Math.abs(delta[unitType])));
+
+const isDiverging = ({ legacy, delta }: { legacy: Units; delta: Units }) =>
+  UNIT_TYPES.some((unitType) => {
+    const gap = Math.abs(delta[unitType]);
+    return (
+      gap > 0 &&
+      (gap >= DIVERGENCE_MIN_UNITS ||
+        gap >= DIVERGENCE_MIN_RATIO * legacy[unitType])
+    );
+  });
