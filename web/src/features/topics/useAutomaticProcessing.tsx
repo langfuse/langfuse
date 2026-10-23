@@ -2,7 +2,7 @@
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { type AutomaticProcessingState } from "./AnalyzeMenu";
+import { type AutomaticProcessingState } from "./AnalyzeControl";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 

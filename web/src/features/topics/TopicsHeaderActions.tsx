@@ -1,7 +1,10 @@
 import { EllipsisVertical, Settings } from "@langfuse/icons";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import {
+  DropdownMenu,
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { AnalyzeMenu } from "./AnalyzeMenu";
+import { AnalyzeControl, automaticDisabledReason } from "./AnalyzeControl";
 import { type useTopicModelSettings } from "./TopicModelSettings";
 
 export function TopicsHeaderActions({
@@ -16,12 +19,37 @@ export function TopicsHeaderActions({
   onRefresh,
   menuOnly = false,
 }: TopicsHeaderActionsProps) {
+  const { state } = automaticProcessing;
+  const automaticOn = state.status === "on" || state.status === "paused";
+  const automaticReason = automaticDisabledReason(
+    state,
+    canWrite && !automaticProcessing.saving,
+  );
+  const analyzeItems: DropdownMenuItemDefinition[] = [];
+  if (menuOnly) {
+    // The landing has its own setup button.
+  } else if (automaticOn) {
+    if (manualAvailable)
+      analyzeItems.push({
+        id: "manual",
+        type: "item",
+        title: "Analyze past traces…",
+        onClick: openManual,
+      });
+  } else {
+    analyzeItems.push({
+      id: "automatic",
+      type: "item",
+      title: "Turn on auto-analyze…",
+      disabled: automaticReason ? { reason: automaticReason } : undefined,
+      onClick: onAutomaticProcessing,
+    });
+  }
   return (
     <div className="ph-no-capture flex items-center justify-end gap-1">
       {!menuOnly && (
-        <AnalyzeMenu
-          state={automaticProcessing.state}
-          canWrite={canWrite && !automaticProcessing.saving}
+        <AnalyzeControl
+          state={state}
           manualAvailable={manualAvailable}
           onAutomatic={onAutomaticProcessing}
           onManual={openManual}
@@ -31,6 +59,7 @@ export function TopicsHeaderActions({
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
+          ...analyzeItems,
           {
             id: "configure",
             type: "item",

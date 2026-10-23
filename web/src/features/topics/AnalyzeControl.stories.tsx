@@ -1,13 +1,12 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { AnalyzeMenu } from "./AnalyzeMenu";
+import { AnalyzeControl } from "./AnalyzeControl";
 
 const meta = preview.meta({
-  component: AnalyzeMenu,
+  component: AnalyzeControl,
   parameters: { layout: "centered" },
   args: {
-    canWrite: true,
     manualAvailable: true,
     onAutomatic: fn(),
     onManual: fn(),
@@ -28,22 +27,25 @@ export const Paused = meta.story({
   args: { state: { status: "paused", shortLabel: "LLM connection missing" } },
 });
 
-export const ReadOnly = meta.story({
-  args: { state: { status: "on" }, canWrite: false },
+export const StartsOneOffRun = meta.story({
+  name: "(Test) Off starts a one-off run",
+  args: { state: { status: "off" } },
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Analyze traces" }),
+    );
+    await expect(args.onManual).toHaveBeenCalledOnce();
+    await expect(args.onAutomatic).not.toHaveBeenCalled();
+  },
 });
 
-export const OpensAutomaticDialog = meta.story({
-  name: "(Test) Opens the automatic analysis dialog",
-  args: { state: { status: "off" } },
-  play: async ({ args }) => {
-    const body = within(document.body);
-    await userEvent.click(body.getByRole("button", { name: "Analyze: Off" }));
+export const OnOpensAutomaticDialog = meta.story({
+  name: "(Test) On opens the automatic dialog",
+  args: { state: { status: "on" } },
+  play: async ({ args, canvasElement }) => {
     await userEvent.click(
-      await body.findByRole("menuitem", {
-        name: "Analyze new traces automatically…",
-      }),
+      within(canvasElement).getByRole("button", { name: "Auto-analyze on" }),
     );
     await expect(args.onAutomatic).toHaveBeenCalledOnce();
-    await expect(args.onManual).not.toHaveBeenCalled();
   },
 });

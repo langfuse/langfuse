@@ -587,11 +587,16 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
-/** Opens the Analyze menu in the header and picks the manual run. */
+/** Starts a one-off run from the header: the button when automatic analysis is off, the menu when it is on. */
 async function openManualProcessing() {
-  fireEvent.click(screen.getByRole("button", { name: /^Analyze: / }));
+  const button = screen.queryByRole("button", { name: "Analyze traces" });
+  if (button) {
+    fireEvent.click(button);
+    return;
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Analyze traces now…" }),
+    await screen.findByRole("menuitem", { name: "Analyze past traces…" }),
   );
 }
 function withSummaries() {
