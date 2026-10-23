@@ -18,7 +18,7 @@
  */
 
 import { StringParam, useQueryParam } from "use-query-params";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";

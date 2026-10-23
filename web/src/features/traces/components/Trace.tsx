@@ -13,7 +13,7 @@ import {
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
+import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
   TraceGraphDataProvider,

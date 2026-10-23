@@ -11,7 +11,7 @@
  * input so focus and the current query survive panel resizing.
  */
 
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";

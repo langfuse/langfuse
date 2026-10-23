@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 /**
  * SearchContext - Isolated search state management
  *
