@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import {
   type default as React,
   createContext,
@@ -1658,6 +1659,12 @@ function CategoricalSelectContent({
   // expand-everything: value lists can run to 1000+ user IDs); "Show fewer
   // values" collapses back to the cap. Resets by unmounting on collapse.
   const [visibleCount, setVisibleCount] = useState(MAX_VISIBLE_OPTIONS);
+  const handleShowFewerValues = () => {
+    setVisibleCount(MAX_VISIBLE_OPTIONS);
+  };
+  const handleShowMoreValues = () => {
+    setVisibleCount((current) => current + SHOW_MORE_INCREMENT);
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const { tableName = "data" } = useContext(ControlsContext) ?? {};
   const visibleOptionValues = Array.from(
@@ -1916,30 +1923,22 @@ function CategoricalSelectContent({
               {/* Remaining options, capped */}
               {visibleRemainingOptions.map(renderOption)}
               {(canShowMore || canShowFewer) && (
-                <div className="flex flex-col">
+                <div className="mt-1 flex flex-col items-start gap-1 py-1 pl-2">
                   {canShowFewer && (
-                    <Button
-                      variant="ghost"
+                    <DsButton
+                      variant="text"
                       size="sm"
-                      onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-2 text-xs"
-                    >
-                      Show fewer values
-                    </Button>
+                      text="Show fewer values"
+                      onClick={handleShowFewerValues}
+                    />
                   )}
                   {canShowMore && (
-                    <Button
-                      variant="ghost"
+                    <DsButton
+                      variant="text"
                       size="sm"
-                      onClick={() =>
-                        setVisibleCount(
-                          (current) => current + SHOW_MORE_INCREMENT,
-                        )
-                      }
-                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-2 text-xs"
-                    >
-                      Show more values
-                    </Button>
+                      text="Show more values"
+                      onClick={handleShowMoreValues}
+                    />
                   )}
                 </div>
               )}
