@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon } from "@langfuse/icons";
+import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -87,6 +87,17 @@ export const GhostInteractive = meta.story({
     interactive: true,
     label: "cost",
     text: "$0.0042",
+  },
+});
+
+export const GhostWarningIcon = meta.story({
+  args: {
+    color: "ghost",
+    interactive: true,
+    font: "mono",
+    leadingIcon: TriangleAlert,
+    leadingIconTone: "warning",
+    text: "no cost",
   },
 });
 

@@ -86,6 +86,7 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
             color="ghost"
             interactive
             leadingIcon={TriangleAlert}
+            leadingIconTone="warning"
             text="no cost"
           />
         </span>
