@@ -535,6 +535,35 @@ describe("membership role assignments", () => {
       );
     });
 
+    it("joins the invited org when the invited project moved to another org", async () => {
+      const user = await createUser();
+      const otherOrg = await prisma.organization.create({
+        data: { name: randomUUID() },
+      });
+      await prisma.membershipInvitation.create({
+        data: {
+          email: user.email!,
+          orgId,
+          orgRole: Role.VIEWER,
+          projectId,
+          projectRole: Role.ADMIN,
+        },
+      });
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { orgId: otherOrg.id },
+      });
+
+      await createProjectMembershipsOnSignup(user);
+
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
+      expect(
+        await prisma.membershipInvitation.count({
+          where: { email: user.email! },
+        }),
+      ).toBe(0);
+    });
+
     it("assigns OWNER on a provisioned starter organization", async () => {
       const user = await createUser();
 

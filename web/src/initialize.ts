@@ -174,6 +174,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     ) {
       const projectId = env.LANGFUSE_INIT_PROJECT_ID;
       await prisma.$transaction(async (tx) => {
+        const project = await tx.project.findUniqueOrThrow({
+          where: { id: projectId },
+          select: { orgId: true },
+        });
         const membership = await tx.projectMembership.upsert({
           where: {
             projectId_userId: { projectId, userId },
@@ -188,7 +192,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         });
         await assignProjectMembershipRole(tx, {
           ...membership,
-          orgId: org.id,
+          orgId: project.orgId,
         });
       });
     }

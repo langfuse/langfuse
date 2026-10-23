@@ -355,6 +355,9 @@ async function acceptInvitation(
   });
   await assignOrgMembershipRole(tx, orgMembership);
   if (!invitation.projectId || !invitation.projectRole) return;
+  if (!(await isProjectInOrg(tx, invitation.projectId, invitation.orgId))) {
+    return;
+  }
   const projectMembership = await tx.projectMembership.create({
     data: {
       userId,
@@ -367,6 +370,19 @@ async function acceptInvitation(
     ...projectMembership,
     orgId: invitation.orgId,
   });
+}
+
+/** isProjectInOrg reports whether a project still belongs to an organization. */
+async function isProjectInOrg(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  orgId: string,
+) {
+  const project = await tx.project.findFirst({
+    where: { id: projectId, orgId },
+    select: { id: true },
+  });
+  return project !== null;
 }
 
 /** upsertOrgMembership creates a missing org membership, preserving an existing role, and mirrors it. */

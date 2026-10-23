@@ -62,6 +62,7 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       project: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
+        findFirst: vi.fn(async (): Promise<unknown> => null),
         create: vi.fn(async (): Promise<unknown> => ({ id: "proj-new" })),
       },
       auditLog: {
@@ -1176,6 +1177,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
         email: "invitee@test.com",
       },
     ]);
+    prismaMock.project.findFirst.mockResolvedValueOnce({ id: "proj-9" });
     prismaMock.$queryRaw.mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(
