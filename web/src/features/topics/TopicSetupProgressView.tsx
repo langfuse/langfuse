@@ -143,7 +143,7 @@ function progressCopy(failed: boolean, waiting: boolean) {
         "Automatic processing is on. Topics appear once new traces are summarized.",
     };
   return {
-    title: "Sorting your traces",
+    title: "Analyzing your traces",
     detail:
       "Runs in the background. Your topics will be here when you're back.",
   };
