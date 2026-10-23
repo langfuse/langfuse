@@ -46,3 +46,5 @@ export const identifier = (text: string, max: number): Slot => {
   const full = text.trim();
   return { text: truncate(full, max, "middle"), full };
 };
+
+export const length = (text: string) => [...text].length;

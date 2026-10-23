@@ -11,7 +11,7 @@ export type ViewBox = { width: number; height: number };
 export const PROJECTION: Projection = [0.9384, -0.3415, 0.4993, 0.8648];
 
 /** Monospace at a 0.6em advance (Geist Mono, IBM Plex Mono): every string's width is known from its length. */
-const charWidth = (fontSize: number) => fontSize * 0.6;
+export const charWidth = (fontSize: number) => fontSize * 0.6;
 
 export const textWidth = (text: string, fontSize: number) =>
   [...text].length * charWidth(fontSize);
@@ -24,6 +24,10 @@ export const chipHeight = (fontSize: number) => Math.round(fontSize * 1.45);
 
 export const round = (n: number) => Math.round(n * 100) / 100;
 
+/** Clamps to 0–1; anything not finite reads as 0. */
+export const clamp01 = (n: number) =>
+  Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0));
+
 export const planTransform = ([a, b, c, d]: Projection = PROJECTION) =>
   `matrix(${a} ${b} ${c} ${d} 0 0)`;
 
@@ -32,7 +36,7 @@ export const project = (
   [a, b, c, d]: Projection = PROJECTION,
 ): Point => [a * u + c * v, b * u + d * v];
 
-const unproject = (
+export const unproject = (
   [x, y]: Point,
   [a, b, c, d]: Projection = PROJECTION,
 ): Point => {
@@ -47,10 +51,34 @@ export const corners = ({ x, y, width, height }: Rect): Point[] => [
   [x, y + height],
 ];
 
+/** The screen box of plan rects, for sizing a viewBox around them. */
+export function screenBounds(
+  rects: Rect[],
+  projection: Projection = PROJECTION,
+) {
+  const points = rects
+    .flatMap(corners)
+    .map((point) => project(point, projection));
+  return {
+    right: Math.max(...points.map(([x]) => x)),
+    bottom: Math.max(...points.map(([, y]) => y)),
+  };
+}
+
+/** Grows a base viewBox to fit content, so long text or extra rows never clip. */
+export const fitViewBox = (
+  base: ViewBox,
+  { right, bottom }: { right: number; bottom: number },
+  pad = { right: 40, bottom: 28 },
+): ViewBox => ({
+  width: Math.max(base.width, Math.ceil(right + pad.right)),
+  height: Math.max(base.height, Math.ceil(bottom + pad.bottom)),
+});
+
 export type GridSpec = { cell: number; u: number; v: number };
 
 /** Plan grid lines covering the whole viewBox, one cell past each edge, as one path. */
-function gridPath(
+export function gridPath(
   { width, height }: ViewBox,
   grid: GridSpec,
   projection: Projection = PROJECTION,

@@ -1,0 +1,15 @@
+/* The playhead that sweeps the axis during a run; hidden at rest, its motion comes from generated keyframes. */
+.scan {
+  opacity: 0;
+}
+
+.scan path {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.25;
+}
+
+/* Text on the raised span takes the highlight's ink when the accent is on */
+[data-accent="highlight"] .onHero {
+  fill: var(--illustration-highlight-ink);
+}
