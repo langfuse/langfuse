@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -16,7 +17,7 @@ export function GatewayApiKeysPage({
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-  /** Managers are redirected to Configuration by the settings route. */
+  /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
     return <GatewayNotSetUpNotice title="Gateway API keys" />;
   }

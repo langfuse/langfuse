@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -38,7 +38,7 @@ import {
   formatAsLabel,
   LevelSymbols,
   getObservationLevelStatus,
-} from "@/src/components/level-colors";
+} from "@/src/components/ObservationLevelTag";
 import {
   detailPageListKeys,
   useDetailPageLists,
@@ -99,7 +99,7 @@ import {
   tracesFieldRegistry,
 } from "@/src/features/filters";
 
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -116,7 +116,7 @@ import {
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 import { useHasProjectAccess } from "@/src/features/rbac";

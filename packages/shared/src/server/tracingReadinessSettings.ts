@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma } from "../db";
 import type { Prisma } from "../db";

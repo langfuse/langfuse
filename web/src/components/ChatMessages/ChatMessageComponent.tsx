@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "@langfuse/icons";
 import {
@@ -32,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import {
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,

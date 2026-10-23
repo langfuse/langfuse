@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 

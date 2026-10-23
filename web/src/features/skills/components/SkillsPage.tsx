@@ -1,7 +1,10 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart4,
+  ChevronDown,
+  ExternalLink,
   Download,
   FileCode2,
   GitBranch,
@@ -15,9 +18,10 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -149,34 +153,75 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
-      <DesignSystemButton
-        text="API reference"
-        variant="ghost"
-        href="https://api.reference.langfuse.com/#tag/skills"
-      />
-      <DesignSystemButton
-        text="Install with CLI"
-        icon={Terminal}
-        variant="secondary"
-        disabled={installDisabled}
-        onClick={handleInstall}
-      />
-      <ImportSkillsDialog key={projectId} projectId={projectId}>
-        {(openDialog) => (
+      <DropdownMenu
+        ariaLabel="Use skill"
+        items={[
+          {
+            type: "item",
+            id: "install",
+            title: "Install with CLI",
+            icon: Terminal,
+            disabled: installDisabled
+              ? { reason: "Loading installation options" }
+              : undefined,
+            onClick: handleInstall,
+          },
+          {
+            type: "item",
+            id: "api",
+            title: "API",
+            icon: ExternalLink,
+            href: "https://api.reference.langfuse.com/#tag/skills",
+            linkTarget: "_blank",
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
           <DesignSystemButton
-            text="Import"
-            icon={Download}
+            text="Use skill"
+            icon={ChevronDown}
             variant="secondary"
-            disabled={!canCreate}
-            onClick={openDialog}
+            {...getTriggerProps()}
           />
         )}
+      </DropdownMenu>
+      <ImportSkillsDialog key={projectId} projectId={projectId}>
+        {(openDialog) => (
+          <DropdownMenu
+            ariaLabel="New skill"
+            disabled={!canCreate}
+            items={[
+              {
+                type: "item",
+                id: "create",
+                title: "Create from scratch",
+                icon: Plus,
+                href: `/project/${projectId}/skills/new`,
+                onAfterNavigate: () => {
+                  closeMenu?.();
+                  capture("skills:new_form_open");
+                },
+              },
+              {
+                type: "item",
+                id: "import",
+                title: "Import skills",
+                icon: Download,
+                onClick: openDialog,
+              },
+            ]}
+          >
+            {({ getTriggerProps }) => (
+              <DesignSystemButton
+                text="New skill"
+                icon={ChevronDown}
+                disabled={!canCreate}
+                {...getTriggerProps()}
+              />
+            )}
+          </DropdownMenu>
+        )}
       </ImportSkillsDialog>
-      <NewSkillButton
-        canCreate={canCreate}
-        href={`/project/${projectId}/skills/new`}
-        onOpen={() => capture("skills:new_form_open")}
-      />
     </div>
   );
 }

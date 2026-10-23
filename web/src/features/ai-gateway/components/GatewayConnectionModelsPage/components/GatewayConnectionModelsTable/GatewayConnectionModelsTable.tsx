@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";

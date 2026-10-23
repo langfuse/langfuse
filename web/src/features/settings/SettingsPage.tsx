@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -39,8 +40,7 @@ export function SettingsPage({ scope }: SettingsPageProps) {
     typeof router.query.page === "string" ? router.query.page : undefined;
   const fullHeight =
     scope === "organization" &&
-    (activeSlug === "ai-gateway-models" ||
-      activeSlug === "ai-gateway-providers");
+    (activeSlug === "ai-gateway-models" || activeSlug === "ai-gateway");
 
   if (scope === "organization" && !organization) {
     return (

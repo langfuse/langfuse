@@ -1,12 +1,12 @@
 import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
-import { groupScoresByName } from "@/src/components/grouped-score-badge";
+import { groupScoresByName } from "@/src/components/GroupedScoreBadges";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import {
   formatMetricCost,
   formatMetricTokens,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type ScoreDomain } from "@langfuse/shared";
 import { Plus, Search, X } from "@langfuse/icons";
 import { type ReactNode, type SyntheticEvent, useState } from "react";

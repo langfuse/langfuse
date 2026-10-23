@@ -153,10 +153,56 @@ describe("user-bound API keys", () => {
       const key = await new GatewayApiKeyService(prisma).create({
         organizationId: org.id,
         metadata: {},
+        issuedAs: "user",
         session: orgSession(user, org, Role.MEMBER),
       });
 
       expect(await boundUserOf(key.id)).toBe(user.id);
+    });
+
+    it("leaves a service-account key unbound so it outlives the creator", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: user.id, role: Role.ADMIN },
+      });
+
+      const key = await new GatewayApiKeyService(prisma).create({
+        organizationId: org.id,
+        metadata: {},
+        issuedAs: "serviceAccount",
+        session: orgSession(user, org, Role.ADMIN),
+      });
+      await prisma.$transaction((tx) =>
+        deleteUserBoundApiKeys(tx, { userId: user.id, orgId: org.id }),
+      );
+
+      expect(await boundUserOf(key.id)).toBeNull();
+      expect(
+        await prisma.apiKey.findUniqueOrThrow({
+          where: { id: key.id },
+          select: { createdByUserId: true },
+        }),
+      ).toEqual({ createdByUserId: user.id });
+    });
+
+    it("rejects a service-account key from a creator whose current role cannot manage the gateway", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: user.id, role: Role.MEMBER },
+      });
+      const before = await existingKeyIds();
+
+      await expect(
+        new GatewayApiKeyService(prisma).create({
+          organizationId: org.id,
+          metadata: {},
+          issuedAs: "serviceAccount",
+          session: orgSession(user, org, Role.ADMIN),
+        }),
+      ).rejects.toThrow(ForbiddenError);
+      expect(await existingKeyIds()).toEqual(before);
     });
 
     it("rejects a creator whose current role cannot invoke the gateway", async () => {
@@ -171,6 +217,7 @@ describe("user-bound API keys", () => {
         new GatewayApiKeyService(prisma).create({
           organizationId: org.id,
           metadata: {},
+          issuedAs: "user",
           session: orgSession(user, org, Role.OWNER),
         }),
       ).rejects.toThrow(ForbiddenError);
@@ -186,6 +233,7 @@ describe("user-bound API keys", () => {
         new GatewayApiKeyService(prisma).create({
           organizationId: org.id,
           metadata: {},
+          issuedAs: "user",
           session: orgSession(user, org, Role.OWNER),
         }),
       ).rejects.toThrow(ForbiddenError);

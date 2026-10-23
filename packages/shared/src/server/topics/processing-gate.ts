@@ -1,5 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JobConfigState, prisma, type Prisma } from "../../db";
-import { EvalTargetObject } from "../../features/evals/types";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+} from "../../features/evals/types";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
 import { isTopicsProjectEnabled } from "./config";
@@ -16,13 +20,13 @@ const CACHE_KEY_PREFIX = "langfuse:topics:processing-active";
 
 const cacheKey = (projectId: string) => `${CACHE_KEY_PREFIX}:${projectId}`;
 
-/** The project's Topics rule: a trace rule whose evaluators are all facets. */
+/** The project's Topics rule: a transcript rule whose evaluators are all facets. */
 export function topicRuleWhere(
   projectId: string,
 ): Prisma.EvaluationRuleWhereInput {
   return {
     projectId,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: { in: [EvalTargetObject.TRACE, TopicsTargetObject] },
     assignments: {
       some: {},
       every: { projectId, evaluator: { projectId, type: "FACET" } },

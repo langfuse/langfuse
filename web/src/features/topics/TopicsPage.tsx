@@ -1,11 +1,12 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
 import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
@@ -569,7 +570,7 @@ function TopicsWorkspaceContent({
             <div
               className={cn(
                 "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                showOnboarding && "p-2",
+                (showOnboarding || resultsView === "map") && "p-2",
               )}
             >
               {isTimeRangeCapped && (
@@ -721,6 +722,7 @@ function TopicsWorkspaceContent({
                       result={results}
                       selectedFacetId={selectedFacetId}
                       view={resultsView}
+                      traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
                       canGenerateTopics={canWrite && !running && configured}

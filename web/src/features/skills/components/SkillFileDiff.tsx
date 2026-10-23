@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import DiffViewer from "@/src/components/DiffViewer";
 import { api } from "@/src/utils/api";
 import { SkillComparisonError } from "./SkillComparisonError";

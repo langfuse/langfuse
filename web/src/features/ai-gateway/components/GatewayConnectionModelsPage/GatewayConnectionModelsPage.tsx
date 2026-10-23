@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ArrowLeft } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -69,8 +70,8 @@ function ProviderCredentialsLink({
 }) {
   return (
     <TextLink
-      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
-      value="Provider credentials"
+      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`}
+      value="Gateway setup"
       icon={ArrowLeft}
     />
   );

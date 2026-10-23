@@ -113,7 +113,6 @@ overrides:
   "undici@7": 7.30.1
   zod: 4.6.6
   nanoid: 3.3.18
-  katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
@@ -139,10 +138,6 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
-  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
-  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
-  "@storybook/addon-vitest>@vitest/browser": 4.1.11
   # Hono's dependents allow these security fixes: XSS in 4.13.7 and
   # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
   hono: 4.13.11
@@ -218,3 +213,5 @@ minimumReleaseAgeExclude:
   - handlebars@4.7.10
   # fast-uri security fixes; eligible after 2026-10-24 23:05 UTC.
   - fast-uri@3.1.9
+  # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
+  - body-parser@2.4.0

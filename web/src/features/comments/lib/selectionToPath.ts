@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Converts a DOM Selection to JSON path and character range.
  *

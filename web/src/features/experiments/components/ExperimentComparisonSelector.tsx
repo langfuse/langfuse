@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
+import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,

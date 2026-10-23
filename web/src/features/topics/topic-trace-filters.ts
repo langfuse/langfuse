@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import {
   createFieldRegistry,
@@ -5,7 +6,7 @@ import {
   withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
 
-const TOPIC_ASSIGNMENT_OPTIONS = [
+export const TOPIC_ASSIGNMENT_OPTIONS = [
   { value: "assigned", displayValue: "In a topic" },
   { value: "outlier", displayValue: "Outlier" },
   { value: "no_topic", displayValue: "No topic" },

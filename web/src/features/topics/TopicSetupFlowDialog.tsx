@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Clock, RefreshCw } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
