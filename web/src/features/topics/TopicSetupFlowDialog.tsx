@@ -251,26 +251,23 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              <TopicTraceFilterSection
-                projectId={projectId}
-                description="Custom trace filters are coming soon. For now, the sample rate applies to all new traces."
-              />
-              <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+              <TopicTraceFilterSection projectId={projectId} />
+              <div className="flex flex-col gap-2">
                 <span className="text-sm font-bold">Sample rate</span>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3">
                   <input
                     type="range"
                     min={1}
                     max={100}
                     value={samplePercent}
                     aria-label="Sample rate"
-                    className="accent-primary w-40"
+                    className="accent-primary min-w-0 flex-1"
                     disabled={!canWrite}
                     onChange={(event) =>
                       onSamplePercentChange(Number(event.target.value))
                     }
                   />
-                  <div className="w-28">
+                  <div className="w-20">
                     <Input
                       type="number"
                       min={1}
@@ -286,14 +283,22 @@ export function TopicSetupFlowDialog({
                       }}
                     />
                   </div>
-                  <span className="text-sm">%</span>
+                  <span className="text-muted-foreground text-sm">%</span>
                 </div>
+                <p className="text-muted-foreground text-sm">
+                  {pastCount.status === "ready" ? (
+                    <>
+                      <span className="text-foreground font-bold">
+                        ~{dailyEstimate(pastCount.dailyTraces, samplePercent)}
+                      </span>{" "}
+                      new traces a day, based on the last{" "}
+                      {TOPIC_SETUP_BACKFILL_DAYS} days.
+                    </>
+                  ) : (
+                    "Share of new traces analyzed once automatic processing is on."
+                  )}
+                </p>
               </div>
-              <p className="text-muted-foreground text-xs">
-                {pastCount.status === "ready"
-                  ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days.`
-                  : "Share of new traces analyzed once automatic processing is on."}
-              </p>
             </div>
           ) : null}
           {step === "review" ? (

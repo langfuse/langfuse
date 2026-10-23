@@ -8,7 +8,6 @@ import {
   type toObservedOptions,
   useEventsSearchBar,
 } from "@/src/features/search-bar";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
   type experimentEvalFilterColsWithOptions,
@@ -45,7 +44,6 @@ export type TopicTraceFilterSectionProps = {
   onFiltersChange?: (filters: FilterState) => void;
   onSearchQueryChange?: (query: string | null) => void;
   onSearchTypeChange?: (searchType: TracingSearchType[]) => void;
-  description?: string;
 };
 
 /** The trace filter, shown disabled until custom filters ship. */
@@ -63,7 +61,6 @@ export function TopicTraceFilterSection({
   onFiltersChange,
   onSearchQueryChange,
   onSearchTypeChange,
-  description = "The sampling rate applies to all incoming traces. Custom trace filters are coming soon.",
 }: TopicTraceFilterSectionProps) {
   const [localMode, setLocalMode] =
     useState<EvaluatorFilterExperience>("query");
@@ -96,24 +93,22 @@ export function TopicTraceFilterSection({
 
   return (
     <section className="flex flex-col gap-2">
-      <SectionHeader
-        title="Filter traces"
-        meta={<Badge text="Coming soon" color="blue" size="sm" />}
-        description={description}
-        tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
-        trailing={
-          <div inert className="opacity-50">
-            <FilterModeToggle
-              mode={mode}
-              onChange={(next) => {
-                if (next === "builder" && searchQuery !== null)
-                  search.applyFilters(filters);
-                setMode(next);
-              }}
-            />
-          </div>
-        }
-      />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
+          <Badge text="Coming soon" color="blue" size="sm" />
+        </div>
+        <div inert className="opacity-50">
+          <FilterModeToggle
+            mode={mode}
+            onChange={(next) => {
+              if (next === "builder" && searchQuery !== null)
+                search.applyFilters(filters);
+              setMode(next);
+            }}
+          />
+        </div>
+      </div>
       <div inert aria-disabled className="opacity-50">
         {mode === "query" ? (
           <EventsSearchBarRow
