@@ -1,8 +1,15 @@
+const queueMocks = vi.hoisted(() => ({
+  batchActionQueueAdd: vi.fn(),
+}));
+
 // Mock queue operations to avoid Redis dependency in tests
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    BatchActionQueue: {
+      getInstance: () => ({ add: queueMocks.batchActionQueueAdd }),
+    },
     // Mock queue getInstance to return a no-op queue
     EventPropagationQueue: {
       getInstance: () => ({
@@ -109,6 +116,11 @@ import {
 import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
+import {
+  handleRunBatchEvaluation,
+  runBatchEvaluationTool,
+} from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
+import { env } from "@/src/env.mjs";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   attachEvaluatorToEvaluationRuleTool,
@@ -1080,6 +1092,111 @@ describe("MCP Write Tools", () => {
       await expect(
         handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("runBatchEvaluation tool", () => {
+    const mutableEnv = env as unknown as {
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+    };
+    const originalPreviewOptIn =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    beforeEach(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      queueMocks.batchActionQueueAdd.mockReset();
+    });
+
+    afterAll(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("queues an evaluator v2 batch action attributed to the API key", async () => {
+      verifyToolAnnotations(runBatchEvaluationTool, { expensiveHint: true });
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      const { id } = (await handleRunBatchEvaluation(
+        {
+          evaluatorIds: [evaluator.id],
+          filter: [{ column: "tags", operator: "all of", value: ["prod"] }],
+          sampling: 0.5,
+          rowLimit: 100,
+        } as never,
+        setup.context,
+      )) as { id: string };
+
+      const query = {
+        filter: [
+          {
+            column: "traceTags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["prod"],
+          },
+        ],
+        orderBy: null,
+      };
+      await expect(
+        prisma.batchAction.findUniqueOrThrow({ where: { id, projectId } }),
+      ).resolves.toMatchObject({
+        userId: apiKeyId,
+        actionType: "observation-run-batched-evaluation",
+        status: "QUEUED",
+        query,
+        config: {
+          evaluatorIds: [evaluator.id],
+          evalVersion: "v2",
+          sampling: 0.5,
+          rowLimit: 100,
+        },
+      });
+      expect(queueMocks.batchActionQueueAdd).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            batchActionId: id,
+            projectId,
+            query,
+            evaluatorIds: [evaluator.id],
+            evalVersion: "v2",
+          }),
+        }),
+        { jobId: id },
+      );
+      await expect(
+        prisma.auditLog.findFirst({
+          where: {
+            projectId,
+            apiKeyId,
+            resourceType: "batchAction",
+            resourceId: id,
+          },
+        }),
+      ).resolves.toMatchObject({
+        action: "observation-run-batched-evaluation",
+      });
+    });
+
+    it("rejects full-text filters, which batch queries cannot carry", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleRunBatchEvaluation(
+          {
+            evaluatorIds: [evaluator.id],
+            filter: [{ column: "input", operator: "matches", value: "refund" }],
+          } as never,
+          setup.context,
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.InvalidParams,
+        message: expect.stringContaining("filter.0.operator"),
+      });
+      expect(queueMocks.batchActionQueueAdd).not.toHaveBeenCalled();
     });
   });
 
