@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {

@@ -1,4 +1,4 @@
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteButton } from "@/src/components/DeleteButton/DeleteButton";
 import { api } from "@/src/utils/api";
 
 type DeleteAnnotationQueueButtonProps = {

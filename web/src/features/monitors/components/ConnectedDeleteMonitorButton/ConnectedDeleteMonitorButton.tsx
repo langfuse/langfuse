@@ -1,7 +1,7 @@
 import {
   DeleteButton,
   type DeleteButtonProps,
-} from "@/src/components/deleteButton";
+} from "@/src/components/DeleteButton/DeleteButton";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
 
