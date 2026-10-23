@@ -133,7 +133,11 @@ function TopicTreemap({
         size.width,
         size.height,
         TILE_GAP,
-      ).map((tile) => ({ ...tile, item: tile.item.topic }))
+      ).map((tile) => ({
+        ...tile,
+        item: tile.item.topic,
+        capped: tile.item.count < tile.item.topic.count,
+      }))
     : [];
   return (
     <section
@@ -144,11 +148,12 @@ function TopicTreemap({
         sideBySide && "lg:shrink lg:basis-3/5",
       )}
     >
-      {tiles.map(({ item, x, y, width, height }) => (
+      {tiles.map(({ item, capped, x, y, width, height }) => (
         <TopicTile
           key={item.id}
           topic={item}
           share={total > 0 ? item.count / total : 0}
+          capped={capped}
           colors={tileColors(item.id, width * height > BIG_TILE_AREA)}
           isSelected={item.id === selectedTopicId}
           onSelect={onSelectTopic}
@@ -161,9 +166,10 @@ function TopicTreemap({
 }
 
 function TopicTile(props: TopicTileProps) {
-  const { topic, share, tier } = props;
-  const shareLabel = `${Math.round(share * 100)}% of traces`;
-  if (tier === "large" || tier === "medium") {
+  const { topic, share, tier, capped } = props;
+  const percentLabel = `${Math.round(share * 100)}% of traces`;
+  const shareLabel = capped ? `${percentLabel} · shown smaller` : percentLabel;
+  if ((tier === "large" || tier === "medium") && !capped) {
     return <TopicTileButton {...props} shareLabel={shareLabel} />;
   }
   return (
@@ -173,8 +179,13 @@ function TopicTile(props: TopicTileProps) {
         <span className="ph-no-capture flex flex-col gap-0.5">
           <span className="font-bold">{topic.name}</span>
           <span className="text-muted-foreground text-xs">
-            {topic.count.toLocaleString()} traces · {shareLabel}
+            {topic.count.toLocaleString()} traces · {percentLabel}
           </span>
+          {capped && (
+            <span className="text-muted-foreground text-xs">
+              Shown smaller than its actual share so topics stay readable.
+            </span>
+          )}
         </span>
       }
     >
@@ -319,6 +330,8 @@ type TopicTileProps = {
   onSelect: (topicId: string) => void;
   rect: { left: number; top: number; width: number; height: number };
   tier: TileTier;
+  /** Drawn smaller than its share of traces. */
+  capped: boolean;
 };
 
 type TopicTileButtonProps = TopicTileProps & {
