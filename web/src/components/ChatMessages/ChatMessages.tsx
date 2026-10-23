@@ -44,7 +44,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { isString } from "@/src/utils/types";
-import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
