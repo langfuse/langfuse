@@ -27,6 +27,9 @@ const badgeVariants = cva(
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+        /** `ghost` with the leading icon in the warning colour; the text stays muted. */
+        "ghost-warning":
+          "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
         /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
         filledOnMuted:
@@ -136,8 +139,6 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
   leadingIcon?: IconComponent;
-  /** Warning badges tint the leading icon yellow; the text stays muted. */
-  leadingIconTone?: "default" | "warning";
   trailingIcon?: IconComponent;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
@@ -151,21 +152,19 @@ export function Badge({
   interactive,
   shouldWrap,
   leadingIcon: LeadingIcon,
-  leadingIconTone = "default",
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
+  const warningIcon = color === "ghost-warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
       {LeadingIcon && (
         <LeadingIcon
           aria-hidden
           size="sm"
-          color={leadingIconTone === "warning" ? "inherit" : "tertiary"}
-          __rawClassName={
-            leadingIconTone === "warning" ? "text-dark-yellow" : undefined
-          }
+          color={warningIcon ? "inherit" : "tertiary"}
+          __rawClassName={warningIcon ? "text-dark-yellow" : undefined}
         />
       )}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}

@@ -24,6 +24,7 @@ const allColors = Object.keys({
   teal: true,
   green: true,
   ghost: true,
+  "ghost-warning": true,
   filled: true,
   filledOnMuted: true,
   violetTint: true,
@@ -90,13 +91,12 @@ export const GhostInteractive = meta.story({
   },
 });
 
-export const GhostWarningIcon = meta.story({
+export const GhostWarning = meta.story({
   args: {
-    color: "ghost",
+    color: "ghost-warning",
     interactive: true,
     font: "mono",
     leadingIcon: TriangleAlert,
-    leadingIconTone: "warning",
     text: "no cost",
   },
 });
