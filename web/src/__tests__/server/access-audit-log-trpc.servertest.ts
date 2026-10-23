@@ -9,6 +9,61 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
+async function accessAuditLogEnabled(orgId: string) {
+  const org = await prisma.organization.findUniqueOrThrow({
+    where: { id: orgId },
+    select: { accessAuditLogEnabled: true },
+  });
+  return org.accessAuditLogEnabled;
+}
+
+async function setup({ role, plan }: { role: Role; plan: Plan }) {
+  const orgId = uuidv4();
+  const userId = uuidv4();
+  await prisma.organization.create({
+    data: { id: orgId, name: `Access audit log ${orgId.slice(0, 8)}` },
+  });
+  await prisma.user.create({
+    data: {
+      id: userId,
+      email: `access-audit-${userId.slice(0, 8)}@test.com`,
+      name: "Access Audit Test User",
+    },
+  });
+  await prisma.organizationMembership.create({
+    data: { userId, orgId, role },
+  });
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: userId,
+      canCreateOrganizations: true,
+      name: "Access Audit Test User",
+      email: `access-audit-${userId.slice(0, 8)}@test.com`,
+      organizations: [
+        {
+          id: orgId,
+          name: "Access audit log",
+          role,
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          accessAuditLogEnabled: false,
+          projects: [],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+      admin: false,
+    },
+    environment: {} as any,
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return { orgId, caller: appRouter.createCaller({ ...ctx, prisma }) };
+}
+
 describe("accessAuditLog.setEnabled", () => {
   const originalMode = env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS;
 
@@ -81,58 +136,3 @@ describe("accessAuditLog.setEnabled", () => {
     expect(await accessAuditLogEnabled(orgId)).toBe(false);
   });
 });
-
-async function accessAuditLogEnabled(orgId: string) {
-  const org = await prisma.organization.findUniqueOrThrow({
-    where: { id: orgId },
-    select: { accessAuditLogEnabled: true },
-  });
-  return org.accessAuditLogEnabled;
-}
-
-async function setup({ role, plan }: { role: Role; plan: Plan }) {
-  const orgId = uuidv4();
-  const userId = uuidv4();
-  await prisma.organization.create({
-    data: { id: orgId, name: `Access audit log ${orgId.slice(0, 8)}` },
-  });
-  await prisma.user.create({
-    data: {
-      id: userId,
-      email: `access-audit-${userId.slice(0, 8)}@test.com`,
-      name: "Access Audit Test User",
-    },
-  });
-  await prisma.organizationMembership.create({
-    data: { userId, orgId, role },
-  });
-
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      canCreateOrganizations: true,
-      name: "Access Audit Test User",
-      email: `access-audit-${userId.slice(0, 8)}@test.com`,
-      organizations: [
-        {
-          id: orgId,
-          name: "Access audit log",
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          accessAuditLogEnabled: false,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: false,
-    },
-    environment: {} as any,
-  };
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  return { orgId, caller: appRouter.createCaller({ ...ctx, prisma }) };
-}
