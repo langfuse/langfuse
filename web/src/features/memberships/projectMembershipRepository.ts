@@ -90,14 +90,7 @@ export async function deleteProjectMembership(
   });
 }
 
-/** ProjectNotInOrgError rejects a project membership whose project is outside the organization. */
-export class ProjectNotInOrgError extends LangfuseNotFoundError {
-  constructor() {
-    super("Project not found in organization");
-  }
-}
-
-/** assertProjectInOrg throws ProjectNotInOrgError unless the project belongs to the organization. */
+/** assertProjectInOrg throws LangfuseNotFoundError unless the project belongs to the organization. */
 async function assertProjectInOrg(
   tx: Prisma.TransactionClient,
   { orgId, projectId }: { orgId: string; projectId: string },
@@ -106,7 +99,9 @@ async function assertProjectInOrg(
     where: { id: projectId, orgId },
     select: { id: true },
   });
-  if (!project) throw new ProjectNotInOrgError();
+  if (!project) {
+    throw new LangfuseNotFoundError("Project not found in organization");
+  }
 }
 
 /** replaceProjectRole mirrors a project membership's role into role assignments. */

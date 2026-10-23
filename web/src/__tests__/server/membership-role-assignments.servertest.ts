@@ -14,7 +14,6 @@ import {
 import {
   createProjectMembership,
   findOrCreateProjectMembership,
-  ProjectNotInOrgError,
   saveProjectMembership,
 } from "@/src/features/memberships/projectMembershipRepository";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
@@ -23,7 +22,7 @@ import scimUsersRoute from "@/src/pages/api/public/scim/Users";
 import scimUserRoute from "@/src/pages/api/public/scim/Users/[id]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { Role, type Plan } from "@langfuse/shared";
+import { LangfuseNotFoundError, Role, type Plan } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -336,7 +335,7 @@ describe("membership role assignments", () => {
             userId: user.id,
             role: Role.ADMIN,
           }),
-        ).rejects.toBeInstanceOf(ProjectNotInOrgError);
+        ).rejects.toBeInstanceOf(LangfuseNotFoundError);
         expect(
           await prisma.projectMembership.count({ where: { userId: user.id } }),
         ).toBe(0);

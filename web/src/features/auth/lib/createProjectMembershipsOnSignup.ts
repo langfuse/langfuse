@@ -16,7 +16,10 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
-import { projectRoleAccessRights } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  projectRoleAccessRights,
+} from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   createOrgMembership,
@@ -25,7 +28,6 @@ import {
 import {
   createProjectMembership,
   findOrCreateProjectMembership,
-  ProjectNotInOrgError,
 } from "@/src/features/memberships/projectMembershipRepository";
 
 export async function createProjectMembershipsOnSignup(
@@ -373,7 +375,7 @@ async function acceptInvitation(
       role: invitation.projectRole,
     });
   } catch (error) {
-    if (error instanceof ProjectNotInOrgError) return; // the project moved orgs after the invite
+    if (error instanceof LangfuseNotFoundError) return; // the project moved orgs after the invite
     throw error;
   }
 }
