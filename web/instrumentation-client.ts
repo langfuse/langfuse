@@ -13,6 +13,8 @@ import {
 } from "@/src/utils/sentryFilters";
 import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
+const sensitiveFieldNames = ["forwarded", "-ip", "remote-", "via", "-user"];
+
 // Isolation-scope tags are copied onto the pageload transaction at start.
 // Session hydrate (and the v4 flag) arrives after that, so apply the last-known
 // cache before init. Missing cache leaves the tag unset rather than guessing false.
@@ -22,6 +24,26 @@ Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
   release: process.env.NEXT_PUBLIC_BUILD_ID,
+
+  // Automatic collection excludes user information, request bodies and model content.
+  dataCollection: {
+    userInfo: false,
+    cookies: false,
+    httpHeaders: {
+      request: { deny: sensitiveFieldNames },
+      response: { deny: sensitiveFieldNames },
+    },
+    httpBodies: [],
+    urlQueryParams: { deny: sensitiveFieldNames },
+    genAI: { inputs: false, outputs: false },
+    databaseQueryData: false,
+    queues: false,
+    graphQL: { document: false, variables: false },
+  },
+  // Noise filters classify message events using their supplied frames.
+  attachStacktrace: false,
+  // Pageload and navigation transactions carry the cached scope tags.
+  traceLifecycle: "static",
 
   beforeSend(event) {
     // Drop React DevTools' internal probes against React's private fiber
@@ -126,12 +148,9 @@ Sentry.init({
   replaysOnErrorSampleRate: 1.0,
   debug: false,
 
-  // Set profilesSampleRate to 1.0 to profile every transaction.
-  // Since profilesSampleRate is relative to tracesSampleRate,
-  // the final profiling rate can be computed as tracesSampleRate * profilesSampleRate
-  // For example, a tracesSampleRate of 0.5 and profilesSampleRate of 0.5 would
-  // result in 25% of transactions being profiled (0.5*0.5=0.25)
-  profilesSampleRate: 0.5,
+  // Profile half of browser sessions while a sampled trace is active.
+  profileSessionSampleRate: 0.5,
+  profileLifecycle: "trace",
 
   // Filter out browser extension errors
   // see: https://docs.sentry.io/platforms/javascript/configuration/filtering/#using-allowurls-and-denyurls

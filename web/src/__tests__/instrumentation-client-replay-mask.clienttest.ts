@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 /**
- * Session Replay masking guard.
+ * Session Replay masking and SDK data collection guard.
  *
  * All cloud regions (including HIPAA) report to the same US Sentry org.
  * The compliance safeguard for Session Replay is the unconditional
@@ -14,6 +14,7 @@
  * (message, breadcrumbs, extra, tags) are never masked — for those, the
  * capture-contract rule "no user content in messages/extra/tags" (skill
  * rule 7) is the compliance boundary.
+ * SDK data collection must also exclude user information and payload content.
  *
  * These tests import the REAL `web/instrumentation-client.ts` module (the
  * file Next.js executes in the browser) with `@sentry/nextjs` mocked, and
@@ -97,12 +98,28 @@ describe("Session Replay masking is unconditional (compliance guard)", () => {
   ];
 
   it.each(regions)(
-    "region %j (%s) gets text, input, and media masking",
+    "region %j (%s) gets replay masking and restrictive SDK data collection",
     async (region) => {
       await expect(loadReplayOptions(region)).resolves.toStrictEqual({
         maskAllText: true,
         maskAllInputs: true,
         blockAllMedia: true,
+      });
+      expect(initMock.mock.calls[0]![0]).toHaveProperty("dataCollection", {
+        userInfo: false,
+        cookies: false,
+        httpHeaders: {
+          request: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+          response: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+        },
+        httpBodies: [],
+        urlQueryParams: {
+          deny: ["forwarded", "-ip", "remote-", "via", "-user"],
+        },
+        genAI: { inputs: false, outputs: false },
+        databaseQueryData: false,
+        queues: false,
+        graphQL: { document: false, variables: false },
       });
     },
   );
