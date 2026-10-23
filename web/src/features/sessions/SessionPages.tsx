@@ -77,7 +77,7 @@ import {
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { LazyTraceRow } from "@/src/features/sessions/TraceRow";
+import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
