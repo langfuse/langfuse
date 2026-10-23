@@ -6,7 +6,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";

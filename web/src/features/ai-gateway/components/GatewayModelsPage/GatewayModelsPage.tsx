@@ -20,7 +20,7 @@ export function GatewayModelsPage({
   if (isSetupStatusPending) {
     return <ModelsSkeleton />;
   }
-  /** Managers are redirected to Configuration by the settings route. */
+  /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
     return <GatewayNotSetUpNotice title="Models" />;
   }

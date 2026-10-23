@@ -13,7 +13,7 @@ import {
   UpsertModelFormDialogController,
   UpsertModelFormDialogContent,
 } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
-import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialog";
+import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { useHasProjectAccess } from "@/src/features/rbac";

@@ -5,7 +5,7 @@ import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/Connec
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
+import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,

@@ -13,8 +13,8 @@
 
 import { ObservationLevel } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 
 export function TracePanelNavigationHiddenNotice() {
   const { hiddenObservationsCount } = useTraceData();

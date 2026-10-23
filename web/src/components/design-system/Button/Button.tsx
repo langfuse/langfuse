@@ -107,7 +107,13 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
-          <ExternalLink size="sm" color={iconColor} aria-hidden />
+          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
+          <ExternalLink
+            size="sm"
+            color={iconColor}
+            aria-hidden
+            __rawClassName="-translate-y-px"
+          />
         </a>
       );
     }

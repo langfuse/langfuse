@@ -5,7 +5,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   SidePanel,
   SidePanelContent,
