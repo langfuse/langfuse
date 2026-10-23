@@ -66,6 +66,15 @@
   carries the bucket pointer. Pending expiry is due plus recovery grace, including
   the whole-key backstop. Tracking uses the project's configured idle duration,
   falling back to the environment default when unavailable.
+  `src/features/traceBatching/traceBatchRules.ts` owns ingestion-time rule
+  matching. Active Topics projects always record sampled rule IDs.
+  `LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED` defaults to `false`, preserving
+  legacy admission/sampling; `true` uses same-span positive filters and
+  project/trace/rule sampling. Preserve unmatched bounds and atomically union
+  pending IDs. Consumers use the current flag: absent IDs fall back to legacy
+  sampling, while an empty array means no selection. Deploy all compatible
+  writers, dispatchers and consumers before enabling enforcement.
+  Deploy all compatible writers/dispatchers/consumers in off before observation.
   Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
   ingestion pipelines at most four scripts within a shard, with one clock lookup
   per ingestion call; single-script groups use a direct call. Record all

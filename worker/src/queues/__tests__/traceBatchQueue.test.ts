@@ -98,6 +98,7 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
+const originalRuleFiltering = env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
 const originalTranscriptStorageEnabled =
@@ -124,6 +125,7 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = "false";
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
   inputStorage.put.mockResolvedValue({
     outcome: "stored",
@@ -135,6 +137,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
+  env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = originalRuleFiltering;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
@@ -1261,6 +1264,108 @@ describe("trace batch queue", () => {
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
+
+  it.each([
+    "selected",
+    "empty",
+    "other-rule",
+    "inactive",
+    "deleted",
+    "legacy",
+    "disabled-selected",
+    "disabled-empty",
+  ])(
+    "uses the filtering flag and preserves legacy jobs without selections: %s",
+    async (mode) => {
+      env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = mode.startsWith(
+        "disabled",
+      )
+        ? "false"
+        : "true";
+      env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const projectId of ["picked"])
+            yield {
+              project_id: projectId,
+              trace_id: "trace",
+              environment: "default",
+              span_id: "span",
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: "GENERATION",
+              name: "generation",
+              input: JSON.stringify([{ role: "user", content: projectId }]),
+              output: JSON.stringify({ role: "assistant", content: "answer" }),
+              metadata: {},
+              level: "DEFAULT",
+              status_message: null,
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+        },
+      );
+      const facet = (id: string) => ({ id }) as TopicFacet;
+      vi.mocked(listTopicFacets).mockResolvedValue([
+        facet("intent"),
+        facet("issues"),
+      ]);
+      vi.mocked(listTopicRules).mockResolvedValue(
+        mode === "deleted"
+          ? []
+          : [
+              {
+                id: "rule",
+                status: mode === "inactive" ? "INACTIVE" : "ACTIVE",
+                facetIds: ["issues"],
+                sampling:
+                  mode === "selected" || mode === "disabled-selected" ? 0 : 1,
+              } as TopicRule,
+            ],
+      );
+      const job = {
+        data: {
+          id: "rule",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["picked"].map((projectId) => ({
+              projectId,
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: `revision-${projectId}`,
+              ...(mode === "legacy"
+                ? {}
+                : {
+                    ruleIds:
+                      mode === "empty" || mode === "disabled-empty"
+                        ? []
+                        : [mode === "other-rule" ? "other" : "rule"],
+                  }),
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+      await traceBatchQueueProcessor(job, undefined);
+      const shouldRun = ["selected", "legacy", "disabled-empty"].includes(mode);
+
+      expect(
+        vi
+          .mocked(summarizeAssembledTrace)
+          .mock.calls.map(([input]) => [
+            input.projectId,
+            input.facets.map(({ id }) => id),
+          ]),
+      ).toEqual(shouldRun ? [["picked", ["issues"]]] : []);
+      expect(inputStorage.put).toHaveBeenCalledTimes(shouldRun ? 1 : 0);
+      vi.mocked(listTopicFacets).mockResolvedValue([]);
+      vi.mocked(listTopicRules).mockResolvedValue([]);
+    },
+  );
 
   it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
     env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";

@@ -170,6 +170,7 @@ type RuleRow = Prisma.EvaluationRuleGetPayload<{
 }>;
 const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
+  status: row.status,
   projectId: row.projectId,
   name: row.name,
   ...topicRuleSettingsSchema.parse({
@@ -217,7 +218,7 @@ async function lockProjectTopicRule(
 
 export type TopicRuleInput = Omit<
   TopicRule,
-  "id" | "name" | "updatedAt" | "sampling"
+  "id" | "name" | "updatedAt" | "sampling" | "status"
 > &
   Partial<Pick<TopicRule, "name" | "sampling">> & {
     id?: string;
