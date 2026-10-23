@@ -63,6 +63,7 @@ function SetupStory({
       onBack={fn()}
       onClusteringChange={fn()}
       onConfigureProviders={fn()}
+      connectionSettingsUrl="https://cloud.langfuse.com/project/demo-project/settings/llm-connections"
       onEdit={fn()}
       onEmbeddingChange={fn()}
       onNext={fn()}

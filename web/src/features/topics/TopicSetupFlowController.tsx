@@ -58,6 +58,8 @@ export function TopicSetupFlowController({
           onDismiss={closeSetup}
           renderDialog={({ closeDialog }) => (
             <TopicSetupSession
+              // Rebuilds the draft with recommended models once the first connection arrives.
+              key={settings.connections.length > 0 ? "ready" : "none"}
               projectId={projectId}
               canWrite={canWrite}
               settings={settings}
@@ -117,6 +119,7 @@ function TopicSetupSession({
     },
   });
   const startSetup = api.topics.startSetup.useMutation();
+  const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
       id: connection.id,
@@ -308,12 +311,9 @@ function TopicSetupSession({
       onEmbeddingChange={(model) => updateModel(setDraft, "embedding", model)}
       onClusteringChange={(model) => updateModel(setDraft, "clustering", model)}
       onConfigureProviders={() => {
-        window.open(
-          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`,
-          "_blank",
-          "noopener,noreferrer",
-        );
+        window.open(connectionSettingsUrl, "_blank", "noopener,noreferrer");
       }}
+      connectionSettingsUrl={connectionSettingsUrl}
       onAdvancedOpenChange={(advancedOpen) =>
         setDraft((current) => ({ ...current, advancedOpen }))
       }

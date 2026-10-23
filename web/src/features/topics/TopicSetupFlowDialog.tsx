@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { Slider } from "@/src/components/ui/Slider";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -74,6 +74,8 @@ export type TopicSetupFlowDialogProps = {
   onBack: () => void;
   onClusteringChange: (model: JudgeModel) => void;
   onConfigureProviders: () => void;
+  /** Absolute link to the project's LLM connection settings, shared by non-admins. */
+  connectionSettingsUrl: string;
   onEdit: (step: "questions" | "traces") => void;
   onEmbeddingChange: (model: JudgeModel) => void;
   onNext: () => void;
@@ -109,6 +111,7 @@ export function TopicSetupFlowDialog({
   onBack,
   onClusteringChange,
   onConfigureProviders,
+  connectionSettingsUrl,
   onEdit,
   onEmbeddingChange,
   onNext,
@@ -145,10 +148,9 @@ export function TopicSetupFlowDialog({
   });
   // The server picks its own traces, so a failed estimate must not block Start.
   const canStart = canWrite && !busy && pastCount.status !== "loading";
-  const connectionActionRef = useRef<HTMLButtonElement>(null);
   // Without a connection, people who cannot add one only get a link to share and Close.
   const viewerBlocked = !hasConnection && !canAddConnection;
-  // Without a connection Next stays clickable and points at the banner instead.
+  // Without a connection Next stays clickable and opens the connection settings instead.
   const needsConnection = step === "questions" && !hasConnection;
   const nextDisabled = needsConnection
     ? false
@@ -207,24 +209,25 @@ export function TopicSetupFlowDialog({
                   )}
                 </div>
                 {viewerBlocked && (
-                  <AskAdminForConnection projectId={projectId} />
+                  <AskAdminForConnection url={connectionSettingsUrl} />
                 )}
                 {!hasConnection && canAddConnection && (
-                  <div className="bg-light-yellow text-foreground flex items-center gap-3 rounded-lg px-3.5 py-3 text-sm">
-                    <Plug size="base" aria-hidden="true" />
-                    <span className="flex-1">
-                      No AI connection in this project yet.
-                    </span>
-                    <button
-                      ref={connectionActionRef}
-                      type="button"
-                      onClick={onConfigureProviders}
-                      className="focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-sm font-bold whitespace-nowrap focus-visible:ring-2 focus-visible:outline-hidden"
-                    >
-                      Add connection
-                      <ArrowUpRight size="sm" aria-hidden="true" />
-                    </button>
-                  </div>
+                  <Alert variant="warning" icon={Plug}>
+                    <Alert.Title>
+                      No AI connection in this project yet
+                    </Alert.Title>
+                    <Alert.Description>
+                      <div className="mt-2">
+                        <Button
+                          text="Add connection"
+                          variant="secondary"
+                          size="sm"
+                          icon={ArrowUpRight}
+                          onClick={onConfigureProviders}
+                        />
+                      </div>
+                    </Alert.Description>
+                  </Alert>
                 )}
                 {!viewerBlocked && !hasConnection && (
                   <div
@@ -455,11 +458,7 @@ export function TopicSetupFlowDialog({
                 variant="primary"
                 loading={busy}
                 disabled={nextDisabled}
-                onClick={
-                  needsConnection
-                    ? () => connectionActionRef.current?.focus()
-                    : onNext
-                }
+                onClick={needsConnection ? onConfigureProviders : onNext}
               />
             </div>
           </div>
@@ -610,8 +609,7 @@ function ReviewRow({
   );
 }
 
-function AskAdminForConnection({ projectId }: { projectId?: string }) {
-  const url = connectionSettingsUrl(projectId);
+function AskAdminForConnection({ url }: { url: string }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-center gap-2.5 text-sm font-bold">
@@ -634,9 +632,4 @@ function AskAdminForConnection({ projectId }: { projectId?: string }) {
       </div>
     </div>
   );
-}
-
-function connectionSettingsUrl(projectId: string | undefined) {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/project/${projectId ?? ""}/settings/llm-connections`;
 }
