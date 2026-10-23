@@ -3,7 +3,7 @@ import { useState } from "react";
 import { createStore } from "zustand/vanilla";
 import { vi } from "vitest";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { RunEvaluationDialog } from "./index";
+import { RunEvaluationDialog } from "./RunEvaluationDialog";
 
 const { submit, submitted } = vi.hoisted(() => ({
   submit: vi.fn<() => Promise<{ id: string }>>(),
