@@ -421,6 +421,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
+  listTopicFacets: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopics: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  getTopicsForTraces: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
   getV4MigrationData: {
     approval: "auto",
     availability: { scope: "project:read" },
