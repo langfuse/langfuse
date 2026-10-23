@@ -8,7 +8,6 @@ import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
 import { incidentSessionScenario } from "./incident-session";
-import { legacyWebhookHeadersScenario } from "./legacy-webhook-headers";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
@@ -44,7 +43,6 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "session-variety": sessionVarietyScenario,
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
-  "legacy-webhook-headers": legacyWebhookHeadersScenario,
   "support-agent": supportAgentScenario,
   "incident-session": incidentSessionScenario,
   "timeline-annotated": timelineAnnotatedScenario,
