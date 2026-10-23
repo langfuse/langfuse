@@ -53,6 +53,8 @@ interface TreeNodeWrapperProps {
 
   // Content to render (fully decoupled from tree structure)
   children: ReactNode;
+  /** Right-aligned, before the expand slot; never pushes the content. */
+  trailing?: ReactNode;
 
   // Optional customization
   className?: string;
@@ -163,6 +165,12 @@ export function VirtualizedTreeNodeWrapper(
 
         {/* 4. Content area (passed as children - completely decoupled) */}
         <div className="flex min-w-0 flex-1">{children}</div>
+
+        {loaded?.trailing && (
+          <div className="flex shrink-0 items-start py-1.25">
+            {loaded.trailing}
+          </div>
+        )}
 
         {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
             content lines up across rows. */}

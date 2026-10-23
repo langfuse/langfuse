@@ -28,6 +28,10 @@ import {
   removeHiddenNodes,
 } from "../fns/treeBuilding";
 import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphasis";
+import {
+  pickLongestLeafObservation,
+  type LongestLeafObservation,
+} from "@/src/features/traces/fns/longestLeafObservation";
 import { useViewPreferences } from "./ViewPreferencesProvider";
 import { useMergedScores } from "@/src/features/scores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
@@ -57,6 +61,9 @@ interface TraceDataContextValue {
   /** Trace-wide cost/duration totals for metric emphasis. Derived from the
    * UNFILTERED tree so level filtering cannot change which rows read bold. */
   metricEmphasis: TraceMetricEmphasis;
+  /** Longest leaf observation, from the UNFILTERED tree; null when the trace
+   * has fewer than two leaves or was capped. */
+  longestLeafObservation: LongestLeafObservation | null;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
   /**
@@ -168,6 +175,15 @@ export function TraceDataProvider({
       return { filteredRoots, filteredSearchItems, hiddenObservationsCount };
     }, [uiData, minObservationLevel]);
 
+  const longestLeafObservation = useMemo(
+    () =>
+      pickLongestLeafObservation(uiData.roots, {
+        traceTotalDurationMs: uiData.metricEmphasis.totals.traceTotalDurationMs,
+        truncatedAtObservations,
+      }),
+    [uiData, truncatedAtObservations],
+  );
+
   const traceLevelScoreOwnerIdSet = useMemo(
     () =>
       traceLevelScoreOwnerIds(
@@ -200,6 +216,7 @@ export function TraceDataProvider({
       traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
       metricEmphasis: uiData.metricEmphasis,
+      longestLeafObservation,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
@@ -224,6 +241,7 @@ export function TraceDataProvider({
       isPlaceholderData,
       uiData.nodeMap,
       uiData.metricEmphasis,
+      longestLeafObservation,
       comments,
     ],
   );
