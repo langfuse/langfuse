@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { z } from "zod/v4";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/TeamInviteFields";
-import { isEmailAddress } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/fns/isEmailAddress";
 import type {
   GatewayNotifiableMembers,
   GatewayTeamInviteResult,
@@ -42,7 +42,9 @@ export function TeamInviteForm({
     notifiableMembers.isEmailConfigured &&
     notifiableMembers.count > 0;
   const willNotify = canNotify && notifyMembers;
-  const hasInvalidEmail = emails.some((email) => !isEmailAddress(email));
+  const hasInvalidEmail = emails.some(
+    (email) => !z.email().safeParse(email).success,
+  );
   const hasTooManyEmails = emails.length > MAX_TEAM_INVITES;
   const sendLabel =
     emails.length > 0
