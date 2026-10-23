@@ -382,6 +382,8 @@ export const env = createEnv({
       .url({ protocol: /^https?$/ })
       .refine(
         (value) => {
+          // z.url() already reports unparseable values; refine still runs on them.
+          if (!URL.canParse(value)) return true;
           const url = new URL(value);
           return !url.username && !url.password && !/[?#]/.test(value);
         },
