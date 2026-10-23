@@ -1,4 +1,4 @@
-import { expect, fn, within } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { Stepper } from "./Stepper";
@@ -65,7 +65,6 @@ export const Statuses = meta.story({
         status="complete"
         size="sm"
         isCollapsible={false}
-        docsHref="https://langfuse.com/docs"
         description="Recording usage only"
       />
       <Stepper
@@ -73,7 +72,6 @@ export const Statuses = meta.story({
         title="Add a provider credential"
         size="sm"
         isCollapsible={false}
-        docsHref="https://langfuse.com/docs"
       >
         <div className="rounded-md border p-3 text-sm">Add credential</div>
       </Stepper>
@@ -83,7 +81,6 @@ export const Statuses = meta.story({
         status="upcoming"
         size="sm"
         isCollapsible={false}
-        docsHref="https://langfuse.com/docs"
       />
     </div>
   ),
@@ -103,15 +100,4 @@ export const MultiStep = meta.story({
       </Stepper>
     </div>
   ),
-});
-
-export const TestLearnMoreOnlyOnCurrentStep = meta.story({
-  ...Statuses.input,
-  name: "(Test) Learn more link only on the current step",
-  play: async ({ canvasElement }) => {
-    const docsLinks = within(canvasElement).getAllByRole("link", {
-      name: /Learn more/,
-    });
-    await expect(docsLinks).toHaveLength(1);
-  },
 });

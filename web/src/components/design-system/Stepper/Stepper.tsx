@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -67,8 +66,6 @@ type StepperProps = {
   size?: "default" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
-  /** Renders a "Learn more" link after the title while the step is current. */
-  docsHref?: string;
   compactBottomSpacing?: boolean;
   children?: ReactNode;
 } & (
@@ -101,7 +98,6 @@ export function Stepper({
   variant = "filled",
   size = "default",
   status = "current",
-  docsHref,
   compactBottomSpacing = false,
   isCollapsible = true,
   defaultOpen = true,
@@ -138,43 +134,29 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          {isCollapsible ? (
-            <button
-              type="button"
-              className={headerVariants({ size })}
-              aria-label={`Step ${number}: ${title}`}
-              aria-expanded={expanded}
-              onClick={toggle}
-            >
-              <ChevronDown
-                size="base"
-                color="tertiary"
-                __rawClassName={cn(
-                  "translate-y-px transition-transform",
-                  !expanded && "-rotate-90",
-                )}
-              />
-              <span className={cn(titleVariants({ size, status }))}>
-                {title}
-              </span>
-            </button>
-          ) : (
-            <div className={headerVariants({ size })}>
-              <span className={cn(titleVariants({ size, status }))}>
-                {title}
-              </span>
-            </div>
-          )}
-          {docsHref && status === "current" ? (
-            <Button
-              variant="link"
-              size="sm"
-              text="Learn more"
-              href={docsHref}
+        {isCollapsible ? (
+          <button
+            type="button"
+            className={headerVariants({ size })}
+            aria-label={`Step ${number}: ${title}`}
+            aria-expanded={expanded}
+            onClick={toggle}
+          >
+            <ChevronDown
+              size="base"
+              color="tertiary"
+              __rawClassName={cn(
+                "translate-y-px transition-transform",
+                !expanded && "-rotate-90",
+              )}
             />
-          ) : null}
-        </div>
+            <span className={titleVariants({ size, status })}>{title}</span>
+          </button>
+        ) : (
+          <div className={headerVariants({ size })}>
+            <span className={titleVariants({ size, status })}>{title}</span>
+          </div>
+        )}
         {expanded && hasBody ? (
           <div
             className={cn(

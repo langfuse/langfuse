@@ -19,9 +19,25 @@ export function CredentialStep({
   onAddCredential,
 }: CredentialStepProps) {
   const description =
-    status === "complete" && firstConnection
-      ? `${providerLabels[firstConnection.provider]} credential added`
-      : `Connect ${Object.values(providerLabels).join(" or ")} with an API key. Available models are loaded from the provider.`;
+    status === "complete" && firstConnection ? (
+      `${providerLabels[firstConnection.provider]} credential added`
+    ) : (
+      <>
+        Connect {Object.values(providerLabels).join(" or ")} with an API key.
+        Available models are loaded from the provider.
+        {status === "current" ? (
+          <>
+            {" "}
+            <Button
+              variant="text"
+              size="sm"
+              text="How provider credentials work"
+              href={GATEWAY_SETUP.docsUrl}
+            />
+          </>
+        ) : null}
+      </>
+    );
 
   return (
     <Stepper
@@ -31,7 +47,6 @@ export function CredentialStep({
       status={status}
       isCollapsible={false}
       compactBottomSpacing
-      docsHref={GATEWAY_SETUP.docsUrl}
       description={description}
     >
       {status === "current" ? (

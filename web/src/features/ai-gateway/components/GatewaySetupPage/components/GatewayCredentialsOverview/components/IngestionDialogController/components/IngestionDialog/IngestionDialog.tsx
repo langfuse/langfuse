@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/IngestionSettingsFields";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
@@ -39,7 +40,6 @@ export function IngestionDialog({
     <Dialog
       title="Gateway ingestion"
       size="md"
-      docsHref={GATEWAY_SETUP.docsUrl}
       actions={[
         {
           label: "Save",
@@ -50,6 +50,14 @@ export function IngestionDialog({
       ]}
     >
       <Dialog.Body>
+        <p className="text-muted-foreground">
+          Choose what Langfuse records for requests sent through the gateway.{" "}
+          <Button
+            variant="text"
+            text="How ingestion modes work"
+            href={GATEWAY_SETUP.docsUrl}
+          />
+        </p>
         <IngestionSettingsFields
           settings={settings}
           projects={projects}

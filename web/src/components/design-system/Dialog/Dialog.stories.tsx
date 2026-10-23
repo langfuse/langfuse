@@ -61,27 +61,6 @@ export const VariantMatrix = meta.story({
   ),
 });
 
-export const WithDocsLink = meta.story({
-  render: () => (
-    <DialogController
-      renderDialog={() => (
-        <Dialog
-          title="Gateway ingestion"
-          docsHref="https://langfuse.com/docs"
-          text="The docs link sits next to the title."
-          actions={[{ label: "Save", onClick: fn() }]}
-        />
-      )}
-    >
-      {({ openDialog }) => (
-        <button type="button" onClick={() => openDialog()}>
-          Open dialog
-        </button>
-      )}
-    </DialogController>
-  ),
-});
-
 export const Autofocus = meta.story({
   name: "(Test) Autofocus",
   render: () => (

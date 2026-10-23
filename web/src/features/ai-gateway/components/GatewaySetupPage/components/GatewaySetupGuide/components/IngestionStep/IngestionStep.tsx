@@ -1,3 +1,4 @@
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { IngestionStepForm } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/components/IngestionStepForm";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
@@ -30,7 +31,15 @@ export function IngestionStep({
         {describeGatewayIngestion({ config, projects })}
       </span>
     ) : (
-      "You can change this later."
+      <>
+        You can change this later.{" "}
+        <Button
+          variant="text"
+          size="sm"
+          text="How ingestion modes work"
+          href={GATEWAY_SETUP.docsUrl}
+        />
+      </>
     );
 
   return (
@@ -41,7 +50,6 @@ export function IngestionStep({
       status={status}
       isCollapsible={false}
       compactBottomSpacing
-      docsHref={GATEWAY_SETUP.docsUrl}
       description={description}
     >
       {status === "current" ? (
