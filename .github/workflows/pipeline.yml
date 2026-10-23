@@ -1976,6 +1976,12 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v4') && !contains(github.ref, '-rc') }}
+          # The action derives title and licenses from the repository, which
+          # labels every image "langfuse" with "NOASSERTION". These labels
+          # override the Dockerfile's, so restate them per image.
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image_name }}
+            org.opencontainers.image.licenses=${{ matrix.component == 'ai-gateway' && 'MIT' || 'MIT AND LicenseRef-Langfuse-EE' }}
       - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-ghcr
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
