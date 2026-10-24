@@ -1,12 +1,9 @@
-# FIPS 140-3 base: UBI 9 with the nodejs:24 module-stream RPM
-# instead of node:24-alpine. The RPM Node dynamically links the system
-# libcrypto.so.3, so node:crypto routes through RHEL's CMVP-validated OpenSSL
-# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
-# statically bundle their own non-validated OpenSSL and bypass the platform
-# module entirely.
+# Node is built from pinned security-release source and dynamically links
+# RHEL's system OpenSSL, preserving the existing FIPS-provider integration.
+# Provider validation and supported deployment conditions remain separate
+# from the Node build; see scripts/docker/node/README.md.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
-# credentials. Iron Bank serves the same content from an authenticated registry
-# with DoD provenance and scan attestations. Release builds opt in by overriding
+# credentials. Release builds select Iron Bank bases by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
 #   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
@@ -14,17 +11,24 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS system-base
 
-# nodejs:24 and openssl (incl. the FIPS provider) come from the freely
-# redistributable UBI repos, so no RHEL entitlement is required.
-# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
-# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
-# formatting) without the full ICU data.
-RUN dnf -y upgrade && \
-    dnf -y module enable nodejs:24 && \
-    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+RUN dnf -y upgrade && dnf clean all
+
+FROM system-base AS node-builder
+ARG NODE_BUILD_JOBS=4
+RUN dnf -y install --setopt=install_weak_deps=0 \
+    gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ make python3 python3-packaging \
+    python3-jinja2 pkgconf-pkg-config openssl-devel tar xz gzip patch && \
     dnf clean all
+COPY scripts/docker/node/ /build-node/
+RUN NODE_BUILD_JOBS="${NODE_BUILD_JOBS}" bash /build-node/build.sh
+
+FROM system-base AS base
+RUN dnf -y install --setopt=install_weak_deps=0 \
+    libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
+    dnf clean all
+COPY --from=node-builder /opt/node/usr/ /usr/
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -43,28 +47,23 @@ ARG TARGETARCH
 ARG UID=1001
 ARG GID=1001
 
-# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
-# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
-# formatting) without the full ICU data.
+# ICU is bundled into the source-built Node executable.
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
+    --setopt=tsflags=nodocs \
     --disableexcludes=all \
-    module enable nodejs:24 && \
-    dnf -y --installroot /mnt/rootfs --releasever 9 \
-    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
-    --disableexcludes=all \
-    install nodejs nodejs-full-i18n bash coreutils-single sed \
+    install libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so \
+    bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# The nodejs RPM drags npm in as a dependency; the runtime image must carry
-# no package manager, so remove it from the rootfs (rpmdb stays consistent).
-RUN if rpm --root /mnt/rootfs -q npm >/dev/null 2>&1; then \
-    rpm --root /mnt/rootfs -e --nodeps npm; \
-    fi
+# The final runtime needs neither npm nor the source-build toolchain.
+COPY --from=node-builder /opt/node/usr/bin/node /mnt/rootfs/usr/bin/node
+COPY --from=node-builder /opt/node/usr/share/licenses/nodejs/ /mnt/rootfs/usr/share/licenses/nodejs/
+COPY --from=node-builder /opt/node/usr/share/doc/nodejs/ /mnt/rootfs/usr/share/doc/nodejs/
 
 # The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
 # being activated system-wide, so installs without FIPS mode keep the default
@@ -104,6 +103,11 @@ RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime-base
 COPY --from=rpm-installer /mnt/rootfs /
+COPY scripts/ci/node-runtime-smoke.cjs /tmp/node-runtime-smoke.cjs
+RUN node /tmp/node-runtime-smoke.cjs && \
+    OPENSSL_FORCE_FIPS_MODE=1 OPENSSL_CONF=/etc/pki/tls/openssl-fips.cnf \
+    node /tmp/node-runtime-smoke.cjs --fips && \
+    rm /tmp/node-runtime-smoke.cjs
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -112,7 +116,7 @@ WORKDIR /app
 COPY . .
 RUN turbo prune worker --docker
 
-# UBI build toolchain: RPM Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
+# UBI build toolchain: Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
 # also runs the web and worker test suites on this stage with the OpenSSL FIPS
 # provider forced on (scripts/ci/fips-tests.sh).
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS toolchain

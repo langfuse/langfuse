@@ -28,7 +28,7 @@ env:
   # Keep the test job node-version matrices in sync. GitHub does not allow the
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
-  NODE_VERSION: 24
+  NODE_VERSION: ^24.22.1
 
   # Disable CI cache restores for fork PRs.
   #
@@ -836,7 +836,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [24]
+        node-version: ["^24.22.1"]
         postgres-version: [15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -1059,7 +1059,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [24]
+        node-version: ["^24.22.1"]
         postgres-version: [15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -1198,13 +1198,13 @@ jobs:
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
       - name: Use Node.js 24 with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
