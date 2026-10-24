@@ -73,7 +73,9 @@ function CurrentFacet({
 }: CurrentFacetProps) {
   const mapResult = useCurrentTopicMap(
     projectId,
-    view === "treemap" ? undefined : facet.map?.runId,
+    view === "treemap" || view === "treemap-side"
+      ? undefined
+      : facet.map?.runId,
     timeRange,
   );
   const peekNavigation = usePeekNavigation({
@@ -82,7 +84,7 @@ function CurrentFacet({
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
-  if (view === "treemap")
+  if (view === "treemap" || view === "treemap-side")
     return (
       <TopicTreemapView
         projectId={projectId}
@@ -90,6 +92,8 @@ function CurrentFacet({
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
         peekView={peekView}
+        sideBySide={view === "treemap-side"}
+        tracePanelRef={tracePanelRef}
       />
     );
   if (view === "map")
