@@ -1124,6 +1124,72 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Cloudflare Turnstile reset-after-unmount errors", () => {
+    // Real shape: Chrome on /auth/sign-up. After signup-verify redeems the
+    // token the page remounts the widget for the next action. Turnstile's
+    // leftover reset throws from a Sentry-wrapped setTimeout with only
+    // api.js frames. Expected vendor teardown, not an app bug.
+    const TURNSTILE_RESET =
+      "[Cloudflare Turnstile] Nothing to reset found for provided container.";
+    const turnstileResetEvent = (
+      value: string,
+      type = "TurnstileError",
+      mechanismType = "auto.browser.browserapierrors.setTimeout",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the vendor reset-after-unmount TurnstileError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          turnstileResetEvent(
+            TURNSTILE_RESET,
+            "TurnstileError",
+            "auto.browser.browserapierrors.setTimeout",
+            [
+              {
+                filename:
+                  "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                function: "l",
+              },
+              { filename: "app:///turnstile/v0/api.js", function: "x" },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording without a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          turnstileResetEvent(
+            "[Cloudflare Turnstile] Nothing to reset found for provided container",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1339,6 +1405,64 @@ describe("isDenylistedNoiseEvent", () => {
         isDenylistedNoiseEvent(
           messageEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
         ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured Turnstile reset error (generic mechanism)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "[Cloudflare Turnstile] Nothing to reset found for provided container.",
+            "TurnstileError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a different TurnstileError (script/siteverify failures)", () => {
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "TurnstileError",
+                value: "[Cloudflare Turnstile] Error: 600010.",
+                mechanism: {
+                  type: "auto.browser.browserapierrors.setTimeout",
+                  handled: false,
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
+      ).toBe(false);
+    });
+
+    it("keeps the reset wording when a first-party chunk is on the stack", () => {
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "TurnstileError",
+                value:
+                  "[Cloudflare Turnstile] Nothing to reset found for provided container.",
+                mechanism: {
+                  type: "auto.browser.browserapierrors.setTimeout",
+                  handled: false,
+                },
+                stacktrace: {
+                  frames: [
+                    {
+                      filename: "app:///_next/static/chunks/app.js",
+                      function: "reset",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
       ).toBe(false);
     });
 
