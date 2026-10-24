@@ -1358,6 +1358,66 @@ json_literal    = "<price_per_mtok>e-6"
   provider. AWS Bedrock's pricing page again could not be made to yield extractable
   per-model numeric rows for any Claude model (standing limitation); TypeSafe's Jev page
   confirms `jev-1.13.0`/`jev-1.14.0` unchanged at $42/Btok input, output free.
+- **October 24 2026 audit: the October 23, 2026 "Legacy GPT model snapshots" batch has now
+  passed — 12 entries removed from `openAIModels`; no price drift; a new Bedrock foundation
+  model family found and left unadded** — Re-fetched
+  `https://developers.openai.com/api/docs/deprecations` with an explicit, verbatim-quote
+  request for the exact shutdown-date string (the same anti-date-confusion technique the
+  October 9/21 2026 entries required, after two prior runs saw a WebFetch summarizer
+  mischaracterize this same date's direction). The page confirms the literal string
+  "October 23, 2026" for the full ten-row "Legacy GPT model snapshots" batch, and this
+  audit's own run date is October 24, 2026 — one day after, so the shutdown is real and
+  past. Cross-checked against `date -u +%Y-%m-%dT00:00:00.000Z` before acting, per the
+  standing lesson. Removed the batch's IDs that were still present in `openAIModels`:
+  `gpt-4.1-nano`, `gpt-4.1-nano-2025-04-14`, `gpt-4-1106-preview`, `gpt-4-0613`, `gpt-4`,
+  `gpt-3.5-turbo-0125`, `gpt-3.5-turbo`, `gpt-4o-2024-05-13`, `o3-mini`,
+  `o3-mini-2025-01-31`, `o4-mini`, `o4-mini-2025-04-16` — 12 selectable-array removals in
+  one run, the largest single-batch removal since the October 12, 2026 lifecycle sweep.
+  `gpt-4-turbo`/`gpt-4-turbo-2024-04-09` and `o1`/`o1-2024-12-17`/`o1-pro`/
+  `o1-pro-2025-03-19` were already absent from `openAIModels`, so they needed no action.
+  `gpt-3.5-turbo-16k` is NOT part of this batch (the batch's `gpt-3.5-turbo-0125` row lists
+  only `gpt-3.5-turbo`/`gpt-3.5-turbo-completions` as aliases) and was left unchanged — do
+  not conflate it with `gpt-3.5-turbo`/`gpt-3.5-turbo-0125` in a future audit. All 12
+  pricing entries stay in `default-model-prices.json` for historical cost lookups. The
+  `gpt-5.6-sol`/`gpt-5.6-terra`/`gpt-5.6-luna` successors named in the batch's own
+  replacement column were already present in `openAIModels` before this run, satisfying
+  the "successor already in the array" expectation even though the primary removal
+  criterion here is "shut down," not the preview/snapshot criterion. Re-fetched the full
+  Anthropic pricing page (model table, cache-hits footnote, Fast mode table, Batch table,
+  tool-use tables), the Anthropic model-deprecations page (full "Model status" table — no
+  entry crossed into `Retired` this run; `claude-sonnet-4-5-20250929` is still only
+  `Deprecated`, retirement November 30, 2026, not yet passed), the OpenAI aggregate
+  Standard pricing table (every `gpt-6`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/
+  o-series/`gpt-4.1`/`gpt-4o` row), the OpenAI model catalog, both Gemini pricing pages,
+  the Gemini models catalog, the Gemini deprecations page, the AWS Bedrock pricing page,
+  and the TypeSafe Jev models page. Every price checked — cross-verified against the live
+  JSON, not just visually — matched exactly; no pricing-file edits were needed. Two other
+  findings, neither actioned:
+  1. **AWS Bedrock's pricing page now advertises a new foundation model family: Z AI
+     (formerly GLM)**, listing GLM 5.3, GLM 5, GLM 4.7, and a GLM 4.7 Flash variant across
+     multiple regions. This is a model family from a third-party lab (Zhipu/Z AI), not one
+     of OpenAI/Anthropic/Google's own families, but it is served through AWS Bedrock, a
+     covered provider. It was NOT added: Bedrock's pricing page could not be made to yield
+     extractable per-model numeric rows for it this run (the same standing
+     numeric-extraction limitation documented in the October 13, 2026 entry above, which so
+     far has only been confirmed for Claude models but now appears to extend to this family
+     too), and GLM's Bedrock usage-object shape (likely not Anthropic-format, per the
+     "Other Bedrock models" guidance in provider-usage-key-matrix.md) has not been
+     researched. Treat this as the same class of reportable, deliberately-unadded gap as
+     the September 9, 2026 Amazon Nova finding — a future task that explicitly scopes
+     adding a new Bedrock-hosted third-party model family should research GLM's exact
+     Bedrock model IDs, numeric per-token prices (try the model's own Bedrock pricing
+     calculator or a dedicated per-model fetch rather than the aggregate page), and usage
+     object before adding an entry.
+  2. The GPT-4 series batch (`gpt-4o`/`gpt-4o-2024-08-06`/`gpt-4.1`/`gpt-4.1-2025-04-14`/
+     `gpt-4.1-mini`/`gpt-4.1-mini-2025-04-14`), shutdown January 14, 2027, is unchanged and
+     still 82 days out — not yet actionable. `gemini-3.5-flash`/`gemini-3.7-flash` are
+     still the permanently-aliased-with-no-shutdown-date case documented in the October 21,
+     2026 entry above (re-confirmed via the deprecations page's "Gemini 3 models" table,
+     same `N/A` shutdown dates and successor names) — still unresolved, left unchanged in
+     both selectable arrays. The Gemini 2.5-family access-restriction notice (not a
+     shutdown) is also unchanged. No new flagship text/chat/reasoning model was found on
+     any provider.
 
 ## Provider Usage Keys
 

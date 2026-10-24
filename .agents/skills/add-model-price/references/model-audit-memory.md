@@ -12,11 +12,21 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-10-21
+**Audit date:** 2026-10-24
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-10-21 run re-fetched the full Anthropic pricing page (model table, cache-hits
+The 2026-10-24 run found no price drift (every price below still matches the live pricing
+file verbatim) but resolved the long-tracked October 23, 2026 "Legacy GPT model snapshots"
+deprecation: that date has now passed, so `gpt-4.1-nano`, `gpt-4.1-nano-2025-04-14`,
+`gpt-4-1106-preview`, `gpt-4-0613`, `gpt-4`, `gpt-3.5-turbo-0125`, `gpt-3.5-turbo`,
+`gpt-4o-2024-05-13`, `o3-mini`, `o3-mini-2025-01-31`, `o4-mini`, and `o4-mini-2025-04-16`
+were removed from `openAIModels` (pricing entries kept for historical cost lookups). See
+the dedicated "October 24 2026 audit" entry in `provider-sources-and-price-keys.md` for
+full evidence and a new, deliberately-unadded Bedrock "Z AI (formerly GLM)" model family
+finding. The January 14, 2027 GPT-4 series batch and the `gemini-3.5-flash`/
+`gemini-3.7-flash` permanent-alias situation are both still unresolved and unchanged.
+The 2026-10-21 run before it re-fetched the full Anthropic pricing page (model table, cache-hits
 footnote, Fast mode table, Batch table) and the Anthropic model-deprecations page (full
 "Model status" table), the OpenAI aggregate Standard pricing table (every
 `gpt-6`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/`gpt-5.2`/`gpt-5.1`/`gpt-5`/o-series/
