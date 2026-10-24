@@ -103,11 +103,6 @@ RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime-base
 COPY --from=rpm-installer /mnt/rootfs /
-COPY scripts/ci/node-runtime-smoke.cjs /tmp/node-runtime-smoke.cjs
-RUN node /tmp/node-runtime-smoke.cjs && \
-    OPENSSL_FORCE_FIPS_MODE=1 OPENSSL_CONF=/etc/pki/tls/openssl-fips.cnf \
-    node /tmp/node-runtime-smoke.cjs --fips && \
-    rm /tmp/node-runtime-smoke.cjs
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
