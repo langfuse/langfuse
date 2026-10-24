@@ -589,6 +589,33 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops a [WitnessAI] DLP console error (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[WitnessAI] Error in UserInputMonitoring event handler: TypeError: Cannot read properties of undefined (reading 'startsWith')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops WitnessAI OTEL circular-DOM exporter noise (LANGFUSE-641)", () => {
+      // Production shape: captureConsoleIntegration message event, no exception,
+      // no stack. Synthetic fiber id — do not copy event payloads.
+      const circularDomExporterMessage = [
+        "Error processing exporters: Converting circular structure to JSON",
+        "    --> starting at object with constructor 'HTMLInputElement'",
+        "    |     property '__reactFiber$abcdefghij' -> object with constructor 'n7'",
+        "    --- property 'stateNode' closes the circle",
+      ].join("\n");
+      expect(
+        isDenylistedNoiseEvent(messageEvent(circularDomExporterMessage)),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(logentryEvent(circularDomExporterMessage)),
+      ).toBe(true);
+    });
+
     it("drops a kitesurf: localhost CORS console error (message event)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -1339,6 +1366,82 @@ describe("isDenylistedNoiseEvent", () => {
         isDenylistedNoiseEvent(
           messageEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
         ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party circular JSON TypeError (no OTEL exporter prefix)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Converting circular structure to JSON\n    --> starting at object with constructor 'HTMLInputElement'\n    --- property 'stateNode' closes the circle",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an OTEL exporter failure that is not a DOM cycle", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Error processing exporters: timeout"),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Error processing exporters: Converting circular structure to JSON\n    --> starting at object with constructor 'BatchSpanProcessor'\n    --- property '_that' closes the circle",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that merely quotes the OTEL exporter prefix", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to save: Error processing exporters: Converting circular structure to JSON starting at HTMLInputElement",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps unprefixed WitnessAI wording (only the [WitnessAI] namespace is dropped)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Error in UserInputMonitoring event handler: TypeError: Cannot read properties of undefined (reading 'startsWith')",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps the circular-DOM exporter message when a first-party chunk is on the stack", () => {
+      const value = [
+        "Error processing exporters: Converting circular structure to JSON",
+        "    --> starting at object with constructor 'HTMLInputElement'",
+        "    |     property '__reactFiber$abcdefghij' -> object with constructor 'n7'",
+        "    --- property 'stateNode' closes the circle",
+      ].join("\n");
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "Error",
+                value,
+                mechanism: { type: "generic", handled: false },
+                stacktrace: {
+                  frames: [
+                    {
+                      filename: "app:///_next/static/chunks/app.js",
+                      function: "handleSubmit",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
       ).toBe(false);
     });
 
