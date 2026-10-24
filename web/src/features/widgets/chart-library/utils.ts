@@ -57,7 +57,7 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
       uniqueDimensions.add(item.dimension);
     }
   });
-  return Array.from(uniqueDimensions);
+  return Array.from(uniqueDimensions).sort((a, b) => a.localeCompare(b));
 };
 
 /**
