@@ -2,6 +2,7 @@
 
 import {
   handleStaleChunkScriptError,
+  handleTurbopackModuleFactoryUnavailable,
   isStaleNextScriptElement,
   STALE_CHUNK_RELOAD_SESSION_KEY,
 } from "@/src/features/version-update/reloadOnStaleChunk";
@@ -81,5 +82,54 @@ describe("handleStaleChunkScriptError", () => {
     );
     expect(reload).not.toHaveBeenCalled();
     expect(sessionStorage.getItem(STALE_CHUNK_RELOAD_SESSION_KEY)).toBeNull();
+  });
+});
+
+const TURBOPACK_FACTORY_UNAVAILABLE =
+  "Module 227204 was instantiated because it was required from module 713178, but the module factory is not available.";
+
+describe("handleTurbopackModuleFactoryUnavailable", () => {
+  const reload = vi.fn();
+
+  beforeEach(() => {
+    reload.mockReset();
+    sessionStorage.clear();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { reload },
+    });
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("reloads once on the Turbopack factory-unavailable Error", () => {
+    handleTurbopackModuleFactoryUnavailable(
+      new Error(TURBOPACK_FACTORY_UNAVAILABLE),
+    );
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem(STALE_CHUNK_RELOAD_SESSION_KEY)).toBe("1");
+  });
+
+  it("does not reload a second time in the same session", () => {
+    const err = new Error(TURBOPACK_FACTORY_UNAVAILABLE);
+    handleTurbopackModuleFactoryUnavailable(err);
+    handleTurbopackModuleFactoryUnavailable(err);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload an unrelated rejection", () => {
+    handleTurbopackModuleFactoryUnavailable(new Error("Failed to fetch"));
+    expect(reload).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(STALE_CHUNK_RELOAD_SESSION_KEY)).toBeNull();
+  });
+
+  it("shares the one-shot key with a prior script-chunk reload", () => {
+    handleStaleChunkScriptError(scriptErrorEvent(NEXT_CHUNK), () => true);
+    handleTurbopackModuleFactoryUnavailable(
+      new Error(TURBOPACK_FACTORY_UNAVAILABLE),
+    );
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
