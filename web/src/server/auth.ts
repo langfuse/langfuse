@@ -25,6 +25,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import { verifyOAuthStaffEmail } from "@/src/features/auth/lib/verifyOAuthStaffEmail";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
@@ -787,8 +788,9 @@ export async function getAuthOptions(
         }
         return baseUrl;
       },
-      async jwt({ token, user }) {
+      async jwt({ token, user, account, profile }) {
         if (user) {
+          await verifyOAuthStaffEmail({ user, account, profile });
           const loginAt = await getSessionLoginAt(token.email!);
           token.loginAt = loginAt.getTime();
         }

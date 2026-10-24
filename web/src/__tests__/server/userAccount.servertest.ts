@@ -29,22 +29,22 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
-    async (enabled) => {
-      const { caller, userId } = await createCaller();
-      await expect(
-        caller.userAccount.setFeaturePreviewEnabled({
-          flag: "langfuseTopics",
-          enabled,
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.featureFlags).toEqual(["templateFlag"]);
-    },
-  );
+  it("rejects a staff user's admin-only Topics toggle", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "langfuse.com",
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await expect(
+      caller.userAccount.setFeaturePreviewEnabled({
+        flag: "langfuseTopics",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag"]);
+  });
 
   it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
     const { caller, userId } = await createCaller({ admin: true });
@@ -150,20 +150,25 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
-  const testEnv = env as {
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  const originalEnv = {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   beforeEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    Object.assign(env, {
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
   });
   afterEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    Object.assign(env, originalEnv);
   });
 
-  it("persists only the external override and preserves other preferences", async () => {
+  it("lets verified staff switch views without V4 while preserving other preferences", async () => {
     const { caller, userId } = await createCaller({
-      admin: true,
+      emailDomain: "langfuse.com",
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -176,17 +181,28 @@ describe("userAccountRouter.setViewMode", () => {
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["sessionViewV2"]);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
+    expect(user.admin).toBe(false);
   });
 
-  it("does not allow ordinary users to select internal mode", async () => {
-    const { caller } = await createCaller();
+  it("lets unverified staff opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "langfuse.com",
+    });
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toContain(
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    );
+    expect(user.admin).toBe(false);
   });
 });
 
@@ -285,6 +301,7 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
+  emailVerified = null,
 }: {
   admin?: boolean;
   plan?: Plan;
@@ -294,6 +311,7 @@ async function createCaller({
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
+  emailVerified?: Date | null;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -318,6 +336,7 @@ async function createCaller({
     data: {
       id: userId,
       email: `${userId}@${emailDomain}`,
+      emailVerified,
       name: "User Account Test User",
       featureFlags,
       admin,
@@ -329,6 +348,8 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
+      emailVerified: user.emailVerified?.toISOString(),
+      v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
       organizations: [
