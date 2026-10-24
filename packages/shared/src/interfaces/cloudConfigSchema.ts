@@ -15,6 +15,9 @@ export const CloudConfigSchema = z.object({
       activeProductId: z.string().nullish(),
       activeUsageProductId: z.string().nullish(),
       subscriptionStatus: z.string().nullish(), // should be one of ["active","past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "paused"]; we don't enforce to have a backwards compatibility for this field
+      // Monotonic guard against out-of-order webhook delivery, same purpose
+      // as clickhouse.lastEventCreatedAt below.
+      lastEventCreatedAt: z.string().nullish(),
     })
     .transform((data) => ({
       ...data,
