@@ -25,9 +25,15 @@ type PlaygroundGeneration = Extract<
   { source: "generation" }
 >["generation"];
 
+type AddToMenuControl = Parameters<
+  NonNullable<ComponentProps<typeof DropdownMenu>["children"]>
+>[0] & {
+  totalCount: number;
+};
+
 type MenuPresentation =
   | {
-      children: ComponentProps<typeof DropdownMenu>["children"];
+      children: (control: AddToMenuControl) => ReactNode;
       renderMenu?: never;
     }
   | {
@@ -86,10 +92,14 @@ export function ConnectedTraceObservationAddToDropdownMenuController(
               objectType={objectType}
               analyticsData={props.analyticsData}
             >
-              {({ item: annotationQueueItem }) => (
+              {({
+                item: annotationQueueItem,
+                totalCount: annotationQueueCount,
+              }) => (
                 <ConnectedTraceObservationAddToDropdownMenuControllerContent
                   {...props}
                   annotationQueueItem={annotationQueueItem}
+                  annotationQueueCount={annotationQueueCount}
                   createDatasetDisabled={createDatasetDisabled}
                   openDatasetDialog={openDatasetDialog}
                   openDatasetItemDialog={openDatasetItemDialog}
@@ -116,11 +126,13 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   children,
   renderMenu,
   annotationQueueItem,
+  annotationQueueCount,
   createDatasetDisabled,
   openDatasetDialog,
   openDatasetItemDialog,
 }: ConnectedTraceObservationAddToDropdownMenuControllerProps & {
   annotationQueueItem: DropdownMenuItemDefinition;
+  annotationQueueCount: number;
   createDatasetDisabled: { reason: string } | undefined;
   openDatasetDialog: () => void;
   openDatasetItemDialog: Parameters<
@@ -276,7 +288,9 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
 
   return (
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">
-      {children}
+      {({ getTriggerProps }) =>
+        children({ getTriggerProps, totalCount: annotationQueueCount })
+      }
     </DropdownMenu>
   );
 }
