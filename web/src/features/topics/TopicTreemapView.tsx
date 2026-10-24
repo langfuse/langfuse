@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import { type Facet, type FacetTopic } from "./facet-topics";
+import { type Facet, type FacetTopic, facetTopicTones } from "./facet-topics";
 import {
+  toneCssColor,
+  toneTileClasses,
   treemapSwatchColor,
   treemapTileClasses,
   UNASSIGNED_SWATCH_COLOR,
@@ -107,8 +109,18 @@ function TopicTreemap({
 }: TopicTreemapProps) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const total = facet.rows.length;
-  function tileColors(topicId: string, big: boolean) {
+  const tones = facetTopicTones(facet);
+  function tileColors(topicId: string, big: boolean): TileColors {
     if (topicId === UNASSIGNED_ID) return unassignedTileClasses;
+    const tone = tones.get(topicId);
+    if (tone) {
+      return {
+        tile: big ? toneTileClasses.big : toneTileClasses.small,
+        active: toneTileClasses.active,
+        hover: toneTileClasses.hover,
+        color: toneCssColor(tone.tone, tone.shade),
+      };
+    }
     return treemapTileClasses(
       facet.topics.findIndex((topic) => topic.id === topicId),
       big,
@@ -201,7 +213,7 @@ function TopicTileButton({
       onClick={selectTopic}
       aria-pressed={isSelected}
       aria-label={`${topic.name}, ${topic.count} traces`}
-      style={rect}
+      style={tileStyle(rect, colors.color)}
       className={cn(
         "absolute flex flex-col justify-between overflow-hidden rounded-md text-left",
         TILE_PADDING[tier],
@@ -247,8 +259,15 @@ function tileTier(width: number, height: number): TileTier {
   return "tiny";
 }
 
+function tileStyle(rect: TopicTileProps["rect"], color?: string) {
+  if (!color) return rect;
+  return { ...rect, "--tile-color": color } as CSSProperties;
+}
+
 function swatchFor(facet: Facet, topicId: string) {
   if (topicId === UNASSIGNED_ID) return UNASSIGNED_SWATCH_COLOR;
+  const tone = facetTopicTones(facet).get(topicId);
+  if (tone) return toneCssColor(tone.tone, tone.shade);
   return treemapSwatchColor(
     facet.topics.findIndex((topic) => topic.id === topicId),
   );
@@ -274,7 +293,7 @@ type TileTier = "large" | "medium" | "small" | "tiny";
 type TopicTileProps = {
   topic: FacetTopic;
   share: number;
-  colors: { tile: string; active: string; hover: string };
+  colors: TileColors;
   isSelected: boolean;
   onSelect: (topicId: string) => void;
   rect: { left: number; top: number; width: number; height: number };
@@ -284,4 +303,12 @@ type TopicTileProps = {
 type TopicTileButtonProps = TopicTileProps & {
   shareLabel: string;
   triggerProps?: Record<string, unknown>;
+};
+
+type TileColors = {
+  tile: string;
+  active: string;
+  hover: string;
+  /** Topic color behind the tone classes, set as `--tile-color`. */
+  color?: string;
 };

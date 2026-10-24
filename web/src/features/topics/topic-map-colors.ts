@@ -69,3 +69,78 @@ export const unassignedTileClasses = {
 };
 
 export const UNASSIGNED_SWATCH_COLOR = "var(--category-neutral-highlight)";
+
+export type TopicTone = "good" | "bad" | "neutral";
+
+/** Built-in facets answer with a fixed label before the colon. */
+const LABEL_TONES: Record<string, TopicTone> = {
+  Positive: "good",
+  Neutral: "neutral",
+  Mixed: "neutral",
+  Negative: "bad",
+  Completed: "good",
+  Partial: "neutral",
+  Unconfirmed: "neutral",
+  "Needs input": "neutral",
+  "Not completed": "bad",
+};
+
+export const summaryTone = (summary: string): TopicTone | null =>
+  LABEL_TONES[summary.split(":", 1)[0].trim()] ?? null;
+
+const TONE_TOKENS: Record<TopicTone, string> = {
+  good: "--category-emerald-highlight",
+  bad: "--category-orange-highlight",
+  neutral: "--category-neutral-highlight",
+};
+
+const TONE_HEX: Record<TopicTone, string> = {
+  good: "#059669",
+  bad: "#c2410c",
+  neutral: "#71717a",
+};
+
+/** Every topic of a tone shares one flat color. */
+const SHADE_STEPS = [0];
+
+const shadeStep = (shade: number) => SHADE_STEPS[shade % SHADE_STEPS.length];
+
+export function toneCssColor(tone: TopicTone, shade: number) {
+  const base = `var(${TONE_TOKENS[tone]})`;
+  const step = shadeStep(shade);
+  if (step === 0) return base;
+  const target = step > 0 ? "hsl(var(--foreground))" : "hsl(var(--background))";
+  return `color-mix(in oklch, ${base}, ${target} ${Math.abs(step)}%)`;
+}
+
+function mixHex(from: string, to: string, amount: number) {
+  const channel = (hex: string, offset: number) =>
+    parseInt(hex.slice(offset, offset + 2), 16);
+  return `#${[1, 3, 5]
+    .map((offset) =>
+      Math.round(
+        channel(from, offset) +
+          (channel(to, offset) - channel(from, offset)) * amount,
+      )
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+
+export function toneHexColor(tone: TopicTone, shade: number) {
+  const step = shadeStep(shade);
+  return mixHex(
+    TONE_HEX[tone],
+    step > 0 ? "#000000" : "#ffffff",
+    Math.abs(step) / 100,
+  );
+}
+
+/** Tile classes read the topic color from the `--tile-color` variable set on the tile. */
+export const toneTileClasses = {
+  big: "bg-(--tile-color)/35",
+  small: "bg-(--tile-color)/20",
+  active: "bg-(--tile-color)",
+  hover: "hover:bg-(--tile-color)",
+};

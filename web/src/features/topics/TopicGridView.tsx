@@ -19,9 +19,10 @@ import {
   type Facet,
   type FacetRow,
   allTopicsLabel,
+  facetTopicTones,
   orderedFacetTopics,
 } from "./facet-topics";
-import { topicColor } from "./topic-map-colors";
+import { toneHexColor, topicColor } from "./topic-map-colors";
 import {
   layoutTopicGrid,
   sampleGridPoints,
@@ -51,11 +52,15 @@ export function TopicGridView({
 }: TopicGridViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
-  const topics = orderedFacetTopics(facet).map((topic, index) => ({
-    ...topic,
-    count: counts.get(topic.id) ?? 0,
-    color: topicColor(index),
-  }));
+  const tones = facetTopicTones(facet);
+  const topics = orderedFacetTopics(facet).map((topic, index) => {
+    const tone = tones.get(topic.id);
+    return {
+      ...topic,
+      count: counts.get(topic.id) ?? 0,
+      color: tone ? toneHexColor(tone.tone, tone.shade) : topicColor(index),
+    };
+  });
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? null;
   const rowsById = useMemo(

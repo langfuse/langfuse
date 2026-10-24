@@ -53,7 +53,7 @@ function TopicDot({ rank }: { rank: number }) {
 function TopicChip({ name, mapIndex }: { name: string; mapIndex: number }) {
   return (
     <span className="flex min-w-0">
-      <BadgeShell color={treemapBadgeColor(mapIndex)}>
+      <BadgeShell color={treemapBadgeColor(mapIndex)} font="mono">
         <TopicDot rank={mapIndex} />
         <span className="truncate" title={name}>
           {name}
