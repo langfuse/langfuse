@@ -410,5 +410,84 @@ describe("getSessionTranscriptRows", () => {
       visibleThreads: [],
       hiddenThreadCount: 0,
     });
+    expect(
+      getSessionTranscriptThreads({
+        threads: [
+          {
+            ...transcript.threads[0]!,
+            currentTurn: {
+              nestingLevel: 0,
+              observations: [],
+              messages: [],
+            },
+          },
+        ],
+      }),
+    ).toEqual({
+      visibleThreads: [],
+      hiddenThreadCount: 0,
+    });
+  });
+
+  it("ignores empty threads when computing shallowestLevel and projects non-empty threads", () => {
+    const baseThread = transcript.threads[0]!;
+    const transcriptWithEmptyThread = {
+      threads: [
+        {
+          ...baseThread,
+          currentTurn: {
+            nestingLevel: 0,
+            observations: [],
+            messages: [],
+          },
+        },
+        {
+          ...baseThread,
+          currentTurn: {
+            ...baseThread.currentTurn,
+            nestingLevel: 1,
+          },
+        },
+        {
+          ...baseThread,
+          currentTurn: {
+            ...baseThread.currentTurn,
+            nestingLevel: 1,
+          },
+        },
+        {
+          ...baseThread,
+          currentTurn: {
+            ...baseThread.currentTurn,
+            nestingLevel: 2,
+          },
+        },
+      ],
+    };
+
+    expect(getSessionTranscriptThreads(transcriptWithEmptyThread)).toEqual({
+      visibleThreads: [
+        { thread: transcriptWithEmptyThread.threads[1], threadIndex: 1 },
+        { thread: transcriptWithEmptyThread.threads[2], threadIndex: 2 },
+      ],
+      hiddenThreadCount: 1,
+    });
+
+    expect(
+      getSessionTranscriptThreads(transcriptWithEmptyThread, true),
+    ).toEqual({
+      visibleThreads: [
+        { thread: transcriptWithEmptyThread.threads[1], threadIndex: 1 },
+        { thread: transcriptWithEmptyThread.threads[2], threadIndex: 2 },
+        { thread: transcriptWithEmptyThread.threads[3], threadIndex: 3 },
+      ],
+      hiddenThreadCount: 0,
+    });
+
+    const rows = getSessionTranscriptRows(transcriptWithEmptyThread);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map(({ threadIndex }) => threadIndex)).toEqual([
+      1, 1, 1, 2, 2, 2,
+    ]);
   });
 });
