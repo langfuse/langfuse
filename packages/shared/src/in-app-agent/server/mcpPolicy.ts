@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
+import crypto from "crypto";
 import { z } from "zod";
+
+import { env } from "../../env";
+import { safeJsonParse } from "../../utils/json";
 
 import type { ProjectScope } from "../../features/rbac/projectAccessRights";
 import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
@@ -465,14 +469,99 @@ export const InAppAgentMcpRunOverrideSchema = z
       "toolNames" in override ? override.toolNames : [override.toolName],
   }));
 
+export const InAppAgentSignedMcpRunOverrideSchema = z
+  .union([
+    z.object({
+      toolNames: z.array(InAppAgentLangfuseMcpToolNameSchema),
+      toolName: InAppAgentLangfuseMcpToolNameSchema.optional(),
+      signature: z.string().min(1),
+    }),
+    z.object({
+      toolName: InAppAgentLangfuseMcpToolNameSchema,
+      signature: z.string().min(1),
+    }),
+  ])
+  .transform((override) => ({
+    toolNames:
+      "toolNames" in override ? override.toolNames : [override.toolName],
+    signature: override.signature,
+  }));
+
+function getInAppAgentMcpOverrideSecret(): string {
+  const secret =
+    env.ENCRYPTION_KEY ??
+    env.SALT ??
+    (process.env.NODE_ENV === "test" ? "in-app-agent-test-secret" : undefined);
+  if (!secret) {
+    throw new Error(
+      "Missing ENCRYPTION_KEY or SALT environment variable for in-app agent MCP tool override authentication",
+    );
+  }
+  return secret;
+}
+
 export async function createInAppAgentMcpRunOverride(params: {
   toolNames: InAppAgentLangfuseMcpToolName[];
-}) {
+  secret?: string;
+}): Promise<string> {
+  const signingKey = params.secret ?? getInAppAgentMcpOverrideSecret();
+  const signaturePayload = JSON.stringify({
+    toolNames: params.toolNames,
+  });
+  const signature = crypto
+    .createHmac("sha256", signingKey)
+    .update(signaturePayload)
+    .digest("base64url");
+
   return JSON.stringify({
     // Older web pods read the singular field during rolling deploys.
     toolName: params.toolNames[0],
     toolNames: params.toolNames,
+    signature,
   });
+}
+
+export function verifyInAppAgentMcpRunOverride(
+  token: string,
+  secret?: string,
+): { toolNames: InAppAgentLangfuseMcpToolName[] } | undefined {
+  if (typeof token !== "string") {
+    return undefined;
+  }
+
+  const rawJson = safeJsonParse(token);
+  if (!rawJson || typeof rawJson !== "object") {
+    return undefined;
+  }
+
+  const parsed = InAppAgentSignedMcpRunOverrideSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    return undefined;
+  }
+
+  let signingKey: string;
+  try {
+    signingKey = secret ?? getInAppAgentMcpOverrideSecret();
+  } catch {
+    return undefined;
+  }
+
+  const expectedSignature = crypto
+    .createHmac("sha256", signingKey)
+    .update(JSON.stringify({ toolNames: parsed.data.toolNames }))
+    .digest("base64url");
+
+  const sigBuffer = Buffer.from(parsed.data.signature);
+  const expectedSigBuffer = Buffer.from(expectedSignature);
+
+  if (
+    sigBuffer.length !== expectedSigBuffer.length ||
+    !crypto.timingSafeEqual(sigBuffer, expectedSigBuffer)
+  ) {
+    return undefined;
+  }
+
+  return { toolNames: parsed.data.toolNames };
 }
 
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
