@@ -1124,6 +1124,60 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops captcha-solver cloudflareQueryTask console errors", () => {
+    // Real shape (LANGFUSE-645): a third-party solver injects solveCaptcha /
+    // getTaskResult / queryResult, then console.errors when the Cloudflare
+    // task returns no token. Extra args were `Failed to solve CAPTCHA:` +
+    // the Error. Stack is anonymous only. 0 users, AWS Boardman, sign-in.
+    const SOLVER_MESSAGE =
+      'Query result returned no valid solution or future query. result = {"status":"Error","route":"cloudflareQueryTask"}';
+
+    const captchaSolverEvent = ({
+      value = SOLVER_MESSAGE,
+      mechanismType = "auto.core.capture_console",
+      frames = [
+        { filename: "<anonymous>", function: "queryResult" },
+        { filename: "<anonymous>", function: "getTaskResult" },
+        { filename: "<anonymous>", function: "solveCaptcha" },
+      ],
+    }: {
+      value?: string;
+      mechanismType?: string | undefined;
+      frames?: { filename: string; function?: string }[] | null;
+    } = {}): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              ...(mechanismType
+                ? { mechanism: { type: mechanismType, handled: true } }
+                : {}),
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the solver Error via capture_console", () => {
+      expect(isDenylistedNoiseEvent(captchaSolverEvent())).toBe(true);
+    });
+
+    it("drops the same wording as a message-only console.error", () => {
+      expect(isDenylistedNoiseEvent(messageEvent(SOLVER_MESSAGE))).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1840,81 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured captcha-solver phrase (generic mechanism)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            'Query result returned no valid solution or future query. result = {"status":"Error","route":"cloudflareQueryTask"}',
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a Turnstile script-load failure (different wording)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Failed to load the Turnstile script"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "Failed to load the Turnstile script",
+              mechanism: { type: "auto.core.capture_console", handled: true },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the solver wording when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                'Query result returned no valid solution or future query. result = {"status":"Error","route":"cloudflareQueryTask"}',
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/auth/sign-in-abc.js",
+                    function: "onSubmit",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a message that has only one of the two solver markers", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Query result returned no valid solution or future query.",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            'Cloudflare task failed. result = {"status":"Error","route":"cloudflareQueryTask"}',
+          ),
+        ),
+      ).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
