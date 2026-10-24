@@ -416,6 +416,40 @@ describe("automatic Topics assignment", () => {
   });
 
   it.each([
+    "Topics numerical fit exceeded 120 seconds",
+    "Topics numerical fit failed (exit code null, signal SIGKILL): ",
+    "Topics numerical fit returned oversized output",
+  ])(
+    "does not infer an oversized cohort from a numerical failure: %s",
+    async (error) => {
+      vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
+        id: "failed-fit",
+      } as never);
+      vi.mocked(readTopicExecutionSummary).mockResolvedValue({
+        id: "failed-fit",
+        status: "completed_with_errors",
+        input: { operation: "update", timeRange: batch.timeRange },
+        facets: [
+          {
+            facetId: "facet",
+            facetVersion: 2,
+            outcome: "failed",
+            error,
+            counts: { requested: 800 },
+          },
+        ],
+      } as unknown as TopicExecutionSummary);
+
+      await processTopicsAutomation(batch);
+
+      expect(discoveryGate).not.toHaveBeenCalled();
+      expect(getTopicClusteringSummaryStats).not.toHaveBeenCalled();
+      expect(createTopicExecution).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     { status: "queued", state: "failed", capacityFailure: false, monitors: 1 },
     {
       status: "queued",
