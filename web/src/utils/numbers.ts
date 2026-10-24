@@ -27,26 +27,58 @@ export const numberFormatter = (
 
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
 
-const durationFormatters = [
+const DURATION_UNITS = [
   "millisecond",
   "second",
   "minute",
   "hour",
   "day",
-].map((unit) =>
-  Intl.NumberFormat("en-US", {
-    style: "unit",
-    unit: unit,
-    unitDisplay: "narrow",
-    notation: "compact",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }),
-);
+] as const;
+
+const DURATION_SUFFIX: Record<(typeof DURATION_UNITS)[number], string> = {
+  millisecond: "ms",
+  second: "s",
+  minute: "m",
+  hour: "h",
+  day: "d",
+};
+
+type DurationFormatter = { format: (value: number) => string };
+
+const compactDurationNumberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const createDurationFormatter = (
+  unit: (typeof DURATION_UNITS)[number],
+): DurationFormatter => {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "unit",
+      unit,
+      unitDisplay: "narrow",
+      notation: "compact",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    // Some runtimes reject style: "unit" (older ICU / incomplete Intl).
+    // Keep the same narrow suffixes the unit formatter would have used.
+    const suffix = DURATION_SUFFIX[unit];
+    return {
+      format: (value) =>
+        `${compactDurationNumberFormatter.format(value)}${suffix}`,
+    };
+  }
+};
+
+const durationFormatters = DURATION_UNITS.map(createDurationFormatter);
 
 const selectDurationFormatter = (
   milliseconds: number | bigint,
-): [Intl.NumberFormat, number] => {
+): [DurationFormatter, number] => {
   const ms = Number(milliseconds);
   const tier = durationDivisors.reduce(
     (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
