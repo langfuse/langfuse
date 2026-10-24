@@ -8,7 +8,7 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
-import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationUpdateRequiredBadge";
 
 export function RulesPage() {
   const router = useRouter();

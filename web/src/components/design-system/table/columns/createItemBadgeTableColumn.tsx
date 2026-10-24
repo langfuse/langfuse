@@ -1,7 +1,8 @@
 /* eslint-disable boundaries/dependencies */
 import { type RowData } from "@tanstack/react-table";
 
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,

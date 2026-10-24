@@ -78,7 +78,8 @@ JS
 CrashModal/CrashModal CrashModal
 EnvLabelBadge EnvLabelBadge
 grouped-score-badge GroupedScoreBadges
-ItemBadge ItemBadge, ItemTypeIcon
+ItemBadge/ItemBadge ItemBadge
+ItemTypeIcon/ItemTypeIcon ItemTypeIcon
 MediaFileCard/MediaFileCard MediaFileCard
 MediaTag/MediaTag MediaTag
 OrganizationDropdownMenu/OrganizationDropdownMenu OrganizationDropdownMenu

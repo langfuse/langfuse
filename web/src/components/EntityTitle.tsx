@@ -1,9 +1,7 @@
 import { type ObservationLevelType } from "@langfuse/shared";
 
-import {
-  ItemTypeTile,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { ItemTypeTile } from "@/src/components/ItemTypeTile/ItemTypeTile";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup, {
   type DocPopupProps,

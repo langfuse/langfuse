@@ -53,7 +53,7 @@ import {
   DropdownMenuContent,
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteButton } from "@/src/components/DeleteButton/DeleteButton";
 import { api } from "@/src/utils/api";
 import {
   Popover,

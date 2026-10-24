@@ -4,7 +4,8 @@ import {
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 export type ObservationsOmittableFilterColumn = "model" | "promptName";
@@ -34,7 +35,13 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: "Type",
-      renderIcon: renderFilterIcon,
+      renderIcon: (value) => (
+        <ItemTypeIcon
+          type={value as LangfuseItemType}
+          size="base"
+          color="type"
+        />
+      ),
     },
     {
       type: "categorical" as const,

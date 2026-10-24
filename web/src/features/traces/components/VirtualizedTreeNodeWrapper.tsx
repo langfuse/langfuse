@@ -16,10 +16,8 @@
 
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  ItemTypeIcon,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
@@ -144,7 +142,12 @@ export function VirtualizedTreeNodeWrapper(
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             {loaded ? (
-              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+              <ItemTypeIcon
+                type={loaded.nodeType}
+                size="base"
+                color="type"
+                className="icon-base"
+              />
             ) : (
               <Skeleton className="size-4 rounded-sm" />
             )}

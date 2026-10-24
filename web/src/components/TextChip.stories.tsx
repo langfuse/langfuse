@@ -1,5 +1,6 @@
 import preview from "../../.storybook/preview";
-import { getItemTypeLabels, type LangfuseItemType } from "./ItemBadge";
+import { getItemTypeLabels } from "./ItemBadge/fns/getItemTypeLabels";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { TextChip } from "./TextChip";
 
 const meta = preview.meta({

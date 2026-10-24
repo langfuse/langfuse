@@ -47,7 +47,7 @@ import {
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/EvaluatorForm";
 import { useRouter } from "next/router";
-import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
+import { ConnectedDeleteEvalConfigButton } from "@/src/features/evals/components/ConnectedDeleteEvalConfigButton/ConnectedDeleteEvalConfigButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -396,7 +396,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 if (id) setEditConfigId(id);
               }}
             />
-            <DeleteEvalConfigButton
+            <ConnectedDeleteEvalConfigButton
               aria-label="delete"
               itemId={id}
               projectId={projectId}

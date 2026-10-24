@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
+import { ConnectedDeleteEvalConfigButton } from "@/src/features/evals/components/ConnectedDeleteEvalConfigButton/ConnectedDeleteEvalConfigButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/DeactivateEvalConfig";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -131,7 +131,7 @@ const PeekViewEvaluatorConfigDetail = ({
               onCheckedChange={setIsEditMode}
               title={editModeDisabledReason}
             />
-            <DeleteEvalConfigButton
+            <ConnectedDeleteEvalConfigButton
               aria-label="delete"
               itemId={evalConfig.id}
               projectId={projectId}

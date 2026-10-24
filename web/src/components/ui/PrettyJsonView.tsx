@@ -62,7 +62,8 @@ import {
   ValueCell,
   getValueStringLength,
 } from "@/src/components/table/ValueCell";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 

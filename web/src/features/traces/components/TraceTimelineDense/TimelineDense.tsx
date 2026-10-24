@@ -60,10 +60,8 @@ import {
 import { useTheme } from "next-themes";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { Scan, Minus, Plus, UnfoldVertical } from "@langfuse/icons";
-import {
-  ItemTypeIcon,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import {
   tooltipPlacement,
   type TooltipPlacement,
@@ -1938,6 +1936,8 @@ function GutterContent({
           <span className="shrink-0">
             <ItemTypeIcon
               type={node.type as LangfuseItemType}
+              size="base"
+              color="type"
               className="icon-sm"
             />
           </span>
