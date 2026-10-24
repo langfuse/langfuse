@@ -145,10 +145,16 @@ function extractFieldsRecursive(params: {
 
     // Recurse into nested objects (but not arrays - those are complex)
     if (propType === "object" && propSchema.properties) {
+      // Children are only required when their parent must be a non-null object.
+      const childrenRequired =
+        isRequired &&
+        !(Array.isArray(propSchema.type) && propSchema.type.includes("null"));
       extractFieldsRecursive({
         schema: propSchema,
         prefix: path,
-        requiredSet: new Set(propSchema.required ?? []),
+        requiredSet: new Set(
+          childrenRequired ? (propSchema.required ?? []) : [],
+        ),
         fields,
         depth: depth + 1,
         maxDepth,
