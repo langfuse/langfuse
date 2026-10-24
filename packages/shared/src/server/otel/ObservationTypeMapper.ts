@@ -264,6 +264,7 @@ export class ObservationTypeMapperRegistry {
         embeddings: "EMBEDDING",
         invoke_agent: "AGENT",
         create_agent: "AGENT",
+        plan: "AGENT",
         execute_tool: "TOOL",
       },
     ),
