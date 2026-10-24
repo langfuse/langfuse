@@ -60,6 +60,9 @@ export interface ServerContext {
   /** Org-level rate limit overrides from the cloud config */
   rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
 
+  /** The org's opt-in for read-access audit events */
+  accessAuditLogEnabled: ApiAccessScope["accessAuditLogEnabled"];
+
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;
 

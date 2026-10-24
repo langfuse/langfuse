@@ -325,7 +325,7 @@ export async function auditLog(
   }
 }
 
-function toUserActor(
+export function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
   roles: { orgRole?: Role; projectRole?: Role },
 ): StagedAuditLogActor {
@@ -343,7 +343,7 @@ function toUserActor(
 }
 
 /** `creator` is the user an in-app agent key acts for. */
-function toApiKeyActor(
+export function toApiKeyActor(
   apiKeyId: string,
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,

@@ -136,6 +136,7 @@ export default async function handler(
       publicKey: scope.publicKey,
       plan: scope.plan,
       rateLimitOverrides: scope.rateLimitOverrides,
+      accessAuditLogEnabled: scope.accessAuditLogEnabled,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,
