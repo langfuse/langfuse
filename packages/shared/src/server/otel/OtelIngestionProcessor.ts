@@ -40,8 +40,11 @@ import {
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { flattenJsonToPathArrays } from "./utils";
+import {
+  convertDateToClickhouseDateTime,
+  isClickhouseDateTimeInRange,
+} from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
 
@@ -226,7 +229,12 @@ type NanoTimestamp =
   | null
   | undefined;
 
-type TimestampField = "start_time" | "end_time" | "unknown";
+type TimestampField =
+  | "start_time"
+  | "end_time"
+  | "completion_start_time"
+  | "experiment_item_version"
+  | "unknown";
 
 export interface ResourceSpan {
   resource?: {
@@ -3488,12 +3496,27 @@ export class OtelIngestionProcessor {
         LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
       ] as any;
 
-      if (isValidDateString(value)) return value;
-
-      // Older SDKs have double stringified timestamps that need JSON parsing
-      // "\"2025-10-01T08:45:26.112648Z\""
-      const parsed = JSON.parse(value);
-      if (isValidDateString(parsed)) return parsed;
+      if (typeof value === "string") {
+        const lastIndex = value.length - 1;
+        // Older SDKs have double stringified timestamps "\"2025-10-01T08:45:26.112648Z\""
+        const completionStartTime =
+          lastIndex > 0 && value[0] === '"' && value[lastIndex] === '"'
+            ? value.substring(1, lastIndex)
+            : value;
+        if (completionStartTime !== "") {
+          const date = OtelIngestionProcessor.isoToDate(
+            completionStartTime,
+            "completion_start_time",
+          );
+          if (date !== undefined) return completionStartTime;
+        }
+      } else if (typeof value === "number") {
+        const completionStartTime = OtelIngestionProcessor.millisToISO(
+          value,
+          "completion_start_time",
+        );
+        if (completionStartTime !== undefined) return completionStartTime;
+      }
     } catch {
       // Fallthrough
     }
@@ -3512,9 +3535,12 @@ export class OtelIngestionProcessor {
       if (msToFirstChunk && startTimeISO) {
         const msToFirstChunkNumber = Math.ceil(Number(msToFirstChunk));
 
-        const startTimeUnix = new Date(startTimeISO).getTime();
+        const completionStartTime = OtelIngestionProcessor.millisToISO(
+          new Date(startTimeISO).getTime() + msToFirstChunkNumber,
+          "completion_start_time",
+        );
 
-        return new Date(startTimeUnix + msToFirstChunkNumber).toISOString();
+        return completionStartTime ?? null;
       }
     } catch {
       // Fallthrough
@@ -3888,9 +3914,12 @@ export class OtelIngestionProcessor {
    */
   private parseExperimentItemVersion(value: unknown): string | undefined {
     if (value == null || value === "") return undefined;
-    const stringValue = String(value);
-    if (isValidDateString(stringValue)) {
-      return convertDateToClickhouseDateTime(new Date(stringValue));
+    const date = OtelIngestionProcessor.isoToDate(
+      String(value),
+      "experiment_item_version",
+    );
+    if (date !== undefined) {
+      return convertDateToClickhouseDateTime(date);
     }
     logger.warn(
       "OTEL invalid experiment item version, dropping. Expected timestamp.",
@@ -4034,7 +4063,7 @@ export class OtelIngestionProcessor {
         }
 
         const millisBigInt = BigInt(timestamp) / BigInt(1_000_000);
-        return new Date(Number(millisBigInt)).toISOString();
+        return OtelIngestionProcessor.millisToISO(Number(millisBigInt), field);
       }
 
       if (typeof timestamp === "number") {
@@ -4046,7 +4075,7 @@ export class OtelIngestionProcessor {
           return undefined;
         }
 
-        return new Date(timestamp / 1e6).toISOString();
+        return OtelIngestionProcessor.millisToISO(timestamp / 1e6, field);
       }
 
       if (
@@ -4072,7 +4101,7 @@ export class OtelIngestionProcessor {
 
       // Convert nanoseconds to milliseconds for JavaScript Date
       const millisBigInt = nanosBigInt / BigInt(1000000);
-      return new Date(Number(millisBigInt)).toISOString();
+      return OtelIngestionProcessor.millisToISO(Number(millisBigInt), field);
     } catch (e) {
       logger.warn(`Failed to convert nanotimestamp to ISO`, {
         timestamp,
@@ -4086,6 +4115,50 @@ export class OtelIngestionProcessor {
       );
       return undefined;
     }
+  }
+
+  private static isoToDate(
+    value: string,
+    field: TimestampField,
+  ): Date | undefined {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_invalid_string",
+        field,
+      );
+      return undefined;
+    }
+    if (!isClickhouseDateTimeInRange(date)) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_out_of_range",
+        field,
+      );
+      return undefined;
+    }
+    return date;
+  }
+
+  private static millisToISO(
+    value: number,
+    field: TimestampField,
+  ): string | undefined {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_invalid_number",
+        field,
+      );
+      return undefined;
+    }
+    if (!isClickhouseDateTimeInRange(date)) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_out_of_range",
+        field,
+      );
+      return undefined;
+    }
+    return date.toISOString();
   }
 
   /**
