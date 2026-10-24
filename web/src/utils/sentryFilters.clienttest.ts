@@ -1124,6 +1124,82 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops injected window.__capV output TypeError", () => {
+    // Real shape: Chrome on the traces / dataset-run page. Injected
+    // page-world JS named `window.__capV` reads `.output` on undefined
+    // after a missing-trace 404. Stack is only `<anonymous>` frames —
+    // no /_next/ chunk — so denyUrls cannot match. Langfuse never
+    // assigns `window.__capV`.
+    const injectedWindowCapVOutputEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames: { filename?: string; function?: string }[] = [
+        { filename: "<anonymous>", function: "?" },
+        { filename: "<anonymous>", function: "window.__capV" },
+      ],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: frames.map((stackFrame) => ({
+                  filename: stackFrame.filename,
+                  function: stackFrame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous window.__capV .output TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapVOutputEvent(
+            "Cannot read properties of undefined (reading 'output')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapVOutputEvent(
+            "Cannot read properties of undefined (reading 'output').",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapVOutputEvent(
+            "Cannot read properties of undefined (reading 'output')",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the async window.__capV function name", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapVOutputEvent(
+            "Cannot read properties of undefined (reading 'output')",
+            "auto.browser.global_handlers.onunhandledrejection",
+            [{ filename: "<anonymous>", function: "async window.__capV" }],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1862,173 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes reading 'output'", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Trace render failed: Cannot read properties of undefined (reading 'output')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capV" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps null (reading 'output') even with window.__capV frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'output')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capV" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different undefined-property TypeError with window.__capV frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capV" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .output TypeError without window.__capV frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'output')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .output TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'output')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/traces-abc.js",
+                    function: "window.__capV",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a stackless .output TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'output')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured .output TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading 'output')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'output')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capV" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
