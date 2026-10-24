@@ -112,14 +112,14 @@ langfuse/
 |- worker/                  # Queue consumers and background processing
 |- packages/shared/         # Shared domain, DB, queue contracts, repositories
 |- packages/native/         # Rust addon (napi-rs) loaded in-process by worker
-|- ee/                      # Enterprise package consumed by web
+|- ee/                      # @langfuse/ee (not imported by web; EE code: web/src/ee, packages/shared/src/server/ee)
 |- generated/               # Generated API clients (do not hand-edit)
 |- fern/                    # API definition sources
 `- scripts/                 # Repo scripts
 ```
 
 - Dependency direction:
-  - `web` -> `@langfuse/shared`, `@langfuse/ee`
+  - `web` -> `@langfuse/shared`
   - `worker` -> `@langfuse/shared`, `@langfuse/native`
   - `@langfuse/ee` -> `@langfuse/shared`
   - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
