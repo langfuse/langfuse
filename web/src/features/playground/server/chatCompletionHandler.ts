@@ -171,10 +171,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
     if (err instanceof Error) {
       const llmError = getLLMErrorInfo(err);
-      // Semantic AI SDK failures (e.g. no structured output) have no HTTP
-      // status. Treat them as client/provider operational errors, not 500s.
-      const statusCode =
-        llmError?.statusCode ?? (llmError?.kind === "ai-sdk" ? 400 : 500);
+      const statusCode = playgroundLlmErrorHttpStatus(llmError);
       const errorMessage = llmError?.message ?? "An internal error occurred";
 
       return NextResponse.json(
@@ -188,4 +185,21 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
     throw err;
   }
+}
+
+/**
+ * Classified LLM failures (provider, validation, ai-sdk, timeout, abort) are
+ * operational: the playground already toasts the message. Pass 4xx statuses
+ * through; map 5xx and status-less kinds to 400 so Sentry's
+ * httpClientIntegration does not treat them as unhandled app 500s.
+ * Unmapped Errors stay 500.
+ */
+function playgroundLlmErrorHttpStatus(
+  llmError: ReturnType<typeof getLLMErrorInfo>,
+): number {
+  if (!llmError) return 500;
+  if (llmError.statusCode !== undefined && llmError.statusCode < 500) {
+    return llmError.statusCode;
+  }
+  return 400;
 }
