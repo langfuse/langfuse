@@ -27,26 +27,54 @@ export const numberFormatter = (
 
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
 
-const durationFormatters = [
+const durationUnits = [
   "millisecond",
   "second",
   "minute",
   "hour",
   "day",
-].map((unit) =>
-  Intl.NumberFormat("en-US", {
-    style: "unit",
-    unit: unit,
-    unitDisplay: "narrow",
-    notation: "compact",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }),
+] as const;
+
+const durationSuffixes = ["ms", "s", "m", "h", "d"] as const;
+
+type DurationFormatter = { format: (value: number) => string };
+
+/**
+ * Some browsers reject `style: "unit"` (`RangeError` on the style option).
+ * This module is imported from the events barrel into the `_app` layout graph,
+ * so a throw during construction fails the whole app evaluation.
+ */
+const createDurationFormatter = (
+  unit: (typeof durationUnits)[number],
+  suffix: (typeof durationSuffixes)[number],
+): DurationFormatter => {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "unit",
+      unit,
+      unitDisplay: "narrow",
+      notation: "compact",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    return {
+      format: (value) =>
+        `${new Intl.NumberFormat("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        }).format(value)}${suffix}`,
+    };
+  }
+};
+
+const durationFormatters = durationUnits.map((unit, index) =>
+  createDurationFormatter(unit, durationSuffixes[index]!),
 );
 
 const selectDurationFormatter = (
   milliseconds: number | bigint,
-): [Intl.NumberFormat, number] => {
+): [DurationFormatter, number] => {
   const ms = Number(milliseconds);
   const tier = durationDivisors.reduce(
     (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
