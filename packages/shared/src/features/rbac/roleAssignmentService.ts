@@ -9,6 +9,7 @@ import { InvalidRequestError, NotImplementedError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   hasApiKeyKind,
+  hasGroupKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   untag,
@@ -51,7 +52,7 @@ export async function assignRole(
   });
 }
 
-/** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
+/** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user and group assignments, mirroring the membership wipe. */
 export async function transferRoleAssignments(
   prisma: Prisma.TransactionClient,
   projectId: string,
@@ -63,7 +64,10 @@ export async function transferRoleAssignments(
       data: { orgId: targetOrgId },
     });
     await tx.roleAssignment.deleteMany({
-      where: { projectId, userId: { not: null } },
+      where: {
+        projectId,
+        OR: [{ userId: { not: null } }, { groupId: { not: null } }],
+      },
     });
   });
 }
@@ -99,9 +103,13 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
-  return hasApiKeyKind(principalId)
-    ? { principalId, apiKeyId: untag(principalId) }
-    : { principalId, userId: untag(principalId) };
+  if (hasApiKeyKind(principalId)) {
+    return { principalId, apiKeyId: untag(principalId) };
+  }
+  if (hasGroupKind(principalId)) {
+    return { principalId, groupId: untag(principalId) };
+  }
+  return { principalId, userId: untag(principalId) };
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */

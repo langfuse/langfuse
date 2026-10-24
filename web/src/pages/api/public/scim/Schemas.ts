@@ -34,10 +34,8 @@ export default async function handler(
   // Return the schemas
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-    // Only the User schema is advertised; `Resources` has one entry, and RFC
-    // 7644 3.4.2 wants `totalResults` to match what was returned. Sibling
-    // `/ResourceTypes` already gets this right.
-    totalResults: 1,
+    // RFC 7644 3.4.2 wants `totalResults` to match the number of `Resources`.
+    totalResults: 2,
     Resources: [
       // User Schema
       {
@@ -183,6 +181,76 @@ export default async function handler(
           resourceType: "Schema",
           location:
             "/api/public/scim/Schemas/urn:ietf:params:scim:schemas:core:2.0:User",
+        },
+      },
+      // Group Schema (RFC 7643 4.2)
+      {
+        id: "urn:ietf:params:scim:schemas:core:2.0:Group",
+        name: "Group",
+        description: "Group",
+        attributes: [
+          {
+            name: "displayName",
+            type: "string",
+            multiValued: false,
+            description: "A human-readable name for the Group.",
+            required: true,
+            caseExact: false,
+            mutability: "readWrite",
+            returned: "default",
+            uniqueness: "none",
+          },
+          {
+            name: "members",
+            type: "complex",
+            multiValued: true,
+            description: "A list of members of the Group.",
+            required: false,
+            subAttributes: [
+              {
+                name: "value",
+                type: "string",
+                multiValued: false,
+                description: "Identifier of the member (SCIM User id).",
+                required: false,
+                caseExact: false,
+                mutability: "immutable",
+                returned: "default",
+                uniqueness: "none",
+              },
+              {
+                name: "$ref",
+                type: "reference",
+                referenceTypes: ["User"],
+                multiValued: false,
+                description: "The URI of the member resource.",
+                required: false,
+                caseExact: false,
+                mutability: "immutable",
+                returned: "default",
+                uniqueness: "none",
+              },
+              {
+                name: "type",
+                type: "string",
+                multiValued: false,
+                description: "The type of the member.",
+                required: false,
+                caseExact: false,
+                canonicalValues: ["User"],
+                mutability: "immutable",
+                returned: "default",
+                uniqueness: "none",
+              },
+            ],
+            mutability: "readWrite",
+            returned: "default",
+          },
+        ],
+        meta: {
+          resourceType: "Schema",
+          location:
+            "/api/public/scim/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group",
         },
       },
     ],
