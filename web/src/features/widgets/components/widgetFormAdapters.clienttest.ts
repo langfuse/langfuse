@@ -537,6 +537,36 @@ describe("toDefaultValues normalizes malformed stored/imported widgets", () => {
     expect(adapterSavePayload(iv).dimensions).toEqual([]);
   });
 
+  it("caps a stored pivot table to the maximum number of dimensions", () => {
+    const iv: WidgetInitialValues = {
+      name: "Over-dimensioned pivot",
+      description: "d",
+      view: "observations",
+      measure: "count",
+      aggregation: "count",
+      dimension: "environment",
+      filters: [],
+      chartType: "PIVOT_TABLE",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [
+        { field: "environment" },
+        { field: "name" },
+        { field: "userId" },
+      ],
+      chartConfig: { type: "PIVOT_TABLE", row_limit: 100 },
+      minVersion: 1,
+    };
+    const values = toDefaultValues(iv, fixtureViewVersion(iv));
+    expect(values.dimensions).toEqual([
+      { field: "environment" },
+      { field: "name" },
+    ]);
+    expect(adapterSavePayload(iv).dimensions).toEqual([
+      { field: "environment" },
+      { field: "name" },
+    ]);
+  });
+
   it("is a fixed point on a valid widget (normalizes to itself)", () => {
     const iv = fixtures["breakdown bar with dimension"];
     const once = toDefaultValues(iv, fixtureViewVersion(iv));
