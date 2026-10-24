@@ -1124,6 +1124,63 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Chrome extension tabId ReferenceError (anonymous frames)", () => {
+    // Real shape: Chrome on the cloud homepage. Injected extension JS
+    // references an undeclared `tabId` (chrome.tabs identifier).
+    // Stack is only `<anonymous>` frames — denyUrls cannot match.
+    // Langfuse has no `tabId` identifier.
+    const chromeTabIdEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the Chromium tabId ReferenceError", () => {
+      expect(
+        isDenylistedNoiseEvent(chromeTabIdEvent("tabId is not defined")),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(chromeTabIdEvent("tabId is not defined.")),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with only anonymous frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeTabIdEvent(
+            "tabId is not defined",
+            "auto.browser.global_handlers.onerror",
+            [{ filename: "<anonymous>" }, { filename: "<anonymous>" }],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1777,6 +1834,92 @@ describe("isDenylistedNoiseEvent", () => {
                   {
                     filename:
                       "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes tabId is not defined", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "Widget failed: tabId is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different undeclared-identifier ReferenceError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "projectId is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured tabId ReferenceError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("tabId is not defined", "ReferenceError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "tabId is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the tabId ReferenceError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "tabId is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
                     function: "onClick",
                   },
                 ],
