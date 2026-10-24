@@ -401,6 +401,22 @@ describe("isNoisyHttpClientPosthogIngestEvent", () => {
       ).toBe(true);
     });
 
+    it("drops Cloud reverse-proxy flags and remote-config 503", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://ph.langfuse.com/flags/", 503),
+        ),
+      ).toBe(true);
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent(
+            "https://ph.langfuse.com/array/phc_example/config",
+            503,
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops official ingest hosts and other 5xx (xhr included)", () => {
       expect(
         isNoisyHttpClientPosthogIngestEvent(

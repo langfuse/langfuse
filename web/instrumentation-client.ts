@@ -71,9 +71,10 @@ Sentry.init({
       return null;
     }
 
-    // Drop httpClient 5xx to PostHog ingest (`ph.langfuse.com`, `*.posthog.com`).
-    // Analytics telemetry failing is not a Langfuse app bug; the SDK retries.
-    // S3/GCS upload 5xx stay captured. See isNoisyHttpClientPosthogIngestEvent.
+    // Drop httpClient 5xx to PostHog hosts (`ph.langfuse.com`, `*.posthog.com`)
+    // — ingest, flags, and remote config. Analytics telemetry failing is not
+    // a Langfuse app bug; the SDK retries. S3/GCS upload 5xx stay captured.
+    // See isNoisyHttpClientPosthogIngestEvent.
     if (isNoisyHttpClientPosthogIngestEvent(event)) {
       return null;
     }
