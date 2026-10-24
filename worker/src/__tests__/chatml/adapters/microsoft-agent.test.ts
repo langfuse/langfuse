@@ -175,6 +175,36 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].tool_call_id).toBe("call_456");
     });
 
+    it("should stringify rich tool result payloads that carry reserved message fields", () => {
+      const input = [
+        {
+          role: "tool",
+          tool_call_id: "call_456",
+          content: {
+            name: "Alice",
+            role: "admin",
+            email: "a@x.io",
+            tool_call_id: "garbage",
+          },
+        },
+      ];
+
+      const result = normalizeInput(input, { framework: "microsoft-agent" });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].role).toBe("tool");
+      expect(result.data?.[0].tool_call_id).toBe("call_456");
+      // Colliding payload stays visible as a JSON string instead of
+      // overwriting the message identity
+      expect(typeof result.data?.[0].content).toBe("string");
+      expect(JSON.parse(result.data?.[0].content ?? "{}")).toEqual({
+        name: "Alice",
+        role: "admin",
+        email: "a@x.io",
+        tool_call_id: "garbage",
+      });
+    });
+
     it("should handle full conversation with tool calls", () => {
       const metadata = {
         attributes: {
