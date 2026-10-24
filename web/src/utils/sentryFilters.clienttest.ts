@@ -599,6 +599,23 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops the Tauri / Cursor browser-preview session console error (LANGFUSE-63Q)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to submit browser preview JavaScript failure Browser action session is not active.",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          logentryEvent(
+            "Failed to submit browser preview JavaScript failure Browser action session is not active.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -1187,6 +1204,26 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("Failed to load kitesurf: connection timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps support-form submit failures and mid-message browser-preview quotes", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to submit support request."),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Could not render browser preview JavaScript failure in playground",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Browser action session is not active."),
         ),
       ).toBe(false);
     });
