@@ -748,6 +748,11 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // Use adaptive scan windows when filling observations v2 pages.
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
+
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
@@ -1330,6 +1335,8 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
+      process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:

@@ -218,6 +218,9 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
+- Observations v2 pages can be short or empty while `meta.cursor` exists because
+  the endpoint bounds scan work. End pagination only when the cursor is absent;
+  never derive completion from the number of returned rows.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.

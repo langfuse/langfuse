@@ -28,7 +28,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { recordDistribution } from "../instrumentation";
+import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
@@ -88,6 +88,8 @@ import {
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import { DateTimeFilter } from "../queries/clickhouse-sql/clickhouse-filter";
+import { isTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   planScoreFilterPushdown,
   resolveScoreDataRequirement,
@@ -122,6 +124,12 @@ import {
   queryClickhouseStreamRawText,
   queryClickhouseExecRaw,
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  ClickHouseResourceError,
+  ClickHouseQueryAbortedError,
+  queryClickhouseWithProgress,
+  isProgressRow,
+  isRow,
+  isException,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -201,6 +209,15 @@ const SESSION_TRACE_FIELDS = [
   "session_id",
   "user_id",
 ] as const;
+
+const OBSERVATIONS_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const OBSERVATIONS_SCAN_BUDGET_MS = 45_000;
+const OBSERVATIONS_QUERY_ROW_TARGET = 5_000_000;
+const OBSERVATIONS_QUERY_OVERHEAD_MS = 3_000;
+const OBSERVATIONS_MS_PER_GB = 1_500;
+
+/** xxHash32('CUR00254FG5s') = 0; with id '', the tuple excludes all boundary rows. */
+const OBSERVATIONS_TIME_CURSOR_TRACE_ID = "CUR00254FG5s";
 
 /** The `input`/`output` pair an I/O select reads from one relation. */
 type IoColumns = { input: string; output: string };
@@ -1594,6 +1611,7 @@ function buildObservationsQueryComponents(
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
   filtersNeedFullTable: boolean;
+  observationsFilter: FilterList;
 } {
   const { projectId, advancedFilters, ...filterParams } = opts;
 
@@ -1649,7 +1667,12 @@ function buildObservationsQueryComponents(
     )
     .where(appliedFilter);
 
-  return { queryBuilder, externalCTEs, filtersNeedFullTable };
+  return {
+    queryBuilder,
+    externalCTEs,
+    filtersNeedFullTable,
+    observationsFilter,
+  };
 }
 
 function buildObservationsQueryBase(
@@ -1816,6 +1839,338 @@ export const getObservationsFromEventsTableForPublicApi = async (
   return observations;
 };
 
+export const getObservationsV2FromEventsTableForPublicApi = async (
+  opts: PublicApiObservationsQuery,
+  options: BuildObservationsQueryComponentsOptions = {},
+): Promise<Array<EventsObservationPublic>> => {
+  const builder = buildObservationsV2Query(opts, options);
+
+  const records =
+    await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
+      opts.projectId,
+      builder,
+      {},
+      options.clickhouseSettings,
+    );
+
+  return await enrichObservationsWithModelData(
+    records,
+    opts.projectId,
+    false, // V2 API: IO fields are always returned as raw strings
+    opts.fields ?? ["core", "basic"],
+  );
+};
+
+async function getProjectCreationTime(projectId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, deletedAt: null },
+    select: { createdAt: true },
+  });
+  return project?.createdAt.getTime();
+}
+
+/** Assemble a page from completed windows, including empty continuations. */
+export const getObservationsV2PageFromEventsTableForPublicApi = async (
+  opts: PublicApiObservationsQuery,
+): Promise<{
+  items: EventsObservationPublic[];
+  cursor: PublicApiObservationsQuery["cursor"];
+}> =>
+  instrumentAsync({ name: "observations-v2-scan" }, async (span) => {
+    if (opts.limit === 0) return { items: [], cursor: undefined };
+    const scan = createObservationsScan(opts.projectId);
+    try {
+      const bounds = extractObservationsStartTimeBounds(opts);
+      // Backfilled timestamps before project creation require an explicit lower bound.
+      const from =
+        bounds.from ?? (await getProjectCreationTime(opts.projectId));
+      if (from === undefined || (bounds.to !== undefined && from > bounds.to)) {
+        return { items: [], cursor: undefined };
+      }
+      const page = await scanObservationWindows(opts, from, bounds.to, scan);
+      span.setAttribute("observations.scan.windows", page.windows);
+      return {
+        items: await enrichObservationsWithModelData(
+          page.records.slice(0, opts.limit),
+          opts.projectId,
+          false,
+          opts.fields ?? ["core", "basic"],
+        ),
+        cursor: page.cursor,
+      };
+    } finally {
+      span.setAttributes(scan.getAttributes());
+    }
+  });
+
+function extractObservationsStartTimeBounds(opts: PublicApiObservationsQuery) {
+  const { observationsFilter } = buildObservationsQueryComponents(opts);
+  let from: number | undefined;
+  let to = opts.cursor?.lastStartTimeTo.getTime();
+  observationsFilter.forEach((filter) => {
+    if (!isTimeFilter(filter)) return;
+    const value = filter.value.getTime();
+    if (filter.operator === ">" || filter.operator === ">=") {
+      from = Math.max(from ?? value, value);
+    } else if (filter.operator === "<" || filter.operator === "<=") {
+      to = Math.min(to ?? value, value);
+    }
+  });
+  return { from, to };
+}
+
+async function scanObservationWindows(
+  opts: PublicApiObservationsQuery,
+  from: number,
+  to: number | undefined,
+  scan: ObservationsScan,
+) {
+  let records: EventsObservationQueryResult[] = [];
+  let cursor: PublicApiObservationsQuery["cursor"];
+  let windows = 0;
+  let window: { durationMs: number; estimatedMs?: number } | undefined = {
+    durationMs: OBSERVATIONS_SCAN_WINDOW_MS,
+  };
+  // An omitted upper bound stays open on the first query for future timestamps.
+  let upper = to ?? Math.max(Date.now(), from);
+  while (window !== undefined) {
+    const windowStarted = performance.now();
+    const lower = Math.max(from, upper - window.durationMs);
+    const result = await queryObservationWindow(
+      opts,
+      records.length,
+      {
+        from: new Date(lower),
+        to: to === undefined ? undefined : new Date(upper),
+        inclusiveTo: windows === 0,
+        estimatedMs: window.estimatedMs,
+      },
+      scan,
+      windows,
+    );
+    if (result === undefined) break;
+    windows++;
+    records = records.concat(result.rows);
+    if (records.length > opts.limit) {
+      cursor = observationRowCursor(records[opts.limit - 1]);
+      break;
+    }
+    if (lower === from) {
+      cursor = undefined;
+      break;
+    }
+    cursor = observationTimeCursor(lower);
+    window = planNextObservationsWindow(
+      upper - lower,
+      lower - from,
+      result,
+      performance.now() - windowStarted,
+      scan.remainingMs(),
+    );
+    upper = lower;
+    to = lower;
+  }
+  return { records, cursor, windows };
+}
+
+async function queryObservationWindow(
+  opts: PublicApiObservationsQuery,
+  collected: number,
+  window: {
+    from: Date;
+    to?: Date;
+    inclusiveTo: boolean;
+    estimatedMs?: number;
+  },
+  scan: ObservationsScan,
+  completedWindows: number,
+) {
+  return instrumentAsync(
+    { name: "observations-v2-scan-window" },
+    async (span) => {
+      const started = performance.now();
+      if (window.estimatedMs !== undefined) {
+        span.setAttribute("observations.scan.estimated_ms", window.estimatedMs);
+      }
+      try {
+        const result = await scan.query<EventsObservationQueryResult>(
+          buildObservationsV2Query(
+            { ...opts, limit: opts.limit - collected },
+            {},
+            window,
+          ),
+        );
+        span.setAttribute("observations.scan.completed", true);
+        span.setAttribute("observations.scan.read_bytes", result.readBytes);
+        if (result.readRows !== undefined)
+          span.setAttribute("observations.scan.read_rows", result.readRows);
+        return result;
+      } catch (error) {
+        // Only completed windows may advance the cursor on timeout.
+        if (
+          completedWindows > 0 &&
+          error instanceof ClickHouseResourceError &&
+          error.errorType === "TIMEOUT"
+        ) {
+          return undefined;
+        }
+        throw error;
+      } finally {
+        span.setAttribute(
+          "observations.scan.elapsed_ms",
+          performance.now() - started,
+        );
+      }
+    },
+  );
+}
+
+function observationRowCursor(last: EventsObservationQueryResult) {
+  return {
+    lastStartTimeTo: parseClickhouseUTCDateTimeFormat(last.start_time),
+    lastTraceId: last.trace_id ?? "",
+    lastId: last.id,
+  };
+}
+
+function observationTimeCursor(lower: number) {
+  return {
+    lastStartTimeTo: new Date(lower),
+    lastTraceId: OBSERVATIONS_TIME_CURSOR_TRACE_ID,
+    lastId: "",
+  };
+}
+
+function planNextObservationsWindow(
+  windowMs: number,
+  remainingRangeMs: number,
+  last: { readRows: number | undefined; readBytes: number },
+  elapsedMs: number,
+  remainingMs: number,
+) {
+  if (remainingMs <= 0) return undefined;
+
+  // Client wall time includes retries and stream consumption; GB is decimal.
+  const costMs = Math.max(
+    elapsedMs,
+    (last.readBytes / 1e9) * OBSERVATIONS_MS_PER_GB,
+  );
+  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
+  // Near the deadline, do not shrink the interval just to reserve overhead.
+  let timeMultiplier = 1;
+  if (availableMs > 0) {
+    timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
+  }
+  const rowMultiplier =
+    last.readRows !== undefined && last.readRows > 0
+      ? OBSERVATIONS_QUERY_ROW_TARGET / last.readRows
+      : Infinity;
+  // Missing statistics or empty scans cannot justify unrestricted growth.
+  let growthLimit = Infinity;
+  if (last.readRows === undefined) growthLimit = 1;
+  else if (last.readRows === 0 && last.readBytes === 0) growthLimit = 4;
+
+  const durationMs = Math.min(
+    remainingRangeMs,
+    Math.max(
+      1,
+      Math.floor(
+        windowMs * Math.min(timeMultiplier, rowMultiplier, growthLimit),
+      ),
+    ),
+  );
+  return {
+    durationMs,
+    estimatedMs:
+      OBSERVATIONS_QUERY_OVERHEAD_MS + (durationMs / windowMs) * costMs,
+  };
+}
+
+/** Own the deadline and cumulative work counters for all queries in one page. */
+function createObservationsScan(projectId: string) {
+  const started = performance.now();
+  const abortSignal = AbortSignal.timeout(OBSERVATIONS_SCAN_BUDGET_MS);
+  let readRows = 0;
+  let readBytes = 0;
+  const remainingMs = () =>
+    OBSERVATIONS_SCAN_BUDGET_MS - (performance.now() - started);
+  const query = async <T>(builder: QueryWithParams) => {
+    let queryRows: number | undefined;
+    let queryBytes = 0;
+    try {
+      const rows = await runObservationsScanQuery<T>(
+        builder,
+        projectId,
+        abortSignal,
+        remainingMs(),
+        (scanned, bytes) => {
+          // Streaming progress is cumulative, including work from retried attempts.
+          readRows += scanned - (queryRows ?? 0);
+          readBytes += bytes - queryBytes;
+          queryRows = scanned;
+          queryBytes = bytes;
+        },
+      );
+      // Completed empty streams omit zero progress; nonzero reads flush on completion.
+      return {
+        rows,
+        readRows: queryRows ?? (rows.length === 0 ? 0 : undefined),
+        readBytes: queryBytes,
+      };
+    } catch (error) {
+      if (error instanceof ClickHouseQueryAbortedError) {
+        throw new ClickHouseResourceError("TIMEOUT", error);
+      }
+      throw error;
+    }
+  };
+  return {
+    query,
+    remainingMs,
+    getAttributes: () => ({
+      "observations.scan.read_rows": readRows,
+      "observations.scan.read_bytes": readBytes,
+      "observations.scan.elapsed_ms": performance.now() - started,
+    }),
+  };
+}
+
+async function runObservationsScanQuery<T>(
+  builder: QueryWithParams,
+  projectId: string,
+  abortSignal: AbortSignal,
+  remainingMs: number,
+  onProgress: (readRows: number, readBytes: number) => void,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for await (const item of queryClickhouseWithProgress<T>({
+    ...builder.buildWithParams(),
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+    abortSignal,
+    clickhouseConfigs: { request_timeout: OBSERVATIONS_SCAN_BUDGET_MS },
+    clickhouseSettings: {
+      read_in_order_use_buffering: 0,
+      max_execution_time: Math.max(0.001, remainingMs / 1000),
+      timeout_overflow_mode: "throw",
+      timeout_before_checking_execution_speed: 0,
+      cancel_http_readonly_queries_on_client_close: 1,
+    },
+  })) {
+    if (isRow<T>(item)) rows.push(item.row);
+    if (isProgressRow(item))
+      onProgress(
+        Number(item.progress.read_rows),
+        Number(item.progress.read_bytes),
+      );
+    if (isException(item))
+      throw ClickHouseResourceError.wrapIfResourceError(
+        new Error(item.exception),
+      );
+  }
+  return rows;
+}
+
 /**
  * V2 API: Get observations list from events table for public API
  * Returns partial observations based on requested field groups
@@ -1826,10 +2181,11 @@ export const getObservationsFromEventsTableForPublicApi = async (
  * - io CTE: fetches full IO/metadata from events_full for matched rows only
  * This avoids expensive full-table scans on events_full.
  */
-export const getObservationsV2FromEventsTableForPublicApi = async (
+function buildObservationsV2Query(
   opts: PublicApiObservationsQuery,
   options: BuildObservationsQueryComponentsOptions = {},
-): Promise<Array<EventsObservationPublic>> => {
+  window?: { from: Date; to?: Date; inclusiveTo: boolean },
+): QueryWithParams {
   const { projectId, expandMetadataKeys } = opts;
 
   // Determine which field groups to include
@@ -1852,6 +2208,26 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     eventsTableNativeUiColumnDefinitions,
     options,
   );
+
+  // Apply scan bounds after merging user filters so structured filters cannot
+  // override them. The same bounded base feeds the full-payload lookup.
+  if (window) {
+    for (const [value, operator] of [
+      [window.from, ">="],
+      [window.to, window.inclusiveTo ? "<=" : "<"],
+    ] as const) {
+      if (!value) continue;
+      baseBuilder.where(
+        new DateTimeFilter({
+          clickhouseTable: "events_core",
+          field: "start_time",
+          tablePrefix: "e",
+          operator,
+          value,
+        }).apply(),
+      );
+    }
+  }
 
   // The io lane only pays off when base reads the cheap truncated table
   // (events_core) and the split defers the heavy input/output/metadata columns
@@ -1913,21 +2289,10 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       break;
   }
 
-  const records =
-    await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
-      projectId,
-      builder,
-      {},
-      options.clickhouseSettings,
-    );
+  return builder;
+}
 
-  return await enrichObservationsWithModelData(
-    records,
-    projectId,
-    false, // V2 API: IO fields are always returned as raw strings
-    requestedFields,
-  );
-};
+type ObservationsScan = ReturnType<typeof createObservationsScan>;
 
 /**
  * Get count of observations from events table for public API.

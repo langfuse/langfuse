@@ -15,7 +15,10 @@ service:
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
         The cursor is returned in the response metadata and should be passed in subsequent requests
-        to retrieve the next page of results.
+        to retrieve the next page of results. The `limit` parameter is a maximum: a page may contain
+        fewer items than the requested limit, including zero items, while `meta.cursor` is present.
+        Continue requesting pages until `meta.cursor` is absent.
+        Requests without a lower start-time bound may search only from the project's creation time.
 
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
@@ -56,7 +59,7 @@ service:
               Example: "key1,key2"
           limit:
             type: optional<integer>
-            docs: Number of items to return per page. Maximum 1000, default 50.
+            docs: Maximum number of items to return per page. A page may contain fewer items, including zero items, while meta.cursor is present. Maximum 1000, default 50.
           cursor:
             type: optional<string>
             docs: Base64-encoded cursor for pagination. Use the cursor from the previous response to get the next page.
@@ -224,7 +227,9 @@ types:
       Response containing observations with field-group-based filtering and cursor-based pagination.
 
       The `data` array contains observation objects with only the requested field groups included.
-      Use the `cursor` in `meta` to retrieve the next page of results.
+      Use the `cursor` in `meta` to retrieve the next page of results. The array may contain fewer
+      than the requested `limit` items, or be empty, while a cursor is present. Continue until the
+      cursor is absent.
     properties:
       data:
         type: list<commons.ObservationV2>
