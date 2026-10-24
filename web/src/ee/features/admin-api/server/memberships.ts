@@ -8,6 +8,7 @@ import {
   deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -98,6 +99,9 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
     const after = await tx.organizationMembership.upsert({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
       update: { role: validatedBody.data.role },

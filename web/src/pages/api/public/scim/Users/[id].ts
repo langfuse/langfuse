@@ -12,6 +12,7 @@ import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
@@ -25,7 +26,7 @@ function parseScimRole(roles: unknown): Role | undefined {
     return undefined;
   }
   const parsed = z
-    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]))
+    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE", "AI_GATEWAY"]))
     .safeParse(roles);
   return parsed.success ? parsed.data[0] : undefined;
 }
@@ -93,6 +94,7 @@ async function provisionMembership({
             from: current.role,
             to: targetRole,
           });
+          requireGatewayEnabledForRole(orgId, targetRole);
           const updated = await tx.organizationMembership.update({
             where: { orgId_userId: { orgId, userId } },
             data: { role: targetRole },
@@ -176,6 +178,7 @@ async function provisionMembership({
     from: undefined,
     to: roleToCreate,
   });
+  requireGatewayEnabledForRole(orgId, roleToCreate);
   try {
     const created = await prisma.organizationMembership.create({
       data: { userId, orgId, role: roleToCreate },

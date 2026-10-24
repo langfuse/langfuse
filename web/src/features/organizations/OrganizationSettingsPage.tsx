@@ -57,7 +57,23 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
-  const showAuditLogs = useHasEntitlement("audit-logs");
+  const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
+  const canReadAuditLogs = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "orgAuditLogs:read",
+  });
+  const canReadSettings = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:settings:read",
+  });
+  const canReadMembers = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationMembers:read",
+  });
+  const canManageBilling = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "langfuseCloudBilling:CRUD",
+  });
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organization:update",
@@ -78,7 +94,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 
   if (!organization) return [];
 
-  const showBillingPage = showBillingSettings && isCloudBillingAvailable;
+  const showBillingPage =
+    showBillingSettings && isCloudBillingAvailable && canManageBilling;
 
   return getOrganizationSettingsPages({
     organization,
@@ -87,9 +104,12 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     // covers deployments without one (self-hosted).
     showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
-    showAuditLogs,
-    isLangfuseCloud,
-    showV4Migration,
+    showAuditLogs: hasAuditLogsEntitlement && canReadAuditLogs,
+    showSsoSettings: isLangfuseCloud && canUpdateOrganization,
+    showV4Migration: showV4Migration && canReadSettings,
+    showGeneralSettings: canReadSettings,
+    showMembers: canReadMembers,
+    showProjects: canReadSettings || organization.projects.length > 0,
     showAiGatewayManagement: gatewayAccess.showManagement,
     showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
     showAiGatewayModels: gatewayAccess.showModels,
@@ -112,8 +132,11 @@ const getOrganizationSettingsPages = ({
   showUsageSettings,
   showOrgApiKeySettings,
   showAuditLogs,
-  isLangfuseCloud,
+  showSsoSettings,
   showV4Migration,
+  showGeneralSettings,
+  showMembers,
+  showProjects,
   showAiGatewayManagement,
   showAiGatewayNotDeployedNotice,
   showAiGatewayModels,
@@ -137,8 +160,11 @@ const getOrganizationSettingsPages = ({
   showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
-  isLangfuseCloud: boolean;
+  showSsoSettings: boolean;
   showV4Migration: boolean;
+  showGeneralSettings: boolean;
+  showMembers: boolean;
+  showProjects: boolean;
   showAiGatewayManagement: boolean;
   showAiGatewayNotDeployedNotice: boolean;
   showAiGatewayModels: boolean;
@@ -201,6 +227,7 @@ const getOrganizationSettingsPages = ({
         />
       </div>
     ),
+    show: showGeneralSettings,
   },
   {
     title: "Feature Previews",
@@ -260,6 +287,7 @@ const getOrganizationSettingsPages = ({
     section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: <OrganizationMembersSettings orgId={organization.id} />,
+    show: showMembers,
   },
   {
     title: "Audit Logs",
@@ -307,13 +335,14 @@ const getOrganizationSettingsPages = ({
       "verify",
     ],
     content: <SSOSettings orgId={organization.id} />,
-    show: isLangfuseCloud,
+    show: showSsoSettings,
   },
   {
     title: "Projects",
     slug: "projects",
     section: "Organization",
     href: `/organization/${organization.id}`,
+    show: showProjects,
   },
   {
     title: "v4 Migration",

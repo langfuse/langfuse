@@ -27,7 +27,10 @@ import {
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  type OrganizationScope,
+} from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
@@ -108,6 +111,13 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
+    show: ({ organization }) =>
+      !organization ||
+      hasOrganizationAccess({
+        role: organization.role,
+        scope: "organization:settings:read",
+      }) ||
+      organization.projects.length > 0,
     section: RouteSection.Main,
   },
   {

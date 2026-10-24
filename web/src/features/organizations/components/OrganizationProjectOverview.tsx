@@ -21,9 +21,12 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -319,9 +322,68 @@ const SingleOrganizationProjectOverviewTile = ({
           />
         }
       />
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjects org={org} search={search} />
     </div>
   );
+};
+
+/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+const OrganizationProjects = ({
+  org,
+  search,
+}: {
+  org: Organization;
+  search?: string;
+}) => {
+  if (org.projects.length === 0) {
+    return <OrganizationSettingsTile orgId={org.id} />;
+  }
+  return <OrganizationProjectTiles org={org} search={search} />;
+};
+
+/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
+const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const canCreateProject = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "projects:create",
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">No projects</CardTitle>
+        <CardDescription>
+          <NoProjectsDescription canCreateProject={canCreateProject} />
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="gap-2">
+        {canCreateProject && (
+          <Button asChild>
+            <Link href={createProjectRoute(orgId)}>
+              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
+              New project
+            </Link>
+          </Button>
+        )}
+        <Button asChild variant="secondary">
+          <Link href={`/organization/${orgId}/settings`}>
+            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
+            Organization settings
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+/** NoProjectsDescription explains an empty project list by whether the user can create projects */
+const NoProjectsDescription = ({
+  canCreateProject,
+}: {
+  canCreateProject: boolean;
+}) => {
+  if (canCreateProject) return <>This organization has no projects yet.</>;
+  return <>You don&apos;t have access to any projects in this organization.</>;
 };
 
 export const OrganizationProjectOverview = () => {
@@ -333,8 +395,14 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const settingsRedirectOrgId = orgIdWithHiddenProjects({
+    session: session.data,
+    queryOrgId,
+    organizations,
+  });
+  useRedirectToOrganizationSettings(settingsRedirectOrgId);
 
-  if (organizations === undefined) {
+  if (organizations === undefined || settingsRedirectOrgId) {
     return "loading...";
   }
 
@@ -482,3 +550,54 @@ const Onboarding = () => {
     </Card>
   );
 };
+
+/** useRedirectToOrganizationSettings sends the user to the given org's settings */
+function useRedirectToOrganizationSettings(orgId: string | undefined) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!orgId) return;
+    router.replace(`/organization/${orgId}/settings`).catch(() => undefined);
+  }, [router, orgId]);
+}
+
+/** orgIdWithHiddenProjects returns the landing org whose projects the user cannot see */
+function orgIdWithHiddenProjects({
+  session,
+  queryOrgId,
+  organizations,
+}: {
+  session: Session | null;
+  queryOrgId: string | string[] | undefined;
+  organizations: Organization[] | undefined;
+}) {
+  const org = landingOrganization(queryOrgId, organizations ?? []);
+  if (!org || canViewOrganizationProjects(session, org)) return undefined;
+  return org.id;
+}
+
+/** landingOrganization picks the org requested in the URL, or the user's only org */
+function landingOrganization(
+  queryOrgId: string | string[] | undefined,
+  organizations: Organization[],
+) {
+  if (queryOrgId) return organizations.find((org) => org.id === queryOrgId);
+  if (organizations.length === 1) return organizations[0];
+  return undefined;
+}
+
+/** canViewOrganizationProjects is true when the user can read the org settings or any of its projects */
+function canViewOrganizationProjects(
+  session: Session | null,
+  org: Organization,
+) {
+  return (
+    hasOrganizationAccess({
+      session,
+      organizationId: org.id,
+      scope: "organization:settings:read",
+    }) || org.projects.length > 0
+  );
+}
+
+type Organization = NonNullable<Session["user"]>["organizations"][number];

@@ -48,9 +48,7 @@ export const PagedSettingsContainer = ({
   sectionHeaders = {},
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) =>
-    typeof page.show === "function" ? page.show() : (page.show ?? true),
-  );
+  const availablePages = pages.filter(isSettingsPageShown);
 
   const contentPages = availablePages.filter((page) => "content" in page);
   const enabledContentPages = contentPages.filter(
@@ -265,4 +263,10 @@ function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
     },
     [],
   );
+}
+
+/** isSettingsPageShown resolves a page's show flag, defaulting to shown */
+export function isSettingsPageShown(page: Pick<SettingsPage, "show">) {
+  if (typeof page.show === "function") return page.show();
+  return page.show ?? true;
 }
