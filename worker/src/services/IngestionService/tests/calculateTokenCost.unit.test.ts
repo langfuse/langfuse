@@ -1945,3 +1945,126 @@ describe("Token Cost Calculation", () => {
     });
   });
 });
+
+describe("provided cost total derivation", () => {
+  const calculateProvidedCosts = (provided_cost_details: unknown) =>
+    IngestionService.calculateUsageCosts(
+      null,
+      {
+        provided_cost_details: provided_cost_details as Record<string, number>,
+      },
+      { input: 100, output: 200 },
+    );
+
+  it.each([
+    {
+      name: "explicit total",
+      provided: { input: 1, output: 2, total: 3 },
+      expected: { input: 1, output: 2, total: 3 },
+    },
+    {
+      name: "totalCost alias",
+      provided: { totalCost: 0.002 },
+      expected: { total: 0.002 },
+    },
+    {
+      name: "total_cost alias",
+      provided: { total_cost: 0.0023 },
+      expected: { total: 0.0023 },
+    },
+    {
+      name: "total takes precedence over totalCost and total_cost",
+      provided: { total: 1, totalCost: 2, total_cost: 3 },
+      expected: { total: 1 },
+    },
+    {
+      name: "totalCost takes precedence over total_cost",
+      provided: { input: 0.5, totalCost: 2, total_cost: 3 },
+      expected: { input: 0.5, total: 2 },
+    },
+    {
+      name: "total aliases are never summed with the other cost points",
+      provided: { input: 2, output: 3, totalCost: 5 },
+      expected: { input: 2, output: 3, total: 5 },
+    },
+    {
+      name: "sum of all cost points without a total (issue #15961)",
+      provided: { input: 1, output: 2, cache_read_input_tokens: 3 },
+      expected: { input: 1, output: 2, cache_read_input_tokens: 3, total: 6 },
+    },
+    {
+      name: "sum of a single custom cost point",
+      provided: { usd: 0.12 },
+      expected: { usd: 0.12, total: 0.12 },
+    },
+    {
+      name: "input and output only",
+      provided: { input: 1, output: 2 },
+      expected: { input: 1, output: 2, total: 3 },
+    },
+    {
+      name: "non-numeric, null, NaN, infinite and negative values are skipped",
+      provided: {
+        input: 1,
+        output: 2,
+        currency: "USD",
+        cached: null,
+        reasoning: NaN,
+        audio: Infinity,
+        discount: -1,
+        total_cost: "0.5",
+      },
+      expected: { input: 1, output: 2, total: 3 },
+    },
+    {
+      name: "invalid total is skipped in favour of the next total key",
+      provided: { input: 1, total: -1, totalCost: "USD", total_cost: 4 },
+      expected: { input: 1, total: 4 },
+    },
+    {
+      name: "explicit zero total is respected",
+      provided: { input: 1, output: 2, total: 0 },
+      expected: { input: 1, output: 2, total: 0 },
+    },
+    {
+      name: "provided total wins when it disagrees with the cost points",
+      provided: { input: 1, output: 2, total: 10 },
+      expected: { input: 1, output: 2, total: 10 },
+    },
+  ])("$name", ({ provided, expected }) => {
+    const costs = calculateProvidedCosts(provided);
+
+    expect(costs.cost_details).toStrictEqual(expected);
+    expect(costs.total_cost).toBe(expected.total);
+  });
+
+  it("falls back to model prices when no valid cost point is provided", () => {
+    const costs = IngestionService.calculateUsageCosts(
+      [
+        { usageType: "input", price: new Decimal(0.01) },
+        { usageType: "output", price: new Decimal(0.02) },
+      ],
+      {
+        provided_cost_details: { currency: "USD", input: null } as any,
+      },
+      { input: 100, output: 200 },
+    );
+
+    expect(costs.cost_details).toStrictEqual({ input: 1, output: 4, total: 5 });
+    expect(costs.total_cost).toBe(5);
+  });
+
+  it("ignores model prices once any cost point is provided", () => {
+    const costs = IngestionService.calculateUsageCosts(
+      [
+        { usageType: "input", price: new Decimal(0.01) },
+        { usageType: "output", price: new Decimal(0.02) },
+      ],
+      { provided_cost_details: { usd: 0.5 } },
+      { input: 100, output: 200 },
+    );
+
+    expect(costs.cost_details).toStrictEqual({ usd: 0.5, total: 0.5 });
+    expect(costs.total_cost).toBe(0.5);
+  });
+});

@@ -8682,7 +8682,8 @@ components:
           nullable: true
           description: >-
             The cost details of the observation. Key is the cost metric name,
-            value is the cost in USD.
+            value is the cost in USD. The total key holds the total cost, which
+            is also returned as totalCost.
         totalCost:
           type: number
           format: double
