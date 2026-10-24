@@ -24,7 +24,10 @@ import {
 } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import {
+  advanceSessionsExpiredAtForEmail,
+  getSessionLoginAt,
+} from "@/src/features/auth/lib/sessionExpiration";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
@@ -1226,6 +1229,14 @@ export async function getAuthOptions(
       },
     },
     events: {
+      // JWT sessions are stateless: clearing the cookie alone leaves a copied
+      // token valid until it expires. Advancing the revocation boundary makes
+      // the `session` callback reject every token issued before sign-out.
+      // NextAuth logs errors thrown here and still clears the cookie.
+      signOut: async (message) => {
+        const email = "token" in message ? message.token?.email : undefined;
+        if (email) await advanceSessionsExpiredAtForEmail(email);
+      },
       createUser: async ({ user }) => {
         if (
           env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
