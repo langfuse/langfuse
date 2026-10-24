@@ -10,16 +10,19 @@ import {
 import { z } from "zod";
 
 /**
- * AI SDK v5 Adapter
+ * AI SDK v5/v7 Adapter
  *
- * Handles traces from Vercel AI SDK v5 with any model provider
+ * Handles traces from Vercel AI SDK v5/v7 with any model provider
  *
  * Key characteristics:
  * - Observation names: ai.generateText.doGenerate, ai.generateObject.doGenerate
  * - Metadata: ai.operationId, ai.model.provider, ai.model.id
- * - Message structure: {role, content: [{type, text/toolCallId/...}]}
- * - Tool calls: {type: "tool-call", toolCallId, toolName, input|args}
- * - Tool results: {type: "tool-result", toolCallId, toolName, output|result}
+ * - Message structure (v5): {role, content: [{type, text/toolCallId/...}]}
+ * - Tool calls (v5): {type: "tool-call", toolCallId, toolName, input|args}
+ * - Tool results (v5): {type: "tool-result", toolCallId, toolName, output|result}
+ * - Message structure (v7 / OTel GenAI semconv): {role, parts: [{type, ...}]}
+ *   with part types "text" ({content}), "tool_call" ({id, name, arguments}),
+ *   and "tool_call_response" ({id, response})
  */
 
 // Message with AI SDK v5 tool-call content structure
@@ -105,6 +108,44 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   working = withoutProviderFields;
 
   let normalized = removeNullFields(working);
+
+  // Normalize AI SDK v7 / OTel GenAI semconv `parts[]` messages to the v5
+  // `content[]` shape so the rest of this function can handle both:
+  // - text part: {type: "text", content} → {type: "text", text}
+  // - tool call part: {type: "tool_call", id, name, arguments} → {type: "tool-call", toolCallId, toolName, input}
+  // - tool result part: {type: "tool_call_response", id, response} → {type: "tool-result", toolCallId, output}
+  if (
+    !normalized.content &&
+    Array.isArray(normalized.parts) &&
+    normalized.parts.length > 0
+  ) {
+    normalized.content = normalized.parts.map((part: unknown) => {
+      if (!part || typeof part !== "object") return part;
+      const p = part as Record<string, unknown>;
+
+      if (p.type === "text" && typeof p.content === "string") {
+        return { type: "text", text: p.content };
+      }
+      if (p.type === "tool_call") {
+        return {
+          type: "tool-call",
+          toolCallId: p.id,
+          toolName: p.name,
+          input: p.arguments,
+        };
+      }
+      if (p.type === "tool_call_response") {
+        return {
+          type: "tool-result",
+          toolCallId: p.id,
+          toolName: p.name,
+          output: p.response,
+        };
+      }
+      return p;
+    });
+    delete normalized.parts;
+  }
 
   // Normalize content: [{type: "text", text: "..."}] → string
   if (
