@@ -21,6 +21,11 @@ import { prisma } from "../../db";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
+import {
+  hasFtsSearchToken,
+  TOPIC_SUMMARY_SEARCH_SETTINGS,
+  topicSummaryMatchCondition,
+} from "../queries/clickhouse-sql/fts";
 import { chunk } from "lodash";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
@@ -432,6 +437,45 @@ export async function getLatestFacetSummaries(
       summary: row.summary,
       ...summarySourceAndTimestamps(row),
     }));
+}
+
+const TOPIC_SUMMARY_SEARCH_LIMIT = 10_000;
+
+/**
+ * Trace IDs whose latest summary for the facet (the one getLatestFacetSummaries
+ * shows) contains every search token as a whole token. Backed by the summary
+ * text index. `truncated` means more than `limit` traces matched.
+ */
+export async function searchLatestFacetSummaryTraceIds(
+  projectId: string,
+  facetId: string,
+  query: string,
+  timeRange: TopicTimeRange,
+  limit = TOPIC_SUMMARY_SEARCH_LIMIT,
+): Promise<{ traceIds: string[]; truncated: boolean }> {
+  if (!hasFtsSearchToken(query)) return { traceIds: [], truncated: false };
+  const scopeSql = "facet_id = {facetId:String}";
+  const rows = await queryClickhouse<{ traceId: string }>({
+    query: `SELECT DISTINCT trace_id AS traceId FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+        AND trace_id != ''
+        AND ${latestSummaryFilterSql(scopeSql, summarySourceKeySql)}
+        AND ${topicSummaryMatchCondition("{summaryQuery:String}")}
+      LIMIT {limit:UInt32}`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId,
+      summaryQuery: query,
+      limit: limit + 1,
+    },
+    clickhouseSettings: TOPIC_SUMMARY_SEARCH_SETTINGS,
+    tags: { route: "topics-summary-search", projectId },
+  });
+  return {
+    traceIds: rows.slice(0, limit).map((row) => row.traceId),
+    truncated: rows.length > limit,
+  };
 }
 
 const clusteringSummaryScopeSql = `trace_id != '' AND facet_id = {facetId:String}

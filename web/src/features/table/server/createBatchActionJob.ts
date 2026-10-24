@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
+import { assertTopicSummarySearchAllowed } from "@/src/features/topics/server/summarySearchAccess";
 import { prisma } from "@langfuse/shared/src/db";
 
 type CreateBatchActionJob = {
@@ -103,6 +104,14 @@ export const createBatchActionJob = async ({
       actionId === ActionId.TraceDelete
         ? queryWithSnapshot.useEventsTable
         : undefined,
+  });
+  // Batch actions do not carry a full session to check Topics visibility.
+  assertTopicSummarySearchAllowed({
+    session: null,
+    projectId,
+    searchQuery: queryWithSnapshot.searchQuery,
+    searchType: queryWithSnapshot.searchType,
+    readsEventsTable: false,
   });
 
   const batchActionId = generateBatchActionId(projectId, actionId, tableName);

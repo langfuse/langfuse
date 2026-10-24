@@ -6,9 +6,17 @@ import {
   type TracingSearchType,
 } from "../../../interfaces/search";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
-import { bareFtsField, ftsTextTokenPredicate, hasFtsSearchToken } from "./fts";
+import {
+  bareFtsField,
+  ftsTextTokenPredicate,
+  hasFtsSearchToken,
+  topicSummaryTraceIdsSubquery,
+} from "./fts";
 
 const regexIndefiniteCharacters = "%";
+
+const TOPIC_SUMMARY_SEARCH_UNSUPPORTED_MESSAGE =
+  "Searching trace summaries is only supported on the v4 tracing tables.";
 
 // events_full ngrambf_v1 skip indexes are defined on lower(<col>). ILIKE on the
 // raw column cannot use them; the query must match lower(col) LIKE lower(...).
@@ -75,6 +83,11 @@ export const clickhouseSearchCondition = ({
 }: ClickhouseSearchConditionOptions) => {
   if (!hasValidTracingSearchTypes({ searchQuery: query, searchType })) {
     throw new InvalidRequestError(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
+  }
+
+  const searchesSummaries = Boolean(query) && !!searchType?.includes("summary");
+  if (searchesSummaries && !useEventsTablePath) {
+    throw new InvalidRequestError(TOPIC_SUMMARY_SEARCH_UNSUPPORTED_MESSAGE);
   }
 
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
@@ -146,6 +159,12 @@ export const clickhouseSearchCondition = ({
         )}`
       : ilikeWithPrefilter(col, "{searchString: String}", searchStringHasToken);
 
+  // A tokenless phrase cannot match a whole-token summary search.
+  const summaryLaneMatch = () =>
+    searchStringHasToken
+      ? `${prefix}trace_id IN (${topicSummaryTraceIdsSubquery("{searchStringExact: String}")})`
+      : "false";
+
   // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [
     !searchType || searchType.includes("id")
@@ -158,6 +177,7 @@ export const clickhouseSearchCondition = ({
     searchType && searchType.includes("output")
       ? ioColumnMatch(outputCol)
       : null,
+    searchesSummaries ? summaryLaneMatch() : null,
   ].filter(Boolean);
 
   return {

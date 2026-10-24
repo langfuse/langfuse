@@ -34,6 +34,7 @@ import {
   isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
+  searchLatestFacetSummaryTraceIds,
   createTopicFacet,
   createTopicFacetVersion,
   listTopicRules,
@@ -653,4 +654,19 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
+  summarySearch: topicsProcedure
+    .input(
+      resultInput.extend({
+        facetId: topicIdSchema,
+        query: z.string().trim().min(1).max(300),
+      }),
+    )
+    .query(({ input }) =>
+      searchLatestFacetSummaryTraceIds(
+        input.projectId,
+        input.facetId,
+        input.query,
+        input.timeRange,
+      ),
+    ),
 });
