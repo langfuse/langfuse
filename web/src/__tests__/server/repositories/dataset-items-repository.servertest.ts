@@ -13,6 +13,7 @@ import {
   deleteDatasetItem,
   createManyDatasetItems,
   getDatasetItemById,
+  getDatasetItemsCount,
   createDatasetItemFilterState,
   listDatasetVersions,
   getDatasetItemVersionHistory,
@@ -551,6 +552,101 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       });
 
       expect(item).toBeNull();
+    });
+  });
+
+  describe("duplicate open rows (concurrent-create race)", () => {
+    // A concurrent upsertDatasetItem race for an item that doesn't yet exist can
+    // leave two rows with valid_to IS NULL for the same id: both calls read
+    // current = null, so neither closes a row, and both insert open. Simulate
+    // that end state directly (bypassing the upsert transaction) rather than
+    // trying to trigger the race itself.
+    it("getDatasetItemById returns the newer open row, not the oldest", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      const older = new Date(Date.now() - 60_000);
+      const newer = new Date();
+
+      // Oldest open row first, so an unordered `LIMIT 1` scan would return it.
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          status: "ACTIVE",
+          input: { version: "stale" },
+          validFrom: older,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          status: "ACTIVE",
+          input: { version: "current" },
+          validFrom: newer,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+      });
+
+      expect(item?.input).toEqual({ version: "current" });
+    });
+
+    it("getDatasetItemsCount does not double-count an id with two open rows", async () => {
+      const datasetId = v4();
+      const duplicatedItemId = v4();
+      const older = new Date(Date.now() - 60_000);
+      const newer = new Date();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      await prisma.datasetItem.create({
+        data: {
+          id: duplicatedItemId,
+          projectId,
+          datasetId,
+          status: "ACTIVE",
+          input: { version: "stale" },
+          validFrom: older,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+      await prisma.datasetItem.create({
+        data: {
+          id: duplicatedItemId,
+          projectId,
+          datasetId,
+          status: "ACTIVE",
+          input: { version: "current" },
+          validFrom: newer,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+
+      const filterState = createDatasetItemFilterState({
+        datasetIds: [datasetId],
+        status: "ACTIVE",
+      });
+
+      const count = await getDatasetItemsCount({ projectId, filterState });
+
+      expect(count).toBe(1);
     });
   });
 

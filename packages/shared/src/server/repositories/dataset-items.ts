@@ -1377,7 +1377,7 @@ function buildDatasetItemsCountQuery(
     : Prisma.sql`AND di.valid_to IS NULL`;
 
   return Prisma.sql`
-    SELECT COUNT(*) as count
+    SELECT COUNT(DISTINCT di.id) as count
     FROM dataset_items di
     WHERE di.project_id = ${projectId}
       AND di.is_deleted = false
@@ -1397,7 +1397,7 @@ function buildDatasetItemsLatestCountGroupedQuery(
   return Prisma.sql`
     SELECT
       di.dataset_id,
-      COUNT(*) as count
+      COUNT(DISTINCT di.id) as count
     FROM dataset_items di
     WHERE di.project_id = ${projectId}
       AND di.dataset_id = ANY(${datasetIds})
@@ -1624,6 +1624,7 @@ export async function getDatasetItemById<
             ${datasetFilter}
             ${statusFilter}
             ${versionFilter}
+          ORDER BY valid_from DESC
           LIMIT 1
         `,
       );
