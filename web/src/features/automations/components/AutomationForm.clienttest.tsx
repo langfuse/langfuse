@@ -31,6 +31,11 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
       },
     },
+    skills: {
+      filterOptions: {
+        useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
+      },
+    },
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },
@@ -62,6 +67,10 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 // Cloud-only: the Alert option in the event-source picker is gated on this.
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "US" }),
+}));
+
+vi.mock("@/src/features/events", () => ({
+  useReadPath: () => ({ isV4: true }),
 }));
 
 import { AutomationForm } from "./AutomationForm";
@@ -149,6 +158,29 @@ describe("AutomationForm handleActionTypeChange", () => {
 
     const payload = createAutomationMutateAsync.mock.calls[0][0];
     expect(payload.actionConfig.apiVersion).toEqual({ monitor: "v1" });
+  });
+
+  it("switching from prompt to skill submits skill events and webhook version", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Skill" }));
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Sync skills" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/https/i), {
+      target: { value: "https://example.com/hook" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      eventSource: TriggerEventSource.Skill,
+      eventAction: ["created", "updated", "deleted"],
+      actionConfig: { type: "WEBHOOK", apiVersion: { skill: "v1" } },
+    });
   });
 
   it("does not render an API version control for webhook actions", () => {

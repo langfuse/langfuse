@@ -9,8 +9,10 @@ import {
 import {
   createOrgProjectAndApiKey,
   EntityChangeEventType,
+  EntityChangeEventSchema,
 } from "@langfuse/shared/src/server";
 import { ActionType, prisma } from "@langfuse/shared/src/db";
+import { skillVersionProcessor } from "../features/entityChange/skillVersionProcessor";
 import { promptVersionProcessor } from "../features/entityChange/promptVersionProcessor";
 
 describe("promptVersionChangeWorker", () => {
@@ -175,6 +177,118 @@ describe("promptVersionChangeWorker", () => {
         expect(executions[0].status).toBe(ActionExecutionStatus.PENDING);
         expect(executions[0].sourceId).toBe(promptId);
       }
+    },
+  );
+  it.each([
+    {
+      source: TriggerEventSource.Skill,
+      action: "created" as const,
+      expected: 1,
+    },
+    {
+      source: TriggerEventSource.Prompt,
+      action: "created" as const,
+      expected: 0,
+    },
+  ])(
+    "skill $action events match only skill triggers ($source)",
+    async ({ source, action, expected }) => {
+      const actionId = v4();
+      const triggerId = v4();
+      const automationId = v4();
+      await prisma.action.create({
+        data: {
+          id: actionId,
+          projectId,
+          type: ActionType.WEBHOOK,
+          config: {
+            type: "WEBHOOK",
+            url: "https://webhook.example.com/test",
+            headers: {},
+          },
+        },
+      });
+      await prisma.trigger.create({
+        data: {
+          id: triggerId,
+          projectId,
+          eventSource: source,
+          eventActions: [action],
+          status: JobConfigState.ACTIVE,
+          filter: [
+            {
+              column: "Name",
+              operator: "=",
+              value: "test-skill",
+              type: "string",
+            },
+          ],
+        },
+      });
+      await prisma.automation.create({
+        data: {
+          id: automationId,
+          projectId,
+          triggerId,
+          actionId,
+          name: "skill automation",
+        },
+      });
+      const skillId = v4();
+      const event: Extract<
+        EntityChangeEventType,
+        { entityType: "skill-version" }
+      > = {
+        entityType: "skill-version",
+        projectId,
+        skillId,
+        action,
+        skill: {
+          id: skillId,
+          projectId,
+          name: "test-skill",
+          description: "Test skill",
+          frontmatter: {},
+          version: 2,
+          tags: [],
+          labels: ["latest"],
+          commitMessage: null,
+          files: [],
+          createdBy: "test-user",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      };
+      const hydrated = EntityChangeEventSchema.parse(
+        JSON.parse(JSON.stringify(event)),
+      );
+      expect(hydrated.entityType).toBe("skill-version");
+      if (hydrated.entityType !== "skill-version")
+        throw new Error("Unexpected event type");
+      expect(hydrated.skill.createdAt).toBeInstanceOf(Date);
+      await skillVersionProcessor(hydrated);
+      const executions = await prisma.automationExecution.findMany({
+        where: { projectId, automationId },
+      });
+      expect(executions).toHaveLength(expected);
+      if (!expected) return;
+      expect(executions[0]).toMatchObject({
+        sourceId: skillId,
+        status: ActionExecutionStatus.PENDING,
+        input: { type: "skill-version", skillVersion: 2 },
+      });
+      await skillVersionProcessor({
+        ...event,
+        skill: { ...event.skill, name: "different-skill" },
+      });
+      expect(
+        await prisma.automationExecution.count({
+          where: { projectId, automationId },
+        }),
+      ).toBe(expected);
+      await expect(
+        skillVersionProcessor({ ...event, projectId: v4() }),
+      ).rejects.toThrow("identity does not match");
     },
   );
 });
