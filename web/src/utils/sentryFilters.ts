@@ -90,13 +90,15 @@ export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
  * {@link HTTP_CLIENT_NOISE_PATHS}, and `/api/trpc/...` paths. Third-party
  * httpClient 502/503/504 (e.g. S3/GCS presigned uploads) are KEPT — those are
  * not our edge and are often the only Sentry signal for a failed upload.
+ * PostHog ingest 5xx is a separate, host-scoped drop:
+ * {@link isNoisyHttpClientPosthogIngestEvent}.
  *
  * True only for `auto.http.client.*` events whose status is 502, 503, or 504
  * AND whose request URL is app-owned. Never drops:
  *  - a genuine thrown exception or console error (different / no mechanism);
  *  - an application HTTP 500 (or any non-gateway 5xx) on tRPC or the public API
  *    — those still flow, and JSON 5xx are also captured at `handleTrpcError`;
- *  - a gateway status on a third-party origin (storage, analytics, …).
+ *  - a gateway status on a third-party origin (storage, …).
  *
  * Real outages remain observable server-side via request tracing/APM spans and
  * logs. This only removes the client-side amplification of our own edge.
@@ -182,6 +184,67 @@ export function isNoisyHttpClientGatewayEvent(event: ErrorEvent): boolean {
   if (typeof requestUrl !== "string") return false;
 
   return isHttpClientAppOwnedRequestUrl(requestUrl);
+}
+
+/**
+ * Hosts that receive PostHog product-analytics traffic from the browser SDK
+ * (ingest, feature flags, remote config). `ph.langfuse.com` is the Cloud
+ * reverse-proxy; official hosts are `*.posthog.com`. Matched by hostname
+ * only — paths (`/e`, `/s`, `/flags`, `/array/…/config`) collide with
+ * first-party routes.
+ */
+function isPosthogIngestHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "ph.langfuse.com" ||
+    host === "posthog.com" ||
+    host.endsWith(".posthog.com")
+  );
+}
+
+function isHttpClientFiveXx(status: number): boolean {
+  return status >= 500 && status < 600;
+}
+
+/**
+ * True for `httpClientIntegration` 5xx against PostHog telemetry hosts
+ * (`https://ph.langfuse.com/i/v0/e/`, `/flags/`, `/array/…/config`,
+ * `https://eu.i.posthog.com/…`).
+ *
+ * `httpClientIntegration` reports every 5xx the browser observes as an
+ * unhandled `HTTP Client Error with status code: N`. A 503 from PostHog
+ * ingest, flags, or remote config is analytics telemetry failing, not a
+ * Langfuse app bug. The SDK retries internally; the page already works.
+ * Same class as the `[PostHog.js]` console notices dropped by
+ * {@link isDenylistedNoiseEvent}. Observed as `auto.http.client.fetch`
+ * with a stack only in `posthog-js` (`request.ts` / feature-flags /
+ * remote-config).
+ *
+ * Host-scoped and mechanism-scoped. Never drops:
+ *  - a genuine thrown exception or console error (different / no mechanism);
+ *  - an application 5xx on tRPC / public API / same-origin;
+ *  - a gateway status on storage (S3/GCS) or any other third-party origin.
+ *
+ * Real PostHog outages remain visible in PostHog itself and on the reverse
+ * proxy. This only removes the client-side amplification.
+ */
+export function isNoisyHttpClientPosthogIngestEvent(
+  event: ErrorEvent,
+): boolean {
+  if (!isHttpClientIntegrationEvent(event)) return false;
+  const status = readHttpClientStatus(event);
+  if (status === undefined || !isHttpClientFiveXx(status)) {
+    return false;
+  }
+
+  const requestUrl = event.request?.url;
+  if (typeof requestUrl !== "string") return false;
+
+  try {
+    return isPosthogIngestHostname(new URL(requestUrl).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**

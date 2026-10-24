@@ -4,6 +4,7 @@ import {
   isKitesurfInternalEvent,
   isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
+  isNoisyHttpClientPosthogIngestEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
@@ -67,6 +68,14 @@ Sentry.init({
     // failure; this removes the duplicate unhandled HTTP Client Error. HTTP 500
     // on tRPC/public API is kept. See isNoisyHttpClientGatewayEvent.
     if (isNoisyHttpClientGatewayEvent(event)) {
+      return null;
+    }
+
+    // Drop httpClient 5xx to PostHog hosts (`ph.langfuse.com`, `*.posthog.com`)
+    // — ingest, flags, and remote config. Analytics telemetry failing is not
+    // a Langfuse app bug; the SDK retries. S3/GCS upload 5xx stay captured.
+    // See isNoisyHttpClientPosthogIngestEvent.
+    if (isNoisyHttpClientPosthogIngestEvent(event)) {
       return null;
     }
 
