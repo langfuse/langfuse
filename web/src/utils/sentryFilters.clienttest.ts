@@ -1124,6 +1124,68 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops injected _all_alberto ReferenceError (anonymous frames)", () => {
+    // Real shape: Chrome on a trace detail page. Injected page-world JS
+    // (userscript / extension) references an undeclared `_all_alberto`.
+    // Stack is only `<anonymous>` frames — denyUrls cannot match.
+    // Langfuse has no `_all_alberto` identifier; SWC/Terser also never
+    // emit a human first name as a mangled binding.
+    const injectedAllAlbertoEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: (
+                  frames ?? [
+                    { filename: "<anonymous>", function: "?" },
+                    { filename: "<anonymous>", function: "?" },
+                  ]
+                ).map((stackFrame) => ({
+                  filename: stackFrame.filename,
+                  function: stackFrame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous _all_alberto ReferenceError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedAllAlbertoEvent("_all_alberto is not defined"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedAllAlbertoEvent("_all_alberto is not defined."),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedAllAlbertoEvent(
+            "_all_alberto is not defined",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1778,6 +1840,98 @@ describe("isDenylistedNoiseEvent", () => {
                     filename:
                       "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
                     function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes _all_alberto is not defined", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "Trace peek failed: _all_alberto is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different undeclared-identifier ReferenceError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "projectId is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured _all_alberto ReferenceError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("_all_alberto is not defined", "ReferenceError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "_all_alberto is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the _all_alberto ReferenceError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "_all_alberto is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/traces/[traceId]-abc.js",
+                    function: "TracePeek",
                   },
                 ],
               },
