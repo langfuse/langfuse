@@ -76,16 +76,18 @@ Examples:
   {
     name: "Issues",
     description: "The main problem in how the run was handled.",
-    prompt: `Describe the problem that did the most damage to the result of this run: the mistake that made the final answer or action wrong, unsupported, or missing.
+    prompt: `Describe the problem that did the most damage to the result of this run: the mistake that made the final answer or action wrong, incomplete, missing, or not based on what the run retrieved.
 
-Format: one sentence that names the mistake, the kind of step where it happened, and its consequence, for example "Answered from memory instead of querying the dataset, so the reported value is unverified."
+Format: exactly "<what the assistant did wrong> in <the kind of step>, so <the consequence for the result>.", for example "Answered from memory instead of querying in the final answer, so the reported value may be wrong."
 - Describe the mechanism in plain, generic words: what the assistant did wrong and how, such as answering from memory, inventing data, claiming a check that never ran, choosing the wrong tool, breaking a required format, or stopping before the answer. Use the words that fit this run.
 - Name the kind of step (a web search, a file read, a calculation, a code change, the final answer), not the task's subject. "Skipped the file read and guessed the count" is right; "gave a wrong count of crustacean slides" is not.
 - Do not start with a label or category.
+- Never name the task's subject, product, domain, or entities (payouts, logins, tires, a dataset's topic). Two runs with the same mistake in different domains must read the same.
+- Say "unsupported" or "unverified" only when the run's own results contradict the answer. Otherwise name the concrete behavior: answered from memory, guessed, skipped a lookup, misread a tool result, left out the result.
 
 How to find it:
 - Start from the end. Check the final answer or action against the request: is it on target, complete, and backed by what the run actually retrieved or did? Then work back to the step that caused the gap.
-- Report the cause with its consequence, not the symptom. When a tool fails and the assistant then answers anyway from guesses or invented data, the problem is the unsupported answer, not the tool failure.
+- Report the cause with its consequence, not the symptom. When a tool fails and the assistant then answers anyway from guesses or invented data, the problem is answering without the data, not the tool failure.
 - When several problems occur, report the one with the biggest effect on the result. Prefer, in this order: an answer or reported result that is wrong or not backed by the run; a task left unfinished or answered off target; a wrong tool, approach, or argument; a broken instruction or format; a tool failure that blocked the result. A problem the assistant fully recovered from counts only when nothing worse happened.
 - Keep the symptoms of one problem together; do not list separate problems.
 
