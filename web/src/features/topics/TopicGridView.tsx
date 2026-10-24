@@ -3,6 +3,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import {
   useMemo,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -40,16 +41,32 @@ const PAD_Y = 16;
 const CARD_OFFSET = 8;
 
 export function TopicGridView({
+  onGenerateTopics,
+  canGenerateTopics,
+  ...props
+}: TopicGridViewProps) {
+  if (orderedFacetTopics(props.facet).length === 0) {
+    return (
+      <TopicsEmptyState
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+      />
+    );
+  }
+  return <TopicGridContent {...props} />;
+}
+
+/** Mounts once topics exist, so the trace list header is there to measure from the first render. */
+function TopicGridContent({
   projectId,
   facet,
   mapResult,
   onOpenTrace,
   peekView,
   tracePanelRef,
-  onGenerateTopics,
-  canGenerateTopics,
-}: TopicGridViewProps) {
+}: TopicGridContentProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
   const counts = new Map(facet.topics.map((topic) => [topic.id, topic.count]));
   const topics = orderedFacetTopics(facet).map((topic, index) => ({
     ...topic,
@@ -79,23 +96,21 @@ export function TopicGridView({
       ),
     );
   }, [mapData, facet]);
-  if (topics.length === 0) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
-  }
+  const selectedId = selectedTopic?.id ?? null;
+  // Stable per topic so the list keeps its loaded chunks across re-renders.
+  const listRows = useMemo(
+    () =>
+      selectedId
+        ? facet.rows.filter((row) => row.topicId === selectedId)
+        : facet.rows,
+    [facet.rows, selectedId],
+  );
   const selectedIndex = selectedTopic
     ? topics.findIndex((topic) => topic.id === selectedTopic.id)
     : null;
   const message = facet.map
     ? gridMessage(mapResult)
     : "No map published for this facet.";
-  const listRows = selectedTopic
-    ? facet.rows.filter((row) => row.topicId === selectedTopic.id)
-    : facet.rows;
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col lg:flex-row">
@@ -114,6 +129,7 @@ export function TopicGridView({
             selectedIndex={selectedIndex}
             onSelectTopic={setSelectedTopicId}
             onOpenTrace={onOpenTrace}
+            barHeight={headerSize?.height}
           />
         )}
       </section>
@@ -127,6 +143,7 @@ export function TopicGridView({
         rows={listRows}
         peekView={peekView}
         tracePanelRef={tracePanelRef}
+        headerRef={headerRef}
         divider="side"
       />
     </div>
@@ -145,6 +162,7 @@ function TopicGrid({
   selectedIndex,
   onSelectTopic,
   onOpenTrace,
+  barHeight,
 }: TopicGridProps) {
   const [zoom, setZoom] = useState(0);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -217,7 +235,17 @@ function TopicGrid({
 
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-4">
+      <div
+        className={cn(
+          "flex h-12 shrink-0 items-center justify-end gap-2 px-4",
+          barHeight && "lg:h-(--bar-height)",
+        )}
+        style={
+          barHeight
+            ? ({ "--bar-height": `${barHeight}px` } as CSSProperties)
+            : undefined
+        }
+      >
         <div className="flex items-center gap-0.5">
           <IconButton
             icon={Minus}
@@ -542,6 +570,11 @@ type TopicGridViewProps = {
   canGenerateTopics: boolean;
 };
 
+type TopicGridContentProps = Omit<
+  TopicGridViewProps,
+  "onGenerateTopics" | "canGenerateTopics"
+>;
+
 type TopicGridProps = {
   points: GridPoint[];
   perDot: number;
@@ -550,6 +583,8 @@ type TopicGridProps = {
   selectedIndex: number | null;
   onSelectTopic: (topicId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
+  /** Matches the trace list header in the side-by-side layout so both dividers line up. */
+  barHeight?: number;
 };
 
 type GridHoverCardProps = {
