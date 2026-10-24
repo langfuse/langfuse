@@ -10,7 +10,10 @@ import {
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import { getResultUnit } from "@langfuse/shared/query";
+import {
+  getDimensionAggregateValue,
+  getResultUnit,
+} from "@langfuse/shared/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -160,6 +163,13 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
                   missingValue={getWidgetMissingBucketValue(
                     selectedAggregation,
                   )}
+                  breakdownAggregateValue={getDimensionAggregateValue({
+                    view: selectedView,
+                    version: viewVersion,
+                    dimension: values.dimensions[0]?.field,
+                    measure: selectedMeasure,
+                    aggregation: selectedAggregation,
+                  })}
                 />
                 {chartLoadingState.isLoading && (
                   <ChartLoadingState
