@@ -72,7 +72,11 @@ class TopicsBatchProjects {
   private readonly models: Promise<Map<string, TopicsModels>>;
   private readonly settings = new Map<
     string,
-    Promise<{ facets: TopicFacet[]; sampling: number }>
+    Promise<{
+      facets: TopicFacet[];
+      sampling: number;
+      ruleId?: string;
+    }>
   >();
   private readonly paused = new Set<string>();
 
@@ -117,6 +121,7 @@ async function loadProjectRule(projectId: string) {
   return {
     facets: facets.filter((facet) => selected.has(facet.id)),
     sampling: rule.sampling,
+    ruleId: rule.id,
   };
 }
 
@@ -146,7 +151,7 @@ async function summarizeTraceBatch(
   context: TranscriptContext | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
-  revisions: ReadonlyMap<string, string>,
+  selections: ReadonlyMap<string, { revision: string; ruleIds?: string[] }>,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -164,7 +169,8 @@ async function summarizeTraceBatch(
   const latest = newestEvent(observations)!;
   if (isInternalEvalEnvironment(latest.environment))
     return { outcome: "disabled", rows: [] };
-  const revision = revisions.get(traceKey(first.projectId, traceId));
+  const selection = selections.get(traceKey(first.projectId, traceId));
+  const revision = selection?.revision;
   const inputReference: TraceBatchInputReference | undefined =
     revision === undefined
       ? undefined
@@ -182,14 +188,17 @@ async function summarizeTraceBatch(
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
-    if (
-      !project ||
-      !shouldSampleEvaluation({
-        samplingValue: getDeterministicSamplingValue(traceId),
-        samplingRate: project.sampling,
-      })
-    )
-      return { outcome: "disabled", rows };
+    if (!project) return { outcome: "disabled", rows };
+    const selected =
+      env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED === "true" &&
+      selection?.ruleIds !== undefined
+        ? project.ruleId !== undefined &&
+          selection.ruleIds.includes(project.ruleId)
+        : shouldSampleEvaluation({
+            samplingValue: getDeterministicSamplingValue(traceId),
+            samplingRate: project.sampling,
+          });
+    if (!selected) return { outcome: "disabled", rows };
     // Capture reports its own failures; drain both before releasing the Topics slot.
     const [summary] = await Promise.allSettled([
       summarizeAssembledTrace({
@@ -363,10 +372,10 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
-    const revisions = new Map(
+    const selections = new Map(
       batch.traces.map((trace) => [
         traceKey(trace.projectId, trace.traceId),
-        trace.revision,
+        trace,
       ]),
     );
     const topicsOutcomes: TraceOutcome[] = [];
@@ -469,7 +478,7 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.context,
                   topics,
                   event.timestamp,
-                  revisions,
+                  selections,
                 ),
               );
           });

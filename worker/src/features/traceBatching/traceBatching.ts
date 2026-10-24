@@ -595,13 +595,14 @@ const TRACK_SCRIPT = `
   if current < 3 or current > #KEYS then
     return redis.error_reply('Trace readiness bucket clock changed; retry intake')
   end
-  for i = 6, #ARGV, 7 do
+  for i = 6, #ARGV, 9 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local eventUpdateCount = tonumber(ARGV[i + 4])
     local serializedEventBytes = tonumber(ARGV[i + 5])
     local identity = ARGV[i + 6]
+    local incomingRuleIds = ARGV[i + 7] ~= '' and cjson.decode(ARGV[i + 7]) or nil
     local previous = redis.call('HGET', KEYS[2], member)
     local state = previous and cjson.decode(previous)
     local priorDue = tonumber(redis.call('ZSCORE', KEYS[1], member))
@@ -652,11 +653,22 @@ const TRACK_SCRIPT = `
         serializedEventBytes = nil
       end
     end
-    redis.call('HSET', KEYS[2], member, cjson.encode({
-      minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3], historyBucket = bucket,
-      eventUpdateCount = eventUpdateCount, serializedEventBytes = serializedEventBytes
-    }))
-    redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
+    local ruleIds = {}
+    local seen = {}
+    for _, id in ipairs(state and state.ruleIds or {}) do
+      if not seen[id] then table.insert(ruleIds, id); seen[id] = true end
+    end
+    for _, id in ipairs(incomingRuleIds or {}) do
+      if not seen[id] then table.insert(ruleIds, id); seen[id] = true end
+    end
+    if state or ARGV[i + 8] == '1' then
+      redis.call('HSET', KEYS[2], member, cjson.encode({
+        minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3], historyBucket = bucket,
+        eventUpdateCount = eventUpdateCount, serializedEventBytes = serializedEventBytes,
+        ruleIds = (incomingRuleIds or (state and state.ruleIds)) and ruleIds or nil
+      }))
+      redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
+    end
     redis.call('HSET', KEYS[current], identity,
       cmsgpack.pack({minStart, maxStart, now + firstTtl, eventUpdateCount, serializedEventBytes}))
   end
@@ -812,6 +824,8 @@ export async function trackTraceBatchActivity(
     traceId: string;
     startTimeISO: string;
     serializedEventBytes: number;
+    /** Selected rules, including an empty list for arrivals without a match. */
+    ruleIds?: string[];
   }[],
   idleMs?: number,
 ): Promise<void> {
@@ -821,10 +835,17 @@ export async function trackTraceBatchActivity(
   )
     return;
   const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
-  // Topics summarizes every trace of an active project, so those bypass sampling.
+  const enforceRules =
+    env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED === "true";
+  // Topics admission bypasses experimental sampling until rules are enforced.
   const topicsProject = await resolveTopicsProcessingActive(projectId);
-  // Rate 0 admits only Topics projects; skip all tracking work for the rest.
-  if (samplingRate === 0 && !topicsProject) return;
+  // Retain bounds before the first matching span arrives.
+  if (
+    samplingRate === 0 &&
+    !topicsProject &&
+    !(enforceRules && events.some((event) => event.ruleIds !== undefined))
+  )
+    return;
 
   const bounds = new Map<
     string,
@@ -833,6 +854,7 @@ export async function trackTraceBatchActivity(
       maxStart: number;
       eventUpdateCount: number;
       serializedEventBytes: number;
+      ruleIds?: Set<string>;
     }
   >();
   for (const event of events) {
@@ -845,6 +867,10 @@ export async function trackTraceBatchActivity(
       eventUpdateCount: (previous?.eventUpdateCount ?? 0) + 1,
       serializedEventBytes:
         (previous?.serializedEventBytes ?? 0) + event.serializedEventBytes,
+      ruleIds:
+        previous?.ruleIds !== undefined || event.ruleIds !== undefined
+          ? new Set([...(previous?.ruleIds ?? []), ...(event.ruleIds ?? [])])
+          : undefined,
     });
   }
   if (bounds.size === 0) return;
@@ -852,15 +878,23 @@ export async function trackTraceBatchActivity(
   try {
     recordTrackingVolume("eligible", bounds);
     const admitAll = samplingRate === 1 || topicsProject;
-    // Sample by trace ID so later observations and retries keep the same decision.
-    // Dispatcher and consumer process admitted work without resampling.
+    // Rule selections already include sampling; legacy admission samples by trace.
+    const admitted = new Set(
+      [...bounds]
+        .filter(([traceId, state]) =>
+          enforceRules && state.ruleIds !== undefined
+            ? state.ruleIds.size > 0
+            : admitAll ||
+              shouldSampleEvaluation({
+                samplingValue: getDeterministicSamplingValue(traceId),
+                samplingRate,
+              }),
+        )
+        .map(([traceId]) => traceId),
+    );
     const entries = [...bounds].filter(
-      ([traceId]) =>
-        admitAll ||
-        shouldSampleEvaluation({
-          samplingValue: getDeterministicSamplingValue(traceId),
-          samplingRate,
-        }),
+      ([traceId, state]) =>
+        admitted.has(traceId) || (enforceRules && state.ruleIds !== undefined),
     );
     // Counts distinct trace IDs per ingestion batch, not globally unique traces.
     recordIncrement("langfuse.trace_batch.sampling_decisions", entries.length, {
@@ -928,6 +962,10 @@ export async function trackTraceBatchActivity(
               state.eventUpdateCount,
               state.serializedEventBytes,
               getTraceBatchFirstMember(JSON.stringify([projectId, traceId])),
+              state.ruleIds === undefined
+                ? ""
+                : JSON.stringify([...state.ruleIds]),
+              admitted.has(traceId) ? "1" : "0",
             ]),
           ];
           pipeline?.evalsha(
@@ -1430,6 +1468,13 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
               : undefined,
           trace: TraceBatchTraceSchema.parse({
             ...state,
+            // Redis Lua encodes an empty table as {}; absent IDs stay absent.
+            ...(state.ruleIds !== null &&
+            typeof state.ruleIds === "object" &&
+            !Array.isArray(state.ruleIds) &&
+            Object.keys(state.ruleIds).length === 0
+              ? { ruleIds: [] }
+              : {}),
             projectId,
             traceId,
           }),

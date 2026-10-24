@@ -1,6 +1,9 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
-import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+import {
+  convertEventRecordToObservationForEval,
+  type ObservationForEval,
+} from "@langfuse/shared";
 import {
   logger,
   OtelIngestionProcessor,
@@ -13,6 +16,11 @@ import {
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../evaluation/observationEval";
+import {
+  fetchTraceBatchRules,
+  getMatchingTraceBatchRuleIds,
+  type TraceBatchRule,
+} from "../traceBatching/traceBatchRules";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   createDirectOtelMediaTargets,
@@ -77,6 +85,24 @@ export async function processOtelEvents({
     },
   );
   const hasEvalConfigs = evalConfigs.length > 0;
+  let traceRules: TraceBatchRule[] | undefined;
+  const enforceRules =
+    env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED === "true";
+  let trackTraceBatch =
+    shouldWriteToEventsTable &&
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true";
+  if (trackTraceBatch) {
+    try {
+      traceRules = await fetchTraceBatchRules(projectId);
+      if (enforceRules) trackTraceBatch = traceRules !== undefined;
+    } catch (error) {
+      // Recording failures preserve legacy processing while enforcement is disabled.
+      if (enforceRules) trackTraceBatch = false;
+      traceException(error);
+      logger.error("Failed to fetch trace batch rules", { projectId, error });
+    }
+  }
 
   // Early exit if no processing needed
   if (!hasEvalConfigs && !shouldWriteToEventsTable) {
@@ -118,6 +144,7 @@ export async function processOtelEvents({
     traceId: string;
     startTimeISO: string;
     serializedEventBytes: number;
+    ruleIds?: string[];
   }[] = [];
 
   await Promise.all(
@@ -140,15 +167,25 @@ export async function processOtelEvents({
         return;
       }
 
+      let observation: ObservationForEval | undefined;
+      if (hasEvalConfigs || traceRules !== undefined) {
+        try {
+          observation = convertEventRecordToObservationForEval(eventRecord);
+        } catch (error) {
+          traceException(error);
+          logger.error("Failed to normalize event for rule matching", {
+            projectId,
+            error,
+          });
+        }
+      }
+
       // Step 2: Schedule observation evals (independent of event writes).
       // Internal langfuse-* environments are excluded to prevent
       // eval-on-eval recursion, except experiment run-item roots; see
       // isObservationAllowedForQueuedObservationEvals.
-      if (hasEvalConfigs && evalSchedulerDeps) {
+      if (hasEvalConfigs && evalSchedulerDeps && observation) {
         try {
-          const observation =
-            convertEventRecordToObservationForEval(eventRecord);
-
           if (isObservationAllowedForQueuedObservationEvals(observation)) {
             await scheduleObservationEvals({
               observation,
@@ -171,14 +208,18 @@ export async function processOtelEvents({
         try {
           const serializedEventBytes =
             await ingestionService.writeEventRecord(eventRecord);
-          if (
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-            env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
-          ) {
+          if (trackTraceBatch) {
             traceBatchEvents.push({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,
               serializedEventBytes,
+              ...(traceRules !== undefined && (observation || enforceRules)
+                ? {
+                    ruleIds: observation
+                      ? getMatchingTraceBatchRuleIds(observation, traceRules)
+                      : [],
+                  }
+                : {}),
             });
           }
         } catch (error) {
