@@ -12,9 +12,59 @@ import {
   highlightText,
 } from "./searchJson";
 import { buildTreeFromJSON } from "./treeStructure";
+import { highlightTextWithComments } from "./highlightText";
 
 describe("searchJson", () => {
   describe("searchInTree", () => {
+    it.each([
+      { text: "İstanbul", query: "stanbul", start: 1, end: 8 },
+      { text: "İstanbul", query: "s", start: 1, end: 2 },
+      { text: "İ", query: "i", start: 0, end: 1 },
+      { text: "i\u0307", query: "İ", start: 0, end: 2 },
+      { text: "😀İstanbul", query: "stanbul", start: 3, end: 10 },
+    ])(
+      "keeps original offsets when searching $text for $query",
+      ({ text, query, start, end }) => {
+        const tree = buildTreeFromJSON(
+          { [text]: text },
+          { rootKey: "root", initialExpansion: true },
+        );
+
+        const matches = searchInTree(tree, query);
+        expect(matches).toHaveLength(2);
+        expect(matches.map((match) => match.matchType)).toEqual([
+          "key",
+          "value",
+        ]);
+        for (const match of matches) {
+          expect(match).toMatchObject({
+            highlightStart: start,
+            highlightEnd: end,
+            matchedText: text.slice(start, end),
+          });
+          expect(
+            highlightTextWithComments(
+              text,
+              match.highlightStart,
+              match.highlightEnd,
+            ).filter((segment) => segment.type === "search"),
+          ).toEqual([{ text: text.slice(start, end), type: "search" }]);
+        }
+      },
+    );
+
+    it("preserves overlapping matches across repeated case expansions", () => {
+      const tree = buildTreeFromJSON(
+        { city: "İİİ" },
+        { rootKey: "root", initialExpansion: true },
+      );
+
+      expect(searchInTree(tree, "i\u0307i")).toMatchObject([
+        { highlightStart: 0, highlightEnd: 2, matchedText: "İİ" },
+        { highlightStart: 1, highlightEnd: 3, matchedText: "İİ" },
+      ]);
+    });
+
     it("should find matches case-insensitively by default", () => {
       const tree = buildTreeFromJSON(
         { name: "John", status: "ACTIVE" },
