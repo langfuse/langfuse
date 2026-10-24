@@ -2,6 +2,7 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
 import {
+  DEFAULT_TOPIC_FACETS,
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
   type TopicRule,
@@ -29,7 +30,7 @@ import {
 } from "./processing-gate";
 
 /**
- * One Topics setup: models, the four built-in facets, and a single rule. It
+ * One Topics setup: models, the built-in facets, and a single rule. It
  * keeps the stored automatic-processing state, pause and sampling rate.
  */
 export async function saveTopicsSetup(
@@ -44,9 +45,12 @@ export async function saveTopicsSetup(
       .filter((facet) => facet.isBuiltIn)
       .map((facet) => [facet.name, facet.id]),
   );
+  const defaultNames = new Set(DEFAULT_TOPIC_FACETS.map((facet) => facet.name));
   const facetIds = setup.facets.flatMap((facet) => {
     if (!facet.enabled) return [];
     const id = facetIdByName.get(facet.name);
+    // A client loaded before a built-in left the defaults can still send it.
+    if (!id && !defaultNames.has(facet.name)) return [];
     if (!id)
       throw new InvalidRequestError(
         `Built-in facet ${facet.name} was not created.`,

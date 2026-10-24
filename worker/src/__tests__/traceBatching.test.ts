@@ -1684,7 +1684,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           )
         ).flat();
       const firstSummaries = await summaries();
-      expect(firstSummaries).toHaveLength(8);
+      expect(firstSummaries).toHaveLength(facets.length * 2);
 
       // One late event stays within the original buffer, while the other is
       // ten minutes away and requires the retained earliest start.
@@ -1722,7 +1722,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       ).toMatchObject({ observationCount: 3, traceCount: 1 });
       expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(5);
       const latest = await summaries();
-      expect(latest).toHaveLength(8);
+      expect(latest).toHaveLength(facets.length * 2);
       for (const summary of latest) {
         expect(summary.unitStartTime).toBe(
           firstSummaries.find((row) => row.traceId === summary.traceId)!

@@ -5,10 +5,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
-import {
-  TOPIC_SETUP_QUESTIONS,
-  type TopicSetupQuestion,
-} from "./topic-setup-flow";
+import { type TopicSetupQuestion } from "./topic-setup-flow";
 
 const providerGroups: Array<[string, string[]]> = [
   [
@@ -21,15 +18,11 @@ const providerGroups: Array<[string, string[]]> = [
   ],
 ];
 
-const questions: TopicSetupQuestion[] = TOPIC_SETUP_QUESTIONS.map(
-  (question) => ({
-    name: question.name,
-    description:
-      DEFAULT_TOPIC_FACETS.find((facet) => facet.name === question.name)
-        ?.description ?? "",
-    enabled: true,
-  }),
-);
+const questions: TopicSetupQuestion[] = DEFAULT_TOPIC_FACETS.map((facet) => ({
+  name: facet.name,
+  description: facet.description,
+  enabled: true,
+}));
 
 function SetupStory({
   step,
@@ -135,7 +128,7 @@ export const RequiresAQuestion = meta.story({
   args: { step: "questions" },
   play: async () => {
     const body = within(document.body);
-    for (const question of TOPIC_SETUP_QUESTIONS)
+    for (const question of DEFAULT_TOPIC_FACETS)
       await userEvent.click(
         body.getByRole("checkbox", { name: question.name }),
       );
