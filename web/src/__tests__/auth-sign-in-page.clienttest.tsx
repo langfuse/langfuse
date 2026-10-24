@@ -117,6 +117,20 @@ describe("sign-in page NextAuth error classification", () => {
     expect(crumb.data).toEqual({ code: "OAuthCallback" });
   });
 
+  it("breadcrumbs OAuthSignin and shows a human-readable message", () => {
+    routerState.query = { error: "OAuthSignin" };
+    renderSignIn();
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toEqual({
+      code: "OAuthSignin",
+    });
+    expect(
+      screen.getByText(/Could not start sign-in with this identity provider/),
+    ).toBeInTheDocument();
+  });
+
   it("breadcrumbs a mapped code (OAuthAccountNotLinked) instead of capturing", () => {
     routerState.query = { error: "OAuthAccountNotLinked" };
     renderSignIn();
@@ -137,7 +151,7 @@ describe("sign-in page NextAuth error classification", () => {
   });
 
   // Negative fixtures: codes outside the allowlist are real errors.
-  it.each(["OAuthSignin", "Configuration", "SomeUnknownCode"])(
+  it.each(["Configuration", "SomeUnknownCode"])(
     "still captures %j",
     (error) => {
       routerState.query = { error };
