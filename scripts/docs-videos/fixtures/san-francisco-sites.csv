@@ -1,0 +1,6 @@
+input,expected_output,metadata
+Which red-orange suspension bridge connects San Francisco with Marin County?,Golden Gate Bridge,"{""neighborhood"": ""Presidio""}"
+Which island in San Francisco Bay is home to a former federal prison?,Alcatraz Island,"{""neighborhood"": ""San Francisco Bay""}"
+Which Beaux-Arts landmark in the Marina District features a rotunda beside a lagoon?,Palace of Fine Arts,"{""neighborhood"": ""Marina District""}"
+Which Art Deco tower stands on Telegraph Hill?,Coit Tower,"{""neighborhood"": ""Telegraph Hill""}"
+Which San Francisco street is famous for a steep block with eight hairpin turns?,Lombard Street,"{""neighborhood"": ""Russian Hill""}"

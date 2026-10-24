@@ -1,0 +1,3 @@
+# Standalone from the repo workspace: recording tooling only.
+allowBuilds:
+  ffmpeg-static: true

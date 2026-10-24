@@ -1,0 +1,9 @@
+{
+  "name": "docs-videos",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ffmpeg-static": "5.2.0",
+    "playwright": "1.63.0"
+  }
+}
