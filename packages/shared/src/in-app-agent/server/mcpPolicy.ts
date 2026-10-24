@@ -22,9 +22,11 @@ export type InAppAgentUserAccess = {
 
 type InAppAgentMcpToolPolicy = {
   approval: InAppAgentMcpToolApproval;
-  availability: {
-    scope: ProjectScope;
-  };
+  availability:
+    | false
+    | {
+        scope: ProjectScope;
+      };
 };
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
@@ -268,6 +270,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   getObservation: {
     approval: "auto",
     availability: { scope: "project:read" },
+  },
+  downloadFullTrace: {
+    approval: "auto",
+    availability: false,
+  },
+  exportObservation: {
+    approval: "auto",
+    availability: false,
   },
   getObservationFieldSchema: {
     approval: "auto",
@@ -530,7 +540,7 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
 
   const policy = IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[params.toolName];
 
-  if (!policy) {
+  if (!policy || !policy.availability) {
     return false;
   }
 

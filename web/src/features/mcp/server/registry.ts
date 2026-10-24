@@ -13,6 +13,10 @@
 import type { ToolDefinition, ToolHandler } from "../core/define-tool";
 import type { ServerContext } from "../types";
 import { logger } from "@langfuse/shared/src/server";
+import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+  isMcpToolName,
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 /**
  * Registered MCP tool
@@ -123,9 +127,10 @@ class ToolRegistry {
         continue;
       }
 
-      // Add all tools from enabled feature
       for (const tool of feature.tools) {
-        definitions.push(tool.definition);
+        if (this.isToolAvailableForClient(tool, context)) {
+          definitions.push(tool.definition);
+        }
       }
     }
 
@@ -167,7 +172,23 @@ class ToolRegistry {
     return tool;
   }
 
+  private isToolAvailableForClient(
+    tool: RegisteredTool,
+    context: ServerContext,
+  ): boolean {
+    const name = tool.definition.name;
+    return !(
+      context.inAppAgent &&
+      isMcpToolName(name) &&
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[name].availability === false
+    );
+  }
+
   private canCallTool(tool: RegisteredTool, context: ServerContext): boolean {
+    if (!this.isToolAvailableForClient(tool, context)) {
+      return false;
+    }
+
     if (!context.inAppAgent) {
       return true;
     }
