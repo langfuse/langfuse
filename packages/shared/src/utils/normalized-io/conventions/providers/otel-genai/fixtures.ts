@@ -1271,3 +1271,105 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
     },
   },
 ];
+
+/** Synthetic semconv media parts alongside an AI SDK metadata regression case. */
+export const semconvMediaPartsFixture: NormalizedIOFixture = {
+  name: "normalizes semconv blob, uri, and file parts",
+  spanIO: {
+    input: JSON.stringify([
+      {
+        role: "user",
+        parts: [
+          { type: "text", content: "What is in these files?" },
+          {
+            type: "blob",
+            modality: "image",
+            mime_type: "image/png",
+            content: "aGVsbG8=",
+          },
+          {
+            type: "blob",
+            modality: "image",
+            content:
+              "@@@langfuseMedia:type=image/jpeg|id=media-ref-image-1|source=base64@@@",
+          },
+          {
+            type: "uri",
+            modality: "image",
+            uri: "https://example.com/cat.jpg",
+          },
+          {
+            type: "file",
+            modality: "document",
+            mime_type: "application/pdf",
+            file_id: "file-abc123",
+          },
+          // Only semconv blob and uri parts consume their payload key; an AI
+          // SDK file keeps an unrelated `content` field as metadata.
+          {
+            type: "file",
+            data: "aGk=",
+            mediaType: "text/plain",
+            content: "caption",
+          },
+        ],
+      },
+    ]),
+    output: JSON.stringify([
+      {
+        role: "assistant",
+        finish_reason: "stop",
+        parts: [{ type: "text", content: "A cat and an invoice." }],
+      },
+    ]),
+    metadata: JSON.stringify({ scope: { name: "opentelemetry.util.genai" } }),
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [
+          { type: "text", text: "What is in these files?" },
+          {
+            type: "file",
+            mediaType: "image/png",
+            content: { kind: "base64", data: "aGVsbG8=" },
+            providerMetadata: { modality: "image" },
+          },
+          {
+            type: "file",
+            mediaType: "image/jpeg",
+            content: { kind: "reference", id: "media-ref-image-1" },
+            providerMetadata: { source: "base64", modality: "image" },
+          },
+          {
+            type: "file",
+            mediaType: "image/*",
+            content: { kind: "url", url: "https://example.com/cat.jpg" },
+            providerMetadata: { modality: "image" },
+          },
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            content: { kind: "reference", id: "file-abc123" },
+            providerMetadata: { modality: "document" },
+          },
+          {
+            type: "file",
+            mediaType: "text/plain",
+            content: { kind: "base64", data: "aGk=" },
+            providerMetadata: { content: "caption" },
+          },
+        ],
+        source: "input",
+      },
+      {
+        role: "assistant",
+        parts: [{ type: "text", text: "A cat and an invoice." }],
+        finishReason: { type: "stop", raw: "stop" },
+        source: "output",
+      },
+    ],
+    toolDefinitions: [],
+  },
+};
