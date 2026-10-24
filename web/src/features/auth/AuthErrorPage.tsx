@@ -5,8 +5,11 @@ import { useRouter } from "next/router";
 export default function AuthErrorPage() {
   const router = useRouter();
   const { error } = router.query;
+  // Note: Next.js already URL-decodes router.query values, so do not decode
+  // again here: a literal "%" in the message (e.g. "100% complete") makes
+  // decodeURIComponent throw URIError and blanks the error page.
   const errorMessage = error
-    ? decodeURIComponent(String(error))
+    ? String(error)
     : "An authentication error occurred. Please reach out to support.";
 
   return (
