@@ -394,6 +394,24 @@ function exceptionEvent(value: string, type = "Error"): ErrorEvent {
   } as ErrorEvent;
 }
 
+/** The LANGFUSE-649 shape: an uncaught tRPC promise rejection. */
+function unhandledTrpcClientError(value: string): ErrorEvent {
+  return {
+    exception: {
+      values: [
+        {
+          type: "TRPCClientError",
+          value,
+          mechanism: {
+            type: "auto.browser.global_handlers.onunhandledrejection",
+            handled: false,
+          },
+        },
+      ],
+    },
+  } as ErrorEvent;
+}
+
 /**
  * Build the shape `captureConsoleIntegration` produces for a string
  * `console.error(...)` with `attachStacktrace` unset (the default): a MESSAGE
@@ -562,6 +580,28 @@ describe("isDenylistedNoiseEvent", () => {
             "NotSupportedError",
             "auto.browser.global_handlers.onerror",
           ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops an unhandled expected tRPC code-as-message (LANGFUSE-649)", () => {
+      expect(
+        isDenylistedNoiseEvent(unhandledTrpcClientError("UNAUTHORIZED")),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(unhandledTrpcClientError("FORBIDDEN")),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(unhandledTrpcClientError("NOT_FOUND")),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          unhandledTrpcClientError("UNPROCESSABLE_CONTENT"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          unhandledTrpcClientError("TRPCClientError: UNAUTHORIZED"),
         ),
       ).toBe(true);
     });
@@ -1137,6 +1177,32 @@ describe("isDenylistedNoiseEvent", () => {
           exceptionEvent(
             "TRPCClientError: You are not a member of this organization",
           ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a handled TRPCClientError whose message is an expected code", () => {
+      // Seam regression: handleTrpcError / reportError captures stay visible.
+      // Only the unhandled-rejection leak is dropped.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("UNAUTHORIZED", "TRPCClientError"),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent("FORBIDDEN", "TRPCClientError")),
+      ).toBe(false);
+    });
+
+    it("keeps an unhandled TRPCClientError that is not an expected code", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unhandledTrpcClientError("INTERNAL_SERVER_ERROR"),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          unhandledTrpcClientError("You are not a member of this organization"),
         ),
       ).toBe(false);
     });

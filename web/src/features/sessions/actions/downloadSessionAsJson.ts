@@ -1,4 +1,4 @@
-import { type RouterOutputs } from "@/src/utils/api";
+import { reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 
 type SessionData = RouterOutputs["sessions"]["byIdWithScores"];
 type SessionTrace = NonNullable<SessionData>["traces"][number];
@@ -81,22 +81,28 @@ export async function downloadSessionAsJson({
   session: SessionData | undefined;
   sessionId: string;
 }) {
-  const [sessionCommentsData, traceCommentsByTraceId] = await Promise.all([
-    refetchSessionComments(),
-    fetchTraceComments({
-      projectId,
-      sessionId,
-    }),
-  ]);
+  try {
+    const [sessionCommentsData, traceCommentsByTraceId] = await Promise.all([
+      refetchSessionComments(),
+      fetchTraceComments({
+        projectId,
+        sessionId,
+      }),
+    ]);
 
-  downloadJsonFile({
-    data: buildSessionExportData({
-      session,
-      sessionComments: sessionCommentsData.data,
-      traceCommentsByTraceId,
-    }),
-    fileName: `session-${sessionId}.json`,
-  });
+    downloadJsonFile({
+      data: buildSessionExportData({
+        session,
+        sessionComments: sessionCommentsData.data,
+        traceCommentsByTraceId,
+      }),
+      fileName: `session-${sessionId}.json`,
+    });
 
-  capture("session_detail:download_button_click");
+    capture("session_detail:download_button_click");
+  } catch (error) {
+    // QueryCache.onError already toasted and classified the tRPC failure.
+    // Swallow the leftover rejection; report unexpected non-tRPC errors.
+    reportNonTrpcError(error, "sessions");
+  }
 }
