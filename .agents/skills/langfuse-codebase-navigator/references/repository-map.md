@@ -103,6 +103,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `langfuse-codebase-navigator`: org, repository, folder, and skill routing.
 - `linear-bug-triage`: Linear issue deduplication and bug evidence workflows.
 - `pnpm-upgrade-package`: dependency upgrades under pnpm release-age constraints.
+- `retro`: retrospective over agent sessions and the GitHub agent-PR log; updates steering and adds a script when the same manual step repeats.
 - `security-review`: security review patterns for user-supplied URLs, secrets, tenancy, and auth scopes.
 - `seed-test-data`: local Langfuse seed scenarios for traces, sessions, lists, and event data.
 - `skill-creator`: create or update repo-owned skills.

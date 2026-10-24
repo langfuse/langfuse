@@ -87,8 +87,10 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   comments appear on a PR you own: do not reply. Keep each thread open
   until you either apply the fix and resolve it, or skip it because you
   are sure, tell the human in plain language (and invite them to doubt
-  that skip), then resolve it. Do not post `@claude review` again unless
-  a human asks for another pass.
+  that skip), then resolve it. Do not post `@claude review`. The
+  maintainer workflow posts it once for a non-draft same-repo PR whose
+  author has write access. `cursor[bot]` does not, so a human posts it
+  once on those PRs. Never post it a second time unless a human asks.
 
 ## Context Handover
 
@@ -174,9 +176,11 @@ langfuse/
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 - After opening a PR, apply the GitHub `cursor` label. Do not wait for a
   human to add it.
-- Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
-  `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
-  Repo guidance wins.
+- When you can choose the branch, use Linear's git branch name
+  (`lfe-XXXX-short-title`). Cursor Cloud assigns
+  `cursor/<descriptive>-<suffix>`. `.github/workflows/label-cursor-prs.yml`
+  treats that prefix as an agent signal. Do not rename a Cloud branch to
+  drop the prefix, and do not invent a `cursor/` name when you can choose.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog. For user-visible
   work, put proof of the fix in that comment and the PR body, not only in
@@ -247,6 +251,11 @@ A check that passed is not always a check that ran:
 - `pnpm exec knip` is a required check in `pipeline.yml` with no `package.json`
   script, so it is easy to never run locally. Unused files and exports under
   `web/**`, `packages/shared/**` and `worker/**` fail it.
+- A `tests-storybook` failure limited to
+  `web/src/components/design-system/Tooltip/Tooltip.stories.tsx` `(Test) Hover and focus`
+  or the header-controls hover/focus story in
+  `web/src/components/ui/MarkdownViewer.stories.tsx` is a flake. Leave those
+  files unchanged.
 - No check loads a page, so a rendering change is only verified once somebody
   looks at it — but that somebody need not be you. Drive a browser when you are
   genuinely uncertain: a layout that may reflow, a flow that carries state, an
