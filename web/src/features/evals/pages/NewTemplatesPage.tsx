@@ -1,4 +1,4 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useRouter } from "next/router";

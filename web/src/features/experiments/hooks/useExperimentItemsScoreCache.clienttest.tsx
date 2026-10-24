@@ -9,8 +9,8 @@ import {
   ScoreCacheProvider,
   useScoreCache,
   type CachedScore,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
-import { ExperimentGridSummaryValues } from "../components/table/ExperimentGridSummary";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
+import { ExperimentGridSummaryValues } from "../components/table/ExperimentGridSummaryValues";
 import {
   type ExperimentItemsTableRow,
   type ExperimentItemData,

@@ -88,7 +88,7 @@ vi.mock("next/router", () => ({
     push: state.push,
   }),
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({
     children,
     headerProps,
@@ -229,9 +229,6 @@ vi.mock("@/src/utils/api", () => ({
               ? new Error("Configuration unavailable.")
               : null,
         }),
-      },
-      setupTopicCounts: {
-        useQuery: () => ({ data: undefined }),
       },
       setAutomaticProcessing: {
         useMutation: () => ({
@@ -1052,12 +1049,15 @@ it.each([
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />);
-  expect(screen.getByRole("button", { name: "Start analyzing" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: /^Automatic processing/ }),
+  ).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Start analyzing" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
 });
 
 it("opens generation directly from the empty topics panel", () => {
@@ -1085,9 +1085,5 @@ it("keeps date controls reachable when a disabled results query has no data", ()
   expect(
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
-  expect(
-    screen.queryByText(
-      "Thousands of traces, identify recurring topics & issues",
-    ),
-  ).toBeNull();
+  expect(screen.queryByText("See what your traces are about")).toBeNull();
 });

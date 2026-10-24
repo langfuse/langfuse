@@ -13,6 +13,8 @@ export type AgentSetupContext = {
 export type AgentSetupStep = {
   title: string;
   description?: string;
+  /** External docs link shown after the description. */
+  link?: { label: string; href: string };
 } & (
   | { language: "sh" | "toml" | "json" | "text"; code: string }
   /** A step done in a settings UI, with nothing to paste. */

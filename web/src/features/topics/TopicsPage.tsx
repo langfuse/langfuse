@@ -6,7 +6,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
@@ -45,6 +45,7 @@ import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { resolveTopicFacetId } from "./topic-facet-selection";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
@@ -105,8 +106,8 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   failed: "Facet failed",
 };
 const loadingPage = (
-  <Page headerProps={{ title: "Topics" }} withPadding>
-    <p>Loading topics…</p>
+  <Page headerProps={{ title: "Topics" }}>
+    <Spinner message="Loading topics" />
   </Page>
 );
 
@@ -270,39 +271,25 @@ function TopicsWorkspaceContent({
     },
   );
   const [mountedAt] = useState(Date.now);
-  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
-    null,
-  );
   const setupRun = topicSetupRun(executions.data ?? []);
   const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A run that finished before this visit is not replayed; results show instead.
+  // A finished run hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setupRun !== null &&
     setup !== null &&
-    setupRun.process.id !== acknowledgedSetupId &&
     (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
-  const setupRunIds =
-    setupRun?.update?.facets.flatMap((facet) =>
-      facet.runId ? [facet.runId] : [],
-    ) ?? [];
-  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
-    { projectId, runIds: setupRunIds },
-    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
-  );
+      (setup.stage === "failed" &&
+        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
+          mountedAt));
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
-  // A run worth inspecting: the one that failed, or a topic run with failed facets.
   const setupDetailsId =
-    setupRun && setup ? detailsRunId(setupRun, setup) : null;
-  const setupFacets =
-    setupRun?.process.facets.map((facet) => {
-      const update = setupRun.update?.facets.find(
-        (item) =>
-          item.facetId === facet.facetId &&
-          item.facetVersion === facet.facetVersion,
-      );
+    setupRun && setup?.stage === "failed"
+      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
+      : null;
+  const runFacets = (run: typeof setupRun) =>
+    run?.process.facets.map((facet) => {
       return {
         key: `${facet.facetId}:${facet.facetVersion}`,
         name:
@@ -310,12 +297,14 @@ function TopicsWorkspaceContent({
           "Facet",
         complete: facet.counts.complete,
         requested: facet.counts.requested,
-        outcome: update?.outcome ?? null,
-        topicCount:
-          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
-            ?.topicCount ?? null,
       };
     }) ?? [];
+  const setupFacets = runFacets(setupRun);
+  const busyProcess =
+    (executions.data ?? []).find(
+      (execution) =>
+        execution.input.operation === "process" && busy(execution.status),
+    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -486,7 +475,19 @@ function TopicsWorkspaceContent({
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+        const landingRun =
+          showLanding && !showSetupProgress && busyProcess
+            ? { process: busyProcess, update: null }
+            : null;
+        const waitingForTraces =
+          showLanding &&
+          !showSetupProgress &&
+          !landingRun &&
+          modelSettings.automaticProcessing.state.status === "on";
         const showOnboarding = showSetupProgress || showLanding;
+        const landingOnly =
+          showLanding && !showSetupProgress && !setupBlockedReason;
         return (
           <Page
             headerProps={{
@@ -521,6 +522,7 @@ function TopicsWorkspaceContent({
                   onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
+                  menuOnly={landingOnly}
                 />
               ),
               actionButtonsMenu: ({ closeMenu }) => {
@@ -531,7 +533,7 @@ function TopicsWorkspaceContent({
                 return (
                   <TopicsActionsMenu
                     triggerAction={
-                      pipeline.available
+                      pipeline.available && !landingOnly
                         ? {
                             label: "Manual processing",
                             disabled: false,
@@ -595,8 +597,33 @@ function TopicsWorkspaceContent({
                 startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showLanding && !showSetupProgress}
+                showOnboarding={
+                  showLanding &&
+                  !showSetupProgress &&
+                  !landingRun &&
+                  !waitingForTraces
+                }
               />
+              {landingRun ? (
+                <TopicSetupProgressView
+                  stage={topicSetupStage(landingRun, Date.now()).stage}
+                  facets={runFacets(landingRun)}
+                  retrying={false}
+                  canRetry={false}
+                  onViewDetails={() => openExecution(landingRun.process.id)}
+                  onRetry={refreshResults}
+                />
+              ) : null}
+              {waitingForTraces ? (
+                <TopicSetupProgressView
+                  waiting
+                  stage="summarizing"
+                  facets={[]}
+                  retrying={false}
+                  canRetry={false}
+                  onRetry={refreshResults}
+                />
+              ) : null}
               {showSetupProgress && setup ? (
                 <TopicSetupProgressView
                   stage={setup.stage}
@@ -614,10 +641,6 @@ function TopicsWorkspaceContent({
                         projectId,
                         executionId: setup.retryId,
                       });
-                  }}
-                  onDisplayResults={() => {
-                    setAcknowledgedSetupId(setupRun.process.id);
-                    return utils.topics.invalidate();
                   }}
                 />
               ) : null}
@@ -1040,18 +1063,4 @@ function startBlockedReason(running: boolean, automaticOn: boolean) {
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
-}
-
-function detailsRunId(
-  run: {
-    process: { id: string };
-    update: { id: string; facets: Array<{ outcome: string }> } | null;
-  },
-  setup: { stage: string; retryId: string | null },
-) {
-  if (setup.stage === "failed")
-    return setup.retryId ?? run.update?.id ?? run.process.id;
-  return run.update?.facets.some((facet) => facet.outcome === "failed")
-    ? run.update.id
-    : null;
 }

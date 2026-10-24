@@ -385,9 +385,11 @@ export async function getLatestFacetSummaries(
   facetId: string,
   facetVersion: number | undefined,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ) {
   const scopeSql = `facet_id = {facetId:String}
-    ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}`;
+    ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
+    ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}`;
   const rows = await queryClickhouse<
     Pick<
       TopicSummary,
@@ -416,6 +418,7 @@ export async function getLatestFacetSummaries(
       ...timeRangeParams(timeRange),
       facetId,
       ...(facetVersion ? { facetVersion } : {}),
+      ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
@@ -944,6 +947,7 @@ export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ): Promise<TopicAssignment[]> {
   const publishedRuns = await prisma.topicClusteringRun.findMany({
     where: {
@@ -957,6 +961,7 @@ export async function readLatestTopicAssignments(
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
         AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+        ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
     params: {
@@ -964,8 +969,35 @@ export async function readLatestTopicAssignments(
       ...timeRangeParams(timeRange),
       facetId,
       publishedRunIds: publishedRuns.map(({ id }) => id),
+      ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+/** Source time span of one trace's summaries, served by the latest_source_versions projection; null when never summarized. */
+export async function getTopicTraceUnitTimeRange(
+  projectId: string,
+  traceId: string,
+  timeRange: TopicTimeRange,
+): Promise<TopicTimeRange | null> {
+  const [row] = await queryClickhouse<{
+    found: string;
+    fromMs: string;
+    toMs: string;
+  }>({
+    query: `SELECT count() AS found,
+      toUnixTimestamp64Milli(min(unit_start_time)) AS fromMs,
+      toUnixTimestamp64Milli(max(unit_start_time)) AS toMs
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id = {traceId:String}`,
+    params: { projectId, ...timeRangeParams(timeRange), traceId },
+    tags: { route: "topics-trace-unit-time", projectId },
+  });
+  if (!row || Number(row.found) === 0) return null;
+  return {
+    from: new Date(Number(row.fromMs)),
+    to: new Date(Number(row.toMs) + 1),
+  };
 }

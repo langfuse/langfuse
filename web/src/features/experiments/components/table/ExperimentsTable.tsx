@@ -60,7 +60,7 @@ import {
   type TableAction,
   TableSelectionManager,
 } from "@/src/features/table";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -316,12 +316,7 @@ function ExperimentPromptBadges({
           rel="noopener noreferrer"
           className="shrink-0"
         >
-          <Badge
-            variant="secondary"
-            className="hover:bg-secondary/80 cursor-pointer"
-          >
-            {name}
-          </Badge>
+          <Badge color="filled" text={name} />
         </Link>
       ))}
     </div>
@@ -672,14 +667,7 @@ export default function ExperimentsTable({
         const formatted = numberFormatter(value, 0);
 
         if (value <= 0) {
-          return (
-            <Badge
-              variant="secondary"
-              className="max-w-fit rounded-sm px-1 font-normal"
-            >
-              {formatted}
-            </Badge>
-          );
+          return <Badge color="filled" text={formatted} />;
         }
 
         return (
@@ -698,12 +686,7 @@ export default function ExperimentsTable({
             })}
             aria-label={`View ${formatted} failing items`}
           >
-            <Badge
-              variant="destructive"
-              className="hover:bg-destructive/80 max-w-fit cursor-pointer rounded-sm px-1 font-normal"
-            >
-              {formatted}
-            </Badge>
+            <Badge color="red" text={formatted} />
           </Link>
         );
       },
@@ -737,12 +720,7 @@ export default function ExperimentsTable({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Badge
-              variant="secondary"
-              className="hover:bg-secondary/80 max-w-full cursor-pointer"
-            >
-              {datasetName}
-            </Badge>
+            <Badge color="filled" text={datasetName} />
           </Link>
         );
       },
