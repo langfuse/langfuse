@@ -19,6 +19,7 @@ import {
   createLLMOutput,
   generateLLMText,
   mapLegacyLLMCompletionParams,
+  streamLLMText,
 } from "../llmText";
 
 // Request-shape coverage exercises the real provider packages while replacing
@@ -484,6 +485,73 @@ describe("AI SDK request shapes", () => {
           additionalProperties: false,
         },
       },
+    });
+  });
+
+  it("OpenAI-compatible streaming: requests and records the final usage chunk", async () => {
+    const requests: CapturedRequest[] = [];
+    const chunk = (body: Record<string, unknown>) =>
+      `data: ${JSON.stringify({
+        id: "chatcmpl-1",
+        object: "chat.completion.chunk",
+        created: 1,
+        model: "custom-model",
+        ...body,
+      })}\n\n`;
+    vi.stubGlobal("fetch", (async (input, init) => {
+      const request = new Request(input, init);
+      requests.push({
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        body: JSON.parse(await request.text()) as Record<string, unknown>,
+      });
+      return new Response(
+        [
+          chunk({
+            choices: [
+              { index: 0, delta: { role: "assistant", content: "ok" } },
+            ],
+          }),
+          chunk({
+            choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          }),
+          chunk({
+            choices: [],
+            usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 },
+          }),
+          "data: [DONE]\n\n",
+        ].join(""),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    }) satisfies typeof fetch);
+
+    const result = await streamLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams: {
+          provider: "custom",
+          adapter: LLMAdapter.OpenAI,
+          model: "custom-model",
+        },
+        connection: {
+          secretKey: encrypt("custom-key"),
+          baseURL: "https://openai-compatible.example.com/v1",
+        },
+      }),
+      timeout: 10_000,
+    });
+
+    expect(await result.text).toBe("ok");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.body).toMatchObject({
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+    expect(await result.usage).toMatchObject({
+      inputTokens: 3,
+      outputTokens: 5,
+      totalTokens: 8,
     });
   });
 
