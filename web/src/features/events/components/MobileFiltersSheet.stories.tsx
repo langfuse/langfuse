@@ -56,7 +56,7 @@ const fakeHeaderControls = (
 const fakePresets = (
   <div className="flex flex-wrap gap-2">
     {["Quality", "Slow", "Cost"].map((chip) => (
-      <Badge key={chip} color="primary" text={chip} />
+      <Badge key={chip} color="outline" text={chip} />
     ))}
   </div>
 );

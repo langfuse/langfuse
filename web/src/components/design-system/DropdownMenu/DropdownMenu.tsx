@@ -345,7 +345,7 @@ function DropdownMenuNode({
                   {internal ? (
                     <div className="flex items-center gap-2">
                       {title}
-                      <Badge text="Internal" color="yellow" size="sm" />
+                      <Badge text="Internal" color="warning" size="sm" />
                     </div>
                   ) : (
                     title
@@ -477,7 +477,7 @@ function DropdownMenuNode({
                               {item.internal ? (
                                 <Badge
                                   text="Internal"
-                                  color="yellow"
+                                  color="warning"
                                   size="sm"
                                 />
                               ) : null}

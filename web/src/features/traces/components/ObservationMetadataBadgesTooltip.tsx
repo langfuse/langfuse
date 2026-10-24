@@ -91,9 +91,10 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
           <Badge
             font="mono"
-            color="ghost-warning"
+            color="ghost"
             interactive
             leadingIcon={TriangleAlert}
+            leadingIconTone="warning"
             text="no cost"
           />
         </span>

@@ -117,7 +117,7 @@ function LiveTraceFilter({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
-          <Badge text="Coming soon" color="blue" size="sm" />
+          <Badge text="Coming soon" color="info" size="sm" />
         </div>
         <div inert className="opacity-50">
           <FilterModeToggle

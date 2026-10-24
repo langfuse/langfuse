@@ -379,8 +379,8 @@ export function ImportSkillsDialog({
                                         }
                                         color={
                                           skill.exists && !skill.hasChanges
-                                            ? "yellow"
-                                            : "blue"
+                                            ? "warning"
+                                            : "info"
                                         }
                                         size="sm"
                                       />
@@ -388,7 +388,7 @@ export function ImportSkillsDialog({
                                     {!skill.error ? (
                                       <Badge
                                         text={`${skill.files.length} ${skill.files.length === 1 ? "file" : "files"}`}
-                                        color="primary"
+                                        color="outline"
                                         size="sm"
                                       />
                                     ) : null}

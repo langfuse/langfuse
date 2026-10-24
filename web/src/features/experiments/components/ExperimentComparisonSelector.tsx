@@ -423,10 +423,10 @@ export function ExperimentComparisonSelector({
                 {option.experimentName}
               </span>
               {row.isBaseline && (
-                <Badge color="primary" size="sm" text="BASELINE" />
+                <Badge color="outline" size="sm" text="BASELINE" />
               )}
               {row.isLatest && (
-                <Badge color="primary" size="sm" text="LATEST" />
+                <Badge color="outline" size="sm" text="LATEST" />
               )}
               {option.startTime && (
                 <span

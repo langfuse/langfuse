@@ -90,7 +90,7 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge color="primary" text="Public" />
+    <Badge color="outline" text="Public" />
   ) : undefined;
 
   return (

@@ -17,51 +17,55 @@ const badgeVariants = cva(
         md: "h-5 gap-1 px-1.5",
         sm: "h-4.5 gap-1 px-1.5",
       },
+      /**
+       * Neutrals are named by appearance, status colours by hue, category
+       * colours by hue plus family (`Tint`, `Highlight`). Coloured fills carry
+       * a same-hue hairline in light mode and none in dark mode.
+       */
       color: {
-        primary: "border-border bg-transparent text-foreground-secondary",
-        red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow:
-          "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
-        blue: "border-transparent bg-light-blue text-dark-blue",
-        violet: "border-transparent bg-light-violet text-dark-violet",
-        teal: "border-transparent bg-light-teal text-dark-teal",
-        green: "border-transparent bg-light-green text-dark-green",
+        outline: "border-border bg-transparent text-foreground-secondary",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
-        /** `ghost` with the leading icon in the warning colour; the text stays muted. */
-        "ghost-warning":
-          "border-0 bg-transparent px-0 text-foreground-secondary",
-        filled: "border-transparent bg-muted text-foreground-secondary",
-        /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
-        filledOnMuted:
-          "border-transparent bg-background text-foreground-secondary",
-        /** Category highlight tints, as used by treemap tiles. */
-        violetHighlight:
-          "border-transparent bg-category-violet-highlight/35 text-foreground-secondary",
-        blueHighlight:
-          "border-transparent bg-category-blue-highlight/35 text-foreground-secondary",
-        amberHighlight:
-          "border-transparent bg-category-amber-highlight/35 text-foreground-secondary",
-        violetTint:
-          "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
-        skyTint:
-          "border-category-sky/40 bg-category-sky/10 text-foreground-secondary",
-        emeraldTint:
-          "border-category-emerald/40 bg-category-emerald/10 text-foreground-secondary",
-        amberTint:
-          "border-category-amber/40 bg-category-amber/10 text-foreground-secondary",
-        pinkTint:
-          "border-category-pink/40 bg-category-pink/10 text-foreground-secondary",
-        indigoTint:
-          "border-category-indigo/40 bg-category-indigo/10 text-foreground-secondary",
-        tealTint:
-          "border-category-teal/40 bg-category-teal/10 text-foreground-secondary",
-        orangeTint:
-          "border-category-orange/40 bg-category-orange/10 text-foreground-secondary",
-        limeTint:
-          "border-category-lime/40 bg-category-lime/10 text-foreground-secondary",
-        fuchsiaTint:
-          "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary",
+        /** Translucent, so the chip stays visible on muted, hovered and selected rows. */
+        filled:
+          "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         inverted: "border-transparent bg-primary text-primary-foreground",
+        error:
+          "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
+        warning:
+          "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
+        success:
+          "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-transparent dark:bg-light-green dark:text-dark-green",
+        info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-transparent dark:bg-light-blue dark:text-dark-blue",
+        violet:
+          "border-violet-100 bg-violet-50 text-violet-800 dark:border-transparent dark:bg-light-violet dark:text-dark-violet",
+        teal: "border-teal-100 bg-teal-50 text-teal-800 dark:border-transparent dark:bg-light-teal dark:text-dark-teal",
+        violetTint:
+          "border-category-violet/40 bg-category-violet/10 text-foreground-secondary dark:border-transparent dark:bg-category-violet/15",
+        skyTint:
+          "border-category-sky/40 bg-category-sky/10 text-foreground-secondary dark:border-transparent dark:bg-category-sky/15",
+        emeraldTint:
+          "border-category-emerald/40 bg-category-emerald/10 text-foreground-secondary dark:border-transparent dark:bg-category-emerald/15",
+        amberTint:
+          "border-category-amber/40 bg-category-amber/10 text-foreground-secondary dark:border-transparent dark:bg-category-amber/15",
+        pinkTint:
+          "border-category-pink/40 bg-category-pink/10 text-foreground-secondary dark:border-transparent dark:bg-category-pink/15",
+        indigoTint:
+          "border-category-indigo/40 bg-category-indigo/10 text-foreground-secondary dark:border-transparent dark:bg-category-indigo/15",
+        tealTint:
+          "border-category-teal/40 bg-category-teal/10 text-foreground-secondary dark:border-transparent dark:bg-category-teal/15",
+        orangeTint:
+          "border-category-orange/40 bg-category-orange/10 text-foreground-secondary dark:border-transparent dark:bg-category-orange/15",
+        limeTint:
+          "border-category-lime/40 bg-category-lime/10 text-foreground-secondary dark:border-transparent dark:bg-category-lime/15",
+        fuchsiaTint:
+          "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary dark:border-transparent dark:bg-category-fuchsia/15",
+        /** Match the treemap tiles. */
+        violetHighlight:
+          "border-category-violet-highlight bg-category-violet-highlight/35 text-foreground-secondary dark:border-transparent",
+        blueHighlight:
+          "border-category-blue-highlight bg-category-blue-highlight/35 text-foreground-secondary dark:border-transparent",
+        amberHighlight:
+          "border-category-amber-highlight bg-category-amber-highlight/35 text-foreground-secondary dark:border-transparent",
       },
       interactive: {
         true: "underline-dotted",
@@ -82,7 +86,7 @@ const badgeVariants = cva(
       },
     },
     defaultVariants: {
-      color: "primary",
+      color: "outline",
       size: "default",
       interactive: false,
       font: "sans",
@@ -141,7 +145,9 @@ export function BadgeShell({
   );
 }
 
-type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
+type BadgeColor = NonNullable<BadgeShellProps["color"]>;
+
+type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
@@ -149,8 +155,29 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   trailingIcon?: IconComponent;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
-};
+} & (
+    | {
+        color: "ghost";
+        /** `warning` tints only the leading icon, e.g. a "no cost" badge. */
+        leadingIconTone?: "default" | "warning";
+      }
+    | { color?: Exclude<BadgeColor, "ghost">; leadingIconTone?: never }
+  );
 
+/**
+ * Pick the colour by the badge's job:
+ * - `ghost`: scan or follow. Header metrics and links (latency, cost, session, user).
+ * - `outline` (default): read. Attributes such as environment, release, version.
+ * - `filled`: data chips. Scores, tags, counts.
+ * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
+ * - `error`, `warning`, `success`, `info`: a state, never decoration.
+ *   `violet`, `teal` mark score levels.
+ * - Category `Tint` / `Highlight`: tell categories apart (topics, treemap). Text stays
+ *   neutral; the hue carries the category.
+ *
+ * `font="mono"` for values (metrics, IDs, versions, scores, counts); words stay sans.
+ * Links use `LinkBadge`.
+ */
 export function Badge({
   color,
   text,
@@ -159,11 +186,12 @@ export function Badge({
   interactive,
   shouldWrap,
   leadingIcon: LeadingIcon,
+  leadingIconTone = "default",
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
-  const warningIcon = color === "ghost-warning";
+  const warningIcon = leadingIconTone === "warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
       {LeadingIcon && (

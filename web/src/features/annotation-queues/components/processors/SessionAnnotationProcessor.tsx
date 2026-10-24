@@ -183,7 +183,7 @@ export const SessionAnnotationProcessor: React.FC<
                 <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
               <Badge
-                color="primary"
+                color="outline"
                 text={`Total traces: ${totalTracesForBadge}`}
               />
             </div>

@@ -80,7 +80,7 @@ function CodeEvaluatorDefinitionView({
             disabled
           />
         ) : (
-          <Badge color="primary" text="Language unavailable" />
+          <Badge color="outline" text="Language unavailable" />
         )}
       </EvaluationTypeConfiguration>
       <section className="flex flex-col gap-2">
@@ -217,7 +217,7 @@ function DecisionModelDefinitionView({
         disabled
       >
         <Badge
-          color="primary"
+          color="outline"
           font="mono"
           text={
             definition.selectedModel

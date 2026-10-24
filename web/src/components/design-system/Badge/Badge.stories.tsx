@@ -15,33 +15,39 @@ const meta = preview.meta({
   },
 });
 
-const allColors = Object.keys({
-  primary: true,
-  red: true,
-  yellow: true,
-  blue: true,
-  violet: true,
-  teal: true,
-  green: true,
-  ghost: true,
-  "ghost-warning": true,
-  filled: true,
-  filledOnMuted: true,
-  violetTint: true,
-  skyTint: true,
-  emeraldTint: true,
-  amberTint: true,
-  pinkTint: true,
-  indigoTint: true,
-  tealTint: true,
-  orangeTint: true,
-  limeTint: true,
-  fuchsiaTint: true,
-  violetHighlight: true,
-  blueHighlight: true,
-  amberHighlight: true,
-  inverted: true,
-} satisfies Record<Color, true>) as Color[];
+const colorFamily = {
+  outline: "Neutral",
+  ghost: "Neutral",
+  filled: "Neutral",
+  inverted: "Neutral",
+  error: "Status",
+  warning: "Status",
+  success: "Status",
+  info: "Status",
+  violet: "Status",
+  teal: "Status",
+  violetTint: "Category tint",
+  skyTint: "Category tint",
+  emeraldTint: "Category tint",
+  amberTint: "Category tint",
+  pinkTint: "Category tint",
+  indigoTint: "Category tint",
+  tealTint: "Category tint",
+  orangeTint: "Category tint",
+  limeTint: "Category tint",
+  fuchsiaTint: "Category tint",
+  violetHighlight: "Category highlight",
+  blueHighlight: "Category highlight",
+  amberHighlight: "Category highlight",
+} satisfies Record<Color, string>;
+
+const colorGroups = Object.entries(colorFamily).reduce<Record<string, Color[]>>(
+  (groups, [color, family]) => {
+    groups[family] = [...(groups[family] ?? []), color as Color];
+    return groups;
+  },
+  {},
+);
 
 export const Default = meta.story({});
 
@@ -96,7 +102,8 @@ export const GhostInteractive = meta.story({
 
 export const GhostWarning = meta.story({
   args: {
-    color: "ghost-warning",
+    color: "ghost",
+    leadingIconTone: "warning",
     interactive: true,
     font: "mono",
     leadingIcon: TriangleAlert,
@@ -111,9 +118,16 @@ export const VariantMatrix = meta.story({
     },
   },
   render: () => (
-    <div className="grid grid-cols-[repeat(2,max-content)] items-center gap-3">
-      {allColors.map((color) => (
-        <Badge key={color} color={color} text={color} />
+    <div className="flex flex-col gap-4">
+      {Object.entries(colorGroups).map(([group, colors]) => (
+        <div key={group} className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-xs">{group}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {colors.map((color) => (
+              <Badge key={color} color={color} text={color} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   ),

@@ -119,7 +119,7 @@ export function EvaluatorVersionHistoryList({
                   Version {version.version}
                 </span>
                 {version.id === currentVersionId ? (
-                  <Badge color="green" text="Current" />
+                  <Badge color="success" text="Current" />
                 ) : null}
                 <span className="text-muted-foreground flex min-w-0 shrink-0 items-center gap-1 text-xs">
                   <span

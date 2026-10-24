@@ -27,12 +27,12 @@ function getStatus({
 }
 
 const colors = {
-  Blocked: "red",
-  Inactive: "primary",
-  Healthy: "green",
-  Degraded: "yellow",
-  Failing: "red",
-  Unknown: "primary",
+  Blocked: "error",
+  Inactive: "outline",
+  Healthy: "success",
+  Degraded: "warning",
+  Failing: "error",
+  Unknown: "outline",
 } as const;
 
 /** Displays evaluator health from the most recent execution traces of the last seven days. */

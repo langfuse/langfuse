@@ -117,7 +117,7 @@ export function DecisionModelQuestionCard({
             aria-label={copy.label}
           />
           <Badge
-            color={question.scoreName.trim() ? "filled" : "yellow"}
+            color={question.scoreName.trim() ? "filled" : "warning"}
             font="mono"
             text={question.scoreName.trim() || "score name missing"}
           />
@@ -130,7 +130,7 @@ export function DecisionModelQuestionCard({
           >
             {summary}
           </span>
-          {hasErrors ? <Badge color="red" text="Needs attention" /> : null}
+          {hasErrors ? <Badge color="error" text="Needs attention" /> : null}
         </span>
       }
       actions={

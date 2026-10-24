@@ -392,7 +392,7 @@ const matchesExpectedOutput = (
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <span className="mt-0.5 ml-1 inline-flex shrink-0">
     <Badge
-      color={matches ? "green" : "red"}
+      color={matches ? "success" : "error"}
       text={matches ? "match" : "differs"}
     />
   </span>

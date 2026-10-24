@@ -2,16 +2,9 @@ import { MessageSquareMore } from "@langfuse/icons";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
-export function CommentCountIcon({
-  count,
-  color = "filled",
-}: {
-  count: number;
-  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
-  color?: "filled" | "filledOnMuted";
-}) {
+export function CommentCountIcon({ count }: { count: number }) {
   return (
-    <BadgeShell color={color} font="mono" size="md">
+    <BadgeShell color="filled" font="mono" size="md">
       <MessageSquareMore aria-hidden size="sm" />
       <span data-testid="comment-count">{count > 99 ? "99+" : count}</span>
     </BadgeShell>
