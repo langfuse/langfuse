@@ -21,15 +21,44 @@ const sharedExclude = [
 // The server suite spends more time importing the heavy @langfuse/shared
 // module graph per test file than running tests (measured in CI: 371s
 // cumulative import vs 264s tests). Files that do not touch process-global
-// state therefore run with `isolate: false` (project "server") so each
-// worker imports the graph once instead of per file. Files that mock
-// modules, spy, fake timers, mutate process.env, or close shared
-// connections (redis.disconnect() etc.) would leak that state into other
-// files in a shared context, so they keep the default per-file isolation
-// (project "server-isolated"). Classification is content-based at config
-// load so new test files sort themselves into the right project.
+// state therefore run with `isolate: false` so each worker imports the graph
+// once instead of per file. Files that mock modules, spy, fake timers, mutate
+// process.env or the env.mjs singleton, or close shared connections
+// (redis.disconnect() etc.) would leak that state into other files in a shared
+// context, so they keep the default per-file isolation and run in the matching
+// "-isolated" project.
+//
+// env.mjs is typed readonly, so a test can only write to it by casting the
+// singleton. The write itself may then happen through an alias, lines away
+// from the cast (`const mutableEnv = env as {…}` … `mutableEnv.FOO = "x"`),
+// which no single-line pattern can tie back to env. Detection therefore keys
+// on the cast rather than on the assignment: casting the singleton to a
+// mutable shape at all counts as touching global state. Every such cast in
+// the suite today exists to mutate, so this costs nothing in practice, and
+// over-classifying only ever moves a file to the safe side of the split.
+//
+// Classification is content-based and happens once, at config load, by
+// reading each file. Vitest does not treat those reads as config
+// dependencies, so under `test:watch` a file is only reclassified when the
+// watcher restarts. The unit pair is therefore split the other way round —
+// the shared-context project takes the explicit list and the isolated one
+// keeps the glob — so a unit test added mid-watch still runs, on the safe
+// side of the split. The "server" pair predates this and lists both sides
+// explicitly, so a server test added mid-watch needs a restart.
 const GLOBAL_STATE_PATTERN =
-  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
+  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\benv as\s+(?:any|unknown|Record\b|\{)|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
+
+function partitionByIsolation(files: string[]) {
+  const shared: string[] = [];
+  const isolated: string[] = [];
+
+  for (const file of files) {
+    const source = readFileSync(join(import.meta.dirname, file), "utf8");
+    (GLOBAL_STATE_PATTERN.test(source) ? isolated : shared).push(file);
+  }
+
+  return { shared, isolated };
+}
 
 const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
@@ -49,18 +78,19 @@ const sharedSourceUnitTestFiles = sharedSourceTestFiles.filter((file) =>
 const sharedSourceIntegrationTestFiles = sharedSourceTestFiles.filter(
   (file) => !sharedSourceUnitTestFiles.includes(file),
 );
-const serverTestFiles = allServerTestFiles.filter(
-  (file) =>
-    !file.startsWith("src/__tests__/server/unit/") &&
-    !sharedSourceIntegrationTestFiles.includes(file),
-);
-const isolatedServerTestFiles = serverTestFiles.filter((file) =>
-  GLOBAL_STATE_PATTERN.test(
-    readFileSync(join(import.meta.dirname, file), "utf8"),
+const serverTestFiles = partitionByIsolation(
+  allServerTestFiles.filter(
+    (file) =>
+      !file.startsWith("src/__tests__/server/unit/") &&
+      !sharedSourceIntegrationTestFiles.includes(file),
   ),
 );
-const sharedContextServerTestFiles = serverTestFiles.filter(
-  (file) => !isolatedServerTestFiles.includes(file),
+const unitTestFiles = partitionByIsolation(
+  allServerTestFiles.filter(
+    (file) =>
+      file.startsWith("src/__tests__/server/unit/") &&
+      !sharedSourceUnitTestFiles.includes(file),
+  ),
 );
 
 function markdownRawPlugin() {
@@ -238,7 +268,7 @@ export default defineConfig({
           setupFiles: ["@testing-library/jest-dom/vitest"],
         },
       },
-      serverProject("server", sharedContextServerTestFiles, {
+      serverProject("server", serverTestFiles.shared, {
         database: true,
         isolate: false,
         // Workers are reused across files, so the per-file teardown must not
@@ -246,17 +276,23 @@ export default defineConfig({
         // in the same worker still use. See after-teardown.ts.
         env: { VITEST_SHARED_CONTEXT: "1" },
       }),
-      serverProject("server-isolated", isolatedServerTestFiles, {
+      serverProject("server-isolated", serverTestFiles.isolated, {
         database: true,
       }),
       serverProject("server-shared-source", sharedSourceIntegrationTestFiles, {
         database: true,
         resolve: sharedSourceResolve,
       }),
+      serverProject("server-unit", unitTestFiles.shared, {
+        isolate: false,
+        env: { VITEST_SHARED_CONTEXT: "1" },
+      }),
+      // Keeps the glob the single "server-unit" project used to carry, so a
+      // unit test added while a watcher is running is still collected.
       serverProject(
-        "server-unit",
+        "server-unit-isolated",
         ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
-        { exclude: sharedSourceUnitTestFiles },
+        { exclude: [...sharedSourceUnitTestFiles, ...unitTestFiles.shared] },
       ),
       serverProject("server-shared-source-unit", sharedSourceUnitTestFiles, {
         resolve: sharedSourceResolve,
