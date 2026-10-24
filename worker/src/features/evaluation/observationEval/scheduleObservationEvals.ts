@@ -24,6 +24,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
   observationVariableMappingList,
+  normalizeEventEvalFilterCondition,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
@@ -411,12 +412,16 @@ function evaluateFilter(
   const fieldMapper = (obs: ObservationForEval, column: string) =>
     mapEventEvalFilterColumnIdToField(obs, column);
 
+  const normalizedFilterConditions = isEmptyFilter
+    ? []
+    : filterConditions.map(normalizeEventEvalFilterCondition);
+
   // Use InMemoryFilterService to evaluate filter if there are conditions
   const isFilterMatch = isEmptyFilter
     ? true
     : InMemoryFilterService.evaluateFilter(
         observation,
-        filterConditions,
+        normalizedFilterConditions,
         fieldMapper,
         {
           emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
