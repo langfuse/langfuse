@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { mergeAggregatesWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 
 /**

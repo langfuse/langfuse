@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 
 export function DeleteMonitorButton({
   monitorName,

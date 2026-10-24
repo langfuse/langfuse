@@ -13,6 +13,7 @@ import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
 import { type TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
+  canViewTopics: true,
   status: "failed",
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
@@ -87,7 +88,7 @@ vi.mock("next/router", () => ({
     push: state.push,
   }),
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({
     children,
     headerProps,
@@ -104,14 +105,17 @@ vi.mock("@/src/components/layouts/page", () => ({
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
 }));
-vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
+vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => true,
+vi.mock("@/src/components/error-page", () => ({
+  ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
+}));
+vi.mock("@/src/features/topics/topicsAccess", () => ({
+  useCanViewTopics: () => state.canViewTopics,
 }));
 vi.mock("./TopicTraceSelector", () => ({
   useTopicTraceSelector: () => ({
@@ -137,6 +141,13 @@ vi.mock("./ConfigureTopicsDialogController", () => ({
   }: {
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: state.openConfigure }),
+}));
+vi.mock("./TopicSetupFlowController", () => ({
+  TopicSetupFlowController: ({
+    children,
+  }: {
+    children: (control: { openSetup: () => void }) => ReactNode;
+  }) => children({ openSetup: () => {} }),
 }));
 vi.mock("./AutomaticProcessingDialogController", () => ({
   AutomaticProcessingDialogController: ({
@@ -318,6 +329,7 @@ beforeEach(() => {
     },
   );
   state.showGenerateCTA = false;
+  state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.hasStoredSummaries = true;
   state.status = "failed";
@@ -337,7 +349,6 @@ beforeEach(() => {
     embedding: { model: "embedding" },
     embeddingDimensions: 1024,
     clustering: { model: "clustering" },
-    processingAvailable: true,
     blockedAt: null,
     blockMessage: null,
   };
@@ -360,6 +371,13 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+it("shows Not found instead of the workspace when the Topics gate is closed", () => {
+  state.canViewTopics = false;
+  render(<TopicsPage />);
+  expect(screen.getByText("This page is not available.")).toBeTruthy();
+  expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -1028,30 +1046,18 @@ it.each([
   },
 );
 
-it("guides a configured project through processing until its first stored summary exists", () => {
+it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />);
+  expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
   expect(
-    screen.getByRole("button", { name: "Summarize traces & embed" }),
-  ).toBeEnabled();
+    screen.queryByRole("button", { name: /^Automatic processing/ }),
+  ).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
-  fireEvent.click(
-    screen.getAllByRole("button", { name: "Automatic processing" }).at(-1)!,
-  );
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
-  fireEvent.click(
-    screen.getByRole("button", { name: "Summarize traces & embed" }),
-  );
-  expect(
-    screen.getByRole("dialog", { name: "Manual processing" }),
-  ).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "Summarize traces & embed" }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
 });
 
 it("opens generation directly from the empty topics panel", () => {
@@ -1079,5 +1085,5 @@ it("keeps date controls reachable when a disabled results query has no data", ()
   expect(
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
-  expect(screen.queryByText("Start analyzing your traces")).toBeNull();
+  expect(screen.queryByText("See what your traces are about")).toBeNull();
 });

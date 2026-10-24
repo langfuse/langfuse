@@ -36,6 +36,7 @@ struct ControlPlaneLimits {
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
     web_url: Url,
+    plain_http: bool,
     service_key: SecretString,
     resolve_limits: ControlPlaneLimits,
     models_limits: ControlPlaneLimits,
@@ -49,6 +50,28 @@ impl ControlPlaneConfig {
     /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
     /// query, or fragment.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
+        Self::from_parts(web_url, service_key, false)
+    }
+
+    /// Like [`Self::new`], but also accepts plain HTTP on any host.
+    ///
+    /// Only for internal traffic, such as Web's in-cluster Kubernetes Service or another
+    /// private network. Never use it for a URL that crosses the public internet: resolve
+    /// responses carry provider API keys, and requests carry the service key and
+    /// ingestion tokens, all unencrypted over HTTP.
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Configuration`] for a blank service key or an invalid
+    /// base URL. URLs require HTTP or HTTPS, with no userinfo, query, or fragment.
+    pub fn with_plain_http(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
+        Self::from_parts(web_url, service_key, true)
+    }
+
+    fn from_parts(
+        web_url: &str,
+        service_key: &str,
+        allow_plain_http: bool,
+    ) -> Result<Self, ResolutionError> {
         let url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost"
@@ -57,7 +80,8 @@ impl ControlPlaneConfig {
                     .parse::<IpAddr>()
                     .is_ok_and(|ip| ip.is_loopback())
         });
-        if !(url.scheme() == "https" || (url.scheme() == "http" && loopback))
+        let plain_http = url.scheme() == "http" && !loopback;
+        if !(url.scheme() == "https" || (url.scheme() == "http" && (loopback || allow_plain_http)))
             || url.host_str().is_none()
             || !url.username().is_empty()
             || url.password().is_some()
@@ -69,6 +93,7 @@ impl ControlPlaneConfig {
         }
         Ok(Self {
             web_url: url,
+            plain_http,
             service_key: service_key.into(),
             resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
@@ -86,6 +111,13 @@ impl ControlPlaneConfig {
         let mut url = self.web_url.clone();
         url.set_path(&format!("{}{path}", url.path().trim_end_matches('/')));
         url
+    }
+
+    /// Whether the Web URL is plain HTTP off loopback, so provider API keys, the service
+    /// key and ingestion tokens travel unencrypted.
+    #[must_use]
+    pub fn is_plain_http(&self) -> bool {
+        self.plain_http
     }
 
     pub(crate) fn service_key(&self) -> &SecretString {
@@ -144,15 +176,18 @@ impl ControlPlaneClient {
             .await
     }
 
-    /// Fetch the caller-visible model catalog from trusted Web.
+    /// Fetch the caller-visible model catalog from trusted Web. `reserve` is called
+    /// with the buffer's new capacity before the buffer grows to it.
     ///
     /// # Errors
-    /// Returns the same sanitized errors as [`Self::resolve`].
+    /// Returns the same sanitized errors as [`Self::resolve`], or the error `reserve`
+    /// returns.
     pub async fn models(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         request_id: &str,
+        reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
     ) -> Result<Vec<u8>, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -168,7 +203,8 @@ impl ControlPlaneClient {
             timestamp.as_secs(),
             request_id,
         )?;
-        self.execute(request, self.config.models_limits).await
+        self.execute(request, self.config.models_limits, reserve)
+            .await
     }
 
     async fn resolve_at(
@@ -195,7 +231,9 @@ impl ControlPlaneClient {
             )?
             .header(CONTENT_TYPE, "application/json")
             .body(body);
-        let body = self.execute(request, self.config.resolve_limits).await?;
+        let body = self
+            .execute(request, self.config.resolve_limits, &mut |_| Ok(()))
+            .await?;
         contracts::decode(
             &body,
             api_format,
@@ -236,13 +274,14 @@ impl ControlPlaneClient {
         &self,
         request: RequestBuilder,
         limits: ControlPlaneLimits,
+        reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
     ) -> Result<Vec<u8>, ResolutionError> {
         tokio::time::timeout(limits.timeout, async {
             let response = request
                 .send()
                 .await
                 .map_err(|_| ResolutionError::Transport)?;
-            read_response(response, limits.max_response_bytes).await
+            read_response(response, limits.max_response_bytes, reserve).await
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?
@@ -252,6 +291,7 @@ impl ControlPlaneClient {
 async fn read_response(
     mut response: reqwest::Response,
     limit: usize,
+    reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
 ) -> Result<Vec<u8>, ResolutionError> {
     match response.status().as_u16() {
         200 => {}
@@ -277,12 +317,13 @@ async fn read_response(
         429 | 500..=599 => return Err(ResolutionError::Unavailable),
         _ => return Err(ResolutionError::InvalidResponse),
     }
-    if response
+    let declared = response
         .content_length()
-        .is_some_and(|size| size > limit as u64)
-    {
+        .map(|size| usize::try_from(size).unwrap_or(usize::MAX));
+    if declared.is_some_and(|size| size > limit) {
         return Err(ResolutionError::ResponseTooLarge);
     }
+    let capacity_limit = declared.unwrap_or(limit);
     let mut bytes = Vec::new();
     while let Some(chunk) = response
         .chunk()
@@ -291,6 +332,15 @@ async fn read_response(
     {
         if chunk.len() > limit - bytes.len() {
             return Err(ResolutionError::ResponseTooLarge);
+        }
+        let total = bytes.len() + chunk.len();
+        if total > bytes.capacity() {
+            let capacity = bytes
+                .capacity()
+                .saturating_mul(2)
+                .clamp(total, capacity_limit.max(total));
+            reserve(capacity)?;
+            bytes.reserve_exact(capacity - bytes.len());
         }
         bytes.extend_from_slice(&chunk);
     }
@@ -318,7 +368,7 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
-    /// The gateway's own resolution or catalog capacity is exhausted.
+    /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,
     #[error("resolution unavailable")]

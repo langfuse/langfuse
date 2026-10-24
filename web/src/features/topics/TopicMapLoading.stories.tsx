@@ -19,7 +19,6 @@ const meta = preview.meta({
           selectedTraceId={null}
           onSelectTopic={fn()}
           onSelectTrace={fn()}
-          onOpenTrace={fn()}
           fillContainer={args.fillContainer}
         />
       </div>

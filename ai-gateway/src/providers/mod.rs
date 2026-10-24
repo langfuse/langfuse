@@ -1,7 +1,7 @@
 mod chat_completions;
 pub(crate) mod model_list;
 
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{ops::Range, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
@@ -10,10 +10,7 @@ use axum::{
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::DisableOtelPropagation;
-use tokio::{
-    sync::{OwnedSemaphorePermit, Semaphore},
-    time::Instant,
-};
+use tokio::time::Instant;
 
 pub use crate::transport::ProviderError;
 use crate::{
@@ -21,7 +18,7 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
 
@@ -75,22 +72,14 @@ impl Route {
     }
 }
 
+#[derive(Default)]
 pub(crate) struct ProviderLimits {
-    pub active: usize,
     pub execution: ExecutionLimits,
 }
 
-impl Default for ProviderLimits {
-    fn default() -> Self {
-        Self {
-            active: 128,
-            execution: ExecutionLimits::default(),
-        }
-    }
-}
-
+/// An admitted execution: its deadline and in-flight accounting. Memory is reserved
+/// separately, before the body is read.
 pub struct RequestPermit {
-    _permit: OwnedSemaphorePermit,
     _active: crate::observability::Active,
     deadline: Instant,
 }
@@ -109,7 +98,6 @@ pub(crate) type BodyReservation = Box<dyn Send + Sync>;
 
 pub struct ProviderTransport {
     client: ClientWithMiddleware,
-    capacity: Arc<Semaphore>,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
     origin_override: Option<String>,
@@ -118,20 +106,11 @@ pub struct ProviderTransport {
 impl ProviderTransport {
     /// # Errors
     /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new(
-        max_active_requests: usize,
-        execution: ExecutionLimits,
-    ) -> Result<Self, ProviderError> {
-        Self::with_limits(ProviderLimits {
-            active: max_active_requests,
-            execution,
-        })
+    pub fn new(execution: ExecutionLimits) -> Result<Self, ProviderError> {
+        Self::with_limits(ProviderLimits { execution })
     }
 
     fn with_limits(limits: ProviderLimits) -> Result<Self, ProviderError> {
-        if !(1..=Semaphore::MAX_PERMITS).contains(&limits.active) {
-            return Err(ProviderError::Configuration);
-        }
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -146,10 +125,8 @@ impl ProviderTransport {
             .pool_max_idle_per_host(16)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
-        crate::observability::record_capacity("execution", limits.active);
         Ok(Self {
             client: crate::observability::instrument_client(client, "provider.headers"),
-            capacity: Arc::new(Semaphore::new(limits.active)),
             limits,
             telemetry: None,
             origin_override: None,
@@ -161,18 +138,12 @@ impl ProviderTransport {
         self
     }
 
-    /// # Errors
-    /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
-    pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
-        let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
-            crate::observability::rejected("execution");
-            ProviderError::Busy
-        })?;
-        Ok(RequestPermit {
-            _permit: permit,
+    /// Start the execution deadline.
+    pub fn admit(&self) -> RequestPermit {
+        RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
-        })
+        }
     }
 
     /// Forward as a streamed `OpenAI` Responses call.
@@ -225,7 +196,9 @@ impl ProviderTransport {
         let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
-            if let Some(telemetry) = &self.telemetry {
+            if let Some(telemetry) = &self.telemetry
+                && context.ingestion_mode() != IngestionMode::None
+            {
                 capture.deliver_to(telemetry.clone(), &context, headers, correlation);
             }
             capture
@@ -312,6 +285,17 @@ impl ProviderTransport {
             capture,
         );
         Ok(downstream)
+    }
+
+    /// Relay a gateway-built response body under the execution deadlines, holding
+    /// `owner` until the client has read it or the relay ends.
+    pub(crate) fn relay_buffered<T: Send + 'static>(&self, body: Vec<u8>, owner: T) -> Body {
+        transport::relay_buffered(
+            body,
+            Instant::now() + self.limits.execution.max_execution_time,
+            self.limits.execution.stall_timeout,
+            owner,
+        )
     }
 
     fn request_url(&self, route: Route) -> String {

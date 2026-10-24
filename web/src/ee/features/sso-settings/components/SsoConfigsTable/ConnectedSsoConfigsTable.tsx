@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { Card } from "@/src/components/ui/card";
 import { DeleteSsoConfigDialogController } from "../DeleteSsoConfigDialogController";
 import { SsoConfigDialogController } from "../SsoConfigDialogController";
@@ -26,6 +28,27 @@ export function ConnectedSsoConfigsTable({ orgId }: { orgId: string }) {
     return map;
   }, [ssoConfigsQuery.data]);
 
+  const utils = api.useUtils();
+  const saveMutation = api.ssoConfig.save.useMutation({
+    onSuccess: (_, { payload }) => {
+      utils.ssoConfig.get.invalidate({ orgId });
+      const existing = configByDomain.has(payload.domain);
+      showSuccessToast({
+        operation: existing ? "sso.update" : "sso.configure",
+        title: existing ? "SSO updated" : "SSO configured",
+        description: `Active for @${payload.domain} within 1 hour.`,
+      });
+    },
+    onError: (err, { payload }) => {
+      const existing = configByDomain.has(payload.domain);
+      showErrorToast(
+        existing ? "Update failed" : "SSO configuration failed",
+        err.message,
+        classifyTrpcToastError(err, existing ? "sso.update" : "sso.configure"),
+      );
+    },
+  });
+
   const data: SsoConfigTableRow[] = verifiedDomains.map((domain) => ({
     domain: domain.domain,
     config: configByDomain.get(domain.domain) ?? null,
@@ -42,7 +65,12 @@ export function ConnectedSsoConfigsTable({ orgId }: { orgId: string }) {
   }
 
   return (
-    <SsoConfigDialogController orgId={orgId}>
+    <SsoConfigDialogController
+      isSaving={saveMutation.isPending}
+      onSave={async (payload) => {
+        await saveMutation.mutateAsync({ orgId, payload });
+      }}
+    >
       {({ openDialog: openConfigDialog }) => (
         <DeleteSsoConfigDialogController orgId={orgId}>
           {({ openDialog: openDeleteDialog }) => (

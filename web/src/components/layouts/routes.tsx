@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Flag } from "@/src/features/feature-flags/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
@@ -37,6 +38,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 
 export enum RouteSection {
   Main = "main",
@@ -72,9 +77,11 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canViewTopics: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -152,8 +159,8 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    featureFlag: "langfuseTopics",
-    projectRbacScopes: ["topics:read"],
+    label: <TopicsInternalBadge />,
+    show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
@@ -259,9 +266,15 @@ export const ROUTES: Route[] = [
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
@@ -308,6 +321,11 @@ export const ROUTES: Route[] = [
     menuNode: <SupportButton />,
   },
 ];
+
+function TopicsInternalBadge() {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+}
 
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();

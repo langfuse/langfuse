@@ -1,8 +1,10 @@
+import { type ExpressionBuilder } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import { type ClickHouseDatabase } from "./schema";
 import { defineView, fromView } from "./views";
 
 // Raw compiler output (no `clickhouse format` binary needed), so these run
@@ -10,12 +12,19 @@ import { defineView, fromView } from "./views";
 const projectId = "p";
 
 const costArrayJoin = () =>
-  arrayJoin({
-    cost_key: mapKeys("cost_details"),
-    cost: mapValues("cost_details"),
-  });
+  arrayJoin((eb: ExpressionBuilder<ClickHouseDatabase, "observations">) => ({
+    cost_key: mapKeys(eb.ref("cost_details")),
+    cost: mapValues(eb.ref("cost_details")),
+  }));
 
-const dedup = () => limitBy({ count: 1, columns: ["span_id", "project_id"] });
+const dedup = () =>
+  limitBy({
+    count: 1,
+    columns: (eb: ExpressionBuilder<ClickHouseDatabase, "events">) => [
+      eb.ref("span_id"),
+      eb.ref("project_id"),
+    ],
+  });
 
 describe("ARRAY JOIN composition across nesting positions", () => {
   it("emits ARRAY JOIN at the top level (baseline)", () => {
@@ -96,7 +105,7 @@ describe("LIMIT BY composition across nesting positions", () => {
   it("emits LIMIT BY at the top level (baseline)", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select(["span_id", "project_id"])
       .orderBy("event_ts", "desc")
       .$call(dedup());
@@ -110,7 +119,7 @@ describe("LIMIT BY composition across nesting positions", () => {
     const qb = db
       .with("lb", (qb) =>
         qb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select(["span_id", "project_id"])
           .orderBy("event_ts", "desc")
           .$call(dedup()),
@@ -163,7 +172,7 @@ describe("FINAL composition across nesting positions", () => {
   it("keeps FINAL on a JOIN table and not on events_core", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .innerJoin("scores as s", (join) =>
         join
           .onRef("e.trace_id", "=", "s.trace_id")

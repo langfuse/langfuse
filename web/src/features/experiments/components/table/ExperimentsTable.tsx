@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
@@ -45,7 +45,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -60,7 +60,7 @@ import {
   type TableAction,
   TableSelectionManager,
 } from "@/src/features/table";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -95,7 +95,7 @@ import {
   comparisonChangedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
-import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/DataTableColumnVisibilityFilter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -316,12 +316,7 @@ function ExperimentPromptBadges({
           rel="noopener noreferrer"
           className="shrink-0"
         >
-          <Badge
-            variant="secondary"
-            className="hover:bg-secondary/80 cursor-pointer"
-          >
-            {name}
-          </Badge>
+          <Badge color="filled" text={name} />
         </Link>
       ))}
     </div>
@@ -672,14 +667,7 @@ export default function ExperimentsTable({
         const formatted = numberFormatter(value, 0);
 
         if (value <= 0) {
-          return (
-            <Badge
-              variant="secondary"
-              className="max-w-fit rounded-sm px-1 font-normal"
-            >
-              {formatted}
-            </Badge>
-          );
+          return <Badge color="filled" text={formatted} />;
         }
 
         return (
@@ -698,12 +686,7 @@ export default function ExperimentsTable({
             })}
             aria-label={`View ${formatted} failing items`}
           >
-            <Badge
-              variant="destructive"
-              className="hover:bg-destructive/80 max-w-fit cursor-pointer rounded-sm px-1 font-normal"
-            >
-              {formatted}
-            </Badge>
+            <Badge color="red" text={formatted} />
           </Link>
         );
       },
@@ -737,12 +720,7 @@ export default function ExperimentsTable({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Badge
-              variant="secondary"
-              className="hover:bg-secondary/80 max-w-full cursor-pointer"
-            >
-              {datasetName}
-            </Badge>
+            <Badge color="filled" text={datasetName} />
           </Link>
         );
       },

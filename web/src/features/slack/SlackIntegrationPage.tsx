@@ -1,4 +1,4 @@
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { AutomationButton } from "@/src/features/automations";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
@@ -7,10 +7,11 @@ import {
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
+import { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/PrivateChannelsInfoTooltip";
 import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
@@ -108,7 +109,10 @@ export default function SlackIntegrationPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h4 className="mb-2 text-sm font-bold">Select Test Channel</h4>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <h4 className="text-sm font-bold">Select Test Channel</h4>
+                  <PrivateChannelsInfoTooltip />
+                </div>
                 <div className="max-w-md">
                   <ChannelSelector
                     projectId={projectId}
@@ -141,9 +145,12 @@ export default function SlackIntegrationPage() {
                             Available after sending a test message
                           </span>
                         ) : (
-                          <Badge variant="outline" className="text-xs">
-                            {selectedChannel.isPrivate ? "Private" : "Public"}
-                          </Badge>
+                          <Badge
+                            color="primary"
+                            text={
+                              selectedChannel.isPrivate ? "Private" : "Public"
+                            }
+                          />
                         )}
                       </div>
                       <div>
@@ -188,11 +195,13 @@ export default function SlackIntegrationPage() {
               {!selectedChannel && (
                 <div className="text-muted-foreground text-sm">
                   Select a channel above to view its details and test message
-                  delivery. For private channels, invite the app first with{" "}
+                  delivery. Private channels appear only for the person who
+                  connected Slack, and only if both they and the app are
+                  members. Invite the app with{" "}
                   <code className="bg-muted rounded px-1 py-0.5">
                     /invite @Langfuse
-                  </code>{" "}
-                  in that channel.
+                  </code>
+                  .
                 </div>
               )}
             </CardContent>

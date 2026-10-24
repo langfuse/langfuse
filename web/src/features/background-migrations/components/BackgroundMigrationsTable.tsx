@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigrationPopoverController } from "@/src/features/background-migrations/components/RetryBackgroundMigrationPopoverController";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { RotateCcw } from "@langfuse/icons";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";

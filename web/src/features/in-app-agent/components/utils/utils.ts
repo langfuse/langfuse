@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -74,12 +74,20 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getObservationFilterSchema: "Checking observation filters",
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
+  getRequestContext: "Checking request context",
+  getSkill: "Inspecting skill",
+  createSkillVersion: "Creating skill version",
+  updateSkillLabels: "Updating skill labels",
+  updateSkillTags: "Updating skill tags",
   listDashboardWidgets: "Browsing widgets",
+  listLlmConnections: "Browsing LLM connections",
+  listSkills: "Browsing skills",
   loadSkill: "Loading skill",
   loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  runBatchEvaluation: "Running batch evaluation",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",

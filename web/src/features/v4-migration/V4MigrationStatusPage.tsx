@@ -1,13 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight } from "@langfuse/icons";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
@@ -439,16 +439,17 @@ function OrgStatusSection({
       </h3>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <SimpleDataTable
-            columns={columns}
-            data={sortedRows}
-            isLoading={false}
-            noResults={null}
-            presentation="wide"
-            rowVariant="review"
-            onRowClick={(row) => handleRowClick(row, row.readiness)}
-            getRowLabel={(row) => `Review ${row.name}`}
-          />
+          <div className="min-w-[60rem]">
+            <Table
+              tableName={`${org.name} migration status`}
+              columns={columns}
+              data={{ status: "success", data: sortedRows }}
+              noResultsMessage={null}
+              topBorder={false}
+              onRowClick={(row) => handleRowClick(row, row.readiness)}
+              getRowLabel={(row) => `Review ${row.name}`}
+            />
+          </div>
         </div>
       </Card>
     </div>

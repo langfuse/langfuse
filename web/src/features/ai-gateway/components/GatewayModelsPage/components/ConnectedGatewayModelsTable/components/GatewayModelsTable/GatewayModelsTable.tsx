@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Link from "next/link";
 import { useMemo } from "react";
 

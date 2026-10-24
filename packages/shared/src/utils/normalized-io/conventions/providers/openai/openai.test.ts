@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
+import { normalizedMessageSchema } from "../../../schema";
 import {
   capturedTraceFixtures,
   customerFixtures,
@@ -23,9 +24,13 @@ describe("OpenAI normalized I/O", () => {
     openAiResponsesBuiltInToolsAndMediaFixture,
     openAiResponsesReasoningWithParallelCallsFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeSpanIO(spanIO)).toEqual({
+    const actual = normalizeSpanIO(spanIO);
+    expect(actual).toEqual({
       ...expected,
       span: spanIO,
     });
+    expect(normalizedMessageSchema.array().parse(actual.messages)).toEqual(
+      actual.messages,
+    );
   });
 });

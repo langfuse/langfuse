@@ -20,6 +20,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   isInternalEvalEnvironment: (
     await importOriginal<typeof import("@langfuse/shared/src/server")>()
   ).isInternalEvalEnvironment,
@@ -34,11 +35,13 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
 vi.mock("./models", () => ({
+  TopicInputTooLarge: class extends Error {},
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
+import { TopicsProviderUnavailable } from "./provider-error";
 
 const transcript: Transcript = {
   threads: [
@@ -394,6 +397,33 @@ describe("summarizeAssembledTrace", () => {
         { stage: "summary", reason: "invalid_output" },
       ],
     ]);
+    // Rejected output is a local rule's decision; accepted output is the model's.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "invalid_output",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "applicable",
+          source: "model",
+          facet: "issues",
+        },
+      ],
+    ]);
     expect(state.setAttribute).toHaveBeenCalledWith(
       "langfuse.topics.trace_outcome",
       "failed",
@@ -491,6 +521,41 @@ describe("summarizeAssembledTrace", () => {
       "langfuse.topics.trace_outcome",
       "failed",
     );
+  });
+
+  it("counts an unusable response as a rule rejection of every facet", async () => {
+    state.summarize.mockRejectedValue(
+      new TopicsProviderUnavailable("unparsable", "invalid_output"),
+    );
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "invalid_output",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
   });
 
   it("propagates a provider failure for the trace outcome", async () => {

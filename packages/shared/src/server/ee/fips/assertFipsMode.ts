@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getFips } from "crypto";
 import { env, type SharedEnv } from "../../../env";
 import { isEnterpriseLicenseAvailable } from "../licenseCheck";

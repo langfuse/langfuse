@@ -55,6 +55,10 @@
       "import": "./dist/src/server/transcript/types.js",
       "require": "./dist/src/server/transcript/types.js"
     },
+    "./src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate": {
+      "import": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js",
+      "require": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -217,14 +221,14 @@
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
     "@ag-ui/core": "^0.0.52",
-    "@ai-sdk/amazon-bedrock": "^5.0.99",
-    "@ai-sdk/anthropic": "^4.0.5",
-    "@ai-sdk/azure": "^4.0.5",
-    "@ai-sdk/google": "^4.0.6",
-    "@ai-sdk/google-vertex": "^5.0.8",
-    "@ai-sdk/openai": "^4.0.86",
-    "@ai-sdk/openai-compatible": "^3.0.3",
-    "@ai-sdk/typesafe-ai": "^3.0.4",
+    "@ai-sdk/amazon-bedrock": "^5.0.115",
+    "@ai-sdk/anthropic": "^4.0.79",
+    "@ai-sdk/azure": "^4.0.101",
+    "@ai-sdk/google": "^4.0.95",
+    "@ai-sdk/google-vertex": "^5.0.111",
+    "@ai-sdk/openai": "^4.0.93",
+    "@ai-sdk/openai-compatible": "^3.0.68",
+    "@ai-sdk/typesafe-ai": "^3.0.18",
     "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
@@ -248,7 +252,7 @@
     "@smithy/node-http-handler": "4.5.1",
     "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",
-    "ai": "^7.0.130",
+    "ai": "^7.0.140",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",
@@ -262,7 +266,6 @@
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
     "kysely": "0.28.17",
-    "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
@@ -275,7 +278,7 @@
     "undici": "^7.30.1",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^2.9.0",
@@ -290,7 +293,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

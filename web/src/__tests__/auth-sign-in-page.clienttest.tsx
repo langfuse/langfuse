@@ -46,11 +46,11 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   isAnySsoConfigured: async () => false,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
+vi.mock("@/src/features/auth/components/CloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudPrivacyNotice", () => ({
+vi.mock("@/src/features/auth/components/CloudPrivacyNotice", () => ({
   CloudPrivacyNotice: () => null,
 }));
 
@@ -469,7 +469,7 @@ describe("sign-in page last used SSO email", () => {
 
     // The password step appearing is what marks the email as not SSO-backed.
     await waitFor(() => {
-      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Password/)).toHaveFocus();
     });
     expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
@@ -500,6 +500,7 @@ describe("sign-in page last used SSO email", () => {
 
     // One-step form: password is visible immediately.
     expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Password/)).not.toHaveFocus();
     await waitFor(() => {
       expect(storedSsoEmail()).toBe("");
     });

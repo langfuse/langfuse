@@ -10,7 +10,7 @@ one `ActiveCellProvider` per project and dataset.
 
 - tRPC owns dataset, run, item, and score query data. Router hooks own filters and
   selected runs.
-- `contexts/ActiveCellContext.tsx` owns the active review target and its comment
+- `contexts/ActiveCellProvider.tsx` owns the active review target and its comment
   draft guard in a per-view store. Its select and clear actions are the only
   way to change review targets; both reject leaving an unfinished comment.
 - `components/AnnotationPanel.tsx` owns the mounted review surface. Target identity

@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
- * Logical `events` routing. Runs first in every compile.
+ * Logical events routing. Runs right after the CTE name check in every
+ * compile.
  *
  * Call sites read the logical `events` relation; this pass replaces each
  * FROM/JOIN reference to it with `events_core` or `events_full`, one choice
@@ -7,9 +9,9 @@
  * resolves to it and names a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS},
  * outside the metadata predicates `metadataFilterIsEventsCoreSafe` accepts:
  *
- *   metadataValue(e, k) = 'short'        → events_core (< 200 code points)
- *   startsWith(metadataValue(e, k), 'p') → events_core (≤ 200 code points)
- *   e.input = 'x', select e.input        → events_full
+ *   e.metadata[k] = 'short'        → events_core (< 200 code points)
+ *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
+ *   e.input = 'x', select e.input  → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
  * name) of that name. Shapes that cannot be resolved to one relation are rejected
@@ -18,22 +20,23 @@
  * - `*`, `e.*` or `COLUMNS(…)` over a logical relation (`count(*)` reads no
  *   column);
  * - an unqualified truncated column while a logical relation is in scope;
- * - a column qualified by `events_core` / `events_full` that names no
- *   relation in scope: ClickHouse resolves a qualifier by table name even
- *   when the table is aliased, so it would reach the routed relation;
  * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
  *   `sql.table`) in or under a select that reads a logical relation.
  *   `sql.ref` and bound values resolve like builder references.
  *
- * Callers that want the truncated copy on purpose name `events_core`;
- * physical `events_core` / `events_full` references pass through unchanged.
+ * Callers that want the truncated copy on purpose read `events_truncated`,
+ * which always routes to `events_core`, whatever columns it reads.
+ *
+ * Only this pass names the physical tables. A call site that does — as a
+ * FROM/JOIN table, an alias, a column qualifier, or in raw SQL — is
+ * rejected: ClickHouse resolves a qualifier by table name even when the
+ * table is aliased, so a physical name could reach a routed relation.
  */
 import {
   AggregateFunctionNode,
   AliasNode,
   BinaryOperationNode,
   ColumnNode,
-  CommonTableExpressionNode,
   FromNode,
   FunctionNode,
   IdentifierNode,
@@ -50,19 +53,24 @@ import {
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
   type QueryId,
-  type ReferenceNode,
+  ReferenceNode,
   type RootOperationNode,
   type SelectQueryNode,
 } from "kysely";
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode, FinalTableNode, unwrapFinalTable } from "./nodes";
-import { EVENTS_CORE_TRUNCATED_COLUMNS } from "./schema";
+import { ArrayIndexNode, FinalTableNode, walkNodes } from "./nodes";
+import { describeRelation, selectRelations, type Relation } from "./relations";
+import {
+  EVENTS_CORE_TRUNCATED_COLUMNS,
+  LOGICAL_EVENTS_TABLES,
+  PHYSICAL_EVENTS_TABLES,
+} from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
-const PHYSICAL_EVENTS = new Set(["events_core", "events_full"]);
+const PHYSICAL_EVENT_NAME = /\bevents_(core|full)\b/;
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -75,7 +83,6 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
     const analysis = new EventsReadAnalysis();
     analysis.transformNode(tree);
     if (!analysis.readsLogicalEvents) return args.node;
-    rejectPhysicalEventsCte(analysis);
     return new EventsTableRouter(analysis.fullRelations).transformNode(
       tree,
     ) as RootOperationNode;
@@ -86,26 +93,16 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
   }
 }
 
-function rejectPhysicalEventsCte(analysis: EventsReadAnalysis): void {
-  if (analysis.physicalEventsCte) {
-    throw new QueryCompileError(
-      `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
-    );
-  }
-}
-
 /**
  * Read-only walk that resolves column references to relations; the
  * transformer is used for its traversal only.
  */
 class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readsLogicalEvents = false;
-  /** Name of a CTE that shadows `events_core` / `events_full`. */
-  physicalEventsCte: string | undefined;
   /** Logical relations that read a truncated column. */
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
-  private readonly scopes: Relation[][] = [];
+  private readonly scopes: RoutingRelation[][] = [];
 
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
@@ -113,10 +110,12 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   ): T {
     const lookup = coreSafeMetadataLookup(node);
     if (lookup) {
+      // The lookup's columns read no truncated value, but their qualifiers
+      // must still not name a physical table.
+      rejectPhysicalQualifiers(lookup.array);
       this.transformNode(lookup.index, queryId);
       return node;
     }
-    if (CommonTableExpressionNode.is(node)) this.checkCteName(node);
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -124,11 +123,10 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: SelectQueryNode,
     queryId?: QueryId,
   ): SelectQueryNode {
-    const relations = [
-      ...(node.from?.froms ?? []),
-      ...(node.joins ?? []).map((join) => join.table),
-    ].map(describeRelation);
-    if (relations.some((relation) => relation.logical)) {
+    const described = selectRelations(node);
+    described.forEach(rejectPhysicalRelation);
+    const relations = described.map(routingRelation);
+    if (relations.some((relation) => relation.routed)) {
       this.readsLogicalEvents = true;
     }
     this.scopes.push(relations);
@@ -144,6 +142,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     _queryId?: QueryId,
   ): ReferenceNode {
     const qualifier = node.table?.table.identifier.name;
+    rejectPhysicalName(qualifier);
     // `sql.ref("e.*")` parses the star as a column named `*`.
     if (SelectAllNode.is(node.column) || node.column.column.name === "*") {
       if (qualifier === undefined) this.rejectStar("*");
@@ -206,6 +205,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   protected override transformRaw(node: RawNode, queryId?: QueryId): RawNode {
+    rejectPhysicalRawNames(node);
     if (
       this.readsLogicalInScope() &&
       (node.sqlFragments.some((fragment) => fragment.trim() !== "") ||
@@ -227,36 +227,21 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     if (relation?.logical) this.fullRelations.add(relation.node);
   }
 
-  private resolveQualified(qualifier: string): Relation | undefined {
+  private resolveQualified(qualifier: string): RoutingRelation | undefined {
     for (const relations of this.scopes.toReversed()) {
       const match = relations.find((relation) => relation.name === qualifier);
       if (match) return match;
     }
-    if (PHYSICAL_EVENTS.has(qualifier) && this.readsLogicalInScope()) {
-      throw new QueryCompileError(
-        `Qualify by the relation's alias, not "${qualifier}": ClickHouse also resolves a table name to an aliased relation, so it may reach the logical "${LOGICAL_EVENTS}" relation after routing.`,
-      );
-    }
     return undefined;
   }
 
-  private resolveUnqualified(column: string): Relation | undefined {
+  private resolveUnqualified(column: string): RoutingRelation | undefined {
     if (this.readsLogicalInScope()) {
       throw new QueryCompileError(
         `Qualify "${column}": it is truncated in events_core, so the routing pass needs to know which relation reads it while the logical "${LOGICAL_EVENTS}" relation is in scope.`,
       );
     }
     return undefined;
-  }
-
-  private checkCteName(node: CommonTableExpressionNode): void {
-    const name = node.name.table.table.identifier.name;
-    if (name === LOGICAL_EVENTS) {
-      throw new QueryCompileError(
-        `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
-      );
-    }
-    if (PHYSICAL_EVENTS.has(name)) this.physicalEventsCte = name;
   }
 
   /** `columns(…)` expands like `*`. */
@@ -274,6 +259,45 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       throw starError(star);
     }
   }
+}
+
+function rejectPhysicalName(name: string | undefined): void {
+  if (name === undefined || !PHYSICAL_EVENTS_TABLES.has(name)) return;
+  throw new QueryCompileError(
+    `Read the logical "${LOGICAL_EVENTS}" relation instead of "${name}": the routing pass picks events_core or events_full from the columns read. Read "events_truncated" to get the truncated events_core copy on purpose.`,
+  );
+}
+
+/** Column qualifiers anywhere under `node`. */
+function rejectPhysicalQualifiers(node: OperationNode): void {
+  walkNodes(node, (child) => {
+    if (ReferenceNode.is(child)) {
+      rejectPhysicalName(child.table?.table.identifier.name);
+    }
+  });
+}
+
+/** Raw SQL text, and `sql.table` / `sql.id` parameters. */
+function rejectPhysicalRawNames(node: RawNode): void {
+  for (const fragment of node.sqlFragments) {
+    rejectPhysicalName(PHYSICAL_EVENT_NAME.exec(fragment)?.[0]);
+  }
+  for (const parameter of node.parameters) {
+    rejectPhysicalName(rawParameterName(parameter));
+  }
+}
+
+/** The name a `sql.table` / `sql.id` parameter writes into raw SQL. */
+function rawParameterName(node: OperationNode): string | undefined {
+  if (TableNode.is(node)) return node.table.identifier.name;
+  if (IdentifierNode.is(node)) return node.name;
+  return undefined;
+}
+
+/** A physical events table as FROM/JOIN table or alias. */
+function rejectPhysicalRelation({ table, alias }: Relation): void {
+  rejectPhysicalName(table?.table.identifier.name);
+  rejectPhysicalName(alias);
 }
 
 function starError(star: string): QueryCompileError {
@@ -307,53 +331,52 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
   }
 
   /**
-   * `events as e` → `events_core as e`. An unaliased `events` keeps its name
-   * as the alias (`events_core as events`), so `events.col` references and
-   * the qualifiers later passes add still resolve.
+   * `events as e` → `events_core as e`. An unaliased relation keeps its
+   * logical name as the alias (`events_core as events`), so `events.col`
+   * references and the qualifiers later passes add still resolve.
    */
   private routeRelation(node: OperationNode, queryId?: QueryId): OperationNode {
     const table = TableNode.create(
       this.fullRelations.has(node) ? "events_full" : "events_core",
     );
-    if (isLogicalEventsTable(node)) {
-      return AliasNode.create(table, IdentifierNode.create(LOGICAL_EVENTS));
+    const { source, alias } = describeRelation(node);
+    const logicalName = logicalEventsTableName(source);
+    if (logicalName === undefined) {
+      return this.transformNode(node, queryId);
     }
-    if (AliasNode.is(node) && isLogicalEventsTable(node.node)) {
-      return AliasNode.create(table, node.alias);
+    if (FinalTableNode.is(node)) {
+      throw new QueryCompileError(
+        `FINAL cannot wrap the logical "${logicalName}" relation: events_core and events_full are immutable at read time. Drop the FINAL.`,
+      );
     }
-    return this.transformNode(node, queryId);
+    return AliasNode.create(table, IdentifierNode.create(alias ?? logicalName));
   }
 }
 
-// FINAL wraps the aliased item: `scores as s FINAL`.
-function describeRelation(node: OperationNode): Relation {
-  const item = FinalTableNode.is(node) ? unwrapFinalTable(node) : node;
-  const table = AliasNode.is(item) ? item.node : item;
+/**
+ * Named by its alias, else by its table name: `events as e` → `e`,
+ * `events` → `events`. Schema-qualified names never get here (`ctes.ts`).
+ */
+function routingRelation({
+  node,
+  source,
+  table,
+  alias,
+}: Relation): RoutingRelation {
+  const logicalName = logicalEventsTableName(source);
   return {
     node,
-    name: relationName(item, table),
-    logical: isLogicalEventsTable(table),
+    name: alias ?? table?.table.identifier.name,
+    logical: logicalName === LOGICAL_EVENTS,
+    routed: logicalName !== undefined,
   };
 }
 
-function relationName(
-  item: OperationNode,
-  table: OperationNode,
-): string | undefined {
-  if (AliasNode.is(item)) {
-    return IdentifierNode.is(item.alias) ? item.alias.name : undefined;
-  }
-  return TableNode.is(table) && table.table.schema === undefined
-    ? table.table.identifier.name
-    : undefined;
-}
-
-function isLogicalEventsTable(node: OperationNode): boolean {
-  return (
-    TableNode.is(node) &&
-    node.table.schema === undefined &&
-    node.table.identifier.name === LOGICAL_EVENTS
-  );
+/** `events` or `events_truncated`, when `node` reads one of them. */
+function logicalEventsTableName(node: OperationNode): string | undefined {
+  if (!TableNode.is(node)) return undefined;
+  const name = node.table.identifier.name;
+  return LOGICAL_EVENTS_TABLES.has(name) ? name : undefined;
 }
 
 /** `count(*)` with any `distinct`, `filter`, `over`, … clause. */
@@ -367,8 +390,8 @@ function isCountStar(node: AggregateFunctionNode): boolean {
 }
 
 /**
- * The metadata lookup of `metadataValue(e, k) = v` or
- * `startsWith(metadataValue(e, k), v)`, for a bound `v` that
+ * The metadata lookup of `metadataValue(…, k) = v` or
+ * `startsWith(metadataValue(…, k), v)`, for a bound `v` that
  * `metadataFilterIsEventsCoreSafe` accepts.
  */
 function coreSafeMetadataLookup(
@@ -407,10 +430,13 @@ function coreSafe(
 }
 
 /** A FROM/JOIN source of one select. */
-type Relation = {
+type RoutingRelation = {
   /** The FROM item or join table, as the router meets it. */
   node: OperationNode;
   /** Alias, or the table name of an unaliased table. */
   name?: string;
+  /** Reads `events`, so its truncated-column reads pick the table. */
   logical: boolean;
+  /** Reads `events` or `events_truncated`, so the router replaces it. */
+  routed: boolean;
 };

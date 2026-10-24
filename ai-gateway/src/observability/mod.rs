@@ -1,14 +1,14 @@
 mod client;
 mod http;
-mod logs;
+pub(crate) mod logs;
 mod metrics;
 mod request;
 
 pub(crate) use client::instrument_client;
 pub use http::instrument;
 pub(crate) use metrics::{
-    Active, delivery, execution_failed, execution_finished, record_capacity, rejected,
-    response_body_size,
+    Active, delivery, execution_failed, execution_finished, memory_released, memory_reserved,
+    record_memory_budget, rejected, response_body_size,
 };
 pub(crate) use request::{ErrorOrigin, RequestObservation, Wait, provider_status_reason};
 

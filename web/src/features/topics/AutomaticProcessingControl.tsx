@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
@@ -65,15 +66,12 @@ function statusLabel(state: AutomaticProcessingState) {
 
 function disabledReason(state: AutomaticProcessingState, canWrite: boolean) {
   if (state.status === "unconfigured") return "Configure Topics first.";
-  if (state.status === "unavailable")
-    return "Topics processing is not enabled for this project.";
   if (!canWrite) return "You need permission to edit Topics.";
   return null;
 }
 
 export type AutomaticProcessingState =
   | { status: "unconfigured" }
-  | { status: "unavailable" }
   | { status: "off" }
   | { status: "on" }
   | { status: "paused"; shortLabel: string };

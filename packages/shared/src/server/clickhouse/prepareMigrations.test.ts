@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {

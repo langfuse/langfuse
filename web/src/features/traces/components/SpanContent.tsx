@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 /**
  * SpanContent - Pure span/observation content renderer.
  *
@@ -19,7 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -30,8 +30,8 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {

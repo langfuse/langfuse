@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
@@ -12,7 +12,7 @@ import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -44,7 +44,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
 import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { MetricsFilterBuilder } from "@/src/features/metrics";
+import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -79,7 +79,7 @@ import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   operatorLabels,
   operatorSymbol,
@@ -624,7 +624,7 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormLabel>Filters</FormLabel>
                       <FormControl>
-                        <MetricsFilterBuilder
+                        <ConnectedMetricsFilterBuilder
                           version="v2"
                           view={(watched.view ?? "observations") as MonitorView}
                           projectId={projectId}
@@ -1065,12 +1065,7 @@ const NoDataField = ({
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
             Keep the previous
-            <Badge
-              variant="secondary"
-              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
-            >
-              SEVERITY
-            </Badge>
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>

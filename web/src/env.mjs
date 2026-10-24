@@ -368,6 +368,37 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    // Whether an AI gateway is deployed next to Web. When false, every gateway
+    // surface in Web is off regardless of the flags below. Langfuse Cloud (any
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION), development and preview deployments
+    // count as deployed.
+    LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).default("false"),
+    // Enables a deployed gateway for every organization. When false, only
+    // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
+    // Unset means true, except on Langfuse Cloud where it means false.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).optional(),
+    // Public gateway root URL shown to users. Unset derives it from NEXTAUTH_URL.
+    // Path prefixes are rejected because the setup instructions use the origin.
+    LANGFUSE_AI_GATEWAY_PUBLIC_URL: z
+      .url({ protocol: /^https?$/ })
+      .refine(
+        (value) => {
+          // z.url() already reports unparsable values; refine still runs on them.
+          if (!URL.canParse(value)) return true;
+          const url = new URL(value);
+          return (
+            !url.username &&
+            !url.password &&
+            url.pathname === "/" &&
+            !/[?#]/.test(value)
+          );
+        },
+        {
+          message:
+            "LANGFUSE_AI_GATEWAY_PUBLIC_URL must be an http(s) origin without credentials, path, query or fragment",
+        },
+      )
+      .optional(),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()
@@ -491,6 +522,12 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // Compares each GET /api/billing/metrics poll with the billable_events
+    // ledger and reports the gap. Requires the ledger table, which only
+    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -647,6 +684,12 @@ export const env = createEnv({
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
       .datetime()
       .default("2026-09-16T00:00:00.000Z"),
+    // Organizations created at or after this instant take the v4 events_only
+    // path on legacy ingestion. Unset leaves that API unchanged. Read on the
+    // web request path; the worker never re-checks event types.
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
+      .datetime()
+      .optional(),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1144,6 +1187,9 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_DEPLOYED: process.env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+    LANGFUSE_AI_GATEWAY_ENABLED: process.env.LANGFUSE_AI_GATEWAY_ENABLED,
+    LANGFUSE_AI_GATEWAY_PUBLIC_URL: process.env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
       process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
@@ -1179,6 +1225,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
+      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
@@ -1264,6 +1312,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF:
+      process.env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

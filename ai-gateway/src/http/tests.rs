@@ -16,49 +16,13 @@ use std::{
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
-#[tokio::test]
-async fn control_plane_rejections_do_not_consume_provider_capacity() {
-    let web = FakeServer::start(|_| async {
-        Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty())
-            .unwrap()
-    })
-    .await;
-    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let provider_client = ProviderTransport::for_test(
-        provider.url.clone(),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    );
-    let permit = provider_client.try_admit().unwrap();
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        provider_client,
-        1,
-    )))
-    .await;
-    // Exercise both an exhausted and an available execution pool.
-    for occupied in [Some(permit), None] {
-        let response = tokio::time::timeout(
-            Duration::from_secs(2),
-            gateway.app.clone().oneshot(
-                Request::post("/openai/v1/responses")
-                    .header(header::AUTHORIZATION, "Bearer invalid-key")
-                    .body(Body::from(r#"{"model":"Production key:test"}"#))
-                    .unwrap(),
-            ),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        drop(occupied);
+/// The budget fits one request: any held reservation leaves less than the overhead.
+fn single_request_memory() -> RequestLimits {
+    RequestLimits {
+        max_request_bytes: MAX_REQUEST_BYTES,
+        memory_budget_bytes: 2 * MAX_REQUEST_BYTES + 1,
+        request_overhead_bytes: MAX_REQUEST_BYTES + 1,
     }
-    assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 0);
 }
 
 struct Gateway {
@@ -69,245 +33,172 @@ struct Gateway {
 }
 
 #[tokio::test]
-async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure() {
+async fn held_memory_rejects_others_until_its_holder_ends() {
     let entered = Arc::new(tokio::sync::Notify::new());
     let started = entered.clone();
     let web = FakeServer::start(move |request| {
         let started = started.clone();
         async move {
-            match request.headers()[header::AUTHORIZATION].to_str().unwrap() {
-                "Bearer stalled" => {
-                    started.notify_one();
-                    std::future::pending().await
-                }
-                "Bearer invalid" => Response::builder()
+            let authorization = request.headers()[header::AUTHORIZATION].to_str().unwrap();
+            if request.uri().path() == "/api/internal/ai-gateway/v1/models"
+                || authorization == "Bearer stalled"
+            {
+                started.notify_one();
+                return std::future::pending().await;
+            }
+            if authorization == "Bearer invalid" {
+                return Response::builder()
                     .status(StatusCode::UNAUTHORIZED)
                     .body(Body::empty())
-                    .unwrap(),
-                _ => resolution_response("provider"),
+                    .unwrap();
             }
+            resolution_response("provider")
         }
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let service = InferenceService::for_test(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    );
-    let gateway = Gateway::start(Some(service)).await;
-    let request = |key| {
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(single_request_memory()),
+    ))
+    .await;
+    let inference = |key: &str, body: Body| {
         Request::post("/openai/v1/responses")
             .header(header::AUTHORIZATION, key)
-            .body(Body::from(r#"{"model":"Production key:test"}"#))
+            .body(body)
             .unwrap()
     };
-    let mut stalled = Box::pin(gateway.app.clone().oneshot(request("Bearer stalled")));
-    tokio::time::timeout(Duration::from_secs(2), async {
-        tokio::select! {
-            () = entered.notified() => {},
-            _ = &mut stalled => panic!("resolution should be pending"),
-        }
-    })
-    .await
-    .unwrap();
-    let body_polled = Arc::new(AtomicBool::new(false));
-    let observed = body_polled.clone();
-    let body = Body::from_stream(stream::once(async move {
-        observed.store(true, Ordering::SeqCst);
-        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key:test"}"#))
-    }));
-    let busy = tokio::time::timeout(
-        Duration::from_secs(2),
-        gateway.app.clone().oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer valid")
-                .body(body)
+    let model = || Body::from(r#"{"model":"Production key:test"}"#);
+    let stalled_upload = || {
+        let entered = entered.clone();
+        Body::from_stream(stream::once(async move {
+            entered.notify_one();
+            std::future::pending::<Result<Bytes, Infallible>>().await
+        }))
+    };
+    let holders = [
+        ("resolution", inference("Bearer stalled", model())),
+        ("upload", inference("Bearer upload", stalled_upload())),
+        (
+            "model catalog",
+            Request::get("/openai/v1/models")
+                .header(header::AUTHORIZATION, "Bearer models")
+                .body(Body::empty())
                 .unwrap(),
         ),
-    )
-    .await
-    .unwrap()
-    .unwrap();
-    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert!(!body_polled.load(Ordering::SeqCst));
-    assert_eq!(web.calls(), 1);
-    assert_eq!(provider.calls(), 0);
+    ];
 
-    drop(stalled);
-    for (key, status) in [
-        ("Bearer invalid", StatusCode::UNAUTHORIZED),
-        ("Bearer valid", StatusCode::OK),
-    ] {
-        let response = tokio::time::timeout(
-            Duration::from_secs(2),
-            gateway.app.clone().oneshot(request(key)),
-        )
+    for (calls, (holder, request)) in (1..).zip(holders) {
+        let mut held = Box::pin(gateway.app.clone().oneshot(request));
+        tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::select! {
+                () = entered.notified() => {},
+                _ = &mut held => panic!("{holder} should remain pending"),
+            }
+        })
         .await
-        .unwrap()
         .unwrap();
-        assert_eq!(response.status(), status);
+        let body_polled = Arc::new(AtomicBool::new(false));
+        let observed = body_polled.clone();
+        let body = Body::from_stream(stream::once(async move {
+            observed.store(true, Ordering::SeqCst);
+            Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key:test"}"#))
+        }));
+        let busy = gateway
+            .app
+            .clone()
+            .oneshot(inference("Bearer valid", body))
+            .await
+            .unwrap();
+        assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE, "{holder}");
+        assert!(!body_polled.load(Ordering::SeqCst), "{holder}");
+
+        drop(held);
+        // A rejected request must release its memory too, or the next call gets 503.
+        for (key, status) in [
+            ("Bearer invalid", StatusCode::UNAUTHORIZED),
+            ("Bearer valid", StatusCode::OK),
+        ] {
+            let response = gateway
+                .app
+                .clone()
+                .oneshot(inference(key, model()))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), status, "{holder}");
+        }
+        assert_eq!(provider.calls(), calls, "{holder}");
     }
-    assert_eq!(web.calls(), 3);
-    assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
-async fn slow_body_reads_do_not_consume_resolution_capacity() {
-    let web = FakeServer::start(|request| async move {
-        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
-            return Response::new(Body::from(
-                r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
-            ));
+async fn model_catalog_memory_covers_the_catalog_until_it_is_read_or_stalls() {
+    let entry = r#"{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}"#;
+    let catalog = format!(r#"{{"data":[{}]}}"#, vec![entry; 2000].join(","));
+    let catalog_bytes = catalog.len();
+    let web = FakeServer::start(move |_| {
+        let catalog = catalog.clone();
+        async move {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(catalog))
+                .unwrap()
         }
-        resolution_response("provider-secret")
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    )))
-    .await;
-    let body_entered = Arc::new(tokio::sync::Notify::new());
-    let entered = body_entered.clone();
-    let held_body = Body::from_stream(stream::once(async move {
-        entered.notify_one();
-        std::future::pending::<Result<Bytes, Infallible>>().await
-    }));
-    let mut held = Box::pin(
-        gateway.app.clone().oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer held")
-                .body(held_body)
-                .unwrap(),
-        ),
-    );
-    tokio::time::timeout(Duration::from_secs(2), async {
-        tokio::select! {
-            () = body_entered.notified() => {},
-            _ = &mut held => panic!("body read should remain pending"),
-        }
-    })
-    .await
-    .unwrap();
-    let body_polled = Arc::new(AtomicBool::new(false));
-    let observed = body_polled.clone();
-    let body = Body::from_stream(stream::once(async move {
-        observed.store(true, Ordering::SeqCst);
-        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"connection:model"}"#))
-    }));
-    let busy = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer busy")
-                .body(body)
-                .unwrap(),
+    let overhead = 1024;
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(
+                provider.url.clone(),
+                ProviderLimits {
+                    execution: ExecutionLimits {
+                        stall_timeout: Duration::from_millis(500),
+                        ..ExecutionLimits::default()
+                    },
+                },
+            ),
         )
-        .await
-        .unwrap();
-    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert!(!body_polled.load(Ordering::SeqCst));
-    let models = gateway
-        .app
-        .clone()
-        .oneshot(
+        .with_request_limits(RequestLimits {
+            max_request_bytes: MAX_REQUEST_BYTES,
+            memory_budget_bytes: 2 * overhead + 3 * catalog_bytes - 1,
+            request_overhead_bytes: overhead,
+        }),
+    ))
+    .await;
+    let catalog_request = || {
+        gateway.app.clone().oneshot(
             Request::get("/openai/v1/models")
                 .header(header::AUTHORIZATION, "Bearer models")
                 .body(Body::empty())
                 .unwrap(),
         )
-        .await
-        .unwrap();
-    assert_eq!(models.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 1);
-    assert_eq!(provider.calls(), 0);
-    drop(held);
-    let response = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer released")
-                .body(Body::from(r#"{"model":"connection:model"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 1);
-}
+    };
 
-#[tokio::test]
-async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
-    let entered = Arc::new(tokio::sync::Notify::new());
-    let started = entered.clone();
-    let web = FakeServer::start(move |request| {
-        let started = started.clone();
-        async move {
-            if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
-                started.notify_one();
-                return std::future::pending().await;
-            }
-            resolution_response("provider-secret")
-        }
-    })
-    .await;
-    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    )))
-    .await;
-    let mut held = Box::pin(
-        gateway.app.clone().oneshot(
-            Request::get("/openai/v1/models")
-                .header(header::AUTHORIZATION, "Bearer models-held")
-                .body(Body::empty())
-                .unwrap(),
-        ),
+    let unread = catalog_request().await.unwrap();
+    assert_eq!(unread.status(), StatusCode::OK);
+    assert_eq!(
+        catalog_request().await.unwrap().status(),
+        StatusCode::SERVICE_UNAVAILABLE
     );
-    tokio::time::timeout(Duration::from_secs(2), async {
-        tokio::select! {
-            () = entered.notified() => {},
-            _ = &mut held => panic!("model catalog should remain pending"),
-        }
-    })
-    .await
-    .unwrap();
+    let body = to_bytes(unread.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["data"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2000
+    );
 
-    let inference = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer inference")
-                .body(Body::from(r#"{"model":"connection:model"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(inference.status(), StatusCode::OK);
-    let busy = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::get("/openai/v1/models")
-                .header(header::AUTHORIZATION, "Bearer models-busy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 1);
-    drop(held);
+    let stalled = catalog_request().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    assert_eq!(catalog_request().await.unwrap().status(), StatusCode::OK);
+    assert!(to_bytes(stalled.into_body(), usize::MAX).await.is_err());
 }
 
 impl Gateway {
@@ -592,7 +483,6 @@ fn inference(web: &FakeServer, provider: &FakeServer) -> InferenceService {
     InferenceService::for_test(
         web.control_plane(),
         ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default()),
-        128,
     )
 }
 
@@ -804,20 +694,14 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
 }
 
 #[tokio::test]
-async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capacity() {
+async fn malformed_credentials_skip_resolution_and_oversized_body_releases_memory() {
     let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let gateway = Gateway::start(Some(service)).await;
     for authorization in [
         None,
@@ -1066,14 +950,12 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
                     stall_timeout: Duration::from_millis(100),
                     ..ExecutionLimits::default()
                 },
-                ..ProviderLimits::default()
             },
         )
         .with_telemetry(telemetry.clone());
         let gateway = Gateway::start(Some(InferenceService::for_test(
             web.control_plane(),
             provider,
-            1,
         )))
         .await;
         let response = gateway
@@ -1165,7 +1047,6 @@ async fn chat_completions_streams_carry_the_request_and_generation_ids() {
         web.control_plane(),
         ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
             .with_telemetry(telemetry.clone()),
-        128,
     )))
     .await;
     let response = gateway
@@ -1273,7 +1154,7 @@ async fn unconfigured_gateway_is_live_but_not_ready_and_inference_is_unavailable
 }
 
 #[tokio::test]
-async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
+async fn request_memory_is_held_through_stream_and_shutdown_drains_it() {
     let (release, released) = tokio::sync::watch::channel(false);
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(move |_| {
@@ -1294,15 +1175,9 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
     .await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let mut gateway = Gateway::start(Some(service)).await;
     let mut response = gateway
         .post()
@@ -1339,7 +1214,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
 }
 
 #[tokio::test]
-async fn client_disconnect_releases_capacity_for_the_next_request() {
+async fn client_disconnect_releases_memory_for_the_next_request() {
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(|_| async {
         let stream =
@@ -1352,15 +1227,9 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
     .await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let gateway = Gateway::start(Some(service)).await;
     let mut first = gateway
         .post()
@@ -1603,24 +1472,17 @@ async fn model_policy_rejections_use_provider_native_permission_errors() {
 #[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let busy = ProviderTransport::for_test(
-        format!("{}/v1", provider.url),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    );
-    let _held = busy.try_admit().unwrap();
     let web = FakeServer::start(|_| async {
         resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
     })
     .await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
+    let service = InferenceService::for_test(
         web.control_plane(),
-        busy,
-        1,
-    )))
-    .await;
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
+    let _held = service.try_reserve_memory("request").unwrap();
+    let gateway = Gateway::start(Some(service)).await;
     let response = reqwest::Client::new()
         .post(format!("{}/anthropic/v1/messages", gateway.url))
         .header("x-api-key", "gateway-anthropic")
@@ -1772,118 +1634,54 @@ async fn anthropic_routes_share_the_request_body_limit() {
 }
 
 #[tokio::test]
-async fn buffered_request_bytes_are_released_once_the_response_ends() {
-    let (release, released) = tokio::sync::watch::channel(false);
-    let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
-    let provider = FakeServer::start(move |request: Request| {
-        let mut released = released.clone();
-        async move {
-            to_bytes(request.into_body(), usize::MAX).await.unwrap();
-            released.wait_for(|done| *done).await.unwrap();
-            Response::new(Body::empty())
-        }
-    })
-    .await;
-    let service = inference(&web, &provider).with_request_limits(RequestLimits {
-        max_request_bytes: 64,
-        shared_buffer_bytes: 100,
-    });
-    let gateway = Gateway::start(Some(service)).await;
-    let body = |size: usize| {
-        let prefix = r#"{"model":"Production key:test","padding":""#;
-        format!("{prefix}{}\"}}", "x".repeat(size - prefix.len() - 2))
-    };
-    let oversized = gateway.post().bearer_auth("key").body(body(65)).send();
-    assert_eq!(
-        oversized.await.unwrap().status(),
-        StatusCode::PAYLOAD_TOO_LARGE
-    );
-    // Two 60-byte calls do not fit the 100-byte budget at once.
-    let first = tokio::spawn(gateway.post().bearer_auth("key").body(body(60)).send());
-    while provider.calls() == 0 {
-        tokio::task::yield_now().await;
-    }
-    let second = gateway.post().bearer_auth("key").body(body(60)).send();
-    let second = tokio::time::timeout(Duration::from_secs(5), second)
-        .await
-        .expect("the first call still holds its bytes while it waits for headers");
-    assert_eq!(second.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE);
-    release.send(true).unwrap();
-    let first = first.await.unwrap().unwrap();
-    assert_eq!(first.status(), StatusCode::OK);
-    first.bytes().await.unwrap();
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let next = gateway.post().bearer_auth("key").body(body(60)).send();
-            if next.await.unwrap().status() == StatusCode::OK {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the first call's bytes are released once its response ends");
-}
-
-async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {
+async fn body_reservations_follow_the_allocation_on_top_of_the_overhead() {
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = inference(&web, &provider).with_request_limits(RequestLimits {
         max_request_bytes: 64,
-        shared_buffer_bytes: 100,
+        memory_budget_bytes: 100,
+        request_overhead_bytes: 10,
     });
-    (web, provider, service)
-}
+    let body = |chunks: Vec<&'static [u8]>| {
+        Body::from_stream(stream::iter(chunks.into_iter().map(Ok::<_, Infallible>)))
+    };
 
-fn streamed_body(chunks: Vec<&'static [u8]>, stall: bool) -> Body {
-    let chunks = stream::iter(chunks.into_iter().map(Ok::<_, Infallible>));
-    if stall {
-        Body::from_stream(chunks.chain(stream::pending()))
-    } else {
-        Body::from_stream(chunks)
-    }
-}
-
-#[tokio::test]
-async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
-    let (_web, _provider, service) = budgeted_service().await;
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
-    let stalled = service.try_reserve_request_body().ok().unwrap();
-    let read = read_request_body(
-        streamed_body(vec![&[b'x'; 10]], true),
-        &headers,
+    // A declared length is not reserved up front: a stalled upload holds what it sent.
+    let mut declared = HeaderMap::new();
+    declared.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
+    let mut stalled = Box::pin(read_request_body(
+        Body::from_stream(
+            body(vec![&[b'x'; 10]])
+                .into_data_stream()
+                .chain(stream::pending()),
+        ),
+        &declared,
         64,
-        stalled,
-    );
-    tokio::pin!(read);
+        service.try_reserve_memory("request").ok().unwrap(),
+    ));
     assert!(
-        tokio::time::timeout(Duration::from_millis(50), &mut read)
+        tokio::time::timeout(Duration::from_millis(50), &mut stalled)
             .await
             .is_err()
     );
-    let mut next = service.try_reserve_request_body().ok().unwrap();
-    assert!(next.try_reserve_bytes(91).is_err());
-    assert!(next.try_reserve_bytes(90).is_ok());
-}
+    assert_eq!(service.available_memory(), 100 - 10 - 10);
+    drop(stalled);
+    assert_eq!(service.available_memory(), 100);
 
-#[tokio::test]
-async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
-    let (_web, _provider, service) = budgeted_service().await;
-    let held = service.try_reserve_request_body().ok().unwrap();
-    let (bytes, _held) = read_request_body(
-        streamed_body(vec![&[b'x'; 32], b"x"], false),
+    // Growth reserves the buffer's allocation, not just its length.
+    let (bytes, held) = read_request_body(
+        body(vec![&[b'x'; 32], b"x"]),
         &HeaderMap::new(),
         64,
-        held,
+        service.try_reserve_memory("request").ok().unwrap(),
     )
     .await
     .ok()
     .unwrap();
     assert_eq!(bytes.len(), 33);
-    let mut next = service.try_reserve_request_body().ok().unwrap();
-    assert!(next.try_reserve_bytes(37).is_err());
-    assert!(next.try_reserve_bytes(36).is_ok());
+    assert_eq!(service.available_memory(), 100 - 10 - 64);
+    drop(held);
+    assert_eq!(service.available_memory(), 100);
 }
 
 #[test]
@@ -1933,10 +1731,8 @@ async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers(
                     stall_timeout: Duration::from_millis(100),
                     ..ExecutionLimits::default()
                 },
-                ..ProviderLimits::default()
             },
         ),
-        128,
     );
     let gateway = Gateway::start(Some(service)).await;
     let client = reqwest::Client::new();

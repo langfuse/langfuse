@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 import crypto from "crypto";
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -6,6 +7,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -31,8 +33,8 @@ import {
 const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
 
 const MetricsQuerySchema = z.object({
-  startTime: z.iso.datetime({ offset: true }),
-  endTime: z.iso.datetime({ offset: true }),
+  startTime: isoDateTime({ offset: true }),
+  endTime: isoDateTime({ offset: true }),
   resourceId: z.string().min(1),
 });
 
@@ -147,6 +149,22 @@ export async function chbMetricsApiHandler(req: NextRequest) {
         projectId: resourceId,
       }),
     ]);
+
+    // Not awaited, so the comparison never delays CHB's poll, and it never
+    // throws. Windows longer than an hour are skipped.
+    if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
+      compareWithBillingLedger({
+        source: "chb_metrics_api",
+        from: start,
+        to: end,
+        projectId: resourceId,
+        legacy: {
+          traces: traceCounts,
+          observations: observationCounts,
+          scores: scoreCounts,
+        },
+      });
+    }
 
     return NextResponse.json(
       {

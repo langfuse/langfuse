@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   getCodeEvalVariableMapping,
   observationVariableMappingList,
@@ -86,6 +87,7 @@ export async function testEvaluator(params: {
   const result = await runEvaluatorTest({
     ...params,
     variables,
+    hasExperimentContext: Boolean(observation.experiment_id),
     ...executionData,
   });
 
@@ -98,6 +100,7 @@ async function runEvaluatorTest(params: {
   evaluatorId: string;
   definition: NormalizedEvaluatorDefinition;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -326,6 +329,7 @@ async function testCodeEvaluator(params: {
   evaluatorId: string;
   definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -349,6 +353,7 @@ async function testCodeEvaluator(params: {
     evaluator: { id: params.evaluatorId },
     version: params.definition,
     extractedVariables: params.variables,
+    hasExperimentContext: params.hasExperimentContext,
     traceName: "Test evaluator",
     metadata: params.executionMetadata,
     evaluationContext: params.evaluationContext,

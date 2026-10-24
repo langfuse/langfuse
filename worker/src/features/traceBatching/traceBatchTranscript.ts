@@ -1,7 +1,7 @@
 import { type Model, type Observation } from "@langfuse/shared";
 import { SpanStatusCode, type Span } from "@opentelemetry/api";
 import {
-  assembleTranscript,
+  assembleTranscriptContext,
   buildTracesPath,
   getProductBaseUrl,
   getTracer,
@@ -13,6 +13,7 @@ import {
   topicsTranscriptConfig,
   transcriptBlockTypes,
   type Transcript,
+  type TranscriptContext,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { tokenCountAsync } from "../tokenisation/async-usage";
@@ -294,7 +295,7 @@ function recordGenericRendering(
 
 export function recordTraceBatchTranscript(
   observations: Observation[],
-  onTranscript?: (transcript: Transcript | null) => Promise<void>,
+  onTranscript?: (context: TranscriptContext | null) => Promise<void>,
 ): Promise<void> {
   // Inherit the batch parent without activating this span while the next trace streams.
   const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
@@ -321,11 +322,12 @@ export function recordTraceBatchTranscript(
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
     const orderedObservations = orderObservations(observations);
-    const transcript = assembleTranscript(orderedObservations, {
+    const context = assembleTranscriptContext(orderedObservations, {
       onTimings: (timings) => {
         phaseTimings = timings;
       },
     });
+    const transcript = context?.transcript ?? null;
     const assemblyDurationMs = performance.now() - startedAt;
     recordTranscriptDistribution(
       "transcript_assembly_duration_ms",
@@ -466,7 +468,7 @@ export function recordTraceBatchTranscript(
       })()
         .finally(() => span.end())
         // Topics summarizes from the same assembled transcript.
-        .then(() => onTranscript?.(transcript))
+        .then(() => onTranscript?.(context))
     );
   } catch (error) {
     span.setStatus({

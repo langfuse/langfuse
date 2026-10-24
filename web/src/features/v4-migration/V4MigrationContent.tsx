@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { Button } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,

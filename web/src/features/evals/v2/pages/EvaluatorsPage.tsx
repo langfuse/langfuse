@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -11,7 +11,7 @@ import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useRef, useState } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   customRowHeightMenu,
@@ -24,7 +24,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorsEmptyState } from "../components/EvaluatorsEmptyState/EvaluatorsEmptyState";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -226,7 +226,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary">Project default</Badge>
+                  <Badge color="filled" text="Project default" />
                 ) : null,
             }
           : facet,

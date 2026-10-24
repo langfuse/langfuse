@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.7 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -89,6 +89,14 @@ RUN set -eux; \
     curl -fsSL -o /mnt/rootfs/usr/bin/dumb-init "https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${di_arch}"; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
+
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with worker/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
 
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "nodejs:x:${GID}:" >> /mnt/rootfs/etc/group && \

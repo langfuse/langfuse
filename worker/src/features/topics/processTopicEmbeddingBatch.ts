@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { UnrecoverableError } from "bullmq";
 import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import pLimit from "p-limit";
@@ -70,6 +71,7 @@ export async function processTopicEmbeddingBatch(
                   models.embedding,
                   traceRows.map(({ summary }) => summary.summary),
                   dimensions,
+                  models.projectId,
                 );
               } catch (error) {
                 throw error instanceof TopicsProviderUnavailable

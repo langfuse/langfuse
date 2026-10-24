@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -607,6 +608,7 @@ describe("AI gateway live end-to-end", () => {
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              user_id: expect.stringMatching(/\S/),
               key_metadata: {
                 test: true,
                 provider,
@@ -620,7 +622,7 @@ describe("AI gateway live end-to-end", () => {
               expires_at: expect.any(Number),
             });
 
-            const ingestionToken = resolved.ingestion.access_token;
+            const ingestionToken = resolved.ingestion!.access_token;
             await ingestTrace(ingestionToken, { provider, apiFormat });
           },
         );

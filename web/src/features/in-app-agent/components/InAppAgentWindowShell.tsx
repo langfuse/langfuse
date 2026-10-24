@@ -14,7 +14,7 @@ import {
   type MovableResizablePanelHandle,
   type MovableResizablePanelSize,
   useMovableResizablePanelControl,
-} from "@/src/components/movable-resizable-panel";
+} from "@/src/components/MovableResizablePanel";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 

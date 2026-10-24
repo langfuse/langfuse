@@ -7,7 +7,7 @@
  * for wheel and touch while keyboard navigation still works.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import {
   Popover,
   PopoverContent,

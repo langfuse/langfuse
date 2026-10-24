@@ -65,6 +65,7 @@ export function internalTraceEventToOtelAttributes(
     | "providedCostDetails"
     | "promptName"
     | "promptVersion"
+    | "skillsAvailable"
     | "completionStartTime"
     | "userId"
     | "sessionId"
@@ -141,6 +142,12 @@ export function internalTraceEventToOtelAttributes(
       ? {
           [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION]:
             eventInput.promptVersion,
+        }
+      : {}),
+    ...(eventInput.skillsAvailable !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE]:
+            JSON.stringify(eventInput.skillsAvailable),
         }
       : {}),
     ...(eventInput.completionStartTime !== undefined

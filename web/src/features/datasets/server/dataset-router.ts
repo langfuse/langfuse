@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { z } from "zod";
+import { omit } from "lodash";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -1194,7 +1195,7 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
-        after: datasetItem,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
 
       return datasetItem;
@@ -1507,7 +1508,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.deletedItem.id,
         action: "delete",
-        before: result.deletedItem,
+        before: omit(result.deletedItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.deletedItem;
@@ -1551,7 +1556,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: dataset.name + " (copy",
+              startsWith: escapeSqlLikePattern(dataset.name) + " (copy",
             },
           },
         })
@@ -1711,7 +1716,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.datasetItem.id,
         action: "create",
-        after: result.datasetItem,
+        after: omit(result.datasetItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.datasetItem;
@@ -1769,7 +1778,7 @@ export const datasetRouter = createTRPCRouter({
               resourceType: "datasetItem",
               resourceId: item.id,
               action: "create",
-              after: item,
+              after: omit(item, ["input", "expectedOutput", "metadata"]),
             }),
           ),
         );

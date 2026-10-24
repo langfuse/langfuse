@@ -27,7 +27,7 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
 }));
 
 vi.mock("@/src/features/widgets", () => ({
-  WidgetForm: ({ projectId }: { projectId: string }) => (
+  ConnectedWidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
 }));
@@ -59,7 +59,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="page">{children}</div>
   ),

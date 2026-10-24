@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cva } from "class-variance-authority";
@@ -5,7 +6,7 @@ import { cva } from "class-variance-authority";
 import { BadgeShell } from "../Badge/Badge";
 import { HoverCard } from "../HoverCard/HoverCard";
 
-const labelListVariants = cva("", {
+const labelListVariants = cva("ph-no-capture", {
   variants: {
     layout: {
       contained: "flex gap-1",
@@ -181,7 +182,7 @@ function LabelOverflow({
     <HoverCard
       placement="bottom-start"
       content={
-        <div className="w-80 p-3">
+        <div className="ph-no-capture w-80 p-3">
           <div className="space-y-2">
             <h4 className="text-sm font-bold">All Labels</h4>
             <div className="flex flex-wrap gap-1">{chips}</div>

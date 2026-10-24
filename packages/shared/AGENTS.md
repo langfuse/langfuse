@@ -32,6 +32,9 @@
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.
   Keep it out of every delete, retention and cleaner path.
+  `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
+  with the ledger and only reports (metrics plus one log line); it never
+  throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
@@ -96,6 +99,12 @@
     retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
+    `getTopicClusteringSummaries` requires `{ maxRows, maxBytes }`;
+    preflight and streamed limits reject the whole cohort rather than sample it.
+    `getTopicClusteringSummaryStats` returns only counts and byte estimates for
+    automatic window selection, with the same eligibility as the full read.
+    `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
+    These limits cover admitted data, not total process or native-fit memory.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
@@ -112,6 +121,10 @@
     saved evaluator routing independent. Text accepts optional generation tracing;
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
+    Failed text calls retain bounded stop-reason/count diagnostics through
+    `getTopicTextResponseMetadata(error)` without changing the original error.
+    Keep response content out of these diagnostics; opted-in generation traces
+    remain the content-bearing path.
   - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing state). Saving keeps the stored
     state and pause (a first save starts off) and tests every slot with a real
@@ -142,6 +155,29 @@
   `orderObservations`, then pass the enriched result and optional
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
+  `assembleTranscriptContext` takes the same arguments and adds
+  `executionIssues` (ERROR, and WARNING with a status message) next to a
+  non-null transcript; `Transcript` itself stays conversational.
+  `schema.ts` owns the current transcript shape; `types.ts` infers its output
+  types. Message/part types come from `src/utils/normalized-io/schema.ts`.
+
+- `src/server/traceBatch`: versioned input storage through the server barrel.
+  `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
+  with `put` and `get`, sharing a project/trace/revision key in the event bucket
+  and one lazily initialized provider client across factory calls. Consumers
+  receive the storage object. The writer takes `TraceBatchInputData` with transcript,
+  `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
+  requires and returns both. Context timestamps
+  stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
+  units; the reader validates the stored version and restores message dates, and
+  throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
+  callers treat as retryable. Same-revision PUTs may overwrite.
+  `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
+  transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
+  transcript adapters and `storage-schema.ts` only probes the version. Compatible
+  optional additions may extend V1; anything else starts a new version module
+  with its own adapters. Schema versions and readiness revisions are independent;
+  see the trace-batch README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
@@ -316,6 +352,9 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
+  Put EE logic there when both `web` and `worker` must import it; keep OSS
+  code paths out of it.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
 - Adding vocabulary here — a field on a shared schema, an option on a shared

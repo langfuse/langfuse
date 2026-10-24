@@ -1,11 +1,9 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/simple-data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   DialogBody,
@@ -25,14 +23,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
-import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Copy } from "@langfuse/icons";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   type SsoConfigRow,
   type SsoConfigTableRow,
@@ -90,10 +86,12 @@ type AuthConfigFormField = `authConfig.${
   | "idToken"}`;
 
 export function SsoConfigDialogController({
-  orgId,
+  onSave,
+  isSaving,
   children,
 }: {
-  orgId: string;
+  onSave: (payload: SsoProviderSchema) => Promise<void>;
+  isSaving: boolean;
   children: (control: {
     openDialog: (config: SsoConfigTableRow) => void;
   }) => React.ReactNode;
@@ -104,7 +102,8 @@ export function SsoConfigDialogController({
         <DialogContent className="sm:max-w-xl">
           <SsoConfigDialogContent
             key={state.domain}
-            orgId={orgId}
+            onSave={onSave}
+            isSaving={isSaving}
             domain={state.domain}
             existing={state.config}
             closeDialog={closeDialog}
@@ -118,18 +117,19 @@ export function SsoConfigDialogController({
 }
 
 function SsoConfigDialogContent({
-  orgId,
+  onSave,
+  isSaving,
   domain,
   existing,
   closeDialog,
 }: {
-  orgId: string;
+  onSave: React.ComponentProps<typeof SsoConfigDialogController>["onSave"];
+  isSaving: boolean;
   domain: string;
   existing: SsoConfigRow | null;
   closeDialog: () => void;
 }) {
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
-  const utils = api.useUtils();
 
   const defaultValues = useMemo<FormValues>(() => {
     const cfg = (existing?.authConfig ?? {}) as Record<string, unknown>;
@@ -164,27 +164,6 @@ function SsoConfigDialogContent({
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/api/auth/callback/${domain}.${selectedProvider}`;
   }, [domain, selectedProvider]);
-
-  const saveMutation = api.ssoConfig.save.useMutation({
-    onSuccess: () => {
-      utils.ssoConfig.get.invalidate({ orgId });
-      showSuccessToast({
-        operation: existing ? "sso.update" : "sso.configure",
-        title: existing ? "SSO updated" : "SSO configured",
-        description: `Active for @${domain} within 1 hour.`,
-      });
-      closeDialog();
-      setPendingValues(null);
-      form.reset();
-    },
-    onError: (err) => {
-      showErrorToast(
-        existing ? "Update failed" : "SSO configuration failed",
-        err.message,
-        classifyTrpcToastError(err, existing ? "sso.update" : "sso.configure"),
-      );
-    },
-  });
 
   async function handleConfirm() {
     if (!pendingValues) return;
@@ -231,7 +210,10 @@ function SsoConfigDialogContent({
       }
       return;
     }
-    await saveMutation.mutateAsync({ orgId, payload: parsed.data });
+    await onSave(parsed.data);
+    closeDialog();
+    setPendingValues(null);
+    form.reset();
   }
 
   return (
@@ -244,7 +226,7 @@ function SsoConfigDialogContent({
       text={`Saving will activate SSO for @${domain} within 1 hour. Every user at that domain will be redirected to your identity provider on sign-in - they will not be able to use Google, GitHub, password, or any other method until SSO is deleted.${existing ? " The new credentials will replace the active configuration." : ""} Tip: sign in via the new SSO in a second browser to confirm it works before closing this tab.`}
       confirmLabel={existing ? "Replace" : "Activate SSO"}
       variant="default"
-      loading={saveMutation.isPending}
+      loading={isSaving}
       onConfirm={handleConfirm}
     >
       {({ openDialog }) => (
@@ -425,7 +407,7 @@ function SsoConfigDialogContent({
                 <Button type="button" variant="ghost" onClick={closeDialog}>
                   Cancel
                 </Button>
-                <Button type="submit" loading={saveMutation.isPending}>
+                <Button type="submit" loading={isSaving}>
                   Save
                 </Button>
               </DialogFooter>
@@ -438,59 +420,48 @@ function SsoConfigDialogContent({
 }
 
 function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
-  const columns: LangfuseColumnDef<{ url: string }>[] = [
-    {
-      accessorKey: "url",
-      header: "URL",
-      cell: ({ getValue }) => (
-        <CopyableCallbackUrl value={getValue<string>()} />
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <p className="mb-2 text-sm font-bold">Callback URL</p>
-      <Card className="overflow-hidden">
-        <SimpleDataTable
-          columns={columns}
-          data={[{ url: callbackUrl }]}
-          isLoading={false}
-          noResults={null}
-        />
-      </Card>
-      <p className="text-muted-foreground mt-2 text-xs">
-        Add this URL as an authorized redirect URI in your identity provider.
-      </p>
-    </div>
-  );
-}
-
-function CopyableCallbackUrl({ value }: { value: string }) {
+  const inputId = useId();
   const { copy, isCopied } = useCopyToClipboard();
 
   return (
-    <div className="relative pr-8 font-mono break-all">
-      <span>{value}</span>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        className="absolute top-1/2 right-0 -translate-y-1/2"
-        title="Copy to clipboard"
-        aria-label="Copy to clipboard"
-        onClick={async (event) => {
-          event.preventDefault();
-          const button = event.currentTarget;
-          await copy(value).catch(() => undefined);
-          button.focus();
-        }}
+    <div>
+      <label htmlFor={inputId} className="mb-2 block text-sm font-bold">
+        Callback URL
+      </label>
+      <div className="relative">
+        <Input
+          id={inputId}
+          value={callbackUrl}
+          readOnly
+          aria-describedby={`${inputId}-description`}
+          className="pr-8 font-mono"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="absolute top-1/2 right-0 -translate-y-1/2"
+          title="Copy to clipboard"
+          aria-label="Copy to clipboard"
+          onClick={async (event) => {
+            const button = event.currentTarget;
+            await copy(callbackUrl).catch(() => undefined);
+            button.focus();
+          }}
+        >
+          {isCopied ? (
+            <Check size="sm" color="default" />
+          ) : (
+            <Copy size="sm" color="default" />
+          )}
+        </Button>
+      </div>
+      <p
+        id={`${inputId}-description`}
+        className="text-muted-foreground mt-2 text-xs"
       >
-        {isCopied ? (
-          <Check size="sm" color="default" />
-        ) : (
-          <Copy size="sm" color="default" />
-        )}
-      </Button>
+        Add this URL as an authorized redirect URI in your identity provider.
+      </p>
     </div>
   );
 }

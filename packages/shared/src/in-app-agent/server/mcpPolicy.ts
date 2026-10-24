@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -192,6 +193,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
   },
+  runBatchEvaluation: {
+    approval: "approval",
+    availability: { scope: "evaluationRule:CUD" },
+  },
   listExperiments: {
     approval: "auto",
     availability: { scope: "promptExperiments:read" },
@@ -252,6 +257,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "models:CUD" },
   },
+  listLlmConnections: {
+    approval: "auto",
+    availability: { scope: "llmApiKeys:read" },
+  },
   listObservations: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -303,6 +312,34 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   updatePromptLabels: {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
+  },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkillResource: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  createSkillVersion: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillLabels: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillTags: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
   },
   listScores: {
     approval: "auto",

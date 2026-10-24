@@ -64,6 +64,12 @@ const EnvSchema = z.object({
   // CHB's resource-server identifier. Defaulted because it is the same value
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+  // Compares each metered Stripe interval with the billable_events ledger and
+  // reports the gap. Requires the ledger table, which only Langfuse Cloud has;
+  // keep in sync with web/src/env.mjs.
+  LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
@@ -158,6 +164,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -187,6 +196,17 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
+  LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
+  LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -398,6 +418,8 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  // Opt in to the AI-features project's production skills with this tag.
+  LANGFUSE_IN_APP_AGENT_SKILLS_TAG: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

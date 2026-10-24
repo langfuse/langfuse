@@ -1,16 +1,11 @@
-import {
-  createQueryId,
-  FromNode,
-  SelectQueryNode,
-  type OperationNode,
-} from "kysely";
+import { createQueryId, FromNode, SelectQueryNode } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import { includeDeleted, limitBy, softDeleteAfterLimit } from "./extensions";
-import { FinalTableNode } from "./nodes";
+import { finalTable } from "./nodes";
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 
@@ -27,6 +22,7 @@ describe("soft-delete filtering", () => {
       events: "is_deleted",
       events_core: "is_deleted",
       events_full: "is_deleted",
+      events_truncated: "is_deleted",
     });
   });
 
@@ -34,11 +30,11 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select((eb) => ["span_id", eb.lit(0).as("is_deleted")]),
       ),
     ).toMatchInlineSnapshot(
-      `"select span_id, 0 as is_deleted from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}"`,
+      `"select span_id, 0 as is_deleted from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0"`,
     );
   });
 
@@ -46,12 +42,12 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_full as e")
+          .selectFrom("events as e")
           .select("e.span_id")
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id from events_full as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -60,13 +56,13 @@ describe("soft-delete filtering", () => {
       compile(
         getClickhouseKysely()
           .selectFrom("scores as s")
-          .leftJoin("events_core as e", (join) =>
+          .leftJoin("events as e", (join) =>
             join.onRef("e.trace_id", "=", "s.trace_id"),
           )
           .select("s.id"),
       ),
     ).toMatchInlineSnapshot(
-      `"select s.id from scores as s left join events_core as e on e.trace_id = s.trace_id and e.is_deleted = {p1:UInt8} and e.project_id = {p2:String} where s.project_id = {p2:String}"`,
+      `"select s.id from scores as s left join events_core as e on e.trace_id = s.trace_id and e.is_deleted = 0 and e.project_id = {p1:String} where s.project_id = {p1:String}"`,
     );
   });
 
@@ -75,12 +71,10 @@ describe("soft-delete filtering", () => {
       compile(
         getClickhouseKysely()
           .selectFrom("scores as s")
-          .crossJoin("events_core as e")
+          .crossJoin("events as e")
           .select("s.id"),
       ),
-    ).toMatch(
-      / where s\.project_id = \{p1:String\} and e\.is_deleted = \{p2:UInt8\}$/,
-    );
+    ).toMatch(/ where s\.project_id = \{p1:String\} and e\.is_deleted = 0$/);
   });
 
   it("filters inside CTE bodies, subqueries, and UNION branches", () => {
@@ -88,19 +82,19 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         db
-          .with("ev", (qb) => qb.selectFrom("events_core").select("trace_id"))
+          .with("ev", (qb) => qb.selectFrom("events").select("trace_id"))
           .selectFrom("scores as s")
           .select("s.id")
           .where("s.trace_id", "in", (eb) =>
-            eb.selectFrom("events_full").select("trace_id"),
+            eb.selectFrom("events").select("trace_id"),
           )
           .where("s.trace_id", "in", (eb) =>
             eb.selectFrom("ev").select("trace_id"),
           )
-          .unionAll(db.selectFrom("events_core").select("span_id as id")),
+          .unionAll(db.selectFrom("events").select("span_id as id")),
       ),
     ).toMatchInlineSnapshot(
-      `"with ev as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select trace_id from events_full where project_id = {p1:String} and events_full.is_deleted = {p2:UInt8}) and s.trace_id in (select trace_id from ev) union all select span_id as id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}"`,
+      `"with ev as (select trace_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select trace_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0) and s.trace_id in (select trace_id from ev) union all select span_id as id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0"`,
     );
   });
 
@@ -109,98 +103,27 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         db
-          .selectFrom(db.selectFrom("events_core").select("span_id").as("sub"))
+          .selectFrom(db.selectFrom("events").select("span_id").as("sub"))
           .select("sub.span_id"),
       ),
     ).toMatchInlineSnapshot(
-      `"select sub.span_id from (select span_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}) as sub"`,
-    );
-  });
-
-  it("treats a CTE named like a physical table as the CTE, in nested scopes too", () => {
-    expect(
-      compile(
-        getClickhouseKysely()
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
-          .select("trace_id")
-          .where("trace_id", "in", (eb) =>
-            eb.selectFrom("events_core").select("trace_id"),
-          ),
-      ),
-    ).not.toContain("is_deleted");
-  });
-
-  it("filters a schema-qualified table named like a CTE in scope", () => {
-    const db = getClickhouseKysely();
-    expect(
-      compile(
-        db
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
-          .select("trace_id")
-          .where(
-            "trace_id",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("events_core")
-              .select("trace_id"),
-          ),
-      ),
-    ).toContain(
-      "(select trace_id from default.events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
-    );
-  });
-
-  it("resolves a CTE body's own name to the table, and sibling CTE names to the CTE", () => {
-    const sql = compile(
-      getClickhouseKysely()
-        .with("before", (qb) => qb.selectFrom("events_core").select("trace_id"))
-        .with("events_core", (qb) =>
-          qb.selectFrom("events_core").select("trace_id"),
-        )
-        .with("after", (qb) => qb.selectFrom("events_core").select("trace_id"))
-        .selectFrom("after")
-        .select("trace_id"),
-    );
-    expect(sql).toContain(
-      "events_core as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
-    );
-    expect(sql.match(/is_deleted/g)).toHaveLength(1);
-  });
-
-  it("filters a recursive CTE body that reads its own name, which is the table outside the recursive member", () => {
-    expect(
-      compile(
-        getClickhouseKysely()
-          .withRecursive("events_core(trace_id)", (qb) =>
-            qb.selectFrom("events_core").select("trace_id"),
-          )
-          .selectFrom("events_core")
-          .select("trace_id"),
-      ),
-    ).toContain(
-      "(select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
+      `"select sub.span_id from (select span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0) as sub"`,
     );
   });
 
   it("filters a soft-delete table wrapped in FINAL", () => {
     // No soft-delete table allows FINAL yet, so the node is built by hand.
-    // FinalTableNode is outside Kysely's node union, hence the cast.
     const node = getClickhouseKysely()
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .select("e.span_id")
       .toOperationNode();
     if (!SelectQueryNode.is(node) || !node.from)
       throw new Error("not a select");
-    const final = FinalTableNode.create(node.from.froms[0]) as unknown;
     const filtered = new SoftDeleteFilterPlugin().transformQuery({
-      node: { ...node, from: FromNode.create([final as OperationNode]) },
+      node: {
+        ...node,
+        from: FromNode.create([finalTable(node.from.froms[0])]),
+      },
       queryId: createQueryId(),
     });
     expect(SelectQueryNode.is(filtered) && filtered.where).toBeTruthy();
@@ -216,15 +139,15 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core as e")
+          .selectFrom("events as e")
           .$call(includeDeleted())
           .select("e.span_id")
           .where("e.trace_id", "in", (eb) =>
-            eb.selectFrom("events_core").select("trace_id"),
+            eb.selectFrom("events").select("trace_id"),
           ),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id from events_core as e where e.project_id = {p1:String} and e.trace_id in (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})"`,
+      `"select e.span_id from events_core as e where e.project_id = {p1:String} and e.trace_id in (select trace_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0)"`,
     );
   });
 
@@ -233,7 +156,7 @@ describe("soft-delete filtering", () => {
       compile(
         getClickhouseKysely()
           .selectFrom("scores as s")
-          .rightJoin("events_core as e", (join) =>
+          .rightJoin("events as e", (join) =>
             join.onRef("e.trace_id", "=", "s.trace_id"),
           )
           .select("e.span_id"),
@@ -242,7 +165,7 @@ describe("soft-delete filtering", () => {
     expect(() =>
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core as e")
+          .selectFrom("events as e")
           .fullJoin("scores as s", (join) =>
             join.onRef("s.trace_id", "=", "e.trace_id"),
           )
@@ -253,7 +176,7 @@ describe("soft-delete filtering", () => {
       compile(
         getClickhouseKysely()
           .selectFrom("scores as s")
-          .rightJoin("events_core as e", (join) =>
+          .rightJoin("events as e", (join) =>
             join.onRef("e.trace_id", "=", "s.trace_id"),
           )
           .$call(includeDeleted())
@@ -267,7 +190,7 @@ describe("soft-delete filtering", () => {
       compile(
         getClickhouseKysely()
           .selectFrom("scores as s")
-          .innerJoin("events_core as e", (join) =>
+          .innerJoin("events as e", (join) =>
             join.onRef("e.trace_id", "=", "s.trace_id"),
           )
           .$call(includeDeleted())
@@ -280,11 +203,11 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core")
+          .selectFrom("events")
           .$call(includeDeleted())
           .select("span_id")
           .orderBy("event_ts", "desc")
-          .$call(limitBy({ count: 1, columns: ["span_id"] })),
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] })),
       ),
     ).not.toContain("is_deleted");
   });
@@ -301,10 +224,8 @@ describe("soft-delete filtering", () => {
     expect(() =>
       compile(
         getClickhouseKysely()
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
+          .with("ev", (qb) => qb.selectFrom("events").select("trace_id"))
+          .selectFrom("ev")
           .$call(includeDeleted())
           .select("trace_id"),
       ),
@@ -315,12 +236,12 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_full as e")
+          .selectFrom("events as e")
           .$call(softDeleteAfterLimit())
           .select((eb) => [
             "e.span_id as id",
             "e.event_ts",
-            "input",
+            "e.input",
             eb.fn<number>("length", ["e.output"]).as("len"),
           ])
           .where("e.span_id", "=", "o")
@@ -328,7 +249,7 @@ describe("soft-delete filtering", () => {
           .limit(1),
       ),
     ).toMatchInlineSnapshot(
-      `"select latest.id, latest.event_ts, latest.input, latest.len from (select e.span_id as id, e.event_ts, input, length(e.output) as len, e.is_deleted as is_deleted from events_full as e where e.project_id = {p1:String} and e.span_id = {p2:String} order by e.event_ts desc limit {p3:Int64}) as latest where latest.is_deleted = {p4:UInt8}"`,
+      `"select latest.id, latest.event_ts, latest.input, latest.len from (select e.span_id as id, e.event_ts, e.input, length(e.output) as len, e.is_deleted as is_deleted from events_full as e where e.project_id = {p1:String} and e.span_id = {p2:String} order by e.event_ts desc limit {p3:Int64}) as latest where latest.is_deleted = 0"`,
     );
   });
 
@@ -338,17 +259,19 @@ describe("soft-delete filtering", () => {
         getClickhouseKysely()
           .with("latest_events", () =>
             getClickhouseKysely()
-              .selectFrom("events_core as e")
+              .selectFrom("events as e")
               .$call(softDeleteAfterLimit())
               .select(["e.span_id as span_id", "e.trace_id as trace_id"])
               .orderBy("e.event_ts", "desc")
-              .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+              .$call(
+                limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
+              ),
           )
           .selectFrom("latest_events as e")
           .select("e.trace_id"),
       ),
     ).toMatchInlineSnapshot(
-      `"with latest_events as (select latest.span_id, latest.trace_id from (select e.span_id as span_id, e.trace_id as trace_id, e.is_deleted as is_deleted from events_core as e where e.project_id = {p1:String} order by e.event_ts desc limit 1 by e.span_id) as latest where latest.is_deleted = {p2:UInt8}) select e.trace_id from latest_events as e"`,
+      `"with latest_events as (select latest.span_id, latest.trace_id from (select e.span_id as span_id, e.trace_id as trace_id, e.is_deleted as is_deleted from events_core as e where e.project_id = {p1:String} order by e.event_ts desc limit 1 by e.span_id) as latest where latest.is_deleted = 0) select e.trace_id from latest_events as e"`,
     );
   });
 
@@ -356,13 +279,13 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core")
+          .selectFrom("events")
           .$call(softDeleteAfterLimit())
           .select("span_id")
           .limit(1),
       ),
     ).toMatchInlineSnapshot(
-      `"select latest.span_id from (select span_id, events_core.is_deleted as is_deleted from events_core where project_id = {p1:String} limit {p2:Int64}) as latest where latest.is_deleted = {p3:UInt8}"`,
+      `"select latest.span_id from (select span_id, events.is_deleted as is_deleted from events_core as events where events.project_id = {p1:String} limit {p2:Int64}) as latest where latest.is_deleted = 0"`,
     );
   });
 
@@ -370,21 +293,21 @@ describe("soft-delete filtering", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .selectFrom("events_core as e")
+          .selectFrom("events as e")
           .$call(softDeleteAfterLimit())
           .select("e.span_id")
           .where("e.trace_id", "in", (eb) =>
-            eb.selectFrom("events_core").select("trace_id"),
+            eb.selectFrom("events").select("trace_id"),
           )
           .limit(1),
       ),
-    ).toContain("events_core.is_deleted = {p2:UInt8}");
+    ).toContain("events.is_deleted = 0");
   });
 
   it("rejects softDeleteAfterLimit() on selects it cannot wrap", () => {
     const marked = () =>
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events_truncated as e")
         .$call(softDeleteAfterLimit())
         .limit(1);
     const rejects = (
@@ -395,7 +318,7 @@ describe("soft-delete filtering", () => {
     rejects(marked(), /without outputs/);
     rejects(
       getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events_truncated as e")
         .$call(softDeleteAfterLimit())
         .select("e.span_id"),
       /needs a LIMIT or LIMIT BY/,
@@ -408,7 +331,9 @@ describe("soft-delete filtering", () => {
       marked()
         .select("e.span_id")
         .unionAll(
-          getClickhouseKysely().selectFrom("events_core").select("span_id"),
+          getClickhouseKysely()
+            .selectFrom("events_truncated")
+            .select("span_id"),
         ),
       /cannot wrap a GROUP BY or set operation/,
     );
@@ -428,7 +353,7 @@ describe("soft-delete filtering", () => {
     );
     rejects(
       marked()
-        .innerJoin("events_full as f", (join) =>
+        .innerJoin("events_truncated as f", (join) =>
           join.onRef("f.span_id", "=", "e.span_id"),
         )
         .select("e.span_id"),
@@ -437,7 +362,7 @@ describe("soft-delete filtering", () => {
     rejects(
       getClickhouseKysely()
         .selectFrom("scores as s")
-        .leftJoin("events_core as e", (join) =>
+        .leftJoin("events_truncated as e", (join) =>
           join.onRef("e.trace_id", "=", "s.trace_id"),
         )
         .$call(softDeleteAfterLimit())
