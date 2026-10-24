@@ -129,6 +129,7 @@ export const buildV1FilterColumnsParams = ({
   sessionOptions: [],
   versionOptions: [],
   releaseOptions: [],
+  ingestionApiKeyOptions: [],
   scoreNameOptions: [],
   experimentIdOptions: [],
   evaluatorOptions,
@@ -177,6 +178,9 @@ export const buildV2FilterColumnsParams = ({
     sessionOptions: normalizeSingleValueOptions(filterOptions?.sessionId),
     versionOptions: normalizeSingleValueOptions(filterOptions?.version),
     releaseOptions: normalizeSingleValueOptions(filterOptions?.release),
+    ingestionApiKeyOptions: normalizeSingleValueOptions(
+      filterOptions?.ingestionApiKey,
+    ),
     scoreNameOptions: scoreNameOptionsForView(view, filterOptions),
     experimentIdOptions: normalizeSingleValueOptions(
       filterOptions?.experimentId,

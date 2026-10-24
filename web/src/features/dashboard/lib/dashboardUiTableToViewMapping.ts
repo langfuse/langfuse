@@ -104,6 +104,13 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
+    defineField(
+      "ingestionApiKey",
+      sourceSpec("API Key", {
+        uiTableId: "ingestionApiKey",
+        aliases: ["Ingestion API Key"],
+      }),
+    ),
   ],
   observations: [
     defineField(
@@ -198,6 +205,13 @@ const viewFilterDefinitions: Record<
     defineField(
       "isRootObservation",
       sourceSpec("Is Root Observation", { uiTableId: "isRootObservation" }),
+    ),
+    defineField(
+      "ingestionApiKey",
+      sourceSpec("API Key", {
+        uiTableId: "ingestionApiKey",
+        aliases: ["Ingestion API Key"],
+      }),
     ),
   ],
   "scores-numeric": [
