@@ -23,6 +23,7 @@ import {
 } from "@/src/ee/features/billing/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
@@ -203,13 +204,12 @@ export const organizationsRouter = createTRPCRouter({
           data: {
             name: input.name,
             aiFeaturesEnabled: input.aiFeaturesEnabled,
-            organizationMemberships: {
-              create: {
-                userId: ctx.session.user.id,
-                role: "OWNER",
-              },
-            },
           },
+        });
+        await createOrgMembership(tx, {
+          orgId: organization.id,
+          userId: ctx.session.user.id,
+          role: "OWNER",
         });
 
         if (organizationCountBeforeCreate === 0) {

@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
-  Prisma,
   type ApiKey,
   type PrismaClient,
   prisma as defaultPrisma,
@@ -13,8 +12,6 @@ import {
   SystemRoleId,
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
-
-import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
@@ -129,14 +126,9 @@ async function materialize(
   }
   return context;
 
-  /** getRolesForApiKey restores missing assignments and rejects an empty result after repair. */
+  /** getRolesForApiKey loads the key's roles and rejects a key left without any. */
   async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
-    let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
-    if (roles.length === 0) {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
-      await backfillApiKeyRoleAssignment(prisma, apiKey, org);
-      roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
-    }
+    const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
     if (roles.length === 0) {
       throw new InternalServerError(
         `API key ${apiKeyId} has no role assignments after backfill`,
@@ -144,39 +136,6 @@ async function materialize(
     }
     return roles;
   }
-}
-
-/**
- * backfillApiKeyRoleAssignment restores a verified key's legacy role.
- * @deprecated RoleAssignment backfill will be removed in the next major version.
- */
-async function backfillApiKeyRoleAssignment(
-  prisma: PrismaClient,
-  apiKey: ApiKey,
-  org: PrincipalOrganization,
-): Promise<void> {
-  const isProject = apiKey.scope === "PROJECT";
-  await assignRole(prisma, {
-    tenantId: OrganizationId(org.orgId),
-    principalId: ApiKeyId(apiKey.id),
-    ownerId: isProject
-      ? ProjectId(apiKey.projectId!)
-      : OrganizationId(apiKey.orgId!),
-    roleId: SystemRoleId(
-      isProject ? "LEGACY_PROJECT_API_KEY" : "LEGACY_ORGANIZATION_API_KEY",
-    ),
-    tags: [],
-  }).catch((error: unknown) => {
-    if (!isUniqueConstraintFailedError(error)) throw error;
-  });
-}
-
-/** isUniqueConstraintFailedError identifies Prisma's P2002 uniqueness violation. */
-function isUniqueConstraintFailedError(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
 }
 
 /**

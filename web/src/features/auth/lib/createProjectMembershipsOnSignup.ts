@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import {
+  prisma,
+  Role,
+  type MembershipInvitation,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import {
@@ -11,8 +16,17 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
-import { projectRoleAccessRights } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  projectRoleAccessRights,
+} from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
+} from "@langfuse/shared/memberships";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -46,16 +60,10 @@ export async function createProjectMembershipsOnSignup(
           })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
-      await prisma.organizationMembership.upsert({
-        where: {
-          orgId_userId: { orgId: demoProject.orgId, userId: user.id },
-        },
-        update: {}, // No-op: preserve existing role
-        create: {
-          userId: user.id,
-          orgId: demoProject.orgId,
-          role: Role.VIEWER,
-        },
+      await findOrCreateOrgMembership(prisma, {
+        userId: user.id,
+        orgId: demoProject.orgId,
+        role: Role.VIEWER,
       });
     }
 
@@ -76,16 +84,10 @@ export async function createProjectMembershipsOnSignup(
       { id: string; orgId: string; userId: string }
     >();
     for (const org of defaultOrgs) {
-      const membership = await prisma.organizationMembership.upsert({
-        where: {
-          orgId_userId: { orgId: org.id, userId: user.id },
-        },
-        update: {}, // No-op: preserve existing role
-        create: {
-          orgId: org.id,
-          userId: user.id,
-          role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
-        },
+      const membership = await findOrCreateOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
       });
       orgMembershipMap.set(org.id, membership);
     }
@@ -114,53 +116,31 @@ export async function createProjectMembershipsOnSignup(
       if (existingOrgMembership) {
         // (1) project's org is in the default org list -> create project membership if entitled
         if (hasProjectRolesEntitlement) {
-          await prisma.projectMembership.upsert({
-            where: {
-              projectId_userId: {
-                projectId: project.id,
-                userId: user.id,
-              },
-            },
-            update: {}, // No-op: preserve existing role
-            create: {
-              userId: user.id,
-              orgMembershipId: existingOrgMembership.id,
-              projectId: project.id,
-              role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-            },
+          await findOrCreateProjectMembership(prisma, {
+            orgId: project.orgId,
+            userId: user.id,
+            orgMembershipId: existingOrgMembership.id,
+            projectId: project.id,
+            role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
           });
         }
       } else {
         // (2) project's org is NOT in the default org list (legacy behavior) -> create org membership for the project's org first
-        const orgMembership = await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: { orgId: project.orgId, userId: user.id },
-          },
-          update: {}, // No-op: preserve existing role
-          create: {
-            orgId: project.orgId,
-            userId: user.id,
-            role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-          },
+        const orgMembership = await findOrCreateOrgMembership(prisma, {
+          orgId: project.orgId,
+          userId: user.id,
+          role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
         });
         // Add to map in case multiple projects belong to the same org
         orgMembershipMap.set(project.orgId, orgMembership);
 
         if (hasProjectRolesEntitlement) {
-          await prisma.projectMembership.upsert({
-            where: {
-              projectId_userId: {
-                projectId: project.id,
-                userId: user.id,
-              },
-            },
-            update: {}, // No-op: preserve existing role
-            create: {
-              userId: user.id,
-              orgMembershipId: orgMembership.id,
-              projectId: project.id,
-              role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-            },
+          await findOrCreateProjectMembership(prisma, {
+            orgId: project.orgId,
+            userId: user.id,
+            orgMembershipId: orgMembership.id,
+            projectId: project.id,
+            role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
           });
         }
       }
@@ -343,39 +323,19 @@ async function processMembershipInvitations(email: string, userId: string) {
     },
   );
 
-  // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
-  const createOrgMembershipData = invitationsForUser.map((invitation) => ({
-    userId: userId,
-    orgId: invitation.orgId,
-    role: invitation.orgRole,
-    ...(invitation.projectId && invitation.projectRole
-      ? {
-          ProjectMemberships: {
-            create: {
-              userId: userId,
-              projectId: invitation.projectId,
-              role: invitation.projectRole,
-            },
-          },
-        }
-      : {}),
-  }));
-
-  const createOrgMembershipsPromises = createOrgMembershipData.map(
-    (inviteData) => prisma.organizationMembership.create({ data: inviteData }),
-  );
-
-  await prisma.$transaction([
-    ...createOrgMembershipsPromises,
-    prisma.membershipInvitation.deleteMany({
+  await prisma.$transaction(async (tx) => {
+    for (const invitation of invitationsForUser) {
+      await acceptInvitation(tx, invitation, userId);
+    }
+    await tx.membershipInvitation.deleteMany({
       where: {
         id: {
           in: invitationsForUser.map((invitation) => invitation.id),
         },
         email: email.toLowerCase(),
       },
-    }),
-  ]);
+    });
+  });
 
   // SFDC: link the freshly-created lead to each org as an org-member.
   await Promise.all(
@@ -390,4 +350,30 @@ async function processMembershipInvitations(email: string, userId: string) {
   );
 
   return joinedReadableRealProjectViaInvitation;
+}
+
+/** acceptInvitation creates an invitation's org and project memberships with their role assignments. */
+async function acceptInvitation(
+  tx: Prisma.TransactionClient,
+  invitation: MembershipInvitation,
+  userId: string,
+) {
+  const orgMembership = await createOrgMembership(tx, {
+    userId,
+    orgId: invitation.orgId,
+    role: invitation.orgRole,
+  });
+  if (!invitation.projectId || !invitation.projectRole) return;
+  try {
+    await createProjectMembership(tx, {
+      orgId: invitation.orgId,
+      userId,
+      orgMembershipId: orgMembership.id,
+      projectId: invitation.projectId,
+      role: invitation.projectRole,
+    });
+  } catch (error) {
+    if (error instanceof LangfuseNotFoundError) return; // the project moved orgs after the invite
+    throw error;
+  }
 }

@@ -6,6 +6,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
@@ -246,12 +247,10 @@ export default async function handler(
         },
         update: {},
       });
-      const orgMembership = await prisma.organizationMembership.create({
-        data: {
-          userId: user.id,
-          orgId: authCheck.scope.orgId,
-          role,
-        },
+      const orgMembership = await createOrgMembership(prisma, {
+        userId: user.id,
+        orgId: authCheck.scope.orgId,
+        role,
       });
       await auditLog({
         resourceType: "orgMembership",

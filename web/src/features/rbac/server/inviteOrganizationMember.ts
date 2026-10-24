@@ -7,6 +7,10 @@ import {
   createWithinEntitlementLimit,
   hasEntitlement,
 } from "@/src/features/entitlements/server";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
@@ -15,9 +19,11 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 async function createProjectMembershipOrThrowIfDuplicate({
   prisma,
+  orgId,
   data,
 }: {
   prisma: PrismaClient | Prisma.TransactionClient;
+  orgId: string;
   data: {
     userId: string;
     projectId: string;
@@ -26,7 +32,7 @@ async function createProjectMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await prisma.projectMembership.create({ data });
+    return await createProjectMembership(prisma, { ...data, orgId });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -53,7 +59,7 @@ async function createOrgMembershipOrThrowIfDuplicate({
   };
 }) {
   try {
-    return await prisma.organizationMembership.create({ data });
+    return await createOrgMembership(prisma, data);
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -228,6 +234,7 @@ export async function inviteOrganizationMember({
         const newProjectMembership =
           await createProjectMembershipOrThrowIfDuplicate({
             prisma: ctx.prisma,
+            orgId: input.orgId,
             data: {
               userId: user.id,
               projectId: project.id,
@@ -298,6 +305,7 @@ export async function inviteOrganizationMember({
             project && input.projectRole && input.projectRole !== Role.NONE
               ? await createProjectMembershipOrThrowIfDuplicate({
                   prisma: tx,
+                  orgId: input.orgId,
                   data: {
                     userId: user.id,
                     projectId: project.id,

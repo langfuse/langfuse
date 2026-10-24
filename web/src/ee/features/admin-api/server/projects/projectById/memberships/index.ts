@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  deleteProjectMembership,
+  saveProjectMembership,
+} from "@langfuse/shared/memberships";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
@@ -176,7 +180,8 @@ async function updateMembership(
     from: before?.role,
     to: role,
   });
-  const after = await upsertMembership(tx, {
+  const after = await saveProjectMembership(tx, {
+    orgId,
     projectId,
     userId,
     role,
@@ -184,24 +189,6 @@ async function updateMembership(
   });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
   return after;
-}
-
-function upsertMembership(
-  tx: Prisma.TransactionClient,
-  data: {
-    projectId: string;
-    userId: string;
-    role: Role;
-    orgMembershipId: string;
-  },
-) {
-  return tx.projectMembership.upsert({
-    where: {
-      projectId_userId: { projectId: data.projectId, userId: data.userId },
-    },
-    update: { role: data.role },
-    create: data,
-  });
 }
 
 /** deleteMembership authorizes and audits removal within its transaction. */
@@ -220,8 +207,10 @@ async function deleteMembership(
   });
   if (!before) return false;
   assertMembershipOrganization(before.organizationMembership.orgId, orgId);
-  const membership = await tx.projectMembership.delete({
-    where: { projectId_userId: { projectId, userId: before.userId } },
+  const membership = await deleteProjectMembership(tx, {
+    orgId,
+    projectId,
+    userId: before.userId,
   });
   await auditMembershipDeletion(tx, params, membership);
   return true;
