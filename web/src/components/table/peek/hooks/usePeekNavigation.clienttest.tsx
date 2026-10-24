@@ -180,6 +180,72 @@ describe("usePeekNavigation analytics", () => {
   });
 });
 
+describe("comment pins while navigating traces", () => {
+  const config = {
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "traces",
+    isV4: true,
+  };
+
+  beforeEach(() => {
+    mockPush.mockReset();
+    mockPathname.value = "/project/[projectId]/traces";
+  });
+
+  it("drops the pinned comment object when moving to another peeked trace", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=trace-a&comments=open&commentObjectId=obs-a&commentObjectType=OBSERVATION&timestamp=t1",
+    );
+    const { result } = renderHook(() => usePeekNavigation(config));
+
+    const path = result.current.resolveDetailNavigationPath({
+      id: "trace-b",
+      params: { timestamp: "t2" },
+    });
+
+    expect(path).toContain("peek=trace-b");
+    expect(path).toContain("comments=open");
+    expect(path).not.toContain("commentObjectId");
+    expect(path).not.toContain("commentObjectType");
+  });
+
+  it("drops the pinned comment object when opening a different trace row", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=trace-a&comments=open&commentObjectId=obs-a&commentObjectType=OBSERVATION",
+    );
+    const { result } = renderHook(() => usePeekNavigation(config));
+
+    result.current.openPeek("trace-b", { timestamp: new Date("2026-01-02") });
+
+    const query = mockPush.mock.lastCall?.[0].query as Record<string, string>;
+    expect(query).toMatchObject({ peek: "trace-b", comments: "open" });
+    expect(query).not.toHaveProperty("commentObjectId");
+    expect(query).not.toHaveProperty("commentObjectType");
+  });
+
+  it("keeps the pinned comment object when the same trace row is opened again", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=trace-a&comments=open&commentObjectId=obs-a&commentObjectType=OBSERVATION",
+    );
+    const { result } = renderHook(() => usePeekNavigation(config));
+
+    result.current.openPeek("trace-a");
+
+    expect(mockPush.mock.lastCall?.[0].query).toMatchObject({
+      peek: "trace-a",
+      comments: "open",
+      commentObjectId: "obs-a",
+      commentObjectType: "OBSERVATION",
+    });
+  });
+});
+
 describe("peek entry parameters", () => {
   it("sets explicit entry parameters and clears them on ordinary entry and close", () => {
     mockPush.mockReset();
