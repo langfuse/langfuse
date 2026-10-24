@@ -406,6 +406,38 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Safari / WebKit wording when injected page-world JS does
+ * `Array.from(document.querySelectorAll(...)).find(...).<prop>` and
+ * `find` returns undefined. WebKit uniquely includes the expression
+ * in the TypeError. Observed:
+ *  - `.click` on a missing `<a>` by innerText (LANGFUSE-62W)
+ *  - `.parentElement` on a missing `<button>` by innerText (LANGFUSE-648)
+ *
+ * The find callback must mention `innerText` — that is the scrape
+ * signature (locate a control by its visible label). Langfuse never
+ * writes this querySelectorAll + find + property pattern. Observed
+ * as a browser-API / global-handler TypeError with
+ * document-attributed frames — `denyUrls` cannot match.
+ *
+ * `[\s\S]` so a label with real newlines (WebKit prints the
+ * expression as authored) still matches. Whole-message only. An app
+ * error that quotes the phrase is longer and is KEPT.
+ */
+const SAFARI_QUERY_SELECTOR_ALL_FIND_PROP_RE =
+  /^(?:undefined|null) is not an object \(evaluating 'Array\.from\(document\.querySelectorAll\([\s\S]+?\)\)\.find\([\s\S]*innerText[\s\S]*?\)\.[A-Za-z_$][\w$]*(?:\(\))?'\)$/;
+
+/**
+ * Match {@link SAFARI_QUERY_SELECTOR_ALL_FIND_PROP_RE} without
+ * {@link coreMessage}. `coreMessage` strips a trailing `(…)`
+ * parenthetical — that clause *is* WebKit's signature here.
+ */
+function isSafariQuerySelectorAllFindPropertyMessage(value: string): boolean {
+  return SAFARI_QUERY_SELECTOR_ALL_FIND_PROP_RE.test(
+    value.trim().replace(/\.$/, "").trim(),
+  );
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -677,7 +709,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Safari injected `querySelectorAll(...).find(...).<prop>` is the
+    // same class: page-world automation looking for a control by
+    // innerText (`.click` on a missing `<a>`, `.parentElement` on a
+    // missing `<button>`). find() is undefined. Stack is
+    // document-attributed global code.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -696,6 +734,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isSafariQuerySelectorAllFindPropertyMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
