@@ -31,6 +31,7 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PromptType } from "@langfuse/shared";
+import { toast } from "sonner";
 
 interface SaveToPromptButtonProps {
   className?: string;
@@ -61,15 +62,21 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
         id: prompt.id,
       })) ?? [];
 
-  const handleNewPrompt = async () => {
-    capture("playground:save_to_new_prompt_button_click", { projectId });
-
+  const persistPlaygroundCache = () =>
     setPlaygroundCache({
       modelParams,
       messages,
       output,
       promptVariables,
     });
+
+  const handleNewPrompt = async () => {
+    capture("playground:save_to_new_prompt_button_click", { projectId });
+
+    if (!persistPlaygroundCache()) {
+      toast.error("Could not save playground state to this browser.");
+      return;
+    }
 
     await router.push(
       `/project/${projectId}/prompts/new?loadPlaygroundCache=true`,
@@ -79,12 +86,10 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   const handleNewPromptVersion = async () => {
     capture("playground:save_to_prompt_version_button_click", { projectId });
 
-    setPlaygroundCache({
-      modelParams,
-      messages,
-      output,
-      promptVariables,
-    });
+    if (!persistPlaygroundCache()) {
+      toast.error("Could not save playground state to this browser.");
+      return;
+    }
 
     await router.push(
       `/project/${projectId}/prompts/new?promptId=${selectedPromptId}&loadPlaygroundCache=true`,
