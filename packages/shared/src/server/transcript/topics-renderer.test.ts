@@ -86,6 +86,41 @@ describe("Topics transcript renderer", () => {
     );
   });
 
+  it("keeps a small transcript whole and caps blocks only above the size threshold", () => {
+    const systemText = "s".repeat(3000);
+    const userText = "x".repeat(2200);
+    const observations = [
+      convertObservation(
+        createObservation({
+          type: "GENERATION",
+          input: JSON.stringify([
+            { role: "system", content: systemText },
+            { role: "user", content: userText },
+          ]),
+          output: JSON.stringify({ role: "assistant", content: "Done" }),
+        }),
+      ),
+    ];
+    const transcript = assembleTranscript(orderObservations(observations));
+
+    const small = renderTranscript(
+      transcript,
+      observations,
+      topicsTranscriptConfig,
+    );
+    expect(small.stats.blocksCut).toBe(0);
+    expect(small.text).toContain(systemText);
+    expect(small.text).toContain(userText);
+
+    const large = renderTranscript(transcript, observations, {
+      ...topicsTranscriptConfig,
+      capAboveCharacters: 1000,
+    });
+    expect(large.stats.blocksCut).toBe(2);
+    expect(large.text).not.toContain(systemText);
+    expect(large.text).toContain("[200 chars omitted]");
+  });
+
   it("counts characters before and after the Topics block cap", () => {
     const userText = "x".repeat(2200);
     const observations = [
@@ -100,7 +135,7 @@ describe("Topics transcript renderer", () => {
     const result = renderTranscript(
       assembleTranscript(orderObservations(observations)),
       observations,
-      topicsTranscriptConfig,
+      { ...topicsTranscriptConfig, capAboveCharacters: null },
     );
 
     expect(result.stats.blockCharacters.user.raw).toBe(userText.length);
