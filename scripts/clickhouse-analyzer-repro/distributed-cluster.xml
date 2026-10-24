@@ -1,0 +1,18 @@
+<clickhouse>
+    <remote_servers>
+        <repro_cluster>
+            <shard>
+                <replica>
+                    <host>ch-analyzer-repro-node1</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <replica>
+                    <host>ch-analyzer-repro-node2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </repro_cluster>
+    </remote_servers>
+</clickhouse>
