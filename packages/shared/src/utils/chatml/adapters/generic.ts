@@ -64,8 +64,28 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
   return normalized;
 }
 
-function preprocessData(data: unknown): unknown {
+function preprocessData(data: unknown, kind: "input" | "output"): unknown {
   if (!data) return data;
+
+  // Legacy completions use this exact shape to carry a model's visible output
+  // alongside its reasoning. Other objects with a `completion` field remain
+  // JSON so that their additional fields are preserved.
+  if (
+    kind === "output" &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.keys(data).length === 2 &&
+    "completion" in data &&
+    "reasoning" in data &&
+    typeof data.completion === "string" &&
+    typeof data.reasoning === "string"
+  ) {
+    return {
+      role: "assistant",
+      content: data.completion,
+      thinking: [{ type: "thinking", content: data.reasoning }],
+    };
+  }
 
   // Handle Google output format: {candidates: [{content: {parts, role}}]}
   if (
@@ -154,9 +174,9 @@ export const genericAdapter: ProviderAdapter = {
 
   preprocess(
     data: unknown,
-    _kind: "input" | "output",
+    kind: "input" | "output",
     _ctx: NormalizerContext,
   ): unknown {
-    return preprocessData(data);
+    return preprocessData(data, kind);
   },
 };
