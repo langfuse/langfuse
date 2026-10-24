@@ -677,6 +677,18 @@ describe("shouldRetryQuery", () => {
     expect(shouldRetryQuery(0, error)).toBe(false);
   });
 
+  it("does not retry an over-limit prompt export", () => {
+    const error = trpcServerError({
+      code: "UNPROCESSABLE_CONTENT",
+      httpStatus: 422,
+      path: "prompts.exportAll",
+      message:
+        "Project has 15252 prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.",
+    });
+
+    expect(shouldRetryQuery(0, error)).toBe(false);
+  });
+
   it("does not retry a missing resource (404)", () => {
     const error = trpcServerError({
       code: "NOT_FOUND",
