@@ -4,7 +4,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 /** Which view is reporting the selection — the only thing that differs. */
-export type TraceNodeSelectionSource = "tree" | "timeline" | "timeline_compact";
+export type TraceNodeSelectionSource =
+  | "tree"
+  | "timeline"
+  | "timeline_compact"
+  | "header";
 
 /**
  * Selecting an observation is four things at once: record it, point the app at
