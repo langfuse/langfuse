@@ -8610,5 +8610,257 @@
         }
       }
     ]
+  },
+  {
+    "id": "a6b320ff-ef2b-4fbf-87d4-a120defee1e5",
+    "modelName": "kimi-k3",
+    "matchPattern": "(?i)^(engy\\/)?(kimi-k3)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "a6b320ff-ef2b-4fbf-87d4-a120defee1e5_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.95e-6,
+          "input_tokens": 1.95e-6,
+          "output": 9.75e-6,
+          "output_tokens": 9.75e-6,
+          "input_cached_tokens": 0.195e-6,
+          "input_cache_read": 0.195e-6,
+          "cache_read_input_tokens": 0.195e-6,
+          "output_reasoning_tokens": 9.75e-6,
+          "output_reasoning": 9.75e-6,
+          "reasoning_tokens": 9.75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "5261a41f-3174-4d24-9a39-6b26bcb2dda6",
+    "modelName": "glm-5.3",
+    "matchPattern": "(?i)^(engy\\/)?(glm-5.3)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "5261a41f-3174-4d24-9a39-6b26bcb2dda6_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.98e-6,
+          "input_tokens": 0.98e-6,
+          "output": 3.08e-6,
+          "output_tokens": 3.08e-6,
+          "input_cached_tokens": 0.18e-6,
+          "input_cache_read": 0.18e-6,
+          "cache_read_input_tokens": 0.18e-6,
+          "output_reasoning_tokens": 3.08e-6,
+          "output_reasoning": 3.08e-6,
+          "reasoning_tokens": 3.08e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "960c6f9f-1d55-4ee9-8a75-1fd9f9ac7dba",
+    "modelName": "glm-5.3-flash",
+    "matchPattern": "(?i)^(engy\\/)?(glm-5.3-flash)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "960c6f9f-1d55-4ee9-8a75-1fd9f9ac7dba_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.135e-6,
+          "input_tokens": 0.135e-6,
+          "output": 0.45e-6,
+          "output_tokens": 0.45e-6,
+          "input_cached_tokens": 0.027e-6,
+          "input_cache_read": 0.027e-6,
+          "cache_read_input_tokens": 0.027e-6,
+          "output_reasoning_tokens": 0.45e-6,
+          "output_reasoning": 0.45e-6,
+          "reasoning_tokens": 0.45e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "34a66a55-96e3-40f5-8927-c4c2969157dc",
+    "modelName": "deepseek-v4.1-flash-1017",
+    "matchPattern": "(?i)^(engy\\/)?(deepseek-v4.1-flash-1017)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-23T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "34a66a55-96e3-40f5-8927-c4c2969157dc_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.03e-6,
+          "input_tokens": 0.03e-6,
+          "output": 0.12e-6,
+          "output_tokens": 0.12e-6,
+          "input_cached_tokens": 0.006e-6,
+          "input_cache_read": 0.006e-6,
+          "cache_read_input_tokens": 0.006e-6,
+          "output_reasoning_tokens": 0.12e-6,
+          "output_reasoning": 0.12e-6,
+          "reasoning_tokens": 0.12e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "329f3a99-b942-459a-9bf3-d17106e4ac25",
+    "modelName": "deepseek-v4.1-flash",
+    "matchPattern": "(?i)^(engy\\/)?(deepseek-v4.1-flash)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-23T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "329f3a99-b942-459a-9bf3-d17106e4ac25_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.03e-6,
+          "input_tokens": 0.03e-6,
+          "output": 0.12e-6,
+          "output_tokens": 0.12e-6,
+          "input_cached_tokens": 0.006e-6,
+          "input_cache_read": 0.006e-6,
+          "cache_read_input_tokens": 0.006e-6,
+          "output_reasoning_tokens": 0.12e-6,
+          "output_reasoning": 0.12e-6,
+          "reasoning_tokens": 0.12e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "17727572-8cdf-4ef8-8a55-c1e5fb6b172c",
+    "modelName": "glm-5.2",
+    "matchPattern": "(?i)^(engy\\/)?(glm-5.2)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "17727572-8cdf-4ef8-8a55-c1e5fb6b172c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.68e-6,
+          "input_tokens": 0.68e-6,
+          "output": 1.5e-6,
+          "output_tokens": 1.5e-6,
+          "input_cached_tokens": 0.18e-6,
+          "input_cache_read": 0.18e-6,
+          "cache_read_input_tokens": 0.18e-6,
+          "output_reasoning_tokens": 1.5e-6,
+          "output_reasoning": 1.5e-6,
+          "reasoning_tokens": 1.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "885fba2b-a092-477d-953d-f4452c82dcde",
+    "modelName": "deepseek-v4-flash-0731",
+    "matchPattern": "(?i)^(engy\\/)?(deepseek-v4-flash-0731)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "885fba2b-a092-477d-953d-f4452c82dcde_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.045e-6,
+          "input_tokens": 0.045e-6,
+          "output": 0.09e-6,
+          "output_tokens": 0.09e-6,
+          "input_cached_tokens": 0.009e-6,
+          "input_cache_read": 0.009e-6,
+          "cache_read_input_tokens": 0.009e-6,
+          "output_reasoning_tokens": 0.09e-6,
+          "output_reasoning": 0.09e-6,
+          "reasoning_tokens": 0.09e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "7b2dbeec-1ab8-42e8-8d73-20e9e08e4228",
+    "modelName": "qwen3.8-27b",
+    "matchPattern": "(?i)^(engy\\/)?(qwen3.8-27b)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "7b2dbeec-1ab8-42e8-8d73-20e9e08e4228_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.045e-6,
+          "input_tokens": 0.045e-6,
+          "output": 0.32e-6,
+          "output_tokens": 0.32e-6,
+          "input_cached_tokens": 0.015e-6,
+          "input_cache_read": 0.015e-6,
+          "cache_read_input_tokens": 0.015e-6,
+          "output_reasoning_tokens": 0.32e-6,
+          "output_reasoning": 0.32e-6,
+          "reasoning_tokens": 0.32e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "736431aa-db6e-4d17-8208-4552f0cbf54d",
+    "modelName": "qwen3.6-35b-a3b",
+    "matchPattern": "(?i)^(engy\\/)?(qwen3.6-35b-a3b)(\\[1m\\])?$",
+    "createdAt": "2026-10-18T00:00:00.000Z",
+    "updatedAt": "2026-10-18T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "736431aa-db6e-4d17-8208-4552f0cbf54d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.045e-6,
+          "input_tokens": 0.045e-6,
+          "output": 0.3e-6,
+          "output_tokens": 0.3e-6,
+          "input_cached_tokens": 0.015e-6,
+          "input_cache_read": 0.015e-6,
+          "cache_read_input_tokens": 0.015e-6,
+          "output_reasoning_tokens": 0.3e-6,
+          "output_reasoning": 0.3e-6,
+          "reasoning_tokens": 0.3e-6
+        }
+      }
+    ]
   }
 ]
