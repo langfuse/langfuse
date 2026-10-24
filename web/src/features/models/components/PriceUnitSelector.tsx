@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -24,7 +24,7 @@ export const PriceUnitSelector = () => {
     <Popover>
       <PopoverTrigger asChild>
         <Button size="icon" variant="ghost">
-          <ChevronDownIcon className="icon-base text-icon-foreground" />
+          <ChevronDownIcon size="base" color="default" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">

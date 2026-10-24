@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@langfuse/icons";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
 import { SourceFieldSelector } from "./SourceFieldSelector";
@@ -231,7 +232,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="icon-base text-icon-foreground mr-2" />
+            <Plus size="base" color="default" __rawClassName="mr-2" />
             Add field
           </Button>
         </div>
@@ -302,8 +303,8 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={cn(
-                "icon-base",
+              size="base"
+              __rawClassName={cn(
                 canRemove
                   ? "text-muted-foreground"
                   : "text-muted-foreground/30",

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   hasProjectKind,
   type Action,
@@ -33,7 +34,9 @@ export function authorize(
   const policiesForResource = matchesResource(ctx, tenant, resource);
   const grant = policiesForResource.filter(byAction(action));
   if (grant.length === 0 || grant.some(byEffect("DENY"))) {
-    return forbiddenError();
+    return forbiddenError(
+      `Access denied. The "${action}" permission is required to access this resource.`,
+    );
   }
   return { success: true };
 }

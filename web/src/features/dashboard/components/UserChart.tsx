@@ -2,14 +2,14 @@
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { cn } from "@/src/utils/tailwind";
 
 // Cap on bars fetched and rendered; matches TracesBarListChart. The top list
@@ -193,31 +193,28 @@ export const UserChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
-                  <div className="flex min-h-0 grow flex-col">
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    <BarListChartArea
-                      data={item.data}
-                      maxBars={MAX_BARS}
-                      metricLabel={item.chartMetricLabel}
-                      unit={item.chartUnit}
-                    />
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
-                    className="h-auto grow"
+            content:
+              item.data.length > 0 ? (
+                <div className="flex min-h-0 grow flex-col">
+                  <TotalMetric
+                    metric={item.totalMetric}
+                    description={item.metricDescription}
                   />
-                )}
-              </>
-            ),
+                  <BarListChartArea
+                    data={item.data}
+                    maxBars={MAX_BARS}
+                    metricLabel={item.chartMetricLabel}
+                    unit={item.chartUnit}
+                  />
+                </div>
+              ) : (
+                <NoDataOrLoading
+                  isLoading={isLoading || user.isPending}
+                  description="Consumption per user is tracked by passing their ids on traces."
+                  href="https://langfuse.com/docs/observability/features/users"
+                  className="h-auto grow"
+                />
+              ),
           };
         })}
       />

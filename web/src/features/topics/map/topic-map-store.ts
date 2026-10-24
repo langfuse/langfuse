@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createStore } from "zustand/vanilla";
 import type { Camera, TopicMapNodeFrame } from "./prepare-topic-map";
 
@@ -130,7 +131,8 @@ function sameFrameContext(
     captured.camera.zoom === frame.camera.zoom &&
     captured.size.width === frame.size.width &&
     captured.size.height === frame.size.height &&
-    captured.readingTopic === frame.readingTopic
+    captured.readingTopic === frame.readingTopic &&
+    captured.matchingTraceIds === frame.matchingTraceIds
   );
 }
 

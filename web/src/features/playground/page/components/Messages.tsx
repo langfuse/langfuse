@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,14 +8,14 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 import { GenerationOutput } from "./GenerationOutput";
-import { ChatMessages } from "@/src/components/ChatMessages";
+import { ChatMessages } from "@/src/components/ChatMessages/ChatMessages";
 import { type MessagesContext } from "@/src/components/ChatMessages/types";
 import {
   ResizableHandle,
@@ -73,7 +74,7 @@ const SubmitButton = () => {
             className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
-            <Settings className="icon-base text-icon-foreground" />
+            <Settings size="base" color="default" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">

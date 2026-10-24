@@ -24,6 +24,7 @@ import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/m
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
 import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
+import { organizationLlmApiKeyRouter } from "@/src/features/llm-api-key/server/organizationRouter";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
@@ -111,6 +112,7 @@ export const appRouter = createTRPCRouter({
   blobStorageIntegration: blobStorageIntegrationRouter,
   externalMediaStorage: externalMediaStorageRouter,
   llmApiKey: llmApiKeyRouter,
+  organizationLlmApiKey: organizationLlmApiKeyRouter,
   llmSchemas: llmSchemaRouter,
   llmTools: llmToolRouter,
   public: publicRouter,

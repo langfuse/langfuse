@@ -1,13 +1,14 @@
+import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
-import { groupScoresByName } from "@/src/components/grouped-score-badge";
+import { groupScoresByName } from "@/src/components/GroupedScoreBadges";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import {
   formatMetricCost,
   formatMetricTokens,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type ScoreDomain } from "@langfuse/shared";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "@langfuse/icons";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
@@ -39,6 +40,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
+  dividerTone: "default" | "orange";
   projectId: string;
   countTraces: number;
   minTimestamp: Date;
@@ -131,7 +133,7 @@ const MetadataJsonPathPill = ({
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex max-w-full min-w-0 items-center">
+  <span className="ph-no-capture group flex max-w-full min-w-0 items-center">
     <BadgeShell font="mono" data-session-header-pill="true">
       <span
         className="text-muted-foreground max-w-64 shrink-0 truncate"
@@ -162,7 +164,7 @@ const MetadataJsonPathRemoveButton = ({
       className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
       onClick={() => onRemove(path)}
     >
-      <X className="icon-sm" />
+      <X size="sm" />
     </button>
   </span>
 );
@@ -199,7 +201,7 @@ const MetadataJsonPathEditorContent = ({
   return (
     <PopoverContent
       align="end"
-      className="w-96"
+      className="ph-no-capture w-96"
       aria-label="Add metadata JSONPath"
     >
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -269,6 +271,7 @@ const MetadataJsonPathEditorContent = ({
 };
 
 export function ModernSessionHeader({
+  dividerTone,
   projectId,
   countTraces,
   minTimestamp,
@@ -434,7 +437,13 @@ export function ModernSessionHeader({
     });
   });
   return (
-    <div className="border-b px-4 pt-1 pb-1.5 font-mono">
+    <div
+      className={cn(
+        "border-b px-4 pt-1 pb-1.5 font-mono",
+        dividerTone === "orange" &&
+          "border-orange-200/50 dark:border-orange-900/50",
+      )}
+    >
       <SingleLineOverflowList
         spacing="comfortable"
         items={pills}
@@ -458,7 +467,7 @@ export function ModernSessionHeader({
                     aria-label="Edit Metadata"
                     data-session-header-pill="true"
                   >
-                    <Plus className="icon-base" />
+                    <Plus size="base" />
                   </Button>
                 </PopoverTrigger>
               )}
@@ -507,11 +516,15 @@ export function ModernSessionHeader({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="w-80 p-0"
+                className="ph-no-capture w-80 p-0"
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
-                  <Search className="text-muted-foreground icon-base absolute top-1/2 left-4 -translate-y-1/2" />
+                  <Search
+                    size="base"
+                    color="muted"
+                    __rawClassName="absolute top-1/2 left-4 -translate-y-1/2"
+                  />
                   <Input
                     value={search}
                     onChange={(event) => {

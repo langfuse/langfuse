@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useMemo, useState } from "react";
@@ -174,6 +175,7 @@ export function ConnectedDashboardTable() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <DashboardTable
                     projectId={projectId}
+                    topBorder={false}
                     hasAccess={hasAccess}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}
                     onEdit={(dashboard) => {

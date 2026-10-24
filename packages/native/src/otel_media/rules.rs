@@ -4,8 +4,8 @@
 //! must stay intact; the attribute's value can contain media. For example:
 //!
 //! ```text
-//! span                                      Envelope
-//!   `-- attributes[]                        Attributes
+//! span                                      Span
+//!   `-- attributes[]                        SpanAttributes
 //!        |-- key: "attachment"              Disabled (attribute name)
 //!        `-- value                          AnyValue (OTLP value wrapper)
 //!             `-- stringValue: "data:..."    Payload (inspect for media)
@@ -57,10 +57,14 @@ pub(super) enum MediaScanMode {
     Payload,
     /// An OTLP KeyValue list; keys are metadata names and values contain data.
     Attributes,
+    /// Span attributes can also supply tags, whose values must stay inline.
+    SpanAttributes,
     /// An OTLP AnyValue wrapper; map keys remain structural until a value is data.
     AnyValue,
     /// The OTLP envelope; only known payload-bearing descendants enter `Payload`.
     Envelope,
+    /// An OTLP span; distinguishes its attributes from resource/scope metadata.
+    Span,
     /// A field whose strings are not eligible for extraction.
     Disabled,
 }
@@ -84,7 +88,7 @@ pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> M
     match parent {
         MediaScanMode::Disabled => MediaScanMode::Disabled,
         MediaScanMode::Payload => MediaScanMode::Payload,
-        MediaScanMode::Attributes => match field {
+        MediaScanMode::Attributes | MediaScanMode::SpanAttributes => match field {
             // OTLP KeyValue keys are metadata names, never media payloads.
             "key" => MediaScanMode::Disabled,
             "value" => MediaScanMode::AnyValue,
@@ -97,17 +101,32 @@ pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> M
             "stringValue" | "bytesValue" => MediaScanMode::Payload,
             _ => MediaScanMode::Disabled,
         },
-        MediaScanMode::Envelope => match field {
+        MediaScanMode::Envelope | MediaScanMode::Span => match field {
             // These fields contain envelope objects whose data-bearing children
             // are classified by the branches below.
-            "resourceSpans" | "scopeSpans" | "spans" | "resource" | "scope" | "events"
-            | "links" | "resourceLogs" | "scopeLogs" | "logRecords" => MediaScanMode::Envelope,
+            "resourceSpans" | "scopeSpans" | "resource" | "scope" | "events" | "links"
+            | "resourceLogs" | "scopeLogs" | "logRecords" => MediaScanMode::Envelope,
+            "spans" => MediaScanMode::Span,
             // Attribute values and bodies contain user data.
+            "attributes" if parent == MediaScanMode::Span => MediaScanMode::SpanAttributes,
             "attributes" => MediaScanMode::Attributes,
             "body" | "value" => MediaScanMode::AnyValue,
             _ => MediaScanMode::Disabled,
         },
     }
+}
+
+// Match OtelIngestionProcessor.extractTags: scalar tag values can be split on commas.
+pub(super) fn is_tag_attribute(key: &str) -> bool {
+    matches!(
+        key,
+        "langfuse.trace.tags"
+            | "langfuse.tags"
+            | "langfuse.observation.metadata.langfuse_tags"
+            | "langfuse.trace.metadata.langfuse_tags"
+            | "ai.telemetry.metadata.tags"
+            | "tag.tags"
+    )
 }
 
 pub(super) fn is_supported_content_type(value: &str) -> bool {
@@ -190,12 +209,12 @@ pub(super) fn may_contain_serialized_media(value: &str) -> bool {
     has_provider_shape || has_quoted_root_candidate
 }
 
-/// Return true when a validated document might contain a media candidate.
+/// Return true when raw or validated JSON might contain a media candidate.
 /// Unicode escapes are included because they can spell a marker after decoding.
-pub(super) fn may_contain_media_candidate(value: &str) -> bool {
+pub(crate) fn may_contain_media_candidate(value: impl AsRef<[u8]>) -> bool {
     // Broad fragments are intentional: false positives only select the full
     // walk, while escaped nesting remains discoverable.
-    MEDIA_CANDIDATE_MARKERS.is_match(value)
+    MEDIA_CANDIDATE_MARKERS.is_match(value.as_ref())
 }
 
 pub(super) fn may_be_serialized_json(value: &str) -> bool {

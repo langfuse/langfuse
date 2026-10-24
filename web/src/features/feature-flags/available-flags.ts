@@ -5,11 +5,17 @@ export const organizationOnlyFeaturePreviewFlags = [
 ] as const;
 
 export const userFeaturePreviewFlags = [
-  "modernSession",
-  "sessionTimeline",
+  "skillManagement",
+  "sessionViewV2",
+  "sessionViewV2Timeline",
 ] as const;
 
 export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const defaultOnFeaturePreviewFlags = [
+  "sessionViewV2",
+  "sessionViewV2Timeline",
+] as const;
 
 export const featurePreviewFlags = [
   ...organizationOnlyFeaturePreviewFlags,
@@ -71,9 +77,10 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
+  skillManagement: "Skill Management",
   externalMediaStorage: "External Media Storage",
-  modernSession: "Compact Session View",
-  sessionTimeline: "Session Timeline",
+  sessionViewV2: "Redesigned Session View",
+  sessionViewV2Timeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
@@ -88,7 +95,11 @@ export const isFeaturePreviewAvailable = (
   if (flag === "externalMediaStorage") {
     return true;
   }
-  if (flag === "modernSession" || flag === "sessionTimeline") {
+  if (
+    flag === "sessionViewV2" ||
+    flag === "sessionViewV2Timeline" ||
+    flag === "skillManagement"
+  ) {
     return context.v4BetaEnabled;
   }
 

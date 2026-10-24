@@ -133,6 +133,26 @@ describe("instrumentation baggage propagation", () => {
     expect(tags).not.toHaveProperty("userAgent");
   });
 
+  // A route the entrypoint never set must not come from the caller: the route
+  // is a tag on the ClickHouse outcome metric.
+  it("ignores a ClickHouse route inherited from inbound baggage", () => {
+    const inboundContext = propagation.setBaggage(
+      ROOT_CONTEXT,
+      propagation.createBaggage({
+        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface]: { value: "trpc" },
+        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route]: {
+          value: "attackerChosenRoute",
+        },
+      }),
+    );
+
+    const tags = context.with(inboundContext, () =>
+      normalizeClickHouseQueryTags(),
+    );
+
+    expect(tags).not.toHaveProperty("route");
+  });
+
   it("does not add user emails to span attributes or baggage", () => {
     const span = {
       setAttribute: vi.fn(),

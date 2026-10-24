@@ -21,14 +21,20 @@ type PlanWithoutSpendAlerts =
 
 type PlanWithSpendAlerts = Exclude<Plan, PlanWithoutSpendAlerts>;
 
+/**
+ * Both providers report spend including the plan's base fee, so each threshold
+ * has to sit well above that fee to leave room for usage. Otherwise the alert
+ * fires at the start of every billing period.
+ */
 const DEFAULT_SPEND_ALERT_THRESHOLDS: Record<PlanWithSpendAlerts, number> = {
   "cloud:core": 200,
   "cloud:pro": 1000,
-  "cloud:team": 1000,
-  "cloud:enterprise": 2000,
+  "cloud:team": 1500,
+  "cloud:enterprise": 5000,
 };
 
-// Universal threshold applied to all plans in addition to the plan-specific threshold
+// Universal threshold added on top of the plan-specific one, for plans whose
+// plan threshold is below it
 const UNIVERSAL_SPEND_ALERT_THRESHOLD = 4000;
 
 /** Which webhook is seeding, for the audit actor and the log prefix. */
@@ -71,10 +77,11 @@ export async function createDefaultSpendAlerts({
     return;
   }
 
-  // Create plan-specific alert plus the universal $4K alert (deduplicated)
-  const thresholds = [
-    ...new Set([planThreshold, UNIVERSAL_SPEND_ALERT_THRESHOLD]),
-  ];
+  // Create plan-specific alert plus the universal $4K alert when it is higher
+  const thresholds =
+    planThreshold < UNIVERSAL_SPEND_ALERT_THRESHOLD
+      ? [planThreshold, UNIVERSAL_SPEND_ALERT_THRESHOLD]
+      : [planThreshold];
 
   for (const threshold of thresholds) {
     const alert = await prisma.cloudSpendAlert.create({

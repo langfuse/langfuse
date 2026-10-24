@@ -15,7 +15,6 @@ expand(config({ path: "../.env" }));
 const sharedExclude = [
   "**/node_modules/**",
   "**/.next/**",
-  "**/.next-check/**",
   "**/dist/**",
 ];
 

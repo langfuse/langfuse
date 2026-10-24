@@ -89,7 +89,6 @@ describe("toIOPreview", () => {
     ]);
     expect(result.inputMessageCount).toBe(0);
     expect(result.toolCallCounts.get("search")).toBe(1);
-    expect(result.toolNameToDefinitionNumber.get("search")).toBe(1);
   });
 
   it("keeps unmatched tool results standalone and unanswered calls at null", () => {

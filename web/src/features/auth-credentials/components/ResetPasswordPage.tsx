@@ -16,10 +16,10 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { signIn, useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
+import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton";
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
@@ -27,7 +27,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
-import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import { env } from "@/src/env.mjs";
 import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 import {
@@ -75,7 +75,10 @@ export function ResetPasswordPage({
     intent === "setup" || session.data?.user?.hasPassword === false;
   const setupTargetPath =
     isSetMode && router.isReady
-      ? getDemoTargetPath(router.query.targetPath)
+      ? getOnboardingTargetPath({
+          targetPath: router.query.targetPath,
+          isLangfuseCloud,
+        })
       : undefined;
   const setupPasswordPath = setupTargetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
@@ -85,6 +88,9 @@ export function ResetPasswordPage({
   const effectiveEmail = session.data?.user?.email ?? email;
   const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [turnstileToken, setTurnstileToken] = useState<string>();
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.login | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.login);
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   const form = useForm({
@@ -132,7 +138,11 @@ export function ResetPasswordPage({
       }
 
       let target = setupTargetPath ?? "/";
-      if (isSetMode && isLangfuseCloud && region !== "DEV") {
+      // Self-hosted: only a new sign-up, which lands on the setup-password page; /onboarding forwards on when the step is off.
+      const goesThroughOnboarding = isLangfuseCloud
+        ? isSetMode && region !== "DEV"
+        : intent === "setup";
+      if (goesThroughOnboarding) {
         target = setupTargetPath
           ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
           : "/onboarding";
@@ -203,7 +213,11 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="icon-base text-icon-foreground mr-2" />
+                  <ArrowLeft
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Back to sign in
                 </Link>
               </Button>
@@ -300,7 +314,7 @@ export function ResetPasswordPage({
                       <TurnstileWidget
                         ref={turnstileRef}
                         siteKey={turnstileSiteKey}
-                        action={TURNSTILE_ACTIONS.login}
+                        action={turnstileAction}
                         onTokenChange={setTurnstileToken}
                       />
                     ) : null}
@@ -310,7 +324,9 @@ export function ResetPasswordPage({
                         className="w-full"
                         disabled={
                           mutResetPassword.isPending ||
-                          (Boolean(turnstileSiteKey) && !turnstileToken)
+                          (Boolean(turnstileSiteKey) &&
+                            (turnstileAction !== TURNSTILE_ACTIONS.login ||
+                              !turnstileToken))
                         }
                         loading={mutResetPassword.isPending}
                       >
@@ -320,8 +336,29 @@ export function ResetPasswordPage({
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
                       callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                      onEmailSent={() => setCodeRequested(true)}
+                      onEmailSent={() => {
+                        setCodeRequested(true);
+                        setTurnstileToken(undefined);
+                        setTurnstileAction(TURNSTILE_ACTIONS.login);
+                      }}
                       label="Send another code"
+                      sharedTurnstile={
+                        turnstileSiteKey
+                          ? {
+                              token: turnstileToken,
+                              action: turnstileAction,
+                              onPreparePasswordReset: () => {
+                                setTurnstileToken(undefined);
+                                setTurnstileAction(
+                                  TURNSTILE_ACTIONS.passwordReset,
+                                );
+                              },
+                              onRejectToken: () => {
+                                turnstileRef.current?.reset();
+                              },
+                            }
+                          : undefined
+                      }
                     />
                   </>
                 ) : (

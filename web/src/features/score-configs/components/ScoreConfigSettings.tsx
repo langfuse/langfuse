@@ -15,7 +15,10 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
         >
           annotation
         </a>{" "}
-        in your project. Please note that all score configs are immutable.
+        and API/SDK scoring in your project. Data type cannot be changed after
+        creation. You can edit the name, description, range, and categories
+        where supported. Changes affect future scoring wherever the score config
+        is used.
       </p>
       <ConnectedScoreConfigsTable projectId={projectId} />
     </div>

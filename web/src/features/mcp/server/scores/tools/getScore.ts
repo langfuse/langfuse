@@ -2,6 +2,7 @@ import { LangfuseNotFoundError, SCORE_FIELD_GROUPS_V3 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server";
 import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
 
@@ -24,12 +25,15 @@ export const [getScoreTool, handleGetScore] = defineTool({
       attributes: { "mcp.score_id": input.scoreId },
       fn: async () => {
         // v3 has no by-id route; a v3 list with an id filter is the lookup path.
-        const result = await listScoresV3ForPublicApi({
-          projectId: context.projectId,
-          limit: 1,
-          fields: [...SCORE_FIELD_GROUPS_V3],
-          id: [input.scoreId],
-        });
+        const result = await listScoresV3ForPublicApi(
+          {
+            projectId: context.projectId,
+            limit: 1,
+            fields: [...SCORE_FIELD_GROUPS_V3],
+            id: [input.scoreId],
+          },
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
+        );
 
         const score = result.data[0];
         if (!score) {

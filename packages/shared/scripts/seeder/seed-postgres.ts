@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
@@ -235,7 +236,8 @@ async function main() {
     }))
   ) {
     await createApiKey(prisma, {
-      owner: ProjectId(project1.id),
+      tenant: OrganizationId(seedOrgId),
+      scope: ProjectId(project1.id),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: seedApiKey.note,
@@ -296,7 +298,8 @@ async function main() {
       }))
     ) {
       await createApiKey(prisma, {
-        owner: ProjectId(project2.id),
+        tenant: OrganizationId(seedOrgIdOrg2),
+        scope: ProjectId(project2.id),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(user.id),
         name: secondKey.note,
@@ -585,7 +588,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-seed-openai-not-valid"),
           displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
           createdById: params.userId,
-          routingPriority: 0,
           status: "ENABLED",
         },
         {
@@ -596,7 +598,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-ant-seed-not-valid"),
           displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
           createdById: params.userId,
-          routingPriority: 1,
           status: "ENABLED",
         },
       ],
@@ -611,7 +612,8 @@ async function seedAiGateway(params: {
   const key =
     existingKey ??
     (await createApiKey(prisma, {
-      owner: OrganizationId(params.organizationId),
+      tenant: OrganizationId(params.organizationId),
+      scope: UserId(params.userId),
       role: SystemRoleId("AI_GATEWAY"),
       createdBy: UserId(params.userId),
       name: "Seeded gateway key",

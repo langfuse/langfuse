@@ -1,8 +1,8 @@
 import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -112,18 +112,15 @@ export function DecisionModelQuestionCard({
       header={
         <span className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-baseline gap-x-1">
           <copy.icon
-            className="icon-base shrink-0 self-center"
+            size="base"
+            __rawClassName="self-center"
             aria-label={copy.label}
           />
           <Badge
-            variant="secondary"
-            className={cn(
-              "shrink-0 font-mono",
-              !question.scoreName.trim() && "text-dark-yellow",
-            )}
-          >
-            {question.scoreName.trim() || "score name missing"}
-          </Badge>
+            color={question.scoreName.trim() ? "filled" : "yellow"}
+            font="mono"
+            text={question.scoreName.trim() || "score name missing"}
+          />
           <span
             className={cn(
               "truncate pl-1 leading-none",
@@ -133,11 +130,7 @@ export function DecisionModelQuestionCard({
           >
             {summary}
           </span>
-          {hasErrors ? (
-            <Badge variant="destructive" className="shrink-0">
-              Needs attention
-            </Badge>
-          ) : null}
+          {hasErrors ? <Badge color="red" text="Needs attention" /> : null}
         </span>
       }
       actions={
@@ -153,7 +146,7 @@ export function DecisionModelQuestionCard({
               onRemove ? "Remove question" : "At least one question is required"
             }
           >
-            <Trash2 className="text-icon-foreground icon-sm" />
+            <Trash2 size="sm" color="default" />
           </Button>
         </span>
       }

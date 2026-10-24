@@ -125,6 +125,13 @@ const projectRoutes: Route[] = [
     route: "v2/prompts/[promptName]/versions/[promptVersion]",
     methods: ["PATCH"],
   },
+  { route: "skills/index", methods: ["GET", "POST"] },
+  { route: "skills/[skillName]/index", methods: ["GET", "PATCH"] },
+  {
+    route: "skills/[skillName]/versions/[skillVersion]",
+    methods: ["PATCH", "DELETE"],
+  },
+  { route: "skills/files/content", methods: ["GET"] },
   { route: "unstable/skills/index", methods: ["GET", "POST"] },
   { route: "unstable/skills/[skillName]/index", methods: ["GET", "PATCH"] },
   {
@@ -132,11 +139,23 @@ const projectRoutes: Route[] = [
     methods: ["PATCH", "DELETE"],
   },
   { route: "unstable/skills/files/content", methods: ["GET"] },
+  { route: "unstable/topics/index", methods: ["GET"] },
+  { route: "unstable/topics/[topicId]", methods: ["GET"] },
+  { route: "unstable/topic-facets/index", methods: ["GET"] },
+  { route: "unstable/topic-facets/[facetId]", methods: ["GET"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
 const orgRoutes: Route[] = [
   { route: "organizations/apiKeys/index", methods: ["GET"] },
+  {
+    route: "organizations/llm-connections/index",
+    methods: ["GET", "PUT"],
+  },
+  {
+    route: "organizations/llm-connections/[id]",
+    methods: ["DELETE"],
+  },
   {
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],
@@ -197,7 +216,10 @@ function queryForRoute(route: string): Record<string, string> {
   for (const match of route.matchAll(/\[([^\]]+)\]/g)) {
     query[match[1]!] = nonexistentId;
   }
-  if (route === "unstable/skills/files/content") {
+  if (
+    route === "skills/files/content" ||
+    route === "unstable/skills/files/content"
+  ) {
     query.sha256Hashes = Buffer.alloc(32).toString("base64");
   }
   return query;
@@ -357,7 +379,8 @@ describe("public-api auth parity", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const org = await createApiKey(prisma, {
-      owner: OrganizationId(base.orgId),
+      tenant: OrganizationId(base.orgId),
+      scope: OrganizationId(base.orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
     });
@@ -367,7 +390,8 @@ describe("public-api auth parity", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const agent = await createApiKey(prisma, {
-      owner: ProjectId(base.projectId),
+      tenant: OrganizationId(base.orgId),
+      scope: ProjectId(base.projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,

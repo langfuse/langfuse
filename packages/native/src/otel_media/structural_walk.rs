@@ -34,8 +34,8 @@ use super::json_cursor::{ContainerState, ContainerStep, JsonCursor};
 use super::payload::{EarlyMediaError, MediaPayloadKind};
 use super::provider_shapes::{structured_shape, ProviderFields, ShapeKey, ValueShape};
 use super::rules::{
-    is_otel_envelope_field, may_contain_media_candidate, media_scan_mode_for_field, MediaScanMode,
-    MIN_EARLY_MEDIA_BYTES,
+    is_otel_envelope_field, is_tag_attribute, may_contain_media_candidate,
+    media_scan_mode_for_field, MediaScanMode, MIN_EARLY_MEDIA_BYTES,
 };
 use super::WalkStats;
 
@@ -79,6 +79,7 @@ struct WalkFrame {
 #[derive(Default)]
 struct ObjectFrame<'a> {
     has_envelope_field: bool,
+    is_tag_attribute: bool,
     current_shape_key: Option<ShapeKey>,
     current_key: Option<Cow<'a, str>>,
     current_candidate_start: usize,
@@ -198,7 +199,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                 };
                 if parent.state.is_object() {
                     let object = object_states.last_mut().expect("open object state");
-                    self.finish_object_field(object, shape);
+                    self.finish_object_field(object, shape, parent.modes);
                 }
                 self.update_peak(&stack, &object_states);
             }
@@ -248,8 +249,20 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
         Ok(None)
     }
 
-    fn finish_object_field(&mut self, object: &mut ObjectFrame<'a>, shape: ValueShape) {
+    fn finish_object_field(
+        &mut self,
+        object: &mut ObjectFrame<'a>,
+        shape: ValueShape,
+        modes: [MediaScanMode; 2],
+    ) {
         if let Some(key) = object.current_key.take() {
+            if key == "key" && modes.contains(&MediaScanMode::SpanAttributes) {
+                object.is_tag_attribute = match &shape {
+                    ValueShape::String(range) => decode_json_string(self.input, range.clone())
+                        .is_some_and(|value| is_tag_attribute(&value)),
+                    _ => false,
+                };
+            }
             if let Some(previous) = object.last_key_candidates.remove(key.as_ref()) {
                 self.add_mask_operation(previous.start, previous.end, 0b11);
             }
@@ -319,10 +332,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
     fn record_string(&mut self, range: Range<usize>, mask: u8, text_only: bool) {
         let raw = &self.input[range.start + 1..range.end - 1];
         self.stats.add_bytes(raw.len());
-        if mask != 0
-            && raw.len() >= MIN_EARLY_MEDIA_BYTES
-            && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
-        {
+        if mask != 0 && raw.len() >= MIN_EARLY_MEDIA_BYTES && may_contain_media_candidate(raw) {
             self.candidates.push(PendingCandidate {
                 mask,
                 candidate: if text_only {
@@ -355,6 +365,14 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
             .pop()
             .expect("every closed object frame has object state");
         let candidate_end = self.candidates.len();
+        // The attribute's key may follow its value; decide before media decoding/hashing.
+        if object.is_tag_attribute {
+            for (index, mode) in modes.iter().enumerate() {
+                if *mode == MediaScanMode::SpanAttributes {
+                    self.add_mask_operation(candidate_start, candidate_end, 1 << index);
+                }
+            }
+        }
         let provider_fields = object.provider_fields.as_deref();
         let active = if is_envelope_decider {
             let selected_bit = if object.has_envelope_field {

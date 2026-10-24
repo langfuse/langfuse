@@ -84,6 +84,7 @@ export const applicationToastOperations = [
   "in_app_agent_conversations.load",
   "in_app_agent_feedback.save",
   "in_app_agent_run.stop",
+  "in_app_agent_session_id.copy",
   "json_schema.prettify",
   "media.resolveExternalMedia",
   "model.create",

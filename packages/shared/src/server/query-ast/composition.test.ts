@@ -1,21 +1,30 @@
+import { type ExpressionBuilder } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import { type ClickHouseDatabase } from "./schema";
 import { defineView, fromView } from "./views";
 
 // Raw compiler output (no `clickhouse format` binary needed), so these run
 // unconditionally in CI. The raw SQL is lowercase; match case-insensitively.
-const ctx = { projectId: "p" };
+const projectId = "p";
 
 const costArrayJoin = () =>
-  arrayJoin({
-    cost_key: mapKeys("cost_details"),
-    cost: mapValues("cost_details"),
-  });
+  arrayJoin((eb: ExpressionBuilder<ClickHouseDatabase, "observations">) => ({
+    cost_key: mapKeys(eb.ref("cost_details")),
+    cost: mapValues(eb.ref("cost_details")),
+  }));
 
-const dedup = () => limitBy({ count: 1, columns: ["span_id", "project_id"] });
+const dedup = () =>
+  limitBy({
+    count: 1,
+    columns: (eb: ExpressionBuilder<ClickHouseDatabase, "events">) => [
+      eb.ref("span_id"),
+      eb.ref("project_id"),
+    ],
+  });
 
 describe("ARRAY JOIN composition across nesting positions", () => {
   it("emits ARRAY JOIN at the top level (baseline)", () => {
@@ -25,7 +34,7 @@ describe("ARRAY JOIN composition across nesting positions", () => {
       .select("environment")
       .$call(costArrayJoin());
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     expect(sql).toMatch(/array join/i);
     expect(sql).toMatch(/mapkeys/i);
     expect(sql).toMatch(/mapvalues/i);
@@ -43,7 +52,7 @@ describe("ARRAY JOIN composition across nesting positions", () => {
       .selectFrom("aj")
       .select("environment");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     expect(sql).toMatch(/with aj as/i);
     // The ARRAY JOIN must live inside the CTE body and not leak into the outer
     // query. Split on the outer query (the `) select ... from aj` that closes
@@ -68,7 +77,7 @@ describe("ARRAY JOIN composition across nesting positions", () => {
       )
       .select("environment");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     // Outer query has no ARRAY JOIN; presence proves the subquery clause held.
     expect(sql).toMatch(/array join/i);
   });
@@ -84,7 +93,7 @@ describe("ARRAY JOIN composition across nesting positions", () => {
 
     const qb = fromView(view).select("environment");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     // Outer query only selects from the view alias; presence proves the view
     // body's ARRAY JOIN composed into the emitted CTE.
     expect(sql).toMatch(/array join/i);
@@ -96,12 +105,12 @@ describe("LIMIT BY composition across nesting positions", () => {
   it("emits LIMIT BY at the top level (baseline)", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select(["span_id", "project_id"])
       .orderBy("event_ts", "desc")
       .$call(dedup());
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     expect(sql).toMatch(/limit 1 by/i);
   });
 
@@ -110,7 +119,7 @@ describe("LIMIT BY composition across nesting positions", () => {
     const qb = db
       .with("lb", (qb) =>
         qb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select(["span_id", "project_id"])
           .orderBy("event_ts", "desc")
           .$call(dedup()),
@@ -118,7 +127,7 @@ describe("LIMIT BY composition across nesting positions", () => {
       .selectFrom("lb")
       .select("span_id");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     // Outer query has no LIMIT BY; presence proves the CTE body's clause held.
     expect(sql).toMatch(/limit 1 by/i);
     expect(sql).toMatch(/with lb as/i);
@@ -133,7 +142,7 @@ describe("FINAL composition across nesting positions", () => {
       .select("s.id")
       .$call(useFinal(["scores"]));
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     expect(sql).toMatch(/scores as s final/i);
   });
 
@@ -149,7 +158,7 @@ describe("FINAL composition across nesting positions", () => {
       .selectFrom("scored")
       .select("id");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     const outerStart = sql
       .toLowerCase()
       .search(/\)\s*select[\s\S]*from scored/i);
@@ -163,7 +172,7 @@ describe("FINAL composition across nesting positions", () => {
   it("keeps FINAL on a JOIN table and not on events_core", () => {
     const db = getClickhouseKysely();
     const qb = db
-      .selectFrom("events_core as e")
+      .selectFrom("events as e")
       .innerJoin("scores as s", (join) =>
         join
           .onRef("e.trace_id", "=", "s.trace_id")
@@ -172,7 +181,7 @@ describe("FINAL composition across nesting positions", () => {
       .$call(useFinal(["scores"]))
       .select("s.id");
 
-    const { sql } = compileClickhouseQuery(qb, ctx);
+    const { sql } = compileClickhouseQuery(qb, projectId);
     expect(sql).toMatch(/scores as s final/i);
     expect(sql).not.toMatch(/events_core as e final/i);
   });

@@ -7,11 +7,11 @@ import {
   Gauge,
   LoaderCircle,
   Plus,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import type { EvalTemplateType } from "@langfuse/shared";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Command,
@@ -152,7 +152,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         severity={alert.severity}
                         className="ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]"
                       />
-                      <ArrowUpRight className="text-muted-foreground icon-base shrink-0" />
+                      <ArrowUpRight size="base" color="muted" />
                     </CommandItem>
                   ))}
                 </div>
@@ -173,7 +173,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     }
                   >
                     <span>See all alerts</span>
-                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
               </div>
@@ -216,7 +220,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <Gauge className="icon-base text-muted-foreground" />
+                      <Gauge size="base" color="muted" />
                       Score
                     </Button>
                   ) : null}
@@ -235,7 +239,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <DollarSign className="icon-base text-muted-foreground" />
+                      <DollarSign size="base" color="muted" />
                       Cost
                     </Button>
                   ) : null}
@@ -255,7 +259,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <Gauge className="icon-base text-muted-foreground" />
+                    <Gauge size="base" color="muted" />
                     <div>
                       <p>Score threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -263,7 +267,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         threshold
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
                 {supportsCostAlert ? (
@@ -277,7 +285,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <DollarSign className="icon-base text-muted-foreground" />
+                    <DollarSign size="base" color="muted" />
                     <div>
                       <p>Cost threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -286,7 +294,11 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                           : "Alert on spend from running this evaluator"}
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
+                    <ArrowUpRight
+                      size="base"
+                      color="muted"
+                      __rawClassName="ml-auto"
+                    />
                   </CommandItem>
                 ) : null}
               </CommandGroup>
@@ -316,17 +328,23 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
           >
             {isLoading ? (
               <LoaderCircle
-                className="icon-base text-icon-foreground mr-1 shrink-0 animate-spin"
+                size="base"
+                color="default"
+                __rawClassName="mr-1 animate-spin"
                 aria-hidden="true"
               />
             ) : alertCount > 0 ? (
               <Bell
-                className="icon-base text-icon-foreground mr-1 shrink-0"
+                size="base"
+                color="default"
+                __rawClassName="mr-1"
                 aria-hidden="true"
               />
             ) : (
               <Plus
-                className="icon-base text-icon-foreground mr-1 shrink-0"
+                size="base"
+                color="default"
+                __rawClassName="mr-1"
                 aria-hidden="true"
               />
             )}
@@ -334,9 +352,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
               {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
-              <Badge variant="secondary" className="ml-1 shrink-0">
-                {alertCount}
-              </Badge>
+              <span className="ml-1 flex shrink-0">
+                <Badge color="filled" text={String(alertCount)} />
+              </span>
             ) : null}
             <span className="ml-1 flex">
               <DropdownIndicator />

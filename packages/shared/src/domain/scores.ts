@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 import { MetadataDomain } from "./traces";
 
@@ -61,7 +62,7 @@ export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
 
 export const NumericData = z.object({
-  stringValue: z.union([z.null(), z.undefined()]),
+  stringValue: z.null().optional(),
   dataType: z.literal("NUMERIC"),
 });
 

@@ -19,6 +19,13 @@ export enum BatchExportStatus {
   CANCELLED = "CANCELLED",
 }
 
+/** Interval at which the worker refreshes a running export's updatedAt. */
+export const BATCH_EXPORT_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
+/** Age after which an untouched QUEUED/PROCESSING export stops blocking its user's next one. */
+export const BATCH_EXPORT_ABANDONED_AFTER_MS =
+  3 * BATCH_EXPORT_HEARTBEAT_INTERVAL_MS;
+
 export enum BatchExportFileFormat {
   JSON = "JSON",
   CSV = "CSV",

@@ -24,6 +24,8 @@ export declare class EarlyOtelBatch {
    * Omitting the count returns the exact spelling after parsing the outer document.
    */
   originalMedia(index: number, jsonLayers?: number | undefined | null): Promise<string>
+  /** Read media text for several entries in one libuv task, preserving request order. */
+  originalMediaBatch(requests: Array<MediaRestoreRequest>): Promise<string[]>
 }
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
@@ -79,6 +81,18 @@ export interface ExtractedOtelMedia {
 }
 
 /**
+ * Extract media from unmasked input. Null means the caller should parse its original bytes;
+ * marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
+ */
+export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
+
+/**
+ * Synchronously check raw bytes for possible media without copying or validating JSON.
+ * Callers must bound input size to limit JS-thread work; a match still needs extraction.
+ */
+export declare function hasOtelMediaCandidate(bytes: Buffer): boolean
+
+/**
  * Hello-world entry point. It proves that the worker can load and call the
  * addon and that native code reports through the same telemetry as the rest
  * of the worker: one increment of the `langfuse.native.hello_calls` counter
@@ -92,6 +106,11 @@ export declare function hello(source: string): void
  * it once at process start; later calls return the first call's outcome.
  */
 export declare function initTelemetry(options?: TelemetryOptions | undefined | null): void
+
+export interface MediaRestoreRequest {
+  index: number
+  jsonLayers: number
+}
 
 /**
  * A complete ClickHouse Native request body and its row count.

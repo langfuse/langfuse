@@ -56,7 +56,12 @@ import {
   buildSessionUrl,
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
-import { ScoreConfigDataType } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  ScoreConfigDataType,
+  supportedModels,
+} from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
@@ -197,6 +202,20 @@ import {
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
 } from "@/src/features/mcp/server/datasets/schema";
+import {
+  handleListLlmConnections,
+  listLlmConnectionsTool,
+} from "@/src/features/mcp/server/llmConnections/tools/listLlmConnections";
+import { SkillService } from "@/src/features/skills/server";
+import { handleListSkills } from "@/src/features/mcp/server/skills/tools/listSkills";
+import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
+import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
+import { handleLoadSkillResource } from "@/src/features/mcp/server/skills/tools/loadSkillResource";
+
+const observationWindow = {
+  fromStartTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  toStartTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+};
 
 const maybeEventsTable =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -372,6 +391,225 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("skills tools", () => {
+    const createSkillForMcpReadTest = async () => {
+      const setup = await createMcpTestSetup();
+      const service = new SkillService(prisma);
+      const name = `mcp-skill-${randomUUID()}`;
+      const root = `---\nname: ${name}\ndescription: Review customer requests\n---\nFollow the reference checklist.\n`;
+      const reference = "Review the customer's résumé before proceeding.\n";
+      const actor = {
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+        apiKeyId: setup.apiKeyId,
+        accessLevel: "project" as const,
+      };
+      const version = await service.createVersion({
+        projectId: setup.projectId,
+        createdBy: "API",
+        input: {
+          files: [
+            { path: "SKILL.md", content: root },
+            { path: "references/checklist.md", content: reference },
+          ],
+        },
+        actor,
+      });
+      return { ...setup, service, actor, name, root, reference, version };
+    };
+
+    it("lists skill metadata and loads the resolved version's manifest and raw text", async () => {
+      const fixture = await createSkillForMcpReadTest();
+      const manifest = (await handleGetSkill(
+        { name: fixture.name, label: "latest" },
+        fixture.context,
+      )) as Awaited<ReturnType<SkillService["get"]>>;
+
+      expect(manifest).toMatchObject({
+        name: fixture.name,
+        version: fixture.version.version,
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: "SKILL.md" }),
+          expect.objectContaining({ path: "references/checklist.md" }),
+        ]),
+      });
+      expect(manifest.files.every((file) => !("content" in file))).toBe(true);
+
+      await fixture.service.createVersion({
+        projectId: fixture.projectId,
+        createdBy: "API",
+        input: {
+          files: [
+            {
+              path: "SKILL.md",
+              content: `${fixture.root}\nUpdated instructions.`,
+            },
+            { path: "references/checklist.md", content: "Updated checklist." },
+          ],
+        },
+        actor: fixture.actor,
+      });
+
+      await expect(
+        handleListSkills(
+          { name: fixture.name, page: 1, limit: 10 },
+          fixture.context,
+        ),
+      ).resolves.toMatchObject({
+        data: [
+          { name: fixture.name, latestVersion: 2, productionVersion: null },
+        ],
+        meta: { totalItems: 1 },
+      });
+      const selector = { name: fixture.name, version: manifest.version };
+      await expect(handleLoadSkill(selector, fixture.context)).resolves.toBe(
+        fixture.root,
+      );
+      await expect(
+        handleLoadSkillResource(
+          { ...selector, path: "references/checklist.md" },
+          fixture.context,
+        ),
+      ).resolves.toBe(fixture.reference);
+    });
+
+    it("defaults to production, then latest, when no skill selector is provided", async () => {
+      const fixture = await createSkillForMcpReadTest();
+      const latestRoot = `${fixture.root}\nUpdated instructions.`;
+      const latestReference = "Updated checklist.";
+      await fixture.service.createVersion({
+        projectId: fixture.projectId,
+        createdBy: "API",
+        input: {
+          files: [
+            { path: "SKILL.md", content: latestRoot },
+            { path: "references/checklist.md", content: latestReference },
+            { path: "latest-only.txt", content: "Only in latest." },
+          ],
+        },
+        actor: fixture.actor,
+      });
+
+      const expectDefaultVersion = async (
+        version: number,
+        root: string,
+        reference: string,
+      ) => {
+        await expect(
+          handleGetSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toMatchObject({ version });
+        await expect(
+          handleLoadSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toBe(root);
+        await expect(
+          handleLoadSkillResource(
+            { name: fixture.name, path: "references/checklist.md" },
+            fixture.context,
+          ),
+        ).resolves.toBe(reference);
+      };
+
+      await expectDefaultVersion(2, latestRoot, latestReference);
+      await fixture.service.setLabels({
+        projectId: fixture.projectId,
+        name: fixture.name,
+        version: 1,
+        labels: ["production"],
+        actor: fixture.actor,
+      });
+      await expectDefaultVersion(1, fixture.root, fixture.reference);
+
+      await expect(
+        handleLoadSkillResource(
+          { name: fixture.name, path: "latest-only.txt" },
+          fixture.context,
+        ),
+      ).rejects.toThrow("Skill resource not found");
+      await expect(
+        handleGetSkill({ name: fixture.name, version: 2 }, fixture.context),
+      ).resolves.toMatchObject({ version: 2 });
+      await expect(
+        handleLoadSkill(
+          { name: fixture.name, label: "latest" },
+          fixture.context,
+        ),
+      ).resolves.toBe(latestRoot);
+    });
+
+    it.each([
+      ["getSkill", handleGetSkill],
+      ["loadSkill", handleLoadSkill],
+      ["loadSkillResource", handleLoadSkillResource],
+    ] as const)(
+      "does not fall back for missing explicit selectors in %s",
+      async (_name, handler) => {
+        const fixture = await createSkillForMcpReadTest();
+        for (const selector of [{ version: 99 }, { label: "production" }]) {
+          await expect(
+            handler(
+              { name: fixture.name, path: "SKILL.md", ...selector },
+              fixture.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
+        await expect(
+          handler(
+            { name: `missing-${randomUUID()}`, path: "SKILL.md" },
+            fixture.context,
+          ),
+        ).rejects.toThrow("Skill version not found");
+      },
+    );
+
+    it.each([
+      ["getSkill", handleGetSkill],
+      ["loadSkill", handleLoadSkill],
+      ["loadSkillResource", handleLoadSkillResource],
+    ] as const)(
+      "rejects conflicting selectors in %s",
+      async (_name, handler) => {
+        await expect(
+          handler(
+            {
+              name: "test-skill",
+              version: 1,
+              label: "latest",
+              path: "SKILL.md",
+            },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow("Specify either version or label, not both");
+      },
+    );
+
+    it("keeps skill metadata and contents isolated to the authenticated project", async () => {
+      const fixture = await createSkillForMcpReadTest();
+      const other = await createMcpTestSetup();
+      const selector = { name: fixture.name, version: fixture.version.version };
+
+      await expect(
+        handleListSkills(
+          { name: fixture.name, page: 1, limit: 10 },
+          other.context,
+        ),
+      ).resolves.toMatchObject({ data: [], meta: { totalItems: 0 } });
+      for (const handler of [
+        handleGetSkill,
+        handleLoadSkill,
+        handleLoadSkillResource,
+      ]) {
+        for (const input of [selector, { name: fixture.name }]) {
+          await expect(
+            handler(
+              { ...input, path: "references/checklist.md" },
+              other.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
+      }
+    });
+  });
+
   describe("listMonitors tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listMonitorsTool, { readOnlyHint: true });
@@ -494,6 +732,114 @@ describe("MCP Read Tools", () => {
       await expect(
         handleGetMonitor({ monitorId: monitor.id }, otherSetup.context),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("listLlmConnections tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listLlmConnectionsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listLlmConnectionsTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should list effective project and organization connections without credentials", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const secret = `sk-mcp-secret-${nanoid()}`;
+      const sharedProvider = `shared-${nanoid()}`;
+      const orgOnlyProvider = `org-only-${nanoid()}`;
+      const otherOrgProvider = `other-org-${nanoid()}`;
+      const connection = (
+        owner: { projectId: string } | { organizationId: string },
+        data: {
+          provider: string;
+          adapter: LLMAdapter;
+          customModels?: string[];
+          withDefaultModels?: boolean;
+        },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            ...data,
+            secretKey: encrypt(secret),
+            displaySecretKey: "...cret",
+            extraHeaders: encrypt(JSON.stringify({ "x-secret": secret })),
+          },
+        });
+
+      await connection(
+        { projectId: setup.projectId },
+        {
+          provider: sharedProvider,
+          adapter: LLMAdapter.OpenAI,
+          customModels: ["my-model", "gpt-4o"],
+          withDefaultModels: true,
+        },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        { provider: sharedProvider, adapter: LLMAdapter.Anthropic },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: orgOnlyProvider,
+          adapter: LLMAdapter.Anthropic,
+          customModels: ["claude-custom"],
+          withDefaultModels: false,
+        },
+      );
+      await connection(
+        { organizationId: otherSetup.orgId },
+        { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
+      );
+
+      const result = (await handleListLlmConnections({}, setup.context)) as {
+        data: Array<Record<string, unknown>>;
+      };
+
+      expect(result.data.map((c) => c.provider).sort()).toEqual(
+        [orgOnlyProvider, sharedProvider].sort(),
+      );
+      expect(result.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: sharedProvider,
+            adapter: LLMAdapter.OpenAI,
+            scope: "project",
+            displaySecretKey: "...cret",
+            availableModels: Array.from(
+              new Set([
+                "my-model",
+                "gpt-4o",
+                ...supportedModels[LLMAdapter.OpenAI],
+              ]),
+            ),
+          }),
+          expect.objectContaining({
+            provider: orgOnlyProvider,
+            adapter: LLMAdapter.Anthropic,
+            scope: "organization",
+            availableModels: ["claude-custom"],
+          }),
+        ]),
+      );
+      for (const item of result.data) {
+        expect(item).not.toHaveProperty("secretKey");
+        expect(item).not.toHaveProperty("extraHeaders");
+        expect(item).not.toHaveProperty("projectId");
+        expect(item).not.toHaveProperty("organizationId");
+      }
+      expect(JSON.stringify(result)).not.toContain(secret);
     });
   });
 
@@ -936,7 +1282,7 @@ describe("MCP Read Tools", () => {
       expect(result.fields.input.sensitive).toBe(true);
       expect(result.fields.input.requiresScope).toBe(true);
       expect(result.fields.input.scopeRequirement).toMatch(
-        /requires both fromStartTime and toStartTime.*maximum range of 14 days.*even when scoped by traceId or observation id/i,
+        /requires both fromStartTime.*toStartTime.*even when scoped by traceId or observation id.*listObservations.*14 days \(336 elapsed hours\).*getObservation.*90 days \(2160 elapsed hours\)/i,
       );
       expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
@@ -991,6 +1337,7 @@ describe("MCP Read Tools", () => {
       expect(result.columns.output.operators).toEqual(["=", "matches"]);
       expect(result.columns.version.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
+      expect(result.columns.startTime).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
       expect(result.columns.name.operators).toContain("any of");
@@ -1046,6 +1393,7 @@ describe("MCP Read Tools", () => {
       handleListObservations(
         {
           traceId: randomUUID(),
+          ...observationWindow,
           filter: [
             {
               type: "string",
@@ -1061,6 +1409,104 @@ describe("MCP Read Tools", () => {
       ),
     ).rejects.toThrow();
   });
+  describe("observation time bounds", () => {
+    it.each([true, false])(
+      "should reject startTime filters with explicit type: %s",
+      async (includeType) => {
+        await expect(
+          handleListObservations(
+            {
+              ...observationWindow,
+              fields: ["id"],
+              limit: 1,
+              filter: [
+                {
+                  column: "startTime",
+                  operator: ">=",
+                  value: "2020-01-01T00:00:00Z",
+                  ...(includeType ? { type: "datetime" } : {}),
+                },
+              ],
+            } as unknown as Parameters<typeof handleListObservations>[0],
+            mockServerContext(),
+          ),
+        ).rejects.toThrow('Invalid observation filter column "startTime"');
+      },
+    );
+
+    it.each(["fromStartTime", "toStartTime"] as const)(
+      "should require %s for both tools even with compact fields",
+      async (missingBound) => {
+        const input = { ...observationWindow, [missingBound]: undefined };
+        await expect(
+          handleListObservations(
+            { ...input, fields: ["id"], limit: 1 } as unknown as Parameters<
+              typeof handleListObservations
+            >[0],
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(missingBound);
+        await expect(
+          handleGetObservation(
+            {
+              ...input,
+              observationId: randomUUID(),
+              fields: ["id"],
+            } as unknown as Parameters<typeof handleGetObservation>[0],
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(missingBound);
+      },
+    );
+
+    it.each([
+      ["2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"],
+      ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z"],
+      ["2026-01-01T00:00:00.000Z", "2026-04-01T00:00:00.001Z"],
+    ])(
+      "should reject invalid periods %s to %s",
+      async (fromStartTime, toStartTime) => {
+        await expect(
+          handleListObservations(
+            { fromStartTime, toStartTime, fields: ["id"], limit: 1 },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(/maximum range of 14 days/i);
+        await expect(
+          handleGetObservation(
+            { fromStartTime, toStartTime, observationId: randomUUID() },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(/maximum range of 90 days/i);
+      },
+    );
+
+    it.each(["2026-01-15T00:00:00.001Z", "2026-01-15T23:59:59.000Z"])(
+      "should reject list periods exceeding 336 hours: %s",
+      async (toStartTime) => {
+        await expect(
+          handleListObservations(
+            {
+              fromStartTime: "2026-01-01T00:00:00.000Z",
+              toStartTime,
+              fields: ["id"],
+              limit: 1,
+            },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(/maximum range of 14 days \(336 elapsed hours\)/i);
+      },
+    );
+
+    it("should advertise required bounds for both tools", () => {
+      for (const tool of [getObservationTool, listObservationsTool]) {
+        expect(tool.inputSchema.required).toEqual(
+          expect.arrayContaining(["fromStartTime", "toStartTime"]),
+        );
+      }
+    });
+  });
+
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
@@ -1218,7 +1664,7 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleListObservations(
-        { traceId, limit: 100 },
+        { ...observationWindow, traceId, limit: 100 },
         context,
       )) as {
         data: Array<Record<string, unknown>>;
@@ -1262,7 +1708,7 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleListObservations(
-        { traceId, fields: ["id"], limit: 100 },
+        { ...observationWindow, traceId, fields: ["id"], limit: 100 },
         { ...context, inAppAgent: { permissions: "read" } },
       )) as { data: Array<{ id: string; url: string }> };
 
@@ -1288,7 +1734,12 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleListObservations(
-        { traceId, fields: ["id", "name", "type"], limit: 100 },
+        {
+          ...observationWindow,
+          traceId,
+          fields: ["id", "name", "type"],
+          limit: 100,
+        },
         context,
       )) as { data: Array<Record<string, unknown>> };
 
@@ -1375,6 +1826,7 @@ describe("MCP Read Tools", () => {
             },
           ],
           fields: ["id", "userId"],
+          ...observationWindow,
           limit: 100,
         },
         context,
@@ -1414,6 +1866,7 @@ describe("MCP Read Tools", () => {
         {
           traceId,
           isRootObservation: true,
+          ...observationWindow,
           fields: ["id", "parentObservationId", "isRootObservation"],
           limit: 100,
         },
@@ -1510,8 +1963,13 @@ describe("MCP Read Tools", () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
-        handleListObservations({ fields: ["input"], limit: 100 }, context),
-      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+        handleListObservations(
+          { fields: ["input"], limit: 100 } as unknown as Parameters<
+            typeof handleListObservations
+          >[0],
+          context,
+        ),
+      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1526,10 +1984,10 @@ describe("MCP Read Tools", () => {
               },
             ],
             limit: 100,
-          },
+          } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1544,17 +2002,21 @@ describe("MCP Read Tools", () => {
               },
             ],
             limit: 100,
-          },
+          } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
 
       await expect(
         handleListObservations(
-          { traceId: randomUUID(), fields: ["metadata"], limit: 50 },
+          {
+            traceId: randomUUID(),
+            fields: ["metadata"],
+            limit: 50,
+          } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1646,10 +2108,12 @@ describe("MCP Read Tools", () => {
 
       await expect(
         handleListObservations(
-          { ...scope, fields: ["input"], limit: 50 },
+          { ...scope, fields: ["input"], limit: 50 } as unknown as Parameters<
+            typeof handleListObservations
+          >[0],
           context,
         ),
-      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1734,6 +2198,7 @@ describe("MCP Read Tools", () => {
             { column: "totalCost", operator: ">", value: 0.0029 } as any,
           ],
           fields: ["id", "name"],
+          ...observationWindow,
           limit: 100,
         },
         context,
@@ -1767,6 +2232,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             limit: 100,
+            ...observationWindow,
           },
           context,
         ),
@@ -1788,6 +2254,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             limit: 100,
+            ...observationWindow,
           },
           context,
         ),
@@ -1805,6 +2272,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             limit: 100,
+            ...observationWindow,
           },
           context,
         ),
@@ -1844,6 +2312,7 @@ describe("MCP Read Tools", () => {
             },
           ],
           fields: ["id"],
+          ...observationWindow,
           limit: 100,
         },
         context,
@@ -1881,7 +2350,13 @@ describe("MCP Read Tools", () => {
       ]);
 
       const result = (await handleListObservations(
-        { traceId, fields: ["id"], limit: 1 },
+        {
+          traceId,
+          fields: ["id"],
+          limit: 1,
+          fromStartTime: "2026-01-01T00:00:00.000Z",
+          toStartTime: "2026-01-03T00:00:00.000Z",
+        },
         context,
       )) as { data: Array<{ id: string }>; meta: { cursor?: string } };
 
@@ -1893,12 +2368,15 @@ describe("MCP Read Tools", () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
-        handleListObservations({ fields: ["*", "id"], limit: 50 }, context),
+        handleListObservations(
+          { ...observationWindow, fields: ["*", "id"], limit: 50 },
+          context,
+        ),
       ).rejects.toThrow(/mixed wildcard projection/i);
 
       await expect(
         handleListObservations(
-          { fields: ["unknownField"], limit: 50 },
+          { ...observationWindow, fields: ["unknownField"], limit: 50 },
           context,
         ),
       ).rejects.toThrow(/getObservationFieldSchema/i);
@@ -1908,7 +2386,7 @@ describe("MCP Read Tools", () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
-        handleListObservations({ limit: 101 }, context),
+        handleListObservations({ ...observationWindow, limit: 101 }, context),
       ).rejects.toThrow(/<=100/i);
     });
 
@@ -1926,11 +2404,11 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result1 = (await handleListObservations(
-        { traceId, fields: ["id"], limit: 100 },
+        { ...observationWindow, traceId, fields: ["id"], limit: 100 },
         context1,
       )) as { data: Array<{ id: string }> };
       const result2 = (await handleListObservations(
-        { traceId, fields: ["id"], limit: 100 },
+        { ...observationWindow, traceId, fields: ["id"], limit: 100 },
         context2,
       )) as { data: Array<{ id: string }> };
 
@@ -2518,7 +2996,14 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleGetObservation(
-        { observationId: observation.id },
+        {
+          observationId: observation.id,
+          traceId: observation.trace_id,
+          fromStartTime: new Date(
+            Date.now() - 89 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toStartTime: new Date(Date.now() + 1000).toISOString(),
+        },
         context,
       )) as Record<string, unknown>;
 
@@ -2539,6 +3024,77 @@ describe("MCP Read Tools", () => {
       expect(result.metadata).toBeUndefined();
     });
 
+    it("should not fetch an observation outside the period or with a different traceId", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({ projectId });
+      await createEventsCh([observation]);
+
+      for (const scope of [
+        { ...observationWindow, traceId: randomUUID() },
+        {
+          fromStartTime: "2026-01-01T00:00:00.000Z",
+          toStartTime: "2026-01-02T00:00:00.000Z",
+        },
+      ]) {
+        await expect(
+          handleGetObservation(
+            { observationId: observation.id, ...scope },
+            context,
+          ),
+        ).rejects.toThrow(/not found within the supplied period/i);
+      }
+    });
+
+    it("should enforce the plan data-access window for single observations", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const now = Date.now();
+      const oldObservation = createObservationEvent({
+        projectId,
+        startTime: new Date(now - 40 * 24 * 60 * 60 * 1000),
+      });
+      const recentObservation = createObservationEvent({ projectId });
+      await createEventsCh([oldObservation, recentObservation]);
+
+      const period = {
+        fromStartTime: new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        toStartTime: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+        fields: ["id"],
+      };
+      const limitedContext = { ...context, plan: "cloud:hobby" as const };
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: oldObservation.id },
+          limitedContext,
+        ),
+      ).rejects.toThrow(/not found within the supplied period/i);
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: recentObservation.id },
+          limitedContext,
+        ),
+      ).resolves.toMatchObject({ id: recentObservation.id });
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: oldObservation.id },
+          { ...context, plan: "oss" },
+        ),
+      ).resolves.toMatchObject({ id: oldObservation.id });
+
+      await expect(
+        handleGetObservation(
+          {
+            ...period,
+            observationId: oldObservation.id,
+            toStartTime: new Date(now - 35 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          limitedContext,
+        ),
+      ).rejects.toThrow(/not found within the supplied period/i);
+    });
+
     it("should fetch an observation with an in-app agent context", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const observation = createObservationEvent({
@@ -2549,7 +3105,7 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleGetObservation(
-        { observationId: observation.id, fields: ["id"] },
+        { ...observationWindow, observationId: observation.id, fields: ["id"] },
         { ...context, inAppAgent: { permissions: "read" } },
       )) as Record<string, unknown>;
 
@@ -2574,7 +3130,11 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleGetObservation(
-        { observationId: observation.id, fields: ["id", "metadata"] },
+        {
+          ...observationWindow,
+          observationId: observation.id,
+          fields: ["id", "metadata"],
+        },
         context,
       )) as Record<string, unknown>;
 
@@ -2594,7 +3154,7 @@ describe("MCP Read Tools", () => {
       const observationId = randomUUID();
 
       await expect(
-        handleGetObservation({ observationId }, context),
+        handleGetObservation({ ...observationWindow, observationId }, context),
       ).rejects.toThrow(new RegExp(`Observation ${observationId} not found`));
     });
 
@@ -2609,7 +3169,10 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       await expect(
-        handleGetObservation({ observationId: observation.id }, context2),
+        handleGetObservation(
+          { ...observationWindow, observationId: observation.id },
+          context2,
+        ),
       ).rejects.toThrow(/not found/i);
     });
   });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import {
   experimental_decide as decide,
@@ -66,7 +67,7 @@ export function createTypeSafeDecisionModelClient(params: {
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
   });
-  const model = provider.evaluationModel(params.model);
+  const model = provider.decisionModel(params.model);
 
   return {
     evaluate: async (request) => {

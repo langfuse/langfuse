@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
@@ -69,7 +69,7 @@ export function createTokenUsageTableColumn<
         >
           <div className="flex items-center gap-1">
             {content}
-            <InfoIcon className="icon-sm" />
+            <InfoIcon size="sm" />
           </div>
         </BreakdownTooltip>
       );

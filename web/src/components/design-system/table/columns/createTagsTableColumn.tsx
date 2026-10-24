@@ -26,7 +26,7 @@ function TagsCell({
   const wrap = followRowHeight ? !compact : shouldWrap;
   return (
     <div className={cn("flex gap-x-2 gap-y-1", wrap && "flex-wrap")}>
-      <TagList selectedTags={tags} isLoading={false} />
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
     </div>
   );
 }

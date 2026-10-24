@@ -8,10 +8,13 @@ import { z } from "zod";
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
 import {
+  createMediaUploadUrl,
   type GetMediaResponse,
   GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
+  MediaContentType,
+  updateMediaUploadStatus,
 } from "@/src/features/media/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -800,6 +803,49 @@ describe("Media Upload API", () => {
       expect(secondResult.getUploadUrlResponse?.body.uploadUrl).toBeNull();
       expect(secondResult.getUploadUrlResponse?.body.mediaId).toBeDefined();
     }, 10_000);
+  });
+
+  // Azure Blob Storage answers a successful Put Blob with 201 Created.
+  describe("Azure Blob upload status", () => {
+    it("treats a 201 upload as completed and reuses the media", async () => {
+      const uploadRequest = {
+        contentType: MediaContentType.PNG,
+        contentLength: validPNG.contentLength,
+        sha256Hash: validPNG.sha256Hash,
+        traceId: `trace-${crypto.randomUUID()}`,
+        field: "input",
+      };
+
+      const first = await createMediaUploadUrl({
+        projectId,
+        body: uploadRequest,
+      });
+      expect(first.uploadUrl).toEqual(expect.any(String));
+
+      await updateMediaUploadStatus({
+        projectId,
+        mediaId: first.mediaId,
+        body: {
+          uploadedAt: new Date(),
+          uploadHttpStatus: 201,
+          uploadHttpError: "",
+        },
+      });
+
+      const media = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: first.mediaId } },
+      });
+      expect(media).toMatchObject({
+        uploadHttpStatus: 201,
+        uploadHttpError: null,
+      });
+
+      const second = await createMediaUploadUrl({
+        projectId,
+        body: { ...uploadRequest, traceId: `trace-${crypto.randomUUID()}` },
+      });
+      expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
+    });
   });
 
   describe("tRPC media reader", () => {

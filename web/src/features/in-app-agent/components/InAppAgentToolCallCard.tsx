@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Wrench } from "lucide-react";
+import { Check, Loader2, Wrench } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
@@ -64,7 +64,7 @@ export function InAppAgentToolCallCard({
       {approval ? (
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs leading-none font-bold">
-            <Wrench className="text-muted-foreground icon-base shrink-0" />
+            <Wrench size="base" color="muted" />
             <span
               className="min-w-0 flex-1 truncate py-0.5"
               title={approveLabel}
@@ -89,9 +89,9 @@ export function InAppAgentToolCallCard({
                 }}
               >
                 {activeDecision === "once" ? (
-                  <Loader2 className="icon-base mr-1 animate-spin" />
+                  <Loader2 size="base" __rawClassName="mr-1 animate-spin" />
                 ) : (
-                  <Check className="icon-base mr-1" />
+                  <Check size="base" __rawClassName="mr-1" />
                 )}
                 Approve
               </Button>
@@ -112,7 +112,11 @@ export function InAppAgentToolCallCard({
                   }}
                 >
                   {activeDecision === "conversation" ? (
-                    <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
+                    <Loader2
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1 animate-spin"
+                    />
                   ) : null}
                   Always approve*
                 </Button>
@@ -131,7 +135,11 @@ export function InAppAgentToolCallCard({
                 }}
               >
                 {activeDecision === "reject" ? (
-                  <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
+                  <Loader2
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1 animate-spin"
+                  />
                 ) : null}
                 Decline
               </Button>
@@ -146,7 +154,7 @@ export function InAppAgentToolCallCard({
       ) : (
         <details className="group/tool min-w-0">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-bold [&::-webkit-details-marker]:hidden">
-            <Wrench className="text-muted-foreground icon-base shrink-0" />
+            <Wrench size="base" color="muted" />
             <span className="min-w-0 flex-1 truncate py-0.5" title={usedLabel}>
               {usedLabel}
             </span>

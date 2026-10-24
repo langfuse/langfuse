@@ -8,7 +8,7 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 import {
   Fragment,
   useEffect,
@@ -510,7 +510,7 @@ export function ChartTooltip({
                   className={`flex items-center gap-1 [grid-area:1/1] ${activeCopyStatus === "copied" ? "visible" : "invisible"}`}
                 >
                   Label copied to clipboard{" "}
-                  <Check className="icon-sm" aria-hidden="true" />
+                  <Check size="sm" aria-hidden="true" />
                 </span>
                 <span
                   className={`[grid-area:1/1] ${activeCopyStatus === "error" ? "visible" : "invisible"}`}

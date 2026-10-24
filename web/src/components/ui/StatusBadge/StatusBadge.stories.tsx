@@ -11,6 +11,7 @@ const representativeStatuses = [
   "pending",
   "delayed",
   "disabled",
+  "not_configured",
   "paused",
   "completed",
   "error",

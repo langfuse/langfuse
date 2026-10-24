@@ -1,13 +1,13 @@
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
-import { PromptTable } from "@/src/features/prompts/components/prompts-table";
+import Page from "@/src/components/layouts/Page";
+import { PromptTable } from "@/src/features/prompts/components/PromptTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Download, UploadIcon, PlusIcon } from "lucide-react";
+import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
+import { PromptDetail } from "@/src/features/prompts/components/PromptDetail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";
@@ -157,7 +157,11 @@ export default function PromptsPage() {
                     disabled={isExporting}
                     {...getTriggerProps()}
                   >
-                    <UploadIcon className="icon-base text-icon-foreground mr-1" />
+                    <UploadIcon
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
@@ -172,19 +176,18 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="icon-base text-icon-foreground mr-1" />
+                    <Download
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={
-                <PlusIcon
-                  className="icon-base text-icon-foreground"
-                  aria-hidden="true"
-                />
-              }
+              icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

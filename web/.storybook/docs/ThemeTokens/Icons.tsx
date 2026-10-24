@@ -1,19 +1,16 @@
 /**
- * Storybook-only icon reference (Design → Icons): the three size tokens, the
- * default icon colour, alignment next to a label, and stroke width. Every
- * specimen renders through the app's own utilities, so the page shows what
- * the stylesheet does rather than describing it.
+ * Specimens use the same typed icon package as the app.
  */
-import { File, Search, Settings } from "lucide-react";
+import { File, Search, Settings } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { Eyebrow, InlineCode, PageHeader, PageSection, Panel } from "./shared";
 
 const SIZES = [
-  { utility: "icon-sm", px: 12, spacing: 3 },
-  { utility: "icon-base", px: 14, spacing: 3.5 },
-  { utility: "icon-lg", px: 20, spacing: 5 },
-  { utility: "icon-xl", px: 28, spacing: 7 },
+  { size: "sm", px: 12 },
+  { size: "base", px: 14 },
+  { size: "lg", px: 20 },
+  { size: "xl", px: 28 },
 ] as const;
 
 function Example({
@@ -47,50 +44,49 @@ export function Icons() {
           title="Icons"
           lede={
             <>
-              Four sizes, one default colour, lucide default stroke. Sizes are
-              utilities in{" "}
-              <code className="font-mono">src/styles/globals.css</code>.
+              Typed sizes and colours, inherited interaction states, and fixed
+              stroke widths. Import icons from{" "}
+              <code className="font-mono">@langfuse/icons</code>.
             </>
           }
-          meta="icon-sm · icon-base · icon-lg · icon-xl · text-icon-foreground"
+          meta="sm · base · lg · xl · currentColor"
         />
 
         <PageSection
           title="Size"
-          blurb="Icons take a size only from these four utilities. No raw h-*/w-*/size-* classes and no size prop."
-          aside={<InlineCode>@utility icon-*</InlineCode>}
+          blurb="Use the semantic size prop. TypeScript rejects numeric sizes, dimensions, className, style, and strokeWidth."
+          aside={<InlineCode>size</InlineCode>}
         >
           <Panel>
             <div className="flex flex-wrap items-center gap-10 px-4 py-5">
               {SIZES.map((size) => (
-                <div key={size.utility} className="flex items-center gap-3">
-                  <Settings
-                    className={`${size.utility} text-icon-foreground`}
-                    aria-hidden
-                  />
-                  <InlineCode>{size.utility}</InlineCode>
+                <div
+                  key={size.size}
+                  className="text-icon-foreground flex items-center gap-3"
+                >
+                  <Settings size={size.size} aria-hidden />
+                  <InlineCode>{size.size}</InlineCode>
                   <span className="text-muted-foreground font-mono text-[11px]">
-                    {size.px}px · --spacing × {size.spacing}
+                    {size.px}px
                   </span>
                 </div>
               ))}
             </div>
           </Panel>
           <p className="text-muted-foreground text-sm">
-            icon-base is the default. icon-lg is for headers, toasts and
-            illustrations; icons inside buttons and menu rows are icon-base.
-            icon-xl covers 28 to 36px illustrations. Icons at 40px and above
-            (chart and analytics empty states, the crash page) keep their raw
-            sizes: illustration sizes, decision deferred. Every icon sets its
-            size on the element itself; primitives do not size their svg
-            children.
+            base is the default. lg is for headers and toasts; icons inside
+            buttons and menu rows use base. xl is 28px. Illustration-sized SVGs
+            outside the scale may use __rawStyle as an explicit escape hatch.
+            Avoid __rawClassName and __rawStyle for ordinary icon styling;
+            prefer semantic sizes and inherited colour. Primitives should not
+            size their SVG children.
           </p>
         </PageSection>
 
         <PageSection
           title="Colour"
-          blurb="text-icon-foreground is the default, set on the icon element, never through a container selector; it shares its value with muted-foreground. An icon paired with text is the same colour as the text or one step lighter, never darker. Status colours are the only exception."
-          aside={<InlineCode>text-icon-foreground</InlineCode>}
+          blurb="Use the semantic color prop. Icons inherit the parent's text colour by default; color='default' selects icon-foreground. Other roles include foreground, muted, secondary, tertiary, and destructive. Keep parent-owned hover and selected states inherited. An icon paired with text is the same colour as the text or one step lighter, never darker; status colours are the exception."
+          aside={<InlineCode>color</InlineCode>}
         >
           <div className="grid gap-4 lg:grid-cols-2">
             <Example
@@ -98,16 +94,13 @@ export function Icons() {
               caption="Icon one step lighter than its label."
             >
               <span className="text-foreground flex items-center gap-1.5 text-sm">
-                <Search
-                  className="icon-base text-icon-foreground"
-                  aria-hidden
-                />
+                <Search size="base" color="default" aria-hidden />
                 Search traces
               </span>
             </Example>
             <Example verdict="Don't" caption="Icon darker than its label.">
               <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <Search className="icon-base text-foreground" aria-hidden />
+                <Search size="base" color="foreground" aria-hidden />
                 Search traces
               </span>
             </Example>
@@ -122,13 +115,13 @@ export function Icons() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Example verdict="Do" caption="Icon centred on the label.">
               <span className="text-foreground flex items-center gap-1.5 text-sm">
-                <File className="icon-base text-icon-foreground" aria-hidden />
+                <File size="base" color="default" aria-hidden />
                 File
               </span>
             </Example>
             <Example verdict="Don't" caption="Icon sitting on the baseline.">
               <span className="text-foreground flex items-baseline gap-1.5 text-sm">
-                <File className="icon-base text-icon-foreground" aria-hidden />
+                <File size="base" color="default" aria-hidden />
                 File
               </span>
             </Example>
@@ -142,7 +135,7 @@ export function Icons() {
         >
           <Panel>
             <div className="flex items-center gap-3 px-4 py-5">
-              <Settings className="icon-lg text-icon-foreground" aria-hidden />
+              <Settings size="lg" color="default" aria-hidden />
               <span className="text-muted-foreground font-mono text-[11px]">
                 stroke-width 2 · lucide default
               </span>

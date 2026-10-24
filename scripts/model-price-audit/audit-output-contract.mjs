@@ -584,3 +584,74 @@ export function renderAuditSummary(output) {
     "",
   ].join("\n");
 }
+
+const inlineText = (value) =>
+  String(value ?? "")
+    .replace(/\r?\n+/g, " ")
+    .trim();
+
+const inlineCode = (value) => `\`${inlineText(value).replace(/`/g, "")}\``;
+
+// Pull request bodies stay limited to what changed, why, and the sources; the
+// full per-model report belongs in the workflow run summary.
+export function renderPullRequestBody(output, { reportUrl } = {}) {
+  const changeLabels = {
+    added: "added",
+    updated: "updated",
+    removed: "removed",
+  };
+  const changedRows = output.modelsChecked.filter(
+    (row) => row.change in changeLabels,
+  );
+  const otherUpdates = [
+    ...(output.skillReferenceUpdates ?? []),
+    ...(output.workflowUpdates ?? []),
+  ];
+  const unresolvedCount = output.unresolvedFindings?.length ?? 0;
+
+  const sections = [
+    `Automated default model price audit from ${inlineText(output.auditDate)}.`,
+    "",
+    "## What changed",
+    "",
+  ];
+
+  if (changedRows.length === 0) {
+    sections.push("No model prices or selectable models changed.", "");
+  }
+  for (const row of changedRows) {
+    sections.push(
+      `### ${inlineCode(row.model)} (${inlineText(row.provider)}): ${changeLabels[row.change]}`,
+      "",
+      `**Pricing:** ${inlineText(row.pricingChecked)}`,
+      "",
+      `**Why:** ${inlineText(row.comments) || "No reason reported."}`,
+      "",
+      "**Sources:**",
+      "",
+      ...row.officialSources.map((source) => `- ${new URL(source).href}`),
+      "",
+    );
+  }
+
+  if (otherUpdates.length > 0) {
+    sections.push(
+      "## Reference and workflow updates",
+      "",
+      list(otherUpdates),
+      "",
+    );
+  }
+
+  const reportLink = reportUrl
+    ? `[workflow run summary](${reportUrl})`
+    : "workflow run summary";
+  sections.push(
+    "---",
+    "",
+    `Checked ${output.modelsChecked.length} model entries; ${unresolvedCount} unresolved finding${unresolvedCount === 1 ? "" : "s"}. The full audit report is in the ${reportLink}.`,
+    "",
+  );
+
+  return sections.join("\n");
+}

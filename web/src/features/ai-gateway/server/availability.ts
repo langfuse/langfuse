@@ -4,14 +4,49 @@ import { env } from "@/src/env.mjs";
 
 type GatewayAvailabilityEnvironment = {
   nodeEnv: string | undefined;
+  cloudRegion?: string;
   previewPrUrl?: string;
+  deployed?: "true" | "false";
+  enabledForAllOrganizations?: "true" | "false";
 };
 
 const getGatewayAvailabilityEnvironment =
   (): GatewayAvailabilityEnvironment => ({
     nodeEnv: env.NODE_ENV,
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+    deployed: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+    enabledForAllOrganizations: env.LANGFUSE_AI_GATEWAY_ENABLED,
   });
+
+const isDevelopmentOrPreview = (environment: GatewayAvailabilityEnvironment) =>
+  environment.nodeEnv === "development" ||
+  environment.previewPrUrl !== undefined;
+
+/**
+ * Langfuse Cloud (every region), local development and preview deployments
+ * always run a gateway next to Web.
+ */
+const isGatewayDeployed = (environment: GatewayAvailabilityEnvironment) =>
+  environment.deployed === "true" ||
+  Boolean(environment.cloudRegion) ||
+  isDevelopmentOrPreview(environment);
+
+/**
+ * False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED,
+ * which is when the UI points operators to the self-hosting docs.
+ */
+export const isGatewayDeployedOnInstance = (
+  environment = getGatewayAvailabilityEnvironment(),
+): boolean => isGatewayDeployed(environment);
+
+/** Unset enables every organization, except on Langfuse Cloud. */
+const isEnabledForAllOrganizations = (
+  environment: GatewayAvailabilityEnvironment,
+) =>
+  environment.enabledForAllOrganizations === undefined
+    ? !environment.cloudRegion
+    : environment.enabledForAllOrganizations === "true";
 
 export const isGatewayEnabledForOrganization = (
   organizationId: string,
@@ -19,9 +54,10 @@ export const isGatewayEnabledForOrganization = (
     [],
   environment = getGatewayAvailabilityEnvironment(),
 ): boolean =>
-  environment.nodeEnv === "development" ||
-  environment.previewPrUrl !== undefined ||
-  allowedOrganizationIds.includes(organizationId);
+  isGatewayDeployed(environment) &&
+  (isEnabledForAllOrganizations(environment) ||
+    isDevelopmentOrPreview(environment) ||
+    allowedOrganizationIds.includes(organizationId));
 
 export const requireGatewayEnabledForOrganization = (
   organizationId: string,

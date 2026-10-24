@@ -1,8 +1,8 @@
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { ConnectedDashboardWidgetTable } from "@/src/features/widgets";
 import { getDashboardTabs, DASHBOARD_TABS } from "@/src/features/navigation";
 
@@ -17,7 +17,6 @@ export default function WidgetsPage() {
   return (
     <Page
       headerProps={{
-        className: "border-b-0",
         title: "Widgets",
         help: {
           description: "Manage and create widgets for your dashboard.",
@@ -29,12 +28,7 @@ export default function WidgetsPage() {
         },
         actionButtonsRight: (
           <ActionButton
-            icon={
-              <PlusIcon
-                className="icon-base text-icon-foreground"
-                aria-hidden="true"
-              />
-            }
+            icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
             href={`/project/${projectId}/widgets/new`}
             trackingEventName="dashboard:new_widget_form_open"

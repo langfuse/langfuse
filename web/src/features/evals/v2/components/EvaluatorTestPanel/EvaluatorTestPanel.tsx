@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FlaskConical, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { FlaskConical, PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -19,7 +19,7 @@ export function EvaluatorTestPanel({
       <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
         {open ? (
           <div className="flex items-center gap-2">
-            <FlaskConical className="icon-base" />
+            <FlaskConical size="base" />
             <h2 className="font-bold">Test with sample observations</h2>
           </div>
         ) : null}
@@ -32,9 +32,9 @@ export function EvaluatorTestPanel({
           onClick={() => onOpenChange(!open)}
         >
           {open ? (
-            <PanelRightClose className="icon-base text-icon-foreground" />
+            <PanelRightClose size="base" color="default" />
           ) : (
-            <PanelRightOpen className="icon-base text-icon-foreground" />
+            <PanelRightOpen size="base" color="default" />
           )}
         </Button>
       </div>

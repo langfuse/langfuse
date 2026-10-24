@@ -1,13 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
+import type { EarlyOtelBatch } from "@langfuse/native";
 import {
   getS3EventStorageClient,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   QueueJobs,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch";
+import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
@@ -28,6 +32,7 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getS3EventStorageClient: vi.fn(),
+  markProjectIngestFailure: vi.fn(),
 }));
 vi.mock(
   "../../features/evaluation/observationEval",
@@ -51,16 +56,32 @@ describe("direct-v4 trace batch tracking", () => {
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
     };
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
 
     try {
       vi.mocked(getS3EventStorageClient).mockReturnValue({
-        download: vi.fn().mockResolvedValue("[]"),
+        downloadBytes: vi.fn().mockResolvedValue(Buffer.from("[]")),
       } as unknown as ReturnType<typeof getS3EventStorageClient>);
+      vi.spyOn(otelPreparation, "prepareOtelBatch").mockResolvedValue({
+        sourceUnchanged: false,
+        batch: {
+          takeJsonBuffer: () => Buffer.from("[]"),
+          dispose: vi.fn(),
+        } as unknown as EarlyOtelBatch,
+      });
+      const restore = vi
+        .spyOn(mediaRestoration, "restoreInlineMedia")
+        .mockResolvedValue(undefined);
       vi.mocked(fetchObservationEvalRules).mockResolvedValue([]);
       vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
         {} as ClickhouseWriter,
@@ -122,6 +143,9 @@ describe("direct-v4 trace batch tracking", () => {
       } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
 
       await processor(job, undefined);
+      expect(restore.mock.calls.map(([, records]) => records)).toEqual([
+        inputs,
+      ]);
       expect(write).toHaveBeenCalledTimes(3);
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
@@ -148,7 +172,9 @@ describe("direct-v4 trace batch tracking", () => {
 
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       write.mockClear();
+      restore.mockClear();
       await processor(job, undefined);
+      expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
       expect(write).not.toHaveBeenCalled();
       expect(trackTraceBatchActivity).not.toHaveBeenCalled();
     } finally {
@@ -157,6 +183,148 @@ describe("direct-v4 trace batch tracking", () => {
       vi.clearAllMocks();
     }
   });
+});
+
+describe("early media extraction rollout", () => {
+  const createJob = (projectId: string) =>
+    ({
+      data: {
+        id: "early-media-rollout",
+        timestamp: new Date(),
+        name: QueueJobs.OtelIngestionJob,
+        payload: {
+          data: { fileKey: "early-media-rollout.json" },
+          authCheck: {
+            validKey: true,
+            scope: {
+              projectId,
+              orgId: "org",
+              accessLevel: "project",
+            },
+          },
+          ingestionVersion: "4",
+        },
+      },
+    }) as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+  it("releases an unchanged media-free native document before JSON.parse", async () => {
+    const original = {
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+    };
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
+    const json = '[{"resource":{"attributes":[]},"scopeSpans":[]}]';
+    const bytes = Buffer.from(json);
+    vi.mocked(getS3EventStorageClient).mockReturnValue({
+      downloadBytes: vi.fn().mockResolvedValue(bytes),
+    } as unknown as ReturnType<typeof getS3EventStorageClient>);
+    const native =
+      await vi.importActual<typeof import("@langfuse/native")>(
+        "@langfuse/native",
+      );
+    const validated = await native.validateOtelJson(bytes);
+    const nativeBatch = await validated.extract(false);
+    const parse = JSON.parse;
+    let checkedBeforeParse = false;
+    const stop = new Error("stop after parsing");
+    try {
+      vi.spyOn(otelPreparation, "prepareOtelBatch").mockImplementation(
+        async () => {
+          expect(nativeBatch.mediaCount()).toBe(0);
+          vi.spyOn(nativeBatch, "takeJsonBuffer").mockImplementation(() => {
+            throw new Error("must not transfer a second document to Node");
+          });
+          vi.spyOn(JSON, "parse").mockImplementation((text, reviver) => {
+            if (text === json) {
+              expect(() => nativeBatch.mediaCount()).toThrow(/disposed/);
+              checkedBeforeParse = true;
+            }
+            return parse(text, reviver);
+          });
+          return { batch: nativeBatch, sourceUnchanged: true };
+        },
+      );
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToIngestionEvents",
+      ).mockRejectedValue(stop);
+      await expect(
+        otelIngestionQueueProcessorBuilder(false)(
+          createJob("project"),
+          undefined,
+        ),
+      ).rejects.toBe(stop);
+      expect(checkedBeforeParse).toBe(true);
+    } finally {
+      Object.assign(env, original);
+      vi.restoreAllMocks();
+      vi.clearAllMocks();
+    }
+  });
+
+  it.each([
+    ["reference", "disabled with wildcard", false, ["*"]],
+    ["reference", "enabled with no projects", true, []],
+    [
+      "reference",
+      "enabled with a non-matching project",
+      true,
+      ["other-project"],
+    ],
+    ["early", "enabled with a matching project", true, ["project-match"]],
+    ["early", "enabled for all projects", true, ["*"]],
+  ] as const)(
+    "selects the %s path when %s",
+    async (expectedPath, label, enabled, projectIds) => {
+      const original = {
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+      };
+      const download = vi
+        .fn()
+        .mockRejectedValue(new Error("stop after reference download"));
+      const downloadBytes = vi
+        .fn()
+        .mockRejectedValue(new Error("stop after early download"));
+
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = enabled
+        ? "true"
+        : "false";
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = [...projectIds];
+      vi.mocked(getS3EventStorageClient).mockReturnValue({
+        download,
+        downloadBytes,
+      } as unknown as ReturnType<typeof getS3EventStorageClient>);
+
+      try {
+        const processor = otelIngestionQueueProcessorBuilder(false);
+        await expect(
+          processor(createJob("project-match"), undefined),
+        ).rejects.toThrow(`stop after ${expectedPath} download`);
+
+        if (expectedPath === "early") {
+          expect(downloadBytes).toHaveBeenCalledExactlyOnceWith(
+            "early-media-rollout.json",
+          );
+          expect(download).not.toHaveBeenCalled();
+        } else {
+          expect(download).toHaveBeenCalledExactlyOnceWith(
+            "early-media-rollout.json",
+          );
+          expect(downloadBytes).not.toHaveBeenCalled();
+        }
+      } finally {
+        Object.assign(env, original);
+        vi.mocked(getS3EventStorageClient).mockReset();
+        vi.mocked(markProjectIngestFailure).mockClear();
+      }
+    },
+  );
 });
 
 describe("isOrgPastOtelDirectWriteCutoff", () => {

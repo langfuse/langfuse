@@ -120,13 +120,16 @@ pub(super) struct GenerationContext {
 
 impl GenerationContext {
     #[cfg(test)]
-    pub fn from_headers(headers: &HeaderMap) -> Self {
+    pub(super) fn from_headers(headers: &HeaderMap) -> Self {
         Self::from_request(headers, None)
     }
 
     /// `client_metadata` is the request body's agent metadata object, already
     /// removed from the captured input by [`take_agent_client_metadata`].
-    pub fn from_request(headers: &HeaderMap, client_metadata: Option<&Map<String, Value>>) -> Self {
+    pub(super) fn from_request(
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         let ids = RandomIdGenerator::default();
         let mut result = Self {
             trace_id: ids.new_trace_id().to_string(),
@@ -145,8 +148,8 @@ impl GenerationContext {
             return result;
         }
         let mut trace_headers = HeaderMap::new();
-        if let Some(value) = single_header(headers, "traceparent") {
-            trace_headers.insert("traceparent", value.parse().expect("existing header value"));
+        if let Some(Ok(value)) = single_header(headers, "traceparent").map(str::parse) {
+            trace_headers.insert("traceparent", value);
         }
         // W3C tracestate is a list and may span multiple HTTP header fields.
         let trace_state = headers
@@ -155,10 +158,9 @@ impl GenerationContext {
             .filter_map(|value| value.to_str().ok())
             .collect::<Vec<_>>()
             .join(",");
-        trace_headers.insert(
-            "tracestate",
-            trace_state.parse().expect("existing header values"),
-        );
+        if let Ok(value) = trace_state.parse() {
+            trace_headers.insert("tracestate", value);
+        }
         let context = TraceContextPropagator::new()
             .extract_with_context(&Context::new(), &HeaderExtractor(&trace_headers));
         let parent = context.span();

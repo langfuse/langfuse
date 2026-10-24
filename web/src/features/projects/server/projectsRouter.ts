@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -17,10 +18,12 @@ import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
+  DefaultEvalModelService,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -371,6 +374,11 @@ export const projectsRouter = createTRPCRouter({
         orgId: input.targetOrgId,
         projectId: input.projectId,
       });
+
+      await Promise.all([
+        DefaultEvalModelService.reconcileConnectionForProject(input.projectId),
+        reconcileTopicsConnectionsForProject(input.projectId),
+      ]);
     }),
 
   environmentFilterOptions: protectedProjectProcedure

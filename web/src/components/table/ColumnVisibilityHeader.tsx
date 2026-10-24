@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 
 export function ColumnVisibilityHeader({
@@ -16,7 +16,7 @@ export function ColumnVisibilityHeader({
           className="bg-accent gap-1.5 text-xs"
           onClick={onRestoreDefaults}
         >
-          <RotateCcw className="icon-base text-icon-foreground" />
+          <RotateCcw size="base" color="default" />
           Restore Defaults
         </Button>
       )}

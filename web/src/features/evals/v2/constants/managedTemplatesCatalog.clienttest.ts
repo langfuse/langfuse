@@ -61,6 +61,23 @@ describe("managed evaluator templates catalog", () => {
             : [],
         );
       }
+
+      // Decision-model and code chips use the score names the evaluator writes.
+      // Judge chips are short display keys, so they are not checked.
+      expect(template.previewScores.length).toBeGreaterThan(0);
+      if (template.evaluator.type === "DECISION_MODEL") {
+        const scoreNames = template.evaluator.questions.map(
+          ({ scoreName }) => scoreName,
+        );
+        for (const { name } of template.previewScores) {
+          expect(scoreNames).toContain(name);
+        }
+      }
+      if (template.evaluator.type === "CODE") {
+        for (const { name } of template.previewScores) {
+          expect(template.evaluator.source).toContain(`name: "${name}"`);
+        }
+      }
     }
   });
 

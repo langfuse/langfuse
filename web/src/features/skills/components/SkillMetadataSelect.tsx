@@ -1,9 +1,10 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { useId, useMemo, useState } from "react";
-import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "lucide-react";
+import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "@langfuse/icons";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { PopoverController } from "@/src/components/ui/popover";
@@ -180,7 +181,7 @@ export function SkillLabelsSelect({
                   "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
               )}
             >
-              <Plus className="icon-base text-icon-foreground" />
+              <Plus size="base" color="default" />
             </Button>
           </div>
         </Trigger>
@@ -263,7 +264,7 @@ export function SkillTagsSelect({
                 }
               >
                 {tag}
-                <X className="icon-base ml-1" />
+                <X size="base" __rawClassName="ml-1" />
               </Button>
             ))}
             <Input
@@ -288,7 +289,7 @@ export function SkillTagsSelect({
                 className="w-full justify-start px-2 font-normal"
                 onClick={() => setPendingTags([...pendingTags, tag])}
               >
-                <Plus className="icon-base text-icon-foreground mr-2" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 {tag}
               </Button>
             ))}
@@ -326,16 +327,18 @@ export function SkillTagsSelect({
             )}
           >
             {value.map((tag) => (
-              <Badge key={tag} variant="tertiary" className="h-6 gap-1">
-                <TagIcon className="icon-sm" />
-                <span className="max-w-36 truncate" title={tag}>
-                  {tag}
-                </span>
-              </Badge>
+              <span key={tag} className="inline-flex max-w-36">
+                <Badge
+                  color="filled"
+                  size="lg"
+                  leadingIcon={TagIcon}
+                  text={tag}
+                />
+              </span>
             ))}
-            <Badge variant="tertiary" className="h-6">
-              <TagIcon className="icon-sm" />
-            </Badge>
+            <BadgeShell color="filled" size="lg">
+              <TagIcon size="sm" />
+            </BadgeShell>
           </div>
         </Trigger>
       )}
@@ -363,9 +366,13 @@ function SelectionRow({
       onClick={onSelect}
     >
       {selected ? (
-        <CircleCheckIcon className="icon-base text-icon-foreground mr-2" />
+        <CircleCheckIcon size="base" color="default" __rawClassName="mr-2" />
       ) : (
-        <CircleIcon className="icon-base text-icon-foreground mr-2 opacity-20" />
+        <CircleIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-2 opacity-20"
+        />
       )}
       {value}
     </Button>
@@ -386,7 +393,7 @@ function CreateRow({
       className="text-muted-foreground w-full justify-start px-2 font-normal"
       onClick={onCreate}
     >
-      <Plus className="icon-base text-icon-foreground mr-2" />
+      <Plus size="base" color="default" __rawClassName="mr-2" />
       Create new: “{value}”
     </Button>
   );

@@ -27,9 +27,33 @@ each project and queue; changing the current item keeps the same run history.
 - `processors/TraceAnnotationProcessor.tsx` and `SessionAnnotationProcessor.tsx`
   prepare their object views. They do not initialize the route's selected span.
 - Score forms own their field state; the comments feature owns discussion drafts.
-  Shared processing layout components own resize preferences.
+  Queue fields wait for the opening refresh, then remain stable for the active
+  item so later query updates cannot discard unsaved drafts. Reopening an item
+  uses the current queue configuration. Shared processing layout components own
+  resize preferences.
 
 ## Structure and consumers
+
+Queue setup keeps server data in tRPC. `AnnotationQueueSetupController` gates
+initial loading and adapts mutations to `AnnotationQueueSetupForm`. Its React
+Hook Form draft lives above the responsive sidebar, so collapsing the panel or
+closing its mobile sheet preserves unsaved changes. `AnnotationQueueItems` owns
+the mobile open state across initial loading. The Settings tab contains name,
+description, and user assignments; the Annotation panel tab contains ordered
+field previews. Both share one draft and a fixed Save/Discard footer.
+Saves patch only dirty queue fields.
+Background refreshes and project-wide config edits do not reset the draft.
+
+`QueueScoreConfigFields` adapts the existing project-wide create/edit dialogs to
+the controlled `AnnotationQueueScoreConfigEditor`. Creating a config appends its
+ID without saving the queue. The same searchable dropdown used by tracing’s
+Add score action lists available configs and offers config creation. Choosing a
+config appends its ID; the design-system
+`SortableList` owns pointer/touch/keyboard dragging and reports a single reorder
+on drop. Row removal confirms for populated queues.
+`AnnotationQueueFormDialogController` handles queue creation and retains
+creation/assignment retry coordination. The queue list links to each queue's
+inline setup instead of exposing a separate edit action.
 
 `components/` contains queue forms, tables, and processing views. `components/shared`
 contains object/query adapters and layout primitives; `server/` contains queue and

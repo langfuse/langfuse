@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Idle-gap time compression — ported from Sentry's
  * `traceRenderers/traceTimeCompression.tsx`.

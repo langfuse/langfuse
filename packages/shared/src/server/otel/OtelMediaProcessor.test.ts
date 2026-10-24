@@ -90,12 +90,12 @@ describe("processOtelMedia", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check",
       1,
-      { path: "data_uri", write_path: "direct" },
+      { path: "data_uri", write_path: "direct", media_path: "reference" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check_byte_length",
       Buffer.byteLength(dataUri, "utf8"),
-      { path: "data_uri", write_path: "direct" },
+      { path: "data_uri", write_path: "direct", media_path: "reference" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.byte_length",
@@ -104,6 +104,7 @@ describe("processOtelMedia", () => {
         outcome: "uploaded",
         media_kind: "data_uri",
         write_path: "direct",
+        media_path: "reference",
       },
     );
     expect(result).toMatchObject({
@@ -135,6 +136,7 @@ describe("processOtelMedia", () => {
         outcome: "reused",
         media_kind: "data_uri",
         write_path: "direct",
+        media_path: "reference",
       },
     );
   });
@@ -305,6 +307,7 @@ describe("processOtelMedia", () => {
         media_kind: "data_uri",
         reason: "unsupported_content_type",
         write_path: "direct",
+        media_path: "reference",
       },
     );
   });
@@ -328,6 +331,7 @@ describe("processOtelMedia", () => {
         media_kind: "data_uri",
         reason: "invalid_base64",
         write_path: "direct",
+        media_path: "reference",
       },
     );
   });

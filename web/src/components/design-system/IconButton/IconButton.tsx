@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconColor, type IconComponent } from "@langfuse/icons";
 import { type ComponentProps, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -11,9 +11,13 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        outlineDestructive:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         subtle: "hover:bg-border aria-expanded:bg-border",
         toolbar:
           "text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:text-primary rounded-sm",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
       },
       size: {
         xs: "size-4 rounded-sm",
@@ -28,31 +32,33 @@ const buttonVariants = cva(
   },
 );
 
-const iconVariants = cva("text-icon-foreground shrink-0", {
-  variants: {
-    size: {
-      xs: "icon-sm",
-      sm: "icon-base",
-      md: "icon-base",
-    },
-  },
-  defaultVariants: {
-    size: "md",
-  },
-});
-
 type NativeButtonProps = Omit<
   ComponentProps<"button">,
   "aria-label" | "children" | "className" | "style"
 >;
 
 type IconButtonProps = NativeButtonProps & {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   ref?: Ref<HTMLButtonElement>;
   size?: "xs" | "sm" | "md";
-  variant?: "ghost" | "outline" | "subtle" | "toolbar";
+  variant?:
+    | "ghost"
+    | "outline"
+    | "outlineDestructive"
+    | "subtle"
+    | "toolbar"
+    | "destructive";
 };
+
+const iconColors = {
+  ghost: "default",
+  outline: "default",
+  outlineDestructive: "destructive",
+  subtle: "default",
+  toolbar: "inherit",
+  destructive: "inherit",
+} as const satisfies Record<NonNullable<IconButtonProps["variant"]>, IconColor>;
 
 export function IconButton({
   icon: Icon,
@@ -72,10 +78,8 @@ export function IconButton({
       type={type}
     >
       <Icon
-        className={cn(
-          iconVariants({ size }),
-          variant === "toolbar" && "icon-sm text-current",
-        )}
+        size={variant === "toolbar" || size === "xs" ? "sm" : "base"}
+        color={iconColors[variant ?? "ghost"]}
         aria-hidden
       />
     </button>

@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.7 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -90,6 +90,14 @@ RUN set -eux; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
 
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with web/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
+
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
     echo "expressjs:x:${UID}:${GID}::/home/expressjs:/sbin/nologin" >> /mnt/rootfs/etc/passwd
@@ -114,9 +122,8 @@ ARG TARGETARCH
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
 # the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
 # loads in the runtime image. gcc provides the linker; tar and gzip unpack the
-# pinned toolchain; patch (with the base image's curl-minimal) prepares the
-# small clickhouse source overlay used by the native encoder.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip patch && \
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
@@ -135,6 +142,19 @@ RUN set -eux; \
     /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
+
+# cargo-about renders the third-party license notices for the native addon's
+# Rust dependencies. cargo-auditable embeds the addon's resolved dependency
+# list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
+# match its Rust crates against advisories. Both build from crates.io at pinned
+# versions with their own lockfiles; keep the versions in sync with
+# ai-gateway/Dockerfile. `napi build` spawns $CARGO instead of cargo when it is
+# set, so the build step points it at a wrapper that runs `cargo auditable`.
+RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 && \
+    cargo install --locked --root /usr/local cargo-auditable@0.7.7 && \
+    rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry" && \
+    printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim && \
+    chmod 0755 /usr/local/bin/cargo-auditable-shim
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -164,7 +184,17 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker...
+RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
+
+# Runs after the build so `cargo fetch` adds the sources the build skipped (dev
+# and other-target dependencies) that cargo metadata still reads; `generate`
+# then reads licenses only from local crate sources and fails on any dependency
+# whose license packages/native/about.toml does not accept.
+RUN cd packages/native && \
+    mkdir -p /usr/share/licenses/langfuse-native && \
+    cargo fetch --locked && \
+    cargo about generate --frozen --fail about.hbs \
+    -o /usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
@@ -200,6 +230,7 @@ ENV DOCKER_BUILD 0
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
+COPY --from=builder /usr/share/licenses/langfuse-native /usr/share/licenses/langfuse-native
 RUN chmod +x ./worker/entrypoint.sh
 # Numeric USER (uid of expressjs) so runAsNonRoot checks and Iron Bank
 # hardening validation can verify the user without resolving names.

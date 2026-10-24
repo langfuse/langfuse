@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
@@ -28,7 +29,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { AnnotateDrawerController } from "@/src/features/scores";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import {
   EnvironmentBadge,
@@ -37,7 +38,7 @@ import {
   TargetTraceBadge,
 } from "../../TraceMetadataBadges";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
@@ -48,7 +49,7 @@ import {
   MessageSquareOff,
   PlusIcon,
   SquarePen,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
@@ -170,9 +171,7 @@ function LoadedTraceDetailViewHeader({
               {({ getTriggerProps }) => (
                 <HeaderActionButton
                   label="Options"
-                  icon={
-                    <EllipsisVertical className="icon-base text-icon-foreground" />
-                  }
+                  icon={<EllipsisVertical size="base" color="default" />}
                   {...getTriggerProps()}
                 />
               )}
@@ -278,7 +277,7 @@ function LoadedTraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <EllipsisVertical className="icon-base text-icon-foreground" />
+                              <EllipsisVertical size="base" color="default" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -309,7 +308,7 @@ function LoadedTraceDetailViewHeader({
                   className={headerActionClassName}
                   {...getTriggerProps()}
                 >
-                  <PlusIcon className="icon-base text-icon-foreground" />
+                  <PlusIcon size="base" color="default" />
                   <span>Add to</span>
                   <DropdownIndicator size="sm" nudge />
                 </Button>
@@ -337,9 +336,9 @@ function LoadedTraceDetailViewHeader({
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="icon-base text-icon-foreground" />
+                      <LockIcon size="base" color="default" />
                     ) : (
-                      <SquarePen className="icon-base text-icon-foreground" />
+                      <SquarePen size="base" color="default" />
                     )}
                     <span>Annotate</span>
                   </Button>
@@ -355,10 +354,10 @@ function LoadedTraceDetailViewHeader({
               className={headerActionClassName}
             >
               {commentDrawerControl.disabled ? (
-                <MessageSquareOff className="icon-base text-muted-foreground" />
+                <MessageSquareOff size="base" color="muted" />
               ) : (
                 <>
-                  <MessageSquare className="icon-base text-icon-foreground" />
+                  <MessageSquare size="base" color="default" />
                   <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />

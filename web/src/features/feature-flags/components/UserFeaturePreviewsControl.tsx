@@ -1,0 +1,198 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useId, useState, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
+
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Button } from "@/src/components/ui/button";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { PopoverContent } from "@/src/components/ui/popover";
+import {
+  featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
+  userFeaturePreviewFlags,
+  type FeaturePreviewFlag,
+} from "@/src/features/feature-flags/available-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+
+type FeaturePreviewManagement = {
+  allowed: boolean;
+};
+
+export function UserFeaturePreviewsControl({
+  orgId,
+  userId,
+  featurePreviews,
+  management,
+  children,
+}: {
+  orgId: string;
+  userId: string;
+  featurePreviews: Record<FeaturePreviewFlag, boolean>;
+  management: FeaturePreviewManagement;
+  children: (props: {
+    enabledCount: number;
+    totalCount: number;
+    content: ReactNode;
+  }) => ReactNode;
+}) {
+  const session = useSession();
+  const descriptionId = useId();
+  const [pendingFlags, setPendingFlags] = useState<Set<FeaturePreviewFlag>>(
+    new Set(),
+  );
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const organizationDefaults =
+    api.organizations.getFeatureFlagOrgDefaults.useQuery(
+      { orgId },
+      { enabled: management.allowed },
+    );
+  const updatePreview = api.members.setUserFeaturePreviewEnabled.useMutation({
+    onSuccess: async (_result, variables) => {
+      capture("organization_settings:user_feature_flag_toggled", {
+        feature: variables.flag,
+        isEnabled: variables.enabled,
+      });
+      await utils.members.allFromOrg.invalidate();
+      if (variables.userId === session.data?.user?.id) {
+        await session.update();
+      }
+      showSuccessToast({
+        operation: "user_feature_preview.update",
+        title: "Feature preview updated",
+        description: `${featurePreviewLabels[variables.flag]} was ${
+          variables.enabled ? "enabled" : "disabled"
+        } for this user.`,
+      });
+    },
+    onError: async (error) => {
+      await utils.members.allFromOrg.invalidate();
+      showErrorToast(
+        "Failed to update feature preview",
+        "Your access may have changed. Refresh and try again.",
+        classifyTrpcToastError(error, "user_feature_preview.update"),
+      );
+    },
+  });
+  const enabledCount = userFeaturePreviewFlags.filter(
+    (flag) => featurePreviews[flag],
+  ).length;
+  const totalCount = userFeaturePreviewFlags.length;
+
+  if (!management.allowed) {
+    return (
+      <HoverCard
+        openDelay={0}
+        closeDelay={0}
+        placement="left"
+        content={
+          <div className="w-64 p-3">
+            <p id={descriptionId} className="text-xs">
+              You can only change this user&apos;s feature flags if you are an
+              administrator in every organization they belong to.
+            </p>
+          </div>
+        }
+      >
+        {({ getTriggerProps }) => (
+          <span
+            className="inline-flex cursor-not-allowed"
+            tabIndex={0}
+            {...getTriggerProps()}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              aria-describedby={descriptionId}
+            >
+              {enabledCount}/{totalCount} enabled
+            </Button>
+          </span>
+        )}
+      </HoverCard>
+    );
+  }
+
+  return children({
+    enabledCount,
+    totalCount,
+    content: (
+      <PopoverContent align="end" className="w-80">
+        <div className="flex flex-col gap-3">
+          <div>
+            <h4 className="text-sm font-bold">Feature previews</h4>
+            <p className="text-muted-foreground text-xs">
+              Changes apply to this user in every organization.
+            </p>
+          </div>
+          {userFeaturePreviewFlags.map((flag) => {
+            const disabledByOrganization =
+              defaultOnFeaturePreviewFlags.some(
+                (defaultFlag) => defaultFlag === flag,
+              ) &&
+              organizationDefaults.data !== undefined &&
+              !organizationDefaults.data.defaults.includes(flag);
+            return (
+              <div
+                key={flag}
+                className="flex items-center justify-between gap-4"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm">{featurePreviewLabels[flag]}</span>
+                  {disabledByOrganization ? (
+                    <p
+                      id={`${descriptionId}-${flag}`}
+                      className="text-muted-foreground text-xs"
+                    >
+                      Disabled for this organization. Enable the organization
+                      default before changing this user&apos;s preference.
+                    </p>
+                  ) : null}
+                </div>
+                <Switch
+                  size="sm"
+                  aria-label={`Toggle ${featurePreviewLabels[flag]} for user`}
+                  aria-describedby={
+                    disabledByOrganization
+                      ? `${descriptionId}-${flag}`
+                      : undefined
+                  }
+                  checked={featurePreviews[flag]}
+                  disabled={
+                    pendingFlags.has(flag) ||
+                    disabledByOrganization ||
+                    organizationDefaults.isPending ||
+                    organizationDefaults.isError
+                  }
+                  onCheckedChange={(enabled) => {
+                    setPendingFlags((current) => new Set(current).add(flag));
+                    updatePreview.mutate(
+                      {
+                        orgId,
+                        userId,
+                        flag,
+                        enabled,
+                      },
+                      {
+                        onSettled: () => {
+                          setPendingFlags((current) => {
+                            const next = new Set(current);
+                            next.delete(flag);
+                            return next;
+                          });
+                        },
+                      },
+                    );
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    ),
+  });
+}

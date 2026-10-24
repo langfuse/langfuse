@@ -1,5 +1,6 @@
-import { FileIcon, Wrench } from "lucide-react";
-import { useState, type ReactNode } from "react";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { FileIcon, Wrench } from "@langfuse/icons";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
 import {
@@ -23,9 +24,11 @@ import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 export function SessionTimelinePart({
   part,
   trailingContent,
+  mediaVariant,
 }: {
   part: NormalizedMessage["parts"][number];
   trailingContent?: ReactNode;
+  mediaVariant?: "tool-output";
 }) {
   if (part.type === "text") {
     if (part.refusal) {
@@ -64,7 +67,7 @@ export function SessionTimelinePart({
   }
 
   if (part.type === "file") {
-    return <SessionTimelineFile part={part} />;
+    return <SessionTimelineFile part={part} variant={mediaVariant} />;
   }
 
   if (part.type === "tool-call" || part.type === "tool-result") {
@@ -124,6 +127,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "text") {
+    if (content.text.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Reasoning"
@@ -153,6 +165,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "redacted") {
+    if (content.data.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Redacted reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Redacted reasoning"
@@ -170,24 +191,45 @@ function SessionTimelineReasoning({
   return assertUnreachable(content);
 }
 
-function SessionTimelineFile({ part }: { part: FilePart }) {
+function SessionTimelineFile({
+  part,
+  variant,
+}: {
+  part: FilePart;
+  variant?: ComponentProps<typeof SessionTimelinePart>["mediaVariant"];
+}) {
   const content = getSessionTimelineFileContent(part);
+  const body = (
+    <SessionTimelineFileBody
+      content={content}
+      filename={part.filename ?? "Embedded image"}
+    />
+  );
 
   return (
     <div
       className={cn(
-        "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
-        content.kind === "fallback" ? "w-full" : "w-fit",
+        variant === "tool-output"
+          ? "bg-muted/30 flex w-full min-w-0 flex-col overflow-hidden rounded-md border"
+          : "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
+        variant !== "tool-output" &&
+          (content.kind === "fallback" ? "w-full" : "w-fit"),
       )}
     >
-      <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
-        <FileIcon className="icon-base" />
+      <div
+        className={cn(
+          "text-muted-foreground flex items-center gap-2 text-xs",
+          variant === "tool-output" ? "border-b px-2 py-1" : "font-bold",
+        )}
+      >
+        <FileIcon size="base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
-      <SessionTimelineFileBody
-        content={content}
-        filename={part.filename ?? "Embedded image"}
-      />
+      {variant === "tool-output" ? (
+        <div className="min-w-0 p-3">{body}</div>
+      ) : (
+        body
+      )}
     </div>
   );
 }

@@ -1,14 +1,14 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
-import type { DetailTab } from "../contexts/SelectionContext";
+import type { DetailTab } from "../contexts/SelectionProvider";
 
 const labels: Record<DetailTab, string> = {
   preview: "Preview",
-  messages: "Messages",
   attributes: "Attributes",
   scores: "Scores",
   log: "Log View",
@@ -68,7 +68,6 @@ function LoadedTraceDetailTabsBarList({
             key={tab}
             value={tab}
             label={labels[tab]}
-            internal={tab === "messages"}
             tooltip={tab === "log" ? logViewDescription : undefined}
           />
         ))}

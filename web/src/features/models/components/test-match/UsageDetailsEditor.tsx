@@ -1,4 +1,4 @@
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
@@ -131,7 +131,7 @@ export function UsageDetailsEditor({
                 size="sm"
                 onClick={() => handleRemoveRow(index)}
               >
-                <Trash2 className="icon-base text-icon-foreground" />
+                <Trash2 size="base" color="default" />
               </Button>
             </div>
           ))}
@@ -144,7 +144,7 @@ export function UsageDetailsEditor({
         onClick={handleAddRow}
         className="w-full"
       >
-        <PlusCircle className="icon-base text-icon-foreground mr-2" />
+        <PlusCircle size="base" color="default" __rawClassName="mr-2" />
         Add Usage Type
       </Button>
     </div>

@@ -27,14 +27,17 @@
   history drawer shows execution status, errors and retry controls.
   `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
   Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
-  use the `langfuseTopics` flag and project permissions. Storage, retry and setup
-  details: `../worker/src/features/topics/README.md`. Preview and trigger
+  use internal view or the `langfuseTopics` flag, plus project permissions.
+  Storage, retry and setup details: `../worker/src/features/topics/README.md`. Preview and trigger
   selection share `topics/server`'s bounded trace selector with worker
-  backfills; preserve sampling and the frozen submission range. Internal PoC
-  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
-  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
-  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
-  directly, using the same character cap as worker inference.
+  backfills; preserve sampling and the frozen submission range. Models come
+  from the project's LLM connections (`TopicModelSettings.tsx`,
+  `topics.modelSettings` / `saveSetup`). The first-run wizard
+  (`TopicSetupFlowController.tsx`) saves models, facets, and idle time as you
+  leave each step. Start analyzing turns automatic processing on at the chosen
+  sample rate. The trace filter applies only to the optional past-trace batch. Configure Topics loads and saves idle time
+  through the project's tracing readiness setting; triggers stamp the configured
+  summary and embedding models into the frozen request.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -139,7 +142,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+    (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
@@ -210,7 +213,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   production-only `ReferenceError`; caught by the CI client-bundle scan,
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
-  (`src/features/evals/components/code-eval-template-form-body.tsx`).
+  (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
@@ -263,7 +266,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
@@ -353,11 +356,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
-- Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+- Do not hand-edit build artifacts: `.next/*`, `dist/*`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

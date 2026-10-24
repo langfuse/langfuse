@@ -6,18 +6,19 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Copy as CopyIcon,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { type ReactNode, useState } from "react";
 
 import { IconButton } from "../IconButton/IconButton";
+import { SyntaxHighlight } from "../SyntaxHighlight/SyntaxHighlight";
 import { Tooltip } from "../Tooltip/Tooltip";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 const bodyVariants = cva("relative flex min-w-0 max-w-full items-start", {
   variants: {
     variant: {
-      filled: "bg-surface-output rounded-md",
+      filled: "bg-surface-section rounded-md",
       outline: "bg-background rounded-md border",
       plain: null,
     },
@@ -66,7 +67,7 @@ const actionGroupVariants = cva(
 );
 
 type CodeSectionAction = {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   onClick: () => void;
 };
@@ -76,6 +77,8 @@ type CodeSectionProps = {
   content: string;
   /** Custom body, e.g. highlighted variables; copy still uses `content`. */
   children?: ReactNode;
+  /** Prism language name, e.g. `sh` or `json`, to syntax-highlight `content`. Ignored when `children` is set. */
+  language?: string;
   /** Omitted = no header row; actions move into the body's top-right corner. */
   title?: string;
   variant?: "filled" | "outline" | "plain";
@@ -92,6 +95,7 @@ type CodeSectionProps = {
 export function CodeSection({
   content,
   children,
+  language,
   title,
   variant = "filled",
   actions = [],
@@ -193,7 +197,14 @@ export function CodeSection({
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}
         >
-          {children ?? content}
+          {children ??
+            (language === undefined ? (
+              content
+            ) : (
+              <SyntaxHighlight code={content} language={language}>
+                {({ content: highlighted }) => highlighted}
+              </SyntaxHighlight>
+            ))}
         </code>
         {title ? null : actionGroup}
       </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createContext,
   useCallback,
@@ -18,11 +19,14 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
@@ -94,6 +98,7 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
 export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
+  | "command_menu"
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state";
@@ -126,6 +131,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
+  isSelectedConversationPersisted: false,
   execution: { run: null, isCancelling: false, cancel: () => undefined },
   error: null,
   messages: [],
@@ -143,6 +149,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   deleteConversation: async () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
+  answerQuestionnaire: async () => undefined,
   rejectToolCall: async () => undefined,
   submitFeedback: async () => undefined,
 };
@@ -184,6 +191,8 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
+  /** False until the server acknowledges the selected conversation's first run. */
+  isSelectedConversationPersisted: boolean;
   execution: InAppAiAgentExecution;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -208,6 +217,10 @@ type InAppAiAgentContextType = {
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
+  answerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
@@ -234,7 +247,7 @@ export function InAppAiAgentProvider({
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
 
   if (!projectId || !hasInAppAgentEntitlement) {
-    return <>{children}</>;
+    return children;
   }
 
   return (
@@ -884,6 +897,7 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
+            toolInputs: input.toolInputs,
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -1330,6 +1344,7 @@ function InAppAiAgentProviderInner({
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
       approvalScope: "once" | "conversation";
+      toolInputs?: InAppAgentToolInputs;
       conversationId: string;
     }) => {
       const runId =
@@ -1352,6 +1367,7 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
           approvalScope: params.approvalScope,
+          toolInputs: params.toolInputs,
         });
         return true;
       } catch (error) {
@@ -1367,6 +1383,7 @@ function InAppAiAgentProviderInner({
       approvalId: string,
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
+      toolInputs?: InAppAgentToolInputs,
     ) => {
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
@@ -1385,6 +1402,7 @@ function InAppAiAgentProviderInner({
         approval,
         approved,
         approvalScope,
+        toolInputs,
         conversationId: selectedConversationId,
       });
       if (decisionAccepted) {
@@ -1449,6 +1467,14 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const answerQuestionnaire = useCallback(
+    (approvalId: string, answers: InAppAgentQuestionnaireAnswers) =>
+      resumeToolApproval(approvalId, true, "once", {
+        [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+      }),
+    [resumeToolApproval],
+  );
+
   const rejectToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, false),
     [resumeToolApproval],
@@ -1468,6 +1494,9 @@ function InAppAiAgentProviderInner({
         ? []
         : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
+      isSelectedConversationPersisted:
+        Boolean(selectedConversationId) &&
+        !unpersistedConversationIds.has(selectedConversationId ?? ""),
       execution,
       error: effectiveError,
       messages: messagesWithUiState,
@@ -1486,12 +1515,14 @@ function InAppAiAgentProviderInner({
       submit,
       approveToolCall,
       alwaysAllowToolCall,
+      answerQuestionnaire,
       rejectToolCall,
       submitFeedback,
     }),
     [
       activityByConversationId,
       approveToolCall,
+      answerQuestionnaire,
       attentionCount,
       alwaysAllowToolCall,
       isExpanded,
@@ -1519,6 +1550,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       submit,
       submitFeedback,
+      unpersistedConversationIds,
     ],
   );
 
@@ -1604,7 +1636,7 @@ function getAgentErrorMessage(error: unknown): string {
     }
   }
 
-  return "Assistant request failed. Please try again.";
+  return "Halo request failed. Please try again.";
 }
 
 export function useInAppAiAgent() {

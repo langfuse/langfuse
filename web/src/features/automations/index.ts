@@ -7,5 +7,5 @@ export { AutomationButton } from "@/src/features/automations/components/Automati
 export {
   AutomationForm,
   automationCreateHref,
-} from "@/src/features/automations/components/automationForm";
+} from "@/src/features/automations/components/AutomationForm";
 export { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";

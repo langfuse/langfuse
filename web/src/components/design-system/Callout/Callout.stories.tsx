@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -10,7 +10,7 @@ const meta = preview.meta({
 
 const message = (
   <div className="flex items-start gap-2 sm:items-center">
-    <Bot className="icon-base mt-0.5 shrink-0 sm:mt-0" />
+    <Bot size="base" __rawClassName="mt-0.5 sm:mt-0" />
     <span>
       <span className="font-bold">
         Langfuse works great with your AI agents.

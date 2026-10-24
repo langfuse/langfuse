@@ -7,7 +7,7 @@ import {
   ListTree,
   Sparkles,
   Wrench,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   type FilterState,
   type TimeFilter,
@@ -17,7 +17,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import {
   resolveRowHeightRendering,
   useRowHeightLocalStorage,
@@ -558,7 +558,7 @@ export function SampleObservationSelectorBase(
                   );
                 }}
               >
-                <example.icon className="icon-base" />
+                <example.icon size="base" />
                 <span>{example.label}</span>
               </Button>
             ))}

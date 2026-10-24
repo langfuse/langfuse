@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   useEffect,
   useMemo,
@@ -9,7 +10,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from "react";
 import { useStore } from "zustand";
-import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
+import { LocateFixed, Maximize2, Minus, Plus, X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -70,7 +71,7 @@ export function TopicMapExplorer({
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
-  onOpenTrace,
+  matchingTraceIds,
   fillContainer = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
@@ -158,7 +159,7 @@ export function TopicMapExplorer({
       );
     } else {
       cancelFlight();
-      setCamera(null, id);
+      if (selectedTopic !== null) setCamera(null, id);
     }
     onSelectTopic(id);
   };
@@ -216,15 +217,10 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
-  const openTrace = async (id: string) => {
+  const selectTrace = (id: string | null) => {
+    if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
     clearTopicMapHover(store);
-    try {
-      if (document.fullscreenElement === sectionRef.current)
-        await document.exitFullscreen();
-      onOpenTrace(id);
-    } catch {
-      store.setState({ fullscreenError: true });
-    }
+    onSelectTrace(id);
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     gestures.pointerHandlers.onPointerMove(event);
@@ -260,6 +256,7 @@ export function TopicMapExplorer({
       !frame ||
       frame.model !== model ||
       frame.readingTopic !== selectedTopic ||
+      frame.matchingTraceIds !== matchingTraceIds ||
       frame.size.width !== size.width ||
       frame.size.height !== size.height ||
       frame.camera.zoom !== intended.zoom ||
@@ -289,14 +286,16 @@ export function TopicMapExplorer({
     const rect = event.currentTarget.getBoundingClientRect();
     const frame = store.getState().frame;
     const point =
-      frame && frame.model === model && frame.readingTopic === selectedTopic
+      frame &&
+      frame.model === model &&
+      frame.readingTopic === selectedTopic &&
+      frame.matchingTraceIds === matchingTraceIds
         ? hitMapNode(frame, {
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
           })
         : null;
-    onSelectTrace(point?.traceId ?? null);
-    if (point) openTrace(point.traceId);
+    selectTrace(point?.traceId ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -353,10 +352,6 @@ export function TopicMapExplorer({
   };
   const handleToggleFullscreen = () => {
     toggleFullscreen();
-  };
-  const handleSelectTrace = (id: string) => {
-    onSelectTrace(id);
-    openTrace(id);
   };
   return (
     <section
@@ -432,6 +427,7 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
+          matchingTraceIds={matchingTraceIds}
         />
         <MapLabels
           model={model}
@@ -439,7 +435,8 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
-          onSelectTrace={handleSelectTrace}
+          matchingTraceIds={matchingTraceIds}
+          onSelectTrace={selectTrace}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -451,7 +448,11 @@ export function TopicMapExplorer({
             store={store}
             initialCamera={initialCamera}
             scope={selectedTopic}
-            population={model.populationLabel}
+            population={
+              matchingTraceIds
+                ? `${model.points.filter((point) => matchingTraceIds.has(point.traceId)).length.toLocaleString()} of ${model.populationLabel} match`
+                : model.populationLabel
+            }
             missingSummaryCount={data.missingSummaryCount}
             unpositionedCount={data.unpositionedCount}
           />
@@ -538,15 +539,9 @@ function MapLabels({
   store,
   selectedTopic,
   selectedTraceId,
+  matchingTraceIds,
   onSelectTrace,
-}: {
-  model: TopicMapModel;
-  size: Size;
-  store: TopicMapStore;
-  selectedTopic: string | null;
-  selectedTraceId: string | null;
-  onSelectTrace: (id: string) => void;
-}) {
+}: MapLabelsProps) {
   const state = useStore(store);
   const frame = state.frame;
   const hover = getTopicMapHover(state, frame);
@@ -555,7 +550,8 @@ function MapLabels({
     frame.model === model &&
     frame.size.width === size.width &&
     frame.size.height === size.height &&
-    frame.readingTopic === selectedTopic;
+    frame.readingTopic === selectedTopic &&
+    frame.matchingTraceIds === matchingTraceIds;
   const handleTraceClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
     const traceId = event.currentTarget.dataset.traceId;
     if (traceId) onSelectTrace(traceId);
@@ -651,9 +647,11 @@ function MapLabels({
             )}
             style={{
               left: rect.x,
-              top: rect.y,
+              top: rect.anchorY,
               width: rect.width,
-              height: rect.height,
+              maxHeight: rect.height,
+              // Percentages use the rendered height; clamp keeps the card inside its reserved bounds.
+              translate: `0 clamp(${rect.y - rect.anchorY}px, ${-100 * rect.anchorFraction}%, calc(${rect.y + rect.height - rect.anchorY}px - 100%))`,
               borderLeftColor: trace?.point.color ?? zone!.color,
               borderLeftWidth: 2,
             }}
@@ -762,7 +760,7 @@ export type TopicMapExplorerProps = {
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
-  onOpenTrace: (traceId: string) => void;
+  matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
 };
 
@@ -773,6 +771,16 @@ type LayoutReadoutProps = {
   population: string;
   missingSummaryCount: number;
   unpositionedCount: number;
+};
+
+type MapLabelsProps = {
+  model: TopicMapModel;
+  size: Size;
+  store: TopicMapStore;
+  selectedTopic: string | null;
+  selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
+  onSelectTrace: (id: string) => void;
 };
 
 export const __test = { fitMapPoints };

@@ -6,7 +6,7 @@ import {
   isPresent,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
@@ -53,7 +53,10 @@ export const AnnotationDrawerSection: React.FC<
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
             <div className="border-dark-red bg-light-red flex items-center justify-center rounded-sm border p-1">
-              <TriangleAlertIcon className="text-dark-red icon-base mr-1" />
+              <TriangleAlertIcon
+                size="base"
+                __rawClassName="text-dark-red mr-1"
+              />
               <span className="text-dark-red text-xs">
                 Currently edited by {item.lockedByUser.name}
               </span>

@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { ConnectedSsoConfigsTable } from "./SsoConfigsTable/ConnectedSsoConfigsTable";
 
 export const SSOSettings = ({ orgId }: { orgId: string }) => {

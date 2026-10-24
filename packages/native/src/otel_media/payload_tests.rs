@@ -47,7 +47,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
             source = format!("{{ \n  \"layer{layer}\" : {}, \"number\" : 7.000e0 \n}}", serde_json::to_string(&source).unwrap());
         }
         let validated = validate(source.as_bytes().to_vec()).unwrap();
-        prop_assert_eq!(validated.source.as_slice(), source.as_bytes());
+        prop_assert_eq!(validated.source.as_bytes(), source.as_bytes());
         let source_ptr = validated.source.as_ptr();
         let compacted = validated.compact().unwrap();
         prop_assert_eq!(compacted.media.len(), originals.len(), "provider={}, layers={}", provider, layers);
@@ -60,12 +60,12 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
             match &media.storage {
                 MediaStorage::Source { bytes, range } => {
                     prop_assert_eq!(bytes.as_ptr(), source_ptr);
-                    prop_assert_eq!(&bytes[range.clone()], original.as_bytes());
+                    prop_assert_eq!(&bytes.as_bytes()[range.clone()], original.as_bytes());
                 }
                 MediaStorage::Owned(_) => prop_assert!(false, "ASCII media should retain the original source allocation"),
             }
         }
-        prop_assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
+        prop_assert_eq!(compacted.compact_json, expected);
     }
 
     // An escaped candidate instead owns decoded text, but must replace its exact source span.
@@ -78,7 +78,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     prop_assert_eq!(media.original_value().unwrap(), uris[0].as_str());
     prop_assert_eq!(media.decode().unwrap(), payloads[0].as_slice());
     prop_assert!(matches!(&media.storage, MediaStorage::Owned(_)));
-    prop_assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), source.replacen(&escaped, &media.reference(), 1));
+    prop_assert_eq!(compacted.compact_json, source.replacen(&escaped, &media.reference(), 1));
 }
 
 #[test]
@@ -87,10 +87,10 @@ fn valid_json_values_survive_scan_and_compaction(
 ) {
     let source = serde_json::to_vec(&value).expect("serialize generated JSON");
     let validated = validate(source.clone()).expect("valid JSON remains native");
-    prop_assert_eq!(validated.source.as_slice(), source.as_slice());
+    prop_assert_eq!(validated.source.as_bytes(), source.as_slice());
 
     let compacted = validated.compact().expect("compact media");
-    let compact: Value = serde_json::from_slice(&compacted.compact_json)
+    let compact: Value = serde_json::from_str(&compacted.compact_json)
         .expect("compaction preserves valid JSON");
     if compacted.media.is_empty() {
         // With no candidates, compaction must preserve arbitrary valid JSON.

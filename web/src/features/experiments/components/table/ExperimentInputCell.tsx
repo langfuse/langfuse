@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -47,7 +47,7 @@ export function ExperimentInputCell({
           className="text-muted-foreground hover:text-primary absolute top-1 right-1 rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
           onClick={(event) => event.stopPropagation()}
         >
-          <ArrowUpRight className="icon-base" aria-hidden />
+          <ArrowUpRight size="base" aria-hidden />
         </Link>
       ) : null}
       {/* Display chooses text or JSON. Row height does not. */}

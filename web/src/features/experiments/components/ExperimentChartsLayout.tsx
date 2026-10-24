@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import { type ReactNode } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
@@ -37,7 +38,7 @@ type Props = {
 };
 
 export function ExperimentChartsLayout(props: Props) {
-  if (!props.fromTimestamp || !props.toTimestamp) return <>{props.children}</>;
+  if (!props.fromTimestamp || !props.toTimestamp) return props.children;
   return (
     <ChartsLayout
       key={props.projectId}

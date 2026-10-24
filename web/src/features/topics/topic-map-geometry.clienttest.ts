@@ -786,3 +786,39 @@ describe("explicit map hover", () => {
     expect(prepareMapHover(frame, "trace-0", "billing").zones).toHaveLength(0);
   });
 });
+
+it("filters reading detail without moving dots or dropping nonmatching hit targets", () => {
+  const before = frameAt([
+    { x: 250, y: 300 },
+    { x: 750, y: 300 },
+  ]);
+  expect(before.nodes.every((node) => node.textOpacity > 0)).toBe(true);
+  const filtered = prepareMapNodes(
+    before.model,
+    before.camera,
+    before.size,
+    pointer,
+    null,
+    new Set(["trace-0"]),
+  );
+  for (const node of before.nodes) {
+    const after = filtered.nodeById.get(node.point.traceId)!;
+    expect(after.center).toEqual(node.center);
+    expect(after.worldPosition).toEqual(node.worldPosition);
+    expect(hitMapNode(filtered, after.center)?.traceId).toBe(
+      node.point.traceId,
+    );
+  }
+  expect(filtered.nodeById.get("trace-0")?.textOpacity).toBeGreaterThan(0);
+  expect(filtered.nodeById.get("trace-1")?.textOpacity).toBe(0);
+  const empty = prepareMapNodes(
+    before.model,
+    before.camera,
+    before.size,
+    pointer,
+    null,
+    new Set(),
+  );
+  expect(empty.nodes).toHaveLength(2);
+  expect(empty.nodes.every((node) => node.textOpacity === 0)).toBe(true);
+});

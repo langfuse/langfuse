@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { MediaContentType, MediaField } from "../../domain/media";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
@@ -81,6 +82,7 @@ type ProcessContext = {
   observationId?: string;
   field: MediaField;
   writePath: OtelMediaWritePath;
+  mediaPath: "early" | "reference";
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
@@ -100,6 +102,8 @@ export async function processOtelMedia(params: {
   targets: OtelMediaTarget[];
   projectId: string;
   writePath: OtelMediaWritePath;
+  /** Pipeline label for metrics; does not enable or disable TypeScript media detection. */
+  mediaPath?: "early" | "reference";
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
@@ -108,6 +112,7 @@ export async function processOtelMedia(params: {
     targets,
     projectId,
     writePath,
+    mediaPath = "reference",
     mediaBucket,
     mediaPrefix,
     uploadMedia,
@@ -143,6 +148,7 @@ export async function processOtelMedia(params: {
         observationId: target.observationId,
         field,
         writePath,
+        mediaPath,
         mediaBucket,
         mediaPrefix,
         uploadMedia,
@@ -168,7 +174,7 @@ export async function processOtelMedia(params: {
         recordDistribution(
           "langfuse.ingestion.otel.media.bytes_removed",
           transformed.bytesRemoved,
-          { write_path: context.writePath },
+          { write_path: context.writePath, media_path: context.mediaPath },
         );
       }
     }
@@ -222,6 +228,7 @@ async function processCandidate(
       outcome: uploadResult.outcome,
       media_kind: candidate.kind,
       write_path: context.writePath,
+      media_path: context.mediaPath,
     });
     recordDistribution(
       "langfuse.ingestion.otel.media.byte_length",
@@ -230,6 +237,7 @@ async function processCandidate(
         outcome: uploadResult.outcome,
         media_kind: candidate.kind,
         write_path: context.writePath,
+        media_path: context.mediaPath,
       },
     );
 
@@ -240,6 +248,7 @@ async function processCandidate(
       outcome: "failed",
       media_kind: candidate.kind,
       write_path: context.writePath,
+      media_path: context.mediaPath,
     });
     logger.warn(
       "OTEL media upload failed; leaving normalized value unchanged",
@@ -344,11 +353,12 @@ function recordDetectionCheck(
   recordIncrement("langfuse.ingestion.otel.media.detection_check", 1, {
     path,
     write_path: context.writePath,
+    media_path: context.mediaPath,
   });
   recordDistribution(
     "langfuse.ingestion.otel.media.detection_check_byte_length",
     checkedBytes,
-    { path, write_path: context.writePath },
+    { path, write_path: context.writePath, media_path: context.mediaPath },
   );
 }
 
@@ -363,6 +373,7 @@ function recordInvalidCandidate(
     media_kind: kind,
     reason,
     write_path: context.writePath,
+    media_path: context.mediaPath,
   });
 }
 
@@ -377,5 +388,6 @@ function recordIgnoredCandidate(
     media_kind: kind,
     reason,
     write_path: context.writePath,
+    media_path: context.mediaPath,
   });
 }

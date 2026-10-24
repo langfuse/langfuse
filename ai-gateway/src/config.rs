@@ -1,5 +1,5 @@
 use crate::resolution::ControlPlaneConfig;
-use std::{env, error::Error, fmt, net::SocketAddr, time::Duration};
+use std::{env, net::SocketAddr, ops::RangeInclusive, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -9,9 +9,57 @@ pub struct GatewayConfig {
     pub shutdown_timeout: Duration,
     pub log_level: LevelFilter,
     pub log_format: LogFormat,
-    pub max_active_requests: usize,
-    pub max_concurrent_resolutions: usize,
     pub telemetry_buffer_bytes: usize,
+    pub request_limits: RequestLimits,
+    pub execution_limits: ExecutionLimits,
+}
+
+const MIB: usize = 1024 * 1024;
+const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
+pub const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * MIB;
+const DEFAULT_MEMORY_BUDGET_BYTES: usize = 1024 * MIB;
+/// Covers response capture (up to 1 MiB retained output plus one inspected event of up
+/// to 1 MiB) and connection buffers. Staging responses average 8 KB (Anthropic) to
+/// 210 KB (`OpenAI`), so this is above the typical request.
+const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = 2 * MIB;
+const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
+const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
+/// Memory bounds per instance. Admission is limited only by the memory budget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestLimits {
+    pub max_request_bytes: usize,
+    /// Bytes all in-flight requests may reserve together.
+    pub memory_budget_bytes: usize,
+    /// Fixed bytes every in-flight request reserves on top of its body.
+    pub request_overhead_bytes: usize,
+}
+
+impl Default for RequestLimits {
+    fn default() -> Self {
+        Self {
+            max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
+            memory_budget_bytes: DEFAULT_MEMORY_BUDGET_BYTES,
+            request_overhead_bytes: DEFAULT_REQUEST_OVERHEAD_BYTES,
+        }
+    }
+}
+
+/// Provider execution deadlines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExecutionLimits {
+    /// Ceiling from execution admission until the response completes.
+    pub max_execution_time: Duration,
+    /// Longest wait without progress: stream response headers, upstream reads, downstream writes.
+    pub stall_timeout: Duration,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            max_execution_time: Duration::from_secs(DEFAULT_MAX_EXECUTION_SECONDS.into()),
+            stall_timeout: Duration::from_secs(DEFAULT_STALL_TIMEOUT_SECONDS.into()),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -20,16 +68,9 @@ pub enum LogFormat {
     Json,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
 pub struct GatewayConfigError(&'static str);
-
-impl fmt::Display for GatewayConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-impl Error for GatewayConfigError {}
 
 impl GatewayConfig {
     /// Read gateway configuration from the process environment, using defaults for absent values.
@@ -37,7 +78,8 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
-    /// or missing/blank service key. Error messages never include supplied values.
+    /// or missing/blank service key, or a non-boolean HTTP Web URL opt-in. Error
+    /// messages never include supplied values.
     pub fn from_env() -> Result<Self, GatewayConfigError> {
         let mut config = Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
@@ -45,26 +87,24 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
             read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
             read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS")?.as_deref(),
         )?;
         config.telemetry_buffer_bytes = telemetry_buffer_bytes(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES")?.as_deref(),
         )?;
-        if let Some(web_url) =
-            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
-        {
-            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
-            ))?;
-            config.control_plane = Some(ControlPlaneConfig::new(&web_url, &service_key).map_err(
-                |_| {
-                    GatewayConfigError(
-                        "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
-                    )
-                },
-            )?);
-        }
+        config.request_limits = request_limits(
+            read_env("LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES")?.as_deref(),
+        )?;
+        config.execution_limits = execution_limits(
+            read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
+        )?;
+        config.control_plane = control_plane(
+            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -73,16 +113,13 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error for an invalid IP address and port, a non-boolean port
     /// auto-increment setting, a shutdown timeout outside 1–300 integer seconds,
-    /// an unsupported log level or format, or concurrency
-    /// limits outside 1 through [`tokio::sync::Semaphore::MAX_PERMITS`].
+    /// or an unsupported log level or format.
     pub fn from_values(
         listen_address: Option<&str>,
         auto_increment_listen_port: Option<&str>,
         shutdown_timeout: Option<&str>,
         log_level: Option<&str>,
         log_format: Option<&str>,
-        max_active_requests: Option<&str>,
-        max_concurrent_resolutions: Option<&str>,
     ) -> Result<Self, GatewayConfigError> {
         let listen_address = listen_address
             .unwrap_or("0.0.0.0:8080")
@@ -98,16 +135,12 @@ impl GatewayConfig {
         .ok_or(GatewayConfigError(
             "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT must be true or false",
         ))?;
-        let seconds: u64 = shutdown_timeout.unwrap_or("10").parse().map_err(|_| {
-            GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
-            )
-        })?;
-        if !(1..=300).contains(&seconds) {
-            return Err(GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
-            ));
-        }
+        let seconds = integer_setting(
+            shutdown_timeout,
+            10,
+            1..=300,
+            "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+        )?;
         let log_level = match log_level.unwrap_or("info") {
             "debug" => LevelFilter::DEBUG,
             "info" => LevelFilter::INFO,
@@ -136,43 +169,117 @@ impl GatewayConfig {
             shutdown_timeout: Duration::from_secs(seconds),
             log_level,
             log_format,
-            max_active_requests: concurrency_limit(
-                max_active_requests,
-                "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS must be a positive integer within the semaphore capacity",
-            )?,
-            max_concurrent_resolutions: concurrency_limit(
-                max_concurrent_resolutions,
-                "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS must be a positive integer within the semaphore capacity",
-            )?,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
+            request_limits: RequestLimits::default(),
+            execution_limits: ExecutionLimits::default(),
         })
     }
 }
 
-fn concurrency_limit(
-    value: Option<&str>,
-    message: &'static str,
-) -> Result<usize, GatewayConfigError> {
-    value
-        .unwrap_or("128")
-        .parse::<usize>()
-        .ok()
-        .filter(|limit| (1..=tokio::sync::Semaphore::MAX_PERMITS).contains(limit))
-        .ok_or(GatewayConfigError(message))
+fn control_plane(
+    web_url: Option<&str>,
+    service_key: Option<&str>,
+    allow_http_web_url: Option<&str>,
+) -> Result<Option<ControlPlaneConfig>, GatewayConfigError> {
+    let allow_http_web_url = parse_boolean(allow_http_web_url.unwrap_or("false")).ok_or(
+        GatewayConfigError("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"),
+    )?;
+    let Some(web_url) = web_url.filter(|url| !url.is_empty()) else {
+        return Ok(None);
+    };
+    let service_key = service_key.ok_or(GatewayConfigError(
+        "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
+    ))?;
+    let control_plane = if allow_http_web_url {
+        ControlPlaneConfig::with_plain_http(web_url, service_key)
+    } else {
+        ControlPlaneConfig::new(web_url, service_key)
+    };
+    control_plane.map(Some).map_err(|_| {
+        GatewayConfigError("invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY")
+    })
+}
+
+fn request_limits(
+    max_request_bytes: Option<&str>,
+    memory_budget_bytes: Option<&str>,
+    request_overhead_bytes: Option<&str>,
+) -> Result<RequestLimits, GatewayConfigError> {
+    let defaults = RequestLimits::default();
+    // The overhead and each body growth are single semaphore acquisitions, which take a u32.
+    let max_reservation = usize::try_from(u32::MAX)
+        .unwrap_or(usize::MAX)
+        .min(SEMAPHORE_CAPACITY);
+    let max_request_bytes = integer_setting(
+        max_request_bytes,
+        defaults.max_request_bytes,
+        MIB..=max_reservation,
+        "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer of at least 1048576 (1 MiB) and within a single semaphore reservation",
+    )?;
+    let request_overhead_bytes = integer_setting(
+        request_overhead_bytes,
+        defaults.request_overhead_bytes,
+        0..=max_reservation,
+        "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES must be a non-negative integer within a single semaphore reservation",
+    )?;
+    // A maximal request must fit, or it could never be admitted.
+    let largest_request = max_request_bytes.saturating_add(request_overhead_bytes);
+    let memory_budget_bytes = integer_setting(
+        memory_budget_bytes,
+        defaults.memory_budget_bytes,
+        largest_request..=SEMAPHORE_CAPACITY,
+        "LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES plus LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES within the semaphore capacity",
+    )?;
+    Ok(RequestLimits {
+        max_request_bytes,
+        memory_budget_bytes,
+        request_overhead_bytes,
+    })
+}
+
+fn execution_limits(
+    max_execution_time: Option<&str>,
+    stall_timeout: Option<&str>,
+) -> Result<ExecutionLimits, GatewayConfigError> {
+    // `u32` seconds keep every deadline far from `Instant` overflow.
+    let max_execution_time: u32 = integer_setting(
+        max_execution_time,
+        DEFAULT_MAX_EXECUTION_SECONDS,
+        60..=u32::MAX,
+        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer of at least 60",
+    )?;
+    let stall_timeout: u32 = integer_setting(
+        stall_timeout,
+        DEFAULT_STALL_TIMEOUT_SECONDS,
+        1..=max_execution_time,
+        "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+    )?;
+    Ok(ExecutionLimits {
+        max_execution_time: Duration::from_secs(max_execution_time.into()),
+        stall_timeout: Duration::from_secs(stall_timeout.into()),
+    })
 }
 
 fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
-    const MIB: usize = 1024 * 1024;
-    let Some(value) = value else {
-        return Ok(crate::telemetry::DEFAULT_RETAINED_BYTES);
-    };
+    integer_setting(
+        value,
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
+        4 * MIB..=4096 * MIB,
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)",
+    )
+}
+
+/// An unset value takes `default`. Errors carry only `message`, never the supplied value.
+fn integer_setting<T: std::str::FromStr + PartialOrd>(
+    value: Option<&str>,
+    default: T,
+    range: RangeInclusive<T>,
+    message: &'static str,
+) -> Result<T, GatewayConfigError> {
     value
-        .parse::<usize>()
-        .ok()
-        .filter(|bytes| (4 * MIB..=4096 * MIB).contains(bytes))
-        .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)",
-        ))
+        .map_or(Some(default), |value| value.parse().ok())
+        .filter(|value| range.contains(value))
+        .ok_or(GatewayConfigError(message))
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
@@ -199,14 +306,12 @@ mod tests {
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {
-        let default = GatewayConfig::from_values(None, None, None, None, None, None, None).unwrap();
+        let default = GatewayConfig::from_values(None, None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert!(!default.auto_increment_listen_port);
         assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
         assert_eq!(default.log_level, LevelFilter::INFO);
         assert_eq!(default.log_format, LogFormat::Text);
-        assert_eq!(default.max_active_requests, 128);
-        assert_eq!(default.max_concurrent_resolutions, 128);
         assert_eq!(default.telemetry_buffer_bytes, 64 * 1024 * 1024);
         let custom = GatewayConfig::from_values(
             Some("[::1]:9000"),
@@ -214,8 +319,6 @@ mod tests {
             Some("30"),
             Some("debug"),
             Some("json"),
-            Some("256"),
-            Some("32"),
         )
         .unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
@@ -223,22 +326,51 @@ mod tests {
         assert_eq!(custom.shutdown_timeout, Duration::from_secs(30));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
         assert_eq!(custom.log_format, LogFormat::Json);
-        assert_eq!(custom.max_active_requests, 256);
-        assert_eq!(custom.max_concurrent_resolutions, 32);
+    }
+
+    #[test]
+    fn memory_budget_must_fit_a_maximal_request_with_its_overhead() {
+        assert_eq!(
+            request_limits(None, None, None).unwrap(),
+            RequestLimits {
+                max_request_bytes: 16 * MIB,
+                memory_budget_bytes: 1024 * MIB,
+                request_overhead_bytes: 2 * MIB,
+            }
+        );
+        let fitting = request_limits(Some("1048576"), Some("1048576"), Some("0")).unwrap();
+        assert_eq!(fitting.memory_budget_bytes, MIB);
+        assert_eq!(fitting.request_overhead_bytes, 0);
+        let budget = "LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES";
+        let overhead = "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES";
+        for (max_request, budget_value, overhead_value, name) in [
+            (Some("1048576"), Some("1048576"), Some("1"), budget),
+            // One byte short of the default 16 MiB request plus 2 MiB overhead.
+            (None, Some("18874367"), None, budget),
+            (None, None, Some("-1"), overhead),
+            (None, None, Some("secret-that-must-not-appear"), overhead),
+            (None, Some("secret-that-must-not-appear"), None, budget),
+        ] {
+            let error = request_limits(max_request, budget_value, overhead_value)
+                .err()
+                .unwrap();
+            assert!(error.to_string().starts_with(name), "{error}");
+            assert!(!error.to_string().contains("secret-that-must-not-appear"));
+        }
     }
 
     #[test]
     fn validates_shared_log_format() {
         for (value, expected) in [("text", LogFormat::Text), ("json", LogFormat::Json)] {
             assert_eq!(
-                GatewayConfig::from_values(None, None, None, None, Some(value), None, None)
+                GatewayConfig::from_values(None, None, None, None, Some(value))
                     .unwrap()
                     .log_format,
                 expected
             );
         }
         for value in ["", "TEXT", "pretty", "0", "secret-that-must-not-appear"] {
-            let error = GatewayConfig::from_values(None, None, None, None, Some(value), None, None)
+            let error = GatewayConfig::from_values(None, None, None, None, Some(value))
                 .err()
                 .unwrap();
             assert_eq!(
@@ -257,9 +389,7 @@ mod tests {
             ("error", LevelFilter::ERROR),
             ("fatal", LevelFilter::ERROR),
         ] {
-            let config =
-                GatewayConfig::from_values(None, None, None, Some(value), None, None, None)
-                    .unwrap();
+            let config = GatewayConfig::from_values(None, None, None, Some(value), None).unwrap();
             assert_eq!(config.log_level, expected, "{value}");
         }
     }
@@ -281,14 +411,14 @@ mod tests {
             (None, Some("-1"), None),
             (Some("localhost:8080"), None, None),
         ] {
-            let error = GatewayConfig::from_values(address, None, timeout, level, None, None, None)
+            let error = GatewayConfig::from_values(address, None, timeout, level, None)
                 .err()
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
             assert!(!format!("{error:?}").contains(sensitive_input));
         }
         for value in ["", "TRUE", "1", sensitive_input] {
-            let error = GatewayConfig::from_values(None, Some(value), None, None, None, None, None)
+            let error = GatewayConfig::from_values(None, Some(value), None, None, None)
                 .err()
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
@@ -297,42 +427,40 @@ mod tests {
     }
 
     #[test]
-    fn concurrency_limits_reject_invalid_values_and_accept_boundaries() {
-        let maximum = tokio::sync::Semaphore::MAX_PERMITS.to_string();
-        let overflow = (tokio::sync::Semaphore::MAX_PERMITS + 1).to_string();
-        for value in ["1", maximum.as_str()] {
-            let config =
-                GatewayConfig::from_values(None, None, None, None, None, Some(value), Some(value))
-                    .unwrap();
-            assert_eq!(config.max_active_requests, value.parse::<usize>().unwrap());
+    fn plain_http_web_url_requires_the_explicit_opt_in() {
+        let in_cluster = Some("http://langfuse-web.langfuse.svc.cluster.local:3000");
+        let key = Some("service-key");
+        for opt_in in [None, Some("false")] {
+            let error = control_plane(in_cluster, key, opt_in).err().unwrap();
             assert_eq!(
-                config.max_concurrent_resolutions,
-                value.parse::<usize>().unwrap()
+                error.to_string(),
+                "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY"
             );
         }
-        for value in [
-            "0",
-            "-1",
-            "1.5",
-            "",
-            "secret-that-must-not-appear",
-            overflow.as_str(),
+        let allowed = control_plane(in_cluster, key, Some("true"))
+            .unwrap()
+            .unwrap();
+        assert!(allowed.is_plain_http());
+        assert_eq!(
+            allowed
+                .endpoint("/api/internal/ai-gateway/v1/ingestion")
+                .as_str(),
+            "http://langfuse-web.langfuse.svc.cluster.local:3000/api/internal/ai-gateway/v1/ingestion"
+        );
+        for (url, opt_in) in [
+            ("https://cloud.langfuse.com", Some("true")),
+            ("http://localhost:3000", None),
         ] {
-            for (active, resolutions, name) in [
-                (Some(value), None, "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS"),
-                (
-                    None,
-                    Some(value),
-                    "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
-                ),
-            ] {
-                let error =
-                    GatewayConfig::from_values(None, None, None, None, None, active, resolutions)
-                        .err()
-                        .unwrap();
-                assert!(error.to_string().contains(name));
-                assert!(!error.to_string().contains("secret-that-must-not-appear"));
-            }
+            let config = control_plane(Some(url), key, opt_in).unwrap().unwrap();
+            assert!(!config.is_plain_http(), "{url}");
+        }
+        assert!(control_plane(None, None, Some("true")).unwrap().is_none());
+        for value in ["", "TRUE", "1", "secret-that-must-not-appear"] {
+            let error = control_plane(in_cluster, key, Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"
+            );
         }
     }
 

@@ -86,15 +86,14 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
+  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm align-middle font-mono leading-none font-normal select-none",
   {
     variants: {
       variant: {
-        default: "items-baseline bg-transparent text-foreground-tertiary",
-        subtle: "items-baseline bg-transparent text-foreground-tertiary",
-        inverse: "items-baseline bg-transparent text-primary-foreground",
-        keycap:
-          "items-center border bg-muted px-1 align-middle text-muted-foreground",
+        default: "bg-transparent text-foreground-tertiary",
+        subtle: "bg-transparent text-foreground-tertiary",
+        inverse: "bg-transparent text-primary-foreground",
+        keycap: "border bg-muted px-1 text-muted-foreground",
       },
       size: {
         default: "h-5 min-w-5 text-xs",
@@ -109,10 +108,11 @@ const keyboardShortcutVariants = cva(
   },
 );
 
+/** Draws symbol labels one font step up, with their line box pinned to the chip's height. */
 const symbolSizeClass = {
-  default: "text-lg",
-  sm: "text-sm",
-  xs: "text-xs",
+  default: "text-lg leading-none",
+  sm: "text-sm leading-none",
+  xs: "text-xs leading-none",
 } as const;
 
 export type KeyboardShortcutProps = {
@@ -129,7 +129,6 @@ export function KeyboardShortcut({
   size,
 }: KeyboardShortcutProps) {
   const isMac = useIsMac();
-  const letterClass = variant === "keycap" ? undefined : "-translate-y-0.5";
 
   return (
     <kbd
@@ -139,13 +138,12 @@ export function KeyboardShortcut({
     >
       {keys.map((key, index) => {
         const label = getKeyboardKeyLabel(key, isMac);
-        // Modifier and arrow glyphs draw small and high in the mono face; one step up, letters nudged up to meet them.
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
         return (
           <span
             key={index}
             className={
-              isSymbol ? symbolSizeClass[size ?? "default"] : letterClass
+              isSymbol ? symbolSizeClass[size ?? "default"] : undefined
             }
           >
             {label}

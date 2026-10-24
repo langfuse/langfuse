@@ -1,3 +1,4 @@
+import { IOSection } from "@/src/components/ui/IOSection";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 
@@ -11,11 +12,8 @@ export interface SectionMediaProps {
  */
 export function SectionMedia({ media }: SectionMediaProps) {
   return (
-    <>
-      <div className="io-message-header px-1 py-1 text-base font-bold">
-        Media
-      </div>
-      <div className="ph-no-capture flex flex-wrap gap-2 pb-4">
+    <IOSection title="Media" variant="media">
+      <div className="flex flex-wrap gap-2">
         {media.map((m) => (
           <LangfuseMediaView
             mediaAPIReturnValue={m}
@@ -24,6 +22,6 @@ export function SectionMedia({ media }: SectionMediaProps) {
           />
         ))}
       </div>
-    </>
+    </IOSection>
   );
 }
