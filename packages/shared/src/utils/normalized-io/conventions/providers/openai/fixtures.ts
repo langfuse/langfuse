@@ -53,6 +53,70 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
       toolDefinitions: [],
     },
   },
+  // https://developers.openai.com/api/docs/guides/tools-shell
+  // https://developers.openai.com/api/docs/guides/tools-apply-patch
+  {
+    name: "Responses shell_call_output and apply_patch_call_output as tool results",
+    spanIO: {
+      input: [
+        {
+          type: "shell_call_output",
+          call_id: "call_shell_1",
+          max_output_length: 4096,
+          output: [
+            {
+              stdout: "1 failed",
+              stderr: "",
+              outcome: { type: "exit", exit_code: 1 },
+            },
+          ],
+        },
+        {
+          type: "apply_patch_call_output",
+          call_id: "call_patch_1",
+          status: "failed",
+          output: "Hunk 1 does not apply to lib/fib.py",
+        },
+      ],
+      output: undefined,
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "call_shell_1",
+              output: [
+                {
+                  stdout: "1 failed",
+                  stderr: "",
+                  outcome: { type: "exit", exit_code: 1 },
+                },
+              ],
+              providerMetadata: { max_output_length: 4096 },
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "call_patch_1",
+              output: "Hunk 1 does not apply to lib/fib.py",
+              providerMetadata: { status: "failed" },
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
 ];
 
 const structuredReviewOutput = {
