@@ -296,6 +296,7 @@ const getPlanBasedRateLimitConfig = (
     case "oss":
     case "self-hosted:pro":
     case "self-hosted:enterprise":
+    case "self-hosted:gov":
       return {
         resource,
         points: null,
