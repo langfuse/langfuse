@@ -18,6 +18,7 @@ COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 # Activate the repo's pinned pnpm through a Corepack release compatible with pnpm 12.
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
     && corepack prepare pnpm@12.8.2 --activate
