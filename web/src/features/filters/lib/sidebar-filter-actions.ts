@@ -16,6 +16,27 @@ import { partitionNoneOfEnvironmentValues } from "./managedEnvironmentPolicy";
 export type CheckboxOperator = "any of" | "all of" | "none of";
 export type TextFilterOperator = "contains" | "does not contain";
 
+export function hasEmptyCheckboxSelection(
+  current: FilterState,
+  column: string,
+) {
+  return current.some(
+    (filter) =>
+      filter.column === column &&
+      (filter.type === "stringOptions" || filter.type === "arrayOptions") &&
+      filter.operator === "any of" &&
+      filter.value.length > 0 &&
+      current.some(
+        (exclusion) =>
+          exclusion.column === column &&
+          exclusion.target === filter.target &&
+          exclusion.type === filter.type &&
+          exclusion.operator === "none of" &&
+          filter.value.every((value) => exclusion.value.includes(value)),
+      ),
+  );
+}
+
 /** Options as the sidebar hook receives them (per-column value lists, or
  *  nested key→values records for keyed facets). */
 type SidebarFilterOptions = Record<
@@ -204,6 +225,15 @@ export function applySelection(
   operator?: CheckboxOperator,
 ): FilterState {
   if (hasMultipleFilterTargets(current, column)) return current;
+  // Changing operators without selecting values must not turn an empty
+  // selection into a vacuous all-of/none-of that matches everything.
+  if (
+    operator !== undefined &&
+    values.length === 0 &&
+    hasEmptyCheckboxSelection(current, column)
+  ) {
+    return current;
+  }
   const existingFilter = current.find((f) => f.column === column);
   const target = existingFilter?.target
     ? { target: existingFilter.target }
@@ -266,6 +296,33 @@ export function applySelection(
     return current;
   }
 
+  const filterType: "arrayOptions" | "stringOptions" =
+    colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
+
+  if (operator === undefined && values.length === 0) {
+    const previousValues =
+      existingFilter?.type === "stringOptions" ||
+      existingFilter?.type === "arrayOptions"
+        ? existingFilter.value
+        : [];
+    // Exclude unchecked options, including values no longer in the loaded
+    // option list. Unlisted values may still match; this is not match-nothing.
+    const excludedValues = [
+      ...new Set([...availableValues, ...previousValues]),
+    ];
+    if (excludedValues.length === 0) return other;
+    return [
+      ...other,
+      {
+        column,
+        ...target,
+        type: filterType,
+        operator: "none of",
+        value: excludedValues,
+      },
+    ];
+  }
+
   // Determine operator and values based on context
   let finalOperator: CheckboxOperator;
   let finalValues: string[];
@@ -274,8 +331,7 @@ export function applySelection(
   // "no filter": exclusions outside the current option list may still be
   // live. Skip the all-selected removal shortcut and let
   // resolveCheckboxOperator re-derive the exclusion set (an emptied set is
-  // removed below). This also covers "none checked", which means
-  // exclude every listed value rather than reset. The managed
+  // removed below). The managed
   // environment column is exempt: its all-selected shortcut persists the
   // explicit enable-all-environments override, and its hidden
   // environments are always listed, so there is nothing to carry.
@@ -301,13 +357,13 @@ export function applySelection(
       return other;
     }
   } else {
-    // If all items selected or none selected, remove filter
+    // If all items are selected, remove the filter.
     // (only for implicit/checkbox-based selection, not when operator is explicitly set)
     if (
       !preserveNoneOfOperator &&
-      (values.length === 0 ||
-        (values.length === availableValues.length &&
-          availableValues.every((v) => values.includes(v))))
+      values.length > 0 &&
+      values.length === availableValues.length &&
+      availableValues.every((v) => values.includes(v))
     ) {
       // Keep explicit override when user intentionally enables all environments.
       if (isManagedEnvironmentColumn && values.length > 0) {
@@ -361,9 +417,6 @@ export function applySelection(
       finalValues = values;
     }
   }
-
-  const filterType: "arrayOptions" | "stringOptions" =
-    colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
   if (filterType === "arrayOptions") {
     return [
@@ -496,6 +549,10 @@ export function deriveOperatorChange(
     existingFilter.type !== "stringOptions"
   ) {
     return null;
+  }
+
+  if (hasEmptyCheckboxSelection(current, column)) {
+    return { values: [], fromOperator: existingFilter.operator };
   }
 
   // For "none of", the SELECTED values are the complement of the stored

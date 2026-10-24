@@ -57,6 +57,7 @@ import { useTableViewFilterChange } from "@/src/components/table/table-view-pres
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 
 import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
+import { hasEmptyCheckboxSelection } from "@/src/features/filters/lib/sidebar-filter-actions";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
@@ -512,7 +513,29 @@ function MonitorRowActions({
 const filterStateToListMonitorFilter = (
   state: FilterState,
 ): ListMonitorFilter => {
-  const parsed = ListMonitorFilterSchema.safeParse(state);
+  const emptyColumns = new Set(
+    state
+      .filter((filter) => hasEmptyCheckboxSelection(state, filter.column))
+      .map((filter) => filter.column),
+  );
+  // The monitor API allows only one filter per column. Excluding every
+  // severity is a valid contradiction, independent of loaded facet options.
+  const requestState: FilterState =
+    emptyColumns.size > 0
+      ? [
+          ...state.filter(
+            (filter) =>
+              !emptyColumns.has(filter.column) && filter.column !== "severity",
+          ),
+          {
+            column: "severity",
+            type: "stringOptions",
+            operator: "none of",
+            value: MonitorSeveritySchema.options,
+          },
+        ]
+      : state;
+  const parsed = ListMonitorFilterSchema.safeParse(requestState);
   if (!parsed.success) return [];
   return parsed.data.map((row) => {
     if (
