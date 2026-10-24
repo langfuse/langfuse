@@ -27,6 +27,9 @@ export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
   userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),

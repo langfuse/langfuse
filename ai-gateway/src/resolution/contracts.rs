@@ -167,7 +167,6 @@ impl Auth {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ProviderConnection {
     id: String,
     // Optional so the gateway keeps resolving against a Web that predates it.
@@ -188,7 +187,7 @@ impl ProviderConnection {
     }
     /// The user-chosen display name. Never send it to callers; it is for operators.
     pub fn name(&self) -> Option<&str> {
-        self.name.as_deref().filter(|name| !name.trim().is_empty())
+        non_blank(self.name.as_deref())
     }
     pub fn provider(&self) -> Provider {
         self.provider
@@ -238,16 +237,20 @@ impl From<&str> for ProjectId {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct RequestAttribution {
     organization_id: OrganizationId,
     /// Absent only in [`IngestionMode::None`], which needs no ingestion project.
     project_id: Option<ProjectId>,
     key_id: String,
-    /// The user the key is bound to. Absent for keys created before keys were
-    /// bound to users, and from Web versions that predate the field.
+    /// The user the key is bound to, which is the key's owner. Absent for keys
+    /// created before keys were bound to users, and from Web versions that
+    /// predate the field.
     #[serde(default)]
     user_id: Option<String>,
+    #[serde(default)]
+    key_name: Option<String>,
+    #[serde(default)]
+    user_name: Option<String>,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
@@ -265,6 +268,14 @@ impl RequestAttribution {
     pub fn user_id(&self) -> Option<&str> {
         self.user_id.as_deref()
     }
+    /// The key's display name at resolve time.
+    pub fn key_name(&self) -> Option<&str> {
+        non_blank(self.key_name.as_deref())
+    }
+    /// The bound user's display name at resolve time; never an email address.
+    pub fn user_name(&self) -> Option<&str> {
+        non_blank(self.user_name.as_deref())
+    }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata
     }
@@ -274,7 +285,6 @@ impl RequestAttribution {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct IngestionGrant {
     access_token: SecretString,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
@@ -292,7 +302,6 @@ impl IngestionGrant {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ResolutionResponse {
     version: u8,
     connection: ProviderConnection,
@@ -305,6 +314,10 @@ struct ResolutionResponse {
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
 pub struct ResolvedRequestContext(ResolutionResponse);
+
+fn non_blank(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.trim().is_empty())
+}
 
 // Web enums are JSON strings. Serde's externally tagged enums also accept objects.
 fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(

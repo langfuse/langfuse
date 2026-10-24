@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_FIELD_BYTES: usize = 1024;
+const MAX_USER_AGENT_BYTES: usize = 256;
 const MAX_ENTRIES: usize = 64;
 const MAX_AGENT_HEADER_BYTES: usize = 8 * 1024;
 const MAX_AGENT_METADATA_BYTES: usize = 4 * 1024;
@@ -116,6 +117,9 @@ pub(super) struct GenerationContext {
     pub trace_state: String,
     pub attributes: Map<String, Value>,
     pub metadata: Map<String, Value>,
+    /// The caller's raw `User-Agent`, truncated; recorded even when the
+    /// tracing headers are rejected as oversized.
+    pub user_agent: Option<String>,
 }
 
 impl GenerationContext {
@@ -138,6 +142,7 @@ impl GenerationContext {
             trace_state: String::new(),
             attributes: Map::new(),
             metadata: Map::new(),
+            user_agent: client_user_agent(headers),
         };
         let bytes = HEADERS
             .iter()
@@ -484,6 +489,18 @@ fn clean_agent_field(value: &str) -> Option<String> {
 
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     agent_header(headers, "user-agent").map(|value| value.to_ascii_lowercase())
+}
+
+fn client_user_agent(headers: &HeaderMap) -> Option<String> {
+    let value = single_header(headers, "user-agent")?.trim();
+    if value.is_empty() || value.chars().any(char::is_control) {
+        return None;
+    }
+    let mut end = value.len().min(MAX_USER_AGENT_BYTES);
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(value[..end].to_owned())
 }
 
 fn agent_trace_id(name: &str, session_id: Option<&str>, turn_id: &str) -> String {

@@ -51,6 +51,13 @@ pub(crate) struct InferenceFacts {
     pub first_byte_ms: Option<u128>,
     pub completion_start_ms: Option<u128>,
     pub http_status: Option<u16>,
+    /// Seconds from the provider's `Retry-After` header, in milliseconds.
+    pub retry_after_ms: Option<u64>,
+    /// The model the gateway sent upstream, after resolving the caller's alias.
+    pub upstream_model: Option<String>,
+    pub request_body_bytes: usize,
+    /// Provider response body bytes relayed to the caller.
+    pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
     #[serde(flatten)]
@@ -60,7 +67,9 @@ pub(crate) struct InferenceFacts {
 /// Provider adapters fill this common envelope without translating native payloads.
 #[derive(Default, Serialize)]
 pub(crate) struct ProviderFacts {
+    /// The model the provider reported in its response.
     pub model: Option<String>,
+    /// The model the caller sent in the request body.
     pub requested_model: Option<String>,
     pub model_parameters: Map<String, Value>,
     pub request_metadata: Map<String, Value>,
