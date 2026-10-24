@@ -90,4 +90,37 @@ describe("useReadyRouteParams", () => {
       params: { projectId: "p1", datasetId: "d1", itemId: "i1" },
     });
   });
+
+  test("eval template detail is not ready until project and template ids hydrate", () => {
+    mockQuery({});
+
+    const { result } = renderHook(() =>
+      useReadyRouteParams(["projectId", "id"]),
+    );
+
+    expect(result.current).toEqual({ ready: false });
+  });
+
+  test("eval template detail is ready once project and template ids are strings", () => {
+    mockQuery({ projectId: "p1", id: "tpl1" });
+
+    const { result } = renderHook(() =>
+      useReadyRouteParams(["projectId", "id"]),
+    );
+
+    expect(result.current).toEqual({
+      ready: true,
+      params: { projectId: "p1", id: "tpl1" },
+    });
+  });
+
+  test("eval template detail is not ready when projectId is a duplicate query array", () => {
+    mockQuery({ projectId: ["p1", "p1"], id: "tpl1" });
+
+    const { result } = renderHook(() =>
+      useReadyRouteParams(["projectId", "id"]),
+    );
+
+    expect(result.current).toEqual({ ready: false });
+  });
 });

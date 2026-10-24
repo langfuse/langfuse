@@ -22,10 +22,14 @@ import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/Delete
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "@langfuse/icons";
 
-export const EvalTemplateDetail = () => {
+export const EvalTemplateDetail = ({
+  projectId,
+  templateId,
+}: {
+  projectId: string;
+  templateId: string;
+}) => {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const templateId = router.query.id as string;
   const mode = router.query.mode;
   const isEditing = mode === "edit";
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
@@ -36,10 +40,15 @@ export const EvalTemplateDetail = () => {
   });
 
   // get the current template by id
-  const template = api.evals.templateById.useQuery({
-    projectId: projectId,
-    id: templateId,
-  });
+  const template = api.evals.templateById.useQuery(
+    {
+      projectId,
+      id: templateId,
+    },
+    {
+      enabled: Boolean(projectId) && Boolean(templateId),
+    },
+  );
 
   // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
@@ -96,7 +105,7 @@ export const EvalTemplateDetail = () => {
         breadcrumb: [
           {
             name: "Evaluator Library",
-            href: `/project/${router.query.projectId as string}/evals/templates`,
+            href: `/project/${projectId}/evals/templates`,
           },
         ],
         actionButtonsRight: (
