@@ -2,29 +2,45 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
   optionalString,
   parseArray,
+  parseIfString,
+  toJsonValue,
 } from "../../../core/utils/json";
-import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
+import {
+  filePartFromMediaReference,
+  filePartFromUrl,
+  parseMediaReference,
+} from "../../../core/normalize/message-parts/media";
+import {
+  providerExecutedToolCall,
+  toolCallPart,
+} from "../../../core/normalize/message-parts/tool-calls";
 import type {
+  FilePart,
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
+  ToolResultPart,
 } from "../../../types";
 import type {
   ConventionResult,
   IOConvention,
   MessageEnvelopeContext,
   MessageSource,
+  PartHandler,
   PartHandlerContext,
 } from "../../io-convention";
 
 /**
  * LangChain / LangGraph convention: this module owns the `lc`/`kwargs`
- * serialization envelope and the `tool_calls`/`invalid_tool_calls`/
- * `additional_kwargs` sibling fields. LangChain has no finish-reason
- * vocabulary of its own — it surfaces the underlying provider's value under
- * `response_metadata` (picked up generically in `normalize/message.ts`).
+ * serialization envelope, the `tool_calls`/`invalid_tool_calls`/
+ * `additional_kwargs` sibling fields, and the v1 standard content blocks
+ * (multimodal and server-side tool blocks). LangChain has
+ * no finish-reason vocabulary of its own — it surfaces the underlying
+ * provider's value under `response_metadata` (picked up generically in
+ * `normalize/message.ts`).
  */
 
 // FunctionMessage maps to the deprecated "function" role so the legacy
@@ -61,6 +77,119 @@ function unwrapLangchainEnvelope(
   );
 }
 
+function langchainBase64OrFileIdContent(
+  value: Record<string, unknown>,
+): FilePart["content"] | undefined {
+  const base64 = optionalString(value.base64);
+  if (base64) return { kind: "base64", data: base64 };
+  const fileId = optionalString(value.file_id);
+  if (fileId) return { kind: "reference", id: fileId };
+  return undefined;
+}
+
+/**
+ * LangChain v1 standard multimodal blocks: `{ type, url | base64 | file_id,
+ * mime_type? }`. The type names are shared with other dialects: Anthropic
+ * `source` images and OpenAI `file` wrappers carry none of these source
+ * fields, and AI SDK parts declare `mediaType` instead of `mime_type`, so
+ * those fall through.
+ */
+function langchainMediaBlock(fallbackMediaType?: string): PartHandler {
+  return (value) => {
+    // Preserve native Anthropic/OpenAI wrappers and AI SDK payload fields.
+    if (
+      ["source", "file", "mediaType", "data", "image", "filename"].some(
+        (key) => value[key] !== undefined,
+      )
+    )
+      return unmatched;
+
+    const mediaType = optionalString(value.mime_type);
+    const url = optionalString(value.url);
+    if (url) {
+      // Generic file payloads share the AI SDK shape and its URL/base64 rules.
+      if (
+        value.type === "file" &&
+        (!mediaType ||
+          (!/^(https?:|data:)/.test(url) && !parseMediaReference(url)))
+      )
+        return unmatched;
+      return claimed(filePartFromUrl(url, { mediaType, fallbackMediaType }));
+    }
+
+    const reference = parseMediaReference(value.base64);
+    if (reference) return claimed(filePartFromMediaReference(reference));
+
+    const content = langchainBase64OrFileIdContent(value);
+    if (!content) return unmatched;
+    return claimed(
+      compact<FilePart>({
+        type: "file",
+        mediaType: mediaType ?? fallbackMediaType,
+        content,
+      }),
+    );
+  };
+}
+
+// LangChain v1 server-side tool blocks: the provider ran the tool (web
+// search, code execution, remote MCP) and the result names its call by
+// `tool_call_id`. The execution `status` stays in providerMetadata.
+const normalizeLangchainServerToolCall: PartHandler = (value) =>
+  claimed(
+    providerExecutedToolCall(
+      toolCallPart({
+        toolCallId: value.id,
+        toolName: value.name,
+        input: value.args,
+        toolType: "server_tool_call",
+      }),
+    ),
+  );
+
+const normalizeLangchainServerToolResult: PartHandler = (value) => {
+  const raw = parseIfString(value.output ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.tool_call_id),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
+    }),
+  );
+};
+
+// LangChain invalid_tool_calls entries: { name, args, id, error }.
+function normalizeLangchainInvalidToolCall(
+  record: Record<string, unknown>,
+): ToolCallPart | null {
+  const part = toolCallPart({
+    toolCallId: record.id,
+    toolName: record.name,
+    input: record.args,
+  });
+  if (!part) return null;
+  const error = optionalString(record.error);
+  return compact<ToolCallPart>({
+    ...part,
+    invalid: true,
+    providerMetadata: error ? { error } : undefined,
+  });
+}
+
+// `text`, `reasoning` and `tool_call` blocks are recognized by the shared and
+// OTel GenAI handlers; `text-plain` and `non_standard` stay custom parts.
+const LANGCHAIN_PART_HANDLERS = {
+  image: langchainMediaBlock("image/*"),
+  audio: langchainMediaBlock("audio/*"),
+  video: langchainMediaBlock("video/*"),
+  file: langchainMediaBlock(),
+  server_tool_call: normalizeLangchainServerToolCall,
+  server_tool_result: normalizeLangchainServerToolResult,
+} satisfies Readonly<Record<string, PartHandler>>;
+
 /**
  * LangChain's `invalid_tool_calls` (attempts the model made whose arguments
  * could not be parsed — kept in the stream as flagged tool calls, raw args
@@ -85,24 +214,9 @@ function langchainCollectSiblingParts(
   parts.push(...additionalToolCalls);
 
   for (const invalidCall of parseArray(value.invalid_tool_calls) ?? []) {
-    // LangChain invalid_tool_calls entries: { name, args, id, error }.
     const record = asRecord(invalidCall);
-    const part = record
-      ? toolCallPart({
-          toolCallId: record.id,
-          toolName: record.name,
-          input: record.args,
-        })
-      : null;
-    if (!part) continue;
-    const error = optionalString(record?.error);
-    parts.push(
-      compact<ToolCallPart>({
-        ...part,
-        invalid: true,
-        providerMetadata: error ? { error } : undefined,
-      }),
-    );
+    const part = record ? normalizeLangchainInvalidToolCall(record) : null;
+    if (part) parts.push(part);
   }
 
   return parts.length > 0
@@ -146,6 +260,7 @@ export const langchainProvider = {
   // Parsed calls live in `tool_calls`, raw provider extras in
   // `additional_kwargs`.
   messageLikeKeys: new Set(["tool_calls", "additional_kwargs"]),
+  typedParts: LANGCHAIN_PART_HANDLERS,
   tryUnwrapMessage: unwrapLangchainEnvelope,
   collectSiblingParts: langchainCollectSiblingParts,
 } satisfies IOConvention;
