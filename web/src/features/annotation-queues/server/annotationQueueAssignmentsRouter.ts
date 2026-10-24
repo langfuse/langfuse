@@ -118,8 +118,11 @@ export const queueAssignmentRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Remove memberships
-      await ctx.prisma.annotationQueueAssignment.deleteMany({
+      // Remove memberships. deleteMany does not throw when it matches nothing, so the
+      // count has to be checked: removing an assignment that is not there changes no
+      // state and must not be audited as a deletion. The public API path agrees, where
+      // a missing assignment surfaces as P2025 and skips the audit entry entirely.
+      const { count } = await ctx.prisma.annotationQueueAssignment.deleteMany({
         where: {
           projectId: input.projectId,
           queueId: input.queueId,
@@ -127,13 +130,15 @@ export const queueAssignmentRouter = createTRPCRouter({
         },
       });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "annotationQueueAssignment",
-        resourceId: input.queueId,
-        before: { ...input },
-        action: "delete",
-      });
+      if (count > 0) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "annotationQueueAssignment",
+          resourceId: input.queueId,
+          before: { ...input },
+          action: "delete",
+        });
+      }
 
       return {
         success: true,
