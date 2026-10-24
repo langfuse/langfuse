@@ -1,3 +1,6 @@
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { render, screen } from "@testing-library/react";
 import { MediaContentType } from "@langfuse/shared";
 
@@ -9,16 +12,16 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
   LangfuseMediaView: () => <div data-testid="media-item" />,
 }));
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
 describe("PrettyJsonView media layout", () => {
   it("aligns attachment tiles with the section content", () => {
     render(
-      <PrettyJsonView
+      <JsonViewController
         json={"x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1)}
-        title="Output"
         media={[
           {
             mediaId: "media-id",
@@ -29,7 +32,35 @@ describe("PrettyJsonView media layout", () => {
             field: MediaEnabledFields.Output,
           },
         ]}
-      />,
+      >
+        {(state) => (
+          <IOSection
+            title="Output"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Output" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     expect(screen.getByTestId("media-item").parentElement).toHaveClass("px-2");

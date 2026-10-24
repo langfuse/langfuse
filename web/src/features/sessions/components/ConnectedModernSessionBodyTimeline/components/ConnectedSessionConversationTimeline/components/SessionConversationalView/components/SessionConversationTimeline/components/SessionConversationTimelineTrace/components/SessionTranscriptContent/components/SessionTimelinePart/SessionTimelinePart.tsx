@@ -1,5 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { FileIcon, Wrench } from "@langfuse/icons";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  FileIcon,
+  Wrench,
+} from "@langfuse/icons";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
@@ -11,8 +19,9 @@ import {
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { ExternalMediaView } from "@/src/components/ui/media/ExternalMediaView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import {
   classifyMediaValue,
   type MediaDescriptor,
@@ -96,11 +105,35 @@ export function SessionTimelinePart({
 
   if (part.type === "custom") {
     return (
-      <PrettyJsonView
-        title={part.kind}
-        json={part.value}
-        currentView="pretty"
-      />
+      <JsonViewController json={part.value} currentView="pretty">
+        {(state) => (
+          <IOSection
+            title={part.kind}
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title={part.kind} borderless />
+          </IOSection>
+        )}
+      </JsonViewController>
     );
   }
 

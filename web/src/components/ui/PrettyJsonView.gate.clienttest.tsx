@@ -5,6 +5,10 @@
  * that branch selection: over-limit strings render the fallback only, while a
  * normal small string still mounts the viewer.
  */
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { render, screen } from "@testing-library/react";
 import type * as CodeJsonViewerModule from "@/src/components/ui/CodeJsonViewer";
 
@@ -27,13 +31,44 @@ vi.mock("@/src/components/ui/CodeJsonViewer", async (importOriginal) => {
   };
 });
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 
 describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   it("renders the bounded fallback and mounts neither the JSON viewer nor the table for an over-limit string", () => {
     const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    const { container } = render(<PrettyJsonView json={huge} title="Input" />);
+    const { container } = render(
+      <JsonViewController json={huge}>
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
+    );
 
     // Bounded fallback + download affordance are shown...
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
@@ -50,7 +85,37 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   });
 
   it("renders normally (JSON viewer mounted, no fallback) for small I/O", () => {
-    render(<PrettyJsonView json={{ foo: "bar", n: 1 }} title="Input" />);
+    render(
+      <JsonViewController json={{ foo: "bar", n: 1 }}>
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
+    );
 
     expect(screen.queryByText(/Large string —/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("json-view")).toBeInTheDocument();
@@ -67,12 +132,39 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
     expect(hugeRawJson.length).toBeGreaterThan(LARGE_STRING_RENDER_CHAR_LIMIT);
 
     render(
-      <PrettyJsonView
+      <JsonViewController
         json={hugeRawJson}
         parsedJson={undefined}
-        isParsing
-        title="Input"
-      />,
+        isParsing={true}
+      >
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     // No fallback, no quoted-form download — the normal parsing state shows.
@@ -86,26 +178,48 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   it("still gates a genuinely huge SETTLED top-level string (parse finished)", () => {
     const hugePlainString = "z".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
     render(
-      <PrettyJsonView
-        json="ignored-raw"
-        parsedJson={hugePlainString}
-        title="Input"
-      />,
+      <JsonViewController json="ignored-raw" parsedJson={hugePlainString}>
+        {(state) => (
+          <IOSection
+            title="Input"
+            onCopy={state.copy}
+            actions={
+              getJsonViewContentKind(state) === "table" &&
+              state.hasExpandableRows
+                ? [
+                    {
+                      icon: state.allRowsExpanded
+                        ? FoldVertical
+                        : UnfoldVertical,
+                      label: state.allRowsExpanded
+                        ? "Collapse all rows"
+                        : "Expand all rows",
+                      onClick: state.toggleAllRows,
+                    },
+                  ]
+                : undefined
+            }
+            variant={
+              getJsonViewContentKind(state) === "table" ? "table" : "text"
+            }
+          >
+            <PrettyJsonViewContent state={state} title="Input" borderless />
+          </IOSection>
+        )}
+      </JsonViewController>,
     );
 
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
     expect(screen.queryByTestId("json-view")).not.toBeInTheDocument();
   });
 
-  it("does not offer system-prompt collapse on a gated huge string", () => {
-    // The header collapse path must not split() the multi-MB string the
-    // large-string gate exists to keep off the main thread.
+  it("renders gated content without requiring a section header", () => {
     const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    render(<PrettyJsonView json={huge} title="system" isSystemPrompt />);
+    render(<PrettyJsonView json={huge} title="system" />);
 
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /system prompt/i }),
+      screen.queryByRole("button", { name: /Collapse system/i }),
     ).not.toBeInTheDocument();
   });
 });
