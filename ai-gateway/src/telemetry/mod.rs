@@ -31,7 +31,7 @@ use crate::{
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::{MAX_CLIENT_METADATA_BYTES, is_agent_client_metadata};
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};

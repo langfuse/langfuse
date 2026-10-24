@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -16,7 +16,7 @@ const SCALAR_PARAMETERS: [&str; 7] = [
     "service_tier",
     "speed",
 ];
-/// Structured configuration projected out of the recorded input in full mode.
+/// Structured configuration recorded as model parameters in full mode only.
 const STRUCTURED_PARAMETERS: [&str; 5] = [
     "stop_sequences",
     "thinking",
@@ -289,15 +289,15 @@ impl AnthropicMessagesCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RequestMembers<'_>) {
         self.facts.requested_model = request
-            .remove("model")
+            .value("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.value(key).filter(|v| {
                 v.is_number()
                     || v.is_boolean()
                     || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
@@ -307,20 +307,19 @@ impl AnthropicMessagesCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.value(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             // Claude Code stores its session identifiers here; it is request
             // metadata rather than prompt content.
-            if let Some(value) = request.remove("metadata") {
+            if let Some(value) = request.value("metadata") {
                 self.facts
                     .request_metadata
                     .insert("metadata".to_owned(), value);
             }
-            // `system`, `messages`, `tools` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
