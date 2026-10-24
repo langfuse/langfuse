@@ -58,12 +58,14 @@ Use this mature Claude set when prompt caching is supported:
 | Input                   | `input`, `input_tokens`                                              |
 | Output                  | `output`, `output_tokens`                                            |
 | Cache write             | `cache_creation_input_tokens`, `input_cache_creation`                |
-| Five-minute cache write | `input_cache_creation_5m`                                            |
-| One-hour cache write    | `input_cache_creation_1h`                                            |
+| Five-minute cache write | `input_cache_creation_5m`, `input_ephemeral_5m_input_tokens`         |
+| One-hour cache write    | `input_cache_creation_1h`, `input_ephemeral_1h_input_tokens`         |
 | Cache read              | `cache_read_input_tokens`, `input_cache_read`, `input_cached_tokens` |
 
 The TTL-specific prices can differ, so do not treat the 5-minute and 1-hour
-keys as equal-price aliases. Verify which TTLs the model supports. Current
+keys as equal-price aliases. The `input_ephemeral_*_input_tokens` keys come from
+the Python LangChain callback, which prefixes LangChain's `input_token_details`
+with `input_`. Verify which TTLs the model supports. Current
 `claude-sonnet-4-6`, `claude-opus-4-6`, and `claude-opus-4-8` entries are mature
 templates and include direct Anthropic plus regional Bedrock model IDs.
 

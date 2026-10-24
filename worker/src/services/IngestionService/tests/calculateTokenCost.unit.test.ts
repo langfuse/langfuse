@@ -7,6 +7,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 
 import { IngestionService } from "../../IngestionService";
+import defaultModelPrices from "../../../constants/default-model-prices.json";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
 // vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
@@ -1943,5 +1944,70 @@ describe("Token Cost Calculation", () => {
       );
       expect(mismatchWarnings).toHaveLength(0);
     });
+  });
+});
+
+describe("Python LangChain cache-write TTL pricing", () => {
+  const toPrices = (prices: Record<string, number>) =>
+    Object.entries(prices).map(([usageType, price]) => ({
+      usageType,
+      price: new Decimal(price),
+    }));
+
+  const ttlTiers = defaultModelPrices.flatMap((model) =>
+    model.pricingTiers.flatMap((tier) =>
+      (["5m", "1h"] as const)
+        .filter((ttl) => `input_cache_creation_${ttl}` in tier.prices)
+        .map((ttl) => ({
+          label: `${model.modelName} / ${tier.name} / ${ttl}`,
+          prices: toPrices(tier.prices),
+          canonical: `input_cache_creation_${ttl}`,
+          alias: `input_ephemeral_${ttl}_input_tokens`,
+        })),
+    ),
+  );
+
+  it.each(ttlTiers)(
+    "$label prices the LangChain TTL key like the canonical TTL key",
+    ({ prices, canonical, alias }) => {
+      const canonicalCosts = IngestionService.calculateUsageCosts(
+        prices,
+        { provided_cost_details: {} },
+        { [canonical]: 1_000 },
+      );
+      const aliasCosts = IngestionService.calculateUsageCosts(
+        prices,
+        { provided_cost_details: {} },
+        { [alias]: 1_000 },
+      );
+
+      expect(canonicalCosts.total_cost).toBeGreaterThan(0);
+      expect(aliasCosts.total_cost).toBe(canonicalCosts.total_cost);
+    },
+  );
+
+  it("prices one-hour writes reported by the Python LangChain callback on claude-sonnet-5", () => {
+    const tier = defaultModelPrices
+      .find((model) => model.modelName === "claude-sonnet-5")!
+      .pricingTiers.find((tier) => tier.isDefault)!;
+
+    const costs = IngestionService.calculateUsageCosts(
+      toPrices(tier.prices),
+      { provided_cost_details: {} },
+      {
+        input: 1_000,
+        input_cache_read: 10_000,
+        input_cache_creation: 0,
+        input_ephemeral_1h_input_tokens: 1_000,
+        output: 100,
+        total: 12_100,
+      },
+    );
+
+    expect(costs.cost_details.input_ephemeral_1h_input_tokens).toBeCloseTo(
+      0.004,
+      12,
+    );
+    expect(costs.total_cost).toBeCloseTo(0.009, 12);
   });
 });

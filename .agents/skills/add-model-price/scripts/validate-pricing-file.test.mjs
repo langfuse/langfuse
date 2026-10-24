@@ -137,7 +137,9 @@ test("accepts complete OpenAI, Anthropic, Gemini, and generic Bedrock entries", 
         cache_creation_input_tokens: 3.75e-6,
         input_cache_creation: 3.75e-6,
         input_cache_creation_5m: 3.75e-6,
+        input_ephemeral_5m_input_tokens: 3.75e-6,
         input_cache_creation_1h: 6e-6,
+        input_ephemeral_1h_input_tokens: 6e-6,
         cache_read_input_tokens: 0.3e-6,
         input_cache_read: 0.3e-6,
         input_cached_tokens: 0.3e-6,
@@ -204,6 +206,36 @@ test("rejects unequal prices within a semantic alias family", async () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /cache-read aliases must have the same price/);
+});
+
+test("requires LangChain TTL aliases next to Claude TTL cache-write prices", async () => {
+  const result = await runValidator(
+    [
+      model({
+        id: "anthropic-ttl-missing",
+        modelName: "claude-ttl-missing",
+        matchPattern: "(?i)^claude-ttl-missing$",
+        tokenizerId: "claude",
+        prices: {
+          input: 3e-6,
+          input_tokens: 3e-6,
+          output: 15e-6,
+          output_tokens: 15e-6,
+          input_cache_creation_5m: 3.75e-6,
+          input_ephemeral_5m_input_tokens: 3.75e-6,
+          input_cache_creation_1h: 6e-6,
+        },
+      }),
+    ],
+    [],
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(
+    result.stderr,
+    /incomplete Anthropic one-hour cache-write usage-key family; missing input_ephemeral_1h_input_tokens/,
+  );
+  assert.doesNotMatch(result.stderr, /five-minute/);
 });
 
 test("requires per-million-token e-6 notation on changed entries", async () => {
