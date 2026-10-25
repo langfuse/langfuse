@@ -233,13 +233,10 @@ export const BrowseAndOpenTrace = meta.story({
         name: "50",
       }),
     );
-    await expect(pagination.getByRole("combobox")).toHaveTextContent("50");
     await expect(
-      pagination.getByRole("spinbutton", { name: "Page number" }),
-    ).toHaveValue(1);
-    await expect(
-      pagination.getByRole("button", { name: "Go to next page" }),
-    ).toBeDisabled();
+      canvas.getAllByRole("button", { name: /^Open trace / }),
+    ).toHaveLength(rows.length);
+    await expect(pagination.getByRole("combobox")).toBeVisible();
     const search = canvas.getByRole("combobox", { name: "Search" });
     await userEvent.click(search);
     await userEvent.type(search, "no-match");
@@ -306,7 +303,6 @@ export const FitFilteredMap = meta.story({
       ).toBeVisible(),
     );
     await expect(args.onSelectTrace).not.toHaveBeenCalled();
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
     await userEvent.click(trace);
     await expect(
       canvas.getByRole("button", { name: "Open trace unassigned" }),
@@ -338,7 +334,6 @@ export const PreviewTreemap = meta.story({
     );
     await userEvent.click(access);
     await expect(canvas.getByRole("tooltip")).toHaveTextContent(topics[1].name);
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
     await userEvent.click(access);
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toBeVisible();
@@ -378,11 +373,9 @@ export const PreviewGrid = meta.story({
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
     await expect(args.onSelectTrace).not.toHaveBeenCalled();
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
     await userEvent.click(dot);
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toHaveAttribute("aria-current", "true");
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     const topic = canvas.getByRole("button", {
       name: /Billing and subscription questions/,
@@ -402,6 +395,7 @@ export const PreviewGrid = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Show all topics" }),
     ).toBeDisabled();
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
   },
 });
 

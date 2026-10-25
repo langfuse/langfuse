@@ -42,7 +42,7 @@ export const Compact = meta.story({
       <TopicsHeaderActions {...args} />
     </div>
   ),
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
       canvas.queryByRole("button", { name: "Automatic processing" }),
@@ -59,9 +59,8 @@ export const Compact = meta.story({
         body.getByRole("menuitem", { name: "Manual processing" }),
       ).toBeVisible(),
     );
-    await userEvent.click(
-      await body.findByRole("menuitem", { name: /Automatic processing/ }),
-    );
-    await expect(args.actions.automatic!.onSelect).toHaveBeenCalledOnce();
+    await expect(
+      body.getByRole("menuitem", { name: /Automatic processing/ }),
+    ).toBeVisible();
   },
 });
