@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
+import { getEffectiveRole } from "./staffAccess";
 import { env } from "@/src/env.mjs";
 
 /** LLM execution scopes require an internal admin in the demo project. */
@@ -72,9 +73,12 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
 
   const projectRole: Role | undefined = hasOwnRole(p)
     ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
+    : getEffectiveRole(
+        p.session?.user,
+        p.session?.user?.organizations
+          .flatMap((org) => org.projects)
+          .find((project) => project.id === p.projectId)?.role,
+      );
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);

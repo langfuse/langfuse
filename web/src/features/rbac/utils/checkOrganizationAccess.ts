@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
+import { getEffectiveRole } from "./staffAccess";
 
 type HasOrganizationAccessParams =
   | {
@@ -62,8 +63,12 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
 
   const organizationRole: Role | undefined = hasOwnRole(p)
     ? p.role
-    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
-        ?.role;
+    : getEffectiveRole(
+        p.session?.user,
+        p.session?.user?.organizations.find(
+          (org) => org.id === p.organizationId,
+        )?.role,
+      );
   if (organizationRole === undefined) return false;
 
   return organizationRoleAccessRights[organizationRole].includes(p.scope);

@@ -52,12 +52,14 @@ export const organizationsRouter = createTRPCRouter({
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
+      const sessionOrg = ctx.session.user.organizations.find(
+        (org) => org.id === ctx.session.orgId,
+      );
+      // Admins, and staff on orgs they are not a member of, have no session entry
       const organization =
-        ctx.session.user.admin === true
+        ctx.session.user.admin === true || !sessionOrg
           ? await buildAdminOrgContext(ctx)
-          : ctx.session.user.organizations.find(
-              (org) => org.id === ctx.session.orgId,
-            );
+          : sessionOrg;
 
       return getLastTraceTimestampsByProjects({
         projectIds: organization?.projects.map((project) => project.id) ?? [],

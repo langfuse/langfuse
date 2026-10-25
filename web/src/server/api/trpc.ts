@@ -19,7 +19,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -28,6 +28,10 @@ import {
   getTRPCErrorCodeFromHTTPStatusCode,
 } from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
+import {
+  getEffectiveRole,
+  isStaff,
+} from "@/src/features/rbac/utils/staffAccess";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -347,8 +351,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
-    if (ctx.session.user.admin === true) {
-      // fetch org as it is not available in the session for admins
+    const staffRole = getEffectiveRole(ctx.session.user, undefined);
+    if (staffRole) {
+      // fetch org as it is not available in the session for staff
       const dbProject = await ctx.prisma.project.findFirst({
         select: {
           orgId: true,
@@ -383,9 +388,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
             ...ctx.session,
             user: ctx.session.user,
             orgId: dbProject.orgId,
-            orgRole: Role.OWNER,
+            orgRole: staffRole,
             projectId: projectId,
-            projectRole: Role.OWNER,
+            projectRole: staffRole,
           },
         },
       });
@@ -471,7 +476,8 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     (org) => org.id === orgId,
   );
 
-  if (!sessionOrg && ctx.session.user.admin !== true) {
+  const orgRole = getEffectiveRole(ctx.session.user, sessionOrg?.role);
+  if (!orgRole) {
     logger.error(`User ${ctx.session.user.id} is not a member of org ${orgId}`);
     throw new TRPCError({
       code: "UNAUTHORIZED",
@@ -479,7 +485,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
-  if (ctx.session.user.admin === true) {
+  if (isStaff(ctx.session.user)) {
     await sendAdminAccessWebhook({
       email: ctx.session.user.email,
       orgId,
@@ -497,8 +503,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole:
-          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
+        orgRole,
       },
     },
   });
@@ -640,12 +645,11 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     const isSessionPublic = traceSession?.public === true;
 
-    if (
-      !trace?.public &&
-      !sessionProject &&
-      !isSessionPublic &&
-      ctx.session?.user?.admin !== true
-    ) {
+    const projectRole = getEffectiveRole(
+      ctx.session?.user,
+      sessionProject?.role,
+    );
+    if (!trace?.public && !isSessionPublic && !projectRole) {
       logger.error(
         `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
       );
@@ -656,9 +660,9 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    if (ctx.session?.user?.admin === true) {
+    if (isStaff(ctx.session?.user)) {
       await sendAdminAccessWebhook({
-        email: ctx.session.user.email,
+        email: ctx.session?.user?.email,
         projectId,
       });
     }
@@ -668,10 +672,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       ctx: {
         session: {
           ...ctx.session,
-          projectRole:
-            ctx.session?.user?.admin === true
-              ? Role.OWNER
-              : sessionProject?.role,
+          projectRole,
         },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
@@ -730,11 +731,11 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  if (
-    !isPublicSession &&
-    !userSessionProject &&
-    ctx.session?.user?.admin !== true
-  ) {
+  const projectRole = getEffectiveRole(
+    ctx.session?.user,
+    userSessionProject?.role,
+  );
+  if (!isPublicSession && !projectRole) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );
@@ -745,9 +746,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
-  if (ctx.session?.user?.admin === true) {
+  if (isStaff(ctx.session?.user)) {
     await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
+      email: ctx.session?.user?.email,
       projectId,
     });
   }
@@ -757,10 +758,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     ctx: {
       session: {
         ...ctx.session,
-        projectRole:
-          ctx.session?.user?.admin === true
-            ? Role.OWNER
-            : userSessionProject?.role,
+        projectRole,
       },
     },
   });

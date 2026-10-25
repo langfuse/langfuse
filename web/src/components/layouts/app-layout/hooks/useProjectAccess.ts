@@ -16,6 +16,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
+import { isStaff } from "@/src/features/rbac/utils/staffAccess";
 
 /**
  * Checks if the authenticated user has access to the project specified in the URL.
@@ -47,8 +48,8 @@ export function useProjectAccess(session: Session | null) {
       return { hasAccess: true, projectId: routerProjectId };
     }
 
-    // Admin users have access to all projects
-    if (session?.user?.admin === true) {
+    // Admins and support viewers have access to all projects
+    if (isStaff(session?.user)) {
       return { hasAccess: true, projectId: routerProjectId };
     }
 
@@ -61,5 +62,5 @@ export function useProjectAccess(session: Session | null) {
     const hasAccess = userProjects.includes(routerProjectId);
 
     return { hasAccess, projectId: routerProjectId };
-  }, [routerProjectId, session?.user?.admin, session?.user?.organizations]);
+  }, [routerProjectId, session?.user]);
 }

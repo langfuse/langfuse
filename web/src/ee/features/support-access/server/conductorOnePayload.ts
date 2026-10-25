@@ -3,26 +3,13 @@ import { z } from "zod/v4";
 export const C1_TEST_EVENT = "c1.webhooks.v1.PayloadTest";
 export const C1_PROVISION_EVENT = "c1.webhooks.v1.PayloadProvisionStep";
 
-export type GrantRequest = {
-  action: "grant";
+export type SupportAccessRequest = {
+  action: "grant" | "revoke";
   taskId: string;
   entitlementId: string;
   email: string;
-  orgId: string;
   durationMs: number | null;
 };
-export type RevokeRequest = {
-  action: "revoke";
-  taskId: string;
-  entitlementId: string;
-  email: string;
-};
-export type SupportAccessRequest = GrantRequest | RevokeRequest;
-
-// C1 assigns form field ids itself; this is the "Langfuse Form" field holding
-// the organization id. C1 sends submitted form values in `task.data`, keyed by
-// field id.
-const ORG_ID_FORM_FIELD = "langfuse_organization_id_0";
 
 const EnvelopeSchema = z.object({ event: z.string(), payload: z.unknown() });
 
@@ -41,9 +28,6 @@ const ProvisionPayloadSchema = z.object({
           .nullish(),
         revoke: z.object({ appEntitlementId: z.string() }).nullish(),
       }),
-      data: z
-        .object({ [ORG_ID_FORM_FIELD]: z.string().min(1).optional() })
-        .nullish(),
     }),
   }),
   expanded: z
@@ -94,14 +78,11 @@ export function parseProvisionPayload(
   if (!email) return null;
 
   if (grant && !revoke) {
-    const orgId = task.data?.[ORG_ID_FORM_FIELD];
-    if (!orgId) return null;
     return {
       action: "grant",
       taskId: task.id,
       entitlementId: grant.appEntitlementId,
       email,
-      orgId,
       durationMs: parseDurationMs(grant.grantDuration),
     };
   }
@@ -111,6 +92,7 @@ export function parseProvisionPayload(
       taskId: task.id,
       entitlementId: revoke.appEntitlementId,
       email,
+      durationMs: null,
     };
   }
   return null;

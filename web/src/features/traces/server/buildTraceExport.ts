@@ -14,12 +14,14 @@ import {
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
+import { isStaff } from "@/src/features/rbac/utils/staffAccess";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 export type TraceExportSession = {
   user: {
     email: string;
     admin?: boolean;
+    supportViewer?: boolean;
     organizations: Array<{
       projects: Array<{
         id: string;
@@ -137,11 +139,11 @@ export async function getAuthorizedTrace(params: {
       : null;
 
   const isSessionPublic = traceSession?.public === true;
-  const isAdmin = session?.user.admin === true;
+  const isStaffUser = isStaff(session?.user);
   const canReadTrace =
     clickhouseTrace.public ||
     isSessionPublic ||
-    isAdmin ||
+    isStaffUser ||
     hasProjectAccess(session, projectId);
 
   if (!canReadTrace) {
@@ -150,7 +152,7 @@ export async function getAuthorizedTrace(params: {
     );
   }
 
-  if (isAdmin) {
+  if (session && isStaffUser) {
     const dbProject = await prisma.project.findFirst({
       where: { id: projectId, deletedAt: null },
       select: { orgId: true },

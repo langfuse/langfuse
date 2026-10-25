@@ -11,29 +11,17 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
-  organization: { findUnique: vi.fn(), findMany: vi.fn() },
-  $executeRaw: vi.fn(),
 }));
-const auditLog = vi.hoisted(() => vi.fn());
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: db,
-  Prisma: { DbNull: "DbNull" },
-  Role: { VIEWER: "VIEWER" },
-}));
-vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
+vi.mock("@langfuse/shared/src/db", () => ({ prisma: db }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
 import {
   parseProvisionPayload,
-  type GrantRequest,
-  type RevokeRequest,
+  type SupportAccessRequest,
 } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { provisionSupportAccess } from "@/src/ee/features/support-access/server/provisionSupportAccess";
-import {
-  getActiveSupportAccessOrgIds,
-  getSupportAccessMemberships,
-} from "@/src/ee/features/support-access/server/supportAccess";
+import { hasActiveSupportAccess } from "@/src/ee/features/support-access/server/supportAccess";
 
 describe("verifyConductorOneRequest", () => {
   const issuer = "clickhouse.conductor.one";
@@ -123,74 +111,66 @@ describe("parseProvisionPayload", () => {
     id: "c1-user",
     email: "Eng@ClickHouse.com",
   };
-  const payload = (type: object, extra: object = {}) => ({
-    taskView: { task: { id: "task-1", userId: "c1-user", type, ...extra } },
+  const payload = (type: object) => ({
+    taskView: { task: { id: "task-1", userId: "c1-user", type } },
     expanded: [
       { ...c1User, id: "someone-else", email: "other@clickhouse.com" },
       c1User,
     ],
   });
-  // C1 puts submitted values in `task.data`; `task.form` only holds field definitions.
-  const form = {
-    form: { fields: [{ name: "langfuse_organization_id_0" }] },
-    data: { langfuse_organization_id_0: "org-1" },
-  };
 
   it("reads a grant", () => {
     const grant = { appEntitlementId: "ent-1", grantDuration: "43200s" };
-    expect(parseProvisionPayload(payload({ grant }, form))).toEqual({
+    expect(parseProvisionPayload(payload({ grant }))).toEqual({
       action: "grant",
       taskId: "task-1",
       entitlementId: "ent-1",
       email: "eng@clickhouse.com",
-      orgId: "org-1",
       durationMs: 43_200_000,
     });
   });
 
   it("reads a grant when C1 leaves empty objects in expanded", () => {
     const grant = { appEntitlementId: "ent-1", grantDuration: "43200s" };
-    const withEmpty = payload({ grant }, form);
+    const withEmpty = payload({ grant });
     withEmpty.expanded.push({} as never);
     expect(parseProvisionPayload(withEmpty)).toMatchObject({
       action: "grant",
-      orgId: "org-1",
     });
   });
 
   it("reads a revoke", () => {
-    const revoke = { appEntitlementId: "ent-1" };
-    const extra = { data: { Justification_0: "done" } };
-    expect(parseProvisionPayload(payload({ revoke }, extra))).toEqual({
+    const revoke = {
+      appEntitlementId: "ent-1",
+      source: { expired: { expiredAt: "2026-10-24T04:00:01Z" } },
+    };
+    expect(parseProvisionPayload(payload({ revoke }))).toEqual({
       action: "revoke",
       taskId: "task-1",
       entitlementId: "ent-1",
       email: "eng@clickhouse.com",
+      durationMs: null,
     });
   });
 
   it("treats a missing or non-protobuf duration as none", () => {
     for (const grantDuration of [null, "12h", "-1s"]) {
       const grant = { appEntitlementId: "ent-1", grantDuration };
-      expect(parseProvisionPayload(payload({ grant }, form))).toMatchObject({
+      expect(parseProvisionPayload(payload({ grant }))).toMatchObject({
         durationMs: null,
       });
     }
   });
 
   it.each([
-    [
-      "a grant without form values",
-      payload({ grant: { appEntitlementId: "e" } }),
-    ],
-    [
-      "form values nested under task.form",
-      payload(
-        { grant: { appEntitlementId: "e" } },
-        { form: { data: { langfuse_organization_id_0: "org-1" } } },
-      ),
-    ],
     ["no task type", payload({})],
+    [
+      "both grant and revoke",
+      payload({
+        grant: { appEntitlementId: "e" },
+        revoke: { appEntitlementId: "e" },
+      }),
+    ],
     ["something that isn't a task", { hello: "world" }],
   ])("returns null for %s", (_, value) => {
     expect(parseProvisionPayload(value)).toBeNull();
@@ -200,26 +180,24 @@ describe("parseProvisionPayload", () => {
 describe("provisionSupportAccess", () => {
   const entitlementId = "ent-1";
   const now = new Date("2026-10-23T12:00:00.000Z");
-  const user = { id: "user-1", supportAccess: null };
-  const grantRequest: GrantRequest = {
+  const grantRequest: SupportAccessRequest = {
     action: "grant",
     taskId: "task-1",
     entitlementId: "ent-1",
     email: "eng@clickhouse.com",
-    orgId: "org-1",
     durationMs: 12 * 3_600_000,
   };
-  const revokeRequest: RevokeRequest = {
+  const revokeRequest: SupportAccessRequest = {
     action: "revoke",
     taskId: "task-2",
     entitlementId: "ent-1",
     email: "eng@clickhouse.com",
+    durationMs: null,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    db.user.findUnique.mockResolvedValue(user);
-    db.organization.findUnique.mockResolvedValue({ id: "org-1" });
+    db.user.findUnique.mockResolvedValue({ id: "user-1" });
   });
 
   it("grants VIEWER until now + duration", async () => {
@@ -229,10 +207,10 @@ describe("provisionSupportAccess", () => {
       ok: true,
       message: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
     });
-    expect(db.$executeRaw).toHaveBeenCalledOnce();
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ orgId: "org-1", action: "grant" }),
-    );
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { supportAccessExpiresAt: new Date("2026-10-24T00:00:00.000Z") },
+    });
   });
 
   it.each([
@@ -244,40 +222,25 @@ describe("provisionSupportAccess", () => {
     const request = { ...grantRequest, ...change };
     expect(
       await provisionSupportAccess(request, entitlementId, now),
-    ).toMatchObject({
-      ok: false,
-    });
-    expect(db.$executeRaw).not.toHaveBeenCalled();
+    ).toMatchObject({ ok: false });
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 
   it("rejects when there is no Langfuse user", async () => {
     db.user.findUnique.mockResolvedValue(null);
     expect(
       await provisionSupportAccess(grantRequest, entitlementId, now),
-    ).toMatchObject({
-      ok: false,
-    });
-    expect(db.$executeRaw).not.toHaveBeenCalled();
+    ).toMatchObject({ ok: false });
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 
-  it("rejects an unknown organization", async () => {
-    db.organization.findUnique.mockResolvedValue(null);
-    expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
-    ).toMatchObject({
-      ok: false,
-    });
-  });
-
-  it("revokes all support access", async () => {
+  it("revokes support access", async () => {
     expect(
       await provisionSupportAccess(revokeRequest, entitlementId),
-    ).toMatchObject({
-      ok: true,
-    });
+    ).toMatchObject({ ok: true });
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: "user-1" },
-      data: { supportAccess: "DbNull" },
+      data: { supportAccessExpiresAt: null },
     });
   });
 
@@ -290,61 +253,22 @@ describe("provisionSupportAccess", () => {
   });
 });
 
-describe("support access in the session", () => {
+describe("hasActiveSupportAccess", () => {
   const now = new Date("2026-10-23T12:00:00.000Z");
-  const entry = (expiresAt: string, role = "VIEWER") => ({ role, expiresAt });
-  const active = entry("2099-01-01T00:00:00.000Z");
-
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns only unexpired grants", () => {
-    expect(
-      getActiveSupportAccessOrgIds(
-        {
-          current: entry("2026-10-23T13:00:00.000Z"),
-          expired: entry("2026-10-23T11:59:59.000Z"),
-        },
-        now,
-      ),
-    ).toEqual(["current"]);
+  const access = (supportAccessExpiresAt: Date | null) => ({
+    supportAccessExpiresAt,
   });
 
-  it("grants nothing for malformed values or other roles", () => {
+  it("is active only before expiry", () => {
     expect(
-      getActiveSupportAccessOrgIds(
-        { org: entry("2099-01-01T00:00:00.000Z", "OWNER") },
-        now,
-      ),
-    ).toEqual([]);
-    expect(getActiveSupportAccessOrgIds(null, now)).toEqual([]);
-    expect(getActiveSupportAccessOrgIds("garbage", now)).toEqual([]);
+      hasActiveSupportAccess(access(new Date("2026-10-23T13:00:00Z")), now),
+    ).toBe(true);
+    expect(
+      hasActiveSupportAccess(access(new Date("2026-10-23T11:59:59Z")), now),
+    ).toBe(false);
   });
 
-  it("adds VIEWER only for orgs the user is not a member of", async () => {
-    db.organization.findMany.mockResolvedValue([{ id: "org-2", projects: [] }]);
-    const memberships = await getSupportAccessMemberships({
-      supportAccess: { "org-1": active, "org-2": active },
-      organizationMemberships: [{ organization: { id: "org-1" } }],
-    });
-    expect(db.organization.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ["org-2"] } } }),
-    );
-    expect(memberships).toEqual([
-      {
-        organization: { id: "org-2", projects: [] },
-        role: "VIEWER",
-        ProjectMemberships: [],
-      },
-    ]);
-  });
-
-  it("does not query when there is no active grant", async () => {
-    expect(
-      await getSupportAccessMemberships({
-        supportAccess: null,
-        organizationMemberships: [],
-      }),
-    ).toEqual([]);
-    expect(db.organization.findMany).not.toHaveBeenCalled();
+  it("is inactive when never granted or revoked", () => {
+    expect(hasActiveSupportAccess(access(null), now)).toBe(false);
   });
 });

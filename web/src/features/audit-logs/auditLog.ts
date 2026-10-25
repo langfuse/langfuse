@@ -66,7 +66,6 @@ type AuditableResource =
   | "gatewayConfig"
   | "gatewayAiConnection"
   | "topicConfig"
-  | "supportAccess"
   // legacy resources
   | "membership";
 
@@ -108,11 +107,7 @@ export type AuditLog = {
 // Writes made by Langfuse itself rather than by a user or an API key pass these
 // sentinel actor ids. The Postgres row keeps them, because its actor type
 // cannot be SYSTEM. The staged event records a SYSTEM actor instead.
-const SYSTEM_ACTOR_USER_IDS = new Set([
-  "stripe-webhook",
-  "clickhouse-webhook",
-  "conductorone-webhook",
-]);
+const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
 const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
 const ADMIN_API_ACTOR: StagedAuditLogActor = {
   type: "SYSTEM",

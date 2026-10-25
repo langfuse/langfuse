@@ -57,7 +57,7 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/server";
-import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
+import { hasActiveSupportAccess } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
@@ -819,7 +819,7 @@ export async function getAuthOptions(
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
-              supportAccess: true,
+              supportAccessExpiresAt: true,
               organizationMemberships: {
                 // Newest first so demo project is last for the `project/~/` sentinel
                 orderBy: {
@@ -851,12 +851,6 @@ export async function getAuthOptions(
           });
 
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          // Support engineers with an unexpired ConductorOne grant see the
-          // org as VIEWER.
-          const organizationMemberships = [
-            ...(dbUser?.organizationMemberships ?? []),
-            ...(await getSupportAccessMemberships(dbUser)),
-          ];
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
           //   written, so the events-aware UI is the only correct read path —
@@ -925,6 +919,7 @@ export async function getAuthOptions(
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
+                    supportViewer: hasActiveSupportAccess(dbUser),
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
                     canToggleV4:
@@ -953,7 +948,7 @@ export async function getAuthOptions(
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
-                    organizations: organizationMemberships.map(
+                    organizations: dbUser.organizationMemberships.map(
                       (orgMembership) => {
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,

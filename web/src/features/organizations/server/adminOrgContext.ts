@@ -1,9 +1,10 @@
 import { CloudConfigSchema } from "@langfuse/shared";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
-import { Role, type PrismaClient } from "@langfuse/shared/src/db";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
+import { getEffectiveRole } from "@/src/features/rbac/utils/staffAccess";
 
 /**
  * The organization shape attached to the next-auth session. Kept in sync with
@@ -27,7 +28,8 @@ type SessionOrganization = NonNullable<
  * SECURITY: takes the caller's request context and enforces admin access
  * itself (throws FORBIDDEN otherwise), and reads the org from the
  * server-resolved ctx.session.orgId — never a raw client-supplied id. Admins
- * are represented as Role.OWNER, mirroring the tRPC middleware elevation.
+ * are represented as Role.OWNER and support viewers as Role.VIEWER, mirroring
+ * the tRPC middleware elevation.
  * Callers must still run it behind protectedOrganizationProcedure /
  * protectedProjectProcedure so membership resolution and admin-access
  * auditing happen first.
@@ -35,11 +37,12 @@ type SessionOrganization = NonNullable<
 export async function buildAdminOrgContext(ctx: {
   prisma: PrismaClient;
   session: {
-    user: { admin?: boolean } | null;
+    user: { admin?: boolean; supportViewer?: boolean } | null;
     orgId: string;
   };
 }): Promise<SessionOrganization | null> {
-  if (ctx.session.user?.admin !== true) {
+  const role = getEffectiveRole(ctx.session.user, undefined);
+  if (!role) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Only Langfuse admins can access this endpoint",
@@ -66,7 +69,7 @@ export async function buildAdminOrgContext(ctx: {
   return {
     id: organization.id,
     name: organization.name,
-    role: Role.OWNER,
+    role,
     metadata: (organization.metadata as Record<string, unknown>) ?? {},
     aiFeaturesEnabled: organization.aiFeaturesEnabled,
     aiTelemetryEnabled: organization.aiTelemetryEnabled,
@@ -74,7 +77,7 @@ export async function buildAdminOrgContext(ctx: {
     projects: organization.projects.map((project) => ({
       id: project.id,
       name: project.name,
-      role: Role.OWNER,
+      role,
       retentionDays: project.retentionDays,
       hasTraces: project.hasTraces,
       topicsEnabled: isTopicsProjectEnabled(project.id),

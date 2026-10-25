@@ -24,6 +24,8 @@ declare module "next-auth" {
           emailSupportHash?: string | null;
           image?: PrismaUser["image"];
           admin?: PrismaUser["admin"];
+          // Unexpired ConductorOne grant: VIEWER on every org of this region
+          supportViewer?: boolean;
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
           // Whether this deployment shows the v4 migration UI (sidebar pill,

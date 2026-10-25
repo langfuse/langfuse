@@ -2,6 +2,7 @@
 import { useQueryOrganization } from "@/src/features/organizations";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
+import { isStaff } from "@/src/features/rbac/utils/staffAccess";
 import { useRouter } from "next/router";
 
 export const useQueryProject = () => {
@@ -12,7 +13,7 @@ export const useQueryProject = () => {
 
 export const useProject = (projectId: string | null) => {
   const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
+  const isAdmin = isStaff(session.data?.user);
 
   // Always call hooks first, then handle conditional logic in the return
   const fromSession = projectId

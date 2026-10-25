@@ -12,6 +12,7 @@ import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
+import { isStaff } from "@/src/features/rbac/utils/staffAccess";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   prepareExecuteQuery,
@@ -81,7 +82,7 @@ export default async function handler(
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
-    if (session.user.admin === true) {
+    if (isStaff(session.user)) {
       const dbProject = await prisma.project.findFirst({
         select: { orgId: true },
         where: { id: projectId, deletedAt: null },
