@@ -1,14 +1,10 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { useId, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   Form,
   FormControl,
@@ -18,8 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast, showToast } from "@/src/features/notifications";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -39,53 +34,48 @@ const spendAlertSchema = z.object({
 type SpendAlertFormInput = z.input<typeof spendAlertSchema>;
 type SpendAlertFormOutput = z.output<typeof spendAlertSchema>;
 
-interface SpendAlertDialogProps {
-  orgId: string;
-  alert?: {
-    id: string;
-    title: string;
-    threshold: { toString(): string };
-  };
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
-}
+type SpendAlertDialogState =
+  | { mode: "create" }
+  | {
+      mode: "edit";
+      alert: Pick<
+        RouterOutputs["spendAlerts"]["getSpendAlerts"][number],
+        "id" | "title" | "threshold"
+      >;
+    };
 
-export function SpendAlertDialog({
+export function ConnectedSpendAlertDialogController({
   orgId,
-  alert,
-  open,
-  onOpenChange,
   onSuccess,
-}: SpendAlertDialogProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  children,
+}: {
+  orgId: string;
+  onSuccess: () => void;
+  children: ComponentProps<
+    typeof DialogController<SpendAlertDialogState>
+  >["children"];
+}) {
   const capture = usePostHogClientCapture();
-
-  const form = useForm<SpendAlertFormInput, undefined, SpendAlertFormOutput>({
-    resolver: zodResolver(spendAlertSchema),
-    defaultValues: {
-      title: alert?.title ?? "",
-      limit: alert ? parseFloat(alert.threshold.toString()) : undefined,
-    },
-  });
-
   const createMutation = api.spendAlerts.createSpendAlert.useMutation();
   const updateMutation = api.spendAlerts.updateSpendAlert.useMutation();
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  const onSubmit = async (data: SpendAlertFormOutput) => {
-    setIsSubmitting(true);
+  const onSubmit = async (
+    state: SpendAlertDialogState,
+    data: SpendAlertFormOutput,
+    closeDialog: () => void,
+  ) => {
     try {
-      if (alert) {
-        // Update existing alert
+      if (state.mode === "edit") {
         await updateMutation.mutateAsync({
           orgId,
-          id: alert.id,
+          id: state.alert.id,
           title: data.title,
           threshold: data.limit,
         });
         capture("spend_alert:updated", {
           orgId,
-          alertId: alert.id,
+          alertId: state.alert.id,
           limit: data.limit,
         });
         showSuccessToast({
@@ -94,7 +84,6 @@ export function SpendAlertDialog({
           description: "",
         });
       } else {
-        // Create new alert
         await createMutation.mutateAsync({
           orgId,
           title: data.title,
@@ -110,33 +99,81 @@ export function SpendAlertDialog({
           description: "",
         });
       }
+      closeDialog();
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");
       showToast({
         type: "ERROR",
-        title: `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
+        title: `Failed to ${state.mode === "edit" ? "update" : "create"} spend alert. Please try again.`,
         analytics: classifyTrpcToastError(
           error,
-          alert ? "spend_alert.update" : "spend_alert.create",
+          state.mode === "edit" ? "spend_alert.update" : "spend_alert.create",
         ),
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-4 sm:max-w-[425px]">
-        <DialogTitle>
-          {alert ? "Edit Spend Alert" : "Create Spend Alert"}
-        </DialogTitle>
-        <DialogDescription className="text-muted-foreground pt-1 pb-2 text-sm">
+    <DialogController<SpendAlertDialogState>
+      onBeforeClose={() => !isSubmitting}
+      renderDialog={({ state, closeDialog }) => (
+        <SpendAlertDialog
+          state={state}
+          isSubmitting={isSubmitting}
+          onSubmit={(data) => onSubmit(state, data, closeDialog)}
+        />
+      )}
+    >
+      {children}
+    </DialogController>
+  );
+}
+
+function SpendAlertDialog({
+  state,
+  isSubmitting,
+  onSubmit,
+}: {
+  state: SpendAlertDialogState;
+  isSubmitting: boolean;
+  onSubmit: (data: SpendAlertFormOutput) => Promise<void>;
+}) {
+  const formId = useId();
+  const form = useForm<SpendAlertFormInput, undefined, SpendAlertFormOutput>({
+    resolver: zodResolver(spendAlertSchema),
+    defaultValues: {
+      title: state.mode === "edit" ? state.alert.title : "",
+      limit:
+        state.mode === "edit"
+          ? parseFloat(state.alert.threshold.toString())
+          : undefined,
+    },
+  });
+
+  return (
+    <Dialog
+      size="sm"
+      title={state.mode === "edit" ? "Edit Spend Alert" : "Create Spend Alert"}
+      actions={[
+        {
+          label: state.mode === "edit" ? "Update Alert" : "Create Alert",
+          loading: isSubmitting,
+          type: "submit",
+          form: formId,
+        },
+      ]}
+    >
+      <Dialog.Body>
+        <p className="text-muted-foreground">
           Get notified when your organization&apos;s spending exceeds a limit.
-        </DialogDescription>
+        </p>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            id={formId}
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4"
+          >
             <FormField
               control={form.control}
               name="title"
@@ -194,28 +231,9 @@ export function SpendAlertDialog({
                 <li>Alerts are evaluated with a 90 minute delay.</li>
               </ul>
             </div>
-            <div className="flex flex-row items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? alert
-                    ? "Updating..."
-                    : "Creating..."
-                  : alert
-                    ? "Update Alert"
-                    : "Create Alert"}
-              </Button>
-            </div>
           </form>
         </Form>
-      </DialogContent>
+      </Dialog.Body>
     </Dialog>
   );
 }

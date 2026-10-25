@@ -31,7 +31,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -208,9 +208,14 @@ export function PromptEditorContent({
             aria-hidden="true"
             className="bg-secondary text-secondary-foreground flex h-9 w-full items-center gap-2 rounded-md border px-2 shadow-lg"
           >
-            <Badge variant="tertiary" className="h-5 shrink-0">
-              {ROLES.find((role) => role.value === activeMessage.role)?.label}
-            </Badge>
+            <Badge
+              color="filled"
+              size="md"
+              text={
+                ROLES.find((role) => role.value === activeMessage.role)
+                  ?.label ?? ""
+              }
+            />
             <span
               className="min-w-0 truncate text-xs"
               title={activeMessage.content || "Empty message"}
@@ -258,7 +263,7 @@ function SortablePromptMessage({
     .filter(Boolean)
     .join(" ");
   const roleBadge = (
-    <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
+    <BadgeShell color="filled" size="md">
       {warningReason ? (
         <TriangleAlert
           size="sm"
@@ -271,7 +276,7 @@ function SortablePromptMessage({
         />
       ) : null}
       {ROLES.find((role) => role.value === message.role)?.label}
-    </Badge>
+    </BadgeShell>
   );
   const {
     attributes,

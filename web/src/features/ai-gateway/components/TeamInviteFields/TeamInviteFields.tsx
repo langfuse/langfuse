@@ -1,11 +1,11 @@
 import { useId } from "react";
 import { Mail } from "@langfuse/icons";
 
-import { EmailTagInput } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/EmailTagInput";
+import { EmailTagInput } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/EmailTagInput";
 import {
   NotifyMembersToggle,
   type NotifyMembersToggleProps,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/NotifyMembersToggle";
+} from "@/src/features/ai-gateway/components/TeamInviteFields/components/NotifyMembersToggle";
 
 export type TeamInviteFieldsProps = {
   emails: string[];

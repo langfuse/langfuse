@@ -12,6 +12,8 @@ import {
 
 const topic = {
   id: "billing",
+  versionId: "billing-v1",
+  runId: "run",
   name: "Billing questions",
   description: "Invoice support",
   count: 60,

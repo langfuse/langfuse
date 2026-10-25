@@ -1,5 +1,5 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -160,10 +160,7 @@ export function TracesSetupOnboardingCard({
         {
           title: "Add tracing with your coding agent",
           badge: (
-            <Badge variant="tertiary" className="gap-1">
-              <Sparkles size="sm" />
-              Recommended
-            </Badge>
+            <Badge color="filled" leadingIcon={Sparkles} text="Recommended" />
           ),
           description:
             "Paste this prompt into Claude, Cursor, Copilot, or another coding agent.",
