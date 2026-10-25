@@ -1,6 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
-import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
@@ -44,6 +43,7 @@ import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
@@ -52,7 +52,6 @@ import {
   useTopicsResultsView,
 } from "./TopicsResultsViewSelect";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
@@ -63,6 +62,7 @@ import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
+import { prepareTopicsActions } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
@@ -488,10 +488,25 @@ function TopicsWorkspaceContent({
         const showOnboarding = showSetupProgress || showLanding;
         const landingOnly =
           showLanding && !showSetupProgress && !setupBlockedReason;
+        const actions = prepareTopicsActions({
+          automaticProcessing,
+          canWrite,
+          configured,
+          configureAvailable: modelSettings.configure.settings !== null,
+          configureVariant: modelSettings.configure.triggerVariant,
+          manualAvailable: pipeline.available,
+          menuOnly: landingOnly,
+          onAutomaticProcessing: openAutomaticProcessingFromHeader,
+          onConfigure: configured ? openConfigure : openSetup,
+          onManualProcessing: openManualProcessing,
+          onHistory: openHistory,
+          onRefresh: refreshResults,
+        });
         return (
           <Page
             headerProps={{
               title: "Topics",
+              className: "@container/topics-header",
               actionButtonsLeft: showOnboarding ? null : (
                 <div className="flex items-center gap-3">
                   {validTimeRange && headerFacetId && (
@@ -501,7 +516,7 @@ function TopicsWorkspaceContent({
                       onSelectFacet={traceFilters.selectFacet}
                     />
                   )}
-                  <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-sm whitespace-nowrap">
                     Visualize as
                     <TopicsResultsViewSelect
                       value={resultsView}
@@ -510,51 +525,10 @@ function TopicsWorkspaceContent({
                   </span>
                 </div>
               ),
-              actionButtonsRight: (
-                <TopicsHeaderActions
-                  automaticProcessing={automaticProcessing}
-                  configure={modelSettings.configure}
-                  configured={configured}
-                  canWrite={canWrite}
-                  manualAvailable={pipeline.available}
-                  openManual={openManualProcessing}
-                  onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                  onConfigure={configured ? openConfigure : openSetup}
-                  onHistory={openHistory}
-                  onRefresh={refreshResults}
-                  menuOnly={landingOnly}
-                />
+              actionButtonsRight: <TopicsHeaderActions actions={actions} />,
+              actionButtonsMenu: ({ closeMenu }) => (
+                <TopicsActionsMenu actions={actions} closeMenu={closeMenu} />
               ),
-              actionButtonsMenu: ({ closeMenu }) => {
-                function handleConfigureFromMenu() {
-                  closeMenu();
-                  openConfigure();
-                }
-                return (
-                  <TopicsActionsMenu
-                    triggerAction={
-                      pipeline.available && !landingOnly
-                        ? {
-                            label: "Manual processing",
-                            disabled: false,
-                            onSelect: openManualProcessing,
-                          }
-                        : null
-                    }
-                    closeMenu={closeMenu}
-                    onOpenHistory={openHistory}
-                    onRefresh={refreshResults}
-                  >
-                    {configured ? (
-                      <HeaderActionMenuRow
-                        label="Configure Topics"
-                        icon={<Settings size="base" color="default" />}
-                        onClick={handleConfigureFromMenu}
-                      />
-                    ) : null}
-                  </TopicsActionsMenu>
-                );
-              },
             }}
           >
             {!showOnboarding && (
@@ -572,9 +546,20 @@ function TopicsWorkspaceContent({
             <div
               className={cn(
                 "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                (showOnboarding || resultsView === "map") && "p-2",
+                showOnboarding && "p-2",
               )}
             >
+              {!showOnboarding && validTimeRange && headerFacetId && (
+                <div className="shrink-0 px-3 pt-2 md:hidden">
+                  <TopicsMobileControls
+                    facets={results.data?.facets ?? []}
+                    selectedFacet={headerFacetId}
+                    onSelectFacet={traceFilters.selectFacet}
+                    view={resultsView}
+                    onSelectView={setResultsView}
+                  />
+                </div>
+              )}
               {isTimeRangeCapped && (
                 <p
                   role="status"

@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
   showGenerateCTA: false,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
+  mobileHeader: false,
+  resultFacets: [] as Array<{ facetId: string; name: string }>,
   openAutomaticProcessing: vi.fn(),
   picker: vi.fn(),
   push: vi.fn(),
@@ -94,10 +96,15 @@ vi.mock("@/src/components/layouts/Page", () => ({
     headerProps,
   }: {
     children: ReactNode;
-    headerProps?: { actionButtonsRight?: ReactNode };
+    headerProps?: {
+      actionButtonsRight?: ReactNode;
+      actionButtonsMenu?: (controls: { closeMenu: () => void }) => ReactNode;
+    };
   }) => (
     <>
-      {headerProps?.actionButtonsRight}
+      {state.mobileHeader
+        ? headerProps?.actionButtonsMenu?.({ closeMenu: vi.fn() })
+        : headerProps?.actionButtonsRight}
       {children}
     </>
   ),
@@ -166,7 +173,10 @@ vi.mock("./CurrentTopics", () => ({
     return {
       ...input,
       data: state.resultsDataAvailable
-        ? { hasStoredSummaries: state.hasStoredSummaries, facets: [] }
+        ? {
+            hasStoredSummaries: state.hasStoredSummaries,
+            facets: state.resultFacets,
+          }
         : undefined,
       isLoading: false,
     };
@@ -331,6 +341,8 @@ beforeEach(() => {
   state.showGenerateCTA = false;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
+  state.mobileHeader = false;
+  state.resultFacets = [];
   state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
@@ -378,6 +390,24 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   render(<TopicsPage />);
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
+});
+
+it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
+  state.mobileHeader = true;
+  state.resultFacets = [{ facetId: "intent", name: "Intent" }];
+  state.rules = [{ facetIds: ["intent"] }];
+  const view = render(<TopicsPage />);
+  expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Automatic processing/ }));
+  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  state.canWrite = false;
+  view.rerender(<TopicsPage />);
+  expect(
+    screen
+      .getByRole("button", { name: /Automatic processing/ })
+      .hasAttribute("disabled"),
+  ).toBe(true);
 });
 
 it.each([
