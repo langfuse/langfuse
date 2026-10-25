@@ -668,6 +668,12 @@ describe("isDenylistedNoiseEvent", () => {
         ),
       ).toBe(true);
     });
+
+    it("drops the Firefox dying-tab fetch string (LANGFUSE-64N)", () => {
+      expect(
+        isDenylistedNoiseEvent(nonErrorRejectionEvent("out of memory")),
+      ).toBe(true);
+    });
   });
 
   describe("E. drops environmental storage-access SecurityError (console-captured only)", () => {
@@ -1432,6 +1438,26 @@ describe("isDenylistedNoiseEvent", () => {
           ),
         ),
       ).toBe(false);
+    });
+
+    it("keeps an Error-typed out of memory (LANGFUSE-62V React uncaught)", () => {
+      // React defaultOnUncaughtError / global onerror carries type Error, not
+      // UnhandledRejection — a real render/heap crash must still surface.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "out of memory",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps a real SecurityError from app-adjacent logic (cross-origin frame access)", () => {

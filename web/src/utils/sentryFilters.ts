@@ -292,6 +292,13 @@ const BENIGN_NON_ERROR_REJECTION_VALUES: readonly string[] = [
   // `Promise.reject()` / `reject(undefined)`: zero diagnostic content — no
   // stack, no message, no value. Nobody can act on it (LANGFUSE-5TA).
   "undefined",
+  // Firefox rejects `fetch` with this bare string when the tab JS heap is
+  // exhausted. Observed as an unhandled rejection with no stack; the last
+  // breadcrumb is NextAuth's already-denylisted CLIENT_FETCH_ERROR on the
+  // session poll (LANGFUSE-64N). An Error-typed OOM (React
+  // defaultOnUncaughtError, LANGFUSE-62V) keeps a different exception type
+  // and is KEPT.
+  "out of memory",
 ];
 
 /**
