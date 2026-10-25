@@ -90,6 +90,48 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+const sentimentTopics = [
+  { label: "Neutral", name: "Routine status checks", count: 60 },
+  { label: "Neutral", name: "Pricing questions", count: 44 },
+  { label: "Positive", name: "Praise for quick answers", count: 38 },
+  { label: "Neutral", name: "Account settings help", count: 30 },
+  { label: "Negative", name: "Frustration with wrong results", count: 26 },
+  { label: "Neutral", name: "Data export requests", count: 22 },
+  { label: "Mixed", name: "Helpful but slow replies", count: 18 },
+  { label: "Neutral", name: "Onboarding walkthroughs", count: 16 },
+  { label: "Positive", name: "Thanks after a fix", count: 12 },
+  { label: "Negative", name: "Repeated login failures", count: 10 },
+].map((topic, index) => ({
+  ...topic,
+  id: `sentiment-${index}`,
+  description: "",
+}));
+const sentimentRows = sentimentTopics.flatMap((topic) =>
+  Array.from({ length: topic.count }, (_, index) => ({
+    traceId: `${topic.id}-trace-${index}`,
+    summary: `${topic.label}: ${topic.name.toLowerCase()} ${index + 1}`,
+    topicId: topic.id,
+    topicName: topic.name,
+    outcome: "assigned" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 5 * 60_000).toISOString(),
+  })),
+);
+
+/** Mostly Neutral topics: tone colors with a distinct shade per topic. */
+export const SentimentTones = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      facetId: "sentiment",
+      name: "Sentiment",
+      topics: sentimentTopics,
+      rows: sentimentRows,
+      usableCount: sentimentRows.length,
+    },
+  },
+});
+
 const issueTopics = [
   { name: "Incomplete runs with undelivered results", count: 40 },
   { name: "Research halted before handback report", count: 35 },
