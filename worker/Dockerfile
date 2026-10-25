@@ -1,7 +1,13 @@
-# Node uses the digest-pinned official binary with bundled OpenSSL.
-# This runtime does not support the RHEL OpenSSL FIPS integration.
+# FIPS 140-3 base: UBI 9 with the nodejs:24 module-stream RPM
+# instead of node:24-alpine. The RPM Node dynamically links the system
+# libcrypto.so.3, so node:crypto routes through RHEL's CMVP-validated OpenSSL
+# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
+# statically bundle their own non-validated OpenSSL and bypass the platform
+# module entirely.
+# Cloud override: upstream Node 24.22.1 supplies full ICU and non-FIPS OpenSSL.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
-# credentials. Release builds select Iron Bank bases by overriding
+# credentials. Iron Bank serves the same content from an authenticated registry
+# with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
 #   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
@@ -12,6 +18,12 @@ ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
+
+# nodejs:24 and openssl (incl. the FIPS provider) come from the freely
+# redistributable UBI repos, so no RHEL entitlement is required.
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data.
 RUN dnf -y upgrade && \
     dnf -y install --setopt=install_weak_deps=0 \
     libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
@@ -41,7 +53,9 @@ ARG TARGETARCH
 ARG UID=1001
 ARG GID=1001
 
-# ICU is bundled into the Node executable.
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data.
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
@@ -54,7 +68,8 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# The final runtime needs only Node and its license, without npm.
+# The nodejs RPM drags npm in as a dependency; the runtime image must carry
+# no package manager, so remove it from the rootfs (rpmdb stays consistent).
 COPY --from=node /usr/local/bin/node /mnt/rootfs/usr/bin/node
 COPY --from=node /usr/local/LICENSE /mnt/rootfs/usr/share/licenses/nodejs/LICENSE
 
@@ -104,7 +119,7 @@ WORKDIR /app
 COPY . .
 RUN turbo prune worker --docker
 
-# UBI build toolchain: Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
+# UBI build toolchain: RPM Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
 # also runs the web and worker test suites on this stage with the OpenSSL FIPS
 # provider forced on (scripts/ci/fips-tests.sh).
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS toolchain
