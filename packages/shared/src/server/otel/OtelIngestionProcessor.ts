@@ -2907,6 +2907,29 @@ export class OtelIngestionProcessor {
           "gen_ai.request.temperature" in attributes
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
+        topP:
+          "gen_ai.request.top_p" in attributes
+            ? (attributes["gen_ai.request.top_p"]?.toString() ?? null)
+            : null,
+        topK:
+          "gen_ai.request.top_k" in attributes
+            ? (attributes["gen_ai.request.top_k"]?.toString() ?? null)
+            : null,
+        frequencyPenalty:
+          "gen_ai.request.frequency_penalty" in attributes
+            ? (attributes["gen_ai.request.frequency_penalty"]?.toString() ??
+              null)
+            : null,
+        presencePenalty:
+          "gen_ai.request.presence_penalty" in attributes
+            ? (attributes["gen_ai.request.presence_penalty"]?.toString() ??
+              null)
+            : null,
+        stopSequences:
+          "gen_ai.request.stop_sequences" in attributes
+            ? (JSON.stringify(attributes["gen_ai.request.stop_sequences"]) ??
+              null)
+            : null,
         service_tier:
           typeof responseServiceTier === "string"
             ? responseServiceTier
