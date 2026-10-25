@@ -1,31 +1,11 @@
-/* eslint-disable @repo/component-file-structure */
-import { forwardRef, type ComponentProps, type ReactNode } from "react";
-import { ExternalLink, MoreVertical } from "@langfuse/icons";
+import { type ReactNode } from "react";
+import { ExternalLink } from "@langfuse/icons";
 
-import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-
-export const TestResultTraceActionsTrigger = forwardRef<
-  HTMLButtonElement,
-  ComponentProps<typeof Button>
->(function TestResultTraceActionsTrigger({ title = "More", ...props }, ref) {
-  return (
-    <Button
-      {...props}
-      ref={ref}
-      type="button"
-      variant="ghost"
-      size="icon-xs"
-      title={title}
-    >
-      <MoreVertical size="sm" color="default" />
-    </Button>
-  );
-});
 
 export function TestResultTraceActions({
   children,

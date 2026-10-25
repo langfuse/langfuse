@@ -8,7 +8,7 @@ import EvalsTemplateTable from "@/src/features/evals/components/EvalsTemplateTab
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
-import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationUpdateRequiredBadge";
 
 export default function TemplatesPage() {
   const router = useRouter();

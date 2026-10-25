@@ -3,7 +3,8 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 // Helper function to get column name from eventsTableCols by ID
@@ -105,7 +106,13 @@ export const observationEventsFilterConfig: FilterConfig = {
           "Observation types classify the work captured within a trace, such as generations, spans, tools, chains, and agents.",
         href: "https://langfuse.com/docs/observability/features/observation-types",
       },
-      renderIcon: renderFilterIcon,
+      renderIcon: (value) => (
+        <ItemTypeIcon
+          type={value as LangfuseItemType}
+          size="base"
+          color="type"
+        />
+      ),
     },
     {
       type: "categorical" as const,

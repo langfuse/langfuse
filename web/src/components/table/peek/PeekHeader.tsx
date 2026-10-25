@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import {
   DetailPageNav,

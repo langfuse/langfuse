@@ -39,7 +39,7 @@ import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
-import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationStatusDot";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,

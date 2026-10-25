@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
 import DocPopup from "@/src/components/layouts/doc-popup";

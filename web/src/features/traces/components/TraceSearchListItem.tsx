@@ -7,7 +7,7 @@
  */
 import type { TraceSearchListItem as TraceSearchListItemData } from "@/src/features/traces/types/traceSearchListItem";
 
-import { ItemTypeIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
 import { SpanContent } from "./SpanContent";
 import { cn } from "@/src/utils/tailwind";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
@@ -49,7 +49,12 @@ export function TraceSearchListItem({
     >
       <div className="flex w-6 shrink-0 justify-center py-1.5">
         <div className="flex h-4 items-center">
-          <ItemTypeIcon type={node.type} className="size-3.5" />
+          <ItemTypeIcon
+            type={node.type}
+            size="base"
+            color="type"
+            className="size-3.5"
+          />
         </div>
       </div>
       <div className="min-w-0 flex-1 space-y-0.5">

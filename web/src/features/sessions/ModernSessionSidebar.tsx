@@ -12,7 +12,8 @@ import {
 } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 
-import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
@@ -154,7 +155,11 @@ function ObservationListRows({
             onClick={() => onSelectObservation(observation.id)}
             className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
           >
-            {renderFilterIcon(observation.type)}
+            <ItemTypeIcon
+              type={observation.type as LangfuseItemType}
+              size="base"
+              color="type"
+            />
             <span
               className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
               title={observation.name ?? observation.id}

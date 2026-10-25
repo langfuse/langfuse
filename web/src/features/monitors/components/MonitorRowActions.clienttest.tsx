@@ -2,13 +2,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { type Monitor } from "@langfuse/shared/monitors";
 
-vi.mock("@/src/components/deleteButton", () => ({
-  DeleteMonitorButton: (props: { itemId: string }) => (
-    <button type="button" data-testid="delete-monitor">
-      delete {props.itemId}
-    </button>
-  ),
-}));
+vi.mock(
+  "@/src/features/monitors/components/ConnectedDeleteMonitorButton/ConnectedDeleteMonitorButton",
+  () => ({
+    ConnectedDeleteMonitorButton: (props: { itemId: string }) => (
+      <button type="button" data-testid="delete-monitor">
+        delete {props.itemId}
+      </button>
+    ),
+  }),
+);
 
 import { __test } from "./MonitorsTable";
 

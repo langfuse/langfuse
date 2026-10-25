@@ -22,10 +22,10 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyN
 import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import {
   FALLBACK_AUTH_PROVIDERS,
-  SSOButtons,
   useHuggingFaceRedirect,
   type PageProps,
 } from "@/src/features/auth/SignInPage";
+import { SSOButtons } from "@/src/features/auth/components/SSOButtons";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useRouter } from "next/router";

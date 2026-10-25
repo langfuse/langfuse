@@ -21,7 +21,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationStatusDot";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {

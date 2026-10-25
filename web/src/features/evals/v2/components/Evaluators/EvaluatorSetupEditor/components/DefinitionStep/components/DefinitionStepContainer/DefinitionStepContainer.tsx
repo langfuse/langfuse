@@ -8,7 +8,7 @@ import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluat
 import { DecisionModelQuestionsEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelQuestionsEditor/DecisionModelQuestionsEditor";
 import { DecisionModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelSelector/DecisionModelSelector";
 import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
-import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
+import { ConnectedPromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/ConnectedPromptEditor";
 import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -89,7 +89,9 @@ export function DefinitionStepContainer({
               onSetProjectDefault={onSetProjectDefault}
             />
           }
-          promptEditor={<PromptEditor projectId={projectId} store={store} />}
+          promptEditor={
+            <ConnectedPromptEditor projectId={projectId} store={store} />
+          }
           scoreOutputEditor={<ScoreOutputEditor store={store} />}
         />
       );

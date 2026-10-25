@@ -1,6 +1,7 @@
 import React from "react";
 
-import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { ItemTypeIcon } from "@/src/components/ItemTypeIcon/ItemTypeIcon";
+import { type LangfuseItemType } from "@/src/utils/itemType";
 import { cn } from "@/src/utils/tailwind";
 import { truncateLabel } from "../layout/measureNode";
 import {
@@ -161,7 +162,7 @@ function GraphNodeComponent({
       )}
       {...handlers}
     >
-      {renderFilterIcon(type)}
+      <ItemTypeIcon type={type as LangfuseItemType} size="base" color="type" />
       {!compact && (
         <>
           <span className="min-w-0 truncate" title={label}>

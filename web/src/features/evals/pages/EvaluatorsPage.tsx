@@ -10,7 +10,7 @@ import { useEntitlementLimit } from "@/src/features/entitlements";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
-import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationUpdateRequiredBadge";
 
 export default function EvaluatorsPage() {
   const router = useRouter();

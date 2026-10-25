@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -12,9 +12,7 @@ import { LockIcon, TrashIcon } from "@langfuse/icons";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ProjectScope } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showSuccessToast } from "@/src/features/notifications";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type DeleteButtonProps = {
@@ -236,171 +234,5 @@ export function DeleteButton({
         {deleteBlocker}
       </PopoverContent>
     </Popover>
-  );
-}
-
-/** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
-export function DeleteMonitorButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "alerts:CUD",
-    invalidateFunc = () => utils.monitors.invalidate(),
-  } = props;
-  const monitorMutation = api.monitors.delete.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "monitor.delete",
-        title: "Alert deleted",
-        description: "The alert has been deleted successfully",
-      });
-      utils.monitors.invalidate();
-    },
-  });
-
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await monitorMutation.mutateAsync({ id: itemId, projectId });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    onSuccess();
-  };
-
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("monitors:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "monitor",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("monitors:delete_monitor_button_click", {
-          source: isTableAction ? "table-single-row" : "monitor",
-        })
-      }
-      entityToDeleteName="alert"
-      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes its alert history."
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={monitorMutation.isPending}
-    />
-  );
-}
-
-export function DeleteEvalConfigButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "evaluationRule:CUD",
-    invalidateFunc = () => utils.evals.invalidate(),
-  } = props;
-
-  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "evaluator.delete",
-        title: "Running evaluator deleted",
-        description: "The running evaluator has been deleted successfully",
-      });
-      utils.evals.invalidate();
-    },
-  });
-
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await evaluatorMutation.mutateAsync({
-        evalConfigId: itemId,
-        projectId,
-      });
-      onSuccess();
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  };
-
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("eval_config:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "eval config detail",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("eval_config:delete_evaluator_button_click", {
-          source: isTableAction ? "table-single-row" : "eval config detail",
-        })
-      }
-      customDeletePrompt="This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted."
-      entityToDeleteName="running evaluator"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={evaluatorMutation.isPending}
-    />
-  );
-}
-
-export function DeleteEvaluationModelButton(
-  props: Omit<DeleteButtonProps, "itemId">,
-) {
-  const utils = api.useUtils();
-  const {
-    projectId,
-    scope = "evalDefaultModel:CUD",
-    invalidateFunc = () => utils.defaultLlmModel.invalidate(),
-  } = props;
-
-  const { mutateAsync: deleteDefaultModel, isPending } =
-    api.defaultLlmModel.deleteDefaultModel.useMutation({
-      onSuccess: () => {
-        showSuccessToast({
-          operation: "evaluation_model.delete",
-          title: "Default evaluation model deleted",
-          description:
-            "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
-        });
-        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
-      },
-    });
-
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await deleteDefaultModel({
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    onSuccess();
-  };
-
-  return (
-    <DeleteButton
-      {...props}
-      variant="outline"
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("eval_config:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "evaluator",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("eval_config:delete_evaluator_button_click", {
-          source: isTableAction ? "table-single-row" : "evaluator",
-        })
-      }
-      entityToDeleteName="default evaluation model"
-      customDeletePrompt="Deleting this model might cause running evaluators to fail. Please make sure you have no running evaluators relying on this model."
-      deleteConfirmation="delete"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={isPending}
-    />
   );
 }
