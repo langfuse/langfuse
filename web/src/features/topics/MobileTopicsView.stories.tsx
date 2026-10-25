@@ -3,8 +3,8 @@ import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { TopicsMobileControls } from "./TopicsMobileControls";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
-import { Button } from "@/src/components/design-system/Button/Button";
 
 const topics = [
   {
@@ -76,6 +76,18 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
+  const [view, setView] = useState(args.view);
+  const [facetId, setFacetId] = useState(args.facet.facetId);
+  const facets = [
+    args.facet,
+    {
+      ...args.facet,
+      facetId: "issues",
+      name: "Unresolved customer support issues",
+      map: args.facet.map && { ...args.facet.map, runId: "other-map" },
+    },
+  ];
+  const facet = facets.find((facet) => facet.facetId === facetId)!;
   const [filters, setFilters] = useState<FilterState>(args.filters);
   const [searchQuery, setSearchQuery] = useState<string | null>(
     args.searchQuery,
@@ -83,8 +95,19 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
   const [selectedTraceId, setSelectedTraceId] = useState(args.selectedTraceId);
   return (
     <div className="flex h-[min(720px,100dvh)] w-full max-w-[390px] flex-col border">
+      <div className="shrink-0 border-b p-2">
+        <TopicsMobileControls
+          facets={facets}
+          selectedFacet={facetId}
+          onSelectFacet={setFacetId}
+          view={view}
+          onSelectView={setView}
+        />
+      </div>
       <MobileTopicsView
         {...args}
+        facet={facet}
+        view={view}
         filters={filters}
         searchQuery={searchQuery}
         onFiltersChange={setFilters}
@@ -96,7 +119,7 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
         }}
         traceToolbar={
           <TopicsTraceToolbar
-            topics={args.facet.topics}
+            topics={facet.topics}
             filters={filters}
             onFiltersChange={setFilters}
             searchQuery={searchQuery}
@@ -308,7 +331,6 @@ export const PreviewTreemap = meta.story({
 export const PreviewGrid = meta.story({
   name: "(Test) Preview grid items, select traces, and clear topics",
   args: {
-    view: "grid",
     filters: [
       {
         column: "topicId",
@@ -320,7 +342,10 @@ export const PreviewGrid = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    await userEvent.selectOptions(
+      canvas.getByRole("combobox", { name: "Topics view" }),
+      "grid",
+    );
     const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
     const dot = grid.querySelector('[data-trace-id="access-0"]')!;
     await userEvent.click(dot);
@@ -361,32 +386,15 @@ export const PreviewGrid = meta.story({
 export const SwitchPublishedMap = meta.story({
   name: "(Test) Switching facet maps resets the camera and keeps Visualize open",
   args: { view: "map" },
-  render: (args) => {
-    const [alternate, setAlternate] = useState(false);
-    return (
-      <>
-        <Button text="Switch facet" onClick={() => setAlternate(true)} />
-        <MobileExample
-          {...args}
-          facet={
-            alternate
-              ? {
-                  ...facet,
-                  facetId: "sentiment",
-                  map: { runId: "other-map", topics },
-                }
-              : facet
-          }
-        />
-      </>
-    );
-  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await expect(canvas.queryByText("100%")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "Switch facet" }));
+    await userEvent.selectOptions(
+      canvas.getByRole("combobox", { name: "Topics facet" }),
+      "issues",
+    );
     await expect(await canvas.findByText("100%")).toBeVisible();
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),

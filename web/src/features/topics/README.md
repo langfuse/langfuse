@@ -25,10 +25,11 @@ project permissions. Processing additionally requires the project allowlist.
   `previewOnSelect`: first tap shows persistent hover details, a second tap on
   the same item selects it and opens Traces. Tapping a different item replaces
   the preview; tapping empty space dismisses it. Only a trace-list tap opens
-  peek. Map pan/zoom invalidates the preview. Storybook covers the
-  mobile explorer, controls, and existing charts separately. The mobile flow
-  shares one page shell across visualizations; chart insets belong inside their
-  visualization, never around the page controls or panel navigation. The flow
+  peek. Map pan/zoom invalidates the preview. Storybook composes the
+  mobile explorer with its facet/view controls; desktop charts retain their
+  stories. The mobile flow shares one page shell across visualizations; chart
+  insets belong inside their visualization, never around the page controls or
+  panel navigation. The flow
   uses existing view-selection analytics and the same replay-blocked content
   boundaries; it adds no events for local panel navigation.
 - `prepare-topics-actions.ts` defines labels, processing status, availability,
