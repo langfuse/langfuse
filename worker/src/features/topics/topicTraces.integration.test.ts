@@ -144,6 +144,7 @@ describe("listCurrentTopicTraces", () => {
         state: "insufficient_input",
         summary: "",
         sessionId: "session-1",
+        traceName: "Überprüfung",
       }),
       unpublished,
       summary(traces.internal, issues, 1, {
@@ -266,6 +267,13 @@ describe("listCurrentTopicTraces", () => {
         ]),
       ),
     ).toEqual([traces.insufficient]);
+    for (const match of [
+      { operator: "=", value: "ÜBERPRÜFUNG" },
+      { operator: "any of", values: ["ÜBERPRÜFUNG"] },
+    ] as const)
+      expect(ids(await list([{ column: "traceName", match }]))).toEqual([
+        traces.insufficient,
+      ]);
     expect(
       ids(
         await list([
@@ -294,6 +302,34 @@ describe("listCurrentTopicTraces", () => {
         ]),
       ),
     ).toEqual([traces.assigned, traces.stale, traces.outlier]);
+  });
+
+  it("leaves processedAt unset when no projected facet has a result", async () => {
+    const onlyIssues: TopicTraceCondition = {
+      column: "traceId",
+      match: { operator: "any of", values: [traces.outlier] },
+    };
+    const [row] = (await list([onlyIssues], { projectedFacetIds: [intent] }))
+      .rows;
+    expect(row).toMatchObject({
+      traceId: traces.outlier,
+      processedAt: null,
+      results: [],
+    });
+    expect(
+      ids(
+        await list(
+          [
+            onlyIssues,
+            {
+              column: "processedAt",
+              match: { operator: ">=", value: new Date(0) },
+            },
+          ],
+          { projectedFacetIds: [intent] },
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("pages with a keyset cursor and projects facets", async () => {

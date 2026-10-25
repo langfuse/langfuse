@@ -80,7 +80,8 @@ export type TopicTraceRow = {
   traceName: string;
   environment: string;
   timestamp: Date;
-  processedAt: Date;
+  /** Null when none of the projected facets has a result for the trace. */
+  processedAt: Date | null;
   results: TopicTraceFacetResult[];
 };
 
@@ -102,16 +103,13 @@ const stringMatchSql = (
   params: SqlParams,
 ) => {
   if ("values" in match) {
-    const values = params.add(
-      "Array(String)",
-      match.values.map((value) => value.toLowerCase()),
-    );
-    return `lower(${expression}) ${match.operator === "none of" ? "NOT IN" : "IN"} ${values}`;
+    const values = params.add("Array(String)", match.values);
+    return `lowerUTF8(${expression}) ${match.operator === "none of" ? "NOT IN" : "IN"} arrayMap(value -> lowerUTF8(value), ${values})`;
   }
   const value = params.add("String", match.value);
   switch (match.operator) {
     case "=":
-      return `lower(${expression}) = lower(${value})`;
+      return `lowerUTF8(${expression}) = lowerUTF8(${value})`;
     case "contains":
       return `positionCaseInsensitiveUTF8(${expression}, ${value}) > 0`;
     case "does not contain":
@@ -156,6 +154,10 @@ function rowConditionSql(condition: TopicTraceCondition, params: SqlParams) {
   }
 }
 
+/** Latest processing time across the projected facets; NULL when none of them has a result. */
+const rowProcessedAtSql =
+  "maxIfOrNull(result_processed_at, facet_id IN {projectedFacetIds:Array(String)})";
+
 const facetSql = (facetId: string, params: SqlParams) =>
   `facet_id = ${params.add("String", facetId)}`;
 
@@ -172,7 +174,7 @@ function groupConditionSql(condition: TopicTraceCondition, params: SqlParams) {
       );
     case "processedAt":
       return comparisonSql(
-        "maxIf(result_processed_at, facet_id IN {projectedFacetIds:Array(String)})",
+        rowProcessedAtSql,
         condition.match.operator,
         params.add(
           "DateTime64(3)",
@@ -238,6 +240,7 @@ function currentResultsSql(
   const and = (conditions: string[]) =>
     conditions.map((sql) => `AND ${sql}`).join(" ");
   const rowFilter = and(rowConditions);
+  const latestScopeSql = [scopeSql, ...traceIdConditions].join(" AND ");
   return `
   summaries AS (
     SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
@@ -247,7 +250,7 @@ function currentResultsSql(
       AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
       AND environment != {publicLlmJudgeEnvironment:String}
       ${rowFilter}
-      AND ${latestSummaryFilterSql(scopeSql, summarySourceKeySql)}
+      AND ${latestSummaryFilterSql(latestScopeSql, summarySourceKeySql)}
     ORDER BY facet_version DESC, processed_at DESC
     LIMIT 1 BY facet_id, trace_id
   ),
@@ -325,7 +328,7 @@ function buildQuery(input: {
 
 const groupedTracesSql = (conditions: string[]) => `
   SELECT trace_id, min(unit_start_time) AS timestamp,
-    maxIf(result_processed_at, facet_id IN {projectedFacetIds:Array(String)}) AS row_processed_at,
+    ${rowProcessedAtSql} AS row_processed_at,
     any(trace_name) AS trace_name, any(environment) AS environment
   FROM current
   GROUP BY trace_id
@@ -425,7 +428,7 @@ export async function listCurrentTopicTraces(input: {
     queryClickhouse<{
       trace_id: string;
       timestamp: string;
-      row_processed_at: string;
+      row_processed_at: string | null;
       trace_name: string;
       environment: string;
     }>({
@@ -484,7 +487,9 @@ export async function listCurrentTopicTraces(input: {
       traceName: row.trace_name,
       environment: row.environment,
       timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-      processedAt: parseClickhouseUTCDateTimeFormat(row.row_processed_at),
+      processedAt: row.row_processed_at
+        ? parseClickhouseUTCDateTimeFormat(row.row_processed_at)
+        : null,
       results: detailsByTrace.get(row.trace_id) ?? [],
     })),
     next:

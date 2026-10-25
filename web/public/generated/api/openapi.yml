@@ -15407,7 +15407,11 @@ components:
         processedAt:
           type: string
           format: date-time
-          description: Latest Topics processing time across the returned facets.
+          nullable: true
+          description: >-
+            Latest Topics processing time across the returned facets. Null when
+            the trace matched through a filter facet and none of the returned
+            facets has processed it yet.
         facets:
           type: array
           items:
@@ -15418,7 +15422,6 @@ components:
         - environment
         - timestamp
         - traceUrl
-        - processedAt
         - facets
     unstableTopicTraceListMeta:
       title: unstableTopicTraceListMeta

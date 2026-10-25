@@ -533,6 +533,54 @@ describe("unstable Topics public API", () => {
       );
     });
 
+    it.each<[string, FilterState[number], string[]]>([
+      [
+        "topic name",
+        {
+          type: "stringOptions",
+          column: "topicName",
+          operator: "any of",
+          value: ["tool call timeouts"],
+        },
+        ["custom", "issues"],
+      ],
+      [
+        "topic id",
+        {
+          type: "stringOptions",
+          column: "topicId",
+          operator: "none of",
+          value: ["timeouts"],
+        },
+        ["custom", "issues"],
+      ],
+      [
+        "topic id outside the published maps",
+        {
+          type: "stringOptions",
+          column: "topicId",
+          operator: "any of",
+          value: ["retired"],
+        },
+        ["custom", "issues"],
+      ],
+    ])(
+      "scans the facets owning an unkeyed %s filter",
+      async (_, condition, facetIds) => {
+        await listPublicTopicTraces({
+          ...traceQuery,
+          facets: ["custom"],
+          filter: [condition],
+        });
+        expect(listCurrentTopicTraces).toHaveBeenCalledWith(
+          expect.objectContaining({
+            facetIds,
+            projectedFacetIds: ["custom"],
+          }),
+        );
+      },
+    );
+
     it("returns no traces without reading when a topic name matches nothing", async () => {
       const result = await listPublicTopicTraces({
         ...traceQuery,
@@ -583,6 +631,16 @@ describe("unstable Topics public API", () => {
           value: ["summarized"],
         },
       ],
+      ...[-1, 1.5].map((value): [string, FilterState[number]] => [
+        `facet version ${value}`,
+        {
+          type: "numberObject",
+          column: "facetVersion",
+          key: "issues",
+          operator: ">=",
+          value,
+        },
+      ]),
       [
         "an unsupported type for the column",
         { type: "string", column: "userId", operator: "=", value: "u1" },

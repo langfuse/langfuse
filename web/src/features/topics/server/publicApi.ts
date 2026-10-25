@@ -423,6 +423,25 @@ async function publishedTopicsByFacet(projectId: string, facets: TopicFacet[]) {
 }
 
 /**
+ * Facets that must be scanned for a topic id filter: the facets whose published
+ * map has the ids, or every facet when an id is not in any map (retired topics).
+ */
+function topicOwnerFacetIds(
+  topics: Map<string, TopicDefinition[]>,
+  lookup: FacetLookup,
+  topicIds: string[],
+) {
+  const owners = new Map(
+    [...topics].flatMap(([facetId, definitions]) =>
+      definitions.map((topic) => [topic.topicId, facetId] as const),
+    ),
+  );
+  return topicIds.every((id) => owners.has(id))
+    ? topicIds.flatMap((id) => owners.get(id) ?? [])
+    : lookup.facets.map(({ id }) => id);
+}
+
+/**
  * Translates the public filter into reader conditions. Returns `null` when a
  * condition can match nothing (an unknown topic name in `any of`).
  */
@@ -488,19 +507,19 @@ async function topicTraceConditions(
       if (!topics)
         topics = await publishedTopicsByFacet(projectId, lookup.facets);
       const names = new Set(condition.value.map((name) => name.toLowerCase()));
-      const topicIds = [
-        ...new Set(
-          [...topics]
-            .filter(([id]) => !facetId || id === facetId)
-            .flatMap(([, definitions]) => definitions)
+      const matches = [...topics]
+        .filter(([id]) => !facetId || id === facetId)
+        .flatMap(([id, definitions]) =>
+          definitions
             .filter((topic) => names.has(topic.name.toLowerCase()))
-            .map((topic) => topic.topicId),
-        ),
-      ];
-      if (topicIds.length === 0) {
+            .map((topic) => ({ facetId: id, topicId: topic.topicId })),
+        );
+      if (matches.length === 0) {
         if (condition.operator === "any of") return null;
         continue;
       }
+      for (const match of matches) facetIds.add(match.facetId);
+      const topicIds = [...new Set(matches.map((match) => match.topicId))];
       conditions.push({
         column: "topicId",
         facetId,
@@ -508,6 +527,24 @@ async function topicTraceConditions(
       });
       continue;
     }
+
+    if (column === "topicId" && condition.type === "stringOptions") {
+      if (!topics)
+        topics = await publishedTopicsByFacet(projectId, lookup.facets);
+      for (const id of topicOwnerFacetIds(topics, lookup, condition.value))
+        facetIds.add(id);
+    }
+
+    if (
+      condition.type === "numberObject" &&
+      (!Number.isInteger(condition.value) || condition.value < 0)
+    )
+      throw createStructuredPublicApiError({
+        httpCode: 400,
+        code: "invalid_query",
+        message: `Filter "${column}" requires a non-negative integer version.`,
+        details: { column },
+      });
 
     switch (condition.type) {
       case "stringOptions":

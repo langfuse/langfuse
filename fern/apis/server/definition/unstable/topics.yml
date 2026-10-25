@@ -278,8 +278,11 @@ types:
         type: string
         docs: Path of the trace in the Langfuse UI.
       processedAt:
-        type: datetime
-        docs: Latest Topics processing time across the returned facets.
+        type: optional<datetime>
+        docs: >-
+          Latest Topics processing time across the returned facets. Null when
+          the trace matched through a filter facet and none of the returned
+          facets has processed it yet.
       facets: list<TopicTraceFacet>
   TopicTraceListMeta:
     properties:

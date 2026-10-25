@@ -202,7 +202,7 @@ export const GetUnstableTopicTracesResponse = z
           environment: z.string(),
           timestamp: z.coerce.date(),
           traceUrl: z.string(),
-          processedAt: z.coerce.date(),
+          processedAt: z.coerce.date().nullable(),
           facets: z.array(TopicTraceFacetSchema),
         })
         .strict(),
