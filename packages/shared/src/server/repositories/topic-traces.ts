@@ -104,7 +104,7 @@ const stringMatchSql = (
 ) => {
   if ("values" in match) {
     const values = params.add("Array(String)", match.values);
-    return `lowerUTF8(${expression}) ${match.operator === "none of" ? "NOT IN" : "IN"} arrayMap(value -> lowerUTF8(value), ${values})`;
+    return `${match.operator === "none of" ? "NOT " : ""}has(arrayMap(value -> lowerUTF8(value), ${values}), lowerUTF8(${expression}))`;
   }
   const value = params.add("String", match.value);
   switch (match.operator) {
