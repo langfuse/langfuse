@@ -150,6 +150,8 @@ const MANY_TOPIC_NAMES = [
 ];
 const manyTopics = Array.from({ length: 40 }, (_, index) => ({
   id: `many-${index}`,
+  versionId: `many-${index}-v1`,
+  runId: "run",
   name: MANY_TOPIC_NAMES[index],
   description: "",
   count: Math.max(2, Math.round(120 / (index + 1))),
