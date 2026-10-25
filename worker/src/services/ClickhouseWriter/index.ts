@@ -167,9 +167,29 @@ export class ClickhouseWriter<
       await Promise.all([...this.activeFlushes]);
     }
 
-    await this.flushAll(true);
+    // A failed or split flush puts rows back in the queue, and no interval
+    // flush runs after shutdown to pick them up. Give them the retries the
+    // interval flush would have, one pass per attempt.
+    for (let pass = 0; pass < this.maxAttempts; pass++) {
+      await this.flushAll(true);
+      if (!this.hasQueuedRows()) break;
+    }
+
+    // Don't lose rows silently. Log their IDs like the max attempts drop does.
+    for (const [tableName, rows] of Object.entries(this.queue)) {
+      if (rows.length === 0) continue;
+      const strategy = this.strategyFactory.create();
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter: Shutdown left ${rows.length} ${tableName} record(s) unwritten`,
+        { droppedIds: rows.map((item) => strategy.droppedId(item.data)) },
+      );
+    }
 
     this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
+  }
+
+  private hasQueuedRows(): boolean {
+    return Object.values(this.queue).some((rows) => rows.length > 0);
   }
 
   public async flushAll(fullQueue = false) {
