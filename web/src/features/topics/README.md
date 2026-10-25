@@ -17,7 +17,8 @@ project permissions. Processing additionally requires the project allowlist.
   `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors
   shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and
   matching rows; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace
-  cards wrap full summaries and paginate in batches of 20. Their header and
+  cards wrap full summaries and use design-system pagination, initially 20 per
+  page. Facet/view controls use the compact design-system SelectInput. Their header and
   search scroll with the cards so short screens retain access to every row.
   `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and
   `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the

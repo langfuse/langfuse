@@ -1,4 +1,4 @@
-import { type ChangeEvent } from "react";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   TOPICS_RESULTS_VIEWS,
   type TopicsResultsView,
@@ -11,48 +11,29 @@ export function TopicsMobileControls({
   view,
   onSelectView,
 }: TopicsMobileControlsProps) {
-  function selectFacet(event: ChangeEvent<HTMLSelectElement>) {
-    onSelectFacet(event.target.value);
-  }
-  function selectView(event: ChangeEvent<HTMLSelectElement>) {
-    const selected = TOPICS_RESULTS_VIEWS.find(
-      (option) => option.value === event.target.value,
-    );
-    if (selected) onSelectView(selected.value);
-  }
-
   return (
     <div className="ph-no-capture flex min-w-0 items-center gap-2">
-      <label className="w-40 min-w-0">
-        <span className="sr-only">Facet</span>
-        <select
+      <div className="w-40 min-w-0">
+        <SelectInput
           aria-label="Topics facet"
-          className="bg-background border-input focus-visible:ring-ring h-8 w-full min-w-0 rounded-md border py-1 pr-7 pl-2 text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+          placeholder="Facet"
           value={selectedFacet}
-          onChange={selectFacet}
-        >
-          {facets.map((facet) => (
-            <option key={facet.facetId} value={facet.facetId}>
-              {facet.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="w-24 shrink-0">
-        <span className="sr-only">Visualize as</span>
-        <select
+          onValueChange={onSelectFacet}
+          options={facets.map((facet) => ({
+            value: facet.facetId,
+            label: facet.name,
+          }))}
+        />
+      </div>
+      <div className="w-28 shrink-0">
+        <SelectInput
           aria-label="Topics view"
-          className="bg-background border-input focus-visible:ring-ring h-8 w-full min-w-0 rounded-md border py-1 pr-7 pl-2 text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+          placeholder="Visualize as"
           value={view}
-          onChange={selectView}
-        >
-          {TOPICS_RESULTS_VIEWS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          onValueChange={onSelectView}
+          options={TOPICS_RESULTS_VIEWS}
+        />
+      </div>
     </div>
   );
 }

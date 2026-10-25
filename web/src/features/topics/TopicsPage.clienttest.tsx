@@ -21,7 +21,6 @@ const state = vi.hoisted(() => ({
   refetchExecution: vi.fn(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
-  setQueryParam: vi.fn(),
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
   showGenerateCTA: false,
@@ -52,7 +51,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("use-query-params", () => ({
   StringParam: {},
-  useQueryParam: () => [undefined, state.setQueryParam],
+  useQueryParam: () => [undefined, vi.fn()],
   useQueryParams: () => [{ dateRange: state.dateRange }, state.setQueryParams],
 }));
 vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
@@ -395,19 +394,11 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
 
 it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
   state.mobileHeader = true;
-  state.resultFacets = [
-    { facetId: "intent", name: "Intent" },
-    { facetId: "outcome", name: "Outcome" },
-  ];
+  state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
   const view = render(<TopicsPage />);
-  fireEvent.change(screen.getByRole("combobox", { name: "Topics facet" }), {
-    target: { value: "outcome" },
-  });
-  expect(state.setQueryParam).toHaveBeenCalledWith("outcome");
-  const visualization = screen.getByRole("combobox", { name: "Topics view" });
-  fireEvent.change(visualization, { target: { value: "map" } });
-  expect(visualization).toHaveValue("map");
+  expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: /Automatic processing/ }));
   expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
   state.canWrite = false;

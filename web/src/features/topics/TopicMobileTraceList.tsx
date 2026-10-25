@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "@langfuse/icons";
+import { ChevronRight } from "@langfuse/icons";
+import {
+  PaginationBar,
+  type PaginationBarState,
+} from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { type FacetRow } from "./facet-topics";
@@ -25,6 +29,7 @@ export function TopicMobileTraceList({
   const selectedRef = useRef<HTMLButtonElement>(null);
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
+    pageSize: PAGE_SIZE,
     pageIndex: Math.max(
       0,
       Math.floor(
@@ -33,20 +38,18 @@ export function TopicMobileTraceList({
     ),
   }));
   if (pageRequest.filterKey !== filterKey) {
-    setPageRequest({ filterKey, pageIndex: 0 });
+    setPageRequest({ ...pageRequest, filterKey, pageIndex: 0 });
   }
   // The DOM scroll position follows map selection without moving keyboard focus.
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedTraceId]);
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const { pageSize } = pageRequest;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
-  const pageRows = rows.slice(
-    pageIndex * PAGE_SIZE,
-    (pageIndex + 1) * PAGE_SIZE,
-  );
-  function changePage(pageIndex: number) {
-    setPageRequest({ filterKey, pageIndex });
+  const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  function changePage(pagination: PaginationBarState) {
+    setPageRequest({ filterKey, ...pagination });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 
@@ -103,33 +106,14 @@ export function TopicMobileTraceList({
           </p>
         )}
       </div>
-      {pageCount > 1 && (
-        <nav
-          aria-label="Trace pagination"
-          className="flex shrink-0 items-center justify-between gap-2 border-t px-2"
-        >
-          <button
-            type="button"
-            disabled={pageIndex === 0}
-            onClick={() => changePage(pageIndex - 1)}
-            className="hover:bg-accent focus-visible:ring-ring flex min-h-11 items-center gap-1 rounded-md px-2 text-sm focus-visible:ring-2 disabled:opacity-40"
-          >
-            <ChevronLeft size="base" aria-hidden /> Previous
-          </button>
-          <span
-            role="status"
-            className="text-muted-foreground text-xs tabular-nums"
-          >
-            {pageIndex + 1} / {pageCount}
-          </span>
-          <button
-            type="button"
-            disabled={pageIndex === pageCount - 1}
-            onClick={() => changePage(pageIndex + 1)}
-            className="hover:bg-accent focus-visible:ring-ring flex min-h-11 items-center gap-1 rounded-md px-2 text-sm focus-visible:ring-2 disabled:opacity-40"
-          >
-            Next <ChevronRight size="base" aria-hidden />
-          </button>
+      {rows.length > 0 && (
+        <nav aria-label="Trace pagination" className="shrink-0">
+          <PaginationBar
+            mode="offset"
+            totalCount={rows.length}
+            state={{ pageIndex, pageSize }}
+            onChange={changePage}
+          />
         </nav>
       )}
     </div>

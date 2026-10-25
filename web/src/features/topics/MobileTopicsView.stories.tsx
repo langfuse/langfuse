@@ -218,10 +218,28 @@ export const BrowseAndOpenTrace = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all traces" }),
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Go to next page" }),
+    );
     await expect(
       canvas.getByRole("button", { name: "Open trace billing-20" }),
     ).toBeVisible();
+    const pagination = within(
+      canvas.getByRole("navigation", { name: "Trace pagination" }),
+    );
+    await userEvent.click(pagination.getByRole("combobox"));
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("option", {
+        name: "50",
+      }),
+    );
+    await expect(pagination.getByRole("combobox")).toHaveTextContent("50");
+    await expect(
+      pagination.getByRole("spinbutton", { name: "Page number" }),
+    ).toHaveValue(1);
+    await expect(
+      pagination.getByRole("button", { name: "Go to next page" }),
+    ).toBeDisabled();
     const search = canvas.getByRole("combobox", { name: "Search" });
     await userEvent.click(search);
     await userEvent.type(search, "no-match");
@@ -342,9 +360,13 @@ export const PreviewGrid = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.selectOptions(
+    await userEvent.click(
       canvas.getByRole("combobox", { name: "Topics view" }),
-      "grid",
+    );
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("option", {
+        name: "Grid",
+      }),
     );
     const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
     const dot = grid.querySelector('[data-trace-id="access-0"]')!;
@@ -391,9 +413,13 @@ export const SwitchPublishedMap = meta.story({
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await expect(canvas.queryByText("100%")).not.toBeInTheDocument();
-    await userEvent.selectOptions(
+    await userEvent.click(
       canvas.getByRole("combobox", { name: "Topics facet" }),
-      "issues",
+    );
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("option", {
+        name: "Unresolved customer support issues",
+      }),
     );
     await expect(await canvas.findByText("100%")).toBeVisible();
     await expect(
