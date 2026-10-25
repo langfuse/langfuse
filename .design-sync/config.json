@@ -301,6 +301,23 @@
         "playground-datatable--removed-lower-handle-rolls-back-preview",
         "playground-datatable--removed-keyboard-handle-cancels-resize"
       ]
+    },
+    "DateRangeInput": {
+      "skip": [
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--default",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--bounded",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--disabled",
+        "design-components-daterangeinput--test-preset-selection",
+        "design-components-daterangeinput--test-whole-day-selection",
+        "design-components-daterangeinput--test-end-time-outside-rolling-lookback",
+        "design-components-daterangeinput--test-start-time-clamped-to-earliest"
+      ]
+    },
+    "ExpandToggle": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-expandtoggle--toggles-state"
+      ]
     }
   },
   "extraFonts": [
@@ -311,7 +328,6 @@
     "dropdown-menu": null,
     "mobile-page-actions-content": "MobilePageActionsContent",
     "MarkdownViewer": "MarkdownView",
-    "ai-assisted-input": "AIAssistedInput",
     "drawer": "Drawer",
     "SortableList": null
   },
@@ -323,6 +339,9 @@
       "/components/ui/drawer.tsx",
       "/components/ui/MarkdownViewer.tsx",
       "/components/grouped-score-badge.tsx"
+    ],
+    "bundle": [
+      "/components/layouts/MobilePageActionsContent.tsx"
     ]
   }
 }
