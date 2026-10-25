@@ -23,7 +23,7 @@ import {
   fieldHasJsonSelectorOption,
   getJsonPathCompatibilityWarning,
 } from "@/src/features/evals/utils/evaluator-form-utils";
-import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
+import { VariableMappingDescription } from "@/src/features/evals/components/VariableMappingDescription";
 import {
   EvaluationPromptPreview,
   getVariableColor,

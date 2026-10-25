@@ -72,7 +72,9 @@ export type CodeblockLanguage =
   | "json"
   | "webmanifest"
   | "bash"
-  | "shell";
+  | "sh"
+  | "shell"
+  | "toml";
 
 interface CodeblockProps {
   /** Use a labelled grammar when the source language has no matching grammar. */

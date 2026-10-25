@@ -32,6 +32,9 @@
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.
   Keep it out of every delete, retention and cleaner path.
+  `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
+  with the ledger and only reports (metrics plus one log line); it never
+  throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
@@ -152,6 +155,9 @@
   `orderObservations`, then pass the enriched result and optional
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
+  `assembleTranscriptContext` takes the same arguments and adds
+  `executionIssues` (ERROR, and WARNING with a status message) next to a
+  non-null transcript; `Transcript` itself stays conversational.
   `schema.ts` owns the current transcript shape; `types.ts` infers its output
   types. Message/part types come from `src/utils/normalized-io/schema.ts`.
 
@@ -159,8 +165,8 @@
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
   with `put` and `get`, sharing a project/trace/revision key in the event bucket
   and one lazily initialized provider client across factory calls. Consumers
-  receive the storage object. The writer takes `TraceBatchInputData` with transcript
-  and required `traceContext`; session ID and trace name are nullable. The reader
+  receive the storage object. The writer takes `TraceBatchInputData` with transcript,
+  `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps
   stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates, and

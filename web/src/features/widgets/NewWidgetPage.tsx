@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { ConnectedWidgetForm } from "@/src/features/widgets";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";

@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
   showGenerateCTA: false,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
+  mobileHeader: false,
+  resultFacets: [] as Array<{ facetId: string; name: string }>,
   openAutomaticProcessing: vi.fn(),
   picker: vi.fn(),
   push: vi.fn(),
@@ -88,16 +90,21 @@ vi.mock("next/router", () => ({
     push: state.push,
   }),
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({
     children,
     headerProps,
   }: {
     children: ReactNode;
-    headerProps?: { actionButtonsRight?: ReactNode };
+    headerProps?: {
+      actionButtonsRight?: ReactNode;
+      actionButtonsMenu?: (controls: { closeMenu: () => void }) => ReactNode;
+    };
   }) => (
     <>
-      {headerProps?.actionButtonsRight}
+      {state.mobileHeader
+        ? headerProps?.actionButtonsMenu?.({ closeMenu: vi.fn() })
+        : headerProps?.actionButtonsRight}
       {children}
     </>
   ),
@@ -166,7 +173,10 @@ vi.mock("./CurrentTopics", () => ({
     return {
       ...input,
       data: state.resultsDataAvailable
-        ? { hasStoredSummaries: state.hasStoredSummaries, facets: [] }
+        ? {
+            hasStoredSummaries: state.hasStoredSummaries,
+            facets: state.resultFacets,
+          }
         : undefined,
       isLoading: false,
     };
@@ -229,9 +239,6 @@ vi.mock("@/src/utils/api", () => ({
               ? new Error("Configuration unavailable.")
               : null,
         }),
-      },
-      setupTopicCounts: {
-        useQuery: () => ({ data: undefined }),
       },
       setAutomaticProcessing: {
         useMutation: () => ({
@@ -334,6 +341,8 @@ beforeEach(() => {
   state.showGenerateCTA = false;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
+  state.mobileHeader = false;
+  state.resultFacets = [];
   state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
@@ -381,6 +390,24 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   render(<TopicsPage />);
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
+});
+
+it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
+  state.mobileHeader = true;
+  state.resultFacets = [{ facetId: "intent", name: "Intent" }];
+  state.rules = [{ facetIds: ["intent"] }];
+  const view = render(<TopicsPage />);
+  expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Automatic processing/ }));
+  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  state.canWrite = false;
+  view.rerender(<TopicsPage />);
+  expect(
+    screen
+      .getByRole("button", { name: /Automatic processing/ })
+      .hasAttribute("disabled"),
+  ).toBe(true);
 });
 
 it.each([
@@ -1052,12 +1079,15 @@ it.each([
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />);
-  expect(screen.getByRole("button", { name: "Start analyzing" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: /^Automatic processing/ }),
+  ).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Start analyzing" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
 });
 
 it("opens generation directly from the empty topics panel", () => {
@@ -1085,9 +1115,5 @@ it("keeps date controls reachable when a disabled results query has no data", ()
   expect(
     screen.getByRole("button", { name: "Select last 30 days" }),
   ).toBeVisible();
-  expect(
-    screen.queryByText(
-      "Thousands of traces, identify recurring topics & issues",
-    ),
-  ).toBeNull();
+  expect(screen.queryByText("See what your traces are about")).toBeNull();
 });

@@ -29,8 +29,7 @@ export function buildClaudeCodeInstructions(
       },
       {
         title: "Point Claude Code at the gateway",
-        description:
-          "No /v1 in the base URL. Claude Code appends it. Leave ANTHROPIC_API_KEY unset.",
+        description: "Leave ANTHROPIC_API_KEY unset.",
         language: "sh",
         code: [
           `export ANTHROPIC_BASE_URL="${context.gatewayOrigin}/anthropic"`,
