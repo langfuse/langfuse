@@ -28,6 +28,8 @@ declare module "@tanstack/react-table" {
      * a string.
      */
     headerLabel?: string;
+    /** Static analytics name for columns whose accessorKey contains user data. */
+    analyticsId?: string;
     isFixedPosition?: boolean; // if true, column cannot be reordered
     isPinnedLeft?: boolean; // if true, column will be pinned to left side
     isPinnedRight?: boolean; // if true, column will be pinned to right side

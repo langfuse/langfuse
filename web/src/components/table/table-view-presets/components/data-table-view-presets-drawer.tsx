@@ -139,6 +139,9 @@ interface TableViewPresetsDrawerContentProps {
   viewConfig: {
     tableName: TableViewPresetTableName;
     projectId: string;
+    /** Exclude browser-only column preferences from every save path. */
+    prepareStateForSave?: <T extends TableViewPresetState>(state: T) => T;
+    localColumnSettingsDescription?: string;
     controllers: {
       selectedViewId: string | null;
       /** The view whose full state was actually applied this session (null on a
@@ -429,15 +432,13 @@ function TableViewPresetsDrawerContentBody({
       name: createdView.name,
     });
 
+    const state =
+      viewConfig.prepareStateForSave?.(currentState) ?? currentState;
     createMutation.mutate({
       name: createdView.name,
       tableName,
       projectId,
-      orderBy: currentState.orderBy,
-      filters: currentState.filters,
-      columnOrder: currentState.columnOrder,
-      columnVisibility: currentState.columnVisibility,
-      searchQuery: currentState.searchQuery,
+      ...state,
     });
 
     setIsCreateDialogOpen(false);
@@ -477,16 +478,15 @@ function TableViewPresetsDrawerContentBody({
         ? currentState.columnVisibility
         : storedView.columnVisibility;
 
+    const candidateState = { ...currentState, columnOrder, columnVisibility };
+    const state =
+      viewConfig.prepareStateForSave?.(candidateState) ?? candidateState;
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
       id: updatedView.id,
       tableName,
-      orderBy: currentState.orderBy,
-      filters: currentState.filters,
-      columnOrder,
-      columnVisibility,
-      searchQuery: currentState.searchQuery,
+      ...state,
     });
   };
 
@@ -1028,7 +1028,13 @@ function TableViewPresetsDrawerContentBody({
                   <p>This will save the current:</p>
                   <ul className="mt-2 list-disc pl-5">
                     <li>
-                      Column arrangement ({currentState.columnOrder.length}{" "}
+                      Column arrangement (
+                      {
+                        (
+                          viewConfig.prepareStateForSave?.(currentState) ??
+                          currentState
+                        ).columnOrder.length
+                      }{" "}
                       columns)
                     </li>
                     <li>Filters ({currentState.filters.length} active)</li>
@@ -1038,6 +1044,11 @@ function TableViewPresetsDrawerContentBody({
                     </li>
                     {currentState.searchQuery && <li>Search term</li>}
                   </ul>
+                  {viewConfig.localColumnSettingsDescription && (
+                    <p className="mt-2">
+                      {viewConfig.localColumnSettingsDescription}
+                    </p>
+                  )}
                 </div>
               </DialogBody>
 

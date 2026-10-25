@@ -1,5 +1,5 @@
 import { StrictMode, useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@/src/features/column-visibility";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { getMetadataColumnId } from "@/src/features/metadata-columns/metadata-columns";
 
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -78,6 +79,46 @@ function ColumnVisibilityFilterHarness() {
       setColumnVisibility={setColumnVisibility}
       tableName="experiments"
       isV4={true}
+    />
+  );
+}
+
+const privateMetadataColumns: LangfuseColumnDef<{ id: string }>[] = [
+  { accessorKey: "name", header: "Name", enableHiding: true },
+  {
+    accessorKey: getMetadataColumnId("repo/private-sentinel"),
+    analyticsId: "metadata",
+    header: "Private repository label",
+    enableHiding: true,
+    sensitive: true,
+  },
+  {
+    accessorKey: getMetadataColumnId("host/internal-sentinel"),
+    analyticsId: "metadata",
+    header: "Internal host label",
+    enableHiding: true,
+    sensitive: true,
+  },
+];
+
+function PrivateMetadataColumnsHarness() {
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    Object.fromEntries(
+      privateMetadataColumns.map((column) => [column.accessorKey, true]),
+    ),
+  );
+  const [columnOrder, setColumnOrder] = useState(
+    privateMetadataColumns.map((column) => column.accessorKey),
+  );
+  return (
+    <DataTableColumnVisibilityFilter
+      columns={privateMetadataColumns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      columnOrder={columnOrder}
+      setColumnOrder={setColumnOrder}
+      tableName="observations-events"
+      isV4
     />
   );
 }
@@ -224,6 +265,61 @@ describe("DataTableColumnVisibilityFilter", () => {
       tableName: "experiments",
       isV4: true,
     });
+  });
+
+  it("captures one toggle with static analytics IDs without metadata keys or labels", () => {
+    render(
+      <StrictMode>
+        <PrivateMetadataColumnsHarness />
+      </StrictMode>,
+      { wrapper: LayerProvider },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    fireEvent.click(screen.getByText("Name"));
+
+    expect(h.capture).toHaveBeenCalledTimes(1);
+    expect(h.capture).toHaveBeenCalledWith("table:column_visibility_changed", {
+      selectedColumns: ["metadata"],
+      tableName: "observations-events",
+      isV4: true,
+    });
+    expect(JSON.stringify(h.capture.mock.calls)).not.toMatch(
+      /sentinel|Private repository|Internal host|metadata-key/,
+    );
+  });
+
+  it("blocks sensitive picker labels and checkbox attributes inside the popover", () => {
+    render(<PrivateMetadataColumnsHarness />, { wrapper: LayerProvider });
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+
+    for (const name of ["Private repository label", "Internal host label"]) {
+      const checkbox = screen.getByRole("checkbox", { name });
+      const label = screen.getByText(name);
+      expect(checkbox.closest(".ph-no-capture")).not.toBeNull();
+      expect(label.closest(".ph-no-capture")).toBe(
+        checkbox.closest(".ph-no-capture"),
+      );
+    }
+    expect(screen.getByText("Name").closest(".ph-no-capture")).toBeNull();
+  });
+
+  it("keeps drag announcements containing custom IDs inside the replay boundary", async () => {
+    render(<PrivateMetadataColumnsHarness />, { wrapper: LayerProvider });
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    const dragHandle = screen.getAllByRole("button", {
+      name: "Drag and drop to reorder columns",
+    })[1];
+    dragHandle.focus();
+    fireEvent.keyDown(dragHandle, { key: " ", code: "Space" });
+
+    await waitFor(() => {
+      const announcement = document.querySelector('[id^="DndLiveRegion"]');
+      expect(announcement).toHaveTextContent(
+        getMetadataColumnId("repo/private-sentinel"),
+      );
+      expect(announcement?.closest(".ph-no-capture")).not.toBeNull();
+    });
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
   });
 
   // The capture used to sit inside the setColumnVisibility updater. An updater

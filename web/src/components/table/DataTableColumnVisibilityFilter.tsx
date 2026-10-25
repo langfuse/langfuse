@@ -88,6 +88,21 @@ const getColumnLabel = <TData, TValue>(
     ? column.header
     : column.accessorKey);
 
+function getColumnAnalyticsIds<TData, TValue>(
+  columns: LangfuseColumnDef<TData, TValue>[],
+): Map<string, string> {
+  const ids = new Map<string, string>();
+  for (const column of columns) {
+    ids.set(column.accessorKey, column.analyticsId ?? column.accessorKey);
+    if (column.columns) {
+      for (const [id, analyticsId] of getColumnAnalyticsIds(column.columns)) {
+        ids.set(id, analyticsId);
+      }
+    }
+  }
+  return ids;
+}
+
 const calculateColumnCounts = <TData, TValue>(
   columns: LangfuseColumnDef<TData, TValue>[],
   columnVisibility: VisibilityState,
@@ -160,6 +175,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5",
         isDragging ? "opacity-80" : "opacity-100",
         "hover:bg-muted/50 group transition-colors",
+        column.sensitive && "ph-no-capture",
       )}
       style={{
         transform: transform
@@ -361,6 +377,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
     {},
   );
+  const [accessibilityContainer, setAccessibilityContainer] =
+    React.useState<HTMLDivElement | null>(null);
 
   const { defaultColumnOrder, defaultColumnVisibility } = useMemo(() => {
     return {
@@ -384,9 +402,14 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       // must be pure, and React invokes it twice under StrictMode — which
       // double-counted every toggle. Same payload, emitted once.
       const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
+      const analyticsIds = getColumnAnalyticsIds(columns);
       capture("table:column_visibility_changed", {
-        selectedColumns: Object.keys(nextVisibility).filter(
-          (key) => nextVisibility[key],
+        selectedColumns: Array.from(
+          new Set(
+            Object.keys(nextVisibility)
+              .filter((key) => nextVisibility[key])
+              .map((key) => analyticsIds.get(key) ?? key),
+          ),
         ),
         tableName,
         isV4,
@@ -396,9 +419,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         [columnId]: targetValue,
       }));
     },
-    // eslint disable is because we don't want the posthog capture as deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility, tableName, isV4],
+    [setColumnVisibility, columnVisibility, tableName, isV4, columns, capture],
   );
 
   const toggleAllColumns = useCallback(
@@ -471,12 +492,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       modal={false}
       renderContent={() => (
         <DndContext
+          accessibility={{ container: accessibilityContainer ?? undefined }}
           collisionDetection={closestCenter}
           modifiers={[restrictToVerticalAxis]}
           onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
           sensors={sensors}
         >
           <div className="w-full">
+            {/* Drag announcements can contain user-defined column IDs. */}
+            <div ref={setAccessibilityContainer} className="ph-no-capture" />
             <ColumnVisibilityHeader
               onRestoreDefaults={
                 hasChanges
