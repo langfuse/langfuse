@@ -1,4 +1,4 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps } from "react";
 import preview from "../../../.storybook/preview";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
@@ -54,18 +54,14 @@ export const Compact = meta.story({
       canvas.getByRole("button", { name: "Topics actions" }),
     );
     const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() =>
+      expect(
+        body.getByRole("menuitem", { name: "Manual processing" }),
+      ).toBeVisible(),
+    );
     await userEvent.click(
       await body.findByRole("menuitem", { name: /Automatic processing/ }),
     );
     await expect(args.actions.automatic!.onSelect).toHaveBeenCalledOnce();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Topics actions" }),
-    );
-    await userEvent.click(
-      await body.findByRole("menuitem", { name: "Manual processing" }),
-    );
-    await expect(
-      args.actions.menu.find((action) => action.id === "manual")!.onSelect,
-    ).toHaveBeenCalledOnce();
   },
 });

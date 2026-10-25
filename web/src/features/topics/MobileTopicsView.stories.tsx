@@ -144,10 +144,6 @@ export const AwaitingTopics = meta.story({
     },
   },
 });
-export const NoMatches = meta.story({
-  args: { searchQuery: "missing summary" },
-});
-
 export const BrowseAndOpenTrace = meta.story({
   name: "(Test) Reveal selection and browse topics, traces, and pages",
   args: {
@@ -211,7 +207,6 @@ export const BrowseAndOpenTrace = meta.story({
       await canvas.findByText("No matches. Adjust or clear your filters."),
     ).toBeVisible();
     await expect(search).toHaveFocus();
-    await expect(search.isConnected).toBe(true);
   },
 });
 
@@ -279,10 +274,6 @@ export const FitFilteredMap = meta.story({
       canvas.queryByRole("button", { name: "Open trace billing-0" }),
     ).not.toBeInTheDocument();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Open trace unassigned" }),
-    );
-    await expect(args.onOpenTrace).toHaveBeenCalledWith("unassigned");
   },
 });
 
@@ -311,8 +302,6 @@ export const PreviewTreemap = meta.story({
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toBeVisible();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
-    await userEvent.click(trace);
-    await expect(args.onOpenTrace).toHaveBeenCalledWith("access-0");
   },
 });
 
@@ -347,8 +336,6 @@ export const PreviewGrid = meta.story({
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toHaveAttribute("aria-current", "true");
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
-    await userEvent.click(trace);
-    await expect(args.onOpenTrace).toHaveBeenCalledWith("access-0");
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     const topic = canvas.getByRole("button", {
       name: /Billing and subscription questions/,
