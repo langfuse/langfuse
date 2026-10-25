@@ -1,10 +1,10 @@
 import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "@/src/components/design-system/Button/Button";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
-import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 const topics = [
   {
@@ -117,15 +117,6 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
           args.onSelectTrace(traceId);
           setSelectedTraceId(traceId);
         }}
-        traceToolbar={
-          <TopicsTraceToolbar
-            topics={facet.topics}
-            filters={filters}
-            onFiltersChange={setFilters}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-          />
-        }
       />
     </div>
   );
@@ -146,7 +137,6 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
-  traceToolbar: null,
 };
 
 const meta = preview.meta({
@@ -249,7 +239,19 @@ export const BrowseAndOpenTrace = meta.story({
 });
 
 export const FitFilteredMap = meta.story({
-  name: "(Test) Fit map preserves Unassigned results and visualization",
+  name: "(Test) Fit and refresh preserve map preview and Unassigned results",
+  render: function RefreshableMap(args) {
+    const [facet, setFacet] = useState(args.facet);
+    return (
+      <>
+        <Button
+          text="Refresh results"
+          onClick={() => setFacet({ ...facet, rows: [...facet.rows] })}
+        />
+        <MobileExample {...args} facet={facet} />
+      </>
+    );
+  },
   args: {
     view: "map",
     filters: [
@@ -303,6 +305,15 @@ export const FitFilteredMap = meta.story({
       ).toBeVisible(),
     );
     await expect(args.onSelectTrace).not.toHaveBeenCalled();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Refresh results" }),
+    );
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    await expect(
+      canvas.getByRole("tooltip", { name: /^Trace summary:/ }),
+    ).toBeVisible();
     await userEvent.click(trace);
     await expect(
       canvas.getByRole("button", { name: "Open trace unassigned" }),

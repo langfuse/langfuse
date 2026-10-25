@@ -8,14 +8,13 @@ import { prepareTopicGrid } from "./prepare-topic-grid";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 type MobileTopicVisualizationProps = {
-  projectId: string;
   view: TopicsResultsView;
   facet: Facet;
   treemapTopics: TopicDisplay[];
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
   selectedTopicId: string | null;
   selectedTraceId: string | null;
-  matchingTraceIds: ReadonlySet<string>;
+  matchingTraceIds?: ReadonlySet<string>;
   onSelectTopic: (topicId: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
 };
@@ -27,7 +26,6 @@ function gridMessage(query: MobileTopicVisualizationProps["mapResult"]) {
 }
 
 export function MobileTopicVisualization({
-  projectId,
   view,
   facet,
   treemapTopics,
@@ -72,7 +70,6 @@ export function MobileTopicVisualization({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
         <TopicEmbeddingMap
           key={facet.map.runId}
-          projectId={projectId}
           query={mapResult}
           topics={facet.map.topics}
           selectedTopic={null}

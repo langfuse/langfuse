@@ -780,7 +780,6 @@ function mapCoverageLabel(
 }
 
 export type TopicMapExplorerProps = {
-  projectId: string;
   data: MapData;
   topics: MapTopic[];
   selectedTopic: string | null;

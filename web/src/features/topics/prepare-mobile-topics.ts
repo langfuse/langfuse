@@ -37,6 +37,5 @@ export function prepareMobileTopics(
     selectedTopicId: selection,
     selectedTopic: topics.find((topic) => topic.id === selection),
     visible,
-    matchingTraceIds: new Set(visible.map((row) => row.traceId)),
   };
 }

@@ -4,7 +4,6 @@ import { EmbeddingMapView } from "./EmbeddingMapView";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 export function TopicEmbeddingMap({
-  projectId,
   query,
   topics,
   selectedTopic,
@@ -34,7 +33,6 @@ export function TopicEmbeddingMap({
     );
   return (
     <EmbeddingMapView
-      projectId={projectId}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
@@ -49,7 +47,6 @@ export function TopicEmbeddingMap({
 }
 
 type TopicEmbeddingMapProps = {
-  projectId: string;
   query: {
     data?: RouterOutputs["topics"]["map"];
     error: { message: string } | null;

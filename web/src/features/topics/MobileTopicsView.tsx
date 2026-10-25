@@ -1,13 +1,17 @@
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { type Facet, topicTracesHref } from "./facet-topics";
+import {
+  type Facet,
+  orderedFacetTopics,
+  topicTracesHref,
+} from "./facet-topics";
 import { selectTopicTraceFilters } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
-
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 
@@ -26,7 +30,6 @@ type MobileTopicsViewProps = {
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
   isV4: boolean;
-  traceToolbar: ReactNode;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -45,7 +48,6 @@ export function MobileTopicsView({
   onGenerateTopics,
   canGenerateTopics,
   isV4,
-  traceToolbar,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -57,8 +59,20 @@ export function MobileTopicsView({
   function showPanel(panel: string) {
     setNavigation({ view, panel });
   }
-  const { topics, selectedTopicId, selectedTopic, visible, matchingTraceIds } =
+  const { topics, selectedTopicId, selectedTopic, visible } =
     prepareMobileTopics(facet, view, filters, searchQuery);
+  const matchingTraceKey =
+    filters.length > 0 || searchQuery?.trim()
+      ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
+      : null;
+  // Map frame identity follows matching IDs, preserving tap previews across refreshes.
+  const matchingTraceIds = useMemo(
+    () =>
+      matchingTraceKey === null
+        ? undefined
+        : new Set<string>(JSON.parse(matchingTraceKey)),
+    [matchingTraceKey],
+  );
   const tracingHref = topicTracesHref(projectId, visible, isV4);
 
   function showAllTraces() {
@@ -88,7 +102,7 @@ export function MobileTopicsView({
     showPanel("traces");
   }
   function selectTrace(traceId: string | null) {
-    if (traceId !== null && !matchingTraceIds.has(traceId)) {
+    if (traceId !== null && !visible.some((row) => row.traceId === traceId)) {
       onFiltersChange([]);
       onSearchQueryChange(null);
     }
@@ -167,20 +181,26 @@ export function MobileTopicsView({
                   )}
                 </div>
               </div>
-              {traceToolbar}
+              <TopicsTraceToolbar
+                projectId={projectId}
+                topics={orderedFacetTopics(facet)}
+                filters={filters}
+                onFiltersChange={onFiltersChange}
+                searchQuery={searchQuery}
+                onSearchQueryChange={onSearchQueryChange}
+              />
             </TopicMobileTraceList>
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
           <MobileTopicVisualization
-            projectId={projectId}
             facet={facet}
             treemapTopics={topics}
             view={view}
             mapResult={mapResult}
             selectedTopicId={selectedTopicId}
             selectedTraceId={
-              selectedTraceId && matchingTraceIds.has(selectedTraceId)
+              visible.some((row) => row.traceId === selectedTraceId)
                 ? selectedTraceId
                 : null
             }

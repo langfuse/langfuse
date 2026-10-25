@@ -147,7 +147,6 @@ export function CurrentTopicsView({
         <TopicEmbeddingMap
           key={facet.map.runId}
           query={mapResult}
-          projectId={projectId}
           topics={facet.map.topics}
           selectedTopic={null}
           matchingTraceIds={matchingTraceIds}

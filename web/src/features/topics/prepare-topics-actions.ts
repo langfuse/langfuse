@@ -60,12 +60,16 @@ export function prepareAutomaticProcessingAction({
   saving: boolean;
   onSelect: () => void;
 }): AutomaticProcessingAction {
+  const disabledReason = processingDisabledReason(state, canWrite, saving);
   return {
     id: "automatic",
     label: "Automatic processing",
     icon: RefreshCw,
     ...processingPresentation[state.status],
-    disabledReason: processingDisabledReason(state, canWrite, saving),
+    disabledReason:
+      disabledReason && state.status === "paused"
+        ? `${state.shortLabel}. ${disabledReason}`
+        : disabledReason,
     onSelect,
   };
 }

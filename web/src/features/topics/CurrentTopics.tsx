@@ -16,8 +16,6 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
-import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
-import { orderedFacetTopics } from "./facet-topics";
 
 export function CurrentTopics({
   projectId,
@@ -184,16 +182,6 @@ function MobileTopics({
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
       isV4={isV4}
-      traceToolbar={
-        <TopicsTraceToolbar
-          projectId={projectId}
-          topics={orderedFacetTopics(facet)}
-          filters={traceFilters.filters}
-          onFiltersChange={traceFilters.setFilters}
-          searchQuery={traceFilters.searchQuery}
-          onSearchQueryChange={traceFilters.setSearchQuery}
-        />
-      }
     />
   );
 }

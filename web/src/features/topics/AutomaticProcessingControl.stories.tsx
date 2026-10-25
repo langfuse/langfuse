@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import {
@@ -34,4 +34,30 @@ export const VariantMatrix = meta.story({
       ))}
     </div>
   ),
+});
+
+export const ReadOnlyPaused = meta.story({
+  name: "(Test) Read-only users can see the pause reason",
+  args: {
+    action: prepareAutomaticProcessingAction({
+      state: { status: "paused", shortLabel: "LLM connection missing" },
+      canWrite: false,
+      saving: false,
+      onSelect: fn(),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: "Automatic processing",
+    });
+    await expect(button).toBeDisabled();
+    await userEvent.hover(button.parentElement!);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("LLM connection missing");
+    await expect(tooltip).toHaveTextContent(
+      "You need permission to edit Topics.",
+    );
+  },
 });
