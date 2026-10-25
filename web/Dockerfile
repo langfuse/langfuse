@@ -1,7 +1,5 @@
-# Node is built from pinned security-release source and dynamically links
-# RHEL's system OpenSSL, preserving the existing FIPS-provider integration.
-# Provider validation and supported deployment conditions remain separate
-# from the Node build; see scripts/docker/node/README.md.
+# Node uses the checksum-pinned official binary with bundled OpenSSL.
+# This runtime does not support the RHEL OpenSSL FIPS integration.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Release builds select Iron Bank bases by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
@@ -16,19 +14,20 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS system-base
 RUN dnf -y upgrade && dnf clean all
 
 FROM system-base AS node-builder
-ARG NODE_BUILD_JOBS=4
+ARG TARGETARCH
 RUN dnf -y install --setopt=install_weak_deps=0 \
-    gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ make python3 python3-packaging \
-    python3-jinja2 pkgconf-pkg-config openssl-devel tar xz gzip patch && \
+    libstdc++ tar xz && \
     dnf clean all
-COPY scripts/docker/node/ /build-node/
-RUN NODE_BUILD_JOBS="${NODE_BUILD_JOBS}" bash /build-node/build.sh
+COPY scripts/docker/node/build.sh /build-node/build.sh
+RUN bash /build-node/build.sh
 
 FROM system-base AS base
 RUN dnf -y install --setopt=install_weak_deps=0 \
     libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
     dnf clean all
 COPY --from=node-builder /opt/node/usr/ /usr/
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -47,7 +46,7 @@ ARG TARGETARCH
 ARG UID=1001
 ARG GID=1001
 
-# ICU is bundled into the source-built Node executable. sed is used by entrypoint.sh.
+# ICU is bundled into the Node executable. sed is used by entrypoint.sh.
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
@@ -238,7 +237,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+RUN NODE_OPTIONS="${NODE_OPTIONS} --max-old-space-size-percentage=75" turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner

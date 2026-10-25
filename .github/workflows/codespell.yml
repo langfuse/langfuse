@@ -28,5 +28,6 @@ jobs:
       - name: Codespell
         uses: codespell-project/actions-codespell@8f01853be192eb0f849a5c7d721450e7a467c579 # v2.2
         with:
-          # Vendored patches preserve upstream identifiers and comments.
-          skip: "./.git,./patches,./scripts/docker/node/rhel-fips.patch"
+          # patches/ holds pnpm-patch diffs of vendored (often minified)
+          # package code, whose identifiers are not prose.
+          skip: "./.git,./patches"
