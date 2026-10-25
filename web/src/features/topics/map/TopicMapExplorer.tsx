@@ -73,6 +73,7 @@ export function TopicMapExplorer({
   selectedTraceId,
   matchingTraceIds,
   fillContainer = false,
+  previewOnSelect = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -219,12 +220,28 @@ export function TopicMapExplorer({
   };
   const selectTrace = (id: string | null) => {
     if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
+    if (previewOnSelect) {
+      const state = store.getState();
+      if (
+        id !== null &&
+        getTopicMapHover(state, state.frame).hoveredId !== id
+      ) {
+        cancelFlight();
+        if (state.frame) {
+          setCamera(state.frame.camera);
+          store.setState({ isMoving: false });
+        }
+        setTopicMapHover(store, id, null);
+        return;
+      }
+    }
     clearTopicMapHover(store);
+    if (previewOnSelect && id === null) return;
     onSelectTrace(id);
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     gestures.pointerHandlers.onPointerMove(event);
-    if (event.pointerType !== "mouse") return;
+    if (previewOnSelect || event.pointerType !== "mouse") return;
     const pointerAt = { x: event.clientX, y: event.clientY };
     if (event.buttons !== 0) {
       clearTopicMapHover(store);
@@ -298,7 +315,7 @@ export function TopicMapExplorer({
     selectTrace(point?.traceId ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+    if (previewOnSelect || event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
     cancelFlight();
     zoom(1, {
@@ -307,6 +324,7 @@ export function TopicMapExplorer({
     });
   };
   const handlePointerLeave = () => {
+    if (previewOnSelect) return;
     setTopicMapHover(store, null, null, { x: 0, y: 0 });
   };
   const handleStageKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -437,6 +455,7 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
           onSelectTrace={selectTrace}
+          previewOnSelect={previewOnSelect}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -541,6 +560,7 @@ function MapLabels({
   selectedTraceId,
   matchingTraceIds,
   onSelectTrace,
+  previewOnSelect,
 }: MapLabelsProps) {
   const state = useStore(store);
   const frame = state.frame;
@@ -608,7 +628,8 @@ function MapLabels({
           (label.kind === "trace"
             ? hover.hoveredId === label.id
             : hover.hoveredZoneId === label.id) &&
-          (label.kind !== "trace" ||
+          (previewOnSelect ||
+            label.kind !== "trace" ||
             (frame.nodeById.get(label.id)?.textOpacity ?? 1) < 0.65);
         const source = active ? frame : label.frame;
         if (!source) return null;
@@ -616,6 +637,7 @@ function MapLabels({
           source,
           label.kind === "trace" ? label.id : null,
           label.kind === "zone" ? label.id : null,
+          previewOnSelect,
         );
         const trace = hints.traces[0];
         const zone = hints.zones[0];
@@ -667,6 +689,11 @@ function MapLabels({
                   </span>
                 )}
                 <span className="line-clamp-6">{trace.excerpt}</span>
+                {previewOnSelect && (
+                  <span className="text-muted-foreground mt-2 block text-[10px]">
+                    Tap again to view trace
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -762,6 +789,7 @@ export type TopicMapExplorerProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
+  previewOnSelect?: boolean;
 };
 
 type LayoutReadoutProps = {
@@ -781,6 +809,7 @@ type MapLabelsProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   onSelectTrace: (id: string) => void;
+  previewOnSelect: boolean;
 };
 
 export const __test = { fitMapPoints };

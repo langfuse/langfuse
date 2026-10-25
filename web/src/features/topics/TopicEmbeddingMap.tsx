@@ -13,6 +13,7 @@ export function TopicEmbeddingMap({
   selectedTraceId,
   matchingTraceIds,
   fillContainer = false,
+  previewOnSelect = false,
 }: TopicEmbeddingMapProps) {
   if (query.error)
     return (
@@ -42,6 +43,7 @@ export function TopicEmbeddingMap({
       selectedTraceId={selectedTraceId}
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
+      previewOnSelect={previewOnSelect}
     />
   );
 }
@@ -59,6 +61,7 @@ type TopicEmbeddingMapProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
+  previewOnSelect?: boolean;
 };
 
 type Topic = Pick<
