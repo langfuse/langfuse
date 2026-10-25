@@ -336,6 +336,32 @@ describe("filtersRequireEventsFull input/output routing", () => {
   });
 });
 
+describe("experiment item identity filters", () => {
+  it.each(["datasetItemId", "id", "Dataset Item ID"] as const)(
+    "maps %s onto experiment_item_id",
+    (column) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "string",
+            operator: "=",
+            value: "item-1",
+          },
+        ],
+        experimentItemsTableNativeUiColumnDefinitions,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+
+      const applied = filter.apply();
+      expect(applied.query).toContain("e.experiment_item_id");
+      expect(Object.values(applied.params)).toEqual(["item-1"]);
+    },
+  );
+});
+
 describe("metadataFilterCanPruneEventsFull", () => {
   it.each([
     ["contains", "OMRA", true],
