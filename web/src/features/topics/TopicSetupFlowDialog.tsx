@@ -89,6 +89,7 @@ export type TopicSetupFlowDialogProps = {
   pastCount: TopicSetupPastCount;
   projectId?: string;
   providerGroups: Array<[string, string[]]>;
+  clusteringProviderGroups?: Array<[string, string[]]>;
   questions: TopicSetupQuestion[];
   samplePercent: number;
   step: TopicSetupStep;
@@ -122,6 +123,7 @@ export function TopicSetupFlowDialog({
   pastCount,
   projectId,
   providerGroups,
+  clusteringProviderGroups,
   questions,
   samplePercent,
   step,
@@ -137,7 +139,7 @@ export function TopicSetupFlowDialog({
   const groups = {
     summary: providerGroups,
     embedding: embeddingProviderGroups,
-    clustering: providerGroups,
+    clustering: clusteringProviderGroups ?? providerGroups,
   };
   const canLeaveQuestions = canLeaveTopicQuestions({
     canWrite,
