@@ -77,7 +77,7 @@ JS
   while read -r mod names; do echo "export { $names } from \"$S/$mod\";"; done <<'EOF'
 CrashModal/CrashModal CrashModal
 EnvLabelBadge EnvLabelBadge
-grouped-score-badge GroupedScoreBadges
+GroupedScoreBadges GroupedScoreBadges
 ItemBadge ItemBadge, ItemTypeIcon
 MediaFileCard/MediaFileCard MediaFileCard
 MediaTag/MediaTag MediaTag
@@ -85,7 +85,8 @@ OrganizationDropdownMenu/OrganizationDropdownMenu OrganizationDropdownMenu
 ProjectDropdownMenu/ProjectDropdownMenu ProjectDropdownMenu
 ScoreBadge/ScoreBadge ScoreBadge
 ScoreTag ScoreTag, SCORE_LEVEL_LABELS
-layouts/mobile-page-actions-content MobilePageActionsContent
+layouts/MobilePageActionsContent MobilePageActionsContent
+ui/popover Popover, PopoverTrigger
 nav/AppSidebar/AppSidebar AppSidebar
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
 table/ColumnVisibilityHeader ColumnVisibilityHeader
@@ -96,7 +97,7 @@ table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
 table/table-view-presets/components/TableViewPresetsButton TableViewPresetsButton
 ui/MarkdownViewer MarkdownView
 ui/StatusBadge/StatusBadge StatusBadge
-ui/ai-assisted-input AIAssistedInput
+ui/AIAssistedInput AIAssistedInput
 ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription
 ui/sidebar SidebarProvider, SidebarInset
 EOF
