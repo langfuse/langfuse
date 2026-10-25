@@ -11,6 +11,7 @@ import {
   type ActionDomain,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 // Define the form schema for webhook actions
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
@@ -28,6 +29,7 @@ const WebhookActionFormSchema = z.object({
         }),
       )
       .default([]),
+    originalUrl: z.string().optional(),
   }),
 });
 
@@ -91,15 +93,17 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
   }
 
   getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
+    const storedUrl =
+      automation?.action?.type === "WEBHOOK" &&
+      automation?.action?.config &&
+      "url" in automation.action.config
+        ? automation.action.config.url
+        : undefined;
     return {
       webhook: {
-        url:
-          (automation?.action?.type === "WEBHOOK" &&
-            automation?.action?.config &&
-            "url" in automation.action.config &&
-            automation.action.config.url) ||
-          "",
+        url: storedUrl || "",
         headers: this.parseHeaders(automation),
+        originalUrl: storedUrl,
       },
     };
   }
@@ -114,9 +118,25 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
       errors.push("Webhook URL is required");
     }
 
+    const originalUrl = formData.webhook?.originalUrl;
+    const isUrlChanged =
+      originalUrl !== undefined &&
+      !areDestinationUrlsEquivalent(formData.webhook.url, originalUrl);
+
     // Validate headers
     if (formData.webhook?.headers) {
       formData.webhook.headers.forEach((header: HeaderPair, index: number) => {
+        if (
+          isUrlChanged &&
+          header.wasSecret &&
+          header.name.trim() &&
+          !header.value.trim()
+        ) {
+          errors.push(
+            `Header ${index + 1}: Re-enter the secret value when changing the webhook URL`,
+          );
+        }
+
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
           if (!header.name.trim()) {

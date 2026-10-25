@@ -546,6 +546,48 @@ jobs:
         run: bash scripts/ci/install-playwright.sh
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
+
+  build-storybook:
+    # Kept apart from tests-storybook so the static build and the Vitest
+    # browser run, which do not depend on each other, run in parallel.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    timeout-minutes: 10
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] Storybook build dependency cache only; the static build is not uploaded or published
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      - name: generate prisma client
+        # Same reason as in tests-storybook: stories import `@langfuse/shared`
+        # modules that read Prisma enums at import time.
+        run: pnpm --filter=shared run db:generate
       - name: build Storybook
         run: pnpm --filter web run build-storybook
 
@@ -1678,6 +1720,7 @@ jobs:
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,
+        build-storybook,
         tests-shared,
         tests-web,
         tests-web-client,

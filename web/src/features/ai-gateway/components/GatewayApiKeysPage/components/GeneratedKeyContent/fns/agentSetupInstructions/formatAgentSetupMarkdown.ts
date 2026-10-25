@@ -7,6 +7,7 @@ export function formatAgentSetupMarkdown(instructions: AgentSetupInstructions) {
     [
       `## ${index + 1}. ${step.title}`,
       step.description,
+      step.link ? `[${step.link.label}](${step.link.href})` : undefined,
       step.code === undefined
         ? undefined
         : `\`\`\`${step.language}\n${step.code}\n\`\`\``,

@@ -1,4 +1,4 @@
-export function areGitHubDispatchUrlsEquivalent(
+export function areDestinationUrlsEquivalent(
   firstUrl: string,
   secondUrl: string,
 ): boolean {
