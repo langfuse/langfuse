@@ -86,6 +86,7 @@ ProjectDropdownMenu/ProjectDropdownMenu ProjectDropdownMenu
 ScoreBadge/ScoreBadge ScoreBadge
 ScoreTag ScoreTag, SCORE_LEVEL_LABELS
 layouts/MobilePageActionsContent MobilePageActionsContent
+ui/popover Popover, PopoverTrigger
 nav/AppSidebar/AppSidebar AppSidebar
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
 table/ColumnVisibilityHeader ColumnVisibilityHeader
