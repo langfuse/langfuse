@@ -247,6 +247,32 @@ describe("NullFilter metadata filters on events tables", () => {
   });
 });
 
+describe("experiment item identity filters through table mappings", () => {
+  it.each(["datasetItemId", "id", "Dataset Item ID", "Experiment Item ID"])(
+    "maps %s onto experiment_item_id",
+    (column) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "string",
+            operator: "=",
+            value: "item-1",
+          },
+        ],
+        experimentItemsTableNativeUiColumnDefinitions,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+
+      const applied = filter.apply();
+      expect(applied.query).toContain("e.experiment_item_id");
+      expect(Object.values(applied.params)).toEqual(["item-1"]);
+    },
+  );
+});
+
 describe("NullFilter metadata aliases through table mappings", () => {
   it("compiles experiment item metadata null filters against its names array", () => {
     const [filter] = createFilterFromFilterState(

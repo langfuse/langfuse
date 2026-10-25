@@ -2,6 +2,33 @@ import { UiColumnMappings } from "../../tableDefinitions";
 
 export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
+    uiTableName: "Dataset Item ID",
+    uiTableId: "datasetItemId",
+    clickhouseTableName: "events_proto",
+    // Dataset-backed experiment items are keyed by dataset item id. Events
+    // store that as experiment_item_id — there is no separate dataset_item_id.
+    clickhouseSelect: "e.experiment_item_id",
+    aliases: ["id", "Experiment Item ID"],
+  },
+  {
+    uiTableName: "Experiment ID",
+    uiTableId: "experimentId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.experiment_id",
+  },
+  {
+    uiTableName: "Trace ID",
+    uiTableId: "traceId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.trace_id",
+  },
+  {
+    uiTableName: "Start Time",
+    uiTableId: "startTime",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.start_time",
+  },
+  {
     uiTableName: "Numeric Scores",
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",
