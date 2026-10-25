@@ -55,6 +55,8 @@ export function TopicTreemapView({
           ...facet.topics,
           {
             id: UNASSIGNED_ID,
+            versionId: "",
+            runId: "",
             name: "Unassigned",
             description: "",
             count: unassignedCount,

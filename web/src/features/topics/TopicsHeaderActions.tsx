@@ -16,15 +16,18 @@ export function TopicsHeaderActions({
   onConfigure,
   onHistory,
   onRefresh,
+  menuOnly = false,
 }: TopicsHeaderActionsProps) {
   return (
     <div className="ph-no-capture flex items-center justify-end gap-1">
-      <AutomaticProcessingControl
-        state={automaticProcessing.state}
-        canWrite={canWrite && !automaticProcessing.saving}
-        onOpen={onAutomaticProcessing}
-      />
-      {!configured ? (
+      {!menuOnly && (
+        <AutomaticProcessingControl
+          state={automaticProcessing.state}
+          canWrite={canWrite && !automaticProcessing.saving}
+          onOpen={onAutomaticProcessing}
+        />
+      )}
+      {!menuOnly && !configured ? (
         <Button
           text="Configure Topics"
           variant={configure.triggerVariant}
@@ -33,7 +36,7 @@ export function TopicsHeaderActions({
           onClick={onConfigure}
         />
       ) : null}
-      {manualAvailable ? (
+      {!menuOnly && manualAvailable ? (
         <Button
           text="Manual processing"
           variant="secondary"
@@ -98,4 +101,6 @@ type TopicsHeaderActionsProps = {
   onConfigure: () => void;
   onHistory: () => void;
   onRefresh: () => void;
+  /** Before setup only the overflow menu shows. */
+  menuOnly?: boolean;
 };
