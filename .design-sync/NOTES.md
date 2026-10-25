@@ -58,6 +58,9 @@
 - MediaTag "Wikimedia File Page Fallback" loads a commons.wikimedia.org URL, which the capture sandbox blocks - both panels show "Failed to load media", so that story is unverified. Re-capture unsandboxed (`compare.mjs --components MediaTag --force`) to verify it.
 - Drawer Compact: the sb shot crops 16px into the fixed full-width sheet (hides its left padding/rounded corner) - framing only, graded match.
 - Grading triage: `md5 -q` on each raw `__sb.png`/`__ds.png` pair separates byte-identical pairs from ones needing a careful look (still open one pair per story file to rule out both-blank) - a triage aid, never the verdict.
+- ExpandToggle "(Test) Flips label and aria-expanded" is skipped by id (2026-10-25): its play() flips the toggle to "Show less".
+- Avatar `TintedFallback` story (added upstream): the owned `previews/Avatar.tsx` needs one export per story, in story order. A missing export pairs stories by order, so "Tinted Fallback" rendered the `(Test)` hover story. Add an export whenever Avatar gains a story.
+- ExpandToggle (added 2026-10-25): `cardMode: "column"` for `[GRID_OVERFLOW] wide` on Overview.
 - HoverCard "(Test) Delayed" matches only because both captures land before its 700ms openDelay - skip it if a capture ever shows the card open.
 
 ## Known validate warnings (expected)

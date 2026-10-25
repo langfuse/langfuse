@@ -312,6 +312,12 @@
         "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--bounded",
         "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--disabled"
       ]
+    },
+    "ExpandToggle": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-expandtoggle--toggles-state"
+      ]
     }
   },
   "extraFonts": [
@@ -322,7 +328,6 @@
     "dropdown-menu": null,
     "mobile-page-actions-content": "MobilePageActionsContent",
     "MarkdownViewer": "MarkdownView",
-    "ai-assisted-input": "AIAssistedInput",
     "drawer": "Drawer",
     "SortableList": null
   },
