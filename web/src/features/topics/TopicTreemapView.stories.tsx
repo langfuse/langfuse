@@ -23,6 +23,8 @@ const names = [
 ];
 const topics = names.map((name, index) => ({
   id: `topic-${index}`,
+  versionId: `topic-${index}-v1`,
+  runId: "run",
   name,
   description: "",
   count: counts[index],
@@ -217,7 +219,13 @@ const issueTopics = [
   { name: "Run stopped before delivering final report", count: 18 },
   { name: "Run halted before delivering requested report", count: 18 },
   { name: "Partial answers without follow-up", count: 16 },
-].map((topic, index) => ({ ...topic, id: `issue-${index}`, description: "" }));
+].map((topic, index) => ({
+  ...topic,
+  id: `issue-${index}`,
+  versionId: `issue-${index}-v1`,
+  runId: "run",
+  description: "",
+}));
 
 export const LongNamesOnShortTiles = meta.story({
   name: "Long names on short tiles",

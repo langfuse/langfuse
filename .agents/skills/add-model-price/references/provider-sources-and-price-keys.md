@@ -1359,6 +1359,53 @@ json_literal    = "<price_per_mtok>e-6"
   per-model numeric rows for any Claude model (standing limitation); TypeSafe's Jev page
   confirms `jev-1.13.0`/`jev-1.14.0` unchanged at $42/Btok input, output free.
 
+- **October 25 2026 audit: the October 23, 2026 "Legacy GPT model snapshots" batch
+  has now passed — 12 model IDs removed from `openAIModels`; no price or other
+  catalog drift found** — Two independent fetches of
+  `https://developers.openai.com/api/docs/deprecations`, one asking for an
+  explicit chronological comparison against the literal run date
+  (`date -u +%Y-%m-%dT00:00:00.000Z` = `2026-10-25T00:00:00.000Z`), confirmed
+  "October 23, 2026 comes before October 25, 2026" for this batch (first
+  announced 2026-04-22, tracked as not-yet-actionable in the 2026-10-09,
+  2026-10-12, and 2026-10-21 entries above). Removed from `openAIModels`
+  (pricing entries kept for historical cost lookups): `gpt-3.5-turbo-0125`,
+  `gpt-3.5-turbo`, `gpt-4-0613`, `gpt-4`, `gpt-4-1106-preview`, `gpt-4.1-nano`,
+  `gpt-4.1-nano-2025-04-14`, `gpt-4o-2024-05-13`, `o3-mini`,
+  `o3-mini-2025-01-31`, `o4-mini`, `o4-mini-2025-04-16`. The batch also lists
+  `gpt-image-1` (image model, never in a text-generation selectable array) and
+  `ft-o4-mini-2025-04-16` (fine-tuned-only ID, never selectable) — no action
+  for either. `gpt-4-turbo`/`gpt-4-turbo-2024-04-09`, `o1`/`o1-2024-12-17`, and
+  `o1-pro`/`o1-pro-2025-03-19` are also named in this batch but were already
+  absent from `openAIModels` (removed in the 2026-10-12 sweep or never added),
+  so they have no selectable-array action regardless. `gpt-3.5-turbo-16k` (no
+  date suffix) is not named in this batch and was left unchanged — no
+  shutdown evidence for that specific ID this run. The separate, later
+  January 14, 2027 "GPT-4 series" batch (`gpt-4o`, `gpt-4o-2024-08-06`,
+  `gpt-4.1`, `gpt-4.1-2025-04-14`, `gpt-4.1-mini`, `gpt-4.1-mini-2025-04-14`)
+  is unchanged and still about 81 days out — do not conflate the two batches.
+  Re-fetched the OpenAI aggregate Standard pricing table, the OpenAI model
+  catalog, the full Anthropic pricing page and model-deprecations page
+  (status table unchanged: `claude-sonnet-4-5-20250929` still `Deprecated`
+  with retirement November 30, 2026 not yet passed; `claude-haiku-4-5-20251001`
+  still `Active`/`Deprecated: N/A` even though its "not sooner than October 15,
+  2026" floor has now passed — a floor, not a trigger, consistent with prior
+  audits), both Gemini pricing pages, the Gemini models catalog, the Gemini
+  deprecations page (re-confirmed `gemini-3.5-flash`/`gemini-3.7-flash` still
+  show `Shutdown date: N/A` with silent auto-routing to
+  `gemini-3.6-flash`/`gemini-3.8-flash` respectively — same unresolved
+  lifecycle-category gap as the October 21 2026 entry above, still left
+  unchanged in both selectable arrays), the AWS Bedrock pricing page (still no
+  extractable per-model numeric rows for Claude), and the TypeSafe Jev models
+  page (`jev-1.13.0`/`jev-1.14.0` unchanged). No new flagship text/chat/
+  reasoning model was found on any provider. The OpenAI aggregate pricing
+  table fetch this run returned values in a jumbled column order for several
+  gpt-6/gpt-5.6 models (a known WebFetch table-extraction weakness for this
+  page, see the August 24 2026 entry above); every number returned was cross-
+  checked to already exist somewhere in that model's current tier set in the
+  live JSON, so no edit was made, but a future audit should re-verify these
+  with `jq` against a cleanly-separated per-model fetch rather than trusting
+  a jumbled aggregate dump at face value.
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single
