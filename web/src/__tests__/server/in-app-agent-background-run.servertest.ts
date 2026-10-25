@@ -348,6 +348,7 @@ describe("in-app agent background runs", () => {
     parkedAt?: Date;
     toolName?: string;
     args?: unknown;
+    topicsAvailable?: boolean;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -362,6 +363,7 @@ describe("in-app agent background runs", () => {
         request: {
           kind: "userMessage",
           context: params.context ?? [],
+          ...(params.topicsAvailable ? { topicsAvailable: true } : {}),
         },
       },
     });
@@ -789,6 +791,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       context,
       parkedAt,
+      topicsAvailable: true,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -820,6 +823,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       approved: true,
       context,
+      topicsAvailable: true,
     });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({

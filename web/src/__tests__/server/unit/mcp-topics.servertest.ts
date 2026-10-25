@@ -16,7 +16,10 @@ vi.mock("@/src/features/topics/server/publicApi", () => ({
   listPublicTopicTraces: mocks.listPublicTopicTraces,
 }));
 
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import {
+  createInAppAgentToolPolicy,
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { topicsFeature } from "@/src/features/mcp/server/topics";
 import {
   handleGetTopicsForTraces,
@@ -40,19 +43,26 @@ describe("Topics MCP tools", () => {
     });
   });
 
-  it("is enabled only for Topics projects and auto-approved read-only for the in-app agent", async () => {
+  it("is enabled only for Topics projects and auto-approved read-only for the in-app agent when the user can view Topics", async () => {
     mocks.isTopicsProjectEnabled.mockReturnValue(false);
     expect(await topicsFeature.isEnabled(context)).toBe(false);
     mocks.isTopicsProjectEnabled.mockReturnValue(true);
     expect(await topicsFeature.isEnabled(context)).toBe(true);
     expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith("project-1");
 
+    const viewer = { projectRole: "VIEWER", isAdmin: false } as const;
+    const withTopics = createInAppAgentToolPolicy({
+      userAccess: { ...viewer, topicsAvailable: true },
+    });
+    const withoutTopics = createInAppAgentToolPolicy({ userAccess: viewer });
     for (const { definition } of topicsFeature.tools) {
       expect(definition.annotations?.readOnlyHint).toBe(true);
       expect(IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[definition.name]).toEqual({
         approval: "auto",
         availability: { scope: "topics:read" },
       });
+      expect([...withTopics.autoApproved]).toContain(definition.name);
+      expect([...withoutTopics.available]).not.toContain(definition.name);
     }
   });
 
