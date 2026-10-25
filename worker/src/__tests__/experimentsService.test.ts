@@ -172,6 +172,54 @@ describe("create experiment jobs", () => {
     );
   });
 
+  test("handles experiment validation failure with historical dataset_version without throwing", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const historicalDate = new Date("2026-10-01T12:00:00Z");
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        projectId,
+        name: "Test Dataset",
+      },
+    });
+
+    await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        name: "Test Run",
+        projectId: projectId,
+        datasetId: datasetId,
+        metadata: {
+          provider: "invalid_provider",
+          model: "invalid_model",
+          dataset_version: historicalDate.toISOString(),
+        },
+      },
+    });
+
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+    });
+
+    const payload = {
+      projectId,
+      datasetId,
+      runId,
+    };
+
+    const result = await createExperimentJobClickhouse({ event: payload });
+    expect(result).toEqual({ success: true });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "Failed to validate and setup experiment",
+      expect.any(Error),
+    );
+  });
+
   test("handles prompt with variables without throwing", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
