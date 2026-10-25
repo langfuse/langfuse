@@ -1,4 +1,4 @@
-# Node uses the checksum-pinned official binary with bundled OpenSSL.
+# Node uses the digest-pinned official binary with bundled OpenSSL.
 # This runtime does not support the RHEL OpenSSL FIPS integration.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Release builds select Iron Bank bases by overriding
@@ -9,23 +9,18 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS system-base
+FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
 
-RUN dnf -y upgrade && dnf clean all
-
-FROM system-base AS node-builder
-ARG TARGETARCH
-RUN dnf -y install --setopt=install_weak_deps=0 \
-    libstdc++ tar xz && \
-    dnf clean all
-COPY scripts/docker/node/build.sh /build-node/build.sh
-RUN bash /build-node/build.sh
-
-FROM system-base AS base
-RUN dnf -y install --setopt=install_weak_deps=0 \
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
+RUN dnf -y upgrade && \
+    dnf -y install --setopt=install_weak_deps=0 \
     libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
     dnf clean all
-COPY --from=node-builder /opt/node/usr/ /usr/
+COPY --from=node /usr/local/bin/node /usr/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/lib/node_modules/npm
+COPY --from=node /usr/local/include/node /usr/include/node
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/bin/npm && \
+    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/bin/npx
 ENV NODE_OPTIONS=--use-openssl-ca \
     SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
 
@@ -59,10 +54,9 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# The final runtime needs neither npm nor the source-build toolchain.
-COPY --from=node-builder /opt/node/usr/bin/node /mnt/rootfs/usr/bin/node
-COPY --from=node-builder /opt/node/usr/share/licenses/nodejs/ /mnt/rootfs/usr/share/licenses/nodejs/
-COPY --from=node-builder /opt/node/usr/share/doc/nodejs/ /mnt/rootfs/usr/share/doc/nodejs/
+# The final runtime needs only Node and its license, without npm.
+COPY --from=node /usr/local/bin/node /mnt/rootfs/usr/bin/node
+COPY --from=node /usr/local/LICENSE /mnt/rootfs/usr/share/licenses/nodejs/LICENSE
 
 # The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
 # being activated system-wide, so installs without FIPS mode keep the default
