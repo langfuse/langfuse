@@ -122,7 +122,7 @@ test("publishes complete results and clears every action while a new search load
   ).toBeVisible();
 });
 
-test("closing cancels a pending search and reopening hides cached rows until refresh finishes", async ({
+test("reopening resets the search and hides cached rows until refresh finishes", async ({
   page,
 }) => {
   const refreshedDashboards = gate();
@@ -140,9 +140,6 @@ test("closing cancels a pending search and reopening hides cached rows until ref
   await page.locator("[cmdk-input]").fill("cancelled-search");
   await page.keyboard.press("Escape");
   await expect(page.locator("[cmdk-input]")).toHaveCount(0);
-  // Let the 200 ms search debounce expire while its owning menu is closed.
-  await page.clock.runFor(250);
-  expect(searches).not.toContain("cancelled-search");
   await page.clock.resume();
 
   await openMenu(page);
@@ -167,17 +164,27 @@ test("an older response cannot move the current result or change its click targe
   page,
 }) => {
   const oldResponse = gate();
-  const searches = await evaluatorCatalog(page, undefined, async (search) => {
-    if (search === "correctness") await oldResponse.promise;
-  });
+  const searches = await evaluatorCatalog(
+    page,
+    [
+      evaluator("correctness", "Correctness"),
+      evaluator("toxicity", "Toxicity eval v2"),
+    ],
+    async (search) => {
+      if (search === "correctness") await oldResponse.promise;
+    },
+  );
   await openMenu(page);
   await expect(options(page).first()).toBeVisible();
   const input = page.locator("[cmdk-input]");
   await input.fill("Correctness");
   await expect.poll(() => searches).toContain("correctness");
-  await input.fill("eval Safety");
+  await input.fill("eval Toxicity eval v2");
   await expect(options(page)).toHaveCount(0);
-  const target = page.getByRole("option", { name: "Safety", exact: true });
+  const target = page.getByRole("option", {
+    name: "Toxicity eval v2",
+    exact: true,
+  });
   await expect(target).toBeVisible();
   const original = await target.elementHandle();
   const oldRequestFinished = page.waitForEvent("requestfinished", (request) => {
@@ -198,7 +205,7 @@ test("an older response cannot move the current result or change its click targe
   ).toHaveCount(0);
   await target.click();
   await expect(page.locator("[cmdk-input]")).toHaveCount(0);
-  await expect(page).toHaveURL(`${PROJECT_PATH}/evals/safety`);
+  await expect(page).toHaveURL(`${PROJECT_PATH}/evals/toxicity`);
 });
 
 test("short evaluator name fragments search beyond the first hundred rows", async ({

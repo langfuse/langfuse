@@ -1164,11 +1164,13 @@ const MENU_QUERY_OPTIONS = {
 
 function getEvaluatorSearchQuery(search: string): string {
   const keywords = ENTITY_GROUPS.evaluator.keywords;
-  return search
-    .toLowerCase()
-    .split(" ")
-    .filter((term) => term && !keywords.includes(term))
-    .join(" ");
+  const terms = search.toLowerCase().split(" ");
+  const isNameTerm = (term: string) => term !== "" && !keywords.includes(term);
+  const start = terms.findIndex(isNameTerm);
+  if (start === -1) return "";
+
+  // The server matches a contiguous substring, including category words inside names.
+  return terms.slice(start, terms.findLastIndex(isNameTerm) + 1).join(" ");
 }
 
 /** Fetch names for readable pages; evaluators use server search for their capped list. */
