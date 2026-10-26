@@ -12,10 +12,8 @@ import {
   hasProjectKind,
   OrganizationId,
   ProjectId,
-  SystemRoleId,
   untag,
   type OwnerId,
-  type RoleAssignment,
   type RoleId,
   type TenantId,
   type UserId,
@@ -264,52 +262,25 @@ function hasUserScope(
   return scope.startsWith("user/");
 }
 
-/** getApiKeyRoles share-locks an api key and returns the legacy role assignment its scope implies in its current org. */
-export async function getApiKeyRoles(
+/** lockApiKey share-locks an api key and returns its scope with its current org. */
+export async function lockApiKey(
   tx: Prisma.TransactionClient,
   { apiKeyId }: { apiKeyId: string },
-): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
-  const keys = await tx.$queryRaw<
-    { scope: ApiKeyScope; orgId: string; projectId: string | null }[]
-  >`
-    SELECT k.scope, COALESCE(p.org_id, k.organization_id) AS "orgId", k.project_id AS "projectId"
+): Promise<
+  {
+    apiKeyId: string;
+    scope: ApiKeyScope;
+    orgId: string;
+    projectId: string | null;
+  }[]
+> {
+  return await tx.$queryRaw`
+    SELECT k.id AS "apiKeyId", k.scope, COALESCE(p.org_id, k.organization_id) AS "orgId", k.project_id AS "projectId"
     FROM api_keys k
     LEFT JOIN projects p ON p.id = k.project_id
     WHERE k.id = ${apiKeyId}
     FOR SHARE OF k
   `;
-  return keys.map((key) => apiKeyRole({ ...key, apiKeyId }));
-}
-
-/** apiKeyRole maps an api key to the legacy role assignment its scope implies. */
-function apiKeyRole({
-  apiKeyId,
-  scope,
-  orgId,
-  projectId,
-}: {
-  apiKeyId: string;
-  scope: ApiKeyScope;
-  orgId: string;
-  projectId: string | null;
-}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
-  const principal = {
-    tenantId: OrganizationId(orgId),
-    principalId: ApiKeyId(apiKeyId),
-    tags: [],
-  };
-  if (scope === "PROJECT" && projectId !== null) {
-    return {
-      ...principal,
-      ownerId: ProjectId(projectId),
-      roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-    };
-  }
-  return {
-    ...principal,
-    ownerId: OrganizationId(orgId),
-    roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-  };
 }
 
 export async function deleteApiKeyFromDb(p: {

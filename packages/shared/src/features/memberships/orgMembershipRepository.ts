@@ -8,15 +8,11 @@ import {
 import { withTransaction } from "../../server/utils/withTransaction";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
+  orgMembershipRole,
   replaceRolesForPrincipal,
   revokeRolesForPrincipal,
 } from "../rbac/roleAssignmentService";
-import {
-  OrganizationId,
-  SystemRoleId,
-  UserId,
-  type RoleAssignment,
-} from "../rbac/types";
+import { OrganizationId, UserId } from "../rbac/types";
 
 /** saveOrgMembership upserts a user's organization membership with a role and mirrors it into role assignments. */
 export async function saveOrgMembership(
@@ -81,19 +77,17 @@ export async function deleteOrgMembership(
   });
 }
 
-/** getOrgMembershipRoles share-locks a user's organization memberships and returns the role assignments they imply. */
-export async function getOrgMembershipRoles(
+/** lockOrgMemberships share-locks and returns a user's organization memberships. */
+export async function lockOrgMemberships(
   tx: Prisma.TransactionClient,
   { userId }: { userId: string },
-): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
-  const memberships = await tx.$queryRaw<{ orgId: string; role: Role }[]>`
-    SELECT org_id AS "orgId", role FROM organization_memberships
+): Promise<{ orgId: string; userId: string; role: Role }[]> {
+  return await tx.$queryRaw`
+    SELECT org_id AS "orgId", user_id AS "userId", role
+    FROM organization_memberships
     WHERE user_id = ${userId}
     FOR SHARE
   `;
-  return memberships.map(({ orgId, role }) =>
-    orgMembershipRole({ orgId, userId, role }),
-  );
 }
 
 /** replaceOrgRole mirrors an organization membership's role into role assignments. */
@@ -102,23 +96,4 @@ async function replaceOrgRole(
   membership: { orgId: string; userId: string; role: Role },
 ) {
   await replaceRolesForPrincipal(tx, orgMembershipRole(membership));
-}
-
-/** orgMembershipRole maps an organization membership to the role assignment it implies. */
-function orgMembershipRole({
-  orgId,
-  userId,
-  role,
-}: {
-  orgId: string;
-  userId: string;
-  role: Role;
-}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
-  return {
-    tenantId: OrganizationId(orgId),
-    ownerId: OrganizationId(orgId),
-    principalId: UserId(userId),
-    roleId: SystemRoleId(role),
-    tags: [],
-  };
 }

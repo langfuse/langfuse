@@ -1,21 +1,28 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   SystemRole,
+  type ApiKeyScope,
   type Prisma,
+  type Role,
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
 
 import { InvalidRequestError, NotImplementedError } from "../../errors";
-import { getApiKeyRoles } from "../../server/auth/apiKeys";
+import { lockApiKey } from "../../server/auth/apiKeys";
 import { withTransaction } from "../../server/utils/withTransaction";
-import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
-import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
+import { lockOrgMemberships } from "../memberships/orgMembershipRepository";
+import { lockProjectMemberships } from "../memberships/projectMembershipRepository";
 import {
+  ApiKeyId,
   hasApiKeyKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
   untag,
+  UserId,
   type PrincipalId,
   type OwnerId,
   type RoleAssignment,
@@ -110,6 +117,46 @@ export async function transferApiKeyRoles(
   });
 }
 
+/** orgMembershipRole maps an organization membership to the role assignment it implies. */
+export function orgMembershipRole({
+  orgId,
+  userId,
+  role,
+}: {
+  orgId: string;
+  userId: string;
+  role: Role;
+}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
+  return {
+    tenantId: OrganizationId(orgId),
+    ownerId: OrganizationId(orgId),
+    principalId: UserId(userId),
+    roleId: SystemRoleId(role),
+    tags: [],
+  };
+}
+
+/** projectMembershipRole maps a project membership to the role assignment it implies. */
+export function projectMembershipRole({
+  orgId,
+  projectId,
+  userId,
+  role,
+}: {
+  orgId: string;
+  projectId: string;
+  userId: string;
+  role: Role;
+}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
+  return {
+    tenantId: OrganizationId(orgId),
+    ownerId: ProjectId(projectId),
+    principalId: UserId(userId),
+    roleId: SystemRoleId(role),
+    tags: [],
+  };
+}
+
 /** findRoleAssignments reads a principal's stored assignments. */
 async function findRoleAssignments(
   prisma: Prisma.TransactionClient,
@@ -148,14 +195,48 @@ async function getImpliedRoles(
   principalId: PrincipalId,
 ): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
   if (hasApiKeyKind(principalId)) {
-    return await getApiKeyRoles(tx, { apiKeyId: untag(principalId) });
+    const apiKeys = await lockApiKey(tx, { apiKeyId: untag(principalId) });
+    return apiKeys.map(apiKeyRole);
   }
   if (!hasUserKind(principalId)) return [];
   const userId = untag(principalId);
+  const orgMemberships = await lockOrgMemberships(tx, { userId });
+  const projectMemberships = await lockProjectMemberships(tx, { userId });
   return [
-    ...(await getOrgMembershipRoles(tx, { userId })),
-    ...(await getProjectMembershipRoles(tx, { userId })),
+    ...orgMemberships.map(orgMembershipRole),
+    ...projectMemberships.map(projectMembershipRole),
   ];
+}
+
+/** apiKeyRole maps an api key to the legacy role assignment its scope implies. */
+function apiKeyRole({
+  apiKeyId,
+  scope,
+  orgId,
+  projectId,
+}: {
+  apiKeyId: string;
+  scope: ApiKeyScope;
+  orgId: string;
+  projectId: string | null;
+}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
+  const principal = {
+    tenantId: OrganizationId(orgId),
+    principalId: ApiKeyId(apiKeyId),
+    tags: [],
+  };
+  if (scope === "PROJECT" && projectId !== null) {
+    return {
+      ...principal,
+      ownerId: ProjectId(projectId),
+      roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    };
+  }
+  return {
+    ...principal,
+    ownerId: OrganizationId(orgId),
+    roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+  };
 }
 
 /** validateTenancy holds project ownership stable until the transaction ends. */
