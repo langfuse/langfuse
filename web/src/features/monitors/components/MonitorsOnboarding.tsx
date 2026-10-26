@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
@@ -15,7 +16,7 @@ type OnboardingChannel = {
   icon: React.ReactNode;
 };
 
-/** channels enumerates the three notification channels presented to a first-time user. */
+/** channels enumerates the notification channels presented to a first-time user. */
 const channels: OnboardingChannel[] = [
   {
     actionType: "SLACK",
@@ -31,6 +32,11 @@ const channels: OnboardingChannel[] = [
     actionType: "GITHUB_DISPATCH",
     label: "Connect Github Actions",
     icon: <Github size="base" aria-hidden="true" />,
+  },
+  {
+    actionType: "PAGERDUTY",
+    label: "Connect PagerDuty",
+    icon: <SiPagerduty size="base" aria-hidden="true" />,
   },
 ];
 
@@ -51,7 +57,7 @@ export function MonitorsOnboarding({
           {
             title: "Choose where alerts should go",
             description:
-              "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.",
+              "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.",
             content: (
               <div className="flex flex-col gap-2">
                 {channels.map((channel) => (

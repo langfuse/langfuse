@@ -33,6 +33,9 @@ import {
   getActionById,
   getConsecutiveAutomationFailures,
   SlackService,
+  PagerDutyApiError,
+  sendPagerDutyAlertEvent,
+  sendPagerDutyChangeEvent,
   logger,
   recordIncrement,
   redis,
@@ -47,6 +50,10 @@ import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
+import {
+  buildPagerDutyEvent,
+  type PagerDutyEvent,
+} from "../features/pagerduty/buildPagerDutyEvent";
 
 /** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
 const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
@@ -189,6 +196,8 @@ export const executeWebhook = async (
         automation,
         skipValidation: options?.skipValidation,
       });
+    } else if (automation.action.type === "PAGERDUTY") {
+      await executePagerDutyAction({ input, automation });
     } else {
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
@@ -813,7 +822,11 @@ async function executeSlackAction({
       });
     } catch (error) {
       logger.error("Error executing Slack action", error);
-      await slackMonitorAlertFailure({ projectId, automation });
+      await monitorAlertDeliveryFailure({
+        projectId,
+        automation,
+        channel: "slack",
+      });
     }
     return;
   }
@@ -981,6 +994,161 @@ async function executeSlackAction({
   }
 }
 
+/**
+ * Execute PagerDuty action. Events go only to the fixed PagerDuty hosts of the
+ * routing key's region. 429, 5xx and network errors are rethrown so BullMQ
+ * retries the job; any other failure counts toward trigger auto-disable.
+ */
+async function executePagerDutyAction({
+  input,
+  automation,
+}: {
+  input: WebhookInput;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+}) {
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  const actionConfig = await getActionByIdWithSecrets({
+    projectId,
+    actionId: automation.action.id,
+  });
+  if (!actionConfig) {
+    throw new InternalServerError("Action config not found");
+  }
+
+  try {
+    const event = buildPagerDutyDelivery(input, actionConfig);
+    if (!event) {
+      logger.info(
+        `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
+      );
+      return;
+    }
+    await sendPagerDutyEvent(event, actionConfig);
+  } catch (error) {
+    if (error instanceof PagerDutyApiError && error.isRetryable) {
+      logger.warn(
+        `Retrying PagerDuty delivery for action ${automation.action.id}: ${error.message}`,
+      );
+      throw error;
+    }
+    logger.error("Error executing PagerDuty action", error);
+    await recordPagerDutyFailure({ input, automation, executionStart, error });
+    return;
+  }
+
+  if (input.payload.type === "monitor-alert") {
+    await resetAutomationFailures({ projectId, automationId: automation.id });
+    return;
+  }
+  await prisma.automationExecution.update({
+    where: {
+      projectId,
+      triggerId: automation.trigger.id,
+      actionId: automation.action.id,
+      id: executionId,
+    },
+    data: {
+      status: ActionExecutionStatus.COMPLETED,
+      startedAt: executionStart,
+      finishedAt: new Date(),
+    },
+  });
+}
+
+/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to a PagerDuty event. */
+function buildPagerDutyDelivery(
+  input: WebhookInput,
+  actionConfig: ActionDomainWithSecrets,
+): PagerDutyEvent | null {
+  if (!actionConfig.pagerDutyIntegration) {
+    throw new Error(
+      "The PagerDuty service of this automation was deleted. Select another service.",
+    );
+  }
+  return buildPagerDutyEvent({
+    envelope: buildWebhookOutboundPayload(input),
+    projectId: input.projectId,
+    projectName: actionConfig.pagerDutyIntegration.projectName,
+    routingKey: decrypt(actionConfig.pagerDutyIntegration.routingKey),
+  });
+}
+
+/** sendPagerDutyEvent posts the event to the alert or change endpoint of the key's region. */
+async function sendPagerDutyEvent(
+  event: PagerDutyEvent,
+  actionConfig: ActionDomainWithSecrets,
+) {
+  const region = actionConfig.pagerDutyIntegration!.region;
+  if (event.kind === "change") {
+    await sendPagerDutyChangeEvent({ region, event: event.event });
+    return;
+  }
+  await sendPagerDutyAlertEvent({ region, event: event.event });
+}
+
+/** recordPagerDutyFailure records a non-retryable delivery failure and auto-disables the trigger like the other action types. */
+async function recordPagerDutyFailure({
+  input,
+  automation,
+  executionStart,
+  error,
+}: {
+  input: WebhookInput;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+  executionStart: Date;
+  error: unknown;
+}) {
+  const { projectId, executionId } = input;
+  if (input.payload.type === "monitor-alert") {
+    await monitorAlertDeliveryFailure({
+      projectId,
+      automation,
+      channel: "pagerduty",
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.automationExecution.update({
+      where: {
+        id: executionId,
+        projectId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
+      },
+      data: {
+        status: ActionExecutionStatus.ERROR,
+        startedAt: executionStart,
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : "Unknown error",
+        output:
+          error instanceof PagerDutyApiError && error.status
+            ? { httpStatus: error.status }
+            : undefined,
+      },
+    });
+
+    // Project notifications record the error but never auto-disable.
+    if (input.payload.type === "project-notification") return;
+
+    const consecutiveFailures = await getConsecutiveAutomationFailures({
+      automationId: automation.id,
+      projectId,
+    });
+    if (consecutiveFailures >= automationFailureThreshold - 1) {
+      await tx.trigger.update({
+        where: { id: automation.trigger.id, projectId },
+        data: { status: JobConfigState.INACTIVE },
+      });
+      logger.warn(
+        `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId} (pagerduty)`,
+      );
+    }
+  });
+}
+
 /** sendSlackMonitorAlert builds and posts a monitor-alert to Slack, then clears the failure streak. */
 async function sendSlackMonitorAlert({
   payload,
@@ -1036,13 +1204,15 @@ async function sendSlackProjectNotification({
   });
 }
 
-/** slackMonitorAlertFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
-async function slackMonitorAlertFailure({
+/** monitorAlertDeliveryFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
+async function monitorAlertDeliveryFailure({
   projectId,
   automation,
+  channel,
 }: {
   projectId: string;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+  channel: "slack" | "pagerduty";
 }) {
   const count = await incrementAutomationFailure({
     projectId,
@@ -1058,7 +1228,7 @@ async function slackMonitorAlertFailure({
       automationId: automation.id,
     });
     logger.warn(
-      `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
+      `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/${channel})`,
     );
   }
 }

@@ -3,6 +3,7 @@ import {
   Action,
   ActionExecutionStatus,
   JobConfigState,
+  PagerDutyRegion,
   Prisma,
   prisma,
   Trigger,
@@ -26,6 +27,8 @@ import {
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  isPagerDutyActionConfig,
+  PagerDutyActionConfigSchema,
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
@@ -42,15 +45,46 @@ export const getActionByIdWithSecrets = async ({
   projectId: string;
   actionId: string;
 }): Promise<ActionDomainWithSecrets | null> => {
-  const actionConfig = await prisma.action.findFirst({
-    where: {
-      id: actionId,
-      projectId,
-    },
-  });
+  // A PAGERDUTY action's routing key is joined in the same query.
+  const [row] = await prisma.$queryRaw<ActionWithPagerDutyRow[]>`
+    SELECT
+      a.id,
+      a.created_at AS "createdAt",
+      a.updated_at AS "updatedAt",
+      a.project_id AS "projectId",
+      a.type::text AS "type",
+      a.config,
+      p.routing_key AS "pagerDutyRoutingKey",
+      p.region::text AS "pagerDutyRegion",
+      pr.name AS "projectName"
+    FROM actions a
+    JOIN projects pr ON pr.id = a.project_id
+    LEFT JOIN pagerduty_integrations p
+      ON a.type = 'PAGERDUTY'
+      AND p.id = a.config->>'pagerDutyIntegrationId'
+      AND p.project_id = a.project_id
+    WHERE a.id = ${actionId}
+      AND a.project_id = ${projectId}
+    LIMIT 1
+  `;
 
-  if (!actionConfig) {
+  if (!row) {
     return null;
+  }
+
+  const { pagerDutyRoutingKey, pagerDutyRegion, projectName, ...actionConfig } =
+    row;
+
+  if (actionConfig.type === "PAGERDUTY") {
+    return {
+      ...actionConfig,
+      config: actionConfig.config as ActionDomainWithSecrets["config"],
+      pagerDutyIntegration: toPagerDutyIntegration({
+        routingKey: pagerDutyRoutingKey,
+        region: pagerDutyRegion,
+        projectName,
+      }),
+    };
   }
 
   if (isWebhookActionConfig(actionConfig.config)) {
@@ -240,6 +274,19 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         actionType,
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
       );
+    case "PAGERDUTY":
+      // The routing key lives on the PagerDuty integration, never in the config.
+      if (isPagerDutyActionConfig(action.config)) {
+        return {
+          type: action.config.type,
+          pagerDutyIntegrationId: action.config.pagerDutyIntegrationId,
+        };
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(PagerDutyActionConfigSchema.shape),
+      );
     default: {
       const unhandledActionType: never = actionType;
       throw new InternalServerError(
@@ -391,4 +438,25 @@ export const getConsecutiveAutomationFailures = async ({
   }
 
   return consecutiveFailures;
+};
+
+/** toPagerDutyIntegration returns the joined routing key, or null when the integration was deleted. */
+const toPagerDutyIntegration = ({
+  routingKey,
+  region,
+  projectName,
+}: {
+  routingKey: string | null;
+  region: PagerDutyRegion | null;
+  projectName: string;
+}): ActionDomainWithSecrets["pagerDutyIntegration"] => {
+  if (!routingKey || !region) return null;
+  return { routingKey, region, projectName };
+};
+
+/** ActionWithPagerDutyRow is an action row with its PAGERDUTY routing key joined in. */
+type ActionWithPagerDutyRow = Action & {
+  pagerDutyRoutingKey: string | null;
+  pagerDutyRegion: PagerDutyRegion | null;
+  projectName: string;
 };

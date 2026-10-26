@@ -3387,4 +3387,158 @@ describe("automations trpc", () => {
       expect(config.eventType).toBe("langfuse-prompt-created");
     });
   });
+  describe("PagerDuty actions", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+
+    async function createPagerDutyIntegration(
+      projectId: string,
+      name = "On-call",
+    ) {
+      return prisma.pagerDutyIntegration.create({
+        data: {
+          projectId,
+          name,
+          routingKey: encrypt(routingKey),
+          displayRoutingKey: "R0ab...9xYz",
+        },
+      });
+    }
+
+    const createInput = (
+      projectId: string,
+      pagerDutyIntegrationId: string,
+    ) => ({
+      projectId,
+      name: "Page on-call",
+      eventSource: TriggerEventSource.Monitor,
+      eventAction: [],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "PAGERDUTY" as const,
+      actionConfig: { type: "PAGERDUTY" as const, pagerDutyIntegrationId },
+    });
+
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("stores only the integration reference", async () => {
+      const { project, caller } = await prepare();
+      const integration = await createPagerDutyIntegration(project.id);
+
+      const result = await caller.automations.createAutomation(
+        createInput(project.id, integration.id),
+      );
+
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: result.action.id },
+      });
+      expect(action.type).toBe("PAGERDUTY");
+      expect(action.config).toEqual({
+        type: "PAGERDUTY",
+        pagerDutyIntegrationId: integration.id,
+      });
+      expect(result.action.config).toEqual(action.config);
+    });
+
+    it("rejects an integration of another project", async () => {
+      const { project, caller } = await prepare();
+      const { project: otherProject } = await prepare();
+      const otherIntegration = await createPagerDutyIntegration(
+        otherProject.id,
+      );
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, otherIntegration.id),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("switches the integration on update", async () => {
+      const { project, caller } = await prepare();
+      const first = await createPagerDutyIntegration(project.id, "First");
+      const second = await createPagerDutyIntegration(project.id, "Second");
+      const created = await caller.automations.createAutomation(
+        createInput(project.id, first.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, second.id),
+        automationId: created.automation.id,
+      });
+
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: created.action.id },
+      });
+      expect(action.config).toEqual({
+        type: "PAGERDUTY",
+        pagerDutyIntegrationId: second.id,
+      });
+    });
+
+    it("never returns the routing key on any read path to a project VIEWER", async () => {
+      const { project, session, caller } = await prepare();
+      const integration = await createPagerDutyIntegration(project.id);
+      const created = await caller.automations.createAutomation(
+        createInput(project.id, integration.id),
+      );
+      // A hand-edited config carrying a key must be stripped by the allowlist.
+      await prisma.action.update({
+        where: { id: created.action.id },
+        data: {
+          config: {
+            type: "PAGERDUTY",
+            pagerDutyIntegrationId: integration.id,
+            routingKey,
+          },
+        },
+      });
+      const storedKey = (
+        await prisma.pagerDutyIntegration.findUniqueOrThrow({
+          where: { id: integration.id },
+          omit: { routingKey: false },
+        })
+      ).routingKey;
+      const viewer = viewerCaller(session);
+
+      const responses = [
+        await viewer.automations.getAutomations({ projectId: project.id }),
+        await viewer.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+        await viewer.pagerDuty.list({ projectId: project.id }),
+      ];
+
+      for (const response of responses) {
+        const serialized = JSON.stringify(response);
+        expect(serialized).not.toContain(routingKey);
+        expect(serialized).not.toContain(storedKey);
+        expect(serialized).not.toContain("routingKey");
+      }
+    });
+  });
 });

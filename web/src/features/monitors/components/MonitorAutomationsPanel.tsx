@@ -7,6 +7,7 @@ import {
   Slack,
   Webhook as WebhookIcon,
 } from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -38,12 +39,14 @@ const actionLabel: Record<ActionTypes, string> = {
   WEBHOOK: "Webhook",
   SLACK: "Slack",
   GITHUB_DISPATCH: "GitHub Dispatch",
+  PAGERDUTY: "PagerDuty",
 };
 
 const actionIcon = {
   WEBHOOK: WebhookIcon,
   SLACK: Slack,
   GITHUB_DISPATCH: Github,
+  PAGERDUTY: SiPagerduty,
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
@@ -403,5 +406,7 @@ const ActionIcon = ({
       return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
       return <Github __rawClassName={className} />;
+    case "PAGERDUTY":
+      return <SiPagerduty __rawClassName={className} />;
   }
 };

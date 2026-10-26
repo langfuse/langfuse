@@ -70,6 +70,11 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
+// Define PagerDuty action schema
+const pagerDutySchema = z.object({
+  pagerDutyIntegrationId: z.string().min(1, "Select a PagerDuty service"),
+});
+
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
 const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
@@ -78,6 +83,7 @@ const projectNotificationName = (data: FormValues): string => {
   // Automation names are visible to every project member, so they must not
   // carry Slack channel names (private ones are only for channel members).
   if (data.actionType === "SLACK") return "Slack";
+  if (data.actionType === "PAGERDUTY") return "PagerDuty";
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;
@@ -194,6 +200,10 @@ const formSchema = z
     baseFormSchema.extend({
       actionType: z.literal("GITHUB_DISPATCH"),
       githubDispatch: githubDispatchSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("PAGERDUTY"),
+      pagerDuty: pagerDutySchema,
     }),
   ])
   .superRefine((data, ctx) => {
@@ -522,6 +532,14 @@ export const AutomationForm = ({
           originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
       };
+    } else if (actionType === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const pagerDutyDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "PAGERDUTY" as const,
+        pagerDuty: pagerDutyDefaults.pagerDuty,
+      };
     }
     throw new Error("Invalid action type");
   };
@@ -645,6 +663,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("pagerDuty", defaultValues.pagerDuty);
     }
   };
 
@@ -809,7 +831,9 @@ export const AutomationForm = ({
                               ? "Slack"
                               : actionType === "GITHUB_DISPATCH"
                                 ? "GitHub Dispatch"
-                                : "Annotation Queue"}
+                                : actionType === "PAGERDUTY"
+                                  ? "PagerDuty"
+                                  : "Annotation Queue"}
                         </SelectItem>
                       ))}
                       <SelectItem disabled={true} value="planned">

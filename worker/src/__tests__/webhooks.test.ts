@@ -20,6 +20,7 @@ import {
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
+  getActionById,
   getActionByIdWithSecrets,
   logger,
   redis,
@@ -92,9 +93,26 @@ class WebhookTestServer {
     headers: Record<string, string>;
     body: string;
   }> = [];
+  pagerDutyStatus = 202;
 
   constructor() {
+    const recordPagerDutyEvent = async ({ request }: { request: Request }) => {
+      this.receivedRequests.push({
+        url: request.url,
+        method: request.method,
+        headers: Object.fromEntries(request.headers.entries()),
+        body: JSON.stringify(await request.json()),
+      });
+      return HttpResponse.json(
+        { status: "success", message: "Event processed" },
+        { status: this.pagerDutyStatus },
+      );
+    };
+
     this.server = setupServer(
+      http.post("https://events.pagerduty.com/*", recordPagerDutyEvent),
+      http.post("https://events.eu.pagerduty.com/*", recordPagerDutyEvent),
+
       // Default success response
       http.post("https://webhook.example.com/*", async ({ request }) => {
         this.receivedRequests.push({
@@ -144,6 +162,7 @@ class WebhookTestServer {
 
   reset() {
     this.receivedRequests = [];
+    this.pagerDutyStatus = 202;
     this.server.resetHandlers();
   }
 
@@ -2391,6 +2410,296 @@ describe("Webhook Integration Tests", () => {
       });
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+  });
+
+  describe("PagerDuty action", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+    let pagerDutyIntegrationId: string;
+
+    const buildMonitorInput = (
+      severity: "ALERT" | "WARNING" | "OK" | "NO_DATA",
+    ): WebhookInput => ({
+      projectId,
+      automationId,
+      executionId: v4(),
+      payload: {
+        id: v4(),
+        timestamp: new Date(),
+        type: "monitor-alert",
+        apiVersion: "v1",
+        payload: {
+          monitorId,
+          projectId,
+          severity,
+          permalink: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          timestamp: new Date("2026-05-27T14:32:00.000Z"),
+          fromTimestamp: new Date("2026-05-27T14:00:00.000Z"),
+          toTimestamp: new Date("2026-05-27T14:30:00.000Z"),
+          message: { title: "Hallucination rate breached", body: "0.42 > 0.3" },
+          view: "observations",
+          filters: [
+            {
+              column: "providedModelName",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["gpt-4o"],
+            },
+          ],
+          window: "30m",
+          monitorName: "Hallucination rate",
+          metric: { measure: "latency", aggregation: "p95" },
+          metricValue: 0.42,
+          thresholdOperator: "GT",
+          alertThreshold: 0.3,
+          warningThreshold: 0.2,
+        },
+      },
+    });
+
+    const lastPagerDutyRequest = () => {
+      const request = webhookServer.getLastRequest();
+      return { url: request.url, body: JSON.parse(request.body) };
+    };
+
+    beforeEach(async () => {
+      ({ id: pagerDutyIntegrationId } =
+        await prisma.pagerDutyIntegration.create({
+          data: {
+            projectId,
+            name: "On-call",
+            routingKey: encrypt(routingKey),
+            displayRoutingKey: "R0ab...9xYz",
+          },
+        }));
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          type: "PAGERDUTY",
+          config: { type: "PAGERDUTY", pagerDutyIntegrationId },
+        },
+      });
+      await redis!.del(`automation-failures:${projectId}:${automationId}`);
+    });
+
+    it("triggers a critical alert keyed by the monitor with LLMOps details", async () => {
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      const { url, body } = lastPagerDutyRequest();
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+      });
+      expect(url).toBe("https://events.pagerduty.com/v2/enqueue");
+      expect(body).toMatchObject({
+        routing_key: routingKey,
+        event_action: "trigger",
+        dedup_key: `langfuse-${projectId}-${monitorId}`,
+        client: "Langfuse",
+        links: [
+          {
+            href: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          },
+        ],
+        payload: {
+          summary: "Hallucination rate breached",
+          source: `langfuse/${project.name}`,
+          severity: "critical",
+          timestamp: "2026-05-27T14:32:00.000Z",
+          class: "monitor-alert",
+          component: "observations",
+          custom_details: {
+            llmops: {
+              model_name: "gpt-4o",
+              project_name: project.name,
+              monitor_name: "Hallucination rate",
+              monitor_id: monitorId,
+              monitor_alert_start: "2026-05-27T14:00:00.000Z",
+              monitor_alert_end: "2026-05-27T14:30:00.000Z",
+              metric_value: 0.42,
+              threshold_value: 0.3,
+            },
+            langfuse: { window: "30m" },
+          },
+        },
+      });
+    });
+
+    it.each([
+      ["WARNING", "warning"],
+      ["NO_DATA", "error"],
+    ] as const)(
+      "maps %s to PagerDuty severity %s",
+      async (severity, expected) => {
+        await executeWebhook(buildMonitorInput(severity));
+
+        expect(lastPagerDutyRequest().body.payload.severity).toBe(expected);
+      },
+    );
+
+    it("resolves the monitor's incident on recovery", async () => {
+      await executeWebhook(buildMonitorInput("OK"));
+
+      expect(lastPagerDutyRequest().body).toEqual({
+        routing_key: routingKey,
+        event_action: "resolve",
+        dedup_key: `langfuse-${projectId}-${monitorId}`,
+      });
+    });
+
+    it("sends to the EU host for EU routing keys", async () => {
+      await prisma.pagerDutyIntegration.update({
+        where: { id: pagerDutyIntegrationId },
+        data: { region: "EU" },
+      });
+
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(lastPagerDutyRequest().url).toBe(
+        "https://events.eu.pagerduty.com/v2/enqueue",
+      );
+    });
+
+    it("sends prompt changes as change events and completes the execution", async () => {
+      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+        where: { id: promptId },
+      });
+      const input: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook(input);
+
+      const { url, body } = lastPagerDutyRequest();
+      expect(url).toBe("https://events.pagerduty.com/v2/change/enqueue");
+      expect(body).toMatchObject({
+        routing_key: routingKey,
+        payload: {
+          summary: 'Langfuse prompt "test-prompt" version 1 created',
+          custom_details: { prompt_name: "test-prompt", prompt_version: 1 },
+        },
+      });
+      expect(body).not.toHaveProperty("event_action");
+      const execution = await prisma.automationExecution.findUniqueOrThrow({
+        where: { id: executionId },
+      });
+      expect(execution.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("always triggers project notifications keyed by event type and resource", async () => {
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook({
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date(),
+          type: "project-notification",
+          apiVersion: "v1",
+          event: {
+            eventType: "blob-export-failed",
+            severity: "ALERT",
+            projectId,
+            projectName: "Test Project",
+            resourceId: "res_1",
+            resourceName: "my-bucket",
+            message: "Blob storage export failed.",
+          },
+        },
+      });
+
+      expect(lastPagerDutyRequest().body).toMatchObject({
+        event_action: "trigger",
+        dedup_key: `langfuse-${projectId}-blob-export-failed-res_1`,
+        payload: { severity: "error", class: "blob-export-failed" },
+      });
+    });
+
+    it.each([429, 500])(
+      "rethrows a %i so the job is retried, without counting a failure",
+      async (status) => {
+        webhookServer.pagerDutyStatus = status;
+
+        await expect(
+          executeWebhook(buildMonitorInput("ALERT")),
+        ).rejects.toThrow();
+
+        expect(
+          await redis!.get(`automation-failures:${projectId}:${automationId}`),
+        ).toBeNull();
+      },
+    );
+
+    it("counts a rejected event as a failure without retrying", async () => {
+      webhookServer.pagerDutyStatus = 400;
+
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(
+        await redis!.get(`automation-failures:${projectId}:${automationId}`),
+      ).toBe("1");
+    });
+
+    it("records the failure when the PagerDuty integration was deleted", async () => {
+      await prisma.pagerDutyIntegration.delete({
+        where: { id: pagerDutyIntegrationId },
+      });
+
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+      expect(
+        await redis!.get(`automation-failures:${projectId}:${automationId}`),
+      ).toBe("1");
+    });
+
+    it("returns the routing key only on the execution read path", async () => {
+      const withSecrets = await getActionByIdWithSecrets({
+        projectId,
+        actionId,
+      });
+      const safe = await getActionById({ projectId, actionId });
+
+      expect(withSecrets?.pagerDutyIntegration?.region).toBe("US");
+      expect(decrypt(withSecrets!.pagerDutyIntegration!.routingKey)).toBe(
+        routingKey,
+      );
+      expect(safe?.config).toEqual({
+        type: "PAGERDUTY",
+        pagerDutyIntegrationId,
+      });
+      expect(JSON.stringify(safe)).not.toContain(routingKey);
     });
   });
 });
