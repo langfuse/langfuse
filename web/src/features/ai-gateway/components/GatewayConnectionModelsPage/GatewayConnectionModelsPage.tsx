@@ -8,8 +8,12 @@ import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/G
 import { ConnectionSummary } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionSummary/ConnectionSummary";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
+import type { SetGatewayModelsEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/types/setGatewayModelsEnabled";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type GatewayConnectionModelsPageProps = {
   organizationId: string;
@@ -52,6 +56,7 @@ export function GatewayConnectionModelsPage({
       />
       {connection || !connectionQuery.isError ? (
         <ConnectionModelsBody
+          organizationId={organizationId}
           connection={connection}
           isSaving={isSaving}
           modelsQuery={modelsQuery}
@@ -78,6 +83,7 @@ function ProviderCredentialsLink({
 }
 
 type ConnectionModelsBodyProps = {
+  organizationId: string;
   connection: GatewayConnection | undefined;
   isSaving: boolean;
   modelsQuery: ReturnType<typeof useGatewayConnectionModels>["modelsQuery"];
@@ -89,12 +95,14 @@ type ConnectionModelsBodyProps = {
 };
 
 function ConnectionModelsBody({
+  organizationId,
   connection,
   isSaving,
   modelsQuery,
   onRetry,
   saveAllowedModels,
 }: ConnectionModelsBodyProps) {
+  const capture = usePostHogClientCapture();
   if (!connection || modelsQuery.isPending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -121,23 +129,72 @@ function ConnectionModelsBody({
   }
 
   const models = modelsQuery.data.models;
-  const enableAll = () => saveAllowedModels(null);
-  const disableAll = () => saveAllowedModels([]);
-  const setModelsEnabled = (
-    targetModels: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
-  ) => {
-    saveAllowedModels(
-      updateGatewayAllowedModels({
+  const saveModelAccess = ({
+    targetModels,
+    enabled,
+    scope,
+    nextAllowedModels,
+    onSuccess,
+  }: {
+    targetModels: string[];
+    enabled: boolean;
+    scope: "single" | "selection" | "all";
+    nextAllowedModels: string[] | null;
+    onSuccess?: () => void;
+  }) => {
+    const changedModelCount = targetModels.filter(
+      (model) =>
+        isGatewayModelAllowed(connection.allowedModels, model) !== enabled,
+    ).length;
+    const nextAllowedModelsSet = toGatewayAllowedModelsSet(nextAllowedModels);
+    saveAllowedModels(nextAllowedModels, () => {
+      capture("ai_gateway:model_access_changed", {
+        orgId: organizationId,
+        provider: connection.provider,
+        action: enabled ? "enable" : "disable",
+        scope,
+        modelCount: targetModels.length,
+        changedModelCount,
+        enabledModelCount: models.filter((model) =>
+          isGatewayModelAllowed(nextAllowedModelsSet, model),
+        ).length,
+        totalModelCount: models.length,
+      });
+      onSuccess?.();
+    });
+  };
+  const enableAll = () =>
+    saveModelAccess({
+      targetModels: models,
+      enabled: true,
+      scope: "all",
+      nextAllowedModels: null,
+    });
+  const disableAll = () =>
+    saveModelAccess({
+      targetModels: models,
+      enabled: false,
+      scope: "all",
+      nextAllowedModels: [],
+    });
+  const setModelsEnabled: SetGatewayModelsEnabled = ({
+    models: targetModels,
+    enabled,
+    scope,
+    onSuccess,
+  }) =>
+    saveModelAccess({
+      targetModels,
+      enabled,
+      scope,
+      nextAllowedModels: updateGatewayAllowedModels({
         allowedModels: connection.allowedModels,
         availableModels: models,
         targetModels,
         enabled,
       }),
       onSuccess,
-    );
-  };
+    });
 
   return (
     <GatewayConnectionModelsTable

@@ -20,6 +20,7 @@ import {
   resolveApiKeyExpiration,
 } from "@/src/features/apiKey";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   api,
@@ -65,6 +66,7 @@ export function CreateGatewayApiKeyDialogController({
     null,
   );
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const create = api.aiGateway.createApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -91,13 +93,22 @@ export function CreateGatewayApiKeyDialogController({
         .filter((field) => field.key.trim())
         .map((field) => [field.key.trim(), field.value]),
     );
+    const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
     try {
       const created = await create.mutateAsync({
         orgId: organizationId,
         name: name.trim() || undefined,
         metadata: metadataObject,
         expiresAt,
-        issuedAs: canIssueServiceAccountKeys ? issuedAs : "user",
+        issuedAs: effectiveIssuedAs,
+      });
+      capture("ai_gateway:api_key_created", {
+        orgId: organizationId,
+        isServiceAccount: effectiveIssuedAs === "serviceAccount",
+        hasMetadata: metadataCount > 0,
+        metadataCount,
+        hasDescription: name.trim().length > 0,
+        expiryPreset,
       });
       setGeneratedSecretKey(created.secretKey);
       await utils.aiGateway.listApiKeys.invalidate({

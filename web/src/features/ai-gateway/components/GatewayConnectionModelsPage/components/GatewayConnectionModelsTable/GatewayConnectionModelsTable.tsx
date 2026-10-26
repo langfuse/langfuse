@@ -14,6 +14,7 @@ import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnect
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
+import type { SetGatewayModelsEnabled } from "./types/setGatewayModelsEnabled";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
@@ -29,11 +30,7 @@ export type GatewayConnectionModelsTableProps = {
   isSaving: boolean;
   onEnableAll: () => void;
   onDisableAll: () => void;
-  onSetEnabled: (
-    models: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
-  ) => void;
+  onSetEnabled: SetGatewayModelsEnabled;
 };
 
 export function GatewayConnectionModelsTable({
@@ -63,7 +60,8 @@ export function GatewayConnectionModelsTable({
       selectionStore,
     });
   const toggleModel = useCallback(
-    (model: string, enabled: boolean) => onSetEnabled([model], enabled),
+    (model: string, enabled: boolean) =>
+      onSetEnabled({ models: [model], enabled, scope: "single" }),
     [onSetEnabled],
   );
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(

@@ -3,6 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -461,6 +462,21 @@ const events = {
     "quick_action_started",
     "tool_approval_decided",
   ],
+  // AI Gateway setup and adoption. Props are typed in AiGatewayEventMap and
+  // carry `orgId` on every event: metadata only, never emails, names,
+  // credentials, key metadata or model ids.
+  ai_gateway: [
+    "setup_guide_viewed",
+    "setup_step_completed",
+    "ingestion_settings_saved",
+    "provider_credential_added",
+    "provider_credential_updated",
+    "provider_credential_deleted",
+    "team_invite_sent",
+    "api_key_created",
+    "api_key_revoked",
+    "model_access_changed",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: [
@@ -529,6 +545,7 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
+  AiGatewayEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {
