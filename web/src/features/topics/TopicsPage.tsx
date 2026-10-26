@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -210,7 +210,16 @@ function TopicsWorkspaceContent({
     allowedRanges: sharedTimeRangePresets,
     fallback: "last7Days",
   });
-  const [refreshedAt] = useState(Date.now);
+  const [refreshedAt, setRefreshedAt] = useState(Date.now);
+  // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
+  useEffect(() => {
+    function refreshOnVisible() {
+      if (document.visibilityState === "visible") setRefreshedAt(Date.now());
+    }
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, []);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
