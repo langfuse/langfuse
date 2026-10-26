@@ -3697,6 +3697,9 @@ const evalExecutionIdentifierColumn = (identifier: "evaluator" | "rule") =>
 const evaluatorTestEventCondition =
   "e.evaluator_execution_is_test OR startsWith(e.trace_name, 'Test evaluator')";
 
+// The cost query and its trace prefilter must cover the same window.
+const evalCostWindowCondition = "e.start_time > now() - INTERVAL 7 DAY";
+
 const traceCostsByIdentifier = (params: {
   projectId: string;
   identifiers: Array<{
@@ -3720,7 +3723,7 @@ const traceCostsByIdentifier = (params: {
       ...(params.additionalSelect ?? []),
     ].join(", "),
   })
-    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
+    .whereRaw(evalCostWindowCondition)
     .whereRaw("e.is_deleted = 0")
     // Only a trace with an event carrying one of the ids can pass the
     // caller's HAVING, so group just those traces instead of the project's
@@ -3730,7 +3733,7 @@ const traceCostsByIdentifier = (params: {
         SELECT e.trace_id
         FROM events_core e
         WHERE e.project_id = {projectId: String}
-          AND e.start_time > now() - INTERVAL 7 DAY
+          AND ${evalCostWindowCondition}
           AND e.is_deleted = 0
           AND (${params.identifiers
             .map(
