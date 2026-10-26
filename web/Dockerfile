@@ -1,5 +1,5 @@
 # The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
