@@ -279,6 +279,9 @@ function TopicsWorkspaceContent({
     { projectId, executionId: executionId ?? "" },
     {
       enabled: executionId !== null,
+      // The list already has this run, so the panel renders without a loading flash.
+      placeholderData: () =>
+        executions.data?.find((execution) => execution.id === executionId),
       refetchInterval: (query) =>
         !query.state.data || busy(query.state.data.status) ? 1500 : false,
     },
@@ -353,7 +356,6 @@ function TopicsWorkspaceContent({
     utils.topics.currentResults.invalidate({ projectId });
   };
   const openExecution = (id: string) => {
-    setHistoryOpen(false);
     router.push(
       {
         pathname: router.pathname,
