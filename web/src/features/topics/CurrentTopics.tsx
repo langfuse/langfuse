@@ -235,7 +235,15 @@ function useCurrentTopicMap(
 ) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "", timeRange },
-    { enabled: Boolean(runId) },
+    {
+      enabled: Boolean(runId),
+      // A moved time range keeps the map (and its camera) up; a different run starts fresh.
+      placeholderData: (previous, previousQuery) =>
+        (previousQuery?.queryKey?.[1] as { input?: { runId?: string } })?.input
+          ?.runId === runId
+          ? previous
+          : undefined,
+    },
   );
 }
 

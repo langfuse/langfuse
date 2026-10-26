@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -211,6 +211,17 @@ function TopicsWorkspaceContent({
     fallback: "last7Days",
   });
   const [refreshedAt, setRefreshedAt] = useState(Date.now);
+  // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
+  useEffect(() => {
+    function refreshOnVisible() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      setRefreshedAt((previous) => (now - previous > 60_000 ? now : previous));
+    }
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, []);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -351,10 +362,6 @@ function TopicsWorkspaceContent({
     results.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
-  const refreshResults = () => {
-    setRefreshedAt(Date.now());
-    utils.topics.currentResults.invalidate({ projectId });
-  };
   const openExecution = (id: string) => {
     router.push(
       {
@@ -429,9 +436,6 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
-        function openManualProcessing() {
-          openManual("process");
-        }
         function openTopicGeneration() {
           openManual("update");
         }
@@ -462,16 +466,13 @@ function TopicsWorkspaceContent({
         const actions = prepareTopicsActions({
           automaticProcessing,
           canWrite,
-          configured,
           configureAvailable: modelSettings.configure.settings !== null,
-          configureVariant: modelSettings.configure.triggerVariant,
-          manualAvailable: pipeline.available,
+          regenerateAvailable: pipeline.available,
           menuOnly: landingOnly,
           onAutomaticProcessing: openAutomaticProcessingFromHeader,
           onConfigure: configured ? openConfigure : openSetup,
-          onManualProcessing: openManualProcessing,
+          onRegenerate: openTopicGeneration,
           onHistory: openHistory,
-          onRefresh: refreshResults,
         });
         return (
           <Page
@@ -567,7 +568,6 @@ function TopicsWorkspaceContent({
                   retrying={false}
                   canRetry={false}
                   onViewDetails={() => openExecution(landingRun.process.id)}
-                  onRetry={refreshResults}
                 />
               ) : null}
               {waitingForTraces ? (
@@ -577,7 +577,6 @@ function TopicsWorkspaceContent({
                   facets={[]}
                   retrying={false}
                   canRetry={false}
-                  onRetry={refreshResults}
                 />
               ) : null}
               {showSetupProgress && setup ? (
