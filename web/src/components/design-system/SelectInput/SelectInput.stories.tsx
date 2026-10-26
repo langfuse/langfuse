@@ -147,8 +147,8 @@ export const SearchableWithBadges = meta.story({
         value: "quality",
         label: "quality",
         badges: [
-          { text: "Trace", color: "violetTint" },
-          { text: "Observation", color: "skyTint" },
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
         ],
       },
       { value: "relevance", label: "relevance" },
@@ -303,8 +303,8 @@ export const TestKeepsBadgedLabelReadable = meta.story({
         value: "answer_relevancy",
         label: "answer_relevancy",
         badges: [
-          { text: "Trace", color: "violetTint" },
-          { text: "Observation", color: "skyTint" },
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
         ],
       },
     ],
@@ -358,8 +358,8 @@ export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
         value: "answer_relevancy",
         label: "answer_relevancy",
         badges: [
-          { text: "Trace", color: "violetTint" },
-          { text: "Observation", color: "skyTint" },
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
         ],
       },
     ],

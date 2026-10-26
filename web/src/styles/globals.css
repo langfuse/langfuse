@@ -153,10 +153,20 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
-  /* Category fills at one OKLCH lightness and chroma per state. */
+  /* Six category hues at one OKLCH lightness and chroma per role: highlight
+     (fills, borders, treemap tiles) and foreground (text). */
   --color-category-violet-highlight: var(--category-violet-highlight);
   --color-category-blue-highlight: var(--category-blue-highlight);
+  --color-category-teal-highlight: var(--category-teal-highlight);
+  --color-category-green-highlight: var(--category-green-highlight);
   --color-category-amber-highlight: var(--category-amber-highlight);
+  --color-category-pink-highlight: var(--category-pink-highlight);
+  --color-category-violet-foreground: var(--category-violet-foreground);
+  --color-category-blue-foreground: var(--category-blue-foreground);
+  --color-category-teal-foreground: var(--category-teal-foreground);
+  --color-category-green-foreground: var(--category-green-foreground);
+  --color-category-amber-foreground: var(--category-amber-foreground);
+  --color-category-pink-foreground: var(--category-pink-foreground);
   --color-category-neutral-tint: var(--category-neutral-tint);
   --color-category-neutral-highlight: var(--category-neutral-highlight);
 
@@ -348,7 +358,16 @@
   :root {
     --category-violet-highlight: oklch(0.82 0.11 293);
     --category-blue-highlight: oklch(0.82 0.11 252);
+    --category-teal-highlight: oklch(0.82 0.11 190);
+    --category-green-highlight: oklch(0.82 0.11 135);
     --category-amber-highlight: oklch(0.82 0.11 70);
+    --category-pink-highlight: oklch(0.82 0.11 350);
+    --category-violet-foreground: oklch(0.45 0.11 293);
+    --category-blue-foreground: oklch(0.45 0.11 252);
+    --category-teal-foreground: oklch(0.45 0.11 190);
+    --category-green-foreground: oklch(0.45 0.11 135);
+    --category-amber-foreground: oklch(0.45 0.11 70);
+    --category-pink-foreground: oklch(0.45 0.11 350);
     --category-neutral-tint: oklch(0.92 0 0);
     --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
@@ -584,7 +603,16 @@
   .dark {
     --category-violet-highlight: oklch(0.45 0.11 293);
     --category-blue-highlight: oklch(0.45 0.11 252);
+    --category-teal-highlight: oklch(0.45 0.11 190);
+    --category-green-highlight: oklch(0.45 0.11 135);
     --category-amber-highlight: oklch(0.45 0.11 70);
+    --category-pink-highlight: oklch(0.45 0.11 350);
+    --category-violet-foreground: oklch(0.8 0.11 293);
+    --category-blue-foreground: oklch(0.8 0.11 252);
+    --category-teal-foreground: oklch(0.8 0.11 190);
+    --category-green-foreground: oklch(0.8 0.11 135);
+    --category-amber-foreground: oklch(0.8 0.11 70);
+    --category-pink-foreground: oklch(0.8 0.11 350);
     --category-neutral-tint: oklch(0.3 0 0);
     --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added

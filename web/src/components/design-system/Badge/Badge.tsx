@@ -19,7 +19,7 @@ const badgeVariants = cva(
       },
       /**
        * Neutrals are named by appearance, status colours by state, category
-       * colours by hue plus `Tint`. Every coloured fill carries a same-hue
+       * colours by hue. Every coloured fill carries a same-hue
        * hairline tuned to error's border-to-fill lightness gap, in both modes.
        */
       color: {
@@ -36,26 +36,15 @@ const badgeVariants = cva(
         success:
           "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-dark-green/6 dark:bg-light-green dark:text-dark-green",
         info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-dark-blue/8 dark:bg-light-blue dark:text-dark-blue",
-        violetTint:
-          "border-category-violet/8 bg-category-violet/10 text-foreground-secondary dark:border-category-violet/11 dark:bg-category-violet/15",
-        skyTint:
-          "border-category-sky/8 bg-category-sky/10 text-foreground-secondary dark:border-category-sky/9 dark:bg-category-sky/15",
-        emeraldTint:
-          "border-category-emerald/9 bg-category-emerald/10 text-foreground-secondary dark:border-category-emerald/9 dark:bg-category-emerald/15",
-        amberTint:
-          "border-category-amber/10 bg-category-amber/10 text-foreground-secondary dark:border-category-amber/8 dark:bg-category-amber/15",
-        pinkTint:
-          "border-category-pink/8 bg-category-pink/10 text-foreground-secondary dark:border-category-pink/9 dark:bg-category-pink/15",
-        indigoTint:
-          "border-category-indigo/7 bg-category-indigo/10 text-foreground-secondary dark:border-category-indigo/11 dark:bg-category-indigo/15",
-        tealTint:
-          "border-category-teal/9 bg-category-teal/10 text-foreground-secondary dark:border-category-teal/9 dark:bg-category-teal/15",
-        orangeTint:
-          "border-category-orange/8 bg-category-orange/10 text-foreground-secondary dark:border-category-orange/10 dark:bg-category-orange/15",
-        limeTint:
-          "border-category-lime/10 bg-category-lime/10 text-foreground-secondary dark:border-category-lime/8 dark:bg-category-lime/15",
-        fuchsiaTint:
-          "border-category-fuchsia/7 bg-category-fuchsia/10 text-foreground-secondary dark:border-category-fuchsia/11 dark:bg-category-fuchsia/15",
+        violet:
+          "border-category-violet-highlight/25 bg-category-violet-highlight/30 text-category-violet-foreground dark:border-category-violet-highlight/20 dark:bg-category-violet-highlight/45",
+        blue: "border-category-blue-highlight/25 bg-category-blue-highlight/30 text-category-blue-foreground dark:border-category-blue-highlight/20 dark:bg-category-blue-highlight/45",
+        teal: "border-category-teal-highlight/25 bg-category-teal-highlight/30 text-category-teal-foreground dark:border-category-teal-highlight/20 dark:bg-category-teal-highlight/45",
+        green:
+          "border-category-green-highlight/25 bg-category-green-highlight/30 text-category-green-foreground dark:border-category-green-highlight/20 dark:bg-category-green-highlight/45",
+        amber:
+          "border-category-amber-highlight/25 bg-category-amber-highlight/30 text-category-amber-foreground dark:border-category-amber-highlight/20 dark:bg-category-amber-highlight/45",
+        pink: "border-category-pink-highlight/25 bg-category-pink-highlight/30 text-category-pink-foreground dark:border-category-pink-highlight/20 dark:bg-category-pink-highlight/45",
       },
       interactive: {
         true: "underline-dotted",
@@ -153,8 +142,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
  * - `filled`: data chips. Scores, tags, counts.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
- * - Category `Tint`: tell categories apart (score levels, topics, widget types).
- *   Text stays neutral; the hue carries the category.
+ * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
+ *   categories apart, e.g. score levels and topics.
  *
  * Links use `LinkBadge`. Full guidance with examples: `Badge.mdx` (Storybook "Guidance").
  */

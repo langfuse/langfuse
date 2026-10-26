@@ -60,23 +60,21 @@ export const scoreLevelFromScore = (score: {
 
 // The global score-level color coding: one category hue per level, used
 // identically on every surface (tag tint and compact dot).
-const scoreTagColors: Record<
-  ScoreLevel,
-  "skyTint" | "violetTint" | "tealTint" | "amberTint"
-> = {
-  observation: "skyTint",
-  trace: "violetTint",
-  session: "tealTint",
-  experiment: "amberTint",
-};
+const scoreTagColors: Record<ScoreLevel, "blue" | "violet" | "teal" | "amber"> =
+  {
+    observation: "blue",
+    trace: "violet",
+    session: "teal",
+    experiment: "amber",
+  };
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
     level: {
-      observation: "bg-category-sky",
-      trace: "bg-category-violet",
-      session: "bg-category-teal",
-      experiment: "bg-category-amber",
+      observation: "bg-category-blue-foreground",
+      trace: "bg-category-violet-foreground",
+      session: "bg-category-teal-foreground",
+      experiment: "bg-category-amber-foreground",
     },
   },
 });

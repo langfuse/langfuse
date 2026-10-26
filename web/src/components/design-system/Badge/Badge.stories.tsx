@@ -24,16 +24,12 @@ const colorFamily = {
   warning: "Status",
   success: "Status",
   info: "Status",
-  violetTint: "Category",
-  skyTint: "Category",
-  emeraldTint: "Category",
-  amberTint: "Category",
-  pinkTint: "Category",
-  indigoTint: "Category",
-  tealTint: "Category",
-  orangeTint: "Category",
-  limeTint: "Category",
-  fuchsiaTint: "Category",
+  violet: "Category",
+  blue: "Category",
+  teal: "Category",
+  green: "Category",
+  amber: "Category",
+  pink: "Category",
 } satisfies Record<Color, string>;
 
 const colorGroups = Object.entries(colorFamily).reduce<Record<string, Color[]>>(
@@ -171,9 +167,9 @@ export const InContext = meta.story({
         title: "Scores and tags: filled, md; level as category tint",
         badges: (
           <>
-            <Badge color="skyTint" size="md" text="observation" />
+            <Badge color="blue" size="md" text="observation" />
             <Badge color="filled" size="md" label="accuracy" text="0.95" />
-            <Badge color="violetTint" size="md" text="trace" />
+            <Badge color="violet" size="md" text="trace" />
             <Badge color="filled" size="md" label="helpfulness" text="0.81" />
             <Badge color="filled" size="md" text="prod-rollout" />
           </>
@@ -194,10 +190,10 @@ export const InContext = meta.story({
         title: "Categories: tint, neutral text",
         badges: (
           <>
-            <Badge color="violetTint" text="Billing questions" />
-            <Badge color="skyTint" text="Onboarding" />
-            <Badge color="emeraldTint" text="Refunds" />
-            <Badge color="amberTint" text="Bug reports" />
+            <Badge color="violet" text="Billing questions" />
+            <Badge color="blue" text="Onboarding" />
+            <Badge color="green" text="Refunds" />
+            <Badge color="amber" text="Bug reports" />
           </>
         ),
       },
