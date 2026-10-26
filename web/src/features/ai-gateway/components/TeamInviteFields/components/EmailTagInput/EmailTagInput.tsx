@@ -1,10 +1,8 @@
 import { type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmailTag } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
-import {
-  appendEmails,
-  splitEmailText,
-} from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+import { appendEmails } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+import { takeAddresses } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/takeAddresses";
 import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
 import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
@@ -23,15 +21,10 @@ export type EmailTagInputProps = {
   children?: ReactNode;
 };
 
-/** Typed text with an `@` is an address; anything else is a search term. */
-function isAddress(text: string) {
-  return text.includes("@");
-}
-
 /**
- * Turns typed or pasted addresses into removable chips on comma, space, Enter, or
- * blur. Text without an `@` stays a search, and Enter picks the top suggestion.
- * Borderless: the surrounding field draws the frame.
+ * Turns typed or pasted addresses into removable chips once a comma, space,
+ * Enter, or blur ends them. Text without an `@` stays a search, and Enter picks
+ * the top suggestion. Borderless: the surrounding field draws the frame.
  */
 export function EmailTagInput({
   id,
@@ -44,23 +37,24 @@ export function EmailTagInput({
   "aria-describedby": ariaDescribedBy,
   children,
 }: EmailTagInputProps) {
-  function commit(text: string) {
-    onDraftChange("");
-    if (text.trim().length > 0) onChange(appendEmails(value, text));
+  /** Turns the addresses in `text` into chips; returns whether there were any. */
+  function commitAddresses(text: string, { isTyping = false } = {}) {
+    const { addresses, rest } = takeAddresses(text, { isTyping });
+    if (addresses.length > 0)
+      onChange(appendEmails(value, addresses.join(" ")));
+    onDraftChange(rest);
+    return addresses.length > 0;
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const text = event.target.value;
-    if (isAddress(text) && splitEmailText(text).length > 1) commit(text);
-    else onDraftChange(text);
+    commitAddresses(event.target.value, { isTyping: true });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      const isSearch = draft.trim().length > 0 && !isAddress(draft);
-      if (isSearch) onPickTopSuggestion?.();
-      else commit(draft);
+      const hasCommitted = commitAddresses(draft);
+      if (!hasCommitted && draft.trim().length > 0) onPickTopSuggestion?.();
       return;
     }
     if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
@@ -70,7 +64,7 @@ export function EmailTagInput({
 
   // Text without an `@` stays a search when the input loses focus.
   function handleBlur() {
-    if (isAddress(draft)) commit(draft);
+    commitAddresses(draft);
   }
 
   function handleRemove(email: string) {

@@ -238,3 +238,23 @@ export const TestPartialAddressAndUnmatchedSearch = meta.story({
     await expect(args.onEmailsChange).not.toHaveBeenCalled();
   },
 });
+
+export const TestStrayCommaDoesNotCutAddress = meta.story({
+  name: "(Test) A stray comma does not cut an address being typed",
+  args: { ...Empty.input.args, memberSuggestions: undefined },
+  render: (args) => <TeamInviteFieldsWithDraft {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const input = within(canvasElement).getByRole("textbox", {
+      name: "Email addresses",
+    });
+    await userEvent.type(input, "foo, test@");
+    await expect(input).toHaveValue("foo, test@");
+    await expect(args.onEmailsChange).not.toHaveBeenCalled();
+
+    await userEvent.type(input, "company.com,");
+    await expect(args.onEmailsChange).toHaveBeenLastCalledWith([
+      "test@company.com",
+    ]);
+    await expect(input).toHaveValue("foo ");
+  },
+});
