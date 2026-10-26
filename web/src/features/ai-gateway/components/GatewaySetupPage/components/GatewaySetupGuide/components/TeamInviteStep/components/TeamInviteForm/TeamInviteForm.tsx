@@ -18,7 +18,7 @@ export type TeamInviteFormProps = {
     emails: string[];
     notifyMembers: boolean;
   }) => Promise<GatewayTeamInviteResult | null>;
-  onFinish: () => void;
+  onFinish: (outcome: { isSkipped: boolean }) => void;
 };
 
 function getSendLabel(emailCount: number) {
@@ -58,7 +58,7 @@ export function TeamInviteForm({
       invitees.keepFailed(result.failed);
       return;
     }
-    onFinish();
+    onFinish({ isSkipped: false });
   }
 
   return (
@@ -90,7 +90,11 @@ export function TeamInviteForm({
           }
           onClick={handleSend}
         />
-        <Button text="Skip for now" variant="ghost" onClick={onFinish} />
+        <Button
+          text="Skip for now"
+          variant="ghost"
+          onClick={() => onFinish({ isSkipped: true })}
+        />
       </div>
     </div>
   );

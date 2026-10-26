@@ -17,6 +17,8 @@ const context: CachedResolveContext = {
   organizationId: "org-1",
   apiKeyId: "key-1",
   userId: "user-1",
+  apiKeyName: "CI key",
+  userName: "Alice",
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,
@@ -103,6 +105,36 @@ describe("GatewayResolveCache", () => {
     expect(redis.set).not.toHaveBeenCalled();
     expect(redis.sadd).not.toHaveBeenCalled();
     expect(redis.expire).not.toHaveBeenCalled();
+  });
+
+  it("reads entries cached before the key snapshot fields existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const legacy = {
+      organizationId: "org-1",
+      apiKeyId: "key-1",
+      userId: "user-1",
+      keyMetadata: {},
+      ingestionProjectId: null,
+      ingestionMode: null,
+      connections: [],
+    };
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: legacy as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toEqual({
+      ...legacy,
+      apiKeyName: null,
+      userName: null,
+    });
   });
 
   it("invalidates cached contexts for an organization", async () => {
