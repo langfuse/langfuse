@@ -1,4 +1,4 @@
-import type { GatewayIngestionMode } from "@langfuse/shared";
+import type { GatewayIngestionMode, Role } from "@langfuse/shared";
 
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
@@ -56,6 +56,8 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
+    /** Organization role of the creator; null when they are not a member (instance admins). */
+    creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;
     metadataCount: number;
@@ -63,6 +65,9 @@ export type AiGatewayEventMap = {
     expiryPreset: ApiKeyExpirationPreset;
   };
   "ai_gateway:api_key_revoked": OrganizationContext;
+  /** The one-time secret was copied; the key itself is never sent. */
+  "ai_gateway:api_key_secret_copied": OrganizationContext;
+  "ai_gateway:api_key_secret_revealed": OrganizationContext;
   "ai_gateway:model_access_changed": OrganizationContext & {
     provider: GatewayProvider;
     action: "enable" | "disable";

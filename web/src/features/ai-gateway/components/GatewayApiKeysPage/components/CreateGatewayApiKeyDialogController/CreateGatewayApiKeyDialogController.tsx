@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -67,6 +68,7 @@ export function CreateGatewayApiKeyDialogController({
   );
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const session = useSession();
   const create = api.aiGateway.createApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -104,6 +106,10 @@ export function CreateGatewayApiKeyDialogController({
       });
       capture("ai_gateway:api_key_created", {
         orgId: organizationId,
+        creatorRole:
+          session.data?.user?.organizations.find(
+            (organization) => organization.id === organizationId,
+          )?.role ?? null,
         isServiceAccount: effectiveIssuedAs === "serviceAccount",
         hasMetadata: metadataCount > 0,
         metadataCount,

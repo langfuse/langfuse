@@ -475,6 +475,8 @@ const events = {
     "team_invite_sent",
     "api_key_created",
     "api_key_revoked",
+    "api_key_secret_copied",
+    "api_key_secret_revealed",
     "model_access_changed",
     "model_name_copied",
     "agent_setup_instructions_viewed",
