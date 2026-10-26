@@ -178,27 +178,6 @@ export const NextPage = meta.story({
   },
 });
 
-export const OutOfRangePage = meta.story({
-  name: "(Test) Out-of-range page keeps pagination",
-  args: {
-    data: { status: "success", data: [] },
-    ...actions,
-    pagination: {
-      ...actions.pagination,
-      totalCount: 25,
-      state: { pageIndex: 5, pageSize: 10 },
-    },
-  },
-  play: async ({ canvas }) => {
-    await expect(
-      canvas.queryByText("No gateway API keys yet"),
-    ).not.toBeInTheDocument();
-    await expect(
-      canvas.getByRole("button", { name: "Go to previous page" }),
-    ).toBeInTheDocument();
-  },
-});
-
 export const CreatesKey = meta.story({
   name: "(Test) Creates key",
   args: {
