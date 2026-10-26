@@ -14,9 +14,9 @@ import {
  *
  * The self-hosted branch derives from the same entitlement table the read path
  * uses, rather than hardcoding "enterprise license => audit logs", so the two
- * cannot drift apart. Today that means only `langfuse_ee_*` keys
- * (`self-hosted:enterprise`) persist records: `self-hosted:pro` and `oss` do
- * not. `isEnterpriseLicenseAvailable` in `@langfuse/shared` answers a similar
+ * cannot drift apart. Today that means only `langfuse_ee_*` and `lf_gov_*`
+ * keys (`self-hosted:enterprise`, `self-hosted:gov`) persist records:
+ * `self-hosted:pro` and `oss` do not. `isEnterpriseLicenseAvailable` in `@langfuse/shared` answers a similar
  * question for code that also runs in the worker, but hardcodes the license
  * tier instead of consulting the entitlement table.
  *
