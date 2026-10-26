@@ -228,7 +228,8 @@ const getSessionsTableFromEventsGeneric = async <T>(
       includeMetadata: requiresMetadata,
       includeTools: requiresTools,
       fullTable,
-      metadataSessionPrefilter,
+      // The page subquery has already applied the prefilter.
+      metadataSessionPrefilter: pageSessions ? null : metadataSessionPrefilter,
     });
     if (pageSessions) {
       sessionsBuilder.whereRaw(
@@ -283,8 +284,13 @@ const getSessionsTableFromEventsGeneric = async <T>(
   // aggregates that filters and ordering read for every session in the
   // window. The outer query then computes the requested fields for the
   // page's sessions only, over the same events, so the values are unchanged.
+  // Score filters and ordering keep the single query: both steps would have
+  // to join the session scores aggregation, which reads the whole project.
   const { query, params } =
-    select !== "count" && limit !== undefined && page !== undefined
+    select !== "count" &&
+    !requiresScoresJoin &&
+    limit !== undefined &&
+    page !== undefined
       ? buildQuery(
           "session_data",
           select,
