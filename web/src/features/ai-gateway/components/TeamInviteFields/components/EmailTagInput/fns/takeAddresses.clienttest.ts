@@ -50,6 +50,13 @@ describe("takeAddresses on Enter or blur", () => {
     });
   });
 
+  it("repairs only the address next to a search word, not the search word", () => {
+    expect(ending("John john@ company.com")).toEqual({
+      addresses: ["john@company.com"],
+      rest: "John",
+    });
+  });
+
   it("keeps words without an @ next to a valid address", () => {
     expect(ending("foo test@company.com")).toEqual({
       addresses: ["test@company.com"],

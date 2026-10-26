@@ -9,13 +9,24 @@ function isValidEmail(text: string) {
 
 /**
  * Addresses in a chunk the user ended with a comma, Enter, or blur. When no word
- * is an address on its own, stray spaces are dropped (`ada@ x.com`).
+ * is an address on its own, the fragments touching the `@` are joined
+ * (`ada@ x.com`, `ada @x.com`); other words stay, so a search word in front is
+ * not glued into the address.
  */
 function parseEndedChunk(chunk: string) {
   const words = chunk.split(WHITESPACE).filter((word) => word.length > 0);
-  const joined = words.join("");
-  if (!words.some(isValidEmail) && isValidEmail(joined)) {
-    return { addresses: [joined], leftover: [] };
+  const atIndex = words.findIndex((word) => word.includes("@"));
+  if (atIndex !== -1 && !words.some(isValidEmail)) {
+    const atWord = words[atIndex]!;
+    const start = atWord.startsWith("@") ? Math.max(atIndex - 1, 0) : atIndex;
+    const end = atWord.endsWith("@") ? atIndex + 1 : atIndex;
+    const joined = words.slice(start, end + 1).join("");
+    if (isValidEmail(joined)) {
+      return {
+        addresses: [joined],
+        leftover: [...words.slice(0, start), ...words.slice(end + 1)],
+      };
+    }
   }
   return {
     addresses: words.filter((word) => word.includes("@")),
