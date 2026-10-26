@@ -4,6 +4,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { api } from "@/src/utils/api";
@@ -58,8 +59,7 @@ function GatewayModels({
   const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
-
-  return (
+  const renderTable = (onAddProvider?: () => void) => (
     <ConnectedGatewayModelsTable
       models={rows}
       organizationId={organizationId}
@@ -70,7 +70,19 @@ function GatewayModels({
       hasSynced={results !== null}
       isLoading={modelsQuery.isPending || modelsQuery.isFetching}
       syncError={modelsQuery.isError}
+      onAddProvider={onAddProvider}
     />
+  );
+
+  /** The credential dialog reads the manager-only credential list. */
+  if (!canManageGateway) return renderTable();
+  return (
+    <ProviderDialogController
+      organizationId={organizationId}
+      surface="models_page"
+    >
+      {({ openAddDialog }) => renderTable(openAddDialog)}
+    </ProviderDialogController>
   );
 }
 

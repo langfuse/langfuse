@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -23,6 +23,7 @@ export type GatewayProvidersTableProps = {
   retryDisabled?: { reason: string };
   editDisabled?: { reason: string };
   deleteDisabled?: { reason: string };
+  emptyState?: ReactNode;
 };
 
 const connectionStatus = {
@@ -41,6 +42,7 @@ export function GatewayProvidersTable({
   retryDisabled,
   editDisabled,
   deleteDisabled,
+  emptyState,
 }: GatewayProvidersTableProps) {
   const columns = useMemo<LangfuseColumnDef<GatewayConnection>[]>(
     () => [
@@ -120,6 +122,7 @@ export function GatewayProvidersTable({
       data={{ status: "success", data: connections }}
       onRowClick={onSelect}
       noResultsMessage="No provider credentials configured."
+      emptyState={emptyState}
     />
   );
 }

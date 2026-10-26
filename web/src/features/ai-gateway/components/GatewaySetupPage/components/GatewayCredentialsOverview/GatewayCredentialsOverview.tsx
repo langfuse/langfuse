@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { Plus } from "@langfuse/icons";
+import { Plug, Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
@@ -7,6 +7,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { IngestionDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/IngestionDialogController/IngestionDialogController";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
@@ -242,9 +243,24 @@ export function GatewayCredentialsOverview({
               organizationId={organizationId}
               surface="overview"
             >
-              {({ openEditDialog }) => (
+              {({ openAddDialog, openEditDialog }) => (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <GatewayProvidersTable
+                    emptyState={
+                      <GatewaySetupEmptyState
+                        icon={Plug}
+                        title="No providers set up yet"
+                        description="Add an OpenAI or Anthropic credential so the gateway can route requests and discover models."
+                        actions={[
+                          {
+                            type: "button",
+                            label: "Add provider",
+                            icon: Plus,
+                            onClick: openAddDialog,
+                          },
+                        ]}
+                      />
+                    }
                     connections={allConnections}
                     modelCounts={modelCounts}
                     onSelect={selectConnection}

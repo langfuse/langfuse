@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
+import { Boxes, Plug, Plus } from "@langfuse/icons";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -28,6 +30,7 @@ export function ConnectedGatewayModelsTable({
   hasSynced,
   isLoading,
   syncError,
+  onAddProvider,
 }: {
   models: GatewayModelRow[];
   organizationId: string;
@@ -38,6 +41,8 @@ export function ConnectedGatewayModelsTable({
   hasSynced: boolean;
   isLoading: boolean;
   syncError: boolean;
+  /** Omit for callers who cannot add provider credentials. */
+  onAddProvider?: () => void;
 }) {
   const capture = usePostHogClientCapture();
   const handleModelCopied = useCallback(
@@ -87,11 +92,13 @@ export function ConnectedGatewayModelsTable({
     onChange: setPaginationState,
   };
   const emptyMessage = getEmptyMessage({
-    hasProviders,
     hasSynced,
     hasActiveFilters:
       searchQuery.trim().length > 0 || provider !== ALL_PROVIDERS,
   });
+  const showEmptyState =
+    !hasProviders ||
+    (hasSynced && !isLoading && !syncError && models.length === 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -128,58 +135,130 @@ export function ConnectedGatewayModelsTable({
         </Alert>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-80 max-w-full">
-            <SearchInput
-              value={searchQuery}
-              onChange={(value) => {
-                setSearchQuery(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              onSubmit={(value) => {
-                setSearchQuery(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              placeholder="Search models"
-            />
+      {showEmptyState ? (
+        <ModelsEmptyState
+          organizationId={organizationId}
+          canManageGateway={canManageGateway}
+          hasProviders={hasProviders}
+          onAddProvider={onAddProvider}
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-80 max-w-full">
+              <SearchInput
+                value={searchQuery}
+                onChange={(value) => {
+                  setSearchQuery(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                onSubmit={(value) => {
+                  setSearchQuery(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                placeholder="Search models"
+              />
+            </div>
+            <div className="w-44">
+              <SelectInput
+                aria-label="Filter by provider"
+                value={provider}
+                options={providerOptions}
+                muted={provider === ALL_PROVIDERS}
+                onValueChange={(value) => {
+                  setProvider(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                placeholder="All providers"
+              />
+            </div>
           </div>
-          <div className="w-44">
-            <SelectInput
-              aria-label="Filter by provider"
-              value={provider}
-              options={providerOptions}
-              muted={provider === ALL_PROVIDERS}
-              onValueChange={(value) => {
-                setProvider(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              placeholder="All providers"
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border-x border-b">
+            <GatewayModelsTable
+              organizationId={organizationId}
+              canManageGateway={canManageGateway}
+              onAfterModelCopy={handleModelCopied}
+              data={
+                isLoading
+                  ? { status: "loading" }
+                  : {
+                      status: "success",
+                      data: filteredModels.slice(
+                        currentPageIndex * paginationState.pageSize,
+                        (currentPageIndex + 1) * paginationState.pageSize,
+                      ),
+                    }
+              }
+              noResultsMessage={emptyMessage}
+              pagination={pagination}
             />
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border-x border-b">
-          <GatewayModelsTable
-            organizationId={organizationId}
-            canManageGateway={canManageGateway}
-            onAfterModelCopy={handleModelCopied}
-            data={
-              isLoading
-                ? { status: "loading" }
-                : {
-                    status: "success",
-                    data: filteredModels.slice(
-                      currentPageIndex * paginationState.pageSize,
-                      (currentPageIndex + 1) * paginationState.pageSize,
-                    ),
-                  }
-            }
-            noResultsMessage={emptyMessage}
-            pagination={pagination}
-          />
-        </div>
-      </div>
+      )}
     </div>
+  );
+}
+
+function ModelsEmptyState({
+  organizationId,
+  canManageGateway,
+  hasProviders,
+  onAddProvider,
+}: {
+  organizationId: string;
+  canManageGateway: boolean;
+  hasProviders: boolean;
+  onAddProvider?: () => void;
+}) {
+  const actions = canManageGateway
+    ? [
+        ...(onAddProvider
+          ? [
+              {
+                type: "button" as const,
+                label: "Add provider",
+                icon: Plus,
+                onClick: onAddProvider,
+              },
+            ]
+          : []),
+        ...(hasProviders
+          ? [
+              {
+                type: "link" as const,
+                label: "Manage providers",
+                href: `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  if (!hasProviders) {
+    return (
+      <GatewaySetupEmptyState
+        icon={Plug}
+        title="No providers set up yet"
+        description={
+          canManageGateway
+            ? "Add an OpenAI or Anthropic credential to make its models available through the AI Gateway."
+            : "Models appear here once your organization admin adds a provider credential."
+        }
+        actions={actions}
+      />
+    );
+  }
+  return (
+    <GatewaySetupEmptyState
+      icon={Boxes}
+      title="No models available"
+      description={
+        canManageGateway
+          ? "Your provider credentials returned no enabled models. Enable models on a credential, or add another provider."
+          : "None of your organization's provider credentials has enabled models. Ask your organization admin to enable some."
+      }
+      actions={actions}
+    />
   );
 }
 
@@ -190,18 +269,14 @@ function uniqueSorted<T extends string>(values: T[]) {
 }
 
 function getEmptyMessage({
-  hasProviders,
   hasSynced,
   hasActiveFilters,
 }: {
-  hasProviders: boolean;
   hasSynced: boolean;
   hasActiveFilters: boolean;
 }) {
   if (hasActiveFilters)
     return "No models match the current search and filters.";
-  if (!hasProviders)
-    return "Add a provider credential before discovering models.";
   if (hasSynced) return "No models were returned by the configured providers.";
   return "Models will appear here after provider discovery completes.";
 }
