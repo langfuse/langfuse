@@ -21,6 +21,8 @@ export class GatewayResolveRepository {
         orgId: true,
         userId: true,
         expiresAt: true,
+        note: true,
+        user: { select: { name: true } },
         gatewayAssociation: { select: { metadata: true } },
         organization: {
           select: {

@@ -48,8 +48,11 @@ export const GatewayResolveResponseSchema = z
         // Null only in "none" mode, which needs no ingestion project.
         project_id: z.string().nullable(),
         key_id: z.string(),
-        // Null for keys created before keys were bound to users.
+        // The bound user is the key's owner. Null for keys created before
+        // keys were bound to users.
         user_id: z.string().nullable(),
+        key_name: z.string().nullable(),
+        user_name: z.string().nullable(),
         key_metadata: GatewayMetadataSchema,
         provider_connection_id: z.string(),
       })

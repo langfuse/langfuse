@@ -65,11 +65,15 @@ const row = (overrides: {
   withoutProject?: boolean;
   metadata?: unknown;
   userId?: string | null;
+  note?: string | null;
+  user?: { name: string | null } | null;
 }) => ({
   id: "key-1",
   orgId: "org-1",
   userId: overrides.userId === undefined ? "user-1" : overrides.userId,
   expiresAt: null,
+  note: overrides.note === undefined ? "CI key" : overrides.note,
+  user: overrides.user === undefined ? { name: "Alice" } : overrides.user,
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   organization: {
@@ -127,6 +131,8 @@ describe("GatewayResolveService", () => {
         project_id: "project-1",
         key_id: "key-1",
         user_id: "user-1",
+        key_name: "CI key",
+        user_name: "Alice",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
         provider_connection_id: "connection-1",
       },
@@ -138,6 +144,32 @@ describe("GatewayResolveService", () => {
       },
     });
   });
+
+  it.each([
+    { note: "", userId: null, user: null },
+    { note: null, userId: "user-1", user: { name: null } },
+    { note: null, userId: "user-1", user: { name: "" } },
+  ])(
+    "sends absent key snapshots as null (%o)",
+    async ({ note, userId, user }) => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ note, userId, user })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        attribution: {
+          key_name: null,
+          user_id: userId,
+          user_name: null,
+        },
+      });
+    },
+  );
 
   it("drops key metadata that is not a flat object of scalars", async () => {
     const service = serviceWith(() =>

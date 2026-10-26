@@ -491,7 +491,12 @@ describe("AI gateway control plane", () => {
       emails: [inviteeEmail],
       notifyMembers: true,
     });
-    expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
+    expect(result).toEqual({
+      invitedCount: 1,
+      existingMemberCount: 0,
+      failed: [],
+      notifiedCount: 1,
+    });
 
     expect(queuedNotifications()).toEqual(
       expect.arrayContaining([
@@ -540,6 +545,7 @@ describe("AI gateway control plane", () => {
 
       expect(result).toEqual({
         invitedCount: 0,
+        existingMemberCount: 1,
         failed: [],
         notifiedCount: 1,
       });
@@ -607,6 +613,7 @@ describe("AI gateway control plane", () => {
 
     expect(result).toEqual({
       invitedCount: 0,
+      existingMemberCount: 1,
       failed: [
         {
           email: viewerEmail,

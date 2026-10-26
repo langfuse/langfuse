@@ -121,12 +121,14 @@ export class GatewayTeamService {
     const invited = new Set<string>();
     const notified = new Set<string>();
     const failed: Array<{ email: string; message: string }> = [];
+    let existingMemberCount = 0;
     for (const email of emails) {
       const member = existingMembers.get(email);
       // Typing a member's address means "tell them", so they get the member
       // announcement rather than an "already a member" invitation error.
       if (member) {
         if (member.id === ctx.session.user.id) continue;
+        existingMemberCount += 1;
         if (!member.hasScope) {
           failed.push({
             email,
@@ -218,6 +220,8 @@ export class GatewayTeamService {
 
     return {
       invitedCount: invited.size,
+      /** Typed addresses of members other than the sender, notified or not. */
+      existingMemberCount,
       failed,
       notifiedCount: notified.size,
     };
