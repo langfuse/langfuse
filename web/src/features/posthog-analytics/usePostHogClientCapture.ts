@@ -470,7 +470,6 @@ const events = {
     "banner_dismissed",
     "dialog_setup_clicked",
     "dialog_learn_more_clicked",
-    "ready_tile_clicked",
   ],
   sidebar: [
     "book_a_call_clicked",
