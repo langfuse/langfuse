@@ -153,8 +153,9 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
-  /* Six category hues at one OKLCH lightness and chroma per role: highlight
-     (fills, borders, treemap tiles) and foreground (text). */
+  /* Six category hues at one OKLCH lightness per role: highlight (fills,
+     borders, treemap tiles) and foreground (text). Chroma is 0.11, or the
+     sRGB maximum where a hue cannot reach it. */
   --color-category-violet-highlight: var(--category-violet-highlight);
   --color-category-blue-highlight: var(--category-blue-highlight);
   --color-category-teal-highlight: var(--category-teal-highlight);
@@ -356,8 +357,8 @@
 
 @layer base {
   :root {
-    --category-violet-highlight: oklch(0.82 0.11 293);
-    --category-blue-highlight: oklch(0.82 0.11 252);
+    --category-violet-highlight: oklch(0.82 0.099 293);
+    --category-blue-highlight: oklch(0.82 0.092 252);
     --category-teal-highlight: oklch(0.82 0.11 190);
     --category-green-highlight: oklch(0.82 0.11 135);
     --category-amber-highlight: oklch(0.82 0.11 70);
@@ -603,12 +604,12 @@
   .dark {
     --category-violet-highlight: oklch(0.45 0.11 293);
     --category-blue-highlight: oklch(0.45 0.11 252);
-    --category-teal-highlight: oklch(0.45 0.11 190);
+    --category-teal-highlight: oklch(0.45 0.077 190);
     --category-green-highlight: oklch(0.45 0.11 135);
-    --category-amber-highlight: oklch(0.45 0.11 70);
+    --category-amber-highlight: oklch(0.45 0.097 70);
     --category-pink-highlight: oklch(0.45 0.11 350);
     --category-violet-foreground: oklch(0.8 0.11 293);
-    --category-blue-foreground: oklch(0.8 0.11 252);
+    --category-blue-foreground: oklch(0.8 0.103 252);
     --category-teal-foreground: oklch(0.8 0.11 190);
     --category-green-foreground: oklch(0.8 0.11 135);
     --category-amber-foreground: oklch(0.8 0.11 70);
