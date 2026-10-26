@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
+import { ArrowUpRight, ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -24,8 +24,6 @@ const colorFamily = {
   warning: "Status",
   success: "Status",
   info: "Status",
-  violet: "Status",
-  teal: "Status",
   violetTint: "Category tint",
   skyTint: "Category tint",
   emeraldTint: "Category tint",
@@ -131,6 +129,112 @@ export const VariantMatrix = meta.story({
       ))}
     </div>
   ),
+});
+
+/** Each family where the app uses it; the reference for picking a colour. */
+export const InContext = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => {
+    const rows: { title: string; badges: React.ReactNode }[] = [
+      {
+        title: "Header metrics: ghost, mono",
+        badges: (
+          <>
+            <Badge color="ghost" font="mono" label="latency" text="0.71s" />
+            <Badge color="ghost" font="mono" text="$0.0042" />
+            <Badge
+              color="ghost"
+              font="mono"
+              leadingIcon={TriangleAlert}
+              leadingIconTone="warning"
+              text="no cost"
+            />
+            <Badge
+              color="ghost"
+              font="mono"
+              text="session"
+              trailingIcon={ArrowUpRight}
+              trailingIconTone="link"
+            />
+          </>
+        ),
+      },
+      {
+        title: "Attributes: outline, mono",
+        badges: (
+          <>
+            <Badge font="mono" label="env" text="production" />
+            <Badge font="mono" label="release" text="v2.3.0" />
+            <Badge font="mono" label="version" text="4" />
+          </>
+        ),
+      },
+      {
+        title: "Scores and tags: filled, mono, md; level as category tint",
+        badges: (
+          <>
+            <Badge color="skyTint" font="mono" size="md" text="observation" />
+            <Badge
+              color="filled"
+              font="mono"
+              size="md"
+              label="accuracy"
+              text="0.95"
+            />
+            <Badge color="violetTint" font="mono" size="md" text="trace" />
+            <Badge
+              color="filled"
+              font="mono"
+              size="md"
+              label="helpfulness"
+              text="0.81"
+            />
+            <Badge color="filled" font="mono" size="md" text="prod-rollout" />
+          </>
+        ),
+      },
+      {
+        title: "Status: error, warning, success, info",
+        badges: (
+          <>
+            <Badge color="error" text="Failing" />
+            <Badge color="warning" text="Degraded" />
+            <Badge color="success" text="Healthy" />
+            <Badge color="info" size="sm" text="Beta" />
+          </>
+        ),
+      },
+      {
+        title: "Categories: tint, neutral text",
+        badges: (
+          <>
+            <Badge color="violetTint" text="Billing questions" />
+            <Badge color="skyTint" text="Onboarding" />
+            <Badge color="emeraldTint" text="Refunds" />
+            <Badge color="amberTint" text="Bug reports" />
+          </>
+        ),
+      },
+      {
+        title: "One strong marker: inverted",
+        badges: <Badge color="inverted" font="mono" size="lg" text="# 16" />,
+      },
+    ];
+    return (
+      <div className="flex flex-col gap-4">
+        {rows.map(({ title, badges }) => (
+          <div key={title} className="flex flex-col gap-2">
+            <span className="text-muted-foreground text-xs">{title}</span>
+            <div className="flex flex-wrap items-center gap-2">{badges}</div>
+          </div>
+        ))}
+      </div>
+    );
+  },
 });
 
 export const LongWrappedLabel = meta.story({
