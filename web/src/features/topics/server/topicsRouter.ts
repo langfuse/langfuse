@@ -15,6 +15,7 @@ import {
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
+  TOPICS_MAX_TIME_RANGE_MS,
   topicsModelSettingsSchema,
   topicsSetupSchema,
   type TopicTimeRange,
@@ -66,7 +67,7 @@ import {
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults } from "./currentResults";
+import { currentTopicResults, traceFacetResults } from "./currentResults";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
@@ -75,7 +76,7 @@ const SETUP_TRACE_SPAN_MARGIN_MS = 5 * 60_000;
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const resultInput = projectInput.extend({
   timeRange: topicTimeRangeSchema.refine(
-    ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
     "Select a time range of at most 93 days.",
   ),
 });
@@ -320,6 +321,14 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       currentTopicResults(input.projectId, input.timeRange),
     ),
+  /** Trace header: every facet result of one trace, with its summary. */
+  forTrace: topicsProcedure
+    .input(
+      projectInput.extend({ traceId: z.string().min(1), timestamp: z.date() }),
+    )
+    .query(({ input }) =>
+      traceFacetResults(input.projectId, input.traceId, input.timestamp),
+    ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),
@@ -464,19 +473,6 @@ export const topicsRouter = createTRPCRouter({
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
-    }),
-  /** Topics each grouping run published, for the setup progress view. */
-  setupTopicCounts: topicsProcedure
-    .input(projectInput.extend({ runIds: z.array(topicIdSchema).max(20) }))
-    .query(async ({ input, ctx }) => {
-      const runs = await ctx.prisma.topicClusteringRun.findMany({
-        where: { projectId: input.projectId, id: { in: input.runIds } },
-        select: { id: true, topicVersionIds: true },
-      });
-      return runs.map((run) => ({
-        runId: run.id,
-        topicCount: run.topicVersionIds.length,
-      }));
     }),
   setupTraceCounts: topicsProcedure.query(async ({ input }) =>
     getTopicSetupTraceCounts({

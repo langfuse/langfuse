@@ -85,6 +85,9 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         ...(params.variableMapping != null
           ? { variableMapping: params.variableMapping }
           : {}),
+        ...(params.batchActionId
+          ? { batchActionId: params.batchActionId }
+          : {}),
       };
 
       if (params.evalTemplateType === EvalTemplateType.CODE) {

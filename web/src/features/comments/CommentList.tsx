@@ -10,7 +10,7 @@ import { useSession } from "next-auth/react";
 import { CommentComposer } from "./components/CommentComposer";
 import { CommentConversation } from "./components/CommentConversation";
 import { refreshCommentQueries } from "./actions/refreshCommentQueries";
-import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "./contexts/InlineCommentSelectionProvider";
 
 type CommentListProps = {
   projectId: string;

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { ArrowRight } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
+import { TopicPilesIllustration } from "./TopicPilesIllustration";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -55,18 +55,24 @@ export function TopicSetupNotice({
         </Alert>
       ) : null}
       {showOnboarding ? (
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 overflow-y-auto px-4 pt-12">
-          <SortingIllustration />
-          <h2 className="text-center text-2xl font-bold">
-            Thousands of traces, identify recurring topics & issues
-          </h2>
+        <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
+          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
+              See what your traces are about
+            </h2>
+            <p className="text-muted-foreground max-w-100 text-base text-pretty">
+              Every trace is labeled by intent, sentiment, outcome and issues,
+              so recurring patterns surface on their own.
+            </p>
+          </div>
           {startBlockedReason ? (
             <p role="status" className="text-muted-foreground text-sm">
               {startBlockedReason}
             </p>
           ) : (
             <Button
-              text="Start analyzing"
+              text="Set up topics"
               disabled={!canWrite || !canConfigure}
               onClick={onStart}
             />
@@ -77,84 +83,27 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: a messy pile of traces sorted into three example topics.
-const MESSY_CARDS = [
-  [10, 24, -12],
-  [78, 0, 7],
-  [150, 34, -4],
-  [24, 96, 9],
-  [112, 84, -15],
-  [166, 118, 11],
-  [0, 160, -6],
-  [86, 156, 4],
-  [150, 176, -9],
-  [62, 48, 17],
+// Decorative: trace summaries dropping into three example topics.
+const LANDING_PILES = [
+  { name: "Refunds", detail: "214", slots: 9, filled: 9, color: "violet" },
+  { name: "Order status", detail: "154", slots: 6, filled: 6, color: "blue" },
+  { name: "Address", detail: "96", slots: 4, filled: 4, color: "amber" },
 ] as const;
-const SLAB_JITTER = [0, 3, -2, 4, -3, 1, -4, 2, -1, 3, 0];
-const PILES = [
-  {
-    name: "Refund requests",
-    count: 214,
-    slabs: 11,
-    className: "bg-dark-violet/25 border-dark-violet/40",
-  },
-  {
-    name: "Order status",
-    count: 156,
-    slabs: 8,
-    className: "bg-dark-blue/20 border-dark-blue/35",
-  },
-  {
-    name: "Cancel subscription",
-    count: 61,
-    slabs: 4,
-    className: "bg-dark-teal/20 border-dark-teal/35",
-  },
-];
 
-function SortingIllustration() {
-  return (
-    <div
-      aria-hidden="true"
-      className="bg-light-violet flex w-full items-center justify-center gap-8 overflow-hidden rounded-2xl px-6 py-10"
-    >
-      <div className="relative hidden h-60 w-72 shrink-0 sm:block">
-        {MESSY_CARDS.map(([left, top, rotate]) => (
-          <div
-            key={`${left}-${top}`}
-            className="bg-card absolute flex h-16 w-28 flex-col gap-2 rounded-lg border p-2.5 shadow-sm"
-            style={{ left, top, transform: `rotate(${rotate}deg)` }}
-          >
-            <span className="bg-muted size-2 rounded-full" />
-            <span className="bg-muted h-1.5 w-4/5 rounded" />
-            <span className="bg-muted h-1.5 w-3/5 rounded" />
-          </div>
-        ))}
-      </div>
-      <ArrowRight
-        size="lg"
-        color="muted"
-        __rawClassName="hidden shrink-0 sm:block"
-      />
-      <div className="flex items-end gap-5">
-        {PILES.map((pile) => (
-          <div key={pile.name} className="flex flex-col items-center gap-1">
-            <div className="flex flex-col gap-1">
-              {SLAB_JITTER.slice(0, pile.slabs).map((offset, index) => (
-                <span
-                  key={index}
-                  className={`h-3.5 w-28 rounded border ${pile.className}`}
-                  style={{ transform: `translateX(${offset}px)` }}
-                />
-              ))}
-            </div>
-            <span className="mt-2 text-sm font-bold whitespace-nowrap">
-              {pile.name}
-            </span>
-            <span className="text-muted-foreground text-sm">{pile.count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const LANDING_SLIPS = [
+  {
+    text: "Refund for a double charge",
+    color: "violet",
+    position: "top-7 left-15 -rotate-8",
+  },
+  {
+    text: "Package says delivered, not here",
+    color: "blue",
+    position: "top-1.5 left-47.5 rotate-5",
+  },
+  {
+    text: "Ship to my office instead",
+    color: "amber",
+    position: "top-13 left-67.5 -rotate-4",
+  },
+] as const;

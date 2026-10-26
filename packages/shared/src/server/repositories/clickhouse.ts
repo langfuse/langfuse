@@ -1069,7 +1069,7 @@ function recordClickHouseProgressError(
           context.normalizedTags,
         );
   const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError ? "cancelled" : "error";
+    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
   recordClickHouseQueryOutcome(
     wrapped instanceof ClickHouseResourceError
       ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]

@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
-
+import { useCallback, useMemo, useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/design-system/Button/Button";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   filterGatewayModels,
   type GatewayModelRow,
@@ -37,6 +39,15 @@ export function ConnectedGatewayModelsTable({
   isLoading: boolean;
   syncError: boolean;
 }) {
+  const capture = usePostHogClientCapture();
+  const handleModelCopied = useCallback(
+    (model: GatewayModelRow) =>
+      capture("ai_gateway:model_name_copied", {
+        orgId: organizationId,
+        provider: model.provider,
+      }),
+    [capture, organizationId],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [provider, setProvider] = useState<GatewayProvider | "all">(
     ALL_PROVIDERS,
@@ -84,7 +95,16 @@ export function ConnectedGatewayModelsTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <Header title="Gateway models" />
+      <Header
+        title="Gateway models"
+        actionButtons={
+          <Button
+            variant="secondary"
+            text="Docs"
+            href={GATEWAY_MODELS_DOCS_URL}
+          />
+        }
+      />
       <p className="text-muted-foreground text-sm">
         These models are enabled and available to use through the AI Gateway.
       </p>
@@ -142,6 +162,7 @@ export function ConnectedGatewayModelsTable({
           <GatewayModelsTable
             organizationId={organizationId}
             canManageGateway={canManageGateway}
+            onAfterModelCopy={handleModelCopied}
             data={
               isLoading
                 ? { status: "loading" }

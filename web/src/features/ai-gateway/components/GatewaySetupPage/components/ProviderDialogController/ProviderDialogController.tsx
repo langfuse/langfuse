@@ -27,16 +27,22 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
+import type { GatewaySettingsSurface } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
 export function ProviderDialogController({
   organizationId,
   connection,
+  surface,
+  onAfterCreate,
   children,
 }: {
   organizationId: string;
   connection?: GatewayConnection;
+  surface: GatewaySettingsSurface;
+  onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
     openEditDialog: (connection: GatewayConnection) => void;
@@ -51,6 +57,7 @@ export function ProviderDialogController({
   );
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
   const name =
     nameDraft ?? suggestGatewayConnectionName(provider, existingNames);
@@ -145,6 +152,12 @@ export function ProviderDialogController({
           name,
           ...(credential ? { credential } : {}),
         });
+        capture("ai_gateway:provider_credential_updated", {
+          orgId: organizationId,
+          provider: selectedConnection.provider,
+          isRenamed: name.trim() !== selectedConnection.name,
+          isCredentialReplaced: Boolean(credential),
+        });
       } else {
         await create.mutateAsync({
           orgId: organizationId,
@@ -152,6 +165,13 @@ export function ProviderDialogController({
           name,
           credential,
         });
+        capture("ai_gateway:provider_credential_added", {
+          orgId: organizationId,
+          surface,
+          provider,
+          isFirstCredential: existingNames.length === 0,
+        });
+        onAfterCreate?.({ provider });
       }
 
       /** Pins the autofilled name so the refetched list cannot bump it to the next suffix. */

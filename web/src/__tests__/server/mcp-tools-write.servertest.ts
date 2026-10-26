@@ -1,8 +1,15 @@
+const queueMocks = vi.hoisted(() => ({
+  batchActionQueueAdd: vi.fn(),
+}));
+
 // Mock queue operations to avoid Redis dependency in tests
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    BatchActionQueue: {
+      getInstance: () => ({ add: queueMocks.batchActionQueueAdd }),
+    },
     // Mock queue getInstance to return a no-op queue
     EventPropagationQueue: {
       getInstance: () => ({
@@ -45,6 +52,13 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { SkillVersionSchema } from "@langfuse/shared";
+import { handleUpdateSkillLabels } from "@/src/features/mcp/server/skills/tools/updateSkillLabels";
+import { handleUpdateSkillTags } from "@/src/features/mcp/server/skills/tools/updateSkillTags";
+import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
+import { handleCreateSkillVersion } from "@/src/features/mcp/server/skills/tools/createSkillVersion";
+import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
+import { handleLoadSkillResource } from "@/src/features/mcp/server/skills/tools/loadSkillResource";
 import {
   createInAppAgentMcpContext,
   createMcpTestSetup,
@@ -102,6 +116,11 @@ import {
 import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
+import {
+  handleRunBatchEvaluation,
+  runBatchEvaluationTool,
+} from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
+import { env } from "@/src/env.mjs";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   attachEvaluatorToEvaluationRuleTool,
@@ -188,6 +207,263 @@ const createLlmEvaluationRuleForMcpWriteTest = async (
 };
 
 describe("MCP Write Tools", () => {
+  describe("skill metadata", () => {
+    const createVersion = async (
+      setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+      name: string,
+    ) =>
+      SkillVersionSchema.parse(
+        await handleCreateSkillVersion(
+          {
+            files: [
+              {
+                path: "SKILL.md",
+                content: `---\nname: ${name}\ndescription: Metadata test\n---\nInstructions.`,
+              },
+            ],
+          },
+          setup.context,
+        ),
+      );
+
+    it("replaces tags across versions with audit logging and project isolation", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `tags-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 1, labels: ["production"] },
+        setup.context,
+      );
+      const second = await createVersion(setup, name);
+
+      await expect(
+        handleUpdateSkillTags(
+          { name, tags: [" support ", "support"] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: second.id,
+        version: 2,
+        tags: ["support"],
+        labels: ["latest"],
+      });
+      await expect(
+        handleGetSkill({ name, version: 1 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"], labels: ["production"] });
+      expect(
+        await prisma.auditLog.findFirst({
+          where: {
+            projectId: setup.projectId,
+            apiKeyId: setup.apiKeyId,
+            resourceType: "skill",
+            resourceId: name,
+            action: "setTag",
+            after: JSON.stringify(["support"]),
+          },
+        }),
+      ).not.toBeNull();
+
+      const otherProject = await createMcpTestSetup();
+      await expect(
+        handleUpdateSkillTags({ name, tags: ["other"] }, otherProject.context),
+      ).rejects.toThrow("Skill not found");
+      await expect(
+        handleUpdateSkillTags({ name, tags: [" "] }, setup.context),
+      ).rejects.toThrow();
+      await expect(
+        handleGetSkill({ name, version: 2 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"] });
+
+      await handleUpdateSkillTags({ name, tags: [] }, setup.context);
+      for (const version of [1, 2]) {
+        await expect(
+          handleGetSkill({ name, version }, setup.context),
+        ).resolves.toMatchObject({ tags: [] });
+      }
+      expect(
+        await prisma.skill.count({
+          where: { projectId: setup.projectId, name },
+        }),
+      ).toBe(2);
+    });
+
+    it("moves production, replaces user labels, preserves latest, and audits changes", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `labels-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      const first = await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 1, labels: ["production"] },
+        setup.context,
+      );
+      const second = await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 2, labels: ["staging"] },
+        setup.context,
+      );
+
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["production"] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: second.id,
+        labels: ["production", "latest"],
+      });
+      await expect(
+        handleGetSkill({ name, label: "production" }, setup.context),
+      ).resolves.toMatchObject({ version: 2 });
+      await expect(
+        handleGetSkill({ name, version: 1 }, setup.context),
+      ).resolves.toMatchObject({ labels: [] });
+      for (const [id, before, after] of [
+        [first.id, ["production"], []],
+        [second.id, ["staging", "latest"], ["production", "latest"]],
+      ] as const) {
+        expect(
+          await prisma.auditLog.findFirst({
+            where: {
+              projectId: setup.projectId,
+              apiKeyId: setup.apiKeyId,
+              resourceId: id,
+              resourceType: "skill",
+              action: "setLabel",
+              before: JSON.stringify(before),
+              after: JSON.stringify(after),
+            },
+          }),
+        ).not.toBeNull();
+      }
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: [] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ labels: ["latest"] });
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["latest"] },
+          setup.context,
+        ),
+      ).rejects.toThrow("managed by Langfuse");
+
+      const otherProject = await createMcpTestSetup();
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["production"] },
+          otherProject.context,
+        ),
+      ).rejects.toThrow("Skill version not found");
+    });
+
+    it.each([Role.MEMBER, Role.ADMIN])(
+      "respects protected production labels for Halo role %s",
+      async (role) => {
+        const setup = await createMcpTestSetup();
+        const name = `protected-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+        await createVersion(setup, name);
+        await protectPromptLabel({
+          projectId: setup.projectId,
+          label: "production",
+        });
+        const { userId } = await createUserWithOrgRole({
+          orgId: setup.orgId,
+          role,
+        });
+        const { context } = await createInAppAgentMcpContext({
+          projectId: setup.projectId,
+          orgId: setup.orgId,
+          createdByUserId: userId,
+        });
+        const update = handleUpdateSkillLabels(
+          { name, version: 1, labels: ["production"] },
+          context,
+        );
+        if (role === Role.MEMBER) {
+          await expect(update).rejects.toThrow(
+            "permission to mutate protected skill labels",
+          );
+          await expect(
+            handleGetSkill({ name, version: 1 }, setup.context),
+          ).resolves.toMatchObject({ labels: ["latest"] });
+        } else {
+          await expect(update).resolves.toMatchObject({
+            labels: ["production", "latest"],
+          });
+        }
+      },
+    );
+  });
+
+  describe("skill creation", () => {
+    it("persists audited skill versions and preserves earlier file contents", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `mcp-skill-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      const markdown = `---\nname: ${name}\ndescription: A test skill\n---\nUse the reference.`;
+      const input = {
+        files: [
+          { path: "SKILL.md", content: markdown },
+          { path: "references/example.md", content: "First reference" },
+        ],
+        commitMessage: "Initial version",
+      };
+
+      const first = SkillVersionSchema.parse(
+        await handleCreateSkillVersion(input, setup.context),
+      );
+      expect(first).toMatchObject({
+        name,
+        description: "A test skill",
+        projectId: setup.projectId,
+        version: 1,
+        labels: ["latest"],
+        commitMessage: input.commitMessage,
+      });
+      await verifyAuditLog({
+        projectId: setup.projectId,
+        apiKeyId: setup.apiKeyId,
+        resourceType: "skill",
+        resourceId: first.id,
+        action: "create",
+      });
+
+      const second = SkillVersionSchema.parse(
+        await handleCreateSkillVersion(
+          { files: [{ path: "SKILL.md", content: `${markdown}\nUpdated.` }] },
+          setup.context,
+        ),
+      );
+      expect(second).toMatchObject({ name, version: 2, labels: ["latest"] });
+      await expect(
+        handleLoadSkill({ name, version: 1 }, setup.context),
+      ).resolves.toBe(markdown);
+      await expect(
+        handleLoadSkill({ name, version: 2 }, setup.context),
+      ).resolves.toBe(`${markdown}\nUpdated.`);
+      await expect(
+        handleLoadSkillResource(
+          { name, version: 1, path: "references/example.md" },
+          setup.context,
+        ),
+      ).resolves.toBe("First reference");
+    });
+
+    it("rejects invalid skill files before persisting a version", async () => {
+      const setup = await createMcpTestSetup();
+      await expect(
+        handleCreateSkillVersion(
+          { files: [{ path: "reference.md", content: "Missing root file" }] },
+          setup.context,
+        ),
+      ).rejects.toThrow(
+        "Every skill version must contain a root SKILL.md file",
+      );
+      expect(
+        await prisma.skill.count({ where: { projectId: setup.projectId } }),
+      ).toBe(0);
+    });
+  });
+
   describe("dataset tool schemas", () => {
     it("uses dataset IDs for existing dataset write addressing", () => {
       for (const schema of [
@@ -816,6 +1092,153 @@ describe("MCP Write Tools", () => {
       await expect(
         handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("runBatchEvaluation tool", () => {
+    const mutableEnv = env as unknown as {
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+    };
+    const originalPreviewOptIn =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    beforeEach(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      queueMocks.batchActionQueueAdd.mockReset();
+    });
+
+    afterAll(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("queues an evaluator v2 batch action attributed to the API key", async () => {
+      verifyToolAnnotations(runBatchEvaluationTool, { expensiveHint: true });
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      const { id } = (await handleRunBatchEvaluation(
+        {
+          evaluatorIds: [evaluator.id],
+          filter: [{ column: "tags", operator: "all of", value: ["prod"] }],
+          sampling: 0.5,
+          rowLimit: 100,
+        } as never,
+        setup.context,
+      )) as { id: string };
+
+      const query = {
+        filter: [
+          {
+            column: "traceTags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["prod"],
+          },
+        ],
+        orderBy: null,
+      };
+      await expect(
+        prisma.batchAction.findUniqueOrThrow({ where: { id, projectId } }),
+      ).resolves.toMatchObject({
+        userId: apiKeyId,
+        actionType: "observation-run-batched-evaluation",
+        status: "QUEUED",
+        query,
+        config: {
+          evaluatorIds: [evaluator.id],
+          evalVersion: "v2",
+          sampling: 0.5,
+          rowLimit: 100,
+        },
+      });
+      expect(queueMocks.batchActionQueueAdd).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            batchActionId: id,
+            projectId,
+            query,
+            evaluatorIds: [evaluator.id],
+            evalVersion: "v2",
+          }),
+        }),
+        { jobId: id },
+      );
+      await expect(
+        prisma.auditLog.findFirst({
+          where: {
+            projectId,
+            apiKeyId,
+            resourceType: "batchAction",
+            resourceId: id,
+          },
+        }),
+      ).resolves.toMatchObject({
+        action: "observation-run-batched-evaluation",
+      });
+    });
+
+    it("bounds the selection by the time range and the plan's data-access window", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+      const fromStartTime = "2020-01-01T00:00:00.000Z";
+      const toStartTime = "2020-01-15T00:00:00.000Z";
+
+      const { id } = (await handleRunBatchEvaluation(
+        { evaluatorIds: [evaluator.id], fromStartTime, toStartTime } as never,
+        { ...setup.context, plan: "cloud:hobby" },
+      )) as { id: string };
+
+      const { query } = await prisma.batchAction.findUniqueOrThrow({
+        where: { id, projectId: setup.projectId },
+      });
+      const filter = (query as { filter: Array<Record<string, unknown>> })
+        .filter;
+      expect(filter.slice(0, 2)).toEqual([
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: ">=",
+          value: fromStartTime,
+        },
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: "<",
+          value: toStartTime,
+        },
+      ]);
+      const accessFloor = filter[2];
+      expect(accessFloor).toMatchObject({
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+      });
+      const floorAgeDays =
+        (Date.now() - new Date(accessFloor.value as string).getTime()) /
+        (24 * 60 * 60 * 1000);
+      expect(floorAgeDays).toBeCloseTo(30, 1);
+    });
+
+    it("rejects full-text filters, which batch queries cannot carry", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleRunBatchEvaluation(
+          {
+            evaluatorIds: [evaluator.id],
+            filter: [{ column: "input", operator: "matches", value: "refund" }],
+          } as never,
+          setup.context,
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.InvalidParams,
+        message: expect.stringContaining("filter.0.operator"),
+      });
+      expect(queueMocks.batchActionQueueAdd).not.toHaveBeenCalled();
     });
   });
 

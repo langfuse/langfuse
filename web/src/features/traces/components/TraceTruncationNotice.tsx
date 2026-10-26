@@ -13,7 +13,7 @@
 
 import { useState } from "react";
 import { TriangleAlert, X } from "@langfuse/icons";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 
 export function TraceTruncationNotice() {
   const {
