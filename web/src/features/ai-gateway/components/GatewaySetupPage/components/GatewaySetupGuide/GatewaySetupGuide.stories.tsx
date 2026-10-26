@@ -94,6 +94,7 @@ export const TestRetryDoesNotNotifyAgain = meta.story({
     ...InvitingTeam.input.args,
     onInvite: fn(async () => ({
       invitedCount: 0,
+      existingMemberCount: 1,
       failed: [{ email: "grace@company.com", message: "Already a member" }],
       notifiedCount: 12,
     })),
