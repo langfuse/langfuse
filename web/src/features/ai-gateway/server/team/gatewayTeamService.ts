@@ -45,6 +45,11 @@ function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
 }
 
+/** Addresses are stored lowercase, so lookups and dedupe compare lowercase. */
+function normalizeEmails(emails: string[]) {
+  return [...new Set(emails.map((email) => email.trim().toLowerCase()))];
+}
+
 type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 
 /**
@@ -78,6 +83,27 @@ export class GatewayTeamService {
     return { isEmailConfigured: isEmailConfigured(), count, preview };
   }
 
+  /** Pairs each address with its organization member, or null when it would be invited. */
+  async getInviteeMembers(params: {
+    organizationId: string;
+    emails: string[];
+  }) {
+    const emails = normalizeEmails(params.emails);
+    const members = new Map(
+      (
+        await this.members.findMembersByEmail({
+          organizationId: params.organizationId,
+          emails,
+          scope: GATEWAY_USER_SCOPE,
+        })
+      ).map((member) => [member.email.toLowerCase(), member]),
+    );
+    return emails.map((email) => {
+      const member = members.get(email);
+      return { email, member: member ? { name: member.name } : null };
+    });
+  }
+
   async inviteTeam(params: {
     ctx: GatewayTeamContext;
     organizationId: string;
@@ -105,9 +131,7 @@ export class GatewayTeamService {
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
 
-    const emails = [
-      ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
-    ];
+    const emails = normalizeEmails(params.emails);
     const existingMembers = new Map(
       (
         await this.members.findMembersByEmail({

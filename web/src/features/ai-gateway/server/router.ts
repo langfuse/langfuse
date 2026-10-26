@@ -183,6 +183,20 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  getInviteeMembers: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        emails: z.array(z.email()).max(MAX_TEAM_INVITES),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getInviteeMembers({
+        organizationId: input.orgId,
+        emails: input.emails,
+      });
+    }),
+
   /** Invites new people as members and optionally tells existing members. */
   inviteTeam: protectedOrganizationProcedure
     .input(

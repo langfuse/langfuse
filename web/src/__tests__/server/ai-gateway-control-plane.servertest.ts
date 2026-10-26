@@ -522,6 +522,27 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ orgRole: Role.MEMBER });
   });
 
+  it("tells which invitee addresses already belong to the organization", async () => {
+    const owner = await prepare();
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const viewer = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.VIEWER },
+      select: { user: { select: { email: true, name: true } } },
+    });
+    const viewerEmail = viewer.user.email!.toLowerCase();
+    const outsiderEmail = `gateway-outsider-${randomUUID()}@example.test`;
+
+    const result = await owner.caller.aiGateway.getInviteeMembers({
+      orgId: owner.org.id,
+      emails: [viewerEmail.toUpperCase(), outsiderEmail],
+    });
+
+    expect(result).toEqual([
+      { email: viewerEmail, member: { name: viewer.user.name } },
+      { email: outsiderEmail, member: null },
+    ]);
+  });
+
   it.each([false, true])(
     "announces the gateway once to a typed address of a member (notifyMembers: %s)",
     async (notifyMembers) => {
