@@ -1,6 +1,6 @@
 import { PostHog } from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewayLaunchBanner } from "./GatewayLaunchBanner";
@@ -95,11 +95,14 @@ export const OpensOrgPicker = SetupSeveralOrgs.extend({
     );
 
     await userEvent.click(body.getByRole("button", { name: "Set up gateway" }));
-    await expect(
-      body.getByRole("menuitem", { name: "Acme Robotics" }),
-    ).toBeVisible();
-    await expect(
-      body.getByRole("menuitem", { name: "Acme Research" }),
-    ).toBeVisible();
+    // The dialog fades in, so wait until its menu is fully shown.
+    await waitFor(async () => {
+      await expect(
+        body.getByRole("menuitem", { name: "Acme Robotics" }),
+      ).toBeVisible();
+      await expect(
+        body.getByRole("menuitem", { name: "Acme Research" }),
+      ).toBeVisible();
+    });
   },
 });
