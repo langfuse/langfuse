@@ -1,6 +1,7 @@
 import type { GatewayIngestionMode } from "@langfuse/shared";
 
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 // Gateway adoption funnel: setup guide -> credentials -> team -> keys -> model
@@ -74,4 +75,19 @@ export type AiGatewayEventMap = {
     enabledModelCount: number;
     totalModelCount: number;
   };
+  // The copied slug embeds the connection name, so only the provider is sent.
+  "ai_gateway:model_name_copied": OrganizationContext & {
+    provider: GatewayProvider;
+  };
+  /** The user expanded a tool's setup steps ("Show all steps") after creating a key. */
+  "ai_gateway:agent_setup_instructions_viewed": OrganizationContext & {
+    agentId: AgentSetupInstructions["id"];
+    hasProviderWarning: boolean;
+  };
+  "ai_gateway:agent_setup_instructions_copied": OrganizationContext & {
+    agentId: AgentSetupInstructions["id"];
+  } & (
+      | { source: "copy_for_agent" }
+      | { source: "step_code"; stepNumber: number }
+    );
 };

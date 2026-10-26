@@ -86,6 +86,8 @@ type CodeSectionProps = {
   actions?: CodeSectionAction[];
   /** Shown next to the check icon after copying. */
   copiedMessage?: string;
+  /** Called after the built-in copy button wrote `content` to the clipboard. */
+  onCopy?: () => void;
   /** Clamps the body to six lines and adds an expand/collapse control. */
   isCollapsible?: boolean;
   defaultCollapsed?: boolean;
@@ -100,6 +102,7 @@ export function CodeSection({
   variant = "filled",
   actions = [],
   copiedMessage,
+  onCopy,
   isCollapsible = false,
   defaultCollapsed = false,
   shouldWrapLines = true,
@@ -114,6 +117,7 @@ export function CodeSection({
   const handleCopy = async () => {
     try {
       await copy(content);
+      onCopy?.();
     } catch {
       // Clipboard writes can be rejected when the browser denies permission.
     }

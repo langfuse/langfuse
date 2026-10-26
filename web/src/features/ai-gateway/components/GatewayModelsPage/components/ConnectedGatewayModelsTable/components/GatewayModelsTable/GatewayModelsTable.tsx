@@ -27,16 +27,23 @@ export function GatewayModelsTable({
   data,
   noResultsMessage,
   pagination,
+  onModelCopied,
 }: {
   organizationId: string;
   canManageGateway: boolean;
   data: TableProps<GatewayModelRow>["data"];
   noResultsMessage: string;
   pagination: PaginationBarProps;
+  onModelCopied?: (model: GatewayModelRow) => void;
 }) {
   const columns = useMemo(
-    () => createGatewayModelsColumns({ organizationId, canManageGateway }),
-    [canManageGateway, organizationId],
+    () =>
+      createGatewayModelsColumns({
+        organizationId,
+        canManageGateway,
+        onModelCopied,
+      }),
+    [canManageGateway, onModelCopied, organizationId],
   );
 
   return (
@@ -55,16 +62,21 @@ export function GatewayModelsTable({
 function createGatewayModelsColumns({
   organizationId,
   canManageGateway,
+  onModelCopied,
 }: {
   organizationId: string;
   canManageGateway: boolean;
+  onModelCopied?: (model: GatewayModelRow) => void;
 }): LangfuseColumnDef<GatewayModelRow>[] {
   return [
     createTextTableColumn<GatewayModelRow>({
       accessorKey: "id",
       header: "Model",
       size: 360,
-      trailingAction: { type: "copy-to-clipboard" },
+      trailingAction: {
+        type: "copy-to-clipboard",
+        onCopy: ({ row }) => onModelCopied?.(row.original),
+      },
     }),
     {
       accessorKey: "connectionName",

@@ -27,7 +27,12 @@ function SetupInstructions({ organizationId }: SetupInstructionsProps) {
     );
   }
 
-  return <SetupInstructionsTabs instructions={instructions} />;
+  return (
+    <SetupInstructionsTabs
+      organizationId={organizationId}
+      instructions={instructions}
+    />
+  );
 }
 
 type GeneratedKeyContentProps = {
