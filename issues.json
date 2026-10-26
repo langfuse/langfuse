@@ -28,8 +28,9 @@
     "followUps": [
       "RESOLVED 2026-09-07: carried candidate layout.clienttest.ts was verified and DROPPED by run 22 — measured, no win. See history/2026-W35-partial-0824.json."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory was absent from the analyst's checkout, which was 19 commits behind origin/main. Carried to run 22, which verified it in-sandbox and dropped it — the hoist delivered no measurable win because layout() positions all 10,000 rows of the `huge` shape on every combination, dwarfing prepareTimeline. No diff was ever proposed for this entry."
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory was absent from the analyst's checkout, which was 19 commits behind origin/main. Carried to run 22, which verified it in-sandbox and dropped it — the hoist delivered no measurable win because layout() positions all 10,000 rows of the `huge` shape on every combination, dwarfing prepareTimeline. No diff was ever proposed for this entry. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -62,8 +63,9 @@
       "RESOLVED 2026-09-07: unstable-evaluator-v2-api.servertest.ts > 'paginates evaluator lists' did NOT recur in W36 sampling. Stays at 1 lifetime occurrence (2026-08-23). Dropped from the watchlist.",
       "RESOLVED 2026-09-07: otelToObservationForEval.test.ts did NOT recur in W36 sampling. Stays at 2 lifetime occurrences (07-30, 08-13). Dropped from the watchlist."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability. FOLLOW-UP 2026-09-07: this week's dense figures are now the load-bearing comparator for W36, which regressed +21.3% against them."
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability. FOLLOW-UP 2026-09-07: this week's dense figures are now the load-bearing comparator for W36, which regressed +21.3% against them. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -95,8 +97,9 @@
     "followUps": [
       "RESOLVED 2026-09-07: the 9.3% webRunTests uptick flagged here (77.8s -> 85s) did NOT revert — it continued to 91.5s in W36 (+17.6% cumulative vs the 08-18..08-24 dense checkpoint). What looked like thin-data noise was the leading edge of a real multi-week drift. Treat sub-threshold upticks in a thin week as worth carrying, not discarding."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. Data too thin (4 same-day runs vs 10+ multi-day minimum) for confident trend detection. Web runTests up 9.3% (77.8s → 85s), the only metric crossing ~10%, but does not meet the 'sustained 3+ days' bar. The one optimization candidate (score-comparison-analytics Promise.all batching) remains parked due to standing DB verification blocker. Zero flaky tests. Stable at 'best week on record' level, but lack of run density prevents stronger claims."
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. Data too thin (4 same-day runs vs 10+ multi-day minimum) for confident trend detection. Web runTests up 9.3% (77.8s → 85s), the only metric crossing ~10%, but does not meet the 'sustained 3+ days' bar. The one optimization candidate (score-comparison-analytics Promise.all batching) remains parked due to standing DB verification blocker. Zero flaky tests. Stable at 'best week on record' level, but lack of run density prevents stronger claims. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -134,8 +137,9 @@
       "PR #17103 'chore(ci): test fast' (open since 09-05, sets VITEST_MAX_WORKERS: 12) — check whether it merged and what it did to webRunTests. Do not propose competing concurrency work while it is open.",
       "DEAD, do not re-propose: webhooks.test.ts fake timers (grepped 2026-09-07, no setTimeout/sleep/waitFor/useFakeTimers anywhere in the file — the 23.5s is real DB and HTTP work)."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. First real regression since the issue-output regime began: perceived +21.3% and execution +21.2% against the dense 08-18..08-24 checkpoint, with runner wait flat, so it is execution-bound not queue-bound. A same-day fast/slow pair on 09-03 attributes it to host capacity rather than code: wall-clock run tests grew 90% while summed test durations grew only 23%, and the inflation was confined to write-heavy DB files while read-heavy files got faster. No single job regressed day-over-day. One new recurring flaky test found with a precise root cause but no verifiable diff (needs Redis). Both prior flaky watchlist entries cleared."
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. First real regression since the issue-output regime began: perceived +21.3% and execution +21.2% against the dense 08-18..08-24 checkpoint, with runner wait flat, so it is execution-bound not queue-bound. A same-day fast/slow pair on 09-03 attributes it to host capacity rather than code: wall-clock run tests grew 90% while summed test durations grew only 23%, and the inflation was confined to write-heavy DB files while read-heavy files got faster. No single job regressed day-over-day. One new recurring flaky test found with a precise root cause but no verifiable diff (needs Redis). Both prior flaky watchlist entries cleared. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -174,8 +178,8 @@
       "PARKED, weak: worker/src/__tests__/redisConsumer.test.ts:116 unconditional setTimeout(2000). Real and mechanical, but worth only ~1.5s on a shard with ~80s of critical-path slack, and shortening it narrows a negative assertion. Do not propose unless the test shards ever become the critical path.",
       "DEAD, do not re-propose: webhooks.test.ts fake timers (grepped 2026-09-07, no timer APIs in the file; the 23.5s is real DB and HTTP work)."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. Best week on record: perceived 192s and execution 175.3s, beating the previous best (08-18..08-24 dense checkpoint) by 3.2% and 5.4%, and beating last week's regressed W36 by 20.2% and 21.9%. Last week's open question is answered decisively — the +21% did not persist; it reverted and went past the prior record because aa5f60aa8 'chore(ci): increase Blacksmith CPUs and tune concurrency (#17122)' merged 2026-09-07T10:24:32Z. Attribution is clean: a same-day pre/post split at that exact timestamp shows webRunTests 89s->64s and workerRunTests 107s->72s, the job env gains VITEST_MAX_WORKERS=12, and the client test step drops 79-82s->44-45s. Cross-check confirms real parallelism rather than cheaper tests: summed test durations rose ~117s->~136.5s while wall time fell. Zero retried tests in every sampled shard. No diff proposed on critical-path grounds: e2e-tests (155.5s) dominates a 192s total while the test shards sit at 69s/72.8s with ~80s of slack, so shard micro-optimisations cannot move the headline. Report also flags that main went red from 06:35Z on 09-11 (e2e-tests + tests-storybook, all event types) — an active incident, not a flaky test.",
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. Best week on record: perceived 192s and execution 175.3s, beating the previous best (08-18..08-24 dense checkpoint) by 3.2% and 5.4%, and beating last week's regressed W36 by 20.2% and 21.9%. Last week's open question is answered decisively — the +21% did not persist; it reverted and went past the prior record because aa5f60aa8 'chore(ci): increase Blacksmith CPUs and tune concurrency (#17122)' merged 2026-09-07T10:24:32Z. Attribution is clean: a same-day pre/post split at that exact timestamp shows webRunTests 89s->64s and workerRunTests 107s->72s, the job env gains VITEST_MAX_WORKERS=12, and the client test step drops 79-82s->44-45s. Cross-check confirms real parallelism rather than cheaper tests: summed test durations rose ~117s->~136.5s while wall time fell. Zero retried tests in every sampled shard. No diff proposed on critical-path grounds: e2e-tests (155.5s) dominates a 192s total while the test shards sit at 69s/72.8s with ~80s of slack, so shard micro-optimisations cannot move the headline. Report also flags that main went red from 06:35Z on 09-11 (e2e-tests + tests-storybook, all event types) — an active incident, not a flaky test. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
     "followUpResolutions": {
       "checkedAt": "2026-09-14",
       "main-red incident 2026-09-11 (PRIMARY/URGENT)": "RESOLVED. Root cause was apt / Ubuntu mirror failures installing Playwright system deps - infrastructure, not a code or test regression. Fixed by ae2b6dbd3 \"fix(ci): add apt retries for Playwright dependencies (#17328)\" at 2026-09-11T11:32:19Z. Main was red ~06:35Z-11:32Z (~5h). Signature to recognise next time: uniform ~700-725s wall time, e2e-tests + tests-storybook failing together across all event types. Attribution method: git log on .github/workflows/ - the only workflow commit that day, timestamp matches recovery exactly.",
@@ -183,7 +187,8 @@
       "#17122 gain durability": "CONFIRMED DURABLE. webRunTests 67.5s this window vs W36 91.5s, no reversion two weeks on. Keep one more week of observation, then stop tracking.",
       "PR #17103 redundant/conflicted": "RESOLVED, no action needed. Already CLOSED unmerged at 2026-09-11T08:14:36Z by its author (mergeable_state dirty, label has-conflicts). Side note for the record: Greptile had flagged that its VITEST_MAX_WORKERS export was never consumed - web tests stayed on --maxWorkers=8.",
       "DEAD/PARKED candidate list": "Carried forward unchanged. bufferedStreamUploader 3.00s test re-confirmed DEAD; redisConsumer.test.ts:116 setTimeout(2000) re-confirmed at 2003ms and still PARKED (off critical path)."
-    }
+    },
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -224,8 +229,9 @@
       "DEAD / PARKED list carried forward unchanged - do not re-attempt: score-comparison-analytics Promise.all batching (PARKED, DB blocked); layout.clienttest hoist (DEAD, noise); webhooks.test fake timers (DEAD, no timer APIs); json-utils.clienttest trimming (DO NOT, deepParseJson mutates input in place); bufferedStreamUploader 3.00s retry test (DEAD); redisConsumer.test.ts:116 setTimeout(2000) (PARKED, off critical path).",
       "New candidates surfaced and rejected this week, recorded so they are not re-mined: event-repository.servertest.ts (new #1 web file at 20.2-21.8s) and experiment-score-levels.servertest.ts (5 of the top-10 slowest individual tests but under ~6.7s summed). Both are DB-backed - unverifiable under the standing DB block - and both sit off the critical path."
     ],
-    "lastCheckedAt": "2026-10-19",
-    "outcome": "Filed with no suggested diff. No regression: nothing moved more than 10% vs W37 and there was no sustained intra-week shift. Marginal new best on perceived time (186.3s vs 192s), but see the honesty caveat - most of that is window overlap, not fresh improvement. Zero retried tests across 6 shard logs from 5 runs, a second consecutive clean week, so the admin-api-keys watchlist entry is dropped. Last week's PRIMARY/URGENT main-red incident is resolved and root-caused to apt/Ubuntu mirror failures fixed by #17328, not a code or test regression. No diff proposed on critical-path grounds, per the standing rule to do the arithmetic before mining tests: e2e-tests at 155.5s dominates a 186.3s total while the web and worker shards sit at 67.5s and 71.3s in parallel, leaving ~84s of slack, so no vitest-level change on those shards can move the headline number. Both candidates found this week are additionally DB-backed and therefore unverifiable in this sandbox."
+    "lastCheckedAt": "2026-10-26",
+    "outcome": "Filed with no suggested diff. No regression: nothing moved more than 10% vs W37 and there was no sustained intra-week shift. Marginal new best on perceived time (186.3s vs 192s), but see the honesty caveat - most of that is window overlap, not fresh improvement. Zero retried tests across 6 shard logs from 5 runs, a second consecutive clean week, so the admin-api-keys watchlist entry is dropped. Last week's PRIMARY/URGENT main-red incident is resolved and root-caused to apt/Ubuntu mirror failures fixed by #17328, not a code or test regression. No diff proposed on critical-path grounds, per the standing rule to do the arithmetic before mining tests: e2e-tests at 155.5s dominates a 186.3s total while the web and worker shards sit at 67.5s and 71.3s in parallel, leaving ~84s of slack, so no vitest-level change on those shards can move the headline number. Both candidates found this week are additionally DB-backed and therefore unverifiable in this sandbox. Closed 2026-10-26: no suggested diff was emitted, and every live recommendation it carried has been absorbed by a later report. No further refresh needed.",
+    "status": "closed-stale"
   },
   {
     "number": null,
@@ -270,7 +276,7 @@
       "e2e-tests is now effectively the whole critical path (execution minus e2e is only 2-22s/day; shard slack widened from ~84s to ~114s). The do-not-mine-the-shards rule is stronger than ever.",
       "2026-10-05: confirmed applied on main and measured. Marked delivered; no further tracking needed."
     ],
-    "lastCheckedAt": "2026-10-19",
+    "lastCheckedAt": "2026-10-26",
     "appliedOnMain": true,
     "appliedCheck": "Grepped .github/workflows/pipeline.yml on main at 147f3315b. Both e2e-adjacent Build steps (lines ~1183 and ~1293) still read: pnpm run build --filter=!ai-gateway. No --filter=!worker or --filter=!@langfuse/native added. turbo.json unchanged: @langfuse/native#build still cache:false, outputs:[].",
     "outcomeNextWeek": "UNTESTED, because unapplied. e2e Build weekly median 69s -> 66s (flat); e2e-tests job 186 -> 197s (+5.9%); perceived 234 -> 226.5s (-3.2%). The prediction (Build -> 42-48s) neither confirmed nor refuted. Left open; not re-proposed.",
@@ -282,13 +288,14 @@
       "author": "Tobias Wochinger",
       "at": "2026-09-28T12:36:54Z"
     },
-    "outcome": "DELIVERED. Verified against the 2026-09-29..10-05 window, which is entirely post-change (the commit landed 09-28 12:36 UTC, hours after the W40 report checked and correctly found it unapplied). e2e Build step 69s -> 37s (predicted 42-48s, beat it); e2e-tests job 186s -> 167s (predicted ~160s, near hit); perceived 234s -> 216.5s (predicted ~205s, short of prediction but -7.5%). The W39 e2e Build regression from 1a2d1f211 (#17062) is closed out."
+    "outcome": "DELIVERED. Verified against the 2026-09-29..10-05 window, which is entirely post-change (the commit landed 09-28 12:36 UTC, hours after the W40 report checked and correctly found it unapplied). e2e Build step 69s -> 37s (predicted 42-48s, beat it); e2e-tests job 186s -> 167s (predicted ~160s, near hit); perceived 234s -> 216.5s (predicted ~205s, short of prediction but -7.5%). The W39 e2e Build regression from 1a2d1f211 (#17062) is closed out. Closed 2026-10-26: the suggested diff landed on main and its effect was measured in a later report. No further refresh needed.",
+    "status": "closed-delivered"
   },
   {
     "number": null,
     "url": null,
     "openedAt": "2026-09-28",
-    "lastCheckedAt": "2026-10-19",
+    "lastCheckedAt": "2026-10-26",
     "title": "CI Runtime Report: 2026-09-22..09-28 (trailing 7 days)",
     "note": "Number/url are null (structural: safe-outputs creates the issue after the agent exits, and no issue-read MCP tool exists to backfill). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-09-28. Do NOT re-file missing_tool for this; filed twice already (08-24, 09-07).",
     "suggestedDiff": false,
@@ -328,7 +335,10 @@
       "Two consecutive +10% weeks in worker run-tests would change the off-critical-path assessment; one so far.",
       "Friday merge_group collapse now seen twice (09-19 zero, 09-26 n=2). If it recurs, adjust the sampling plan rather than reporting a thin Friday each week.",
       "2026-10-05: no diff was suggested, so nothing to verify. Its central claim that the W39 diff was still unapplied was correct at the time of that check; the commit landed later the same day."
-    ]
+    ],
+    "appliedOnMain": false,
+    "outcome": "No suggested diff was ever emitted, so nothing to land. Recommendations folded forward into later weeks. Marking closed-stale: do not re-check.",
+    "status": "closed-stale"
   },
   {
     "title": "CI Runtime Report: 2026-09-29..10-05 (trailing 7 days)",
@@ -353,16 +363,18 @@
     },
     "suggestedDiff": false,
     "suggestedDiffReason": "No verified in-surface improvement available. The only critical-path item in editable repo surface is scripts/scan-client-bundle.mjs (7s of a 167s e2e job); its collectExemptRanges() was confirmed O(N^2), but the memoization fix was measured to regress a different realistic AST shape by 55x and was rejected. It cannot be verified end-to-end in the sandbox anyway (no node_modules, espree unresolvable). Everything else on the critical path lives in .github/workflows/pipeline.yml, which this workflow may not edit.",
-    "appliedOnMain": null,
+    "appliedOnMain": false,
     "expectedImpact": null,
-    "lastCheckedAt": "2026-10-19",
+    "lastCheckedAt": "2026-10-26",
     "followUps": [
       "Fifth consecutive zero-retry week; flaky watchlist dropped per the standing instruction in notes.md.",
       "Critical-path slack: web 77s / worker 86.5s run-tests vs a 167s e2e job. ~80-85s of slack (was ~115-120s). Test-level optimization in either shard still cannot move perceived time.",
       "Next week: check whether the e2e overhead tail (Seed DB 14s, Post Cache Next.js builds 13s, bundle scan 7s) has shifted, and whether the shard/e2e slack keeps narrowing — if it closes, shard test work becomes worth mining again.",
       "f75c661db (#17852, pnpm dedupe + task-aware turbo watch) touched turbo.json and pipeline.yml and was the head sha of one 301s outlier on 10-02. The 10-02 daily median was fine, so no action; re-check if 10-02-onward numbers drift."
     ],
-    "appliedCheckNote": "n/a - no diff proposed. Re-verified 2026-10-19: nothing to apply."
+    "appliedCheckNote": "n/a - no diff proposed. Re-verified 2026-10-19: nothing to apply.",
+    "outcome": "No suggested diff. The scripts/scan-client-bundle.mjs memoization idea stays REJECTED (measured 55x regression on a realistic AST shape). scan-client-bundle is no longer on the critical path: e2e-tests median end-offset is 201s against tests-fips at 305-308s. Marking closed-stale.",
+    "status": "closed-stale"
   },
   {
     "title": "CI Runtime Report: 2026-10-06..10-12 (trailing 7 days)",
@@ -389,9 +401,9 @@
     },
     "suggestedDiff": false,
     "suggestedDiffReason": "None shippable. The one structural waste found (tests-fips costs every merge-queue run ~25s of wall clock and two runners while gating nothing) is fixed in .github/workflows/pipeline.yml, which this workflow may not edit, and could not be verified in-sandbox; it is reported as a recommendation instead. The best test-level candidate (otelReplay.properties.test.ts, 13.21s for 2 tests) was rejected: lowering numRuns reduces coverage, and concurrency races the shared writer singleton the file itself warns about. No node_modules/pnpm/turbo and DB blocked, so no runtime change was provable.",
-    "appliedOnMain": null,
+    "appliedOnMain": false,
     "expectedImpact": null,
-    "lastCheckedAt": "2026-10-19",
+    "lastCheckedAt": "2026-10-26",
     "followUps": [
       "Re-measure the gated metric next week once tests-fips has a full 7-day history; perceived wall time now overstates developer-visible merge latency by ~25s.",
       "Confirm whether tests-fips is intended to join all-ci-passed (pipeline.yml comment says \"Not part of all-ci-passed yet\"). If it stays non-gating, decide whether it belongs on the merge-queue trigger at all.",
@@ -405,7 +417,9 @@
       "Confirm whether tests-fips is intended to join all-ci-passed": "STILL NON-GATING, and there is now a second cost. Two merge_group runs (38896576256 on 10-16, 38773411813 on 10-15) are marked failure solely because tests-fips (worker) failed, while all-ci-passed PASSED in both — they never blocked the queue. So the non-gating job both adds ~31.5s of post-gate wall time and inflates the headline failure rate by 0.7pp. tests-fips (worker) is also now the execution critical path (median end-offset 277s, the longest job) and is bimodal (240-285s normal vs 346-400s slow), which is what drags perceived p90 to 408s.",
       "execution - e2eTestsJob slack": "Widened again to 123.8s weekly (W42 85, W41 36, W40 17.8) BUT falls monotonically within the week: 166 / 120.5 / 114 / 98 / 84.5. e2e-tests is definitively no longer the critical path. Shard mining is still not worth it, but for a new reason: the pole is now tests-fips, not e2e.",
       "Web shard import cost candidate": "Still PARKED, unchanged. No node_modules/pnpm and DB blocked, so it remains unverifiable in this sandbox."
-    }
+    },
+    "outcome": "No suggested diff. Its one structural finding — tests-fips costs every merge-queue run wall clock and two runners while gating nothing — was NOT acted on and has now materialised as a real incident: since 2026-10-25 tests-fips fails on 100% of runs and, being non-gating, blocked nothing and alerted nobody. The cost estimate in that report was also too low: tests-fips now owns the critical path in 71% of runs, not ~25s of slack. Superseded by the 2026-10-26 entry, which carries it as PRIMARY.",
+    "status": "superseded-by-2026-10-26"
   },
   {
     "title": "CI Runtime Report: 2026-10-13..10-19 (trailing 7 days)",
@@ -447,9 +461,9 @@
     },
     "suggestedDiff": false,
     "suggestedDiffReason": "The highest-value fix this week is precisely located but NOT verifiable in this sandbox, so no diff was emitted per the standing rule. web/src/features/auth/SignInPage.tsx:816 leaks a setTimeout whose callback touches document at line 819; the fix is to capture the handle and clear it, but verifying it requires running web's client vitest suite, and pnpm/turbo/node_modules are absent and DB connectivity is standing-blocked. Reported as a precise recommendation with file:line and the zero-failing-tests evidence instead. Deliberately did NOT propose wrapping 'run test-client' in retry-on-merge-queue.sh: that would mask a real product defect, which the standing instructions forbid, and a retry cannot catch an unhandled rejection outside any test anyway.",
-    "appliedOnMain": null,
+    "appliedOnMain": true,
     "expectedImpact": null,
-    "lastCheckedAt": "2026-10-19",
+    "lastCheckedAt": "2026-10-26",
     "flakyTests": "7th consecutive zero-retry week ON THE SUCCESS PATH (9/9 shard logs clean), but this week establishes that the success-path population hides the real flake signal. The failed merge_group runs contain 4 genuine test flakes: nativeOtelMedia.unit.test.ts (x2, 5012ms vs a 5000ms timeout) and app-shell-overflow.spec.ts (x2, signIn waitForURL 60s timeout racing cold start). Both are NEW watchlist entries.",
     "followUps": [
       "PRIMARY: web/src/features/auth/SignInPage.tsx:816 uncleaned setTimeout. 13 merge-queue dequeues this week with ZERO failing tests. Check next week whether a human cleared it and whether tests-web-client failures went to zero. This is the single highest-leverage item on the board and it is product code, not CI config.",
@@ -459,6 +473,67 @@
       "Retry wrapper coverage gap worth a human decision: tests-web / tests-worker \"run tests\" (pipeline.yml:944, 1109) and tests-web-client \"run test-client\" (1002) are NOT wrapped. The script header says it wraps only suites with no retry of their own, and web/worker vitest do carry per-test retry — but per-test retry does not catch teardown-time unhandled rejections, which is exactly the 13-run bucket.",
       "Volume note: 10-17 (Fri) had ZERO merge_group runs. Third Friday-adjacent collapse (09-19 zero, 09-26 n=2, 10-17 zero). This is now a pattern, not noise; the sampling plan already handles it.",
       "DEAD/PARKED list carried forward unchanged — do not re-mine: score-comparison-analytics Promise.all batching (PARKED, DB blocked); layout.clienttest hoist (DEAD); webhooks.test fake timers (DEAD); json-utils.clienttest trimming (DO NOT); bufferedStreamUploader 3.00s (DEAD); redisConsumer.test.ts:116 setTimeout(2000) (PARKED); otelReplay.properties.test.ts numRuns (DEAD, reduces coverage); web shard import cost (PARKED, unverifiable)."
+    ],
+    "appliedAt": "2026-10-20",
+    "appliedBy": "5e243a26c2 chore(test): fix flaky sign in test timeout (#19010), Nimar, 2026-10-20 09:11:24Z",
+    "outcome": "PRIMARY follow-up RESOLVED, by a human, not by this workflow and not via the suggested wording. The 100ms focus setTimeout at web/src/features/auth/SignInPage.tsx:816 was deleted outright and replaced with autoFocus={authProviders.sso} on <PasswordInput>; the fake-timer test in web/src/__tests__/auth-sign-in-page.clienttest.tsx was dropped with it. Effect: the 13-run tests-web-client zero-failing-tests bucket, 37% of W43 failures, went to ZERO in W44 — tests-web-client did not fail once in 189 merge_group runs. Merge-queue failure rate 12.8% -> 5.3%. This is the largest confirmed win in the series.",
+    "watchlistOutcome": "nativeOtelMedia.unit.test.ts and app-shell-overflow.spec.ts: zero occurrences in W44. Not declared fixed — W44 had only 10 failures total, so absence is weak evidence. Carry both at lower priority.",
+    "fipsRecommendationOutcome": "Carried recommendation (gate or shorten tests-fips) NOT acted on. It became materially worse: see the W44 entry, tests-fips has been failing on 100% of runs since 2026-10-25 and nothing blocked, precisely because it is non-gating."
+  },
+  {
+    "title": "CI Runtime Report: 2026-10-20..10-26 (trailing 7 days)",
+    "number": null,
+    "url": null,
+    "openedAt": "2026-10-26",
+    "window": {
+      "from": "2026-10-20",
+      "to": "2026-10-26"
+    },
+    "note": "Number/url are null (structural: safe-outputs creates the issue after the agent exits, and no issue-read MCP tool exists to backfill). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-10-26. Do NOT re-file missing_tool for this; filed twice already (08-24, 09-07).",
+    "headline": "tests-fips (web) and tests-fips (worker) have failed on 100% of runs since f6c3660ced \"chore(deps): bump node to 24.22.1 (#19339)\" landed on main at 2026-10-25 07:50Z. The bump swaps Red Hat's nodejs RPM for the upstream node:24.22.1-bookworm-slim binary in worker/Dockerfile's UBI stage; upstream Node statically bundles non-FIPS OpenSSL, so the guard at scripts/ci/fips-tests.sh:28-31 exits 1 in under a second. Because tests-fips is non-gating, nothing was blocked and nobody was paged: FIPS coverage has been silently zero for 2 days while the two jobs, which own the critical path in 71% of runs, still burn 145-175s each on every run and stamp every run red. Timing itself is a non-story: the +28% vs W43 is window composition (Mon/Tue peak load), and the week trends monotonically DOWN, ending below W43's aggregate.",
+    "weeklyAggregate": {
+      "perceived": 372.5,
+      "gated": 331,
+      "execution": 362.5,
+      "runnerWait": 8.5,
+      "webBuildStep": 55,
+      "webRunTestsStep": 99.5,
+      "workerBuildStep": 45,
+      "workerRunTestsStep": 110,
+      "e2eTestsJob": 209,
+      "e2eBuildStep": 65.5,
+      "e2eRunStep": 48.5,
+      "fipsMaxJob": 331,
+      "unit": "seconds; median of the 4 dense daily medians (10-20..10-23)"
+    },
+    "pooled": {
+      "perceivedP50": 376.5,
+      "perceivedP90": 529,
+      "gatedP50": 313.5,
+      "gatedP90": 490,
+      "n": 28
+    },
+    "totalRuns": {
+      "success": 179,
+      "failed": 10,
+      "failureRate": "5.3%"
+    },
+    "suggestedDiff": false,
+    "suggestedDiffReason": "The week's highest-value fix is the FIPS toolchain in worker/Dockerfile. It is not verifiable in this sandbox at all: it needs a docker build of the UBI stage, and there is no docker build, no node_modules and no pnpm here (confirmed this run: `ls node_modules` -> no such file, `which pnpm turbo` -> nothing, only npx from the hosted toolcache). Per the standing rule, no diff is emitted for a change whose checks could not be run. The second candidate, the storybook Sidebar Scrolling And Selection flake, needed no diff: a human had already fixed it on main within 100 minutes of the failures (c329fa08e5, #19030). Reported both as precise findings instead.",
+    "appliedOnMain": null,
+    "expectedImpact": null,
+    "lastCheckedAt": "2026-10-26",
+    "flakyTests": "8th consecutive zero-retry week on the SUCCESS path (tests-web, tests-worker, tests-storybook reporter blocks from run 40156106141 all clean) — still near-worthless as a signal, per the standing rule. Real flake evidence again came from the failed runs: SessionConversationalView.stories.tsx > (Test) Sidebar Scrolling And Selection failed 4 times with retries=3 in a 6-minute cluster on 10-20 and is CONFIRMED flaky rather than merely slow — the identical test passes in 1.72s in a healthy run versus 63.04s under retry when failing. Already fixed on main by c329fa08e5 (#19030). One new watchlist entry: dataRetentionProcessing.test.ts > \"uses UTC retention boundaries in the Asia/Tokyo session timezone\", one failure with retries=3 on 10-23 across two matrix legs, also the worker's slowest test at 17.43s.",
+    "followUps": [
+      "PRIMARY, report-only: worker/Dockerfile FIPS toolchain is broken by f6c3660ced. Either restore a Node in the UBI stage that links the system OpenSSL (so OPENSSL_FORCE_FIPS_MODE=1 is honoured and node:crypto.getFips() returns 1), or stop running tests-fips at all rather than letting it fail into the void. Verify next week: are tests-fips (web) and tests-fips (worker) still red on every run? Note this is the SECOND time the FIPS toolchain has broken on a base-image change (f964009483 reverted #18449 for a related reason) — a guard that fails loudly, or gating, is the durable fix.",
+      "CARRIED AND NOW URGENT: tests-fips is still non-gating. In W43 the argument against gating was queue latency. W44 inverts it: non-gating is exactly what let a total coverage loss sit unnoticed on main for 2 days. tests-fips owns the critical path in 20/28 runs (71%) and produces the extreme tail cases (run 39797170491: perceived 816s vs gated 314s — 502s of pure post-gate fips tail). Gating it, shortening it, or deleting it are all better than the status quo. Requires a pipeline.yml change this workflow may not make.",
+      "WATCHLIST (new, 1 occurrence): worker/src/__tests__/dataRetentionProcessing.test.ts > DataRetentionProcessingJob > \"uses UTC retention boundaries in the Asia/Tokyo session timezone\". Failed on 10-23 with retries=3 on BOTH tests-worker (azure) and tests-worker (redis-cluster). Timezone-boundary tests that fail on a specific day are usually date-dependent, not flaky-by-timing — check whether 10-23 was a boundary case before treating it as a flake.",
+      "WATCHLIST carried at LOWER priority: nativeOtelMedia.unit.test.ts and app-shell-overflow.spec.ts, zero occurrences in W44. W44 had only 10 failures total, so absence is weak evidence — do not declare these fixed.",
+      "TOOLING: the lint failure on run 39788962103 (step \"lint web\", 147s) could not be attributed because a 300-400 line tail reached only Turbo cache teardown. Raise the tail to 800+ for lint failures specifically; lint output is followed by a long cache-teardown epilogue.",
+      "OPTIMIZATION TARGET, unverifiable here but worth a human: worker/src/__tests__/otelReplay.properties.test.ts spends 22.81s on TWO tests (11.4s each), the worst per-test density in the repo. The obvious lever (reduce fast-check numRuns) is already marked DEAD because it reduces coverage. Needs a structural idea, e.g. shrinking the generated-value depth rather than the run count.",
+      "Friday collapse recurred for the 4th time (09-19, 09-26, 10-17, 10-24): 3 merge_group successes on 10-24 against 41 on 10-23. Treat Fri/Sat/Sun as structurally thin; never aggregate them.",
+      "NEW JOBS this window: build-storybook (added 2026-10-23 by 5005e702a6, splits the storybook build out of tests-storybook) and notify-flaky-merge-queue. Add both to the known-jobs baseline so they are not reported as anomalies next week.",
+      "DEAD/PARKED list carried forward unchanged — do not re-mine: score-comparison-analytics Promise.all batching (PARKED, DB blocked); layout.clienttest hoist (DEAD); webhooks.test fake timers (DEAD); json-utils.clienttest trimming (DO NOT); bufferedStreamUploader 3.00s (DEAD); redisConsumer.test.ts:116 setTimeout(2000) (PARKED); otelReplay.properties.test.ts numRuns (DEAD, reduces coverage); web shard import cost (PARKED, unverifiable); scripts/scan-client-bundle.mjs memoization (REJECTED)."
     ]
   }
 ]

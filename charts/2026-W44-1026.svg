@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="440" viewBox="0 0 780 440" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="780" height="440" fill="#ffffff"/>
+<text x="18" y="26" font-size="15" font-weight="600" fill="#1a1a1a">Langfuse CI/CD merge-queue timing, 2026-10-20..10-26 (daily medians, successful merge_group runs)</text>
+<text x="18" y="44" font-size="11" fill="#666">10-26 had zero merge_group runs. 10-24 (n=3) and 10-25 (n=1) are plotted but excluded from the weekly aggregate.</text>
+<line x1="56" y1="366" x2="766" y2="366" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="370" font-size="11" fill="#777" text-anchor="end">0s</text>
+<line x1="56" y1="323.5" x2="766" y2="323.5" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="327.5" font-size="11" fill="#777" text-anchor="end">60s</text>
+<line x1="56" y1="280.9" x2="766" y2="280.9" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="284.9" font-size="11" fill="#777" text-anchor="end">120s</text>
+<line x1="56" y1="238.4" x2="766" y2="238.4" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="242.4" font-size="11" fill="#777" text-anchor="end">180s</text>
+<line x1="56" y1="195.8" x2="766" y2="195.8" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="199.8" font-size="11" fill="#777" text-anchor="end">240s</text>
+<line x1="56" y1="153.3" x2="766" y2="153.3" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="157.3" font-size="11" fill="#777" text-anchor="end">300s</text>
+<line x1="56" y1="110.7" x2="766" y2="110.7" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="114.7" font-size="11" fill="#777" text-anchor="end">360s</text>
+<line x1="56" y1="68.2" x2="766" y2="68.2" stroke="#e6e6e6" stroke-width="1"/>
+<text x="48" y="72.2" font-size="11" fill="#777" text-anchor="end">420s</text>
+<line x1="56" y1="366" x2="766" y2="366" stroke="#999" stroke-width="1"/>
+<text x="62" y="384" font-size="12" fill="#333" text-anchor="middle">10-20</text>
+<text x="62" y="398" font-size="10" fill="#999" text-anchor="middle">n=6</text>
+<text x="201.2" y="384" font-size="12" fill="#333" text-anchor="middle">10-21</text>
+<text x="201.2" y="398" font-size="10" fill="#999" text-anchor="middle">n=6</text>
+<text x="340.4" y="384" font-size="12" fill="#333" text-anchor="middle">10-22</text>
+<text x="340.4" y="398" font-size="10" fill="#999" text-anchor="middle">n=6</text>
+<text x="479.6" y="384" font-size="12" fill="#333" text-anchor="middle">10-23</text>
+<text x="479.6" y="398" font-size="10" fill="#999" text-anchor="middle">n=6</text>
+<text x="618.8" y="384" font-size="12" fill="#333" text-anchor="middle">10-24</text>
+<text x="618.8" y="398" font-size="10" fill="#c0392b" text-anchor="middle">n=3</text>
+<text x="758" y="384" font-size="12" fill="#333" text-anchor="middle">10-25</text>
+<text x="758" y="398" font-size="10" fill="#c0392b" text-anchor="middle">n=1</text>
+<polyline fill="none" stroke="#3987e5" stroke-width="2.5" points="62,96.5 201.2,67.5 340.4,107.2 479.6,150.4 618.8,169.6 758,169.6"/>
+<circle cx="62" cy="96.5" r="4" fill="#3987e5"/>
+<text x="62.0" y="85.5" font-size="10" fill="#3987e5" text-anchor="middle">380</text>
+<circle cx="201.2" cy="67.5" r="4" fill="#3987e5"/>
+<text x="201.2" y="56.5" font-size="10" fill="#3987e5" text-anchor="middle">421</text>
+<circle cx="340.4" cy="107.2" r="4" fill="#3987e5"/>
+<text x="340.4" y="96.2" font-size="10" fill="#3987e5" text-anchor="middle">365</text>
+<circle cx="479.6" cy="150.4" r="4" fill="#3987e5"/>
+<text x="479.6" y="139.4" font-size="10" fill="#3987e5" text-anchor="middle">304</text>
+<circle cx="618.8" cy="169.6" r="4" fill="#3987e5"/>
+<text x="618.8" y="158.6" font-size="10" fill="#3987e5" text-anchor="middle">277</text>
+<circle cx="758" cy="169.6" r="4" fill="#3987e5"/>
+<text x="758.0" y="158.6" font-size="10" fill="#3987e5" text-anchor="middle">277</text>
+<polyline fill="none" stroke="#de5a20" stroke-width="2.5" points="62,104.3 201.2,72.4 340.4,113.6 479.6,155.4 618.8,171.7 758,173.1"/>
+<circle cx="62" cy="104.3" r="4" fill="#de5a20"/>
+<text x="62.0" y="121.3" font-size="10" fill="#de5a20" text-anchor="middle">369</text>
+<circle cx="201.2" cy="72.4" r="4" fill="#de5a20"/>
+<text x="201.2" y="89.4" font-size="10" fill="#de5a20" text-anchor="middle">414</text>
+<circle cx="340.4" cy="113.6" r="4" fill="#de5a20"/>
+<text x="340.4" y="130.6" font-size="10" fill="#de5a20" text-anchor="middle">356</text>
+<circle cx="479.6" cy="155.4" r="4" fill="#de5a20"/>
+<text x="479.6" y="172.4" font-size="10" fill="#de5a20" text-anchor="middle">297</text>
+<circle cx="618.8" cy="171.7" r="4" fill="#de5a20"/>
+<text x="618.8" y="188.7" font-size="10" fill="#de5a20" text-anchor="middle">274</text>
+<circle cx="758" cy="173.1" r="4" fill="#de5a20"/>
+<text x="758.0" y="190.1" font-size="10" fill="#de5a20" text-anchor="middle">272</text>
+<polyline fill="none" stroke="#8875e0" stroke-width="2.5" points="62,101.5 201.2,68.9 340.4,161.1 479.6,166 618.8,189.4 758,190.9"/>
+<circle cx="62" cy="101.5" r="4" fill="#8875e0"/>
+<text x="95.0" y="90.5" font-size="10" fill="#8875e0" text-anchor="middle">373</text>
+<circle cx="201.2" cy="68.9" r="4" fill="#8875e0"/>
+<text x="234.2" y="57.9" font-size="10" fill="#8875e0" text-anchor="middle">419</text>
+<circle cx="340.4" cy="161.1" r="4" fill="#8875e0"/>
+<text x="373.4" y="150.1" font-size="10" fill="#8875e0" text-anchor="middle">289</text>
+<circle cx="479.6" cy="166" r="4" fill="#8875e0"/>
+<text x="512.6" y="155.0" font-size="10" fill="#8875e0" text-anchor="middle">282</text>
+<circle cx="618.8" cy="189.4" r="4" fill="#8875e0"/>
+<text x="651.8" y="178.4" font-size="10" fill="#8875e0" text-anchor="middle">249</text>
+<circle cx="758" cy="190.9" r="4" fill="#8875e0"/>
+<text x="725.0" y="179.9" font-size="10" fill="#8875e0" text-anchor="middle">247</text>
+<rect x="62" y="410" width="22" height="3" fill="#3987e5"/>
+<circle cx="73" cy="411.5" r="3.5" fill="#3987e5"/>
+<text x="92" y="416" font-size="12" fill="#333">perceived (wall)</text>
+<rect x="292" y="410" width="22" height="3" fill="#de5a20"/>
+<circle cx="303" cy="411.5" r="3.5" fill="#de5a20"/>
+<text x="322" y="416" font-size="12" fill="#333">execution (job union)</text>
+<rect x="522" y="410" width="22" height="3" fill="#8875e0"/>
+<circle cx="533" cy="411.5" r="3.5" fill="#8875e0"/>
+<text x="552" y="416" font-size="12" fill="#333">gated (-&gt; all-ci-passed)</text>
+<text x="18" y="434" font-size="10" fill="#999">perceived = run_started_at -&gt; run updated_at; execution = union of successful job intervals; gated = run_started_at -&gt; all-ci-passed.completed_at</text>
+</svg>
