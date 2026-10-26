@@ -3352,6 +3352,8 @@ export class OtelIngestionProcessor {
       rawUsageDetails["cache_creation.5m_input_tokens"];
     const cacheCreation1hTokens =
       rawUsageDetails["cache_creation.1h_input_tokens"];
+    const cacheCreationBreakdownTokens =
+      (cacheCreation5mTokens ?? 0) + (cacheCreation1hTokens ?? 0);
     // Reasoning/audio details are included in the emitted output token count
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
@@ -3408,7 +3410,9 @@ export class OtelIngestionProcessor {
 
     if (inputTokens !== undefined) {
       normalizedUsageDetails.input = Math.max(
-        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        inputTokens -
+          (cacheReadTokens ?? 0) -
+          Math.max(cacheCreationTokens ?? 0, cacheCreationBreakdownTokens),
         0,
       );
     }
