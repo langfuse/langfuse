@@ -471,6 +471,7 @@ const events = {
     "dialog_setup_clicked",
     "dialog_learn_more_clicked",
     "ready_tile_clicked",
+    "gateway_only_key_clicked",
   ],
   sidebar: [
     "book_a_call_clicked",
