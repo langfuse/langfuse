@@ -864,27 +864,12 @@ function CommandMenuSession({
   const {
     entityGroups,
     entityBaseUrls,
-    isPending: entitiesPending,
-  } = useEntityGroups(mainNavigation, search, debouncedSearch);
+    dashboards,
+    allProjectItems,
+    isPending,
+  } = useCommandMenuData(mainNavigation, search, debouncedSearch);
   const isSearching = search !== "";
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
-  const { allProjectItems, isLoading: projectsPending } = useNavigationItems();
-  const dashboards = api.dashboard.allDashboards.useQuery(
-    {
-      projectId: project?.id ?? "",
-      orderBy: { column: "updatedAt", order: "DESC" },
-      limit: 100,
-      page: 0,
-    },
-    {
-      ...MENU_QUERY_OPTIONS,
-      enabled: Boolean(project?.id),
-    },
-  );
-  const isPending =
-    projectsPending ||
-    entitiesPending ||
-    (Boolean(project?.id) && (dashboards.isPending || dashboards.isFetching));
 
   useEffect(() => {
     if (!search) return;
@@ -1001,7 +986,7 @@ function CommandMenuSession({
               onNavigate={handleNavigate}
             />
             <DashboardsGroup
-              dashboards={dashboards.data?.dashboards ?? []}
+              dashboards={dashboards}
               projectId={project?.id ?? ""}
               onNavigate={handleNavigate}
             />
@@ -1178,7 +1163,7 @@ const MENU_QUERY_OPTIONS = {
 };
 
 function getEvaluatorSearchQuery(search: string): string {
-  const keywords = ENTITY_GROUPS.evaluator.keywords.join(" ");
+  const keywords = ENTITY_GROUPS.evaluator.keywords;
   return search
     .toLowerCase()
     .split(" ")
@@ -1187,18 +1172,21 @@ function getEvaluatorSearchQuery(search: string): string {
 }
 
 /** Fetch names for readable pages; evaluators use server search for their capped list. */
-function useEntityGroups(
+function useCommandMenuData(
   mainNavigation: NavigationItem[],
   search: string,
   debouncedSearch: string,
 ): {
   entityGroups: EntityGroupData[];
   entityBaseUrls: string[];
+  dashboards: RouterOutputs["dashboard"]["allDashboards"]["dashboards"];
+  allProjectItems: ReturnType<typeof useNavigationItems>["allProjectItems"];
   isPending: boolean;
 } {
   const session = useSession();
   const { project } = useQueryProjectOrOrganization();
   const projectId = project?.id ?? "";
+  const { allProjectItems, isLoading: projectsPending } = useNavigationItems();
   const navItems = flattenNavigation(mainNavigation);
 
   const getBaseUrl = (type: EntityType) =>
@@ -1216,6 +1204,16 @@ function useEntityGroups(
   const evaluatorSearch = getEvaluatorSearchQuery(search);
   const debouncedEvaluatorSearch = getEvaluatorSearchQuery(debouncedSearch);
   const evaluatorSearchPending = evaluatorSearch !== debouncedEvaluatorSearch;
+
+  const dashboards = api.dashboard.allDashboards.useQuery(
+    {
+      projectId,
+      orderBy: { column: "updatedAt", order: "DESC" },
+      limit: 100,
+      page: 0,
+    },
+    { ...MENU_QUERY_OPTIONS, enabled: Boolean(projectId) },
+  );
 
   const prompts = api.prompts.allNames.useQuery(
     { projectId },
@@ -1242,8 +1240,12 @@ function useEntityGroups(
   );
 
   return {
+    dashboards: dashboards.data?.dashboards ?? [],
+    allProjectItems,
     // Publish one complete list, never cached or partial rows that can reshuffle.
     isPending:
+      projectsPending ||
+      (Boolean(projectId) && (dashboards.isPending || dashboards.isFetching)) ||
       (promptsUrl !== null && (prompts.isPending || prompts.isFetching)) ||
       (datasetsUrl !== null && (datasets.isPending || datasets.isFetching)) ||
       (queuesUrl !== null && (queues.isPending || queues.isFetching)) ||
