@@ -1,10 +1,11 @@
-# FIPS 140-3 base: UBI 9 with the nodejs:24 module-stream RPM
-# instead of node:24-alpine. The RPM Node dynamically links the system
+# FIPS 140-3 base: UBI 9 instead of node:24-alpine. Node is built from the
+# upstream source release with Red Hat's OpenSSL build flags and FIPS patch
+# (scripts/docker/node/build.sh) and dynamically links the system
 # libcrypto.so.3, so node:crypto routes through RHEL's CMVP-validated OpenSSL
-# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
+# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node binaries
 # statically bundle their own non-validated OpenSSL and bypass the platform
-# module entirely.
-# Cloud override: upstream Node 24.22.1 supplies full ICU and non-FIPS OpenSSL.
+# module entirely. Building from source instead of installing the nodejs:24
+# module RPM ships Node security releases without waiting for Red Hat's errata.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
@@ -15,26 +16,31 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
+# The stage depends only on the base image and scripts/docker/node/, so the
+# compiled Node stays cached across app changes. Keep it identical in
+# web/Dockerfile and worker/Dockerfile so one builder reuses it for both.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS node-builder
+RUN dnf -y install --setopt=install_weak_deps=0 \
+    gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ make python3 python3-packaging \
+    python3-jinja2 pkgconf-pkg-config openssl-devel openssl-fips-provider \
+    openssl-fips-provider-so tar xz gzip patch && \
+    dnf clean all
+COPY scripts/docker/node/ /build-node/
+# Defaults to one compile job per CPU; lower it on builders short of memory.
+ARG NODE_BUILD_JOBS
+RUN NODE_BUILD_JOBS="${NODE_BUILD_JOBS}" bash /build-node/build.sh
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
-# nodejs:24 and openssl (incl. the FIPS provider) come from the freely
-# redistributable UBI repos, so no RHEL entitlement is required.
-# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
-# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
-# formatting) without the full ICU data.
+# openssl (incl. the FIPS provider) comes from the freely redistributable UBI
+# repos, so no RHEL entitlement is required.
 RUN dnf -y upgrade && \
     dnf -y install --setopt=install_weak_deps=0 \
     libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
     dnf clean all
-COPY --from=node /usr/local/bin/node /usr/bin/node
-COPY --from=node /usr/local/lib/node_modules/npm /usr/lib/node_modules/npm
-COPY --from=node /usr/local/include/node /usr/include/node
-RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/bin/npm && \
-    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/bin/npx
-ENV NODE_OPTIONS=--use-openssl-ca \
-    SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
+# node, npm and the headers for native addons. Only node reaches the runtime
+# image.
+COPY --from=node-builder /opt/node/usr/ /usr/
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -53,9 +59,7 @@ ARG TARGETARCH
 ARG UID=1001
 ARG GID=1001
 
-# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
-# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
-# formatting) without the full ICU data. sed is used by entrypoint.sh.
+# sed is used by entrypoint.sh.
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
@@ -68,10 +72,11 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# The nodejs RPM drags npm in as a dependency; the runtime image must carry
-# no package manager, so remove it from the rootfs (rpmdb stays consistent).
-COPY --from=node /usr/local/bin/node /mnt/rootfs/usr/bin/node
-COPY --from=node /usr/local/LICENSE /mnt/rootfs/usr/share/licenses/nodejs/LICENSE
+# Only the node binary, its license and its build record go into the rootfs:
+# the runtime image must carry no package manager, so npm stays behind.
+COPY --from=node-builder /opt/node/usr/bin/node /mnt/rootfs/usr/bin/node
+COPY --from=node-builder /opt/node/usr/share/licenses/nodejs/ /mnt/rootfs/usr/share/licenses/nodejs/
+COPY --from=node-builder /opt/node/usr/share/doc/nodejs/build-info.json /mnt/rootfs/usr/share/doc/nodejs/build-info.json
 
 # The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
 # being activated system-wide, so installs without FIPS mode keep the default
@@ -246,7 +251,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS="${NODE_OPTIONS} --max-old-space-size-percentage=75" turbo run build --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
