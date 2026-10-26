@@ -1,4 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import getRawBody from "raw-body";
 
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
@@ -26,19 +27,35 @@ function toC1Response(result: ProvisionResult) {
 }
 
 // C1 retries any non-2xx, so rejected requests answer 200 with `errored`.
-export async function conductorOneWebhookHandler(req: NextRequest) {
+export async function conductorOneWebhookHandler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   const issuer = env.LANGFUSE_CONDUCTORONE_ISSUER;
   const entitlementId = env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID;
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   if (!issuer || !entitlementId || !isCloud || !env.NEXTAUTH_URL) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return res.status(404).json({ error: "Not found" });
+  }
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Raw bytes: the JWT signs their hash.
-  const rawBody = Buffer.from(await req.arrayBuffer());
+  // Requires `bodyParser: false` on the route: the JWT signs the raw body's hash.
+  let rawBody: Buffer;
+  try {
+    rawBody = await getRawBody(req, {
+      length: req.headers["content-length"],
+      limit: "1mb",
+    });
+  } catch {
+    return res.status(413).json({ error: "Payload too large" });
+  }
+
   try {
     await verifyConductorOneRequest({
-      authorization: req.headers.get("authorization"),
+      authorization: req.headers.authorization ?? null,
       rawBody,
       issuer,
       audience: new URL(env.NEXTAUTH_URL).hostname,
@@ -48,25 +65,25 @@ export async function conductorOneWebhookHandler(req: NextRequest) {
     logger.warn("ConductorOne webhook rejected", {
       reason: (error as Error).message,
     });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const envelope = parseConductorOneEnvelope(rawBody);
   if (envelope?.event === C1_TEST_EVENT) {
-    return NextResponse.json({ version: "v1" });
+    return res.status(200).json({ version: "v1" });
   }
   if (envelope?.event !== C1_PROVISION_EVENT) {
     logger.warn("ConductorOne webhook unsupported event", {
       event: envelope?.event,
     });
-    return NextResponse.json({ error: "Unsupported event" }, { status: 400 });
+    return res.status(400).json({ error: "Unsupported event" });
   }
 
   const request = parseProvisionPayload(envelope.payload);
   if (!request) {
     logger.warn("ConductorOne webhook unrecognized provisioning payload");
     const result = { ok: false, message: "Unrecognized provisioning payload" };
-    return NextResponse.json(toC1Response(result));
+    return res.status(200).json(toC1Response(result));
   }
 
   try {
@@ -78,12 +95,9 @@ export async function conductorOneWebhookHandler(req: NextRequest) {
         c1TaskId: request.taskId,
       });
     }
-    return NextResponse.json(toC1Response(result));
+    return res.status(200).json(toC1Response(result));
   } catch (error) {
     logger.error("ConductorOne provisioning failed", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return res.status(500).json({ error: "Internal server error" });
   }
 }

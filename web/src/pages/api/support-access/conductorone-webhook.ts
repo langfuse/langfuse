@@ -1,5 +1,9 @@
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
 
-export const dynamic = "force-dynamic";
+export default conductorOneWebhookHandler;
 
-export const POST = conductorOneWebhookHandler;
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
