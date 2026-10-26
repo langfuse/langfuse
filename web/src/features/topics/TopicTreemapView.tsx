@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "./TopicsEmptyState";
 import { type Facet } from "./facet-topics";
@@ -25,7 +25,18 @@ export function TopicTreemapView({
   canGenerateTopics,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  if (facet.topics.length === 0) {
+  const { topics, total } = prepareTopicDisplay(facet, "treemap");
+  const selected =
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
+  const selectedRowTopicId =
+    selected && selected.id !== UNASSIGNED_TOPIC_ID ? selected.id : null;
+  // Stable per topic so the list keeps its loaded chunks across re-renders.
+  const rows = useMemo(
+    () =>
+      facet.rows.filter((row) => (row.topicId ?? null) === selectedRowTopicId),
+    [facet.rows, selectedRowTopicId],
+  );
+  if (facet.topics.length === 0 || !selected) {
     return (
       <TopicsEmptyState
         onGenerateTopics={onGenerateTopics}
@@ -33,14 +44,6 @@ export function TopicTreemapView({
       />
     );
   }
-  const { topics, total } = prepareTopicDisplay(facet, "treemap");
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const selectedRowTopicId =
-    selected.id === UNASSIGNED_TOPIC_ID ? null : selected.id;
-  const rows = facet.rows.filter(
-    (row) => (row.topicId ?? null) === selectedRowTopicId,
-  );
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="m-4 flex min-h-48 shrink-0 basis-1/2">
