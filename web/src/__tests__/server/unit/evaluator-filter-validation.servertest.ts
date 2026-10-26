@@ -1,5 +1,6 @@
 import {
   EvalTargetObject,
+  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
@@ -128,4 +129,98 @@ describe("validateEvaluatorFiltersForTarget", () => {
       expectedColumnType: "stringOptions",
     });
   });
+
+  it("accepts transcript filters on model, prompt, status and experiment root", () => {
+    const filter = [
+      {
+        type: "string",
+        column: "providedModelName",
+        operator: "=",
+        value: "gpt-4o",
+      },
+      {
+        type: "string",
+        column: "Prompt Name",
+        operator: "starts with",
+        value: "support",
+      },
+      {
+        type: "string",
+        column: "statusMessage",
+        operator: "contains",
+        value: "rate limit",
+      },
+      {
+        type: "boolean",
+        column: "isExperimentItemRootSpan",
+        operator: "=",
+        value: true,
+      },
+    ] satisfies FilterState;
+
+    expect(
+      validateEvaluatorFiltersForTarget({
+        targetObject: TopicsTargetObject,
+        filter,
+      }),
+    ).toEqual({ isValid: true, validatedFilters: filter, issues: [] });
+  });
+
+  it.each([
+    {
+      type: "string",
+      column: "promptName",
+      operator: "does not contain",
+      value: "support",
+    },
+    {
+      type: "arrayOptions",
+      column: "tags",
+      operator: "none of",
+      value: ["internal"],
+    },
+    {
+      type: "stringObject",
+      column: "metadata",
+      key: "source",
+      operator: "is not set",
+      value: "",
+    },
+    {
+      type: "null",
+      column: "promptName",
+      operator: "is null",
+      value: "",
+    },
+    {
+      type: "number",
+      column: "promptVersion",
+      operator: ">",
+      value: 1,
+    },
+  ] satisfies FilterState)(
+    "restricts transcript $column/$operator without narrowing span filters",
+    (filter) => {
+      const transcriptResult = validateEvaluatorFiltersForTarget({
+        targetObject: TopicsTargetObject,
+        filter: [filter],
+      });
+      expect(transcriptResult.isValid).toBe(false);
+      expect(transcriptResult.issues).toHaveLength(1);
+      expect(transcriptResult.issues[0]).toMatchObject({
+        code:
+          filter.column === "promptVersion"
+            ? "unsupported_column"
+            : "invalid_filter_shape",
+        column: filter.column,
+      });
+
+      expect(
+        validateEvaluatorFiltersForTarget({
+          targetObject: EvalTargetObject.EVENT,
+          filter: [filter],
+        }).isValid,
+      ).toBe(true);
+    },
+  );
 });
