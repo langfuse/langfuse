@@ -17,8 +17,9 @@ const EMPTY_STATE_COPY = {
     title: "No models available",
     managerDescription:
       "Your provider credentials returned no enabled models. Enable models on a credential, or add another provider.",
+    /** Members read cached models only, so an empty list can mean "not discovered yet" rather than "disabled". */
     memberDescription:
-      "None of your organization's provider credentials has enabled models. Ask your organization admin to enable some.",
+      "No models have been discovered for your organization's provider credentials yet. Check back later, or ask your organization admin if this persists.",
   },
 };
 
