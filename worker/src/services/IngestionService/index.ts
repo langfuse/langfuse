@@ -6,11 +6,15 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   Model,
+  MAX_SKILLS_PER_OBSERVATION,
   ObservationLevel,
   PrismaClient,
   Prompt,
   safeJsonParse,
   type JsonNested,
+  type SkillsAvailable,
+  type SkillsAvailableInput,
+  type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -31,6 +35,7 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  SkillCacheService,
   QueueJobs,
   recordIncrement,
   ScoreEventType,
@@ -225,6 +230,7 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  private skillCacheService: SkillCacheService;
 
   constructor(
     private redis: Redis | Cluster,
@@ -233,6 +239,7 @@ export class IngestionService {
     private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
+    this.skillCacheService = new SkillCacheService(prisma, redis);
   }
 
   public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
@@ -335,8 +342,8 @@ export class IngestionService {
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
-    // Perform lookups for prompt and model/usage enrichment
-    const [prompt, generationUsage] = await Promise.all([
+    // Enrich prompt, usage and skill references concurrently.
+    const [prompt, generationUsage, skillReferences] = await Promise.all([
       // Lookup prompt by name and version
       eventData.promptName && eventData.promptVersion
         ? this.promptService.getPrompt({
@@ -372,6 +379,12 @@ export class IngestionService {
             },
           })
         : null,
+      this.resolveSkillReferences({
+        projectId: eventData.projectId,
+        type: eventData.type ?? "SPAN",
+        available: eventData.skillsAvailable,
+        loaded: eventData.skillsResourceLoaded,
+      }),
     ]);
 
     const now = toClickhouseDateTime();
@@ -424,6 +437,8 @@ export class IngestionService {
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: parseUInt16(eventData.promptVersion),
+      skills_available: skillReferences.skills_available,
+      skills_resource_loaded: skillReferences.skills_resource_loaded,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
@@ -1233,6 +1248,84 @@ export class IngestionService {
     }
 
     return parsedObservationRecord;
+  }
+
+  private async resolveSkillReferences({
+    projectId,
+    type,
+    available = [],
+    loaded = [],
+  }: {
+    projectId: string;
+    type: EventRecordInsertType["type"];
+    available?: SkillsAvailableInput;
+    loaded?: SkillsResourceLoaded;
+  }): Promise<{
+    skills_available: SkillsAvailable;
+    skills_resource_loaded: SkillsResourceLoaded;
+  }> {
+    // Bound internal callers too, before building the lookup or its cache key.
+    if (
+      available.length > MAX_SKILLS_PER_OBSERVATION ||
+      loaded.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("Skill references truncated: item limit exceeded", {
+        projectId,
+        availableCount: available.length,
+        loadedCount: loaded.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+    }
+    available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    const versions = available.flatMap(({ name, version }) =>
+      version == null ? [] : [{ name, version }],
+    );
+    const skills = await this.skillCacheService.getReferences({
+      projectId,
+      versions,
+    });
+
+    const availableSkills = available.map(({ name, version }) => {
+      const skill = skills.find(
+        (skill) => skill.name === name && skill.version === version,
+      );
+      return {
+        name,
+        version: skill?.version ?? version,
+        langfuseSkillId: skill?.id,
+      };
+    });
+
+    const loadedResources = loaded.map(
+      ({ skillName, filePath, skillVersion }) => {
+        const candidates = availableSkills.filter(
+          (skill) => skill.name === skillName,
+        );
+        if (candidates.length !== 1)
+          return { skillName, filePath, skillVersion };
+
+        const skill = candidates[0];
+        return {
+          skillName,
+          filePath,
+          langfuseSkillId: skill?.langfuseSkillId,
+          skillVersion: skill.version ?? skillVersion,
+        };
+      },
+    );
+
+    return {
+      skills_available:
+        type === "GENERATION"
+          ? availableSkills.map(({ name, version, langfuseSkillId }) => ({
+              skillName: name,
+              skillVersion: version,
+              langfuseSkillId,
+            }))
+          : [],
+      skills_resource_loaded: loadedResources,
+    };
   }
 
   private mergeRecords<T extends InsertRecord>(

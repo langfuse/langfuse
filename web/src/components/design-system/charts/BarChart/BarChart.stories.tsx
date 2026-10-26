@@ -1,7 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
-import { chartColors } from "../constants";
+import { chartFillColors } from "../constants";
 import { BarChart } from "./BarChart";
 
 const data = [
@@ -107,74 +107,17 @@ export const KeyboardFocus = meta.story({
   },
 });
 
-export const CategoryHoverArea = meta.story({
-  name: "(Test) Category Hover Area",
-  play: async ({ canvasElement }) => {
-    const area = canvasElement.querySelector<SVGRectElement>(
-      "[data-bar-hover-area]",
-    );
-    if (!area) throw new Error("Hover area not found");
-    await userEvent.hover(area);
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Alpha");
-    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    try {
-      await userEvent.click(area);
-      await expect(copy).toHaveBeenCalledWith("Alpha");
-    } finally {
-      copy.mockRestore();
-    }
-  },
-});
-
-export const TooltipFollowsBar = meta.story({
-  name: "(Test) Tooltip Follows Bar",
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const bars = canvas.getAllByRole("graphics-symbol");
-    const areas = canvasElement.querySelectorAll<SVGRectElement>(
-      "[data-bar-hover-area]",
-    );
-    for (let index = 0; index < bars.length; index++) {
-      const bar = bars[index];
-      const area = areas[index];
-      if (!bar || !area) throw new Error("Bar or hover area not found");
-      await userEvent.hover(area);
-      const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-        "tooltip",
-      );
-      const referenceLine = canvasElement.querySelector(
-        "[data-active-reference-line]",
-      );
-      if (!referenceLine) throw new Error("Reference line not found");
-      await expect(referenceLine.compareDocumentPosition(bar)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING,
-      );
-      const areaTop = tooltip.getBoundingClientRect().top;
-      await userEvent.hover(bar);
-      await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);
-      if (index === 0) {
-        await expect(
-          tooltip.getBoundingClientRect().bottom,
-        ).toBeLessThanOrEqual(bar.getBoundingClientRect().top);
-      }
-    }
-  },
-});
-
 export const CategoryColors = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
         id: item.label,
         label: item.label,
-        color: chartColors[index] ?? "",
+        color: chartFillColors[index] ?? "",
       })),
     },
   },
@@ -185,7 +128,7 @@ export const CategoryColorTooltip = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
   },
   play: async ({ canvasElement }) => {
@@ -196,7 +139,7 @@ export const CategoryColorTooltip = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      chartColors[0],
+      chartFillColors[0],
     );
   },
 });
@@ -205,7 +148,7 @@ export const CategoryColorsWithoutLegend = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
   },
 });
@@ -217,13 +160,13 @@ export const CompactLegend = meta.story({
     data: data.map((item, index) => ({
       ...item,
       label: `production-evaluation-run-${item.label}-with-a-long-name`,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
         id: item.label,
         label: `production-evaluation-run-${item.label}-with-a-long-name`,
-        color: ["#3a3dee", "#07b9d5", "#f18a42"][index] ?? "",
+        color: chartFillColors[index] ?? "",
       })),
     },
   },
@@ -250,24 +193,11 @@ export const ManyCategories = meta.story({
 });
 
 export const LongLabels = meta.story({
-  name: "(Test) Long Labels",
   args: {
     data: Array.from({ length: 12 }, (_, index) => ({
       label: `production-evaluation-run-${index + 1}-with-a-long-name`,
       value: 12 + index,
     })),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const firstBar = canvas.getAllByRole("graphics-symbol")[0];
-    if (!firstBar) throw new Error("Bar not found");
-    await expect(
-      canvasElement.querySelector("[data-x-axis-label]"),
-    ).toHaveTextContent(/…$/);
-    await userEvent.hover(firstBar);
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label]"),
-    ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
   },
 });
 

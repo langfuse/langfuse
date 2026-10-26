@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Archive, Edit, PlusIcon } from "lucide-react";
+import { Archive, PlusIcon } from "@langfuse/icons";
 import {
   type Prisma,
   type ScoreConfigCategoryDomain,
@@ -11,6 +11,7 @@ import {
   type AsyncTableData,
   type TableProps,
 } from "@/src/components/design-system/table/Table";
+import { createButtonTableColumn } from "@/src/components/design-system/table/columns/createButtonTableColumn";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -131,6 +132,18 @@ export function ScoreConfigsTable({
         enableHiding: true,
         defaultHidden: true,
       }),
+      createButtonTableColumn<ScoreConfigTableRow, string>({
+        id: "edit",
+        accessorFn: (config) => config.id,
+        header: "",
+        size: 80,
+        getButton: ({ row }) => ({
+          text: "Edit",
+          disabled: !!editAction.disabled,
+          disabledReason: editAction.disabled?.reason,
+          onClick: () => editAction.openDialog(row.original),
+        }),
+      }),
       createBadgeTableColumn<ScoreConfigTableRow>({
         id: "status",
         accessorFn: (config) => (config.isArchived ? "Archived" : "Active"),
@@ -139,21 +152,13 @@ export function ScoreConfigsTable({
         enableHiding: true,
       }),
     ],
-    [],
+    [editAction],
   );
 
   const actions = useCallback<
     NonNullable<TableProps<ScoreConfigTableRow>["actions"]>
   >(
     (config) => [
-      {
-        id: "edit",
-        type: "item",
-        title: "Edit",
-        icon: Edit,
-        disabled: editAction.disabled,
-        onClick: () => editAction.openDialog(config),
-      },
       {
         id: "archive",
         type: "item",
@@ -164,7 +169,7 @@ export function ScoreConfigsTable({
         onClick: () => archiveAction.openDialog(config),
       },
     ],
-    [archiveAction, editAction],
+    [archiveAction],
   );
 
   const toolbarActions: SettingsTableProps<ScoreConfigTableRow>["toolbarActions"] =
@@ -173,7 +178,7 @@ export function ScoreConfigsTable({
         id: "add-score-config",
         label: "Add new score config",
         variant: "secondary",
-        icon: <PlusIcon className="size-4" aria-hidden="true" />,
+        icon: <PlusIcon size="base" aria-hidden="true" />,
         disabled: createAction.disabled !== undefined,
         loading: createAction.loading,
         title: createAction.disabled?.reason,

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-exotic-operators */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AISDKError, APICallError, RetryError } from "ai";
 
 const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
@@ -8,7 +8,8 @@ const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
 export type LLMValidationErrorCode =
   | "invalid-connection"
   | "invalid-request"
-  | "endpoint-unreachable";
+  | "endpoint-unreachable"
+  | "media-not-found";
 
 /**
  * A deterministic validation failure owned by Langfuse, before or around the
@@ -146,7 +147,9 @@ function unwrapRetryError(error: unknown): {
 
   while (RetryError.isInstance(resolvedError) && !visited.has(resolvedError)) {
     visited.add(resolvedError);
-    retryError ??= resolvedError;
+    if (retryError === undefined) {
+      retryError = resolvedError;
+    }
     resolvedError = resolvedError.lastError;
   }
 

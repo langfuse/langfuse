@@ -158,6 +158,16 @@ export const FreeFormKey = meta.story({
   },
 });
 
+export const Empty = meta.story({
+  args: {
+    mode: "string",
+    keyOptions: ["region"],
+    valueOptions: { region: ["eu", "us"] },
+    activeFilters: [],
+    onChange: fn(),
+  },
+});
+
 export const TestObservedKeySuggestionPreservesValue = meta.story({
   name: "(Test) Observed Key Suggestion Preserves Value",
   args: {

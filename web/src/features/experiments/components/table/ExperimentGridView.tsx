@@ -1,10 +1,11 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { ExperimentInputCell } from "./ExperimentInputCell";
-import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummaryValues";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { Badge } from "@/src/components/ui/badge";
+import { ExperimentRunBadge } from "../ExperimentRunBadge";
 import {
   ExperimentGridCell,
   ExperimentGridCellEmpty,
@@ -25,8 +26,11 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+
 // Grid view row heights (matching DatasetCompareRunsTable)
-const GRID_VIEW_ROW_HEIGHTS = {
+export const GRID_VIEW_ROW_HEIGHTS = {
   s: "h-48", // 192px
   m: "h-64", // 256px
   l: "h-96", // 384px
@@ -50,6 +54,12 @@ type ExperimentGridViewProps = {
    */
   ioLoading: boolean;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
   observationScoreOrder: string[];
@@ -85,6 +95,9 @@ export const ExperimentGridView = ({
   isLoading,
   ioLoading,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  onSelectRowHeight,
   showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
@@ -98,6 +111,8 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const capture = usePostHogClientCapture();
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   // Keep the explicit baseline separate from the comparison list. A baseline
   // is optional, so c-only URLs render every selected experiment here.
@@ -151,12 +166,9 @@ export const ExperimentGridView = ({
                 {expName}
               </span>
               {useExperimentColors && (
-                <Badge
-                  variant="outline"
-                  className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
-                >
+                <ExperimentRunBadge colorClass={colorStyles?.badgeClass} strong>
                   {isBaseline ? "Baseline" : "Comp"}
-                </Badge>
+                </ExperimentRunBadge>
               )}
             </div>
             <ExperimentGridSummaryValues
@@ -228,6 +240,27 @@ export const ExperimentGridView = ({
               }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onAnnotate={
+                canAnnotate &&
+                peekView?.openPeek &&
+                expData.traceId &&
+                expData.observationId
+                  ? () => {
+                      capture("annotation:entry_click", {
+                        type: "trace",
+                        source: "DatasetCompare",
+                        isV4: true,
+                        targetType: "observation",
+                        entryPoint: "annotate_button",
+                      });
+                      peekView.openPeek?.(
+                        row.original.itemId,
+                        { ...row.original, clickedExperimentId: expId },
+                        { queryParams: { annotation: "open" } },
+                      );
+                    }
+                  : undefined
+              }
               onExperimentClick={
                 peekView?.openPeek
                   ? (event) => {
@@ -262,6 +295,8 @@ export const ExperimentGridView = ({
     showDiff,
     singleLine,
     peekView,
+    canAnnotate,
+    capture,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
@@ -305,6 +340,8 @@ export const ExperimentGridView = ({
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
+              // Display chooses text or JSON. Row height does not.
+              followRowHeight: false,
               singleLine,
               variant: "output",
             }),
@@ -336,6 +373,9 @@ export const ExperimentGridView = ({
       pagination={pagination}
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}

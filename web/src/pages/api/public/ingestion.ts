@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -24,11 +25,15 @@ import {
 } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import {
   attachDeprecation,
+  EVENTS_ONLY_INGESTION_REMEDIATION,
   INGESTION_DEPRECATION,
+  LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+  setDeprecationHeaders,
 } from "@/src/features/public-api/server/deprecations";
 import {
   SDK_NAME_ATTRIBUTE,
@@ -40,10 +45,15 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
+import { type ProjectAction } from "@langfuse/shared/rbac";
 import {
+  unauthorizedError,
   type AuthorizationContext,
-  type ProjectAction,
 } from "@/src/features/auth/policy/types";
+import {
+  isLegacyIngestionScoreOnlyOrg,
+  recordLegacyIngestionScoreOnlyRejection,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 
 export const config = {
   api: {
@@ -178,14 +188,27 @@ export default async function handler(
 
         // V4 events_only mode: refuse every non-score event because trace and
         // observation writes target legacy ClickHouse tables this deployment
-        // no longer reads. SDK logs are no longer accepted in this mode.
-        // Reject per-event so a mixed batch still processes its score events.
+        // no longer reads. Organizations created at or after the cutoff get the
+        // same allow-list. SDK logs are refused too. Reject per-event so a
+        // mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
+        const scoreOnlyReason = scoreOnlyReasonFor(
+          isEventsOnlyMode,
+          scope.organizationCreatedAt,
+        );
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
-          isEventsOnlyMode,
+          scoreOnlyReason,
         );
+        if (scoreOnlyReason === "org_cutoff") {
+          recordLegacyIngestionScoreOnlyRejection({
+            route: "POST /api/public/ingestion",
+            count: rejectedErrors.length,
+            orgId: scope.orgId,
+            projectId,
+          });
+        }
 
         const attribution = createIngestionAttribution({
           headers: req.headers,
@@ -229,6 +252,7 @@ export default async function handler(
             ? INGESTION_DEPRECATION
             : undefined;
 
+        if (deprecation) setDeprecationHeaders(res, deprecation);
         return res.status(207).json(attachDeprecation(result, deprecation));
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {
@@ -253,6 +277,7 @@ export default async function handler(
         }
       }
 
+      setRetryAfterHeader(res, error);
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,
@@ -293,7 +318,7 @@ export default async function handler(
 }
 
 // Scores keep their own ClickHouse table and are the only event type accepted
-// by this endpoint in V4 events_only mode.
+// by this endpoint in V4 events_only mode and for cutoff organizations.
 const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
 
 const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
@@ -305,20 +330,28 @@ const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
   ),
 );
 
-const EVENTS_ONLY_INGESTION_DOCS_URL =
-  "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
+/** ScoreOnlyReason is why this request may only ingest scores; it picks the rejection text. */
+type ScoreOnlyReason = "events_only" | "org_cutoff";
 
-const EVENTS_ONLY_INGESTION_REMEDIATION = [
-  "Upgrade the client or integration to a v4-compatible SDK or OTLP ingestion path.",
-  "As a temporary migration bridge, set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual on both the web and worker services and redeploy.",
-  `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
-].join(" ");
+const SCORE_ONLY_REJECTION: Record<ScoreOnlyReason, string> = {
+  events_only: `is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+  org_cutoff: `is not accepted. ${LEGACY_INGESTION_ORG_CUTOFF_MESSAGE}`,
+};
+
+function scoreOnlyReasonFor(
+  isEventsOnlyMode: boolean,
+  organizationCreatedAt: string | null | undefined,
+): ScoreOnlyReason | null {
+  if (isEventsOnlyMode) return "events_only";
+  if (isLegacyIngestionScoreOnlyOrg(organizationCreatedAt)) return "org_cutoff";
+  return null;
+}
 
 export function filterBatchForEventsOnly(
   batch: unknown[],
-  isEventsOnlyMode: boolean,
+  scoreOnlyReason: ScoreOnlyReason | null,
 ): IngestionBatchFilter {
-  if (!isEventsOnlyMode) {
+  if (!scoreOnlyReason) {
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
 
@@ -342,7 +375,7 @@ export function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+        error: `Event type "${type ?? "unknown"}" ${SCORE_ONLY_REJECTION[scoreOnlyReason]}`,
       });
     }
   }
@@ -350,7 +383,7 @@ export function filterBatchForEventsOnly(
   return { batchForProcessing, rejectedErrors };
 }
 
-/** authorizeIngestionBatch authorizes each event against the resolved context, dropping enforce-mode denials as 207 rejections; legacy and shadow keep every event. */
+/** authorizeIngestionBatch filters out unauthorized events from the batch */
 function authorizeIngestionBatch(
   batch: unknown[],
   ctx: AuthorizationContext | undefined,
@@ -359,13 +392,12 @@ function authorizeIngestionBatch(
 ): IngestionBatchFilter {
   const batchForProcessing: unknown[] = [];
   const rejectedErrors: IngestionEventRejection[] = [];
-
   for (const event of batch) {
     const decision = shadowAuthorize({
       ctx,
       action: ingestionActionForEventType(eventTypeOf(event)),
       resource: { projectId },
-      accessLevel,
+      legacyDecision: ingestionLegacyDecision(eventTypeOf(event), accessLevel),
     });
     if (!decision.success) {
       rejectedErrors.push({
@@ -381,12 +413,26 @@ function authorizeIngestionBatch(
   return { batchForProcessing, rejectedErrors };
 }
 
+function ingestionLegacyDecision(
+  eventType: string | null,
+  accessLevel: ApiAccessLevel,
+) {
+  if (
+    eventType === eventTypes.SDK_LOG ||
+    accessLevel === "project" ||
+    (eventType === eventTypes.SCORE_CREATE && accessLevel === "scores")
+  ) {
+    return { success: true as const, scope: { accessLevel } };
+  }
+  return unauthorizedError("Access Scope Denied");
+}
+
 /** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs skip authz. */
 function ingestionActionForEventType(
   type: string | null,
 ): ProjectAction | typeof __dangerouslySkipAuthz {
   if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
-  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  if (type === eventTypes.SCORE_CREATE) return "scores:save";
   return "traces:create";
 }
 

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
@@ -51,6 +50,8 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "skillNamesAvailable",
+  "skillsNamesLoaded",
   "scores_avg",
   "score_categories",
   "score_booleans",
@@ -208,7 +209,9 @@ export function useEventsFilterOptions({
             !EAGER_COLUMN_SET.has(col) &&
             !prev.has(col)
           ) {
-            next ??= new Set(prev);
+            if (next === null) {
+              next = new Set(prev);
+            }
             next.add(col);
           }
         }
@@ -385,6 +388,8 @@ export function useEventsFilterOptions({
       isRootObservation: rawData.isRootObservation ?? undefined,
       toolNames: rawData.toolNames ?? undefined,
       calledToolNames: rawData.calledToolNames ?? undefined,
+      skillNamesAvailable: rawData.skillNamesAvailable ?? undefined,
+      skillsNamesLoaded: rawData.skillsNamesLoaded ?? undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],

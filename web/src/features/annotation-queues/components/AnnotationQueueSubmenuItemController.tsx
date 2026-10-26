@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
-import { ListPlus, PlusIcon } from "lucide-react";
+import { ListPlus, PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { type ReactNode, useCallback, useMemo } from "react";
 

@@ -1,11 +1,20 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { type Plan, Role } from "@langfuse/shared";
+import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createApiKeyCacheKey,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -17,6 +26,15 @@ import {
   it,
   vi,
 } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  reconcileTopicsConnectionsForProject: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/topics/server", () => ({
+  reconcileTopicsConnectionsForProject:
+    mocks.reconcileTopicsConnectionsForProject,
+}));
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
@@ -80,25 +98,22 @@ function cacheKeysFor({
 }) {
   return [
     createApiKeyCacheKey(fastHash),
-    createAuthzContextCacheKey(fastHash),
-    createAuthzContextCacheKey(createShaHash(publicKey, env.SALT!)),
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${fastHash}`,
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash(publicKey, env.SALT!)}`,
+    createAuthzContextCacheKey("basic", fastHash),
+    createAuthzContextCacheKey("bearer", fastHash),
+    createAuthzContextCacheKey("bearer", createShaHash(publicKey, env.SALT!)),
   ];
 }
 
 async function seedOrgScopedKey(orgId: string) {
-  const suffix = uuidv4().slice(0, 8);
-  const fastHash = `fh-${suffix}`;
-  const publicKey = `pk-lf-${suffix}`;
-  await prisma.apiKey.create({
-    data: {
-      orgId,
-      scope: "ORGANIZATION",
-      publicKey,
-      hashedSecretKey: `hsk-${suffix}`,
-      fastHashedSecretKey: fastHash,
-      displaySecretKey: `sk-...${suffix}`,
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    scope: OrganizationId(orgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
   });
+  const fastHash = createShaHash(secretKey, env.SALT!);
   const keys = cacheKeysFor({ fastHash, publicKey });
   for (const key of keys) {
     await setRedisValue(redis, key, "1");
@@ -232,6 +247,121 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(await survivingKeys([...sourceKeys, ...targetKeys])).toEqual([]);
   });
 
+  it("projects.transfer rebinds the default eval model to the destination organization", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const provider = `transfer-provider-${uuidv4()}`;
+    const sourceConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: sourceOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "source",
+        secretKey: "source",
+      },
+    });
+    const targetConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: targetOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "target",
+        secretKey: "target",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId,
+        llmApiKeyId: sourceConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o-mini",
+      },
+    });
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    await expect(
+      prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+    ).resolves.toMatchObject({ llmApiKeyId: targetConnection.id });
+  });
+
+  it("projects.transfer removes the default eval model when no compatible connection exists", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const provider = `transfer-provider-${uuidv4()}`;
+    const sourceConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: sourceOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "source",
+        secretKey: "source",
+      },
+    });
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: targetOrgId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        displaySecretKey: "target",
+        secretKey: "target",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId,
+        llmApiKeyId: sourceConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o-mini",
+      },
+    });
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    await expect(
+      prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+    ).resolves.toBeNull();
+  });
+
+  it("projects.transfer still evicts cached keys when Topics refresh fails", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const sourceKeys = await seedOrgScopedKey(sourceOrgId);
+    const targetKeys = await seedOrgScopedKey(targetOrgId);
+    mocks.reconcileTopicsConnectionsForProject.mockRejectedValueOnce(
+      new Error("Topics refresh failed"),
+    );
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await expect(
+      caller.projects.transfer({ projectId, targetOrgId }),
+    ).rejects.toThrow();
+
+    expect(await survivingKeys([...sourceKeys, ...targetKeys])).toEqual([]);
+  });
+
   it("organizations.delete evicts cached keys before the cascade removes the rows", async () => {
     const orgId = await createOrg();
     const user = await createUserInOrgs([orgId]);
@@ -268,10 +398,19 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("admin handleDeleteProject evicts the org's cached keys", async () => {
+  it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);
     const keys = await seedOrgScopedKey(orgId);
+
+    const user = await createUserInOrgs([orgId]);
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
+    });
 
     const res = makeRes();
     await handleDeleteProject({} as any, res, projectId, {
@@ -281,6 +420,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
 
     expect(res.statusCode).toBe(202);
     expect(await survivingKeys(keys)).toEqual([]);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("admin handleDeleteOrganization evicts cached keys before the cascade removes the rows", async () => {

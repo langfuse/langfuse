@@ -2,6 +2,7 @@
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
 import { UiColumnMappings } from "../../tableDefinitions";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
   {
@@ -180,7 +181,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -188,7 +189,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -196,7 +197,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -204,7 +205,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Metadata",

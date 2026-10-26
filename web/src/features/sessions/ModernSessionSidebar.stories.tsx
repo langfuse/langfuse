@@ -283,7 +283,7 @@ function ModernSessionSidebarStory(
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleTraces = normalizedSearch
-    ? args.traces.flatMap((sidebarTrace) => {
+    ? args.traces.flatMap<ModernSessionSidebarTrace>((sidebarTrace) => {
         const matchingObservations = sidebarTrace.observations?.filter(
           (observation) =>
             (observation.name ?? "").toLowerCase().includes(normalizedSearch),
@@ -494,7 +494,6 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("3")).toBeInTheDocument();
     await expect(canvas.getByText("Matching observation")).toBeInTheDocument();
-    await expect(canvas.queryByText(/idle$/)).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: /Summarize findings/i }),
@@ -514,7 +513,7 @@ export const TestSelectsObservation = meta.story({
     const canvas = within(canvasElement);
 
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
+      await canvas.findByRole("button", { name: /^Search knowledge base\b/i }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
   },

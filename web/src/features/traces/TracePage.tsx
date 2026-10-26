@@ -3,14 +3,14 @@ import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function TracePage({
   traceId,
@@ -90,15 +90,15 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge variant="outline" className="text-xs font-bold">
-      Public
-    </Badge>
+    <Badge color="primary" text="Public" />
   ) : undefined;
 
   return (
     <Page
       headerProps={{
-        title: trace.data.id,
+        // Route id, not the loaded one: the loaded trace may be the previous
+        // one kept as placeholder.
+        title: traceId,
         itemType: "TRACE",
         divider: false,
         breadcrumb: [
@@ -139,6 +139,7 @@ export function TracePage({
               compact
             />
             <TraceDetailActions
+              isPlaceholderData={trace.isPlaceholderData}
               trace={trace.data}
               traceContext={traceContext}
               timestamp={timestamp}
@@ -147,10 +148,11 @@ export function TracePage({
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // menu rows (Make Public / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
+            isPlaceholderData={trace.isPlaceholderData}
             trace={trace.data}
             traceContext={traceContext}
             timestamp={timestamp}
@@ -165,6 +167,7 @@ export function TracePage({
           trace={trace.data}
           context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
+          isPlaceholderData={trace.isPlaceholderData}
         />
       </div>
     </Page>

@@ -53,7 +53,11 @@ describe("trace review panel sessions", () => {
     const annotationSession = store.getState().annotation;
     const refresh = vi.fn();
     const focus = vi.fn();
-    store.annotationFormRef.current = { refresh, focus };
+    store.annotationFormRef.current = {
+      refresh,
+      focus,
+      flushPendingEdits: vi.fn(),
+    };
     actions.openComments({ target, confirmDiscard: () => false });
     const refreshed = { ...annotation, scores: [] };
     actions.openAnnotation(refreshed);

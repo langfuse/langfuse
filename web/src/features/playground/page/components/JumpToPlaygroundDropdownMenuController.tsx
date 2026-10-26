@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -108,7 +109,7 @@ export function useJumpToPlayground(
     return `playground-${props.source}-${sourceId}`;
   }, [props.source, sourceId]);
 
-  const apiKeys = api.llmApiKey.all.useQuery(
+  const apiKeys = api.llmApiKey.effective.useQuery(
     {
       projectId: projectId as string,
     },

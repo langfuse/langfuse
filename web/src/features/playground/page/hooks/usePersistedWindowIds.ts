@@ -8,7 +8,7 @@ import {
   removeWindowState,
   clearAllPlaygroundData,
 } from "../storage/windowStorage";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
 
 /**
  * Hook to persist window IDs across page refreshes.
@@ -43,9 +43,15 @@ export function usePersistedWindowIds() {
         return windowId;
       }
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
-        toast.error(
-          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
-        );
+        showToast({
+          type: "ERROR",
+          title: `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+          analytics: {
+            operation: "playground_window.add",
+            errorOrigin: "frontend",
+            errorCategory: "resource_limit",
+          },
+        });
         return null;
       }
       setWindowIds((prev) => [...prev, windowId]);
@@ -62,9 +68,15 @@ export function usePersistedWindowIds() {
   const addWindowWithCopy = useCallback(
     (sourceWindowId?: string) => {
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
-        toast.error(
-          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
-        );
+        showToast({
+          type: "ERROR",
+          title: `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+          analytics: {
+            operation: "playground_window.add",
+            errorOrigin: "frontend",
+            errorCategory: "resource_limit",
+          },
+        });
         return null;
       }
 
@@ -88,7 +100,15 @@ export function usePersistedWindowIds() {
   const removeWindowId = useCallback(
     (windowId: string) => {
       if (windowIds.length <= 1) {
-        toast.error("Cannot remove the last remaining window");
+        showToast({
+          type: "ERROR",
+          title: "Cannot remove the last remaining window",
+          analytics: {
+            operation: "playground_window.remove",
+            errorOrigin: "frontend",
+            errorCategory: "product_state",
+          },
+        });
         return;
       }
 

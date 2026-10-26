@@ -1,4 +1,4 @@
-import { User } from "lucide-react";
+import { User } from "@langfuse/icons";
 
 import preview from "../../../../.storybook/preview";
 import { TextLink } from "./TextLink";
@@ -20,5 +20,13 @@ export const WithIcon = meta.story({
     path: "#",
     value: "View user",
     icon: User,
+  },
+});
+
+export const External = meta.story({
+  args: {
+    path: "https://langfuse.com/docs",
+    value: "Docs",
+    external: true,
   },
 });

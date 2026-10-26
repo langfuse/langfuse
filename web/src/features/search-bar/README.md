@@ -8,7 +8,7 @@ state remain canonical; both editors update the same state.
 
 - Each sidebar host supplies a registry derived from its exposed facets. Settings
   lists and other tables without a sidebar retain their existing controls.
-- `EventsTable` enables the bar when its controls are visible and filters are
+- `EventsTable` enables the bar when `showSearchBar` is true and filters are
   internally owned. Embedded tables exclude fields locked by their parent.
 - `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
   Pass the host's existing search query and scope without changing their meaning.
@@ -50,6 +50,35 @@ state remain canonical; both editors update the same state.
 Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none.
+
+**Experiment scopes.** Comparison registries can attach a target to each
+condition, independently of its field and value:
+
+- `"All experiments".scores.quality:>0.8` applies to all currently selected experiments.
+  Unqualified typed filters acquire this visible prefix when committed.
+- `baseline.scores.quality:>0.8` follows the currently selected baseline.
+- `"Run A".scores.quality:<0.6` stays pinned to that experiment.
+- `"Run A".eventMetadata."model name":test` uses the same target syntax for
+  metadata. `itemMetadata.` and `eventMetadata.` map to separate host-declared
+  columns through `metadataNamespaces`.
+- `baseline.has:itemMetadata.region` / `-baseline.has:itemMetadata.region`
+  preserve the sidebar's metadata-key "is set" / "is not set" operators.
+
+`all.` is accepted as a legacy alias and serialized as `"All experiments".`. Experiment names are
+quoted; a real experiment named `baseline` is therefore distinct from the
+symbolic `baseline` keyword. Legacy `field:value @baseline` and
+`field:value @"Run A"` expressions still parse; the serializer emits prefixes.
+The AST stores target and field separately, and lowering resolves the target
+to a stable ID in `FilterState.target`. Targetless persisted filters use the
+registry's `legacyDefaultTarget`, while newly typed unqualified filters use
+`defaultTarget`. Unavailable or ambiguous names block commit.
+
+Target choices augment field/value suggestions when editing a condition. Sidebar
+and search use the same combined options response for the selected experiments.
+Changing the scope changes only the target, not the score's operator or value.
+An unresolved options request blocks score commits. Conditions are AND-joined
+inside each experiment's request group;
+the backend's existing qualification and baseline-visibility rules are unchanged.
 
 **Full-text search.** Each registry declares `defaultSearchType` and
 `searchScopes`. The adapter writes the existing `searchQuery` / `searchType`
@@ -243,7 +272,8 @@ The table always reads the sidebar's `effectiveFilterState` +
 `searchQuery`/`searchType` — unchanged from non-bar mode. The events table is
 mounted by both `/observations` and `/traces` in v4 mode (and embedded on the
 user/session detail pages — page-scoped by `userId`/`sessionId` — and the
-evaluator form via `hideControls`, where the bar stays off). In bar mode the
+evaluator form with `showSearchBar`, `showToolbar`, `showFilterSidebar`, and
+`showPeekPanel` set to `false`, where the bar stays off). In bar mode the
 toolbar's legacy search field is hidden (full-text search is inline in the
 bar); the time-range + refresh controls stay in the toolbar row (next to the
 filter toggle and views), exactly as in non-bar mode — `EventsTable` passes

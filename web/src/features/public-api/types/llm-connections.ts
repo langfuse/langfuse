@@ -49,7 +49,7 @@ export const GetLlmConnectionsV1Response = z
   })
   .strict();
 
-// Decision-model adapters are experimental and not part of the public contract.
+// Decision-model adapters are not part of the public contract.
 const PUBLIC_LLM_ADAPTERS = Object.values(LLMAdapter).filter(
   (adapter) => !isDecisionModelAdapter(adapter),
 ) as [LLMAdapter, ...LLMAdapter[]];

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   authenticatedProcedure,
@@ -1270,7 +1270,12 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await getScoresByIds(input.projectId, scoreIds)
+          ? await getScoresByIds(
+              input.projectId,
+              scoreIds,
+              undefined,
+              "ReadOnly",
+            )
           : [];
 
       return {

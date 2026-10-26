@@ -13,6 +13,9 @@ export const BATCH_DELETION_TABLES = [
   "events_full",
   "events_core",
   "dataset_run_items_rmt",
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topics",
 ] as const;
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -41,7 +44,7 @@ interface DeleteAttempt {
 /**
  * BatchProjectCleaner handles bulk deletion of ClickHouse data for soft-deleted projects.
  *
- * Each instance processes one table (traces, observations, scores, events_full, events_core).
+ * Each instance processes one project-scoped table.
  * Multiple workers coordinate via Redis to ensure that only one cleaner runs
  * per table and only one ClickHouse count query runs across all tables.
  *
@@ -324,6 +327,11 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       clickhouseConfigs: {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
+      // Patch parts disable the summary projection until they are materialized.
+      clickhouseSettings:
+        this.tableName === "topic_facet_summaries"
+          ? { lightweight_delete_mode: "alter_update" }
+          : undefined,
     });
   }
 }

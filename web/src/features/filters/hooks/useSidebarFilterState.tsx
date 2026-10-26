@@ -48,6 +48,7 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  hasMultipleFilterTargets,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -60,7 +61,7 @@ import {
 
 // Re-exported so existing consumers (tests, session view) keep their path.
 export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
-import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /**
@@ -225,6 +226,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   onRemoveCondition: (index: number) => void;
   min: number;
   max: number;
+  step?: number;
   onChange: (value: [number, number]) => void;
   unit?: string;
 }
@@ -1376,6 +1378,17 @@ export function useSidebarFilterPresentation(
         };
       }
 
+      if (
+        facet.type === "categorical" &&
+        hasMultipleFilterTargets(filterState, facet.column)
+      ) {
+        return {
+          isDisabled: true,
+          reason:
+            "Edit filters for different targets individually in the filter bar.",
+        };
+      }
+
       return { isDisabled: false };
     };
 
@@ -1398,6 +1411,9 @@ export function useSidebarFilterPresentation(
             (f) => f.column === facet.column && f.type === "number",
           );
           const disableState = getFacetDisabledState(facet);
+          const column = config.columnDefinitions.find(
+            (column) => column.id === facet.column,
+          );
           return {
             type: "numeric",
             column: facet.column,
@@ -1409,6 +1425,9 @@ export function useSidebarFilterPresentation(
             conditions,
             min: facet.min,
             max: facet.max,
+            step:
+              facet.step ??
+              (column?.type === "number" ? column.step : undefined),
             unit: facet.unit,
             loading: false,
             expanded: expandedSet.has(facet.column),
@@ -1465,6 +1484,7 @@ export function useSidebarFilterPresentation(
           const categoryFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "categoryOptions",
           ) as Array<{
+            target?: string;
             column: string;
             type: "categoryOptions";
             operator: "any of" | "none of";
@@ -1476,6 +1496,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: KeyValueFilterEntry[] = categoryFilters.map(
             (f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }),
@@ -1534,6 +1555,7 @@ export function useSidebarFilterPresentation(
           const numericFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "numberObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "numberObject";
             operator: "=" | ">" | "<" | ">=" | "<=";
@@ -1545,6 +1567,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: NumericKeyValueFilterEntry[] =
             numericFilters.map((f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }));
@@ -1614,6 +1637,7 @@ export function useSidebarFilterPresentation(
           const booleanFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "booleanObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "booleanObject";
             operator: "=" | "<>";
@@ -1624,6 +1648,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: BooleanKeyValueFilterEntry[] =
             booleanFilters.map((f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }));
@@ -1667,6 +1692,7 @@ export function useSidebarFilterPresentation(
           const stringFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "stringObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "stringObject";
             operator:
@@ -1683,6 +1709,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
             (f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }),

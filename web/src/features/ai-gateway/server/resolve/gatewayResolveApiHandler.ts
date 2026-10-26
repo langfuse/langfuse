@@ -13,16 +13,18 @@ export async function gatewayResolveApiHandler({
   res,
   fastHashedSecretKey,
   apiFormat,
+  model,
 }: {
   req: NextApiRequest;
   res: NextApiResponse;
   fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
+  model: string;
 }) {
   try {
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({ fastHashedSecretKey, apiFormat });
+    ).authenticateRequest({ fastHashedSecretKey, apiFormat, model });
     const result = await new GatewayResolveService().resolve({
       context,
       apiFormat,
@@ -33,6 +35,9 @@ export async function gatewayResolveApiHandler({
       // The data plane retries a 503, so tell it when to come back rather than
       // letting it hammer a database that is already struggling.
       if (error.status === 503) res.setHeader("Retry-After", "1");
+      if (error.code) {
+        res.setHeader("langfuse-gateway-error-code", error.code);
+      }
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("Unexpected error resolving gateway request", error);

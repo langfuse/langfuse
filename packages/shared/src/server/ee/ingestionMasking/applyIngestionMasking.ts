@@ -10,6 +10,7 @@ import type {
   IngestionMaskingConfig,
   ApplyIngestionMaskingParams,
   MaskingResult,
+  IngestionMaskingTransport,
 } from "./types";
 
 /**
@@ -66,8 +67,17 @@ async function makeCallbackRequest<T>(params: {
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
   attempt: number;
+  transport: IngestionMaskingTransport<T>;
 }): Promise<{ success: boolean; data: T; error?: string }> {
-  const { config, data, projectId, orgId, propagatedHeaders, attempt } = params;
+  const {
+    config,
+    data,
+    projectId,
+    orgId,
+    propagatedHeaders,
+    attempt,
+    transport,
+  } = params;
   const startTime = Date.now();
 
   const controller = new AbortController();
@@ -84,7 +94,7 @@ async function makeCallbackRequest<T>(params: {
     const response = await fetch(config.callbackUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(data),
+      body: transport.body(data),
       signal: controller.signal,
     });
 
@@ -107,7 +117,7 @@ async function makeCallbackRequest<T>(params: {
       };
     }
 
-    const maskedData = (await response.json()) as T;
+    const maskedData = await transport.read(response);
     return { success: true, data: maskedData };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -145,6 +155,10 @@ async function makeCallbackRequest<T>(params: {
 export async function applyIngestionMasking<T>(
   params: ApplyIngestionMaskingParams<T>,
   envOverride?: SharedEnv,
+  transport: IngestionMaskingTransport<T> = {
+    body: (data) => JSON.stringify(data),
+    read: async (response) => (await response.json()) as T,
+  },
 ): Promise<MaskingResult<T>> {
   const { data, projectId, orgId, propagatedHeaders } = params;
 
@@ -164,6 +178,7 @@ export async function applyIngestionMasking<T>(
       orgId,
       propagatedHeaders,
       attempt,
+      transport,
     });
 
     if (result.success) {

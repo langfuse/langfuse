@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { BookOpen } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -21,16 +21,24 @@ export const VariantMatrix = meta.story({
   parameters: { controls: { disable: true } },
   render: () => (
     <div className="grid grid-cols-2 items-center gap-3">
-      {(["primary", "secondary", "destructive", "ghost"] as const).map(
-        (variant) =>
-          (["default", "sm"] as const).map((size) => (
-            <Button
-              key={`${variant}-${size}`}
-              text={`${variant} / ${size}`}
-              variant={variant}
-              size={size}
-            />
-          )),
+      {(
+        [
+          "primary",
+          "secondary",
+          "outline",
+          "destructive",
+          "ghost",
+          "text",
+        ] as const
+      ).map((variant) =>
+        (["default", "sm"] as const).map((size) => (
+          <Button
+            key={`${variant}-${size}`}
+            text={`${variant} / ${size}`}
+            variant={variant}
+            size={size}
+          />
+        )),
       )}
     </div>
   ),
@@ -98,6 +106,29 @@ export const Loading = meta.story({
   },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole("button")).toBeDisabled();
+  },
+});
+
+export const KeepsItsWidthWhileLoading = meta.story({
+  name: "(Test) Keeps Its Width While Loading",
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex gap-2">
+      <Button text="Save changes" />
+      <Button text="Save changes" loading />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const [idle, loading] = within(canvasElement).getAllByRole("button", {
+      name: "Save changes",
+    });
+
+    await expect(loading).toBeDisabled();
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect(within(loading).getByText("Save changes")).not.toBeVisible();
+    await expect(loading.getBoundingClientRect().width).toBe(
+      idle.getBoundingClientRect().width,
+    );
   },
 });
 

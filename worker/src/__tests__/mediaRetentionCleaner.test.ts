@@ -8,8 +8,13 @@ import {
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { MediaRetentionCleaner } from "../features/media-retention-cleaner";
 import { env } from "../env";
+
+vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
+  isEnterpriseLicenseAvailable: vi.fn(),
+}));
 
 // Mock S3 and blob storage functions
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -106,6 +111,11 @@ describe("MediaRetentionCleaner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getS3MediaStorageClient).mockReturnValue(mockS3Client as never);
+    // Retention only runs under an enterprise license. Pin that here rather
+    // than inheriting it from the ambient env, so the suite does not depend on
+    // which .env example the run happens to have loaded. Must be set after
+    // clearAllMocks, which would otherwise leave it returning undefined.
+    vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -220,6 +230,34 @@ describe("MediaRetentionCleaner", () => {
         (call) => call[0] as string[],
       );
       expect(allDeletedPaths).toContain(media.bucketPath);
+    });
+
+    it("should NOT delete media when no enterprise license is available", async () => {
+      const now = Date.now();
+      const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      await createTestMedia(projectId, tenDaysAgo);
+      expect(await getMediaCount(projectId)).toBe(1);
+
+      // Simulate a self-hosted deployment whose license key was removed.
+      vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(false);
+      const cleaner = new MediaRetentionCleaner();
+
+      // Backs off a full interval instead of doing work.
+      await expect(cleaner.processBatch()).resolves.toBe(
+        env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS,
+      );
+
+      // Retention is an enterprise entitlement, so the stored policy must stop
+      // being applied once the instance can no longer configure it.
+      expect(await getMediaCount(projectId)).toBe(1);
+      expect(mockDeleteFiles).not.toHaveBeenCalled();
     });
 
     it("cleans expired links, preserves recent links, and drains the project", async () => {

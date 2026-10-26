@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createMocks } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
 

@@ -280,19 +280,11 @@ export function TimelineChartCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as TimelineTab)}
             >
-              <Tabs.List size="md">
-                <Tabs.Trigger
-                  value="score1"
-                  size="sm"
-                  label={score1FullLabel}
-                />
-                <Tabs.Trigger
-                  value="score2"
-                  size="sm"
-                  label={score2FullLabel}
-                />
-                <Tabs.Trigger value="all" size="sm" label="all" />
-                <Tabs.Trigger value="matched" size="sm" label="matched" />
+              <Tabs.List variant="inset" size="md">
+                <Tabs.Trigger value="score1" label={score1FullLabel} />
+                <Tabs.Trigger value="score2" label={score2FullLabel} />
+                <Tabs.Trigger value="all" label="all" />
+                <Tabs.Trigger value="matched" label="matched" />
               </Tabs.List>
             </Tabs>
           )}

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
@@ -38,8 +38,10 @@ export function NoulCriteriaEditor({
           (optional)
         </span>
         <ChevronDown
-          className={cn(
-            "text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform",
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "ml-1 translate-y-px transition-transform",
             open ? "rotate-180" : "rotate-0",
           )}
         />

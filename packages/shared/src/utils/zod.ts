@@ -2,6 +2,22 @@ import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
 import { InvalidRequestError } from "../errors";
 
+/** ISO datetimes with minutes, seconds, or fractional seconds; timezone required. */
+export function isoDateTime({
+  offset = false,
+  error = "Invalid ISO datetime",
+}: {
+  offset?: boolean;
+  error?: string | z.core.$ZodErrorMap;
+} = {}) {
+  // Share the date/time patterns once to keep tool schemas compact and union-free.
+  const date = z.regexes.date.source.slice(1, -1);
+  const time = z.regexes.time({}).source.slice(1, -1);
+  const timezone = offset ? "(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)" : "Z";
+  const pattern = new RegExp(`^${date}T${time}${timezone}$`);
+  return z.string({ error }).regex(pattern, { error });
+}
+
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
 
@@ -151,13 +167,6 @@ export const queryStringZod = z
   .string()
   .transform((val) => decodeURIComponent(val));
 
-export const paginationMetaResponseZod = z.object({
-  page: z.number().int().positive(),
-  limit: z.number().int().positive(),
-  totalItems: z.number().int().nonnegative(),
-  totalPages: z.number().int().nonnegative(),
-});
-
 /**
  * Top-level `_deprecation` metadata returned by legacy public API endpoints.
  * Optional fields are omitted when empty (never null).
@@ -170,6 +179,17 @@ export const deprecationResponseZod = z.object({
 });
 
 export type ApiDeprecationInfo = z.infer<typeof deprecationResponseZod>;
+
+export const paginationMetaResponseZod = z.object({
+  /** Set on list responses of legacy public API endpoints. */
+  deprecation: deprecationResponseZod
+    .pick({ sunsetAt: true, replacement: true })
+    .optional(),
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
 
 export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);

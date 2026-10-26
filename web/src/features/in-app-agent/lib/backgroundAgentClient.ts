@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AbstractAgent, type RunAgentInput } from "@ag-ui/client";
 import { EventType, type BaseEvent } from "@ag-ui/core";
 import { Observable } from "rxjs";
@@ -284,7 +285,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     const reader = response.body?.getReader();
 
     if (!reader) {
-      throw new Error("The assistant stream is unavailable");
+      throw new Error("The Halo stream is unavailable");
     }
 
     const decoder = new TextDecoder();
@@ -392,5 +393,5 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Fall through to the generic message below.
   }
 
-  return "The assistant is unavailable right now";
+  return "Halo is unavailable right now";
 }

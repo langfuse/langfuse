@@ -1,3 +1,5 @@
+import { Button } from "@/src/components/design-system/Button/Button";
+import { fn } from "storybook/test";
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
 import { AnnotationQueueDetails } from "./AnnotationQueueDetails";
@@ -47,8 +49,18 @@ const scoreConfigs = [
 
 const meta = preview.meta({
   component: AnnotationQueueDetails,
+  args: {
+    editAction: (
+      <Button
+        text="Edit score configs"
+        onClick={fn()}
+        variant="secondary"
+        size="sm"
+      />
+    ),
+  },
   render: (args) => (
-    <div className="w-80">
+    <div className="h-[600px] w-80">
       <AnnotationQueueDetails {...args} />
     </div>
   ),

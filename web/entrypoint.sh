@@ -1,5 +1,24 @@
 #!/bin/sh
 
+# Preserve system CA trust and deployment-provided Node options.
+export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--use-openssl-ca"
+export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/pki/tls/certs/ca-bundle.crt}"
+
+# Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
+# active for Node (e.g. a host without FIPS mode, or an image rebuilt on a
+# non-FIPS base). This runs before the migrations below open database
+# connections. The app additionally requires an enterprise license for FIPS
+# mode at startup (packages/shared/src/server/ee/fips).
+if [ "$LANGFUSE_REQUIRE_FIPS" = "true" ]; then
+    # Opt into the FIPS crypto policy for OpenSSL (see the Dockerfile). An
+    # OPENSSL_CONF set by the deployment takes precedence.
+    export OPENSSL_CONF="${OPENSSL_CONF:-/etc/pki/tls/openssl-fips.cnf}"
+    if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
+        echo "Error: LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Exiting..."
+        exit 1
+    fi
+fi
+
 # Check whether a database URL's credentials contain characters that typically
 # need percent-encoding for Prisma (@ : / % # ?).  Best-effort heuristic —
 # strips the scheme, extracts the authority (user:pass@host) before the first

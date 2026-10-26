@@ -1,5 +1,9 @@
 import { randomUUID } from "crypto";
-import { getCodeEvalVariableMapping, LLMAdapter } from "@langfuse/shared";
+import {
+  getCodeEvalVariableMapping,
+  LLMAdapter,
+  type FilterState,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -257,6 +261,84 @@ describe("evaluator v2 repository", () => {
         ],
         totalItems: 1,
       });
+    });
+
+    it("matches LIKE wildcards literally in evaluator search", async () => {
+      await Promise.all([
+        createEvaluator({ name: "gpt_4-evaluator" }),
+        createEvaluator({ name: "gpt-4-evaluator" }),
+        createEvaluator({ name: "save 100% now" }),
+        createEvaluator({ name: "save 1000 now" }),
+      ]);
+
+      const searchNames = async (search: string) => {
+        const res = await evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          search,
+        });
+        return res.evaluators.map((e) => e.name);
+      };
+
+      expect(await searchNames("gpt_4")).toEqual(["gpt_4-evaluator"]);
+      expect(await searchNames("100%")).toEqual(["save 100% now"]);
+    });
+
+    it("matches LIKE wildcards literally in exact creator filters", async () => {
+      const [literalCreator, wildcardMatch] = await Promise.all([
+        prisma.user.create({
+          data: { name: "creator_1", email: `${randomUUID()}@example.com` },
+        }),
+        prisma.user.create({
+          data: { name: "creator-1", email: `${randomUUID()}@example.com` },
+        }),
+      ]);
+
+      try {
+        const matching = await createEvaluator({
+          createdByUserId: literalCreator.id,
+        });
+        await createEvaluator({ createdByUserId: wildcardMatch.id });
+
+        const listIds = async (filter: FilterState) => {
+          const res = await evaluatorRepository.listEvaluators({
+            prisma,
+            projectId,
+            page: 1,
+            limit: 50,
+            filter,
+          });
+          return res.evaluators.map((e) => e.id);
+        };
+
+        expect(
+          await listIds([
+            {
+              column: "creator",
+              type: "string",
+              operator: "=",
+              value: "creator_1",
+            },
+          ]),
+        ).toEqual([matching.id]);
+        expect(
+          await listIds([
+            {
+              column: "creator",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["creator_1"],
+            },
+          ]),
+        ).toEqual([matching.id]);
+      } finally {
+        await prisma.evaluator.deleteMany({ where: { projectId } });
+        await prisma.user.deleteMany({
+          where: { id: { in: [literalCreator.id, wildcardMatch.id] } },
+        });
+      }
     });
 
     it("preserves default update order and supports explicit creation order", async () => {

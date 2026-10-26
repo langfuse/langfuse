@@ -78,6 +78,9 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
+- **AI gateway.** Changes under `web/src/features/ai-gateway/`,
+  `web/src/pages/api/internal/ai-gateway/`, or `ai-gateway/` auto-apply
+  `ai-gateway-preview`. That label is what deploys the gateway into the preview.
 
 ## Add or improve data in a preview
 

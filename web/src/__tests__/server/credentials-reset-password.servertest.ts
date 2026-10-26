@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomInt, randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -6,7 +7,7 @@ import { env } from "@/src/env.mjs";
 import {
   hashPassword,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";

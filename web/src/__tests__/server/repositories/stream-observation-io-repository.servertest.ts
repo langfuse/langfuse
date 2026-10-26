@@ -146,4 +146,36 @@ maybe("streamObservationIOFieldFromEventsTable", () => {
     });
     expect(missing).toBeNull();
   });
+
+  it("reads an observation whose latest version is soft-deleted as missing", async () => {
+    const opts = {
+      projectId: randomUUID(),
+      traceId: randomUUID(),
+      observationId: randomUUID(),
+      field: "input" as const,
+      startTime: new Date(),
+    };
+    const startMs = opts.startTime.getTime();
+    const version = {
+      id: opts.observationId,
+      span_id: opts.observationId,
+      project_id: opts.projectId,
+      trace_id: opts.traceId,
+      input: "live",
+      start_time: startMs * 1000,
+    };
+
+    await createEventsCh([
+      createEvent({ ...version, event_ts: startMs }),
+      createEvent({ ...version, event_ts: startMs + 1000, is_deleted: 1 }),
+    ]);
+
+    expect(await getObservationIOFieldByteLengthFromEventsTable(opts)).toBe(
+      null,
+    );
+    const streamed = await streamObservationIOFieldFromEventsTable(opts).then(
+      (r) => collectStream(r.stream),
+    );
+    expect(streamed).toBe("");
+  });
 });

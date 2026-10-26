@@ -158,6 +158,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         ("organization_id", "organization.id"),
         ("ingestion_mode", "ingestion.mode"),
         ("key_id", "api_key.id"),
+        ("user_id", "api_key.user.id"),
         ("provider_connection_id", "connection.id"),
     ] {
         if let Some(value) = facts.metadata.get(source) {
@@ -189,6 +190,15 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     }
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
+    }
+    // Inserted after caller request metadata so the gateway's own ID always wins.
+    for (source, target) in [
+        ("request_id", "request.id"),
+        ("client_request_id", "client.request.id"),
+    ] {
+        if let Some(value) = facts.metadata.get(source) {
+            metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
+        }
     }
     if let Some(omission) = facts.inference.input_omission {
         metadata.insert(
@@ -251,22 +261,31 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
 
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
-        "openai.responses" => openai_usage(usage),
+        "openai.responses" => openai_usage(
+            usage,
+            ["input_tokens", "output_tokens", "total_tokens"],
+            ["input_tokens_details", "output_tokens_details"],
+        ),
+        "openai.chat-completions" => openai_usage(
+            usage,
+            ["prompt_tokens", "completion_tokens", "total_tokens"],
+            ["prompt_tokens_details", "completion_tokens_details"],
+        ),
         "anthropic.messages" => usage.is_object().then(|| usage.clone()),
         _ => None,
     }
 }
 
-/// The receiver's native `OpenAI` usage schema is strict at the top level, but
-/// accepts new numeric detail counters.
-fn openai_usage(usage: &Value) -> Option<Value> {
+/// The receiver's native `OpenAI` usage schemas are strict at the top level, but
+/// accept new numeric detail counters.
+fn openai_usage(usage: &Value, counters: [&str; 3], details: [&str; 2]) -> Option<Value> {
     let usage = usage.as_object()?;
     let mut projected = Map::new();
-    for key in ["input_tokens", "output_tokens", "total_tokens"] {
+    for key in counters {
         let value = usage.get(key).filter(|value| value.as_u64().is_some())?;
         projected.insert(key.into(), value.clone());
     }
-    for key in ["input_tokens_details", "output_tokens_details"] {
+    for key in details {
         match usage.get(key) {
             Some(Value::Null) => {
                 projected.insert(key.into(), Value::Null);
@@ -455,10 +474,12 @@ mod tests {
         let mut facts = facts();
         facts.metadata["organization_id"] = json!("org");
         facts.metadata["provider_connection_id"] = json!("connection");
+        facts.metadata["user_id"] = json!("user");
         facts.metadata["key_metadata"] = json!({
             "team": "search", "enabled": true, "cost_center": 42,
             "langfuse.gateway.response.status_code": 500,
             "langfuse.gateway.api_key.id": "spoofed-key",
+            "langfuse.gateway.api_key.user.id": "spoofed-user",
             "langfuse.gateway.upstream.request.id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
             "langfuse.gateway.api_key.metadata.team": "spoofed-team",
@@ -484,6 +505,7 @@ mod tests {
         );
         assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.api_key.user.id"], "user");
         assert_eq!(metadata["langfuse.gateway.connection.id"], "connection");
         assert_eq!(metadata["langfuse.gateway.response.id"], "response");
         assert_eq!(metadata["langfuse.gateway.organization.id"], "org");
@@ -534,7 +556,7 @@ mod tests {
             "output_tokens_details": null,
             "future_usage": {"cost": 123},
         });
-        facts.inference.usage_details = Some(usage.clone());
+        facts.inference.usage_details = Some(usage);
         let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
         let projected: Value = serde_json::from_str(
@@ -595,6 +617,39 @@ mod tests {
             projected_usage(
                 "openai.responses",
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+        let native = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+            "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null, "future_object": {}},
+            "future_usage": {"cost": 123},
+        });
+        assert_eq!(
+            projected_usage("openai.chat-completions", native),
+            Some(json!({
+                "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+                "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+                "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
+            }))
+        );
+        // Each OpenAI contract projects only its own counter names.
+        assert_eq!(
+            projected_usage(
+                "openai.chat-completions",
+                json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
         );

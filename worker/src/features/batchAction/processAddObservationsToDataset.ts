@@ -146,7 +146,7 @@ export async function processAddObservationsToDataset(params: {
 
   // Update status to PROCESSING
   await prisma.batchAction.update({
-    where: { id: batchActionId },
+    where: { id: batchActionId, projectId },
     data: {
       status: BatchActionStatus.Processing,
       totalCount: observations.length,
@@ -179,7 +179,7 @@ export async function processAddObservationsToDataset(params: {
     // Update progress periodically (every 5 chunks or at the end)
     if (i % (CHUNK_SIZE * 5) === 0 || i + CHUNK_SIZE >= observations.length) {
       await prisma.batchAction.update({
-        where: { id: batchActionId },
+        where: { id: batchActionId, projectId },
         data: { processedCount: processed, failedCount: failed },
       });
     }
@@ -204,7 +204,7 @@ export async function processAddObservationsToDataset(params: {
 
   // Update final status
   await prisma.batchAction.update({
-    where: { id: batchActionId },
+    where: { id: batchActionId, projectId },
     data: {
       status: finalStatus,
       finishedAt: new Date(),

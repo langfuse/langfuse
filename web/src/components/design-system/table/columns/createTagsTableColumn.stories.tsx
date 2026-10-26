@@ -4,6 +4,7 @@ import {
   DataTable,
   type AsyncTableData,
 } from "@/src/components/table/data-table";
+import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { createTagsTableColumn } from "./createTagsTableColumn";
 
 type Row = {
@@ -26,6 +27,8 @@ function TagsTableColumnStory({
     }),
   ];
 
+  // Inside a data table the row height decides wrapping. Large wraps; Small does not.
+  const rowHeight: RowHeight = shouldWrap ? "l" : "s";
   return (
     <DataTable
       tableName="tags-column-story"
@@ -33,6 +36,7 @@ function TagsTableColumnStory({
       data={data}
       hidePagination
       cellPadding="comfortable"
+      rowHeight={rowHeight}
     />
   );
 }

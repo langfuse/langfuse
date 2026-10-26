@@ -2,7 +2,6 @@ import {
   InvalidRequestError,
   ObservationTypeDomain,
   isNumericEventsTableColumnId,
-  type timeFilter,
 } from "@langfuse/shared";
 import { z } from "zod";
 import {
@@ -11,11 +10,16 @@ import {
 } from "@/src/features/events/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import {
+  buildStartTimeFilters,
+  OptionalStartTimeRangeShape,
+} from "../filter-schema";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -45,8 +49,7 @@ type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  ...OptionalStartTimeRangeShape,
   observationType: ObservationTypeDomain.optional(),
   isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
@@ -57,33 +60,6 @@ const GetObservationFilterValuesBaseSchema = z.object({
 type FilterOption = {
   value: string | boolean;
   count?: number;
-};
-
-const buildStartTimeFilter = (params: {
-  fromStartTime?: string;
-  toStartTime?: string;
-}): z.infer<typeof timeFilter>[] => {
-  const filters: z.infer<typeof timeFilter>[] = [];
-
-  if (params.fromStartTime) {
-    filters.push({
-      column: "startTime",
-      operator: ">=",
-      value: new Date(params.fromStartTime),
-      type: "datetime",
-    });
-  }
-
-  if (params.toStartTime) {
-    filters.push({
-      column: "startTime",
-      operator: "<",
-      value: new Date(params.toStartTime),
-      type: "datetime",
-    });
-  }
-
-  return filters;
 };
 
 const normalizeFilterOptions = (
@@ -180,7 +156,7 @@ export const [
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
         });
-        const startTimeFilter = buildStartTimeFilter({
+        const startTimeFilter = buildStartTimeFilters({
           fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
           toStartTime: input.toStartTime,
         });
@@ -190,6 +166,7 @@ export const [
 
         if (isNumericEventsTableColumnId(eventsColumn)) {
           const range = await getEventFilterNumericRange({
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
             column: eventsColumn,
             projectId: context.projectId,
             startTimeFilter,
@@ -209,6 +186,7 @@ export const [
         const offset = decodeObservationFilterValueCursor(input.cursor);
 
         const page = await getEventFilterValuePage({
+          clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,

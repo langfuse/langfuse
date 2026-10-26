@@ -3,7 +3,8 @@ import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
 /**
  * Snapshot a row after overflow handling and byte accounting into Rust. Serialize model parameters
- * for their ClickHouse String column; keep the caller's structured row available for evaluations.
+ * for their ClickHouse String column.
+ * Keep the caller's structured row available for evaluations.
  */
 export function prepareNativeEvent(
   record: Omit<EventRecordInsertType, "model_parameters"> & {
