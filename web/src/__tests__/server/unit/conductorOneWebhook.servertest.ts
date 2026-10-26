@@ -33,6 +33,7 @@ import { provisionSupportAccess } from "@/src/ee/features/support-access/server/
 import {
   getActiveSupportAccessOrgIds,
   getSupportAccessMemberships,
+  parseSupportAccess,
 } from "@/src/ee/features/support-access/server/supportAccess";
 
 describe("verifyConductorOneRequest", () => {
@@ -292,7 +293,7 @@ describe("provisionSupportAccess", () => {
 
 describe("support access in the session", () => {
   const now = new Date("2026-10-23T12:00:00.000Z");
-  const entry = (expiresAt: string, role = "VIEWER") => ({ role, expiresAt });
+  const entry = (expiresAt: string) => ({ role: "VIEWER" as const, expiresAt });
   const active = entry("2099-01-01T00:00:00.000Z");
 
   beforeEach(() => vi.clearAllMocks());
@@ -309,15 +310,14 @@ describe("support access in the session", () => {
     ).toEqual(["current"]);
   });
 
-  it("grants nothing for malformed values or other roles", () => {
+  it("parses malformed values or other roles to no grants", () => {
     expect(
-      getActiveSupportAccessOrgIds(
-        { org: entry("2099-01-01T00:00:00.000Z", "OWNER") },
-        now,
-      ),
-    ).toEqual([]);
-    expect(getActiveSupportAccessOrgIds(null, now)).toEqual([]);
-    expect(getActiveSupportAccessOrgIds("garbage", now)).toEqual([]);
+      parseSupportAccess({
+        org: { role: "OWNER", expiresAt: "2099-01-01T00:00:00.000Z" },
+      }),
+    ).toEqual({});
+    expect(parseSupportAccess(null)).toEqual({});
+    expect(parseSupportAccess("garbage")).toEqual({});
   });
 
   it("adds VIEWER only for orgs the user is not a member of", async () => {

@@ -6,7 +6,11 @@ import {
   type RevokeRequest,
   type SupportAccessRequest,
 } from "./conductorOnePayload";
-import { grantSupportAccess, revokeAllSupportAccess } from "./supportAccess";
+import {
+  grantSupportAccess,
+  parseSupportAccess,
+  revokeAllSupportAccess,
+} from "./supportAccess";
 
 const SUPPORT_EMAIL_DOMAIN = "clickhouse.com";
 const MAX_GRANT_MS = 12 * 60 * 60 * 1000;
@@ -21,11 +25,13 @@ function rejected(message: string): ProvisionResult {
   return { ok: false, message };
 }
 
-function findUser(email: string) {
-  return prisma.user.findUnique({
+async function findUser(email: string) {
+  const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, supportAccess: true },
   });
+  if (!user) return null;
+  return { id: user.id, supportAccess: parseSupportAccess(user.supportAccess) };
 }
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;

@@ -2,8 +2,16 @@ import { z } from "zod/v4";
 
 import { Prisma, prisma, Role } from "@langfuse/shared/src/db";
 
-// users.support_access: { [orgId]: { role: "VIEWER", expiresAt } }
-const SupportAccessSchema = z.record(
+// users.support_access, e.g.
+// { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }
+export type SupportAccess = {
+  [orgId: string]: {
+    role: "VIEWER";
+    expiresAt: string;
+  };
+};
+
+const SupportAccessSchema: z.ZodType<SupportAccess> = z.record(
   z.string(),
   z.object({
     role: z.literal("VIEWER"),
@@ -11,22 +19,22 @@ const SupportAccessSchema = z.record(
   }),
 );
 
-function parseSupportAccess(value: unknown) {
+export function parseSupportAccess(value: Prisma.JsonValue): SupportAccess {
   return SupportAccessSchema.safeParse(value ?? {}).data ?? {};
 }
 
 export function getActiveSupportAccessOrgIds(
-  supportAccess: unknown,
+  supportAccess: SupportAccess,
   now: Date = new Date(),
 ): string[] {
-  return Object.entries(parseSupportAccess(supportAccess))
+  return Object.entries(supportAccess)
     .filter(([, entry]) => new Date(entry.expiresAt) > now)
     .map(([orgId]) => orgId);
 }
 
 export async function getSupportAccessMemberships(
   user: {
-    supportAccess: unknown;
+    supportAccess: Prisma.JsonValue;
     organizationMemberships: { organization: { id: string } }[];
   } | null,
 ) {
@@ -34,9 +42,9 @@ export async function getSupportAccessMemberships(
   const memberOrgIds = new Set(
     user.organizationMemberships.map((m) => m.organization.id),
   );
-  const orgIds = getActiveSupportAccessOrgIds(user.supportAccess).filter(
-    (orgId) => !memberOrgIds.has(orgId),
-  );
+  const orgIds = getActiveSupportAccessOrgIds(
+    parseSupportAccess(user.supportAccess),
+  ).filter((orgId) => !memberOrgIds.has(orgId));
   if (orgIds.length === 0) return [];
 
   const organizations = await prisma.organization.findMany({
@@ -60,7 +68,10 @@ export async function grantSupportAccess(
   orgId: string,
   expiresAt: Date,
 ) {
-  const entry = { role: "VIEWER", expiresAt: expiresAt.toISOString() };
+  const entry: SupportAccess[string] = {
+    role: "VIEWER",
+    expiresAt: expiresAt.toISOString(),
+  };
   // Single statement so concurrent grants for different orgs don't collide.
   await prisma.$executeRaw`
     UPDATE users
@@ -71,11 +82,11 @@ export async function grantSupportAccess(
 
 export async function revokeAllSupportAccess(user: {
   id: string;
-  supportAccess: unknown;
+  supportAccess: SupportAccess;
 }): Promise<string[]> {
   await prisma.user.update({
     where: { id: user.id },
     data: { supportAccess: Prisma.DbNull },
   });
-  return Object.keys(parseSupportAccess(user.supportAccess));
+  return Object.keys(user.supportAccess);
 }
