@@ -103,7 +103,10 @@ export async function deleteProjectMemberships(
   });
 }
 
-/** getProjectMembershipRoles share-locks a user's project memberships and returns the role assignments they imply. */
+/**
+ * getProjectMembershipRoles share-locks a user's project memberships and returns the role assignments they imply.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
 export async function getProjectMembershipRoles(
   tx: Prisma.TransactionClient,
   { userId }: { userId: string },

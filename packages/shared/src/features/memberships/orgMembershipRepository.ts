@@ -81,7 +81,10 @@ export async function deleteOrgMembership(
   });
 }
 
-/** getOrgMembershipRoles share-locks a user's organization memberships and returns the role assignments they imply. */
+/**
+ * getOrgMembershipRoles share-locks a user's organization memberships and returns the role assignments they imply.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
 export async function getOrgMembershipRoles(
   tx: Prisma.TransactionClient,
   { userId }: { userId: string },

@@ -127,6 +127,7 @@ async function backfillRoleAssignments(
   principalId: PrincipalId,
 ): Promise<void> {
   await withTransaction(prisma, async (tx) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     const impliedRoles = await getImpliedRoles(tx, principalId);
     const assignments = await findRoleAssignments(tx, principalId);
     if (assignments.length > 0) return;
@@ -142,18 +143,24 @@ async function backfillRoleAssignments(
   });
 }
 
-/** getImpliedRoles share-locks a principal's api key or memberships and returns the role assignments they imply. */
+/**
+ * getImpliedRoles share-locks a principal's api key or memberships and returns the role assignments they imply.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
 async function getImpliedRoles(
   tx: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
   if (hasApiKeyKind(principalId)) {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     return await getApiKeyRoles(tx, { apiKeyId: untag(principalId) });
   }
   if (!hasUserKind(principalId)) return [];
   const userId = untag(principalId);
   return [
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     ...(await getOrgMembershipRoles(tx, { userId })),
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     ...(await getProjectMembershipRoles(tx, { userId })),
   ];
 }

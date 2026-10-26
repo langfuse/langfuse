@@ -264,7 +264,10 @@ function hasUserScope(
   return scope.startsWith("user/");
 }
 
-/** getApiKeyRoles share-locks an api key and returns the legacy role assignment its scope implies in its current org. */
+/**
+ * getApiKeyRoles share-locks an api key and returns the legacy role assignment its scope implies in its current org.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
 export async function getApiKeyRoles(
   tx: Prisma.TransactionClient,
   { apiKeyId }: { apiKeyId: string },
