@@ -5,6 +5,7 @@ import {
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
+import { withSerializableRetry } from "@langfuse/shared/src/server";
 
 import {
   defaultOnFeaturePreviewFlags,
@@ -28,8 +29,6 @@ type OrganizationFeaturePreviewStates = Record<FeaturePreviewFlag, boolean>;
 export const EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES = Object.fromEntries(
   featurePreviewFlags.map((flag) => [flag, false]),
 ) as OrganizationFeaturePreviewStates;
-
-const MAX_SERIALIZABLE_ATTEMPTS = 3;
 
 type FeaturePreviewOverrideState = "inherit" | "enabled" | "disabled";
 
@@ -370,29 +369,4 @@ export async function setOrganizationFeatureFlagDefault({
       after,
     };
   });
-}
-
-async function withSerializableRetry<T>(
-  prisma: PrismaClient,
-  operation: (tx: Prisma.TransactionClient) => Promise<T>,
-): Promise<T> {
-  for (let attempt = 1; attempt <= MAX_SERIALIZABLE_ATTEMPTS; attempt += 1) {
-    try {
-      return await prisma.$transaction(operation, {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      });
-    } catch (error) {
-      if (
-        !(
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034" &&
-          attempt < MAX_SERIALIZABLE_ATTEMPTS
-        )
-      ) {
-        throw error;
-      }
-    }
-  }
-
-  throw new Error("Serializable transaction retry exhausted");
 }
