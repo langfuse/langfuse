@@ -37,7 +37,6 @@ import {
   sendPagerDutyAlertEvent,
   sendPagerDutyChangeEvent,
   logger,
-  recordIncrement,
   redis,
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
@@ -97,6 +96,9 @@ async function resetAutomationFailures(args: {
   if (!redis) return;
   await redis.del(automationFailureKey(args.projectId, args.automationId));
 }
+
+/** WebhookOutboundPayload is the validated HTTP body of a WebhookInput. */
+type WebhookOutboundPayload = ReturnType<typeof buildWebhookOutboundPayload>;
 
 /** buildWebhookOutboundPayload validates and returns the HTTP body for a WebhookInput, discriminating on payload.type. monitor-alert: the processor already built the unified envelope — pass through. prompt-version: wrap at dispatch time with id = executionId and timestamp = now. */
 function buildWebhookOutboundPayload(input: WebhookInput) {
@@ -174,7 +176,8 @@ export const executeWebhook = async (
       return;
     }
 
-    if (await isStaleMonitorAlert(input, automation.action.type)) {
+    const envelope = buildWebhookOutboundPayload(input);
+    if (await isStaleMonitorAlert({ projectId, automationId, envelope })) {
       return;
     }
 
@@ -182,6 +185,7 @@ export const executeWebhook = async (
     if (automation.action.type === "WEBHOOK") {
       await executeWebhookAction({
         input,
+        envelope,
         automation,
         skipValidation: options?.skipValidation,
       });
@@ -193,11 +197,12 @@ export const executeWebhook = async (
     } else if (automation.action.type === "GITHUB_DISPATCH") {
       await executeGitHubDispatchAction({
         input,
+        envelope,
         automation,
         skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "PAGERDUTY") {
-      await executePagerDutyAction({ input, automation });
+      await executePagerDutyAction({ input, envelope, automation });
     } else {
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
@@ -220,15 +225,17 @@ export const executeWebhook = async (
  * check compares severityChangedAt timestamps rather than severities. A stale
  * job is acknowledged without delivery and does not count as a failure.
  */
-async function isStaleMonitorAlert(
-  input: WebhookInput,
-  actionType: AutomationDomain["action"]["type"],
-): Promise<boolean> {
-  if (input.payload.type !== "monitor-alert") return false;
-  const parsed = MonitorWebhookQueueEventSchema.safeParse(input.payload);
-  // Malformed payloads fail in the action handlers with their own error.
-  if (!parsed.success) return false;
-  const alert = parsed.data.payload;
+async function isStaleMonitorAlert({
+  projectId,
+  automationId,
+  envelope,
+}: {
+  projectId: string;
+  automationId: string;
+  envelope: WebhookOutboundPayload;
+}): Promise<boolean> {
+  if (envelope.type !== "monitor-alert") return false;
+  const alert = envelope.payload;
 
   const monitor = await prisma.monitor.findUnique({
     where: { id: alert.monitorId },
@@ -236,7 +243,7 @@ async function isStaleMonitorAlert(
   });
 
   let reason: "monitor_deleted" | "severity_changed" | undefined;
-  if (!monitor || monitor.projectId !== input.projectId) {
+  if (!monitor || monitor.projectId !== projectId) {
     reason = "monitor_deleted";
   } else if (
     alert.severityChangedAt &&
@@ -248,14 +255,10 @@ async function isStaleMonitorAlert(
   if (!reason) return false;
 
   logger.info("Dropping stale monitor alert", {
-    projectId: input.projectId,
-    automationId: input.automationId,
+    projectId,
+    automationId,
     monitorId: alert.monitorId,
     reason,
-  });
-  recordIncrement("langfuse.webhook.monitor_alert.stale_dropped", 1, {
-    reason,
-    actionType,
   });
   return true;
 }
@@ -553,10 +556,12 @@ async function executeHttpAction({
  */
 async function executeWebhookAction({
   input,
+  envelope,
   automation,
   skipValidation,
 }: {
   input: WebhookInput;
+  envelope: WebhookOutboundPayload;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
@@ -582,12 +587,11 @@ async function executeWebhookAction({
 
   const webhookConfig = actionConfig.config;
 
-  const validated = buildWebhookOutboundPayload(input);
   let webhookPayload: string;
   if (input.payload.type === "prompt-version") {
     // Prompt-version contract: prompt key always last.
-    const { prompt, user, ...otherFields } = validated as Extract<
-      typeof validated,
+    const { prompt, user, ...otherFields } = envelope as Extract<
+      typeof envelope,
       { type: "prompt-version" }
     >;
     webhookPayload = JSON.stringify({
@@ -597,7 +601,7 @@ async function executeWebhookAction({
     });
   } else {
     // monitor-alert: post the envelope verbatim.
-    webhookPayload = JSON.stringify(validated);
+    webhookPayload = JSON.stringify(envelope);
   }
 
   let requestHeaders: Record<string, string>;
@@ -641,10 +645,12 @@ async function executeWebhookAction({
  */
 async function executeGitHubDispatchAction({
   input,
+  envelope,
   automation,
   skipValidation,
 }: {
   input: WebhookInput;
+  envelope: WebhookOutboundPayload;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
@@ -670,12 +676,11 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
   const eventType = githubConfig.eventType;
-  const validated = buildWebhookOutboundPayload(input);
 
   let githubPayload: string;
   if (input.payload.type === "prompt-version") {
-    const { prompt, user, ...otherFields } = validated as Extract<
-      typeof validated,
+    const { prompt, user, ...otherFields } = envelope as Extract<
+      typeof envelope,
       { type: "prompt-version" }
     >;
     const fullGithubPayload = JSON.stringify({
@@ -708,8 +713,8 @@ async function executeGitHubDispatchAction({
           });
   } else {
     // monitor-alert: post the envelope as client_payload.
-    const monitorEnvelope = validated as Extract<
-      typeof validated,
+    const monitorEnvelope = envelope as Extract<
+      typeof envelope,
       { type: "monitor-alert" }
     >;
     const fullGithubPayload = JSON.stringify({
@@ -1001,9 +1006,11 @@ async function executeSlackAction({
  */
 async function executePagerDutyAction({
   input,
+  envelope,
   automation,
 }: {
   input: WebhookInput;
+  envelope: WebhookOutboundPayload;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
 }) {
   const { projectId, executionId } = input;
@@ -1018,7 +1025,7 @@ async function executePagerDutyAction({
   }
 
   try {
-    const event = buildPagerDutyDelivery(input, actionConfig);
+    const event = buildPagerDutyDelivery({ input, envelope, actionConfig });
     if (!event) {
       logger.info(
         `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
@@ -1058,17 +1065,22 @@ async function executePagerDutyAction({
 }
 
 /** buildPagerDutyDelivery decrypts the routing key and maps the job payload to a PagerDuty event. */
-function buildPagerDutyDelivery(
-  input: WebhookInput,
-  actionConfig: ActionDomainWithSecrets,
-): PagerDutyEvent | null {
+function buildPagerDutyDelivery({
+  input,
+  envelope,
+  actionConfig,
+}: {
+  input: WebhookInput;
+  envelope: WebhookOutboundPayload;
+  actionConfig: ActionDomainWithSecrets;
+}): PagerDutyEvent | null {
   if (!actionConfig.pagerDutyIntegration) {
     throw new Error(
       "The PagerDuty service of this automation was deleted. Select another service.",
     );
   }
   return buildPagerDutyEvent({
-    envelope: buildWebhookOutboundPayload(input),
+    envelope,
     projectId: input.projectId,
     projectName: actionConfig.pagerDutyIntegration.projectName,
     routingKey: decrypt(actionConfig.pagerDutyIntegration.routingKey),
