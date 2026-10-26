@@ -12,8 +12,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 /** Project-grid tile for gateway managers; the page shows it once set up. */
 export function GatewayReadyCard({
   organizationId,
+  activityLabel,
 }: {
   organizationId: string;
+  /** Trace activity of the gateway's ingestion project, as on project tiles. */
+  activityLabel: string | null;
 }) {
   const capture = usePostHogClientCapture();
 
@@ -34,9 +37,7 @@ export function GatewayReadyCard({
         </div>
       </CardHeader>
       <CardContent className="min-h-7 pb-3">
-        <p className="text-muted-foreground text-xs">
-          Get an API key for Claude Code, Codex or OpenCode
-        </p>
+        <p className="text-muted-foreground text-xs">{activityLabel}</p>
       </CardContent>
     </Card>
   );

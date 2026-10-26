@@ -26,7 +26,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -57,6 +57,11 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 import { GatewayReadyCard } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayReadyCard";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
+const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
+  lastTraceAt
+    ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+    : "No traces in the last 30d";
+
 const OrganizationProjectTiles = ({
   org,
   search,
@@ -70,6 +75,12 @@ const OrganizationProjectTiles = ({
     !search &&
     gatewayAccess.showManagement &&
     gatewayAccess.isIngestionConfigured === true;
+  const gatewayConfigQuery = api.aiGateway.getConfig.useQuery(
+    { orgId: org.id },
+    { enabled: showGatewayTile },
+  );
+  const gatewayProjectId =
+    gatewayConfigQuery.data?.config?.defaultIngestionProjectId;
   const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
     { orgId: org.id },
     { enabled: v4UpgradeUiEnabled },
@@ -88,7 +99,20 @@ const OrganizationProjectTiles = ({
   });
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {showGatewayTile && <GatewayReadyCard organizationId={org.id} />}
+      {showGatewayTile && (
+        <GatewayReadyCard
+          organizationId={org.id}
+          activityLabel={
+            lastTraceQuery.isSuccess
+              ? lastTraceLabel(
+                  lastTraceQuery.data?.find(
+                    (t) => t.projectId === gatewayProjectId,
+                  )?.lastTraceAt,
+                )
+              : null
+          }
+        />
+      )}
       {org.projects
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
@@ -133,14 +157,11 @@ const OrganizationProjectTiles = ({
                 <CardContent className="min-h-7 pb-3">
                   <p className="text-muted-foreground text-xs">
                     {lastTraceQuery.isSuccess
-                      ? (() => {
-                          const lastTraceAt = lastTraceQuery.data?.find(
+                      ? lastTraceLabel(
+                          lastTraceQuery.data?.find(
                             (t) => t.projectId === project.id,
-                          )?.lastTraceAt;
-                          return lastTraceAt
-                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                            : "No traces in the last 30d";
-                        })()
+                          )?.lastTraceAt,
+                        )
                       : null}
                   </p>
                 </CardContent>
@@ -386,6 +407,9 @@ export const OrganizationProjectOverview = () => {
       }),
     }));
   const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
+  const gatewayOnlySetup = useGatewaySettingsAccess(
+    gatewayLaunchCandidates[0]?.organizationId,
+  );
   const userId = session.data?.user?.id;
 
   if (organizations === undefined) {
@@ -396,14 +420,17 @@ export const OrganizationProjectOverview = () => {
     organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
       .length === 0 && !queryOrgId;
 
-  // Invited only to use the gateway: not a manager, no visible projects.
+  // Invited only to use the gateway: every org is a gateway org the user does
+  // not manage, none has projects, and the gateway is set up.
   const realOrgs = organizations.filter(
     (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   );
   const gatewayOnlyOrg =
     gatewayLaunchCandidates.length > 0 &&
+    gatewayLaunchCandidates.length === realOrgs.length &&
     gatewayLaunchCandidates.every((c) => !c.canManage) &&
-    realOrgs.every((org) => org.projects.every((p) => p.deletedAt))
+    realOrgs.every((org) => org.projects.length === 0) &&
+    gatewayOnlySetup.isIngestionConfigured === true
       ? realOrgs.find(
           (org) => org.id === gatewayLaunchCandidates[0]?.organizationId,
         )
@@ -478,14 +505,14 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {gatewayLaunchTarget && userId ? (
-        <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
-      ) : (
-        <PageBanner
-          v4UpgradeUiEnabled={v4UpgradeUiEnabled}
-          v4MigrationBannerState={v4MigrationBannerState}
-        />
-      )}
+      {pageBanner({
+        v4UpgradeUiEnabled,
+        v4MigrationBannerState,
+        gatewayBanner:
+          gatewayLaunchTarget && userId ? (
+            <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
+          ) : null,
+      })}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {
@@ -514,26 +541,32 @@ export const OrganizationProjectOverview = () => {
   );
 };
 
-/** One banner at a time: the page shows the gateway launch banner instead when it applies. */
-const PageBanner = ({
+/** One banner at a time: v4 migration work first, then the gateway launch. */
+const pageBanner = ({
   v4UpgradeUiEnabled,
   v4MigrationBannerState,
+  gatewayBanner,
 }: {
   v4UpgradeUiEnabled: boolean;
   v4MigrationBannerState: ReturnType<typeof useV4MigrationBannerState>;
-}) =>
-  v4UpgradeUiEnabled ? (
-    v4MigrationBannerState.projectsNeedingMigration > 0 && (
+  gatewayBanner: ReactNode;
+}): ReactNode => {
+  if (
+    v4UpgradeUiEnabled &&
+    v4MigrationBannerState.projectsNeedingMigration > 0
+  ) {
+    return (
       <V4MigrationBanner
         projectsNeedingMigration={
           v4MigrationBannerState.projectsNeedingMigration
         }
         totalProjects={v4MigrationBannerState.totalProjects}
       />
-    )
-  ) : (
-    <AgentToolsBanner />
-  );
+    );
+  }
+  if (gatewayBanner) return gatewayBanner;
+  return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
+};
 
 const Onboarding = () => {
   const session = useSession();
