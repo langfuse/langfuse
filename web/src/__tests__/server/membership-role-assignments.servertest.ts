@@ -8,6 +8,7 @@ import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import {
+  createOrgMembership,
   createProjectMembership,
   deleteProjectMemberships,
   findOrCreateOrgMembership,
@@ -21,7 +22,12 @@ import scimUsersRoute from "@/src/pages/api/public/scim/Users";
 import scimUserRoute from "@/src/pages/api/public/scim/Users/[id]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError, Role, type Plan } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  Role,
+  type Plan,
+} from "@langfuse/shared";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -261,6 +267,40 @@ describe("membership role assignments", () => {
 
       expect(membership.role).toBe(Role.ADMIN);
       expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("createOrgMembership rejects an existing membership", async () => {
+      const user = await createUser();
+      const input = { orgId, userId: user.id };
+      await saveOrgMembership(prisma, { ...input, role: Role.ADMIN });
+
+      await expect(
+        createOrgMembership(prisma, { ...input, role: Role.VIEWER }),
+      ).rejects.toBeInstanceOf(InvalidRequestError);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("createProjectMembership rejects an existing membership", async () => {
+      const user = await createUser();
+      const orgMembership = await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+      const input = {
+        orgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId: user.id,
+      };
+      await saveProjectMembership(prisma, { ...input, role: Role.ADMIN });
+
+      await expect(
+        createProjectMembership(prisma, { ...input, role: Role.MEMBER }),
+      ).rejects.toBeInstanceOf(InvalidRequestError);
+      expect(await rolesOf(user.id)).toEqual(
+        sorted([org(orgId, "VIEWER"), proj(orgId, projectId, "ADMIN")]),
+      );
     });
 
     it("findOrCreateProjectMembership creates a missing membership", async () => {

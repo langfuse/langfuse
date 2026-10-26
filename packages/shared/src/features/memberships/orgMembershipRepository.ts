@@ -5,6 +5,8 @@ import {
   type Role,
 } from "@prisma/client";
 
+import { InvalidRequestError } from "../../errors";
+import { mapPrismaError } from "../../server/utils/mapPrismaError";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   replaceRolesForPrincipal,
@@ -39,9 +41,16 @@ export async function createOrgMembership(
   { orgId, userId, role }: { orgId: string; userId: string; role: Role },
 ): Promise<OrganizationMembership> {
   return await withTransaction(prisma, async (tx) => {
-    const membership = await tx.organizationMembership.create({
-      data: { orgId, userId, role },
-    });
+    const membership = await tx.organizationMembership
+      .create({ data: { orgId, userId, role } })
+      .catch(
+        mapPrismaError(
+          "P2002",
+          new InvalidRequestError(
+            "User is already a member of this organization",
+          ),
+        ),
+      );
     await replaceOrgRole(tx, membership);
     return membership;
   });

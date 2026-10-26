@@ -13,7 +13,11 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  isBaseError,
+  LangfuseConflictError,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
@@ -206,10 +210,7 @@ async function provisionMembership({
   } catch (error) {
     // A concurrent provisioning request created the row first. Apply the
     // requested role onto it (if any), keeping the periodic sync idempotent.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (error instanceof InvalidRequestError) {
       if (role === undefined) {
         return { kind: "unchanged", role: roleToCreate };
       }
