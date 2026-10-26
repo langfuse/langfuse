@@ -56,7 +56,7 @@ export function TopicMobileTraceList({
   // The DOM scroll position follows map selection without moving keyboard focus.
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId, selectedRowIndex, pageIndex]);
+  }, [selectedTraceId, filterKey, pageIndex]);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
     setPageRequest({ filterKey, selectedTraceId, ...pagination });

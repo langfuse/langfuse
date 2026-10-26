@@ -15,7 +15,7 @@ import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
-import { useState } from "react";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export function CurrentTopics({
   projectId,
@@ -167,13 +167,10 @@ function MobileTopics({
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selection, setSelection] = useState<{
-    facetId: string;
-    traceId: string | null;
-  }>({ facetId: facet.facetId, traceId: null });
-  if (selection.facetId !== facet.facetId) {
-    setSelection({ facetId: facet.facetId, traceId: null });
-  }
+  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
+    projectId,
+    facet.facetId,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -184,16 +181,28 @@ function MobileTopics({
       searchQuery={traceFilters.searchQuery}
       onFiltersChange={traceFilters.setFilters}
       onSearchQueryChange={traceFilters.setSearchQuery}
-      selectedTraceId={selection.traceId}
-      onSelectTrace={(traceId) =>
-        setSelection({ facetId: facet.facetId, traceId })
-      }
+      selectedTraceId={selectedTraceId}
+      onSelectTrace={setSelectedTraceId}
       onOpenTrace={onOpenTrace}
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
       isV4={isV4}
     />
   );
+}
+
+function useMobileTraceSelection(projectId: string, facetId: string) {
+  const [selection, setSelection] = useSessionStorage<{
+    facetId: string;
+    traceId: string | null;
+  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
+  if (selection.facetId !== facetId) {
+    setSelection({ facetId, traceId: null });
+  }
+  return [
+    selection.traceId,
+    (traceId: string | null) => setSelection({ facetId, traceId }),
+  ] as const;
 }
 
 export function useCurrentTopics({
@@ -273,4 +282,4 @@ type CurrentFacetProps = {
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 
-export const __test = { useCurrentTopics };
+export const __test = { useCurrentTopics, useMobileTraceSelection };
