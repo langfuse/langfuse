@@ -28,6 +28,7 @@ describe("Admin User Organizations API", () => {
 
   let testOrg1Id: string;
   let testOrg2Id: string;
+  let testOrg3Id: string;
   let testUserId: string;
   let testUserEmail: string;
   let userWithoutOrgsId: string;
@@ -37,7 +38,7 @@ describe("Admin User Organizations API", () => {
     `/api/admin/users/${encodeURIComponent(email)}/organizations`;
 
   beforeAll(async () => {
-    // Create two test organizations
+    // Create three test organizations
     const org1 = await prisma.organization.create({
       data: {
         name: `Test Org 1 ${randomUUID().substring(0, 8)}`,
@@ -51,7 +52,12 @@ describe("Admin User Organizations API", () => {
     });
     testOrg2Id = org2.id;
 
-    // Create a user with memberships in both organizations
+    const org3 = await prisma.organization.create({
+      data: { name: `Test Org 3 ${randomUUID().substring(0, 8)}` },
+    });
+    testOrg3Id = org3.id;
+
+    // Create a user with memberships in all organizations
     testUserEmail = `test-user-${randomUUID().substring(0, 8)}@example.com`;
     const user = await prisma.user.create({
       data: { email: testUserEmail, name: "Test User" },
@@ -63,6 +69,9 @@ describe("Admin User Organizations API", () => {
     });
     await prisma.organizationMembership.create({
       data: { orgId: testOrg2Id, userId: testUserId, role: Role.VIEWER },
+    });
+    await prisma.organizationMembership.create({
+      data: { orgId: testOrg3Id, userId: testUserId, role: Role.NONE },
     });
 
     // Create a user without any organization memberships
@@ -81,7 +90,7 @@ describe("Admin User Organizations API", () => {
       where: { id: { in: [testUserId, userWithoutOrgsId] } },
     });
     await prisma.organization.deleteMany({
-      where: { id: { in: [testOrg1Id, testOrg2Id] } },
+      where: { id: { in: [testOrg1Id, testOrg2Id, testOrg3Id] } },
     });
   });
 
@@ -102,7 +111,7 @@ describe("Admin User Organizations API", () => {
         email: testUserEmail,
         name: "Test User",
       });
-      expect(response.body.organizations).toHaveLength(2);
+      expect(response.body.organizations).toHaveLength(3);
 
       const org1 = response.body.organizations.find(
         (org) => org.id === testOrg1Id,
@@ -117,6 +126,12 @@ describe("Admin User Organizations API", () => {
       expect(org2).toBeDefined();
       expect(org2?.role).toBe(Role.VIEWER);
       expect(org2?.metadata).toEqual({});
+
+      const org3 = response.body.organizations.find(
+        (org) => org.id === testOrg3Id,
+      );
+      expect(org3).toBeDefined();
+      expect(org3?.role).toBe(Role.NONE);
     });
 
     it("should look up the user email case-insensitively", async () => {
@@ -131,7 +146,7 @@ describe("Admin User Organizations API", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.userId).toBe(testUserId);
-      expect(response.body.organizations).toHaveLength(2);
+      expect(response.body.organizations).toHaveLength(3);
     });
 
     it("should return an empty list for a user without memberships", async () => {
