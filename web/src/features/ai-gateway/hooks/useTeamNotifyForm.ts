@@ -31,6 +31,20 @@ function getRecipientCount({
   return outsiderCount + kinds.filter((kind) => kind === "member").length;
 }
 
+/**
+ * Mirrors the server's name or email match, so results still showing for an
+ * older search are neither offered nor picked by Enter.
+ */
+function matchesSearch(
+  member: { name: string | null; email: string },
+  search: string,
+) {
+  const term = search.trim().toLowerCase();
+  return [member.name, member.email].some((value) =>
+    value?.toLowerCase().includes(term),
+  );
+}
+
 function getNotifyLabel(recipientCount: number) {
   if (recipientCount === 0) return "Notify people";
   if (recipientCount === 1) return "Notify 1 person";
@@ -66,6 +80,13 @@ export function useTeamNotifyForm({
     isEmailConfigured: notifiableMembers?.isEmailConfigured ?? true,
   });
 
+  // Suggestions lag picks and the typed text by one request, so they are re-checked here.
+  const currentSuggestions = suggestedMembers.filter(
+    (member) =>
+      !invitees.emails.includes(member.email.toLowerCase()) &&
+      matchesSearch(member, invitees.draft),
+  );
+
   const fieldsProps: TeamInviteFieldsProps = {
     emails: invitees.emails,
     onEmailsChange: invitees.setEmails,
@@ -76,7 +97,7 @@ export function useTeamNotifyForm({
     memberSuggestions: canNotify
       ? {
           memberCount: notifiableMembers.count,
-          suggestedMembers,
+          suggestedMembers: currentSuggestions,
           onMemberAdd: invitees.addMember,
           isAllSelected,
           onAllSelectedChange: setIsAllSelected,

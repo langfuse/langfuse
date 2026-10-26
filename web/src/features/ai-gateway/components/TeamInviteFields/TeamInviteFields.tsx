@@ -34,20 +34,6 @@ export type TeamInviteFieldsProps = {
 };
 
 /**
- * Mirrors the server's name or email match, so results still showing for an
- * older search are neither offered nor picked by Enter.
- */
-function matchesSearch(
-  member: MemberSuggestionProps["member"],
-  search: string,
-) {
-  const term = search.trim().toLowerCase();
-  return [member.name, member.email].some((value) =>
-    value?.toLowerCase().includes(term),
-  );
-}
-
-/**
  * Recipient picker: typed addresses and picked members as chips, quick picks
  * for existing members below, and a note on who gets invited to the organization.
  */
@@ -67,13 +53,7 @@ export function TeamInviteFields({
   ).length;
   const isAllSelected = memberSuggestions?.isAllSelected ?? false;
   const isSearching = draft.trim().length > 0;
-  // Suggestions lag the typed text and picks by one request, so they are re-checked here.
-  const suggestedMembers =
-    memberSuggestions?.suggestedMembers.filter(
-      (member) =>
-        !emails.includes(member.email.toLowerCase()) &&
-        matchesSearch(member, draft),
-    ) ?? [];
+  const suggestedMembers = memberSuggestions?.suggestedMembers ?? [];
   const showAllMembersSuggestion =
     memberSuggestions !== undefined && !isAllSelected && !isSearching;
   const showMemberSuggestions = !isAllSelected && suggestedMembers.length > 0;
