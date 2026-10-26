@@ -118,7 +118,7 @@ export const agentRunFixture = {
             type: "tool-result",
             toolName: "lookup_reference",
             toolCallId: "call_1",
-            output: "Verified.",
+            output: { type: "text", value: "Verified." },
           },
         ],
       },
