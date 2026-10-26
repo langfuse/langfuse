@@ -214,7 +214,9 @@ function TopicsWorkspaceContent({
   // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
   useEffect(() => {
     function refreshOnVisible() {
-      if (document.visibilityState === "visible") setRefreshedAt(Date.now());
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      setRefreshedAt((previous) => (now - previous > 60_000 ? now : previous));
     }
     document.addEventListener("visibilitychange", refreshOnVisible);
     return () =>
