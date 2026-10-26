@@ -499,6 +499,8 @@ export enum QueueJobs {
 }
 
 export const TraceBatchTraceSchema = z.object({
+  /** Missing means legacy/unavailable selection; an empty array means no rule selected the trace. */
+  ruleIds: z.array(z.string()).optional(),
   projectId: z.string(),
   traceId: z.string(),
   minStart: z.number(),

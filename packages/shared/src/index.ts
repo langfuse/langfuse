@@ -46,6 +46,7 @@ export {
   extractValueFromObjectAsString,
 } from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
+export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";

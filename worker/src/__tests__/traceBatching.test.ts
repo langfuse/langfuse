@@ -587,6 +587,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED;
   const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  const originalRuleFiltering = env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED;
   const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
@@ -648,6 +649,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+    env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = "false";
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
@@ -667,6 +669,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   afterEach(async () => {
+    topicsProjects.clear();
     for (const dispatcher of runners) await dispatcher.drain();
     runners.length = 0;
     vi.restoreAllMocks();
@@ -678,6 +681,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED = originalConsumerEnabled;
     env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
+    env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = originalRuleFiltering;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
@@ -1788,6 +1792,100 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
+  it("records selections without filtering readiness and preserves them through legacy arrivals", async () => {
+    topicsProjects.add("project");
+    const key = member("project", "shadow");
+    await trackTraceBatchActivity("project", [
+      { ...event("shadow", 1_000), ruleIds: [] },
+    ]);
+    await makeDue("project", "shadow");
+    await runner().processBatch();
+    const [unmatched] = await queue.getJobs(["wait"]);
+    expect(unmatched.data.payload.traces[0]).toMatchObject({
+      ruleIds: [],
+    });
+    await queue.drain();
+
+    await trackTraceBatchActivity("project", [
+      { ...event("shadow", 2_000), ruleIds: ["rule-a"] },
+    ]);
+    await trackTraceBatchActivity("project", [
+      { ...event("shadow", 3_000), ruleIds: [] },
+    ]);
+    await trackTraceBatchActivity("project", [event("shadow", 4_000)]);
+    const pending = JSON.parse((await client().hget(stateKey, key))!);
+    expect(pending).toMatchObject({
+      minStart: 1_000,
+      maxStart: 4_000,
+    });
+    expect(pending.ruleIds).toEqual(["rule-a"]);
+    await makeDue("project", "shadow");
+    await runner().processBatch();
+    const [selected] = await queue.getJobs(["wait"]);
+    expect(selected.data.payload.traces[0]).toMatchObject({
+      ruleIds: ["rule-a"],
+    });
+  });
+
+  it("retains trace bounds before a match and unions pending rules through nonmatching arrivals", async () => {
+    env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = "true";
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
+    const trace = "turn-trace";
+    const key = member("project", trace);
+    await trackTraceBatchActivity("project", [
+      { ...event(trace, 1_000), ruleIds: [] },
+    ]);
+    expect(await client().hget(stateKey, key)).toBeNull();
+    expect(await client().zscore(dueKey, key)).toBeNull();
+
+    await Promise.all([
+      trackTraceBatchActivity("project", [
+        { ...event(trace, 2_000), ruleIds: ["rule-a"] },
+      ]),
+      trackTraceBatchActivity("project", [
+        { ...event(trace, 3_000), ruleIds: ["rule-b"] },
+        { ...event(trace, 3_500), ruleIds: ["rule-b"] },
+      ]),
+    ]);
+    await makeDue("project", trace);
+    const previousDue = Number(await client().zscore(dueKey, key));
+    await trackTraceBatchActivity("project", [
+      { ...event(trace, 4_000), ruleIds: [] },
+    ]);
+    expect(Number(await client().zscore(dueKey, key))).toBeGreaterThan(
+      previousDue,
+    );
+    const pending = JSON.parse((await client().hget(stateKey, key))!);
+    expect(pending.minStart).toBe(1_000);
+    expect(pending.maxStart).toBe(4_000);
+    expect(pending.ruleIds.sort()).toEqual(["rule-a", "rule-b"]);
+
+    await makeDue("project", trace);
+    await runner().processBatch();
+    const [job] = await queue.getJobs(["wait"]);
+    expect(job.data.payload.traces[0]).toMatchObject({
+      traceId: trace,
+      minStart: 1_000,
+      maxStart: 4_000,
+    });
+    expect(job.data.payload.traces[0].ruleIds?.sort()).toEqual([
+      "rule-a",
+      "rule-b",
+    ]);
+    expect(await client().hget(stateKey, key)).toBeNull();
+
+    await trackTraceBatchActivity("project", [
+      { ...event(trace, 5_000), ruleIds: [] },
+    ]);
+    expect(await client().hget(stateKey, key)).toBeNull();
+    await trackTraceBatchActivity("project", [
+      { ...event(trace, 6_000), ruleIds: ["rule-b"] },
+    ]);
+    const reopened = JSON.parse((await client().hget(stateKey, key))!);
+    expect(reopened.minStart).toBe(1_000);
+    expect(reopened.ruleIds).toEqual(["rule-b"]);
+  });
+
   it("does not load idle settings when every trace is sampled out", async () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = Number.MIN_VALUE;
     vi.mocked(shared.getTracingReadinessSettings).mockClear();
@@ -2772,7 +2870,10 @@ describe("trace micro-batch scheduling with Redis", () => {
   it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
     async (mode) => {
-      await trackTraceBatchActivity("project", [event("trace")]);
+      env.LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED = "true";
+      await trackTraceBatchActivity("project", [
+        { ...event("trace"), ruleIds: ["rule-a"] },
+      ]);
       await makeDue("project", "trace");
       const add = queue.add.bind(queue);
       vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
@@ -2788,7 +2889,12 @@ describe("trace micro-batch scheduling with Redis", () => {
           await client().zrem(dueKey, member("other", "trigger"));
           await client().hdel(stateKey, member("other", "trigger"));
         }
-        await trackTraceBatchActivity("project", [event("trace", 2_000_000)]);
+        await trackTraceBatchActivity("project", [
+          {
+            ...event("trace", 2_000_000),
+            ruleIds: ["rule-b"],
+          },
+        ]);
         return job;
       });
       const dispatcher = runner();
@@ -2801,6 +2907,10 @@ describe("trace micro-batch scheduling with Redis", () => {
       const [job] = await queue.getJobs(["wait"]);
       expect(current.revision).not.toBe(job.data.payload.traces[0].revision);
       expect(current.maxStart).toBe(2_000_000);
+      expect(job.data.payload.traces[0].ruleIds).toEqual(["rule-a"]);
+      expect(current.ruleIds.sort()).toEqual(
+        mode === "updated" ? ["rule-a", "rule-b"] : ["rule-b"],
+      );
       expect(current).toMatchObject({
         eventUpdateCount: 2,
         serializedEventBytes: 200,

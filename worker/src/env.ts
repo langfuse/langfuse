@@ -152,6 +152,9 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
     .number()
     .min(0)

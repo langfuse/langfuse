@@ -4,16 +4,19 @@ This experiment measures full-event reads and transcript assembly for idle
 traces, then summarizes allowlisted projects from that assembled transcript.
 It requires `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. The enablement
 flags and transcript-metrics switch below default to `false`; an ordinary release
-needs no infrastructure changes. The four enablement flags stay commented in env
+needs no infrastructure changes. The enablement flags stay commented in env
 templates. The local dev template sets the idle time below.
 
 ## Readiness requirements
 
-- Every admitted event refreshes the trace's idle deadline. Tracking uses the
+- Every accepted event for a rule-filtered project retains bounds; a matching,
+  sampled-in rule opens readiness. Every later event refreshes existing readiness.
+  With rule filtering disabled, every admitted event refreshes the trace's idle deadline. Tracking uses the
   project's configured idle interval, or the deployment default when unset.
 - Keep pending scheduling state separate from retained historical bounds. Enqueue
   acknowledgement clears pending state; history survives to support later arrivals.
-- A late arrival within history retention opens a new pending window and reads the
+- A late arrival within history retention opens a new pending window
+  when it matches and is sampled into a rule (or passes legacy admission) and reads the
   whole known trace, using the earliest and latest retained event starts plus the
   existing two-minute buffer. Backdated arrivals must preserve the previous tail.
 - The consumer checks existing summaries against the job enqueue time. Retries
@@ -28,11 +31,81 @@ templates. The local dev template sets the idle time below.
 - Redis loss and events outside retained history can leave gaps. There is no
   reconciler, and retained timestamps cannot recover data that was never observed.
 
+## Rule filtering and rollout
+
+`LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED` defaults to `false`. Rule IDs are
+computed and recorded for active Topics projects whenever trace-batch ingestion
+is enabled. The flag controls whether those selections affect processing:
+
+| Flag | Ingestion | Consumption |
+| --- | --- | --- |
+| `false` | Record sampled rule IDs while keeping legacy admission/readiness. | Use existing Topics sampling; ignore recorded IDs. |
+| `true` | A sampled rule match opens readiness; retain bounds before a match and extend pending readiness on every arrival. | Use recorded IDs of saved rules, without sampling again. |
+
+Existing cloud and Topics gates still apply: `LANGFUSE_TOPICS_ENABLED`,
+`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, and active saved configuration. There is
+no change to the saved Topics filter write contract or custom-filter UI.
+
+Pending state and queue entries carry only optional `ruleIds`. Missing IDs mean
+legacy/unavailable selection and use legacy consumption even when enforcement
+is enabled. An empty array means evaluated with no selection and is skipped
+under enforcement. Redis Lua encodes empty tables as `{}`; hydration normalizes
+only a present empty object to `[]`. Compatible writers preserve and union IDs.
+The consumer's current flag decides behavior, including for already-queued jobs.
+
+Keep enforcement disabled for the recording-only rollout. Execution-time rule
+status revalidation belongs in the enforcement follow-up before activation.
+
+All predicates must match the same span. Span and transcript filter definitions
+share field metadata; the transcript definition explicitly declares its supported
+positive operators. Optional `isRootObservation = true` selects traces through
+root spans only; it still assembles the whole trace. Unsupported persisted filters
+are logged and excluded from matching. Legacy processing continues with the flag
+false; inspect these warnings before enabling enforcement.
+
+Rule sampling hashes `[projectId, traceId, ruleId]`. Repeated matching spans do
+not increase selection probability, and assignments on one rule share a cohort.
+Legacy Topics sampling hashes `traceId` at consumption, so the same percentage
+selects a different stable cohort after enforcement. Temporary over/undersampling
+during the rolling flag change is accepted.
+
+Rules load through one narrow query per ingestion batch after the cached Topics
+activity gate. Like span-eval lookup, failure does not stop trace ingestion.
+With enforcement off, failure preserves legacy processing; with it on, the
+failed batch can miss automatic Topics processing. There is no extra query
+timeout or replay guarantee. The activity gate's deadline does not cover the
+subsequent query. Check Postgres load and ingestion latency during deployment.
+
+### Deployment without pausing Topics
+
+1. Deploy compatibility code to **all ingestion writers, dispatchers and consumers**
+   with `LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED=false`. Recording starts
+   immediately; existing Topics admission and sampling stay in use. Keep all
+   other ingestion, dispatch, read and Topics flags at their current settings.
+   No database migration is required by this change.
+2. Confirm every old binary is gone: old writers overwrite IDs and old dispatchers
+   strip them. Allow at least the configured idle window plus queue backlog for
+   fully recorded jobs to arrive. Inspect representative Redis state/queue entries
+   for IDs, and check unsupported-filter/lookup warnings, Redis memory, ingestion
+   latency, queue age and Topics throughput. Dedicated comparison telemetry is
+   deferred; it is not required for this rollout.
+3. Set `LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED=true` on ingestion workers and
+   consumers. Dispatchers simply preserve IDs. Allow an idle window plus backlog
+   for processing rates to settle. No second code change is needed.
+4. Roll back by setting the flag to `false` on the compatible code. Consumers
+   immediately return to legacy sampling, including queued work; ingestion returns
+   to legacy admission. Some transitional sampling variation is expected. Before
+   reverting to a pre-compatibility binary, disable enforcement everywhere first.
+
+This path does not enable Topics custom-filter UI or transcript evaluator
+execution. Shared transcript input storage stays unchanged.
+
 ## Controls
 
 | Variable                                          | Default     | Role                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`     | Track accepted direct-v4 event writes in Redis.                                                                                                                                                                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_RULE_FILTERING_ENABLED` | `false` | Record IDs while false; use selections for admission and execution when true. |
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Schedule idle traces into BullMQ jobs.                                                                                                                                                                                                                                                                                                                                                                       |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Register the batch worker.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`     | Allow the worker to query ClickHouse; otherwise discard jobs.                                                                                                                                                                                                                                                                                                                                                |
@@ -57,9 +130,10 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 16 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                                                                                                                                                                                                                                                      |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                                                                                                                                                                                                                                             |
 
-Producer, dispatcher and consumer can run independently. Sampling reuses the
-evaluator's deterministic trace-ID sampler; every observation of the same trace
-gets the same admission decision. Dispatch and consumption do not resample.
+Producer, dispatcher and consumer can run independently. Legacy admission uses
+the deterministic trace-ID sampler; legacy Topics jobs also apply their saved
+sampling rate during consumption. Rule-filtered jobs use the project/trace/rule
+sampler once at ingestion and are not sampled again.
 Cloud guards cover ingestion, dispatcher execution, worker registration and
 processing, and the shared queue accessor, including admin queue inspection.
 
@@ -68,7 +142,7 @@ processing, and the shared queue accessor, including admin queue inspection.
 - `{trace-batch:<shard>}:due`: sorted set, with JSON `[projectId, traceId]` members and
   Redis server time plus idle delay as the score.
 - `{trace-batch:<shard>}:state`: hash with the same members and JSON
-  `{minStart, maxStart, revision, historyBucket, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
+  `{minStart, maxStart, revision, historyBucket, eventUpdateCount, serializedEventBytes, ruleIds?}` values. Bounds describe observed event start
   times; revision protects newer ingestion from an older dispatch acknowledgment.
 - `{trace-batch}:dispatcher`: renewable dispatcher lease.
 - `{trace-batch:<shard>}:first:<bucket>`: hourly hashes retaining the minimum and
@@ -497,7 +571,7 @@ history share uses content lines including role labels, tool exchanges, fallback
 root I/O, observation markers and inline errors, excluding section headings and
 tool definitions. Keep
 numerator and denominator on the same basis when calculating shares. Ingestion
-applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
+with rule enforcement disabled applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
 and worker; every admitted trace receives Topics measurements. Projects where
 `isTopicsProcessingActive` holds (in the Topics allowlist
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, Topics enabled with all three models, and
