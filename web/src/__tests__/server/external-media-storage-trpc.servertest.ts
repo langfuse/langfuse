@@ -288,7 +288,10 @@ describe("externalMediaStorage tRPC", () => {
           projectId: project.id,
           uri: `s3://${integration.bucketName}/customer/image.png`,
         }),
-      ).resolves.toMatchObject({ url: "https://signed.example" });
+      ).resolves.toMatchObject({
+        url: "https://signed.example",
+        urlTtlSeconds: 300,
+      });
       expect(getSignedUrl).toHaveBeenCalledWith(
         "customer/image.png",
         300,

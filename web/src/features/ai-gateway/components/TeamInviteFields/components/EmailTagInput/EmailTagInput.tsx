@@ -1,11 +1,11 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { z } from "zod/v4";
 
-import { EmailTag } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
+import { EmailTag } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
 import {
   appendEmails,
   splitEmailText,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+} from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
 
 export type EmailTagInputProps = {
   id: string;
