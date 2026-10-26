@@ -139,6 +139,29 @@ describe("systemRoleAccessRights", () => {
     expect(viewerProjectActions).not.toContain("scores:save");
   });
 
+  it("grants MEMBER all project read actions granted to VIEWER", () => {
+    const viewerProjectActions = systemRoleAccessRights.VIEWER.policies
+      .filter((policy) => policy.resourceKind === "project")
+      .flatMap((policy) => policy.actions);
+    const memberProjectActions = systemRoleAccessRights.MEMBER.policies
+      .filter((policy) => policy.resourceKind === "project")
+      .flatMap((policy) => policy.actions);
+
+    for (const action of viewerProjectActions) {
+      expect(memberProjectActions).toContain(action);
+    }
+  });
+
+  it("grants MEMBER standard project write actions", () => {
+    const memberProjectActions = systemRoleAccessRights.MEMBER.policies
+      .filter((policy) => policy.resourceKind === "project")
+      .flatMap((policy) => policy.actions);
+
+    expect(memberProjectActions).toContain("traces:create");
+    expect(memberProjectActions).toContain("media:create");
+    expect(memberProjectActions).toContain("feedback:create");
+  });
+
   it("keys every definition by its own id", () => {
     for (const [key, definition] of Object.entries(systemRoleAccessRights)) {
       expect(definition.id).toBe(key);
