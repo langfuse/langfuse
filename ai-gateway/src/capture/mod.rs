@@ -13,7 +13,7 @@ use tokio::time::Instant;
 
 use crate::{
     correlation::RequestCorrelation,
-    resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, MetadataValue, ProjectId, ResolvedRequestContext},
     telemetry,
 };
 use anthropic_messages::AnthropicMessagesCapture;
@@ -82,14 +82,6 @@ impl ProtocolCapture {
         }
     }
 
-    fn requested_model(&self) -> Option<&str> {
-        match self {
-            Self::OpenAiResponses(capture) => capture.requested_model(),
-            Self::OpenAiChatCompletions(capture) => capture.requested_model(),
-            Self::AnthropicMessages(capture) => capture.requested_model(),
-        }
-    }
-
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -109,11 +101,12 @@ pub(crate) struct ExecutionCapture {
     completion_start_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
+    provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
 impl ExecutionCapture {
-    pub fn unobserved() -> Self {
+    pub(crate) fn unobserved() -> Self {
         Self {
             span: tracing::Span::current(),
             protocol: None,
@@ -126,11 +119,12 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             metadata: json!({}),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn for_request(
+    pub(crate) fn for_request(
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
@@ -156,7 +150,6 @@ impl ExecutionCapture {
                 (key.clone(), value)
             })
             .collect();
-        let full = context.ingestion_mode() == IngestionMode::Full;
         let span = tracing::Span::current();
         // Parsing the whole request is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
@@ -174,18 +167,20 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             metadata: json!({
-                "organization_id": attribution.organization_id(),
-                "project_id": attribution.project_id(),
+                "organization_id": attribution.organization_id().as_str(),
+                "project_id": attribution.project_id().map(ProjectId::as_str),
                 "key_id": attribution.key_id(),
+                "user_id": attribution.user_id(),
                 "provider_connection_id": attribution.provider_connection_id(),
                 "key_metadata": key_metadata,
-                "ingestion_mode": if full { "full" } else { "usage" },
+                "ingestion_mode": context.ingestion_mode().as_str(),
             }),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn deliver_to(
+    pub(crate) fn deliver_to(
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
@@ -196,7 +191,11 @@ impl ExecutionCapture {
             .protocol
             .as_ref()
             .and_then(ProtocolCapture::client_metadata);
-        let delivery = telemetry::DeliveryContext::from_resolved(context, headers, client_metadata);
+        let Some(delivery) =
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata)
+        else {
+            return;
+        };
         correlation.record_generation(delivery.generation_ids());
         self.metadata["request_id"] = json!(correlation.id());
         if let Some(client_id) = correlation.client_id() {
@@ -205,21 +204,18 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    /// The request's `model`, if the capture could parse it.
-    pub fn requested_model(&self) -> Option<&str> {
-        self.protocol
-            .as_ref()
-            .and_then(ProtocolCapture::requested_model)
+    pub(crate) fn set_provider_model(&mut self, model: &str) {
+        self.provider_model = bounded_string(model);
     }
 
-    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
+    pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
             protocol.record_response(headers);
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) {
+    pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
             if !bytes.is_empty() {
                 self.first_byte_ms
@@ -232,19 +228,26 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn end_body(&mut self) {
+    pub(crate) fn end_body(&mut self) {
         if let Some(protocol) = &mut self.protocol {
             protocol.end_body();
         }
     }
 
-    pub fn finish(&mut self, outcome: RelayOutcome) {
+    pub(crate) fn finish(&mut self, outcome: RelayOutcome) {
         let span = self.span.clone();
         let _entered = span.enter();
+        crate::observability::execution_failed(outcome);
         let Some(protocol) = self.protocol.take() else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
+        let (api_format, mut inference) = protocol.into_facts();
+        if let Some(provider_model) = self.provider_model.take() {
+            if inference.model == inference.requested_model {
+                inference.model = Some(provider_model.clone());
+            }
+            inference.requested_model = Some(provider_model);
+        }
         let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,

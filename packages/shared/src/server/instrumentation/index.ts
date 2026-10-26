@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import {
   CloudWatchClient,
   PutMetricDataCommand,
@@ -7,6 +7,7 @@ import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { getProjectSize } from "../projectSize";
 import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
 export type TCarrier = {
@@ -206,11 +207,19 @@ export const addUserToSpan = (
   },
   span?: opentelemetry.Span,
 ) => {
-  const activeSpan = span ?? getCurrentSpan();
+  const currentSpan = getCurrentSpan();
+  const activeSpan = span ?? currentSpan;
 
   if (!activeSpan) {
     return;
   }
+
+  const setSpanAttribute = (key: string, value: string) => {
+    activeSpan.setAttribute(key, value);
+    if (currentSpan && currentSpan !== activeSpan) {
+      currentSpan.setAttribute(key, value);
+    }
+  };
 
   const ctx = opentelemetry.context.active();
   let baggage =
@@ -221,40 +230,40 @@ export const addUserToSpan = (
     baggage = baggage.setEntry("user.id", {
       value: attributes.userId,
     });
-    activeSpan.setAttribute("user.id", attributes.userId);
+    setSpanAttribute("user.id", attributes.userId);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
       value: attributes.projectId,
     });
-    activeSpan.setAttribute("langfuse.project.id", attributes.projectId);
+    setSpanAttribute("langfuse.project.id", attributes.projectId);
+    const projectSize = getProjectSize(attributes.projectId);
+    baggage = baggage.setEntry("langfuse.project.size", { value: projectSize });
+    setSpanAttribute("langfuse.project.size", projectSize);
   }
   if (attributes.orgId) {
     baggage = baggage.setEntry("langfuse.org.id", {
       value: attributes.orgId,
     });
-    activeSpan.setAttribute("langfuse.org.id", attributes.orgId);
+    setSpanAttribute("langfuse.org.id", attributes.orgId);
   }
   if (attributes.plan) {
     baggage = baggage.setEntry("langfuse.org.plan", {
       value: attributes.plan,
     });
-    activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+    setSpanAttribute("langfuse.org.plan", attributes.plan);
   }
   if (attributes.apiKeyId) {
     baggage = baggage.setEntry("langfuse.api_key.id", {
       value: attributes.apiKeyId,
     });
-    activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+    setSpanAttribute("langfuse.api_key.id", attributes.apiKeyId);
   }
   if (attributes.publicKey) {
     baggage = baggage.setEntry("langfuse.api_key.public_key", {
       value: attributes.publicKey,
     });
-    activeSpan.setAttribute(
-      "langfuse.api_key.public_key",
-      attributes.publicKey,
-    );
+    setSpanAttribute("langfuse.api_key.public_key", attributes.publicKey);
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);
@@ -310,9 +319,9 @@ export const flushMetricsToCloudWatch = () => {
 // CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
 // unaffected.
 const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
-// "reason" is a Datadog-only breakdown; flattening it would rename existing
-// CloudWatch series.
-const CW_UNFLATTENED_TAGS = new Set(["unit", "reason"]);
+// "reason" and "attempt" are Datadog-only breakdowns; flattening them would
+// rename existing CloudWatch series.
+const CW_UNFLATTENED_TAGS = new Set(["unit", "reason", "attempt"]);
 
 function buildCloudWatchKey(
   stat: string,

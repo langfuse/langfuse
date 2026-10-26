@@ -1,13 +1,13 @@
-/* eslint-disable no-nested-ternary */
-import { Badge } from "@/src/components/ui/badge";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellProvider";
+import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsProvider";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
+import { ClockIcon, ListTree } from "@langfuse/icons";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import {
@@ -230,32 +230,31 @@ const DatasetAggregateCellContent = ({
           >
             {!!latency &&
               (latencyDiff ? (
-                <DiffLabel
-                  diff={latencyDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => formatIntervalSeconds(value)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={latencyDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => formatIntervalSeconds(value)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <ClockIcon className="icon-sm mr-1 mb-0.5" />
-                  <span className="capitalize">
-                    {formatIntervalSeconds(latency)}
-                  </span>
-                </Badge>
+                <Badge
+                  color="filled"
+                  leadingIcon={ClockIcon}
+                  text={formatIntervalSeconds(latency)}
+                />
               ))}
             {totalCost &&
               (totalCostDiff ? (
-                <DiffLabel
-                  diff={totalCostDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => usdFormatter(value, 2, 4)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={totalCostDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => usdFormatter(value, 2, 4)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <span className="mr-0.5">{usdFormatter(totalCost)}</span>
-                </Badge>
+                <Badge color="filled" text={usdFormatter(totalCost)} />
               ))}
           </div>
           {!(isSilentError || isLoading) && (
@@ -277,7 +276,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="icon-base text-icon-foreground" />
+                <ListTree size="base" color="default" />
               </Button>
             </div>
           )}

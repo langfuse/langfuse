@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 
 import {
   crumbLabel,
@@ -40,7 +40,7 @@ export function VariableMappingBinding({
             index === pathLabels.length - 1 && "shrink-0",
           )}
         >
-          <ChevronRight className="text-muted-foreground icon-sm shrink-0 self-center" />
+          <ChevronRight size="sm" color="muted" __rawClassName="self-center" />
           <span
             className="relative top-px max-w-40 truncate font-mono text-sm"
             title={label === "..." ? fullPath : label}
@@ -76,7 +76,7 @@ export function VariableMappingBinding({
         <span className="min-w-0 overflow-hidden whitespace-nowrap">
           {columnLabel}
         </span>
-        <ChevronRight className="text-muted-foreground icon-sm shrink-0 self-center" />
+        <ChevronRight size="sm" color="muted" __rawClassName="self-center" />
         <span className="shrink-0">...</span>
       </span>
       <span

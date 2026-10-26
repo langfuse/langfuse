@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "node:crypto";
@@ -280,6 +281,7 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       externalMediaStorage: false,
+      skillManagement: false,
       sessionViewV2: false,
       sessionViewV2Timeline: false,
     });
@@ -541,6 +543,7 @@ describe("organization member feature preview overrides", () => {
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
       externalMediaStorage: false,
+      skillManagement: false,
       sessionViewV2: true,
       sessionViewV2Timeline: false,
     });

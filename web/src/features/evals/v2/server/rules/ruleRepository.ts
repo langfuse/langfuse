@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
+  escapeSqlLikePattern,
   stringFilterToPrisma,
   stringOptionsFilterToPrisma,
   type PrismaFilterColumnHandlers,
@@ -117,7 +118,12 @@ function ruleWhere(params: {
     projectId: params.projectId,
     ...visibleRuleWhere,
     ...(params.search
-      ? { name: { contains: params.search, mode: "insensitive" as const } }
+      ? {
+          name: {
+            contains: escapeSqlLikePattern(params.search),
+            mode: "insensitive" as const,
+          },
+        }
       : {}),
     ...(params.enabled === undefined
       ? {}

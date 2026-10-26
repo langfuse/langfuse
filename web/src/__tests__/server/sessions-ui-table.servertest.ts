@@ -1009,3 +1009,46 @@ maybeEventsTable("sessions from events: metadata filters", () => {
     expect(count).toBe(1);
   });
 });
+
+maybeEventsTable("sessions from events: tool filters", () => {
+  it.each(["toolNames", "calledToolNames"])(
+    "%s filter does not return sessions from another project",
+    async (column) => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      const ownSessionId = v4();
+      const otherSessionId = v4();
+      const toolName = `tool-${v4()}`;
+
+      await createEventsCh(
+        [
+          { project_id: projectId, session_id: ownSessionId },
+          { project_id: otherProjectId, session_id: otherSessionId },
+        ].map((event) =>
+          createEvent({
+            ...event,
+            parent_span_id: "",
+            tool_definitions: { [toolName]: "{}" },
+            tool_call_names: [toolName],
+          }),
+        ),
+      );
+
+      const filter: FilterState = [
+        { column, type: "arrayOptions", operator: "any of", value: [toolName] },
+      ];
+
+      const [rows, count] = await Promise.all([
+        getSessionsTableFromEvents({
+          projectId,
+          filter,
+          fields: ["session_id"],
+        }),
+        getSessionsTableCountFromEvents({ projectId, filter }),
+      ]);
+
+      expect(rows.map((row) => row.session_id)).toEqual([ownSessionId]);
+      expect(count).toBe(1);
+    },
+  );
+});

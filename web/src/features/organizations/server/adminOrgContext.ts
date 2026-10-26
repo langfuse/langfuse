@@ -1,4 +1,5 @@
 import { CloudConfigSchema } from "@langfuse/shared";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type Session } from "next-auth";
@@ -76,6 +77,7 @@ export async function buildAdminOrgContext(ctx: {
       role: Role.OWNER,
       retentionDays: project.retentionDays,
       hasTraces: project.hasTraces,
+      topicsEnabled: isTopicsProjectEnabled(project.id),
       deletedAt: project.deletedAt,
       metadata: (project.metadata as Record<string, unknown>) ?? {},
       createdAt: project.createdAt.toISOString(),

@@ -1,4 +1,5 @@
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
@@ -71,16 +72,41 @@ export function EvaluatorGallerySection({
         />
       )}
       {canToggle ? (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 px-1 text-sm"
-          onClick={handleToggleExpanded}
-        >
-          <DropdownIndicator direction={expanded ? "up" : "down"} nudge />
-          {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
-        </button>
+        <GalleryShowAllToggle
+          expanded={expanded}
+          totalCount={totalCount}
+          isProjectRows={section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY}
+          onToggle={handleToggleExpanded}
+        />
       ) : null}
     </section>
+  );
+}
+
+type GalleryShowAllToggleProps = {
+  expanded: boolean;
+  totalCount: number;
+  isProjectRows: boolean;
+  onToggle: () => void;
+};
+
+/** Text link under a section; under project rows it cancels the gap, since rows end in their own padding. */
+function GalleryShowAllToggle({
+  expanded,
+  totalCount,
+  isProjectRows,
+  onToggle,
+}: GalleryShowAllToggleProps) {
+  return (
+    <div className={isProjectRows ? "-mt-3" : undefined}>
+      <ExpandToggle
+        variant="underline"
+        expanded={expanded}
+        label={`Show all ${totalCount} templates`}
+        expandedLabel="Show fewer"
+        onExpandedChange={onToggle}
+      />
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
-import { KeyRound, User } from "lucide-react";
+import { KeyRound, User } from "@langfuse/icons";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";

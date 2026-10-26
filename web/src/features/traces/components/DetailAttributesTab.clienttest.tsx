@@ -9,8 +9,14 @@ import { MediaEnabledFields } from "@/src/features/media/validation";
 vi.mock("@/src/components/ui/PrettyJsonView", () => ({
   PrettyJsonView: vi.fn(() => null),
 }));
-vi.mock("./ObservationDetailView/AttributeRowActions", () => ({
-  AttributeRowActions: () => null,
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => false,
+}));
+vi.mock("next/router", () => ({
+  useRouter: () => ({ asPath: "/project/project/traces", push: vi.fn() }),
+}));
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => vi.fn(),
 }));
 
 afterEach(() => {

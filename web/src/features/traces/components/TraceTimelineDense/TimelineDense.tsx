@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -58,7 +59,7 @@ import {
 } from "react";
 import { useTheme } from "next-themes";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "@langfuse/icons";
 import {
   ItemTypeIcon,
   type LangfuseItemType,
@@ -1350,7 +1351,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="icon-sm" />
+          <Minus size="sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1360,11 +1361,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="icon-sm" />
+          <Plus size="sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="icon-sm" />
+            <UnfoldVertical size="sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1382,7 +1383,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="icon-sm" />
+            <Scan size="sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"

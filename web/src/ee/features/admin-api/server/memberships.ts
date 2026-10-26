@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -80,8 +86,7 @@ export async function handleUpdateMembership(
     });
   }
 
-  const membership = await prisma.$transaction(async (tx) => {
-    await lockOrganization(tx, orgId);
+  const { membership, revokedKeys } = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
@@ -114,8 +119,14 @@ export async function handleUpdateMembership(
       },
       tx,
     );
-    return after;
+    const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+      role: validatedBody.data.role,
+    });
+    return { membership: after, revokedKeys };
   });
+  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
   await getSfdcService()?.setUserRole({
     orgId,
@@ -148,13 +159,12 @@ export async function handleDeleteMembership(
     });
   }
 
-  const deleted = await prisma.$transaction(async (tx) => {
-    await lockOrganization(tx, orgId);
+  const { deleted, revokedKeys } = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
     assertAuthorizeMembershipChange(context, orgId);
-    if (!before) return false;
+    if (!before) return { deleted: false, revokedKeys: [] };
     await assertValidOwnershipChange({
       tx,
       context,
@@ -175,8 +185,13 @@ export async function handleDeleteMembership(
       },
       tx,
     );
-    return true;
+    const revokedKeys = await deleteUserBoundApiKeys(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    return { deleted: true, revokedKeys };
   });
+  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
   if (deleted) {
     const user = await prisma.user.findUnique({
@@ -196,11 +211,6 @@ export async function handleDeleteMembership(
   });
 }
 
-/** lockOrganization serializes membership API mutations before reading owner state. */
-async function lockOrganization(tx: Prisma.TransactionClient, orgId: string) {
-  await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${orgId} FOR UPDATE`;
-}
-
 function assertAuthorizeMembershipChange(
   context: AuthorizationContext,
   orgId: string,
@@ -215,8 +225,8 @@ function assertAuthorizeMembershipChange(
   if (!membershipAccess.success) throw membershipAccess.error;
 }
 
-/** assertValidOwnershipChange checks ownership permission and preserves an owner under the organization lock. */
-async function assertValidOwnershipChange({
+/** assertValidOwnershipChange checks ownership permission and keeps at least one owner. */
+export async function assertValidOwnershipChange({
   tx,
   context,
   orgId,
@@ -224,7 +234,7 @@ async function assertValidOwnershipChange({
   to,
 }: {
   tx: Prisma.TransactionClient;
-  context: AuthorizationContext;
+  context: AuthorizationContext | undefined;
   orgId: string;
   from: Role | undefined;
   to?: Role;
@@ -237,10 +247,12 @@ async function assertValidOwnershipChange({
   }
 }
 
+/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
 function assertAuthorizeOwnershipChange(
-  context: AuthorizationContext,
+  context: AuthorizationContext | undefined,
   orgId: string,
 ) {
+  if (!context) throw new ForbiddenError();
   const organization = OrganizationId(orgId);
   const ownershipAccess = authorize(
     context,
@@ -251,15 +263,14 @@ function assertAuthorizeOwnershipChange(
   if (!ownershipAccess.success) throw ownershipAccess.error;
 }
 
-/** assertOtherOwners requires another owner before removing ownership under the organization lock. */
+/** assertOtherOwners locks the organization's owner rows and requires another owner before removing ownership. */
 async function assertOtherOwners(tx: Prisma.TransactionClient, orgId: string) {
-  const ownerCount = await tx.organizationMembership.count({
-    where: {
-      orgId,
-      role: Role.OWNER,
-    },
-  });
-  if (ownerCount < 2) {
+  const owners = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM organization_memberships
+    WHERE org_id = ${orgId} AND role = 'OWNER'
+    FOR UPDATE
+  `;
+  if (owners.length < 2) {
     throw new ForbiddenError(
       "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
     );

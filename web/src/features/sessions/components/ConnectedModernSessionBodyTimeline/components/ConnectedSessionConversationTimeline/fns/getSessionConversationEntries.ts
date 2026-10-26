@@ -8,9 +8,10 @@ export function getSessionConversationEntries(
       | RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
       | undefined;
   }[],
+  includeNestedThreads = false,
 ) {
   const visibility = traces.map(({ transcript }) =>
-    getSessionTranscriptThreads(transcript ?? null),
+    getSessionTranscriptThreads(transcript ?? null, includeNestedThreads),
   );
   const useThreadNumbers = visibility.some(
     ({ visibleThreads }) => visibleThreads.length > 1,

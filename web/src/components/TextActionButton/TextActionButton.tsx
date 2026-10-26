@@ -1,4 +1,4 @@
-import { Plus, type LucideIcon } from "lucide-react";
+import { Plus, type IconComponent } from "@langfuse/icons";
 import {
   type ComponentPropsWithoutRef,
   type MouseEventHandler,
@@ -19,7 +19,7 @@ export function TextActionButton({
   ...props
 }: {
   text: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   width?: "content" | "fill";
   ref?: Ref<HTMLButtonElement>;
 } & Omit<
@@ -42,7 +42,7 @@ export function TextActionButton({
         width === "fill" && "w-full justify-start",
       )}
     >
-      <Icon className="icon-base text-icon-foreground shrink-0" aria-hidden />
+      <Icon size="base" color="default" aria-hidden />
       {text}
     </button>
   );

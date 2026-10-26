@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download } from "@langfuse/icons";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   BatchExportTableName,
@@ -70,7 +70,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
           {
             id: "export",
             label: "Export",
-            icon: <Download className="icon-base" />,
+            icon: <Download size="base" />,
             variant: "outline" as const,
             loading: createExport.isPending,
             dropdown: {

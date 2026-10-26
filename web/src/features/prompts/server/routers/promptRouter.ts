@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -136,7 +137,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -229,7 +230,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 

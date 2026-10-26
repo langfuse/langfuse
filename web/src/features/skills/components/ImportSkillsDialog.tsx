@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
@@ -15,6 +16,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
 
 import { LocalSkillImportSource } from "./LocalSkillImportSource";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { CliSkillImportInstructions } from "./CliSkillImportInstructions";
 import type { ComparedSkill, SkillImportDiscovery } from "./skillImportTypes";
 import { compareImportedSkills } from "../utils/compare-imported-skills";
@@ -269,16 +271,12 @@ export function ImportSkillsDialog({
                 layout="full"
                 aria-label="Import method"
               >
-                <Tabs.Trigger
-                  value="local"
-                  label="Local files"
-                  disabled={busy}
-                />
+                <Tabs.Trigger value="local" label="Upload" disabled={busy} />
                 <Tabs.Trigger value="cli" label="CLI" disabled={busy} />
               </Tabs.List>
               <div className="pt-4">
                 <Tabs.Content value="cli">
-                  <CliSkillImportInstructions projectId={projectId} />
+                  <CliSkillImportTab projectId={projectId} />
                 </Tabs.Content>
                 <Tabs.Content value="local">
                   <div className="flex flex-col gap-4">
@@ -445,4 +443,9 @@ export function ImportSkillsDialog({
       {({ openDialog }) => children(createOpenHandler(openDialog))}
     </DialogController>
   );
+}
+
+function CliSkillImportTab({ projectId }: { projectId: string }) {
+  const host = useLangfuseBaseUrl();
+  return <CliSkillImportInstructions projectId={projectId} host={host} />;
 }

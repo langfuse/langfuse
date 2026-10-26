@@ -109,9 +109,9 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
   );
 
   it.each([
-    [64 * 1024, false, 0],
-    [64 * 1024 + 1, false, 1],
-    [64 * 1024, true, 1],
+    [128 * 1024, false, 0],
+    [128 * 1024 + 1, false, 1],
+    [128 * 1024, true, 1],
   ] as const)(
     "prepares %i bytes with media=%s using %i extraction tasks",
     async (size, withMedia, tasks) => {
@@ -127,7 +127,7 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       });
       try {
         expect(nativeMocks.hasOtelMediaCandidate).toHaveBeenCalledTimes(
-          size <= 64 * 1024 ? 1 : 0,
+          size <= 128 * 1024 ? 1 : 0,
         );
         expect(nativeMocks.extractOtelMedia).toHaveBeenCalledTimes(tasks);
         expect(nativeMocks.validateOtelJson).not.toHaveBeenCalled();

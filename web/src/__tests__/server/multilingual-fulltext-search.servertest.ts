@@ -488,7 +488,7 @@ describe("multilingual full-text search (issue #11538)", () => {
       const values = Object.values(result.params as Record<string, string>);
       // the raw form is already bound today; the JSON-\u-escaped form is what's missing
       expect(values).toContain("%你好%");
-      expect(values).toContain("%\\u4f60\\u597d%"); // 你 = U+4F60, 好 = U+597D
+      expect(values).toContain("%\\\\u4f60\\\\u597d%"); // 你 = U+4F60, 好 = U+597D
       // ... and the generated WHERE clause must apply that escaped parameter to input AND output
       expect(result.query).toMatch(
         /t\.input ILIKE \{[^}]+: String\}.*t\.output ILIKE/s,
@@ -501,13 +501,13 @@ describe("multilingual full-text search (issue #11538)", () => {
     it("binds the \\u-escaped form of an Arabic query (input search)", () => {
       // مرحبا = U+0645 U+0631 U+062D U+0628 U+0627
       expect(paramValues("مرحبا", ["input"])).toContain(
-        "%\\u0645\\u0631\\u062d\\u0628\\u0627%",
+        "%\\\\u0645\\\\u0631\\\\u062d\\\\u0628\\\\u0627%",
       );
     });
 
     it("encodes an astral-plane (emoji) query as a UTF-16 surrogate pair, like a JSON serializer would", () => {
       // 🚀 = U+1F680 -> UTF-16 surrogate pair D83D DE80
-      expect(paramValues("🚀", ["content"])).toContain("%\\ud83d\\ude80%");
+      expect(paramValues("🚀", ["content"])).toContain("%\\\\ud83d\\\\ude80%");
     });
   });
 });

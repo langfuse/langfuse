@@ -11,6 +11,7 @@ import {
   createTracesCh,
   createOrgProjectAndApiKey,
   toClickhouseDateTime,
+  ScoreBody,
 } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -20,6 +21,8 @@ import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
+  NumericData,
+  PostScoreBodyV1,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -65,6 +68,40 @@ type APIScoreV1WithValue = Extract<
   z.infer<typeof GetScoreResponseV1>,
   { value: number }
 >;
+
+describe("score schema omission compatibility", () => {
+  it.each([
+    { name: "public API", schema: PostScoreBodyV1 },
+    { name: "ingestion", schema: ScoreBody },
+  ])("accepts inferred score types through $name", ({ schema }) => {
+    for (const value of [0.5, "positive"]) {
+      const input = { name: "inferred score", traceId: "trace-id", value };
+      const parsed = schema.parse(input);
+
+      expect(parsed).toMatchObject(input);
+      expect(parsed).not.toHaveProperty("dataType");
+      expect(schema.safeParse({ ...input, dataType: null }).success).toBe(
+        false,
+      );
+      expect(schema.safeParse({ ...input, dataType: "UNKNOWN" }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it("accepts numeric score data without a string value", () => {
+    expect(NumericData.parse({ dataType: "NUMERIC" })).toEqual({
+      dataType: "NUMERIC",
+    });
+    expect(
+      NumericData.safeParse({ dataType: "NUMERIC", stringValue: null }).success,
+    ).toBe(true);
+    expect(
+      NumericData.safeParse({ dataType: "NUMERIC", stringValue: "positive" })
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -1439,8 +1476,11 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]}`,
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              `\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]`,
             );
           }
         });
@@ -1458,8 +1498,11 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]}',
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              '"error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]',
             );
           }
         });

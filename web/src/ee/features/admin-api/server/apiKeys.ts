@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 import { z } from "zod/v4";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -7,8 +8,7 @@ import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKe
 const apiKeyCreationFields = {
   name: z.string().optional(),
   note: z.string().optional(),
-  expiresAt: z.iso
-    .datetime({ offset: true })
+  expiresAt: isoDateTime({ offset: true })
     .transform((value) => new Date(value))
     .refine((value) => value.getTime() > Date.now(), {
       message: "expiresAt must be in the future",

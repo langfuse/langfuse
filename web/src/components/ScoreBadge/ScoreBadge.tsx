@@ -1,7 +1,7 @@
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
+import { ScoreTag, scoreLevelFromScore } from "@/src/components/ScoreTag";
 import { ScoreValue } from "@/src/components/ScoreValue";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

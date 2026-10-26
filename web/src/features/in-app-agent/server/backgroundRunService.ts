@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
+import {
+  BaseError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  type Plan,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
@@ -16,7 +22,9 @@ import {
   InAppAgentRunStatusSchema,
   parseInAppAgentApprovalDecisionEvent,
   parseInAppAgentInterruptEvent,
+  validateInAppAgentToolInputs,
   type AgUiContext,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
@@ -220,7 +228,7 @@ export async function startBackgroundRun(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "Assistant model is not configured.",
+      "Halo model is not configured.",
       true,
     );
   }
@@ -360,6 +368,7 @@ export async function decideBackgroundApproval(params: {
   toolCallId: string;
   approved: boolean;
   approvalScope?: "once" | "conversation";
+  toolInputs?: InAppAgentToolInputs;
   userId: string;
   model: string | undefined;
 }) {
@@ -393,6 +402,16 @@ export async function decideBackgroundApproval(params: {
     throw new LangfuseNotFoundError("Approval request not found");
   }
 
+  const toolInputsValidation = validateInAppAgentToolInputs({
+    toolName: approvalRequest.toolName,
+    args: approvalRequest.args,
+    approved: params.approved,
+    toolInputs: params.toolInputs,
+  });
+  if (!toolInputsValidation.success) {
+    throw new InvalidRequestError(toolInputsValidation.error);
+  }
+
   // Resolve the granted tool from the persisted interrupt, never client input.
   const alwaysAllowToolName =
     params.approvalScope === "conversation" && params.approved
@@ -408,6 +427,7 @@ export async function decideBackgroundApproval(params: {
     toolCallId: params.toolCallId,
     approved: params.approved,
     alwaysAllowToolName,
+    toolInputs: params.toolInputs,
     decidedByUserId: params.userId,
     model: params.model,
   });

@@ -45,10 +45,6 @@ import {
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
 import { flattenJsonToPathArrays } from "./utils";
-import {
-  metadataArraysToRecord,
-  parseMetadataCHRecordToDomain,
-} from "../utils/metadata_conversion";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -465,6 +461,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       // "child" sends the attributes on a child span of an attribute-less root.
       span?: "root" | "child";
       headerSdkName?: string;
+      headerSdkVersion?: string;
       scopeName?: string;
       scopeVersion?: string;
       telemetrySdkLanguage?: string;
@@ -495,7 +492,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       projectId: PROJECT_ID,
       publicKey: "pk-test",
       sdkName: params.headerSdkName ?? "python",
-      sdkVersion: scopeVersion,
+      sdkVersion: params.headerSdkVersion ?? scopeVersion,
     });
     if (path === "v4") {
       return processor.processToEvent(batch).at(-1)?.metadata as Record<
@@ -539,18 +536,15 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       );
 
       expect(fromBlob).toMatchObject(metadata);
-      // Strings the metadata read path would parse as JSON keep their
-      // encoding, so they read back as strings. A blob cannot tell them apart.
-      const expected = { ...fromBlob, digits: '"42"', version: '"1.0"' };
-      expect(fromPerKey).toEqual(expected);
+      expect(fromPerKey).toEqual(fromBlob);
       expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
-        flattenJsonToPathArrays(expected),
+        flattenJsonToPathArrays(fromBlob),
       );
     },
   );
 
   it.each(["v3", "v4"] as const)(
-    "reads per-key values back with the type they were sent with (%s)",
+    "stores per-key string values as sent, even when they look like JSON (%s)",
     async (path) => {
       const sent = {
         digits: "42",
@@ -561,9 +555,6 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
         nullish: "null",
         label: "",
         environment: "prod",
-        retries: 3,
-        enabled: true,
-        steps: [1, "two"],
       };
       const stored = await processMetadata(
         path,
@@ -573,14 +564,8 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
         })),
       );
 
-      const { names, values } = flattenJsonToPathArrays(stored);
-      const read = parseMetadataCHRecordToDomain(
-        metadataArraysToRecord(names, values as string[]) ?? {},
-      );
-
-      expect(read).toMatchObject(sent);
-      // Plain strings are stored raw, so string metadata filters match them.
-      expect(stored).toMatchObject({ environment: "prod", label: "" });
+      // String metadata filters compare against the stored value.
+      expect(stored).toMatchObject(sent);
     },
   );
 
@@ -618,10 +603,19 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       scopeVersion: "5.11.1",
     },
     {
-      case: "non-Langfuse scope",
+      case: "non-Langfuse scope under a current Python major",
       headerSdkName: "python",
-      scopeVersion: "5.0.0",
-      scopeName: "openinference",
+      headerSdkVersion: "4.15.6",
+      scopeName: "openinference.instrumentation.openai",
+      scopeVersion: "0.1.20",
+    },
+    {
+      case: "non-Langfuse scope without a Langfuse SDK header",
+      headerSdkName: "unknown",
+      headerSdkVersion: "unknown",
+      scopeName: "openinference.instrumentation.openai",
+      scopeVersion: "6.0.0",
+      telemetrySdkLanguage: "python",
     },
   ])("keeps per-key values as sent for the $case", async (params) => {
     const result = await processMetadata(
@@ -634,6 +628,50 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       environment: '"prod"',
       retries: "3",
       database: '{"host":"localhost","port":5432,"auth":{"user":"app"}}',
+    });
+  });
+
+  // The SDK span processor writes propagated metadata onto every span in its
+  // context, so third-party spans carry the same encoded values.
+  it.each([
+    {
+      case: "OpenInference span exported by Python v5",
+      headerSdkName: "python",
+      headerSdkVersion: "5.0.1",
+      scopeName: "openinference.instrumentation.openai",
+      scopeVersion: "0.1.20",
+    },
+    {
+      case: "Vercel AI SDK span exported by JS v6",
+      headerSdkName: "javascript",
+      headerSdkVersion: "6.0.0",
+      scopeName: "ai",
+      scopeVersion: "4.3.16",
+    },
+  ])("decodes per-key values on an $case", async (params) => {
+    const result = await processMetadata(
+      "v4",
+      [
+        ...perKeyAttributes("observation"),
+        {
+          key: "ai.telemetry.metadata.tenant",
+          value: { stringValue: "acme" },
+        },
+        {
+          key: "ai.telemetry.metadata.count",
+          value: { stringValue: "42" },
+        },
+      ],
+      params,
+    );
+
+    expect(result).toMatchObject({
+      environment: "prod",
+      retries: 3,
+      database: metadata.database,
+      // The AI SDK writes its own metadata raw.
+      tenant: "acme",
+      count: "42",
     });
   });
 

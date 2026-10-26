@@ -1,6 +1,9 @@
 //! Byte encoding, Data URI syntax checks, and bounded hashing.
 
-use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
+use std::sync::LazyLock;
+
+use base64::engine::general_purpose::GeneralPurposeConfig;
+use base64::engine::simd::Simd;
 use base64::engine::{DecodePaddingMode, Engine};
 use sha2::{Digest, Sha256};
 
@@ -10,12 +13,13 @@ use super::rules::BASE64_MARKER;
 // Match the existing Buffer/base64 decoder after the caller has validated the
 // character grammar: padding may be omitted or repeated, and trailing bits are
 // accepted.
-pub(super) const BASE64: GeneralPurpose = GeneralPurpose::new(
-    &base64::alphabet::STANDARD,
-    GeneralPurposeConfig::new()
-        .with_decode_padding_mode(DecodePaddingMode::Indifferent)
-        .with_decode_allow_trailing_bits(true),
-);
+pub(super) static BASE64: LazyLock<Simd> = LazyLock::new(|| {
+    Simd::standard(
+        GeneralPurposeConfig::new()
+            .with_decode_padding_mode(DecodePaddingMode::Indifferent)
+            .with_decode_allow_trailing_bits(true),
+    )
+});
 
 pub(super) const BASE64_HASH_CHUNK_SIZE: usize = 16 * 1024;
 pub(super) const BASE64_HASH_DECODED_CHUNK_SIZE: usize = BASE64_HASH_CHUNK_SIZE / 4 * 3;
@@ -43,6 +47,24 @@ pub(super) fn is_data_uri_terminator(byte: u8) -> bool {
 
 pub(super) fn is_base64_character(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'=')
+}
+
+/// Length of the initial base64 alphabet run, stopping before padding.
+/// Full blocks must decode without padding. Search the first failing block and
+/// short tail bytewise to locate the padding byte or URI terminator.
+pub(super) fn base64_unpadded_prefix_len(value: &[u8]) -> usize {
+    let mut end = 0;
+    let mut decoded = [0; 1024 / 4 * 3];
+    for chunk in value.as_chunks::<1024>().0 {
+        if BASE64.decode_slice(chunk, &mut decoded) != Ok(decoded.len()) {
+            break;
+        }
+        end += chunk.len();
+    }
+    end + value[end..]
+        .iter()
+        .position(|byte| !byte.is_ascii_alphanumeric() && !matches!(byte, b'+' | b'/'))
+        .unwrap_or(value.len() - end)
 }
 
 pub(super) fn is_valid_content_type(value: &str) -> bool {
@@ -280,7 +302,7 @@ pub(super) fn is_valid_base64_syntax(value: &[u8]) -> bool {
         return false;
     }
     let mut padding = 0;
-    for byte in value {
+    for byte in &value[base64_unpadded_prefix_len(value)..] {
         if *byte == b'=' {
             padding += 1;
             if padding > 2 {
@@ -294,12 +316,23 @@ pub(super) fn is_valid_base64_syntax(value: &[u8]) -> bool {
 }
 
 pub(super) fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
+    // Avoid per-digit branches for Python literals with many `\xNN` escapes.
+    const DIGITS: [u8; 256] = {
+        let mut digits = [u8::MAX; 256];
+        let mut index = 0;
+        while index < digits.len() {
+            digits[index] = match index as u8 {
+                b'0'..=b'9' => index as u8 - b'0',
+                b'a'..=b'f' => index as u8 - b'a' + 10,
+                b'A'..=b'F' => index as u8 - b'A' + 10,
+                _ => u8::MAX,
+            };
+            index += 1;
+        }
+        digits
+    };
+    let value = DIGITS[usize::from(byte)];
+    (value != u8::MAX).then_some(value)
 }
 
 pub(super) fn decode_encoded_data(
@@ -323,12 +356,19 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        decode_python_bytes_literal, hash_encoded_data, BASE64, BASE64_HASH_DECODED_CHUNK_SIZE,
+        base64_unpadded_prefix_len, decode_python_bytes_literal, hash_encoded_data, BASE64,
+        BASE64_HASH_DECODED_CHUNK_SIZE,
     };
     use super::{MediaDecodeError, MediaEncoding};
 
     #[test]
     fn python_bytes_decoder_and_hasher_share_escape_validation() {
+        for byte in 0..=u8::MAX {
+            assert_eq!(
+                super::hex_digit(byte),
+                char::from(byte).to_digit(16).map(|digit| digit as u8)
+            );
+        }
         let encoded = br#"b"abc\n\r\t\\\'\"\x41""#;
         let expected = b"abc\n\r\t\\'\"A";
         let expected_hash: [u8; 32] = Sha256::digest(expected).into();
@@ -388,6 +428,25 @@ mod tests {
     }
 
     proptest! {
+        #[test]
+        fn base64_prefix_matches_scalar_search(
+            prefix_len in prop_oneof![Just(1023usize), Just(1024), Just(1025), 0usize..4096],
+            suffix in prop::collection::vec(any::<u8>(), 0..128),
+            complete_block in any::<bool>(),
+        ) {
+            let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            let mut value = alphabet.iter().copied().cycle().take(prefix_len).collect::<Vec<_>>();
+            prop_assert_eq!(base64_unpadded_prefix_len(&value), value.len());
+            value.extend(suffix);
+            if complete_block {
+                value.extend([b'A'; 1024]);
+            }
+            let expected = value.iter().position(|byte| {
+                !byte.is_ascii_alphanumeric() && !matches!(byte, b'+' | b'/')
+            }).unwrap_or(value.len());
+            prop_assert_eq!(base64_unpadded_prefix_len(&value), expected);
+        }
+
         #[test]
         fn bounded_base64_hash_matches_decoded_content(bytes in prop_oneof![
                 prop::collection::vec(any::<u8>(), 1..4096),

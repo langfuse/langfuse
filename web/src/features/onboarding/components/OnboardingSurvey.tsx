@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
@@ -168,7 +168,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                               className="text-primary inline-flex items-center gap-1 hover:underline"
                             >
                               Learn more
-                              <ExternalLink className="icon-sm" />
+                              <ExternalLink size="sm" />
                             </a>
                           </p>
                         </div>

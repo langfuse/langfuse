@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { TableViewPresetTableName } from "../domain/table-view-presets";
 import { type FilterState } from "../types";
 import { encodeFiltersGeneric } from "../features/filters/filterQueryEncoding";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, type ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -255,7 +256,6 @@ function ConfigureTopicsSettings({
 
   return (
     <ConfigureTopicsDialog
-      projectId={projectId}
       providerGroups={providerGroups}
       embeddingProviderGroups={embeddingGroups}
       draft={draft}

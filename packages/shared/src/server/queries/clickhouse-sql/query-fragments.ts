@@ -1,18 +1,20 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Reusable ClickHouse query fragments and CTEs
  */
 
+import { shouldSkipScoresDedup } from "./query-options";
 import {
   EventsAggregationQueryBuilder,
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
-  type SessionEventsField,
   type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import type { SessionEventsField } from "../../repositories/events-selects";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -171,7 +173,7 @@ const buildScoresAggregationCTE = (
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores FINAL
+        FROM scores ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
         WHERE project_id = {projectId: String}
           ${observationFilter}
           ${params.scoreRowsFilter ? `AND ${params.scoreRowsFilter.query}` : ""}
@@ -459,7 +461,7 @@ export const eventsSessionScoresAggregation = (params: {
         data_type,
         string_value,
         avg(value) avg_value
-      FROM scores s FINAL
+      FROM scores s ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
       WHERE
         project_id = {projectId: String}
       GROUP BY
@@ -498,7 +500,7 @@ export const eventsExperimentTraceIds = (
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
 
-export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
+export const buildScoreRowsCTE = (params: ScoresCTEParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
     dataTypes: AGGREGATABLE_SCORE_TYPES,
@@ -508,10 +510,7 @@ export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
     queryParams.startTimeFrom = params.startTimeFrom;
   }
 
-  const isTraceLevel = params.level === "trace";
-  const observationFilter = isTraceLevel
-    ? "AND observation_id IS NULL"
-    : "AND observation_id IS NOT NULL";
+  const observationFilter = scoreLevelCondition(params.level);
 
   const query = `
     SELECT
@@ -553,8 +552,7 @@ export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
  * name present at both levels collapses into a single averaged value and a
  * numeric comparison stops meaning "at either level".
  *
- * Only this CTE understands "any" — the other score fragments branch on
- * `level === "trace"` and would silently treat it as observation-level.
+ * The score-row and aggregated-score CTEs support "any".
  */
 type ScoresCTEParams = Omit<BaseScoresParams, "level"> & {
   level: BaseScoresParams["level"] | "any";
@@ -569,15 +567,7 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     queryParams.startTimeFrom = params.startTimeFrom;
   }
 
-  const observationFilter = (() => {
-    if (params.level === "any") {
-      return "";
-    }
-    if (params.level === "trace") {
-      return "AND observation_id IS NULL";
-    }
-    return "AND observation_id IS NOT NULL";
-  })();
+  const observationFilter = scoreLevelCondition(params.level);
 
   const query = `
     SELECT
@@ -588,7 +578,7 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
       data_type,
       string_value,
       avg(value) avg_value
-    FROM scores s FINAL
+    FROM scores s ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
     WHERE
       project_id = {projectId: String}
       ${observationFilter}
@@ -616,3 +606,14 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     ],
   };
 };
+
+function scoreLevelCondition(level: ScoresCTEParams["level"]): string {
+  switch (level) {
+    case "any":
+      return "";
+    case "trace":
+      return "AND observation_id IS NULL";
+    case "observation":
+      return "AND observation_id IS NOT NULL";
+  }
+}

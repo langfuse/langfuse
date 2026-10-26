@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type TopicRule } from "@langfuse/shared/topics";
@@ -8,6 +9,7 @@ import { automaticProcessingState } from "./useAutomaticProcessing";
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
 type AutomaticProcessingSettings = {
+  projectId: string;
   rule: TopicRule | null;
   stored: StoredSettings | undefined;
   traceIdleMs: number | null;
@@ -47,6 +49,7 @@ export function AutomaticProcessingDialogController({
 
 function AutomaticProcessingDialogContent({
   closeDialog,
+  projectId,
   initialEnabled,
   rule,
   save,
@@ -78,6 +81,7 @@ function AutomaticProcessingDialogContent({
 
   return (
     <AutomaticProcessingDialog
+      projectId={projectId}
       initialEnabled={initialEnabled}
       initialSampling={rule?.sampling ?? 1}
       traceIdleMs={traceIdleMs ?? 600_000}

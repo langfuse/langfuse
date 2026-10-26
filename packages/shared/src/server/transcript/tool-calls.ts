@@ -7,8 +7,6 @@ import type {
 import type { ThreadMessage } from "./types";
 import {
   addContributor,
-  type EmittedMessage,
-  type KeyedMessage,
   type ThreadState,
   type TranscriptObservation,
 } from "./threads";
@@ -95,15 +93,15 @@ export function createToolCallRegistry() {
   function forGeneration(
     thread: ThreadState,
     observation: TranscriptObservation,
-    input: KeyedMessage[],
-    output: KeyedMessage[],
+    input: NormalizedMessage[],
+    output: NormalizedMessage[],
   ) {
     // Input results of a resolved call; output results resolve on attach.
     const claimed = new Map<Part, Call | undefined>();
 
     // Reused IDs need complete, ordered call history to disambiguate results.
     const totals = new Map<string, number>();
-    for (const { message } of input) {
+    for (const message of input) {
       for (const part of message.parts) {
         if (part.type === "tool-call" && part.toolCallId)
           totals.set(part.toolCallId, (totals.get(part.toolCallId) ?? 0) + 1);
@@ -111,7 +109,7 @@ export function createToolCallRegistry() {
     }
     const occurrences = new Map<string, number>();
     const threadCalls = callsByThread.get(thread);
-    for (const { message } of input) {
+    for (const message of input) {
       for (const part of message.parts) {
         if (part.type === "tool-call" && part.toolCallId)
           occurrences.set(
@@ -140,7 +138,7 @@ export function createToolCallRegistry() {
     // Output results attach to calls registered earlier, including by a
     // preceding part of the same generation's output.
     const outputCallIds = new Set<string>();
-    for (const { message } of output) {
+    for (const message of output) {
       for (const part of message.parts) {
         if (part.type === "tool-call" && part.toolCallId)
           outputCallIds.add(part.toolCallId);
@@ -157,7 +155,7 @@ export function createToolCallRegistry() {
     return {
       claims: (part: Part) => claimed.has(part),
       /** Register an emitted output's tool calls as anchors for their responses. */
-      register(message: EmittedMessage) {
+      register(message: ThreadMessage) {
         if (message.source !== "output") return;
 
         for (const part of message.parts) {
@@ -180,9 +178,9 @@ export function createToolCallRegistry() {
 
   function attachToolOutput(
     observation: TranscriptObservation,
-    output: KeyedMessage[],
+    output: NormalizedMessage[],
   ) {
-    const parts = output.flatMap(({ message }) => message.parts);
+    const parts = output.flatMap((message) => message.parts);
     if (!parts.length) return;
 
     let hasId = false;

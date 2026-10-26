@@ -20,6 +20,11 @@ impl RelayOutcome {
             Self::TransportError => "transport_error",
         }
     }
+
+    /// A cancellation is the caller hanging up, so it is not a failure.
+    pub(crate) fn is_failure(self) -> bool {
+        matches!(self, Self::Timeout | Self::TransportError)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

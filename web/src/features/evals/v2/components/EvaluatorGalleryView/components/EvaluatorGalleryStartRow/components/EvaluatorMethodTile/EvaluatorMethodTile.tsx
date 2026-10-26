@@ -18,7 +18,7 @@ export function EvaluatorMethodTile({ type }: EvaluatorMethodTileProps) {
         tileClassName,
       )}
     >
-      <Icon className="icon-base" aria-hidden="true" />
+      <Icon size="base" aria-hidden="true" />
     </span>
   );
 }

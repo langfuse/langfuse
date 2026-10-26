@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon } from "@langfuse/icons";
 
 import { Card } from "@/src/components/ui/card";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";

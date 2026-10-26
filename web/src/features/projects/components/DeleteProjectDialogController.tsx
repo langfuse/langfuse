@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 

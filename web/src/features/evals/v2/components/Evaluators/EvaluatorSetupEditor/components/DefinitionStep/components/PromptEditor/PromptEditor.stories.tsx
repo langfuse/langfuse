@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { useState, type ComponentProps } from "react";
 import { expect, userEvent, within } from "storybook/test";
 

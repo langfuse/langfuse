@@ -1,28 +1,33 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { Button } from "@/src/components/design-system/Button/Button";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo, useState, type ReactNode } from "react";
 
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagButton } from "@/src/features/tag";
+import { TagList } from "@/src/features/tag";
 import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
 import {
   CostBadge,
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
+import {
+  TraceTopicsHoverCard,
+  useTraceTopicFacets,
+} from "@/src/features/topics/trace/TraceTopicsHoverCard";
 
 const MAX_VISIBLE_TAGS = 3;
 
@@ -67,6 +72,10 @@ function TraceHeaderLoading() {
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
+  const topicFacets = useTraceTopicFacets(trace);
+  const handleShowFewerTags = () => {
+    setShowAllTags(false);
+  };
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
@@ -114,14 +123,25 @@ function LoadedTraceHeader() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
+        {topicFacets.some((facet) => facet.summary) && (
+          <TraceTopicsHoverCard
+            projectId={trace.projectId}
+            facets={topicFacets}
+          >
+            {(triggerProps) => (
+              <TraceTopicsHoverCard.Trigger
+                facets={topicFacets}
+                triggerProps={triggerProps}
+              />
+            )}
+          </TraceTopicsHoverCard>
+        )}
         {(traceScores.length > 0 || trace.tags.length > 0) && (
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             {traceScores.length > 0 && (
               <GroupedScoreBadges scores={traceScores} />
             )}
-            {visibleTags.map((tag) => (
-              <TagButton key={tag} tag={tag} loading={false} viewOnly />
-            ))}
+            <TagList selectedTags={visibleTags} isLoading={false} viewOnly />
             {hiddenTagCount > 0 && (
               <OverflowCountBadge
                 count={hiddenTagCount}
@@ -131,14 +151,11 @@ function LoadedTraceHeader() {
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
               <Button
-                variant="tertiary"
-                size="icon-sm"
-                className="w-fit"
-                aria-label="Show fewer tags"
-                onClick={() => setShowAllTags(false)}
-              >
-                Show fewer
-              </Button>
+                variant="text"
+                size="sm"
+                text="Show fewer"
+                onClick={handleShowFewerTags}
+              />
             )}
           </div>
         )}

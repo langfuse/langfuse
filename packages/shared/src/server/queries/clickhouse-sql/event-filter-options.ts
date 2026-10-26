@@ -216,6 +216,16 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     expression: eventsTableHasParentObservationSql,
     sort: "booleanAsc",
   },
+  skillNamesAvailable: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_available.skillName)",
+    sort: "countDesc",
+  },
+  skillsNamesLoaded: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_resource_loaded.skillName)",
+    sort: "countDesc",
+  },
   toolNames: {
     kind: "array",
     expression: "mapKeys(e.tool_definitions)",

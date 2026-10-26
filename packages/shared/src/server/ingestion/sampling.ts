@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import crypto from "node:crypto";
 import { logger } from "../logger";
 import { env } from "../../env";

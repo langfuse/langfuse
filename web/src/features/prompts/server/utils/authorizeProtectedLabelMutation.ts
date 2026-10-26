@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
 import { type Prisma, Role } from "@langfuse/shared/src/db";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";

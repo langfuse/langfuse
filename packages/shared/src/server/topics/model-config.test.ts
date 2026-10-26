@@ -17,11 +17,11 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   invalidate: vi.fn(),
   hasEmbeddings: vi.fn(),
-  testCall: vi.fn(),
+  generateText: vi.fn(),
   embed: vi.fn(),
 }));
 vi.mock("./clickhouse", () => ({ hasTopicEmbeddings: mocks.hasEmbeddings }));
-vi.mock("../llm/testModelCall", () => ({ testModelCall: mocks.testCall }));
+vi.mock("./text", () => ({ generateTopicText: mocks.generateText }));
 vi.mock("./embeddings", () => ({ generateTopicEmbeddings: mocks.embed }));
 vi.mock("./processing-gate", () => ({
   invalidateTopicsProcessingActive: mocks.invalidate,
@@ -83,7 +83,14 @@ beforeEach(() => {
   mocks.current.mockResolvedValue(null);
   mocks.projects.mockResolvedValue([{ id: "project", orgId: "target-org" }]);
   mocks.hasEmbeddings.mockResolvedValue(false);
-  mocks.testCall.mockResolvedValue(undefined);
+  mocks.generateText.mockResolvedValue({
+    output: {
+      summary: "Sign in",
+      status: "applicable",
+      name: "Access",
+      description: "Sign-in help",
+    },
+  });
   mocks.embed.mockImplementation(async ({ summaries, dimensions }) => ({
     embeddings: summaries.map(() => Array(dimensions).fill(0.1)),
   }));
@@ -119,14 +126,28 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("saves an Anthropic connection when its test call succeeds", async () => {
+  it("validates text slots through the Topics transport before saving", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
       clustering: slot("anthropic", "claude-sonnet"),
     });
-    expect(mocks.testCall).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-sonnet" }),
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ model: "claude-sonnet" }),
+        maxOutputTokens: 512,
+        timeoutMs: expect.any(Number),
+      }),
     );
+    expect(mocks.upsert).toHaveBeenCalledOnce();
+
+    mocks.generateText.mockResolvedValueOnce({ output: { status: "invalid" } });
+    await expect(
+      saveTopicsModelSettings("project", {
+        ...settings,
+        embedding: null,
+        clustering: null,
+      }),
+    ).rejects.toThrow("Facet summaries (gpt-6-luna)");
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
@@ -160,18 +181,21 @@ describe("prepareTopicsModelSettings", () => {
       ...settings,
       clustering: slot("openai", "gpt-6.1-sol"),
     });
-    expect(mocks.testCall).toHaveBeenCalledOnce();
-    expect(mocks.testCall).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gpt-6.1-sol" }),
+    expect(mocks.generateText).toHaveBeenCalledOnce();
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ model: "gpt-6.1-sol" }),
+      }),
     );
     expect(mocks.embed).not.toHaveBeenCalled();
   });
 
   it("tests every changed slot and names the ones that fail", async () => {
     mocks.current.mockResolvedValue({ enabled: true });
-    mocks.testCall.mockImplementation(async ({ model }) => {
-      if (model === "gpt-5.6-terra")
+    mocks.generateText.mockImplementation(async ({ model }) => {
+      if (model.model === "gpt-5.6-terra")
         throw new Error("Model not found (HTTP 404)");
+      return { output: { summary: "Sign in", status: "applicable" } };
     });
     mocks.embed.mockResolvedValue({
       embeddings: [Array(1536).fill(0.1), Array(1536).fill(0.1)],
@@ -180,7 +204,7 @@ describe("prepareTopicsModelSettings", () => {
     await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
       "Embeddings (text-embedding-3-small): The model returned 1536 dimensions instead of 1024. Choose a size this model supports.; Topic clustering (gpt-5.6-terra): Model not found (HTTP 404)",
     );
-    expect(mocks.testCall).toHaveBeenCalledTimes(2);
+    expect(mocks.generateText).toHaveBeenCalledTimes(2);
     expect(mocks.embed).toHaveBeenCalledWith(
       expect.objectContaining({ dimensions: 1024 }),
     );

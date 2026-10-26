@@ -1,6 +1,5 @@
-/* eslint-disable no-nested-ternary */
-import { useMemo } from "react";
-import { cn } from "@/src/utils/tailwind";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -8,6 +7,7 @@ import {
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
@@ -15,16 +15,28 @@ import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
-import { ChatMessageList } from "../ChatMessageList";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { ChatMessageList, type ChatMessageListProps } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
+import {
+  SectionSkills,
+  type SectionSkillsProps,
+} from "./components/SectionSkills";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputField,
+  useCorrectOutputAction,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import {
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
-import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -43,6 +55,8 @@ interface JsonInputOutputViewProps {
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  /** Extra header controls on the Output section. */
+  outputActions?: IOSectionAction[];
 }
 
 function JsonInputOutputView({
@@ -58,6 +72,7 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  outputActions,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
@@ -84,6 +99,7 @@ function JsonInputOutputView({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
+          actions={outputActions}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
         />
@@ -92,7 +108,32 @@ function JsonInputOutputView({
   );
 }
 
+function hasDeclaredRole(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { role?: unknown }).role === "string"
+  );
+}
+
+/**
+ * Chat I/O: a message array, bare or under `messages`, or a single message,
+ * with at least one declared string `role`. Anything else is non-chat I/O
+ * that the preview wraps into messages itself.
+ */
+function isChatIO(value: unknown): boolean {
+  const messages =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as { messages?: unknown }).messages
+      : value;
+  if (Array.isArray(messages)) return messages.some(hasDeclaredRole);
+  return hasDeclaredRole(value);
+}
+
+const SIDE_TITLES = { input: "Input", output: "Output" } as const;
+
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -132,6 +173,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
+  skills,
   input,
   output,
   status,
@@ -187,6 +229,19 @@ export function IOPreviewPretty({
     chatMLParserResult,
   );
 
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+  });
+
   const {
     allMessages,
     additionalInput,
@@ -194,7 +249,6 @@ export function IOPreviewPretty({
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
     inputMessageCount,
   } = parserResult;
 
@@ -261,15 +315,71 @@ export function IOPreviewPretty({
   };
 
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
-  // Only generations hold a conversation; tools, spans, agents and the rest
-  // are titled Input / Output rather than by role. (`isGenerationLike` is
-  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
-  const titleBySide =
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : !hideOutput && !(hideIfNull && !parsedOutput);
+  const correctionTrigger = hasOutputHeader ? "header" : "inline";
+  const outputActions =
+    showCorrections &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const correctedOutputField = showCorrectionField ? (
+    <CorrectedOutputField
+      actualOutput={parsedOutput}
+      existingCorrection={outputCorrection}
+      observationId={observationId}
+      projectId={projectId}
+      traceId={traceId}
+      environment={environment}
+      trigger={correctionTrigger}
+      startEditing={correctionOpen && !effectiveCorrection}
+      onClosed={() => setCorrectionOpen(false)}
+    />
+  ) : null;
+  // Non-generation I/O that is not chat (plain strings, loose records) is
+  // titled Input / Output; declared chat roles keep their role titles on
+  // every observation type. Generations always title by role.
+  const canTitleBySide =
     observationType !== undefined && observationType !== "GENERATION";
+  const titleBySide = {
+    input: canTitleBySide && !isChatIO(parsedInput),
+    output: canTitleBySide && !isChatIO(parsedOutput),
+  };
+  const messageTitle: ChatMessageListProps["getMessageTitle"] = (
+    message,
+    side,
+  ) => (titleBySide[side] ? SIDE_TITLES[side] : getMessageTitle(message));
 
   return (
-    <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div className="space-y-2 pt-3">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
@@ -279,7 +389,14 @@ export function IOPreviewPretty({
           tools={allTools}
           toolCallCounts={toolCallCounts}
           toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+        />
+      ) : null}
+
+      {showData && skills && skills.items.length > 0 ? (
+        <SectionSkills
+          projectId={projectId}
+          skills={skills}
+          toolCallsByName={toolCallsByName}
         />
       ) : null}
 
@@ -295,34 +412,77 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
-            titleBySide={titleBySide}
+            getMessageTitle={messageTitle}
+            outputActions={outputActions}
           />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          {correctedOutputField}
         </div>
       ) : showData ? (
         <div>
-          <JsonInputOutputView {...jsonViewProps} />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          <JsonInputOutputView
+            {...jsonViewProps}
+            outputActions={outputActions}
+          />
+          {correctedOutputField}
         </div>
       ) : null}
     </div>
   );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }

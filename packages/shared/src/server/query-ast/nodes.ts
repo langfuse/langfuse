@@ -80,17 +80,27 @@ export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
   readonly array: OperationNode;
   readonly index: OperationNode;
+  /**
+   * `metadata[key]` over one relation's `metadata_names`/`metadata_values`,
+   * so events routing can keep a short metadata predicate on `events_core`.
+   */
+  readonly metadataLookup?: true;
 };
 
 export const ArrayIndexNode = {
   is(node: { kind: string }): node is ArrayIndexNode {
     return node.kind === "ArrayIndexNode";
   },
-  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+  create(
+    array: OperationNode,
+    index: OperationNode,
+    metadataLookup = false,
+  ): ArrayIndexNode {
     return Object.freeze({
       kind: "ArrayIndexNode",
       array,
       index,
+      ...(metadataLookup ? { metadataLookup: true as const } : {}),
     });
   },
 };
@@ -107,6 +117,11 @@ export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly limitBy?: LimitByNode;
   /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
   readonly includeDeleted?: true;
+  /**
+   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
+   * select's output instead of its relation.
+   */
+  readonly softDeleteAfterLimit?: true;
 };
 
 export function isClickHouseSelectQueryNode(
@@ -140,6 +155,11 @@ export const FinalTableNode = {
   },
 };
 
+/** {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for. */
+export function finalTable(table: OperationNode): OperationNode {
+  return FinalTableNode.create(table) as unknown as OperationNode;
+}
+
 /**
  * Read the wrapped table expression. `FinalTableNode.kind` is outside
  * Kysely's closed `OperationNodeKind`, so a narrowed
@@ -148,4 +168,20 @@ export const FinalTableNode = {
  */
 export function unwrapFinalTable(node: { kind: string }): OperationNode {
   return (node as unknown as FinalTableNode).table;
+}
+
+/**
+ * Calls `visit` on every node object under `value`, ClickHouse extra fields
+ * included, parents before children. `visit` returns `false` to skip a
+ * node's children.
+ */
+export function walkNodes(
+  value: unknown,
+  visit: (node: OperationNode) => boolean | void,
+): void {
+  if (!value || typeof value !== "object") return;
+  if ("kind" in value && typeof value.kind === "string") {
+    if (visit(value as OperationNode) === false) return;
+  }
+  for (const child of Object.values(value)) walkNodes(child, visit);
 }

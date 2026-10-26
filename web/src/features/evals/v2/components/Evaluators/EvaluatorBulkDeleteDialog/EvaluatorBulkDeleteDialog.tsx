@@ -1,4 +1,5 @@
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 
 export function EvaluatorBulkDeleteDialog({
   open,

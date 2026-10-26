@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import {
@@ -24,7 +25,7 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
@@ -57,23 +58,6 @@ const menuBodyVariants = cva(
     },
   },
 );
-
-const menuItemIconVariants = cva("", {
-  variants: {
-    variant: {
-      default: "text-icon-foreground",
-      destructive: "",
-    },
-    position: {
-      primary: "icon-base mr-1.5",
-      secondary: "icon-sm",
-    },
-  },
-  defaultVariants: {
-    variant: "default",
-    position: "primary",
-  },
-});
 
 const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
@@ -141,13 +125,13 @@ type DropdownMenuItem = {
   title: string;
   tooltip?: string;
   badge?: React.ReactNode;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
 } & DropdownMenuItemAction;
 
@@ -157,7 +141,7 @@ type DropdownMenuCheckboxItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
@@ -167,7 +151,8 @@ type DropdownMenuSubmenu = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  internal?: boolean;
+  icon?: IconComponent;
   items: DropdownMenuItemDefinition[];
   searchBehavior?: SearchBehavior;
   search?: { placeholder: string };
@@ -481,13 +466,21 @@ function DropdownMenuNode({
                             <span className={primaryActionVariants()}>
                               {ItemIcon ? (
                                 <ItemIcon
-                                  className={menuItemIconVariants()}
+                                  color="default"
+                                  __rawClassName="mr-1.5"
                                   aria-hidden="true"
                                 />
                               ) : null}
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
+                              {item.internal ? (
+                                <Badge
+                                  text="Internal"
+                                  color="yellow"
+                                  size="sm"
+                                />
+                              ) : null}
                               <span className="ml-2 flex">
                                 <DropdownIndicator direction="right" />
                               </span>
@@ -539,7 +532,8 @@ function DropdownMenuNode({
                         <span className={primaryActionVariants()}>
                           {ItemIcon ? (
                             <ItemIcon
-                              className={menuItemIconVariants()}
+                              color="default"
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -596,10 +590,12 @@ function DropdownMenuNode({
                           {...interactionProps}
                         >
                           <SecondaryIcon
-                            className={menuItemIconVariants({
-                              variant: item.variant,
-                              position: "secondary",
-                            })}
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
                             aria-hidden="true"
                           />
                         </Link>
@@ -621,10 +617,12 @@ function DropdownMenuNode({
                           {...interactionProps}
                         >
                           <SecondaryIcon
-                            className={menuItemIconVariants({
-                              variant: item.variant,
-                              position: "secondary",
-                            })}
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
                             aria-hidden="true"
                           />
                         </button>
@@ -693,9 +691,12 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className={menuItemIconVariants({
-                                variant: item.variant,
-                              })}
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -722,9 +723,12 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className={menuItemIconVariants({
-                                variant: item.variant,
-                              })}
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}

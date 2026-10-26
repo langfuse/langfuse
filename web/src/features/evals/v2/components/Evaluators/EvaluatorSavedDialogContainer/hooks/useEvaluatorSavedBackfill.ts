@@ -1,4 +1,8 @@
-import { BatchEvalSourceTable, type FilterState } from "@langfuse/shared";
+import {
+  BatchEvalSourceTable,
+  LangfuseInternalTraceEnvironment,
+  type FilterState,
+} from "@langfuse/shared";
 import { endOfDay, startOfDay, subDays, subHours, subMonths } from "date-fns";
 import { useCallback, useRef, useState } from "react";
 import type {
@@ -9,6 +13,7 @@ import {
   DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   MAX_EVALUATOR_BACKFILL_ITEMS,
 } from "@/src/features/evals/v2/constants/evaluatorBackfill";
+import { INTERNAL_EVALUATION_ENVIRONMENTS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -16,6 +21,19 @@ type EvaluatorBackfillScope = {
   filter: FilterState;
   sampling: number;
 };
+
+/** Excludes environments eval execution rejects; prompt-experiment outputs stay eligible */
+const BACKFILL_ENVIRONMENT_FILTERS: FilterState = [
+  {
+    column: "environment",
+    type: "stringOptions",
+    operator: "none of",
+    value: INTERNAL_EVALUATION_ENVIRONMENTS.filter(
+      (environment) =>
+        environment !== LangfuseInternalTraceEnvironment.PromptExperiments,
+    ),
+  },
+];
 
 function getBackfillRange(
   window: Exclude<EvaluatorBackfillWindow, "custom">,
@@ -102,7 +120,7 @@ export function useEvaluatorSavedBackfill({
           await utils.client.evalsV2.activationCostEstimates.mutate({
             projectId,
             evaluatorIds: [evaluatorId],
-            filter: scope.filter,
+            filter: [...scope.filter, ...BACKFILL_ENVIRONMENT_FILTERS],
             sampling: scope.sampling,
             shouldRunMissingTest,
             timeRange: estimateRange,
@@ -219,6 +237,7 @@ export function useEvaluatorSavedBackfill({
       query: {
         filter: [
           ...scope.filter,
+          ...BACKFILL_ENVIRONMENT_FILTERS,
           {
             column: "startTime",
             type: "datetime",

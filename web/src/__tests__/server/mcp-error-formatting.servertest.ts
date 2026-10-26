@@ -176,22 +176,27 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("ClickHouse query timed out");
         expect(mcpError.message).toContain("Narrow the query");
+        expect(mcpError.message).toContain("shortening the date range");
+        expect(mcpError.message).toContain("adding more specific filters");
         expect(mcpError.message).not.toContain("internal timeout details");
       });
 
-      it("should format other ClickHouse resource errors without internal details", () => {
-        const error = new ClickHouseResourceError(
-          "MEMORY_LIMIT",
-          new Error("Memory limit exceeded at 215 GiB"),
-        );
-        const mcpError = formatErrorForUser(error);
+      it.each(["MEMORY_LIMIT", "OVERCOMMIT"] as const)(
+        "should format ClickHouse %s errors without internal details",
+        (errorType) => {
+          const error = new ClickHouseResourceError(
+            errorType,
+            new Error("Memory limit exceeded at 215 GiB"),
+          );
+          const mcpError = formatErrorForUser(error);
 
-        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        expect(mcpError.message).toContain(
-          ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-        );
-        expect(mcpError.message).not.toContain("215 GiB");
-      });
+          expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+          expect(mcpError.message).toContain(
+            ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+          );
+          expect(mcpError.message).not.toContain("215 GiB");
+        },
+      );
 
       it("should format UnauthorizedError with auth message", () => {
         const error = new UnauthorizedError("Invalid API key");

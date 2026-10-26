@@ -1,10 +1,10 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -47,13 +47,12 @@ const CommandDialog = ({
       <DialogContent
         className={cn(
           commandDialogSurfaceClass,
-          // Dark-mode depth: two near-black ambient layers (background is 6%
-          // lightness in dark mode, visually black at these alphas) plus a
-          // faint foreground-tinted hairline ring.
-          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
+          // Dark-mode depth: two near-black ambient layers.
+          "top-[calc(var(--banner-offset)+clamp(4rem,20dvh,12rem))] translate-y-0 overflow-hidden p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9)]",
         )}
         closeOnInteractionOutside
-        overlayMode="invisible"
+        overlayMode="soft"
+        showCloseButton={false}
       >
         <DialogHeader className="sr-only p-0">
           <DialogTitle>Search</DialogTitle>
@@ -63,7 +62,7 @@ const CommandDialog = ({
             filter={filter}
             className={cn(
               commandDialogSurfaceClass,
-              "**:[[cmdk-group-heading]]:text-muted-foreground pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-bold **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12",
+              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary **:[[cmdk-input]]:text-primary **:[[cmdk-list]]:scroll-fade-b [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-normal **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-[min(24rem,calc(100dvh-var(--banner-offset)-clamp(4rem,20dvh,12rem)-4.5rem))] **:[[cmdk-list]]:scroll-py-2 **:[[cmdk-list]]:pb-1",
             )}
           >
             {children}
@@ -89,7 +88,10 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="icon-base absolute top-1/2 left-2 mr-2 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search
+      size="base"
+      __rawClassName="absolute top-1/2 left-2 mr-2 -translate-y-1/2 opacity-50"
+    />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
@@ -196,4 +198,5 @@ export {
   CommandGroup,
   CommandItem,
   CommandSeparator,
+  CommandShortcut,
 };

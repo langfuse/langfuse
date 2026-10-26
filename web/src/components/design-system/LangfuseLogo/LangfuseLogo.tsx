@@ -1,7 +1,7 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 
 export const LangfuseLogo = ({
   logoLightModeHref,
@@ -32,7 +32,10 @@ export const LangfuseLogo = ({
             "max-h-4 max-w-14",
           )}
         />
-        <PlusIcon className="icon-sm group-data-[collapsible=icon]:hidden" />
+        <PlusIcon
+          size="sm"
+          __rawClassName="group-data-[collapsible=icon]:hidden"
+        />
         <LangfuseIcon size={16} />
       </div>
     );

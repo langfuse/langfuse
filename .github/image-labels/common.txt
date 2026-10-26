@@ -1,0 +1,28 @@
+# Labels for every released image, loaded by the release job in
+# .github/workflows/pipeline.yml together with <component>.txt. They override
+# the labels inherited from the UBI / Iron Bank base. Inherited labels cannot be
+# removed, so the Red Hat and Iron Bank ones that would describe the image as
+# theirs are set empty; com.redhat.license_terms stays as the EULA pointer.
+# The OCI version, created and revision labels come from docker/metadata-action.
+vendor=ClickHouse, Inc.
+maintainer=ClickHouse, Inc.
+url=https://langfuse.com
+org.opencontainers.image.vendor=ClickHouse, Inc.
+org.opencontainers.image.url=https://langfuse.com
+org.opencontainers.image.source=https://github.com/langfuse/langfuse
+version=
+release=
+build-date=
+vcs-ref=
+vcs-type=
+cpe=
+com.redhat.component=
+distribution-scope=
+io.buildah.version=
+io.openshift.expose-services=
+mil.dso.ironbank.image.keywords=
+mil.dso.ironbank.image.parent=
+mil.dso.ironbank.image.type=
+mil.dso.ironbank.os-type=
+mil.dso.ironbank.product.name=
+mil.dso.ironbank.project.id=

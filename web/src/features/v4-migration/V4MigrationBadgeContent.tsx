@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cn } from "@/src/utils/tailwind";
 

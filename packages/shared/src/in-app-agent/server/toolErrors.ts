@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Structured tool-failure extraction for in-app-agent instrumentation.
  *

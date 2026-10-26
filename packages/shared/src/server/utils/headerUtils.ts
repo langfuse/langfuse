@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt, decrypt, createSignatureHeader } from "../../encryption";
 import {
   WebhookDefaultHeaders,
@@ -50,15 +51,21 @@ export function buildWebhookRequestHeaders({
   return { headers, sensitiveHeaderNames };
 }
 
+/**
+ * Merges the deprecated plaintext `headers` field into `requestHeaders`.
+ * Legacy headers predate the secret flag and commonly carry credentials, so
+ * they are treated as secret: masked on display and encrypted on the next
+ * write. Their values are plaintext, so `requestHeaders` must already be
+ * decrypted (or be passed to `encryptSecretHeaders` afterwards).
+ */
 export function mergeHeaders(
   legacyHeaders: Record<string, string> = {},
   requestHeaders: Record<string, { secret: boolean; value: string }> = {},
 ): Record<string, { secret: boolean; value: string }> {
   const merged: Record<string, { secret: boolean; value: string }> = {};
 
-  // Add legacy headers as non-secret
   for (const [key, value] of Object.entries(legacyHeaders)) {
-    merged[key] = { secret: false, value };
+    merged[key] = { secret: true, value };
   }
 
   // requestHeaders takes precedence
@@ -67,6 +74,26 @@ export function mergeHeaders(
   }
 
   return merged;
+}
+
+/**
+ * Legacy plaintext headers that no `requestHeaders` entry overrides, flagged
+ * secret. Overridden keys are dropped before any decryption, so a
+ * `requestHeaders` value that fails to decrypt never falls back to its stale
+ * legacy value.
+ */
+export function getLegacyOnlyHeaders(config: {
+  headers?: Record<string, string>;
+  requestHeaders?: RequestHeaders;
+}): RequestHeaders {
+  const requestHeaders = config.requestHeaders ?? {};
+  return mergeHeaders(
+    Object.fromEntries(
+      Object.entries(config.headers ?? {}).filter(
+        ([key]) => !(key in requestHeaders),
+      ),
+    ),
+  );
 }
 
 export function createDisplayHeaders(

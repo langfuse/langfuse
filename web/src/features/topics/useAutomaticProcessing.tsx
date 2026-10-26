@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { type AutomaticProcessingState } from "./AutomaticProcessingControl";
+import { type AutomaticProcessingState } from "./prepare-topics-actions";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
@@ -53,7 +54,5 @@ export function automaticProcessingState(
         : "Paused",
     };
   if (stored.enabled) return { status: "on" };
-  // Only turning on needs the allowlist, so a running setup can still be turned off.
-  if (!stored.processingAvailable) return { status: "unavailable" };
   return { status: "off" };
 }

@@ -5,6 +5,7 @@ export const organizationOnlyFeaturePreviewFlags = [
 ] as const;
 
 export const userFeaturePreviewFlags = [
+  "skillManagement",
   "sessionViewV2",
   "sessionViewV2Timeline",
 ] as const;
@@ -76,6 +77,7 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
+  skillManagement: "Skill Management",
   externalMediaStorage: "External Media Storage",
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
@@ -93,7 +95,11 @@ export const isFeaturePreviewAvailable = (
   if (flag === "externalMediaStorage") {
     return true;
   }
-  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
+  if (
+    flag === "sessionViewV2" ||
+    flag === "sessionViewV2Timeline" ||
+    flag === "skillManagement"
+  ) {
     return context.v4BetaEnabled;
   }
 

@@ -1,8 +1,8 @@
-/* eslint-disable no-nested-ternary */
-import { PlusIcon } from "lucide-react";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { AutomationButton } from "@/src/features/automations";
@@ -102,10 +102,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <AutomationButton projectId={projectId} />
               <ActionButton
                 icon={
-                  <PlusIcon
-                    className="icon-base text-icon-foreground"
-                    aria-hidden="true"
-                  />
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
                 }
                 hasAccess={hasCUDAccess}
                 usageLimit={
