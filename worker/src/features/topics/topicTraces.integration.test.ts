@@ -7,6 +7,8 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  createEvent,
+  createEventsCh,
   listCurrentTopicTraces,
   type TopicTraceCondition,
   type TopicTraceStatus,
@@ -302,6 +304,30 @@ describe("listCurrentTopicTraces", () => {
         ]),
       ),
     ).toEqual([traces.assigned, traces.stale, traces.outlier]);
+  });
+
+  it("filters by the user ids on a trace's events", async () => {
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traces.outlier,
+        user_id: "user-outlier",
+        start_time: new Date("2026-10-04T12:00:00.000Z").getTime() * 1000,
+      }),
+    ]);
+    const user = (operator: "any of" | "none of"): TopicTraceCondition => ({
+      column: "userId",
+      match: { operator, values: ["user-outlier"] },
+    });
+    expect(ids(await list([user("any of")]))).toEqual([traces.outlier]);
+    expect(ids(await list([user("none of")]))).toEqual([
+      traces.assigned,
+      traces.stale,
+      traces.insufficient,
+      traces.unpublished,
+    ]);
   });
 
   it("leaves processedAt unset when no projected facet has a result", async () => {

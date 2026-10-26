@@ -15,6 +15,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
+import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
 
 export const TOPIC_TRACE_STATUSES = [
@@ -128,16 +129,32 @@ const comparisonSql = (
 ) => `${expression} ${operator} ${value}`;
 
 /** Trace ids whose events carry one of the user ids, within the summaries' window. */
-const userTraceIdsSql = (values: string[], params: SqlParams) =>
-  `SELECT trace_id FROM events_core
-    WHERE project_id = {projectId:String}
-      AND start_time >= {from:DateTime64(3)}
-      AND start_time < {to:DateTime64(3)} + ${OBSERVATIONS_TO_TRACE_INTERVAL}
-      AND user_id IN ${params.add("Array(String)", values)}
-      AND is_deleted = 0`;
+function userTraceIdsSql(
+  projectId: string,
+  values: string[],
+  params: SqlParams,
+) {
+  const { query, params: builderParams } = new EventsQueryBuilder({
+    projectId,
+  })
+    .selectRaw("e.trace_id AS trace_id")
+    .whereRaw("e.start_time >= {from:DateTime64(3)}")
+    .whereRaw(
+      `e.start_time < {to:DateTime64(3)} + ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+    )
+    .whereRaw(`e.user_id IN ${params.add("Array(String)", values)}`)
+    .whereRaw("e.is_deleted = 0")
+    .buildWithParams();
+  Object.assign(params.values, builderParams);
+  return query;
+}
 
 /** Trace attributes are copied onto every summary row, so they filter before grouping. */
-function rowConditionSql(condition: TopicTraceCondition, params: SqlParams) {
+function rowConditionSql(
+  projectId: string,
+  condition: TopicTraceCondition,
+  params: SqlParams,
+) {
   switch (condition.column) {
     case "traceId":
       return `trace_id ${condition.match.operator === "none of" ? "NOT IN" : "IN"} ${params.add("Array(String)", condition.match.values)}`;
@@ -148,7 +165,7 @@ function rowConditionSql(condition: TopicTraceCondition, params: SqlParams) {
     case "sessionId":
       return stringMatchSql("session_id", condition.match, params);
     case "userId":
-      return `trace_id ${condition.match.operator === "none of" ? "NOT IN" : "IN"} (${userTraceIdsSql(condition.match.values, params)})`;
+      return `trace_id ${condition.match.operator === "none of" ? "NOT IN" : "IN"} (${userTraceIdsSql(projectId, condition.match.values, params)})`;
     default:
       return null;
   }
@@ -227,10 +244,17 @@ function groupConditionSql(condition: TopicTraceCondition, params: SqlParams) {
   }
 }
 
+/** Group conditions that read the resolved assignment rather than the summary alone. */
+const ASSIGNMENT_COLUMNS = new Set<TopicTraceCondition["column"]>([
+  "topicId",
+  "topicStatus",
+  "processedAt",
+]);
+
 /**
- * One row per trace and facet: the newest facet version's newest summary,
- * joined to its assignment only when the assignment was made for exactly that
- * summary by a completed run (or online). Mirrors `resolveTopicResult`.
+ * `summaries`: one row per trace and facet, the newest facet version's newest
+ * summary. `current` adds the assignment only when it was made for exactly
+ * that summary by a completed run (or online). Mirrors `resolveTopicResult`.
  */
 function currentResultsSql(
   rowConditions: string[],
@@ -251,7 +275,8 @@ function currentResultsSql(
       AND environment != {publicLlmJudgeEnvironment:String}
       ${rowFilter}
       AND ${latestSummaryFilterSql(latestScopeSql, summarySourceKeySql)}
-    ORDER BY facet_version DESC, processed_at DESC
+    -- The latest-summary filter leaves one version per trace and facet; this
+    -- only drops not-yet-merged duplicates, so no ordering is needed.
     LIMIT 1 BY facet_id, trace_id
   ),
   assignments AS (
@@ -284,7 +309,7 @@ function currentResultsSql(
       ) AS topic_status,
       if(matched, greatest(processed_at, a_assigned_at), processed_at) AS result_processed_at
     FROM summaries
-    LEFT JOIN assignments ON a_trace_id = trace_id AND a_facet_id = facet_id
+    LEFT ANY JOIN assignments ON a_trace_id = trace_id AND a_facet_id = facet_id
   )`;
 }
 
@@ -298,12 +323,12 @@ function buildQuery(input: {
 }) {
   const params = new SqlParams();
   const rowConditions = input.conditions.flatMap((condition) => {
-    const sql = rowConditionSql(condition, params);
+    const sql = rowConditionSql(input.projectId, condition, params);
     return sql ? [sql] : [];
   });
   const traceIdConditions = input.conditions.flatMap((condition) =>
     condition.column === "traceId"
-      ? [rowConditionSql(condition, params) as string]
+      ? [rowConditionSql(input.projectId, condition, params) as string]
       : [],
   );
   const groupConditions = input.conditions.flatMap((condition) => {
@@ -313,6 +338,11 @@ function buildQuery(input: {
   return {
     withSql: `WITH ${currentResultsSql(rowConditions, traceIdConditions)}`,
     groupConditions,
+    groupSource: input.conditions.some((condition) =>
+      ASSIGNMENT_COLUMNS.has(condition.column),
+    )
+      ? "current"
+      : "summaries",
     params: {
       ...params.values,
       projectId: input.projectId,
@@ -326,22 +356,43 @@ function buildQuery(input: {
   };
 }
 
-const groupedTracesSql = (conditions: string[]) => `
+/** Page and count group `summaries` unless a condition needs the assignment join. */
+const groupedTracesSql = (
+  query: { groupSource: string },
+  conditions: string[],
+) => `
   SELECT trace_id, min(unit_start_time) AS timestamp,
-    ${rowProcessedAtSql} AS row_processed_at,
     any(trace_name) AS trace_name, any(environment) AS environment
-  FROM current
+  FROM ${query.groupSource}
   GROUP BY trace_id
   ${conditions.length ? `HAVING ${conditions.join(" AND ")}` : ""}`;
 
-/** Results of one page's traces; re-resolves only those traces, so no grouping conditions apply. */
+/**
+ * Results of one page's traces; re-resolves only those traces, so no grouping
+ * conditions apply. When the projected facets are among the scanned ones,
+ * every projected result of a page trace starts at or after the trace's
+ * timestamp, so the window starts at the oldest one on the page.
+ */
 async function loadDetails(
   input: Parameters<typeof listCurrentTopicTraces>[0],
   publishedRunIds: string[],
-  pageRows: { trace_id: string }[],
+  pageRows: { trace_id: string; timestamp: string }[],
 ) {
+  const oldest = input.projectedFacetIds.every((id) =>
+    input.facetIds.includes(id),
+  )
+    ? Math.min(
+        ...pageRows.map((row) =>
+          parseClickhouseUTCDateTimeFormat(row.timestamp).getTime(),
+        ),
+      )
+    : input.window.from.getTime();
   const query = buildQuery({
     ...input,
+    window: {
+      ...input.window,
+      from: new Date(Math.max(input.window.from.getTime(), oldest)),
+    },
     facetIds: input.projectedFacetIds,
     conditions: [
       {
@@ -428,12 +479,11 @@ export async function listCurrentTopicTraces(input: {
     queryClickhouse<{
       trace_id: string;
       timestamp: string;
-      row_processed_at: string | null;
       trace_name: string;
       environment: string;
     }>({
       query: `${query.withSql}
-        ${groupedTracesSql([...query.groupConditions, ...keyset])}
+        ${groupedTracesSql(query, [...query.groupConditions, ...keyset])}
         ORDER BY timestamp ${direction}, trace_id ${direction}
         LIMIT {limit:UInt32}`,
       params: {
@@ -453,7 +503,7 @@ export async function listCurrentTopicTraces(input: {
     input.includeTotal
       ? queryClickhouse<{ total: string }>({
           query: `${query.withSql}
-            SELECT count() AS total FROM (${groupedTracesSql(query.groupConditions)})`,
+            SELECT count() AS total FROM (${groupedTracesSql(query, query.groupConditions)})`,
           params: query.params,
           tags: { ...tags, route: "topics-traces-count" },
         }).then(([row]) => Number(row?.total ?? 0))
@@ -482,16 +532,20 @@ export async function listCurrentTopicTraces(input: {
   }
   const last = pageRows.at(-1);
   return {
-    rows: pageRows.map((row) => ({
-      traceId: row.trace_id,
-      traceName: row.trace_name,
-      environment: row.environment,
-      timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-      processedAt: row.row_processed_at
-        ? parseClickhouseUTCDateTimeFormat(row.row_processed_at)
-        : null,
-      results: detailsByTrace.get(row.trace_id) ?? [],
-    })),
+    rows: pageRows.map((row) => {
+      const results = detailsByTrace.get(row.trace_id) ?? [];
+      const processedAt = Math.max(
+        ...results.map((result) => result.processedAt.getTime()),
+      );
+      return {
+        traceId: row.trace_id,
+        traceName: row.trace_name,
+        environment: row.environment,
+        timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+        processedAt: results.length ? new Date(processedAt) : null,
+        results,
+      };
+    }),
     next:
       page.length > input.limit && last
         ? {
