@@ -51,7 +51,6 @@ export const GatewayResolveResponseSchema = z
         // The bound user is the key's owner. Null for keys created before
         // keys were bound to users.
         user_id: z.string().nullable(),
-        // Display snapshots at resolve time; the user name is never an email.
         key_name: z.string().nullable(),
         user_name: z.string().nullable(),
         key_metadata: GatewayMetadataSchema,

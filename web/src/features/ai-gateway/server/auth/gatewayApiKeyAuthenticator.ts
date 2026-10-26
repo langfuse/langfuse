@@ -151,7 +151,6 @@ export class GatewayApiKeyAuthenticator {
       apiKeyId: row.id,
       userId: row.userId,
       apiKeyName: row.note || null,
-      // A display name only: the user's email must not reach generations.
       userName: row.user?.name || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable

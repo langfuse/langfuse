@@ -117,8 +117,6 @@ pub(super) struct GenerationContext {
     pub trace_state: String,
     pub attributes: Map<String, Value>,
     pub metadata: Map<String, Value>,
-    /// The caller's raw `User-Agent`, truncated; recorded even when the
-    /// tracing headers are rejected as oversized.
     pub user_agent: Option<String>,
 }
 

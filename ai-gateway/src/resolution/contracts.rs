@@ -268,11 +268,9 @@ impl RequestAttribution {
     pub fn user_id(&self) -> Option<&str> {
         self.user_id.as_deref()
     }
-    /// The key's display name at resolve time.
     pub fn key_name(&self) -> Option<&str> {
         non_blank(self.key_name.as_deref())
     }
-    /// The bound user's display name at resolve time; never an email address.
     pub fn user_name(&self) -> Option<&str> {
         non_blank(self.user_name.as_deref())
     }
