@@ -23,10 +23,12 @@ const TABS: { id: TabId; label: string; icon: IconComponent }[] = [
 ];
 
 type SetupInstructionsTabsProps = {
+  organizationId: string;
   instructions: AgentSetupInstructions[];
 };
 
 export function SetupInstructionsTabs({
+  organizationId,
   instructions,
 }: SetupInstructionsTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
@@ -82,6 +84,7 @@ export function SetupInstructionsTabs({
               <Tabs.Content key={tab.id} value={tab.id}>
                 <div className="pt-4">
                   <ClaudeSetupTabs
+                    organizationId={organizationId}
                     instructions={instructions}
                     value={claudeVariant}
                     onValueChange={setClaudeVariant}
@@ -94,7 +97,10 @@ export function SetupInstructionsTabs({
           return entry ? (
             <Tabs.Content key={tab.id} value={tab.id}>
               <div className="pt-4">
-                <AgentInstructionsPanel instructions={entry} />
+                <AgentInstructionsPanel
+                  organizationId={organizationId}
+                  instructions={entry}
+                />
               </div>
             </Tabs.Content>
           ) : null;

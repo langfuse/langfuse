@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 export const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
+  { value: "treemap-side", label: "Treemap, side by side" },
   { value: "grid", label: "Grid" },
   { value: "map", label: "Map" },
 ] as const;

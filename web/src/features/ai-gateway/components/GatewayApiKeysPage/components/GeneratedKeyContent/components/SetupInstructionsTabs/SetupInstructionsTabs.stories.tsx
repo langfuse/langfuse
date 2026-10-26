@@ -13,6 +13,7 @@ const meta = preview.meta({ component: SetupInstructionsTabs });
 
 export const Default = meta.story({
   args: {
+    organizationId: "seed-org-id",
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["ANTHROPIC", "OPENAI"],
@@ -37,6 +38,7 @@ export const TestClaudeSwitch = meta.story({
 export const TestWarnsWithoutAnthropic = meta.story({
   name: "(Test) Claude tab warns without an Anthropic connection",
   args: {
+    organizationId: "seed-org-id",
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["OPENAI"],
