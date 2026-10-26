@@ -1124,6 +1124,92 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops CodeMirror detached-composition cmTile TypeError", () => {
+    // Real shape: playground, WebKit, zh-CN IME. After compositionend,
+    // @codemirror/view schedules view.update([]) and Tile.get(parent) reads
+    // parent.cmTile while parent is null. Mechanism is the Sentry setTimeout
+    // wrap. Stack is bundled @codemirror/view — first-party chunks are
+    // expected and must still drop.
+    const cmTileEvent = (
+      value: string,
+      mechanismType = "auto.browser.browserapierrors.setTimeout",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the WebKit playground event", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent("null is not an object (evaluating 't.cmTile')"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the WebKit variant with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent("null is not an object (evaluating 't.cmTile')."),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops Chrome and Firefox null.cmTile wording", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent("Cannot read properties of null (reading 'cmTile')"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent("Cannot read property 'cmTile' of null"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent('can\'t access property "cmTile" of null'),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same TypeError when a first-party chunk is on the stack", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cmTileEvent(
+            "null is not an object (evaluating 't.cmTile')",
+            "auto.browser.browserapierrors.setTimeout",
+            [
+              {
+                filename:
+                  "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/playground-abc.js",
+                function: "iA.get",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1759,6 +1845,69 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes cmTile", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Editor failed: null is not an object (evaluating 't.cmTile')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured cmTile TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "null is not an object (evaluating 't.cmTile')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "null is not an object (evaluating 't.cmTile')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a different null-property TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'length')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps the Safari addMore.click TypeError when a first-party chunk is on the stack", () => {

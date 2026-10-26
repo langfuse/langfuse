@@ -39,6 +39,7 @@ import { darkTheme } from "@/src/components/editor/dark-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
 import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
+import { tolerateDetachedCompositionTile } from "@/src/components/editor/tolerateDetachedCompositionTile";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
@@ -484,6 +485,7 @@ export function CodeMirrorEditor({
   const extensions = useMemo(
     () => [
       tolerateUnstableViewportPosAtCoords,
+      tolerateDetachedCompositionTile,
       // Block document changes (including paste) when not editable; the
       // `editable` DOM facet alone does not always prevent paste (see CM6
       // EditorState.readOnly vs EditorView.editable).

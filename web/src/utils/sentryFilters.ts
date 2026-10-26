@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ErrorEvent } from "@sentry/nextjs";
+import { isCodeMirrorDetachedCompositionTileMessage } from "@/src/utils/isCodeMirrorDetachedCompositionTileMessage";
 
 /**
  * High-frequency poll / health endpoints whose transient 5xx responses are
@@ -677,7 +678,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // CodeMirror IME composition cleanup (`parent.cmTile` on a detached
+    // tile) is the same class of vendor throw, but the stack is our bundled
+    // `@codemirror/view` chunk, so it is NOT gated on
+    // {@link hasFirstPartyChunkFrame}.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -697,6 +703,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isCodeMirrorDetachedCompositionTileMessage(exceptionValue)
       ) {
         return true;
       }
