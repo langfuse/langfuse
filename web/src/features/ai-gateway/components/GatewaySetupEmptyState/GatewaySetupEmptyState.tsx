@@ -30,22 +30,36 @@ export function GatewaySetupEmptyState({
       </div>
       {actions.length > 0 ? (
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {actions.map((action) =>
-            action.type === "menu" ? (
-              <MenuAction key={action.label} action={action} />
-            ) : (
-              <Button
-                key={action.label}
-                text={action.label}
-                icon={action.icon}
-                onClick={action.onClick}
-              />
-            ),
-          )}
+          {actions.map((action) => (
+            <EmptyStateAction key={action.label} action={action} />
+          ))}
         </div>
       ) : null}
     </div>
   );
+}
+
+function EmptyStateAction({
+  action,
+}: {
+  action: GatewaySetupEmptyStateAction;
+}) {
+  switch (action.type) {
+    case "menu":
+      return <MenuAction action={action} />;
+    case "link":
+      return (
+        <Button variant="outline" text={action.label} href={action.href} />
+      );
+    case "button":
+      return (
+        <Button
+          text={action.label}
+          icon={action.icon}
+          onClick={action.onClick}
+        />
+      );
+  }
 }
 
 function MenuAction({ action }: { action: MenuActionDefinition }) {
@@ -91,4 +105,5 @@ type GatewaySetupEmptyStateAction =
       onClick: () => void;
       icon?: IconComponent;
     }
+  | { type: "link"; label: string; href: string }
   | MenuActionDefinition;

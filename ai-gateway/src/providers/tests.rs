@@ -809,7 +809,7 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     .unwrap();
     assert!(metadata.get("relay_outcome").is_none());
     assert!(metadata.get("native_usage").is_none());
-    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "resp-1");
     assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-1");
     assert!(metadata["langfuse.gateway.request.id"].is_string());
     assert!(metadata.get("langfuse.gateway.client.request.id").is_none());
@@ -1221,8 +1221,26 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
         metadata["langfuse.gateway.request.api_format"],
         "openai.chat-completions"
     );
-    assert_eq!(metadata["langfuse.gateway.response.id"], "chatcmpl-1");
+    assert_eq!(
+        metadata["langfuse.gateway.upstream.response.id"],
+        "chatcmpl-1"
+    );
     assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-chat");
+    for (key, value) in [
+        ("langfuse.gateway.model.requested", json!("gpt-4.1-mini")),
+        ("langfuse.gateway.model.upstream", json!("provider-model")),
+        (
+            "langfuse.gateway.model.response",
+            json!("gpt-4.1-mini-2025-04-14"),
+        ),
+        ("langfuse.gateway.connection.name", json!("Production key")),
+        ("langfuse.gateway.connection.provider", json!("openai")),
+        ("langfuse.gateway.upstream.status_code", json!(200)),
+        ("langfuse.gateway.request.body_bytes", json!(request.len())),
+    ] {
+        assert_eq!(metadata[key], value, "{key}");
+    }
+    assert!(metadata["langfuse.gateway.response.body_bytes"].as_u64() > Some(0));
     for secret in [
         "provider-secret",
         "gateway-secret",

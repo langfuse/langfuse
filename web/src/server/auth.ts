@@ -18,7 +18,10 @@ import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/server";
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
+import {
+  isGatewayDeployedOnInstance,
+  isGatewayEnabledForOrganization,
+} from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
@@ -902,6 +905,7 @@ export async function getAuthOptions(
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
+              aiGatewayDeployed: isGatewayDeployedOnInstance(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),

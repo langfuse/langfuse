@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
@@ -71,7 +71,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import {
   isPasteablePlacementPayload,
   parseDashboardImport,

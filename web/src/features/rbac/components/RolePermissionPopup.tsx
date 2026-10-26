@@ -2,7 +2,7 @@
 import { type SystemRole } from "@langfuse/shared/src/db";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   Dialog,
   DialogBody,
@@ -51,13 +51,14 @@ export function RolePermissionPopup({
               <DialogTitle className="flex items-center gap-2">
                 <Icon size="base" />
                 <span>{transformName(def.name)}</span>
-                <Badge
-                  variant="tertiary"
-                  className="ml-1 shrink-0 text-[0.7rem] tabular-nums"
-                >
-                  <span className="font-bold">{rolePermissionCount(role)}</span>{" "}
-                  {rolePermissionNoun(role)}
-                </Badge>
+                <span className="ml-1 shrink-0 tabular-nums">
+                  <BadgeShell color="filled" size="sm">
+                    <span className="font-bold">
+                      {rolePermissionCount(role)}
+                    </span>{" "}
+                    {rolePermissionNoun(role)}
+                  </BadgeShell>
+                </span>
               </DialogTitle>
             </DialogHeader>
             <DialogBody className={showEmptyStateComment ? undefined : "p-0"}>

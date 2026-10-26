@@ -176,6 +176,9 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // override. Optional for jobs queued before this field existed; those
   // inherit the evaluator version mapping.
   variableMapping: observationVariableMappingList.optional(),
+  // Manual batch runs record their batch action on the execution trace and
+  // scores so a run's outputs can be found together.
+  batchActionId: z.string().optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),

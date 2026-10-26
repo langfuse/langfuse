@@ -20,7 +20,8 @@ import {
   hasRedactedThinkingContent,
   withoutUnsetFields,
 } from "../../../fns/chatMessageUtils";
-import { ThinkingBlock, RedactedThinkingBlock } from "../../ThinkingBlock";
+import { ThinkingBlock } from "../../ThinkingBlock";
+import { RedactedThinkingBlock } from "../../RedactedThinkingBlock";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 // View mode for pretty/json toggle

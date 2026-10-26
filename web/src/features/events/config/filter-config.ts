@@ -4,7 +4,7 @@ import {
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -307,6 +307,16 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "calledToolNames",
       label: "Tool Names (Called)",
+    },
+    {
+      type: "categorical" as const,
+      column: "skillNamesAvailable",
+      label: "Skill Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "skillsNamesLoaded",
+      label: "Skill Names (Loaded)",
     },
     {
       type: "numeric" as const,

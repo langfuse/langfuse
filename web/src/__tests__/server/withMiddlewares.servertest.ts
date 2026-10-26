@@ -109,6 +109,22 @@ describe("clickHouseRouteForRequest", () => {
     );
   });
 
+  it("reports static routes as themselves even where a template overlaps them", () => {
+    const apiDir = `${__dirname}/../../pages/api`;
+    const staticPaths = readdirSync(apiDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".ts") && !file.includes("["))
+      .map(
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
+      );
+
+    const misreported = staticPaths.filter(
+      (path) =>
+        clickHouseRouteForRequest(request("GET", path)) !== `GET ${path}`,
+    );
+    expect(misreported).toEqual([]);
+  });
+
   it("falls back to UNKNOWN method for missing methods", () => {
     expect(
       clickHouseRouteForRequest(request(undefined, "/api/public/health")),
