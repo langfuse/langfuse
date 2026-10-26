@@ -377,14 +377,28 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
 
 #[tokio::test]
 async fn capture_limits_and_encoded_bodies_are_explicit() {
-    let mut observer = observer("full").await;
-    record_response(&mut observer, "text/event-stream");
+    let mut limited = observer("full").await;
+    record_response(&mut limited, "text/event-stream");
     for index in 0..=MAX_ITEMS {
-        observer.push_bytes(completed_item(index as u64, "x").as_bytes());
+        limited.push_bytes(completed_item(index as u64, "x").as_bytes());
     }
-    assert_eq!(captured(&observer).items.len(), MAX_ITEMS);
-    assert!(!captured(&observer).facts.capture_complete);
-    let mut encoded = observer;
+    assert_eq!(captured(&limited).items.len(), MAX_ITEMS);
+    assert!(!captured(&limited).facts.capture_complete);
+
+    // Tiny objects cost far more parsed than serialized; the limit counts memory.
+    let tiny_objects = json!({
+        "status": "completed",
+        "output": [{"type": "message", "content": vec![json!({"a": 1}); 50_000]}],
+    })
+    .to_string();
+    assert!(tiny_objects.len() < MAX_OUTPUT_CAPTURE_BYTES);
+    let mut parsed = observer("full").await;
+    record_response(&mut parsed, "application/json");
+    parsed.push_bytes(tiny_objects.as_bytes());
+    parsed.end_body();
+    assert!(captured(&parsed).items.is_empty());
+    assert!(!captured(&parsed).facts.output_complete);
+    let mut encoded = limited;
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
