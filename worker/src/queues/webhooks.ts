@@ -33,9 +33,6 @@ import {
   getActionById,
   getConsecutiveAutomationFailures,
   SlackService,
-  PagerDutyApiError,
-  sendPagerDutyAlertEvent,
-  sendPagerDutyChangeEvent,
   logger,
   redis,
   ProjectNotificationWebhookQueueEventSchema,
@@ -45,6 +42,11 @@ import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
 } from "@langfuse/shared/monitors/server";
+import {
+  PagerDutyApiError,
+  sendPagerDutyAlertEvent,
+  sendPagerDutyChangeEvent,
+} from "@langfuse/shared/pagerduty/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";

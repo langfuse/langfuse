@@ -11,4 +11,3 @@ export * from "./prompts";
 export * from "./dataset-items";
 export * from "./media";
 export * from "./auditLogs";
-export * from "./pagerduty";

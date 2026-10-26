@@ -3,7 +3,7 @@ import {
   PagerDutyIntegrationNameSchema,
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/pagerduty";
 
 // Strict so the raw routing key can never be added to a response.
 export const PagerDutyIntegrationResponse = z

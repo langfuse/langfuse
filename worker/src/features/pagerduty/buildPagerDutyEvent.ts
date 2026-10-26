@@ -1,12 +1,11 @@
+import { buildPromptUrl, getProductBaseUrl } from "@langfuse/shared/src/server";
 import {
-  buildPromptUrl,
-  getProductBaseUrl,
   truncatePagerDutySummary,
   type PagerDutyAlertEvent,
   type PagerDutyChangeEvent,
   type PagerDutyLink,
   type PagerDutySeverity,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/pagerduty/server";
 import { type MonitorAlert } from "@langfuse/shared/monitors";
 
 const client = "Langfuse";

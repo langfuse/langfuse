@@ -3,13 +3,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { type PagerDutyRegion } from "@langfuse/shared";
 import {
   PagerDutyIntegrationNameSchema,
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
   type PagerDutyIntegrationListItem,
-  type PagerDutyRegion,
-} from "@langfuse/shared";
+} from "@langfuse/shared/pagerduty";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";

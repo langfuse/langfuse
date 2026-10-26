@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Pencil, PlusIcon, Send, Trash } from "@langfuse/icons";
 
-import { type PagerDutyIntegrationListItem } from "@langfuse/shared";
+import { type PagerDutyIntegrationListItem } from "@langfuse/shared/pagerduty";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {

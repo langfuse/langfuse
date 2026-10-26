@@ -5,8 +5,9 @@ import {
   PagerDutyIntegrationNameSchema,
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
-} from "@langfuse/shared";
-import { logger, PagerDutyApiError } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/pagerduty";
+import { PagerDutyApiError } from "@langfuse/shared/pagerduty/server";
+import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   createPagerDutyIntegration,
