@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { cn } from "@/src/utils/tailwind";
 import { TopicsEmptyState } from "./TopicsEmptyState";
 import { type Facet } from "./facet-topics";
 import {
@@ -15,6 +16,10 @@ type TopicTreemapViewProps = {
   peekView: DataTablePeekViewProps;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  /** Treemap left, traces right on wide screens. */
+  sideBySide?: boolean;
+  /** Applied to the trace list only when side by side, so the peek matches its width. */
+  tracePanelRef?: (element: HTMLElement | null) => void;
 };
 
 export function TopicTreemapView({
@@ -23,6 +28,8 @@ export function TopicTreemapView({
   peekView,
   onGenerateTopics,
   canGenerateTopics,
+  sideBySide = false,
+  tracePanelRef,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const { topics, total } = prepareTopicDisplay(facet, "treemap");
@@ -45,8 +52,18 @@ export function TopicTreemapView({
     );
   }
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="m-4 flex min-h-48 shrink-0 basis-1/2">
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        sideBySide && "lg:flex-row",
+      )}
+    >
+      <div
+        className={cn(
+          "m-4 flex min-h-48 shrink-0 basis-1/2",
+          sideBySide && "lg:shrink lg:basis-3/5",
+        )}
+      >
         <TopicTreemap
           total={total}
           topics={topics}
@@ -64,7 +81,8 @@ export function TopicTreemapView({
         swatchColor={selected.color}
         rows={rows}
         peekView={peekView}
-        divider="top"
+        tracePanelRef={sideBySide ? tracePanelRef : undefined}
+        divider={sideBySide ? "side" : "top"}
       />
     </div>
   );

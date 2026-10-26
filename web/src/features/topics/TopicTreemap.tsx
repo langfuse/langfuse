@@ -2,7 +2,10 @@ import { useState, type MouseEvent } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
-import { type TopicDisplay } from "./prepare-topic-display";
+import {
+  type TopicDisplay,
+  UNASSIGNED_TOPIC_ID,
+} from "./prepare-topic-display";
 import { layoutTreemap } from "./topic-treemap-layout";
 import { TopicPreviewCard } from "./TopicPreviewCard";
 
@@ -25,6 +28,8 @@ type TopicTileProps = {
   onSelect: (topicId: string) => void;
   rect: { left: number; top: number; width: number; height: number };
   tier: TileTier;
+  /** Drawn smaller than its share of traces. */
+  capped: boolean;
 };
 
 type TopicTileButtonProps = TopicTileProps & {
@@ -43,16 +48,35 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
-/** Vertical padding, name line height and count+share block height (px) for tiers that show a name. */
-const PADDING_Y_PX = 24;
-const NAME_LINE_PX = { large: 28, medium: 20 };
-const FOOTER_PX = { large: 54, medium: 46 };
-const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
+/** Padding (px), name line height, approximate bold character width and count line height per tier. */
+const PADDING_PX = { large: 24, medium: 24, small: 16, tiny: 0 };
+const NAME_LINE_PX = { large: 28, medium: 20, small: 16, tiny: 16 };
+const NAME_CHAR_PX = { large: 10, medium: 7.6, small: 6.8, tiny: 6.8 };
+const COUNT_PX = { large: 36, medium: 28, small: 0, tiny: 0 };
+/** Share caption: text-xs line height, approximate character width and the gap above it. */
+const SHARE_LINE_PX = 16;
+const SHARE_CHAR_PX = 6;
+const SHARE_GAP_PX = 2;
+const NAME_CLAMP = [
+  "line-clamp-1",
+  "line-clamp-2",
+  "line-clamp-3",
+  "line-clamp-4",
+  "line-clamp-5",
+  "line-clamp-6",
+];
+
+const NAME_SIZE: Record<TileTier, string> = {
+  large: "text-lg",
+  medium: "text-sm",
+  small: "text-xs",
+  tiny: "",
+};
 
 const COUNT_SIZE: Record<TileTier, string> = {
   large: "text-3xl",
   medium: "text-xl",
-  small: "text-sm",
+  small: "",
   tiny: "",
 };
 
@@ -61,6 +85,56 @@ function tileTier(width: number, height: number): TileTier {
   if (width >= 112 && height >= 96) return "medium";
   if (width >= 40 && height >= 32) return "small";
   return "tiny";
+}
+
+/** The name comes first: the count (and share caption) shows only when the full name still fits above it. */
+function tileLabelLayout(
+  name: string,
+  rect: { width: number; height: number },
+  tier: TileTier,
+  shareLabel: string | null,
+) {
+  const contentWidth = rect.width - PADDING_PX[tier];
+  const lines = (reserved: number) =>
+    Math.floor(
+      (rect.height - PADDING_PX[tier] - reserved) / NAME_LINE_PX[tier],
+    );
+  const perLine = Math.max(1, Math.floor(contentWidth / NAME_CHAR_PX[tier]));
+  const needed = Math.ceil(name.length / perLine);
+  const shareLines = shareLabel
+    ? Math.ceil(
+        shareLabel.length /
+          Math.max(1, Math.floor(contentWidth / SHARE_CHAR_PX)),
+      )
+    : 0;
+  const footer =
+    COUNT_PX[tier] +
+    (shareLines > 0 ? SHARE_GAP_PX + shareLines * SHARE_LINE_PX : 0);
+  const withCount = lines(footer);
+  const countFits =
+    (tier === "large" || tier === "medium") && needed <= withCount;
+  const available = countFits ? withCount : lines(0);
+  return {
+    showCount: countFits,
+    nameLines: Math.min(
+      NAME_CLAMP.length,
+      Math.max(1, Math.min(needed, available)),
+    ),
+  };
+}
+
+/** Unassigned never takes more than ~10% of the area; its tile still shows the real count. */
+function layoutWeights(topics: TopicDisplay[]) {
+  const assigned = topics
+    .filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID)
+    .reduce((sum, topic) => sum + topic.count, 0);
+  return topics.map((topic) => ({
+    topic,
+    count:
+      topic.id === UNASSIGNED_TOPIC_ID
+        ? Math.min(topic.count, Math.max(1, assigned / 9))
+        : topic.count,
+  }));
 }
 
 function TopicTileButton({
@@ -76,19 +150,13 @@ function TopicTileButton({
   function selectTopic() {
     onSelect(topic.id);
   }
-  const showName = tier === "large" || tier === "medium";
-  /** Name lines that fit above the count. */
-  const nameLines = showName
-    ? Math.min(
-        3,
-        Math.max(
-          1,
-          Math.floor(
-            (rect.height - PADDING_Y_PX - FOOTER_PX[tier]) / NAME_LINE_PX[tier],
-          ),
-        ),
-      )
-    : 0;
+  const showShare = tier === "large" || topic.id === UNASSIGNED_TOPIC_ID;
+  const { showCount, nameLines } = tileLabelLayout(
+    topic.name,
+    rect,
+    tier,
+    showShare ? shareLabel : null,
+  );
   return (
     <button
       {...triggerProps}
@@ -112,23 +180,25 @@ function TopicTileButton({
             ),
       )}
     >
-      {showName && (
+      {tier !== "tiny" && (
         <span
           className={cn(
             NAME_CLAMP[nameLines - 1],
-            "font-bold",
-            tier === "large" ? "text-lg" : "text-sm",
+            "mask-r-from-80% font-bold",
+            NAME_SIZE[tier],
           )}
         >
           {topic.name}
         </span>
       )}
-      {tier !== "tiny" && (
+      {showCount && (
         <span className="flex flex-col gap-0.5">
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
             {topic.count.toLocaleString()}
           </span>
-          {showName && <span className="text-xs opacity-80">{shareLabel}</span>}
+          {showShare && (
+            <span className="text-xs opacity-80">{shareLabel}</span>
+          )}
         </span>
       )}
     </button>
@@ -136,9 +206,10 @@ function TopicTileButton({
 }
 
 function TopicTile(props: TopicTileProps) {
-  const { topic, share, tier, previewOnSelect } = props;
-  const shareLabel = `${Math.round(share * 100)}% of traces`;
-  if (previewOnSelect || tier === "large" || tier === "medium") {
+  const { topic, share, tier, previewOnSelect, capped } = props;
+  const percentLabel = `${Math.round(share * 100)}% of traces`;
+  const shareLabel = capped ? `${percentLabel} · shown smaller` : percentLabel;
+  if ((previewOnSelect || tier === "large" || tier === "medium") && !capped) {
     return <TopicTileButton {...props} shareLabel={shareLabel} />;
   }
   return (
@@ -148,8 +219,13 @@ function TopicTile(props: TopicTileProps) {
         <span className="ph-no-capture flex flex-col gap-0.5">
           <span className="font-bold">{topic.name}</span>
           <span className="text-muted-foreground text-xs">
-            {topic.count.toLocaleString()} traces · {shareLabel}
+            {topic.count.toLocaleString()} traces · {percentLabel}
           </span>
+          {capped && (
+            <span className="text-muted-foreground text-xs">
+              Shown smaller than its actual share so topics stay readable.
+            </span>
+          )}
         </span>
       }
     >
@@ -174,7 +250,16 @@ export function TopicTreemap({
   const [previewedId, setPreviewedId] = useState<string | null>(null);
   const [ref, size] = useElementSize<HTMLDivElement>();
   const tiles = size
-    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
+    ? layoutTreemap(
+        layoutWeights(topics),
+        size.width,
+        size.height,
+        TILE_GAP,
+      ).map((tile) => ({
+        ...tile,
+        item: tile.item.topic,
+        capped: tile.item.count < tile.item.topic.count,
+      }))
     : [];
   const previewedTopic = topics.find((topic) => topic.id === previewedId);
   const previewedTile = tiles.find((tile) => tile.item.id === previewedId);
@@ -199,7 +284,7 @@ export function TopicTreemap({
       className="relative h-full min-h-0 min-w-0 flex-1"
       onClick={dismissPreview}
     >
-      {tiles.map(({ item, x, y, width, height }) => (
+      {tiles.map(({ item, capped, x, y, width, height }) => (
         <TopicTile
           key={item.id}
           topic={item}
@@ -212,6 +297,7 @@ export function TopicTreemap({
           rect={{ left: x, top: y, width, height }}
           tier={tileTier(width, height)}
           previewOnSelect={previewOnSelect}
+          capped={capped}
         />
       ))}
       {previewedTopic && (
