@@ -15,7 +15,7 @@ export type EmailTagInputProps = {
   /** Text not turned into a chip yet; without an `@` it is a member search. */
   draft: string;
   onDraftChange: (draft: string) => void;
-  /** Called on Enter while the draft is a search, to pick the top match. */
+  /** Called on Enter while the draft is a search, to pick the top match. A search is never turned into chips. */
   onPickTopSuggestion?: () => void;
   members: TeamInviteMembers;
   "aria-describedby"?: string;
@@ -59,7 +59,7 @@ export function EmailTagInput({
     if (event.key === "Enter") {
       event.preventDefault();
       const isSearch = draft.trim().length > 0 && !isAddress(draft);
-      if (isSearch && onPickTopSuggestion) onPickTopSuggestion();
+      if (isSearch) onPickTopSuggestion?.();
       else commit(draft);
       return;
     }
@@ -68,7 +68,7 @@ export function EmailTagInput({
     }
   }
 
-  // A search must survive the blur from clicking a suggestion.
+  // Text without an `@` stays a search when the input loses focus.
   function handleBlur() {
     if (isAddress(draft)) commit(draft);
   }

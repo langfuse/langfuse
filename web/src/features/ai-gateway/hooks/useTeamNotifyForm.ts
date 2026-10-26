@@ -8,22 +8,26 @@ import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInvi
 
 /**
  * Picked addresses that get an email, or every member plus the picked people
- * outside the organization.
+ * outside the organization. People outside are invited even without email;
+ * members only hear about it when email is configured.
  */
 function getRecipientCount({
   emails,
   members,
   allMemberCount,
+  isEmailConfigured,
 }: {
   emails: string[];
   members: TeamInviteMembers;
   allMemberCount: number | undefined;
+  isEmailConfigured: boolean;
 }) {
   const kinds = emails.map((email) => getInviteeKind(email, members));
   const outsiderCount = kinds.filter(
     (kind) => kind === "external" || kind === "pending",
   ).length;
   if (allMemberCount !== undefined) return allMemberCount + outsiderCount;
+  if (!isEmailConfigured) return outsiderCount;
   return outsiderCount + kinds.filter((kind) => kind === "member").length;
 }
 
@@ -58,6 +62,8 @@ export function useTeamNotifyForm({
     emails: invitees.emails,
     members: inviteeMembers,
     allMemberCount: notifyMembers ? notifiableMembers.count : undefined,
+    // Assume email works until the config loads, so the label does not flicker.
+    isEmailConfigured: notifiableMembers?.isEmailConfigured ?? true,
   });
 
   const fieldsProps: TeamInviteFieldsProps = {

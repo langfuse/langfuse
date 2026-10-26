@@ -209,3 +209,32 @@ export const TestSearchKeepsTextAndEnterPicksTopMatch = meta.story({
     );
   },
 });
+
+export const TestPartialAddressAndUnmatchedSearch = meta.story({
+  name: "(Test) A pill picks the member over a half-typed address; an unmatched search stays text",
+  args: {
+    ...Empty.input.args,
+    memberSuggestions: {
+      ...Empty.input.args.memberSuggestions,
+      onMemberAdd: fn(),
+    },
+  },
+  render: (args) => <TeamInviteFieldsWithDraft {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", { name: "Email addresses" });
+
+    await userEvent.type(input, "ada@");
+    await userEvent.click(canvas.getByRole("button", { name: "Ada Lovelace" }));
+    await expect(args.memberSuggestions?.onMemberAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "ada@company.com" }),
+    );
+    await expect(args.onEmailsChange).not.toHaveBeenCalled();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "nobody here");
+    await userEvent.keyboard("{Enter}");
+    await expect(input).toHaveValue("nobody here");
+    await expect(args.onEmailsChange).not.toHaveBeenCalled();
+  },
+});

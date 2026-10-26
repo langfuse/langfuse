@@ -9,6 +9,7 @@ import {
   MemberSuggestion,
   type MemberSuggestionProps,
 } from "@/src/features/ai-gateway/components/TeamInviteFields/components/MemberSuggestion";
+import { MemberSuggestionRow } from "@/src/features/ai-gateway/components/TeamInviteFields/components/MemberSuggestionRow";
 import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
 import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
@@ -127,9 +128,9 @@ export function TeamInviteFields({
           {errorMessage}
         </p>
       ) : null}
-      {showAllMembersSuggestion || showMemberSuggestions ? (
-        <div className="ph-no-capture flex flex-wrap gap-2">
-          {showAllMembersSuggestion ? (
+      {(showAllMembersSuggestion || showMemberSuggestions) && (
+        <MemberSuggestionRow>
+          {showAllMembersSuggestion && (
             <Button
               variant="outline"
               size="sm"
@@ -137,18 +138,17 @@ export function TeamInviteFields({
               text={`All existing members (${memberSuggestions.memberCount})`}
               onClick={handleSelectAll}
             />
-          ) : null}
-          {showMemberSuggestions
-            ? suggestedMembers.map((member) => (
-                <MemberSuggestion
-                  key={member.id}
-                  member={member}
-                  onAdd={handleAddMember}
-                />
-              ))
-            : null}
-        </div>
-      ) : null}
+          )}
+          {showMemberSuggestions &&
+            suggestedMembers.map((member) => (
+              <MemberSuggestion
+                key={member.id}
+                member={member}
+                onAdd={handleAddMember}
+              />
+            ))}
+        </MemberSuggestionRow>
+      )}
       {externalCount > 0 ? <ExternalInviteeHint count={externalCount} /> : null}
     </div>
   );
