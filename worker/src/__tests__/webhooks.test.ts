@@ -2647,17 +2647,16 @@ describe("Webhook Integration Tests", () => {
     });
 
     it.each([429, 500])(
-      "rethrows a %i so the job is retried, without counting a failure",
+      "retries a %i in-process, then counts a failure once retries run out",
       async (status) => {
         webhookServer.pagerDutyStatus = status;
 
-        await expect(
-          executeWebhook(buildMonitorInput("ALERT")),
-        ).rejects.toThrow();
+        await executeWebhook(buildMonitorInput("ALERT"));
 
+        expect(webhookServer.getReceivedRequests()).toHaveLength(4);
         expect(
           await redis!.get(`automation-failures:${projectId}:${automationId}`),
-        ).toBeNull();
+        ).toBe("1");
       },
     );
 

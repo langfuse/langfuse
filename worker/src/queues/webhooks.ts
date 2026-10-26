@@ -1003,8 +1003,8 @@ async function executeSlackAction({
 
 /**
  * Execute PagerDuty action. Events go only to the fixed PagerDuty hosts of the
- * routing key's region. 429, 5xx and network errors are rethrown so BullMQ
- * retries the job; any other failure counts toward trigger auto-disable.
+ * routing key's region. 429, 5xx and network errors are retried in-process
+ * like HTTP actions; a failure that remains counts toward trigger auto-disable.
  */
 async function executePagerDutyAction({
   input,
@@ -1034,14 +1034,20 @@ async function executePagerDutyAction({
       );
       return;
     }
-    await sendPagerDutyEvent(event, actionConfig);
+    await backOff(() => sendPagerDutyEvent(event, actionConfig), {
+      numOfAttempts: 4,
+      retry: (error: unknown) => {
+        const isRetryable =
+          error instanceof PagerDutyApiError && error.isRetryable;
+        if (isRetryable) {
+          logger.warn(
+            `Retrying PagerDuty delivery for action ${automation.action.id}: ${error.message}`,
+          );
+        }
+        return isRetryable;
+      },
+    });
   } catch (error) {
-    if (error instanceof PagerDutyApiError && error.isRetryable) {
-      logger.warn(
-        `Retrying PagerDuty delivery for action ${automation.action.id}: ${error.message}`,
-      );
-      throw error;
-    }
     logger.error("Error executing PagerDuty action", error);
     await recordPagerDutyFailure({ input, automation, executionStart, error });
     return;
