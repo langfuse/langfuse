@@ -63,16 +63,19 @@ type TraceFacetResult =
   | { output: FacetOutput }
   | { error: TopicsProviderUnavailable };
 
-type AssembledTraceInput = {
+type TraceSummaryInput = {
   projectId: string;
   traceId: string;
   sessionId: string | null;
   traceTimestamp: string;
-  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
   models: TopicsModels;
+};
+
+type AssembledTraceInput = TraceSummaryInput & {
+  jobEnqueuedAt: Date;
   facets: TopicFacet[];
 };
 
@@ -91,6 +94,27 @@ type AssembledTraceResult = {
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
 ): Promise<AssembledTraceResult> {
+  return instrumentTraceSummary(input, (metrics) =>
+    summarizeEnabledTrace(input, metrics),
+  );
+}
+
+/**
+ * Summarizes exactly the given facets of one stored transcript, without
+ * checking for stored summaries; rewriting the same key replaces the row.
+ */
+export async function summarizeTraceFacetVersions(
+  input: TraceSummaryInput & { facets: TraceFacet[] },
+): Promise<AssembledTraceResult> {
+  return instrumentTraceSummary(input, (metrics) =>
+    summarizePendingFacets(input, input.facets, metrics),
+  );
+}
+
+async function instrumentTraceSummary(
+  input: TraceSummaryInput,
+  summarize: (metrics: TopicMetrics) => Promise<AssembledTraceResult>,
+): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
   // Trace-batch jobs span projects; the baggage tags this trace's spans and logs.
@@ -106,7 +130,7 @@ export async function summarizeAssembledTrace(
         let result: AssembledTraceResult | undefined;
         try {
           await metrics.measure("trace", async () => {
-            result = await summarizeEnabledTrace(input, metrics);
+            result = await summarize(metrics);
             if (result.failure !== undefined) throw result.failure;
           });
           span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
@@ -126,11 +150,7 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<AssembledTraceResult> {
-  const { models, facets } = input;
-  const embeddingModel = models.embedding.model;
-  const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summary.model,
-  });
+  const { facets } = input;
   const pending: TraceFacet[] = [];
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
@@ -164,7 +184,19 @@ async function summarizeEnabledTrace(
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
+  return summarizePendingFacets(input, pending, metrics);
+}
 
+async function summarizePendingFacets(
+  input: TraceSummaryInput,
+  pending: TraceFacet[],
+  metrics: TopicMetrics,
+): Promise<AssembledTraceResult> {
+  const { models } = input;
+  const embeddingModel = models.embedding.model;
+  const config = topicProcessingConfigSchema.parse({
+    summaryModel: models.summary.model,
+  });
   const bases = pending.map(({ version }) =>
     baseTopicSummary({
       projectId: input.projectId,

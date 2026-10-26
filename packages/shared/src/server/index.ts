@@ -142,6 +142,7 @@ export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
+export * from "./redis/topicsTraceQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";

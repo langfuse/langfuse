@@ -2,6 +2,7 @@ import {
   CodeEvalExecutionQueue,
   EvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  TopicsTraceQueue,
   SecondaryEvalExecutionQueue,
   SecondaryIngestionQueue,
   SecondaryOtelIngestionQueue,
@@ -23,6 +24,7 @@ const getQueues = () => {
     ...EvalExecutionQueue.getShardNames(),
     ...SecondaryEvalExecutionQueue.getShardNames(),
     ...LLMAsJudgeExecutionQueue.getShardNames(),
+    ...TopicsTraceQueue.getShardNames(),
     ...CodeEvalExecutionQueue.getShardNames(),
     ...OtelIngestionQueue.getShardNames(),
     ...SecondaryOtelIngestionQueue.getShardNames(),
@@ -56,6 +58,9 @@ const getQueues = () => {
           shardName: queueName,
         });
       }
+      if (queueName.startsWith(QueueName.TopicsTrace)) {
+        return TopicsTraceQueue.getInstance({ shardName: queueName });
+      }
       if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
         return LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
@@ -87,6 +92,7 @@ const getQueues = () => {
           | QueueName.EvaluationExecution
           | QueueName.EvaluationExecutionSecondaryQueue
           | QueueName.LLMAsJudgeExecution
+          | QueueName.TopicsTrace
           | QueueName.CodeEvalExecution
           | QueueName.TraceUpsert
           | QueueName.OtelIngestionQueue

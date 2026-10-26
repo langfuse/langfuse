@@ -748,7 +748,8 @@ export async function writeTopicAssignments(
   await insertTopicRows("topic_assignments", rows, topicAssignmentRecord);
 }
 
-function topicSummaryRecord(row: TopicSummary) {
+/** Serializes a validated summary for a JSONEachRow insert. */
+export function topicSummaryRecord(row: TopicSummary) {
   return {
     project_id: row.projectId,
     facet_id: row.facetId,
@@ -782,7 +783,8 @@ export type TopicFacetSummaryRecordInsertType = ReturnType<
   typeof topicSummaryRecord
 >;
 
-function topicAssignmentRecord(row: TopicAssignment) {
+/** Serializes a validated assignment for a JSONEachRow insert. */
+export function topicAssignmentRecord(row: TopicAssignment) {
   return {
     project_id: row.projectId,
     facet_id: row.facetId,

@@ -196,6 +196,15 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
   // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
   LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
     .number()
