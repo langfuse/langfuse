@@ -17,7 +17,7 @@ const GetSkillInputSchema = z
 export const [getSkillTool, handleGetSkill] = defineTool({
   name: "getSkill",
   description:
-    "Get skill metadata and file paths, without file contents. Select a version or label; defaults to production. Use the returned version with loadSkill and loadSkillResource to read files from the same immutable version.",
+    "Get skill metadata and file paths, without file contents. Version and label are optional; defaults to production, or latest if no production label is set. Use the returned version with loadSkill and loadSkillResource to read files from the same immutable version.",
   action: "skills:read",
   baseSchema: GetSkillBaseSchema,
   inputSchema: GetSkillInputSchema,
@@ -30,6 +30,7 @@ export const [getSkillTool, handleGetSkill] = defineTool({
           projectId: context.projectId,
           name,
           selector,
+          fallbackToLatest: true,
         }),
     }),
   readOnlyHint: true,

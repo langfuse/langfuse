@@ -1,18 +1,40 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
+const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
+  getNotificationJob: vi.fn<(jobId: string) => Promise<unknown>>(),
+  addNotificationJobs:
+    vi.fn<
+      (
+        jobs: Array<{ data: { payload: SharedServer.NotificationEventType } }>,
+      ) => Promise<unknown>
+    >(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
   return {
     ...actual,
     testModelCall: vi.fn().mockResolvedValue(undefined),
+    NotificationQueue: {
+      getInstance: () => ({
+        addBulk: addNotificationJobs,
+        getJob: getNotificationJob,
+      }),
+    },
   };
 });
+
+function queuedNotifications(): SharedServer.NotificationEventType[] {
+  return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
+    jobs.map((job) => job.data.payload),
+  );
+}
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
@@ -21,6 +43,7 @@ import {
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
@@ -29,6 +52,7 @@ import {
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import {
   GatewayModelCatalogService,
   GatewayProviderService,
@@ -47,6 +71,10 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+const originalEmailConfig = {
+  smtpConnectionUrl: env.SMTP_CONNECTION_URL,
+  emailFromAddress: env.EMAIL_FROM_ADDRESS,
+};
 const originalGatewayJwtConfig = {
   privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
   publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
@@ -102,6 +130,8 @@ afterEach(async () => {
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
     LANGFUSE_AI_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
     LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
+    SMTP_CONNECTION_URL: originalEmailConfig.smtpConnectionUrl,
+    EMAIL_FROM_ADDRESS: originalEmailConfig.emailFromAddress,
   });
   vi.clearAllMocks();
 });
@@ -245,7 +275,7 @@ describe("AI gateway control plane", () => {
 
       try {
         await expect(
-          caller.aiGateway.getConfig({ orgId: org.id }),
+          caller.aiGateway.getClientSetup({ orgId: org.id }),
         ).resolves.toMatchObject({ gatewayBaseUrl: gatewayUrl });
       } finally {
         (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = originalNextAuthUrl;
@@ -267,6 +297,32 @@ describe("AI gateway control plane", () => {
       await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     }
   });
+
+  it.skipIf(env.NODE_ENV === "development")(
+    "turns the gateway off on a self-hosted deployment without a gateway",
+    async () => {
+      const { caller, org } = await prepare();
+      const original = {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+        LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      };
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "false",
+        LANGFUSE_AI_GATEWAY_ENABLED: "true",
+      });
+
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        Object.assign(env, original);
+      }
+    },
+  );
 
   it("enforces admin scope and validates the ingestion project organization", async () => {
     const owner = await prepare();
@@ -308,6 +364,310 @@ describe("AI gateway control plane", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     },
   );
+
+  it("reports the ingestion setup status to gateway readers", async () => {
+    const owner = await prepare();
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const noAccess = await createCallerForOrganizationRole(owner, Role.NONE);
+
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+    await expect(
+      noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: true });
+
+    await prisma.project.update({
+      where: { id: owner.project.id },
+      data: { deletedAt: new Date() },
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+  });
+
+  it("gives key owners the gateway URL and enabled providers without connection details", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-test-client-setup",
+    });
+
+    const setup = await member.aiGateway.getClientSetup({
+      orgId: owner.org.id,
+    });
+    expect(setup).toEqual({
+      gatewayBaseUrl: expect.any(String),
+      providers: ["OPENAI"],
+    });
+    await expect(
+      viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("redirects gateway managers to Setup until ingestion is set up", async () => {
+    const owner = await prepare();
+    const memberSession = {
+      ...owner.session,
+      user: {
+        ...owner.session.user,
+        organizations: owner.session.user.organizations.map((org) => ({
+          ...org,
+          role: Role.MEMBER,
+        })),
+      },
+    };
+    const redirectFor = (session: Session, slug: string) =>
+      getGatewaySetupRedirect({
+        prisma,
+        session,
+        organizationId: owner.org.id,
+        slug,
+      });
+    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+
+    await expect(
+      redirectFor(owner.session, "ai-gateway-api-keys"),
+    ).resolves.toBe(setupPath);
+    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
+    await expect(
+      redirectFor(memberSession, "ai-gateway-models"),
+    ).resolves.toBeNull();
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      redirectFor(owner.session, "ai-gateway-api-keys"),
+    ).resolves.toBeNull();
+  });
+
+  it("notifies only members who can use the gateway", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const memberEmails = await prisma.organizationMembership.findMany({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+
+    const notifiableMembers = await owner.caller.aiGateway.getNotifiableMembers(
+      {
+        orgId: owner.org.id,
+      },
+    );
+    expect(notifiableMembers).toMatchObject({
+      isEmailConfigured: true,
+      count: 1,
+    });
+
+    const inviteeEmail = `gateway-invitee-${randomUUID()}@example.test`;
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [inviteeEmail],
+      notifyMembers: true,
+    });
+    expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
+
+    expect(queuedNotifications()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: inviteeEmail,
+          audience: { kind: "invitee", hasAccount: false },
+        }),
+        expect.objectContaining({
+          type: "AI_GATEWAY_INVITATION",
+          to: memberEmails[0]?.user.email?.toLowerCase(),
+          audience: { kind: "member" },
+          inviterName: "Gateway tester",
+        }),
+      ]),
+    );
+    expect(queuedNotifications()).toHaveLength(2);
+    await expect(
+      prisma.membershipInvitation.findFirst({
+        where: { orgId: owner.org.id, email: inviteeEmail },
+        select: { orgRole: true },
+      }),
+    ).resolves.toEqual({ orgRole: Role.MEMBER });
+  });
+
+  it.each([false, true])(
+    "announces the gateway once to a typed address of a member (notifyMembers: %s)",
+    async (notifyMembers) => {
+      const owner = await prepare();
+      Object.assign(env, {
+        SMTP_CONNECTION_URL: "smtp://localhost:1025",
+        EMAIL_FROM_ADDRESS: "gateway@example.test",
+      });
+      await createCallerForOrganizationRole(owner, Role.MEMBER);
+      const membership = await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: owner.org.id, role: Role.MEMBER },
+        select: { user: { select: { email: true } } },
+      });
+      const memberEmail = membership.user.email!;
+
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [memberEmail.toUpperCase()],
+        notifyMembers,
+      });
+
+      expect(result).toEqual({
+        invitedCount: 0,
+        failed: [],
+        notifiedCount: 1,
+      });
+      expect(queuedNotifications()).toEqual([
+        expect.objectContaining({
+          audience: { kind: "member" },
+          to: memberEmail.toLowerCase(),
+          receiverName: "Gateway member",
+        }),
+      ]);
+    },
+  );
+
+  it("re-sends an email whose earlier job failed", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmail = membership.user.email!.toLowerCase();
+    const removeFailedJob = vi.fn().mockResolvedValue(undefined);
+    getNotificationJob.mockResolvedValueOnce({
+      isFailed: () => Promise.resolve(true),
+      remove: removeFailedJob,
+    });
+
+    await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [memberEmail],
+      notifyMembers: false,
+    });
+
+    expect(getNotificationJob).toHaveBeenCalledWith(
+      `ai-gateway-invitation-${owner.org.id}-member-${createHash("sha256").update(memberEmail).digest("hex")}`,
+    );
+    expect(removeFailedJob).toHaveBeenCalledOnce();
+    expect(removeFailedJob.mock.invocationCallOrder[0]).toBeLessThan(
+      addNotificationJobs.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("reports typed members who cannot use the gateway and skips the sender", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, role: Role.VIEWER },
+      select: { user: { select: { email: true } } },
+    });
+    const viewerEmail = membership.user.email!;
+
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [viewerEmail, owner.user.email!],
+      notifyMembers: false,
+    });
+
+    expect(result).toEqual({
+      invitedCount: 0,
+      failed: [
+        {
+          email: viewerEmail,
+          message: "Already a member, but their role can't use the AI Gateway",
+        },
+      ],
+      notifiedCount: 0,
+    });
+    expect(queuedNotifications()).toEqual([]);
+  });
+
+  it("rejects more than MAX_TEAM_INVITES addresses in one request", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+
+    await expect(
+      owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: Array.from(
+          { length: MAX_TEAM_INVITES + 1 },
+          (_, index) => `gateway-invitee-${index}@example.test`,
+        ),
+        notifyMembers: false,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(queuedNotifications()).toEqual([]);
+    await expect(
+      prisma.membershipInvitation.count({ where: { orgId: owner.org.id } }),
+    ).resolves.toBe(0);
+  });
+
+  it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
+    const { caller, org } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "USAGE",
+        }),
+      ).rejects.toThrow("default ingestion project is required");
+
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: null,
+        ingestionMode: "NONE",
+      });
+      await expect(
+        caller.aiGateway.getSetupStatus({ orgId: org.id }),
+      ).resolves.toEqual({ isConfigured: true });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
 
   it.each([
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
@@ -599,6 +959,150 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow("Gateway API key not found");
   });
 
+  it("scopes gateway API keys to their creator for members", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+
+    const memberList = await member.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(memberList.data.map(({ apiKey }) => apiKey.id)).toEqual([
+      memberKey.id,
+    ]);
+    expect(memberList.data[0]?.apiKey.user).toMatchObject({
+      name: "Gateway member",
+    });
+
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.map(({ apiKey }) => [apiKey.id, apiKey.user?.name]),
+    ).toEqual(
+      expect.arrayContaining([
+        [ownerKey.id, "Gateway tester"],
+        [memberKey.id, "Gateway member"],
+      ]),
+    );
+
+    const search = async (
+      caller: typeof member,
+      searchQuery: string,
+    ): Promise<string[]> =>
+      (
+        await caller.aiGateway.listApiKeys({ orgId: owner.org.id, searchQuery })
+      ).data.map(({ apiKey }) => apiKey.id);
+    expect(await search(owner.caller, "owner KEY")).toEqual([ownerKey.id]);
+    expect(await search(owner.caller, "gateway member")).toEqual([
+      memberKey.id,
+    ]);
+    expect(await search(owner.caller, "%")).toEqual([]);
+    expect(await search(member, "owner key")).toEqual([]);
+
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
+    ).rejects.toThrow("Gateway API key not found");
+    await expect(
+      member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      viewer.aiGateway.listApiKeys({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      viewer.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets only gateway managers issue service-account keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+
+    const serviceKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service key",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const ownerList = await owner.caller.aiGateway.listApiKeys({
+      orgId: owner.org.id,
+    });
+    expect(
+      ownerList.data.find(({ apiKey }) => apiKey.id === serviceKey.id)?.apiKey
+        .user,
+    ).toBeNull();
+
+    await expect(
+      member.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        metadata: {},
+        issuedAs: "serviceAccount",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
+    ).toEqual([]);
+  });
+
+  it.each(["legacy", "shadow"] as const)(
+    "keeps gateway API key creation admin-only when API_AUTH_MIGRATION is %s",
+    async (migration) => {
+      const originalMigration = env.API_AUTH_MIGRATION;
+      Object.assign(env, { API_AUTH_MIGRATION: migration });
+      try {
+        const owner = await prepare();
+        const member = await createCallerForOrganizationRole(
+          owner,
+          Role.MEMBER,
+        );
+
+        const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+
+        await expect(
+          member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+        await expect(
+          admin.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            metadata: {},
+            issuedAs: "serviceAccount",
+          }),
+        ).resolves.toMatchObject({
+          secretKey: expect.stringMatching(/^sk-lf-/),
+        });
+      } finally {
+        Object.assign(env, { API_AUTH_MIGRATION: originalMigration });
+      }
+    },
+  );
+
   it("rejects gateway API key expiration dates in the past", async () => {
     const { caller, org } = await prepare();
 
@@ -633,6 +1137,7 @@ describe("AI gateway control plane", () => {
     const key = await apiKeyService.create({
       organizationId: org.id,
       metadata: {},
+      issuedAs: "user",
       session,
     });
 
@@ -830,59 +1335,6 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
-  });
-
-  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
-    configureGatewayJwtSigning();
-    const { caller, org, project } = await prepare();
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
-      await caller.aiGateway.updateConfig({
-        orgId: org.id,
-        defaultIngestionProjectId: project.id,
-        ingestionMode: "NONE",
-      });
-      await caller.aiGateway.createConnection({
-        orgId: org.id,
-        name: "OpenAI",
-        provider: "OPENAI",
-        credential: "sk-test-openai",
-      });
-      const gatewayKey = await caller.aiGateway.createApiKey({
-        orgId: org.id,
-        metadata: {},
-      });
-
-      const result = await authenticateRequest({
-        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-        apiFormat: "openai.responses",
-        model: "gpt-4o",
-      });
-      expect(result.ingestion_mode).toBe("none");
-      expect(result.ingestion).toBeNull();
-      expect(result.attribution.project_id).toBe(project.id);
-
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "NONE",
-        }),
-      ).rejects.toThrow("only available on self-hosted deployments");
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "USAGE",
-        }),
-      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
-    } finally {
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
-    }
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {
@@ -1539,7 +1991,8 @@ describe("AI gateway control plane", () => {
     try {
       const { org, user } = await prepare();
       const adminKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
         role: SystemRoleId("ADMIN"),
         createdBy: UserId(user.id),
       });

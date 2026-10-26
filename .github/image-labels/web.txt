@@ -1,0 +1,8 @@
+name=langfuse/langfuse
+summary=Langfuse web
+description=Langfuse web application: UI, public API and tRPC backend.
+io.k8s.display-name=Langfuse Web
+io.k8s.description=Langfuse web application: UI, public API and tRPC backend.
+org.opencontainers.image.title=langfuse
+org.opencontainers.image.description=Langfuse web application: UI, public API and tRPC backend.
+org.opencontainers.image.licenses=MIT AND LicenseRef-Langfuse-EE

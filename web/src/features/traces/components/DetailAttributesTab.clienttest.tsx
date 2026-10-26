@@ -12,8 +12,11 @@ vi.mock("@/src/components/ui/PrettyJsonView", () => ({
 vi.mock("@/src/features/feature-flags", () => ({
   useInternalFeaturesEnabled: () => false,
 }));
-vi.mock("./ObservationDetailView/AttributeRowActions", () => ({
-  AttributeRowActions: () => null,
+vi.mock("next/router", () => ({
+  useRouter: () => ({ asPath: "/project/project/traces", push: vi.fn() }),
+}));
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => vi.fn(),
 }));
 
 afterEach(() => {

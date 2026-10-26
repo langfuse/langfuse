@@ -13,7 +13,7 @@ import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,
   type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+} from "@/src/components/layouts/PageTabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
@@ -130,7 +130,12 @@ const PageHeader = ({
                 )
               )}
               <div className="flex flex-wrap items-center gap-1.5">
-                {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onDismiss={envLabel.dismiss}
+                  />
+                )}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>

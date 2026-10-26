@@ -2,19 +2,15 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import {
-  DialogBody,
-  DialogController,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -23,7 +19,8 @@ import {
   type ApiKeyExpirationPreset,
   resolveApiKeyExpiration,
 } from "@/src/features/apiKey";
-import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
+import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   api,
   reportNonTrpcError,
@@ -34,6 +31,13 @@ type MetadataField = {
   id: number;
   key: string;
   value: string;
+};
+
+type IssuedAs = "user" | "serviceAccount";
+
+const issuedAsDescriptions: Record<IssuedAs, string> = {
+  user: "Stops working if you leave the organization.",
+  serviceAccount: "Keeps working when people leave the organization.",
 };
 
 export function CreateGatewayApiKeyDialogController({
@@ -52,10 +56,14 @@ export function CreateGatewayApiKeyDialogController({
   ]);
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [nextMetadataId, setNextMetadataId] = useState(2);
-  const [generatedKeys, setGeneratedKeys] = useState<{
-    publicKey: string;
-    secretKey: string;
-  } | null>(null);
+  const [issuedAs, setIssuedAs] = useState<IssuedAs>("user");
+  const canIssueServiceAccountKeys = useHasOrganizationAccess({
+    organizationId,
+    scope: "gateway:manage",
+  });
+  const [generatedSecretKey, setGeneratedSecretKey] = useState<string | null>(
+    null,
+  );
   const utils = api.useUtils();
   const create = api.aiGateway.createApiKey.useMutation({
     onError: (error) =>
@@ -68,8 +76,9 @@ export function CreateGatewayApiKeyDialogController({
     setCustomExpiry("");
     setMetadata([{ id: 1, key: "", value: "" }]);
     setIsMetadataOpen(false);
-    setGeneratedKeys(null);
+    setGeneratedSecretKey(null);
     setNextMetadataId(2);
+    setIssuedAs("user");
   };
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
@@ -88,11 +97,9 @@ export function CreateGatewayApiKeyDialogController({
         name: name.trim() || undefined,
         metadata: metadataObject,
         expiresAt,
+        issuedAs: canIssueServiceAccountKeys ? issuedAs : "user",
       });
-      setGeneratedKeys({
-        publicKey: created.publicKey,
-        secretKey: created.secretKey,
-      });
+      setGeneratedSecretKey(created.secretKey);
       await utils.aiGateway.listApiKeys.invalidate({
         orgId: organizationId,
       });
@@ -103,170 +110,198 @@ export function CreateGatewayApiKeyDialogController({
 
   return (
     <DialogController
-      size="default"
-      closeOnInteractionOutside={false}
       onBeforeClose={() => !create.isPending}
-      onDismiss={reset}
-      renderContent={({ closeDialog }) => (
-        <>
-          <DialogHeader>
-            <DialogTitle>
-              {generatedKeys ? "Gateway API key created" : "Issue API key"}
-            </DialogTitle>
-          </DialogHeader>
-          {generatedKeys ? (
-            <GeneratedKeyContent generatedKeys={generatedKeys} />
-          ) : (
-            <>
-              <DialogBody>
-                <div>
-                  <Label
-                    htmlFor="gateway-key-name"
-                    className="flex items-center gap-1.5"
-                  >
-                    Description
-                    <InfoTooltip label="About gateway key descriptions">
-                      Shown in the key list. Use it to describe what consumes
-                      the key.
-                    </InfoTooltip>
-                  </Label>
-                  <Input
-                    id="gateway-key-name"
-                    className="mt-1.5"
-                    maxLength={500}
-                    placeholder="e.g. Checkout agent, backend service"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                </div>
-                <ApiKeyExpirationInput
-                  id="gateway-key-expiry"
-                  expiryPreset={expiryPreset}
-                  customExpiry={customExpiry}
-                  onExpiryPresetChange={setExpiryPreset}
-                  onCustomExpiryChange={setCustomExpiry}
-                />
-                <Collapsible
-                  open={isMetadataOpen}
-                  onOpenChange={setIsMetadataOpen}
+      renderDialog={() =>
+        generatedSecretKey ? (
+          <Dialog title="Gateway key created" size="md" closeLabel="Done">
+            <GeneratedKeyContent
+              organizationId={organizationId}
+              secretKey={generatedSecretKey}
+            />
+          </Dialog>
+        ) : (
+          <Dialog
+            title="Issue API key"
+            size="md"
+            actions={[
+              {
+                label: "Create key",
+                loading: create.isPending,
+                disabled: create.isPending || expiresAt === undefined,
+                onClick: submit,
+              },
+            ]}
+          >
+            <Dialog.Body>
+              <div>
+                <Label
+                  htmlFor="gateway-key-name"
+                  className="flex items-center gap-1.5"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="group flex items-center gap-2 text-left text-sm"
+                  Description
+                  <InfoTooltip label="About gateway key descriptions">
+                    Shown in the key list. Use it to describe what consumes the
+                    key.
+                  </InfoTooltip>
+                </Label>
+                <Input
+                  id="gateway-key-name"
+                  className="mt-1.5"
+                  maxLength={500}
+                  placeholder="e.g. Checkout agent, backend service"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
+              {canIssueServiceAccountKeys ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Issued as</Label>
+                  <div>
+                    <Tabs
+                      activationMode="manual"
+                      value={issuedAs}
+                      onValueChange={(value) => setIssuedAs(value as IssuedAs)}
+                    >
+                      <Tabs.List
+                        variant="inset"
+                        size="md"
+                        aria-label="Issued as"
                       >
-                        <ChevronRight
-                          size="base"
-                          color="tertiary"
-                          __rawClassName="translate-y-px transition-transform group-data-[state=open]:rotate-90"
+                        <Tabs.Trigger value="user" label="My user" />
+                        <Tabs.Trigger
+                          value="serviceAccount"
+                          label="Service account"
                         />
-                        <span>Metadata</span>
-                        <span className="text-muted-foreground font-normal">
-                          (optional)
-                          {metadataCount > 0 ? ` · ${metadataCount} set` : ""}
-                        </span>
-                      </button>
-                    </CollapsibleTrigger>
-                    <InfoTooltip label="About gateway key metadata">
-                      Attached to every trace from this key, so you can filter
-                      and group by it.
-                    </InfoTooltip>
+                      </Tabs.List>
+                    </Tabs>
                   </div>
-                  <CollapsibleContent className="mt-2 pl-5.5">
-                    <div className="flex flex-col gap-2">
-                      {metadata.map((field) => (
-                        <div
-                          key={field.id}
-                          className="ph-no-capture flex items-center gap-2"
-                        >
-                          <Input
-                            aria-label="Metadata key"
-                            placeholder="key"
-                            value={field.key}
-                            onChange={(event) =>
-                              setMetadata((current) =>
-                                current.map((item) =>
-                                  item.id === field.id
-                                    ? { ...item, key: event.target.value }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                          <Input
-                            aria-label="Metadata value"
-                            placeholder="value"
-                            value={field.value}
-                            onChange={(event) =>
-                              setMetadata((current) =>
-                                current.map((item) =>
-                                  item.id === field.id
-                                    ? { ...item, value: event.target.value }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            aria-label="Remove metadata field"
-                            onClick={() =>
-                              setMetadata((current) =>
-                                current.filter((item) => item.id !== field.id),
-                              )
-                            }
-                          >
-                            <X size="sm" color="default" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                  <p className="text-muted-foreground text-xs">
+                    {issuedAsDescriptions[issuedAs]}
+                  </p>
+                </div>
+              ) : null}
+              <ApiKeyExpirationInput
+                id="gateway-key-expiry"
+                expiryPreset={expiryPreset}
+                customExpiry={customExpiry}
+                onExpiryPresetChange={setExpiryPreset}
+                onCustomExpiryChange={setCustomExpiry}
+              />
+              <Collapsible
+                open={isMetadataOpen}
+                onOpenChange={setIsMetadataOpen}
+              >
+                <div className="flex items-center gap-1.5">
+                  <CollapsibleTrigger asChild>
                     <button
                       type="button"
-                      className="text-primary mt-2 flex items-center gap-1 text-sm hover:underline"
-                      onClick={() => {
-                        setMetadata((current) => [
-                          ...current,
-                          { id: nextMetadataId, key: "", value: "" },
-                        ]);
-                        setNextMetadataId((current) => current + 1);
-                      }}
+                      className="group flex items-center gap-2 text-left text-sm"
                     >
-                      <Plus size="base" />
-                      Add metadata
+                      <ChevronRight
+                        size="base"
+                        color="tertiary"
+                        __rawClassName="translate-y-px transition-transform group-data-[state=open]:rotate-90"
+                      />
+                      <span>Metadata</span>
+                      <span className="text-muted-foreground font-normal">
+                        (optional)
+                        {metadataCount > 0 ? ` · ${metadataCount} set` : ""}
+                      </span>
                     </button>
-                  </CollapsibleContent>
-                </Collapsible>
-                {create.isError ? (
-                  <Alert variant="destructive">
-                    <Alert.Title>Gateway key could not be created</Alert.Title>
-                    <Alert.Description>
-                      {create.error?.message ??
-                        "Check the metadata and try again."}
-                    </Alert.Description>
-                  </Alert>
-                ) : null}
-              </DialogBody>
-              <DialogFooter>
-                <Button variant="secondary" onClick={closeDialog}>
-                  Cancel
-                </Button>
-                <Button
-                  loading={create.isPending}
-                  disabled={create.isPending || expiresAt === undefined}
-                  onClick={submit}
-                >
-                  Create key
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </>
-      )}
+                  </CollapsibleTrigger>
+                  <InfoTooltip label="About gateway key metadata">
+                    Attached to every trace from this key, so you can filter and
+                    group by it.
+                  </InfoTooltip>
+                </div>
+                <CollapsibleContent className="mt-2 pl-5.5">
+                  <div className="flex flex-col gap-2">
+                    {metadata.map((field) => (
+                      <div
+                        key={field.id}
+                        className="ph-no-capture flex items-center gap-2"
+                      >
+                        <Input
+                          aria-label="Metadata key"
+                          placeholder="key"
+                          value={field.key}
+                          onChange={(event) =>
+                            setMetadata((current) =>
+                              current.map((item) =>
+                                item.id === field.id
+                                  ? { ...item, key: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <Input
+                          aria-label="Metadata value"
+                          placeholder="value"
+                          value={field.value}
+                          onChange={(event) =>
+                            setMetadata((current) =>
+                              current.map((item) =>
+                                item.id === field.id
+                                  ? { ...item, value: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          aria-label="Remove metadata field"
+                          onClick={() =>
+                            setMetadata((current) =>
+                              current.filter((item) => item.id !== field.id),
+                            )
+                          }
+                        >
+                          <X size="sm" color="default" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-primary mt-2 flex items-center gap-1 text-sm hover:underline"
+                    onClick={() => {
+                      setMetadata((current) => [
+                        ...current,
+                        { id: nextMetadataId, key: "", value: "" },
+                      ]);
+                      setNextMetadataId((current) => current + 1);
+                    }}
+                  >
+                    <Plus size="base" />
+                    Add metadata
+                  </button>
+                </CollapsibleContent>
+              </Collapsible>
+              {create.isError ? (
+                <Alert variant="destructive">
+                  <Alert.Title>Gateway key could not be created</Alert.Title>
+                  <Alert.Description>
+                    {create.error?.message ??
+                      "Check the metadata and try again."}
+                  </Alert.Description>
+                </Alert>
+              ) : null}
+            </Dialog.Body>
+          </Dialog>
+        )
+      }
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) =>
+        children({
+          openDialog: () => {
+            reset();
+            openDialog();
+          },
+        })
+      }
     </DialogController>
   );
 }

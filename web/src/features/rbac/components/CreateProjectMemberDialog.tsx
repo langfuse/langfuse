@@ -38,6 +38,8 @@ type CreateProjectMemberDialogProps = {
   project: { id: string; name: string } | undefined;
   hasOnlySingleProjectAccess: boolean;
   hasProjectRoleEntitlement: boolean;
+  canManageOrgOwnership: boolean;
+  canManageProjectOwnership: boolean;
   isPending: boolean;
   createProjectMember: (values: FormValues) => Promise<void>;
   onSuccess: () => void;
@@ -47,6 +49,8 @@ export function CreateProjectMemberDialog({
   project,
   hasOnlySingleProjectAccess,
   hasProjectRoleEntitlement,
+  canManageOrgOwnership,
+  canManageProjectOwnership,
   isPending,
   createProjectMember,
   onSuccess,
@@ -121,6 +125,7 @@ export function CreateProjectMemberDialog({
                     <FormLabel>Organization Role</FormLabel>
                     <RoleSelect
                       roles={Object.values(roleValues)}
+                      canManageOwnership={canManageOrgOwnership}
                       value={field.value}
                       onValueChange={field.onChange}
                     />
@@ -138,6 +143,7 @@ export function CreateProjectMemberDialog({
                     <FormLabel>Project Role</FormLabel>
                     <RoleSelect
                       isProjectRole
+                      canManageOwnership={canManageProjectOwnership}
                       roles={Object.values(roleValues).filter(
                         (role) =>
                           !hasOnlySingleProjectAccess ||

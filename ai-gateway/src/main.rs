@@ -5,6 +5,7 @@ use ai_gateway::{
     http,
     inference::InferenceService,
     observability,
+    resolution::ControlPlaneConfig,
     server::{self, GatewayLifecycleState},
 };
 use tokio::net::TcpListener;
@@ -27,6 +28,15 @@ async fn main() -> ExitCode {
 async fn run() -> Result<(), Box<dyn Error>> {
     let mut config = GatewayConfig::from_env()?;
     let observability = observability::init(&config)?;
+    if config
+        .control_plane
+        .as_ref()
+        .is_some_and(ControlPlaneConfig::is_plain_http)
+    {
+        tracing::warn!(
+            "LANGFUSE_AI_GATEWAY_WEB_URL uses plain HTTP off loopback (LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true); provider API keys, the service key and ingestion tokens travel unencrypted. Only use it for internal traffic such as Web's in-cluster Kubernetes Service, never for a URL that crosses the public internet"
+        );
+    }
     let inference = config
         .control_plane
         .take()

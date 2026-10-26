@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 4;

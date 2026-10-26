@@ -4,9 +4,7 @@ import { EmbeddingMapView } from "./EmbeddingMapView";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 export function TopicEmbeddingMap({
-  projectId,
   query,
-  onOpenTrace,
   topics,
   selectedTopic,
   onSelectTopic,
@@ -14,6 +12,7 @@ export function TopicEmbeddingMap({
   selectedTraceId,
   matchingTraceIds,
   fillContainer = false,
+  previewOnSelect = false,
 }: TopicEmbeddingMapProps) {
   if (query.error)
     return (
@@ -34,8 +33,6 @@ export function TopicEmbeddingMap({
     );
   return (
     <EmbeddingMapView
-      projectId={projectId}
-      onOpenTrace={onOpenTrace}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
@@ -44,17 +41,16 @@ export function TopicEmbeddingMap({
       selectedTraceId={selectedTraceId}
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
+      previewOnSelect={previewOnSelect}
     />
   );
 }
 
 type TopicEmbeddingMapProps = {
-  projectId: string;
   query: {
     data?: RouterOutputs["topics"]["map"];
     error: { message: string } | null;
   };
-  onOpenTrace: (traceId: string) => void;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
@@ -62,6 +58,7 @@ type TopicEmbeddingMapProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
+  previewOnSelect?: boolean;
 };
 
 type Topic = Pick<

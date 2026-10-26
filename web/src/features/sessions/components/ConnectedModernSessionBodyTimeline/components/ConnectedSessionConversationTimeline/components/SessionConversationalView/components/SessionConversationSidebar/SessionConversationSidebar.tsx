@@ -19,6 +19,7 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
+import { HighlightedText } from "@/src/components/HighlightedText/HighlightedText";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
@@ -427,7 +428,25 @@ export function SessionConversationSidebar(
                             className="min-w-0 flex-1 truncate text-[13px] font-bold"
                             title={trace.name ?? "Trace"}
                           >
-                            {trace.name ?? "Trace"}
+                            <HighlightedText
+                              text={trace.name ?? "Trace"}
+                              query={searchQuery}
+                            >
+                              {(parts) =>
+                                parts.map(({ text, isMatch }, index) =>
+                                  isMatch ? (
+                                    <mark
+                                      key={index}
+                                      className="bg-find-match-background text-foreground"
+                                    >
+                                      {text}
+                                    </mark>
+                                  ) : (
+                                    text
+                                  ),
+                                )
+                              }
+                            </HighlightedText>
                           </span>
                         </button>
                         <button
@@ -631,34 +650,30 @@ export function SessionConversationSidebar(
                                               ),
                                           );
                                     const text = row.label.slice(start, end);
-                                    const normalizedText = text.toLowerCase();
                                     if (start > 0) excerpt.push("…");
-                                    let position = 0;
-                                    while (position < text.length) {
-                                      const nextMatch = normalizedText.indexOf(
-                                        normalizedQuery,
-                                        position,
-                                      );
-                                      if (nextMatch === -1) {
-                                        excerpt.push(text.slice(position));
-                                        break;
-                                      }
-                                      excerpt.push(
-                                        text.slice(position, nextMatch),
-                                      );
-                                      excerpt.push(
-                                        <mark
-                                          key={nextMatch}
-                                          className="bg-find-match-background text-foreground"
-                                        >
-                                          {text.slice(
-                                            nextMatch,
-                                            nextMatch + searchQuery.length,
-                                          )}
-                                        </mark>,
-                                      );
-                                      position = nextMatch + searchQuery.length;
-                                    }
+                                    excerpt.push(
+                                      <HighlightedText
+                                        key="text"
+                                        text={text}
+                                        query={searchQuery}
+                                      >
+                                        {(parts) =>
+                                          parts.map(
+                                            ({ text, isMatch }, index) =>
+                                              isMatch ? (
+                                                <mark
+                                                  key={index}
+                                                  className="bg-find-match-background text-foreground"
+                                                >
+                                                  {text}
+                                                </mark>
+                                              ) : (
+                                                text
+                                              ),
+                                          )
+                                        }
+                                      </HighlightedText>,
+                                    );
                                     if (end < row.label.length)
                                       excerpt.push("…");
                                   }

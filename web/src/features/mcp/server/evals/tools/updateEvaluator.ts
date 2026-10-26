@@ -13,6 +13,7 @@ export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
   description: [
     "Update an evaluator by stable id. Definition changes append an immutable version; name and description changes do not.",
     "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state. Use an OpenAI connection with an allowlisted decision model (currently `gpt-6-luna`), or a TypeSafe connection.",
+    "Call listLlmConnections to find valid modelConfig provider names and models.",
   ].join(" "),
   action: "evaluator:CUD",
   baseSchema: McpUpdateEvaluatorInputBase,

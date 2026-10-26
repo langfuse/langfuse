@@ -1,11 +1,11 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useMemo, useState } from "react";
-import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
@@ -31,7 +31,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
   type TopicExecutionStatus,
@@ -41,17 +41,28 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
+import { cn } from "@/src/utils/tailwind";
+import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { TopicsMobileControls } from "./TopicsMobileControls";
+import { resolveTopicFacetId } from "./topic-facet-selection";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
+import {
+  TopicsResultsViewSelect,
+  useTopicsResultsView,
+} from "./TopicsResultsViewSelect";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
+import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
-import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
+import { prepareTopicsActions } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
@@ -95,8 +106,8 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   failed: "Facet failed",
 };
 const loadingPage = (
-  <Page headerProps={{ title: "Topics" }} withPadding>
-    <p>Loading topics…</p>
+  <Page headerProps={{ title: "Topics" }}>
+    <Spinner message="Loading topics" />
   </Page>
 );
 
@@ -104,7 +115,7 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  const topicsEnabled = useCanViewTopics(projectId);
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
@@ -119,27 +130,6 @@ export default function TopicsPage() {
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
-  return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicsWorkspaceView
-        key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-        projectId={projectId}
-        facets={facets}
-      />
-    </TopicsWorkspaceGate>
-  );
-}
-
-type TopicsWorkspaceViewProps = {
-  projectId: string;
-  facets: UseQueryResult<TopicFacet[], { message: string }>;
-};
-
-/**
- * Wraps the workspace in the dialog controllers whose dialogs open from more
- * than one place, and hands their `openDialog` to the content.
- */
-function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const modelSettings = useTopicModelSettings({
     projectId,
@@ -147,6 +137,48 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      <TopicSetupFlowController
+        projectId={projectId}
+        canWrite={canWrite}
+        settings={modelSettings.configure.settings}
+        onSaveSampling={modelSettings.automaticProcessing.save}
+      >
+        {({ openSetup }) => (
+          <TopicsWorkspaceView
+            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+            projectId={projectId}
+            facets={facets}
+            canWrite={canWrite}
+            modelSettings={modelSettings}
+            openSetup={openSetup}
+          />
+        )}
+      </TopicSetupFlowController>
+    </TopicsWorkspaceGate>
+  );
+}
+
+type TopicsWorkspaceViewProps = {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openSetup: () => void;
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openSetup,
+}: TopicsWorkspaceViewProps) {
   return (
     <ConfigureTopicsDialogController
       projectId={projectId}
@@ -163,6 +195,7 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
               canWrite={canWrite}
               modelSettings={modelSettings}
               openConfigure={openConfigure}
+              openSetup={openSetup}
               openAutomaticProcessing={openAutomaticProcessing}
             />
           )}
@@ -173,8 +206,6 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
 }
 
 type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
-  canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
   openConfigure: () => void;
   openAutomaticProcessing: (initialEnabled: boolean) => void;
 };
@@ -185,9 +216,11 @@ function TopicsWorkspaceContent({
   canWrite,
   modelSettings,
   openConfigure,
+  openSetup,
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [resultsView, setResultsView] = useTopicsResultsView();
   const [generationRange, setGenerationRange] = useState<{
     selection: TimeRange;
     bounds: TopicTimeRange;
@@ -224,12 +257,54 @@ function TopicsWorkspaceContent({
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) =>
-        query.state.data?.some((execution) => busy(execution.status))
+      refetchInterval: (query) => {
+        const data = query.state.data ?? [];
+        if (data.some((execution) => busy(execution.status))) return 3000;
+        // Keep polling through the hand-off from summaries to the topic update.
+        const run = topicSetupRun(data);
+        return run &&
+          !run.update &&
+          topicSetupStage(run, Date.now()).stage === "grouping"
           ? 3000
-          : false,
+          : false;
+      },
     },
   );
+  const [mountedAt] = useState(Date.now);
+  const setupRun = topicSetupRun(executions.data ?? []);
+  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
+  // A finished run hands over to results; a failure from this visit stays until retried.
+  const showSetupProgress =
+    setupRun !== null &&
+    setup !== null &&
+    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
+      (setup.stage === "failed" &&
+        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
+          mountedAt));
+  const setupRetry = api.topics.retry.useMutation({
+    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
+  });
+  const setupDetailsId =
+    setupRun && setup?.stage === "failed"
+      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
+      : null;
+  const runFacets = (run: typeof setupRun) =>
+    run?.process.facets.map((facet) => {
+      return {
+        key: `${facet.facetId}:${facet.facetVersion}`,
+        name:
+          facets.data?.find((item) => item.id === facet.facetId)?.name ??
+          "Facet",
+        complete: facet.counts.complete,
+        requested: facet.counts.requested,
+      };
+    }) ?? [];
+  const setupFacets = runFacets(setupRun);
+  const busyProcess =
+    (executions.data ?? []).find(
+      (execution) =>
+        execution.input.operation === "process" && busy(execution.status),
+    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -288,6 +363,10 @@ function TopicsWorkspaceContent({
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
+  const setupBlockedReason = startBlockedReason(
+    running,
+    modelSettings.automaticProcessing.state.status === "on",
+  );
   const results = useCurrentTopics({
     projectId,
     running,
@@ -386,64 +465,70 @@ function TopicsWorkspaceContent({
           openManual("update");
         }
         const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
-        const showOnboarding =
+        const headerFacetId = resolveTopicFacetId(
+          results.data?.facets ?? [],
+          selectedFacetId,
+        );
+        const showLanding =
           validTimeRange &&
           results.data !== undefined &&
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+        const landingRun =
+          showLanding && !showSetupProgress && busyProcess
+            ? { process: busyProcess, update: null }
+            : null;
+        const waitingForTraces =
+          showLanding &&
+          !showSetupProgress &&
+          !landingRun &&
+          modelSettings.automaticProcessing.state.status === "on";
+        const showOnboarding = showSetupProgress || showLanding;
+        const landingOnly =
+          showLanding && !showSetupProgress && !setupBlockedReason;
+        const actions = prepareTopicsActions({
+          automaticProcessing,
+          canWrite,
+          configured,
+          configureAvailable: modelSettings.configure.settings !== null,
+          configureVariant: modelSettings.configure.triggerVariant,
+          manualAvailable: pipeline.available,
+          menuOnly: landingOnly,
+          onAutomaticProcessing: openAutomaticProcessingFromHeader,
+          onConfigure: configured ? openConfigure : openSetup,
+          onManualProcessing: openManualProcessing,
+          onHistory: openHistory,
+          onRefresh: refreshResults,
+        });
         return (
           <Page
             headerProps={{
               title: "Topics",
-              help: {
-                description:
-                  "Explore recurring themes across traces, one facet at a time.",
-              },
-              actionButtonsRight: (
-                <TopicsHeaderActions
-                  automaticProcessing={automaticProcessing}
-                  configure={modelSettings.configure}
-                  configured={configured}
-                  canWrite={canWrite}
-                  manualAvailable={pipeline.available}
-                  openManual={openManualProcessing}
-                  onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                  onConfigure={openConfigure}
-                  onHistory={openHistory}
-                  onRefresh={refreshResults}
-                />
+              className: "@container/topics-header",
+              actionButtonsLeft: showOnboarding ? null : (
+                <div className="flex items-center gap-3">
+                  {validTimeRange && headerFacetId && (
+                    <TopicsFacetTabs
+                      facets={results.data?.facets ?? []}
+                      selectedFacet={headerFacetId}
+                      onSelectFacet={traceFilters.selectFacet}
+                    />
+                  )}
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-sm whitespace-nowrap">
+                    Visualize as
+                    <TopicsResultsViewSelect
+                      value={resultsView}
+                      onValueChange={setResultsView}
+                    />
+                  </span>
+                </div>
               ),
-              actionButtonsMenu: ({ closeMenu }) => {
-                function handleConfigureFromMenu() {
-                  closeMenu();
-                  openConfigure();
-                }
-                return (
-                  <TopicsActionsMenu
-                    triggerAction={
-                      pipeline.available
-                        ? {
-                            label: "Manual processing",
-                            disabled: false,
-                            onSelect: openManualProcessing,
-                          }
-                        : null
-                    }
-                    closeMenu={closeMenu}
-                    onOpenHistory={openHistory}
-                    onRefresh={refreshResults}
-                  >
-                    {configured ? (
-                      <HeaderActionMenuRow
-                        label="Configure Topics"
-                        icon={<Settings size="base" color="default" />}
-                        onClick={handleConfigureFromMenu}
-                      />
-                    ) : null}
-                  </TopicsActionsMenu>
-                );
-              },
+              actionButtonsRight: <TopicsHeaderActions actions={actions} />,
+              actionButtonsMenu: ({ closeMenu }) => (
+                <TopicsActionsMenu actions={actions} closeMenu={closeMenu} />
+              ),
             }}
           >
             {!showOnboarding && (
@@ -458,7 +543,23 @@ function TopicsWorkspaceContent({
                 />
               </PageHeaderControlsPortal>
             )}
-            <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+            <div
+              className={cn(
+                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                showOnboarding && "p-2",
+              )}
+            >
+              {!showOnboarding && validTimeRange && headerFacetId && (
+                <div className="shrink-0 px-3 pt-2 md:hidden">
+                  <TopicsMobileControls
+                    facets={results.data?.facets ?? []}
+                    selectedFacet={headerFacetId}
+                    onSelectFacet={traceFilters.selectFacet}
+                    view={resultsView}
+                    onSelectView={setResultsView}
+                  />
+                </div>
+              )}
               {isTimeRangeCapped && (
                 <p
                   role="status"
@@ -477,17 +578,57 @@ function TopicsWorkspaceContent({
                 notice={modelSettings.notice}
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
-                onConfigure={openConfigure}
+                onStart={openSetup}
+                startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showOnboarding}
-                configured={configured}
-                canProcess={canWrite && !modelSettings.notice.unavailable}
-                automaticEnabled={automaticProcessing.state.status === "on"}
-                running={running}
-                onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                onManualProcessing={openManualProcessing}
+                showOnboarding={
+                  showLanding &&
+                  !showSetupProgress &&
+                  !landingRun &&
+                  !waitingForTraces
+                }
               />
+              {landingRun ? (
+                <TopicSetupProgressView
+                  stage={topicSetupStage(landingRun, Date.now()).stage}
+                  facets={runFacets(landingRun)}
+                  retrying={false}
+                  canRetry={false}
+                  onViewDetails={() => openExecution(landingRun.process.id)}
+                  onRetry={refreshResults}
+                />
+              ) : null}
+              {waitingForTraces ? (
+                <TopicSetupProgressView
+                  waiting
+                  stage="summarizing"
+                  facets={[]}
+                  retrying={false}
+                  canRetry={false}
+                  onRetry={refreshResults}
+                />
+              ) : null}
+              {showSetupProgress && setup ? (
+                <TopicSetupProgressView
+                  stage={setup.stage}
+                  facets={setupFacets}
+                  retrying={setupRetry.isPending}
+                  canRetry={setup.retryId !== null}
+                  onViewDetails={
+                    setupDetailsId
+                      ? () => openExecution(setupDetailsId)
+                      : undefined
+                  }
+                  onRetry={() => {
+                    if (setup.retryId)
+                      setupRetry.mutate({
+                        projectId,
+                        executionId: setup.retryId,
+                      });
+                  }}
+                />
+              ) : null}
               <Sheet
                 open={historyOpen || executionId !== null}
                 onOpenChange={showExecutionList}
@@ -582,27 +723,19 @@ function TopicsWorkspaceContent({
                   widthStorageKey="topicsPeekViewWidthFraction"
                 />
                 {validTimeRange && !showOnboarding && (
-                  <TopicsFilters
-                    facets={results.data?.facets ?? []}
-                    selectedFacetId={selectedFacetId}
-                    onSelectFacet={traceFilters.selectFacet}
-                  >
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <CurrentTopics
                       projectId={projectId}
                       timeRange={currentTimeRange}
                       result={results}
                       selectedFacetId={selectedFacetId}
+                      view={resultsView}
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={
-                        canWrite &&
-                        !modelSettings.notice.unavailable &&
-                        !running &&
-                        configured
-                      }
+                      canGenerateTopics={canWrite && !running && configured}
                     />
-                  </TopicsFilters>
+                  </div>
                 )}
                 {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
@@ -907,4 +1040,12 @@ function ErrorMessage({ message }: { message: string }) {
       </Alert.Description>
     </Alert>
   );
+}
+
+function startBlockedReason(running: boolean, automaticOn: boolean) {
+  if (running)
+    return "Analysis is running. Topics appear here when it finishes.";
+  if (automaticOn)
+    return "Automatic processing is on. Topics appear here as traces are summarized.";
+  return null;
 }

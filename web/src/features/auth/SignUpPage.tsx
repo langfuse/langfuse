@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -17,8 +18,8 @@ import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useRef, useState } from "react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import {
   FALLBACK_AUTH_PROVIDERS,
   SSOButtons,

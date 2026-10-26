@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -19,6 +20,7 @@ const dialogContentVariants = cva(
       size: {
         sm: "sm:max-w-md",
         default: "sm:max-w-lg",
+        md: "sm:max-w-2xl",
         lg: "sm:max-w-4xl",
         xxl: "sm:h-[90vh] sm:max-w-[95vw]",
       },
@@ -41,7 +43,8 @@ type DialogAction = {
 };
 
 type DialogProps = {
-  actions?: ReadonlyArray<DialogAction>;
+  /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
+  closeLabel?: string;
   closeOnInteractionOutside?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
@@ -50,11 +53,15 @@ type DialogProps = {
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
-);
+) & {
+    /** Decision footer: the close button is added before these actions. */
+    actions?: ReadonlyArray<DialogAction>;
+  };
 
 function DialogRoot({
   actions,
   children,
+  closeLabel,
   closeOnInteractionOutside = false,
   stopPropagationOnEnterSpace = true,
   size,
@@ -64,7 +71,19 @@ function DialogRoot({
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
-  const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  // Radix auto-focuses only on open; a dialog that swaps to a close-only
+  // footer while open (e.g. after a submit) would otherwise drop focus to the
+  // document body.
+  const attachCloseOnlyButton = React.useCallback(
+    (button: HTMLButtonElement | null) => {
+      closeButtonRef.current = button;
+      button?.focus();
+    },
+    [],
+  );
+  const hasActions = Boolean(actions?.length);
+  const isCloseOnly = !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -83,6 +102,12 @@ function DialogRoot({
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
           // than immediately triggering a destructive action.
+          if (isCloseOnly) {
+            event.preventDefault();
+            closeButtonRef.current?.focus();
+            return;
+          }
+
           if (text === undefined) return;
 
           let safeActionButton: HTMLButtonElement | null = null;
@@ -105,7 +130,7 @@ function DialogRoot({
             return;
           }
 
-          cancelButtonRef.current?.focus();
+          closeButtonRef.current?.focus();
         }}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -141,16 +166,24 @@ function DialogRoot({
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
           </PopoverLayerProvider>
-          {actions?.length ? (
+          {hasActions || isCloseOnly ? (
             <DialogFooter>
               <DialogPrimitive.Close asChild>
-                <Button
-                  ref={cancelButtonRef}
-                  variant="secondary"
-                  text="Cancel"
-                />
+                {isCloseOnly ? (
+                  <Button
+                    ref={attachCloseOnlyButton}
+                    variant="primary"
+                    text={closeLabel}
+                  />
+                ) : (
+                  <Button
+                    ref={closeButtonRef}
+                    variant="secondary"
+                    text={closeLabel ?? "Cancel"}
+                  />
+                )}
               </DialogPrimitive.Close>
-              {actions.map(
+              {actions?.map(
                 ({ icon: Icon, label, variant, ...buttonProps }, index) => (
                   <Button
                     key={label}

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -11,6 +10,65 @@ const meta = preview.meta({
 });
 
 export default meta;
+
+export const ReasoningVariants = meta.story({
+  name: "(Test) Reasoning Variants",
+  args: {
+    role: "assistant",
+    parts: [
+      { type: "reasoning", content: { kind: "text", text: "" } },
+      { type: "reasoning", content: { kind: "text", text: " \n\t " } },
+      { type: "reasoning", content: { kind: "redacted", data: "" } },
+      { type: "reasoning", content: { kind: "redacted", data: " \n\t " } },
+      {
+        type: "reasoning",
+        content: { kind: "encrypted", data: "opaque-payload" },
+      },
+      {
+        type: "reasoning",
+        content: { kind: "text", text: "Readable reasoning" },
+      },
+      {
+        type: "reasoning",
+        content: { kind: "redacted", data: "Redacted payload" },
+      },
+      {
+        type: "reasoning",
+        content: {
+          kind: "data",
+          value: { checks: ["source available", "answer supported"] },
+        },
+      },
+      { type: "text", text: "Here is the result." },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Reasoning")).toHaveLength(3);
+    await expect(canvas.getAllByText("Redacted reasoning")).toHaveLength(3);
+    await expect(canvas.getByText("Encrypted reasoning")).toBeVisible();
+
+    const expandButtons = canvas.getAllByRole("button", {
+      name: (name) => name.startsWith("Expand "),
+    });
+    await expect(expandButtons).toHaveLength(3);
+    for (const button of expandButtons) {
+      await expect(button).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(button);
+      await expect(button).toHaveAttribute("aria-expanded", "true");
+    }
+    await expect(canvas.getByText("Readable reasoning")).toBeVisible();
+    await expect(canvas.getByText("Redacted payload")).toBeVisible();
+    await expect(canvas.getByText("Reasoning data")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", {
+        name: (name) => name === "Expand checks" || name === "Collapse checks",
+      }),
+    ).toBeVisible();
+    await expect(canvasElement).toHaveTextContent("source available");
+    await expect(canvasElement).toHaveTextContent("answer supported");
+  },
+});
 
 export const ReasoningActions = meta.story({
   name: "(Test) Reasoning Actions At Every Position",
@@ -33,27 +91,25 @@ export const ReasoningActions = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const rows = canvasElement.querySelectorAll("section");
-    await expect(rows).toHaveLength(4);
-    for (const row of rows) {
-      const header = row.firstElementChild!;
-      const action = within(row).getByText("Open generation", {
-        selector: "button",
-      });
-      const divider = header.querySelector(
-        '[aria-hidden="true"].border-dashed',
-      )!;
-      await expect(divider).toBeInTheDocument();
-      await expect(action).toHaveClass("group-hover/collapsible-row:visible");
-      const trigger = within(row).queryByRole("button", { name: "Reasoning" });
-      if (trigger) {
-        await userEvent.click(trigger);
-        await expect(trigger).toHaveFocus();
-        await expect(trigger).toHaveAttribute("aria-expanded", "true");
-        await expect(action).toBeVisible();
-        await expect(divider).toBeVisible();
-      }
-      await userEvent.click(action);
+    for (const trigger of canvas.getAllByRole("button", {
+      name: "Reasoning",
+    })) {
+      await userEvent.click(trigger);
+      await expect(trigger).toHaveFocus();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    }
+    const actions = canvas.getAllByText("Open generation");
+    await expect(actions).toHaveLength(4);
+    const headers = canvas.getAllByText(
+      (text) => text === "Reasoning" || text === "Encrypted reasoning",
+    );
+    const pointer =
+      "__vitest_browser__" in globalThis
+        ? (await import("vitest/browser")).userEvent
+        : userEvent;
+    for (const [index, header] of headers.entries()) {
+      await pointer.hover(header);
+      await pointer.click(actions[index]!);
     }
     await expect(args.onOpenObservation).toHaveBeenCalledTimes(4);
     await expect(
@@ -111,26 +167,17 @@ export const TallPlainText = meta.story({
         ),
       },
     ],
-    onOpenObservation: () => {},
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const toggle = await canvas.findByRole("button", { name: "Show more" });
-    const content = canvasElement.ownerDocument.getElementById(
-      toggle.getAttribute("aria-controls") ?? "",
-    );
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(content).toHaveClass("max-h-96");
     await userEvent.click(toggle);
     await expect(
       canvas.getByRole("button", { name: "Show less" }),
     ).toHaveAttribute("aria-expanded", "true");
-    await expect(content).not.toHaveClass("max-h-96");
     await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(
-      canvas.getByRole("button", { name: "Open observation" }),
-    ).toBeInTheDocument();
   },
 });
 
@@ -148,11 +195,7 @@ export const TallMarkdown = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const toggle = await canvas.findByRole("button", { name: "Show more" });
-    const content = canvasElement.ownerDocument.getElementById(
-      toggle.getAttribute("aria-controls") ?? "",
-    );
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(content).toHaveClass("max-h-96");
     await userEvent.click(toggle);
     await expect(
       canvas.getAllByRole("heading", { name: "Heading" }),
@@ -160,10 +203,8 @@ export const TallMarkdown = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Show less" }),
     ).toHaveAttribute("aria-expanded", "true");
-    await expect(content).not.toHaveClass("max-h-96");
     await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(content).toHaveClass("max-h-96");
   },
 });
 
@@ -280,48 +321,6 @@ export const MixedTextAndData = meta.story({
       canvas.getByText("The structured result follows."),
     ).toBeVisible();
     await expect(canvasElement).toHaveTextContent("confidence");
-  },
-});
-
-export const ReasoningData = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: {
-          kind: "data",
-          value: { checks: ["source available", "answer supported"] },
-        },
-      },
-      { type: "text", text: "The answer is supported by the source." },
-    ],
-  },
-});
-
-export const RedactedReasoning = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: { kind: "redacted", data: "redacted-provider-payload" },
-      },
-      { type: "text", text: "Here is the result." },
-    ],
-  },
-});
-
-export const EncryptedReasoning = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: { kind: "encrypted", data: "encrypted-provider-payload" },
-      },
-      { type: "text", text: "Here is the result." },
-    ],
   },
 });
 

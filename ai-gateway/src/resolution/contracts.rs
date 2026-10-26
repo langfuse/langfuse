@@ -244,6 +244,10 @@ pub struct RequestAttribution {
     /// Absent only in [`IngestionMode::None`], which needs no ingestion project.
     project_id: Option<ProjectId>,
     key_id: String,
+    /// The user the key is bound to. Absent for keys created before keys were
+    /// bound to users, and from Web versions that predate the field.
+    #[serde(default)]
+    user_id: Option<String>,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
@@ -257,6 +261,9 @@ impl RequestAttribution {
     }
     pub fn key_id(&self) -> &str {
         &self.key_id
+    }
+    pub fn user_id(&self) -> Option<&str> {
+        self.user_id.as_deref()
     }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata
@@ -404,6 +411,7 @@ pub(super) fn decode(
         ]
         .into_iter()
         .chain(attribution.project_id.as_ref().map(ProjectId::as_str))
+        .chain(attribution.user_id.as_deref())
         .any(|value| value.trim().is_empty())
         || connection.provider_model.trim().is_empty()
     {

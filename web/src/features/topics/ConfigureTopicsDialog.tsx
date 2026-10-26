@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -13,7 +14,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -321,7 +322,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             compactBottomSpacing
           >
             <div className="flex items-center gap-2">
-              <div className="w-24">
+              <div className="w-24 shrink-0">
                 <Input
                   aria-label="Seconds to wait after the last observation"
                   type="number"
@@ -419,11 +420,11 @@ function ModelSlot({
   );
 
   return (
-    <div className="flex items-start gap-2">
-      <p className="flex h-8 w-36 shrink-0 items-center text-sm font-bold">
+    <div className="flex flex-col items-start gap-2 sm:flex-row">
+      <p className="flex shrink-0 items-center text-sm font-bold sm:h-8 sm:w-36">
         {copy.label}
       </p>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
         {locked ? (
           <Tooltip>
             <TooltipTrigger asChild>{fields}</TooltipTrigger>

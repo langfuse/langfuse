@@ -9,6 +9,7 @@ import {
 } from "@/src/server/utils/jwt";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -31,16 +32,12 @@ let cachedGatewayIngestionTokenSigner:
   | undefined;
 
 function getGatewayIngestionTokenSigner() {
-  const privateKey = env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY;
-  if (!privateKey) return undefined;
-
-  const publicKey = env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY;
-  const keyId = env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID;
-  if (!publicKey || !keyId) {
-    throw new Error(
-      "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY, LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY, and LANGFUSE_AI_GATEWAY_JWT_KEY_ID must be set together",
-    );
-  }
+  const { privateKey, keyId } = resolveGatewayJwtKeys({
+    privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+  });
+  if (!privateKey || !keyId) return undefined;
 
   const config = {
     privateKey,
@@ -118,6 +115,7 @@ export class GatewayResolveService {
           organization_id: context.organizationId,
           project_id: ingestionProjectId,
           key_id: context.apiKeyId,
+          user_id: context.userId,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },

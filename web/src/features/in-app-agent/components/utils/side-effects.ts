@@ -23,7 +23,8 @@ export type InAppAgentTrpcInvalidationTarget =
   | "prompts"
   | "scoreAnalytics"
   | "scoreConfigs"
-  | "scores";
+  | "scores"
+  | "skills";
 
 type InAppAgentMcpToolName = `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
@@ -83,6 +84,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_attachEvaluatorToEvaluationRule: ["evals"],
   langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
+  langfuse_runBatchEvaluation: ["evals"],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
@@ -99,6 +101,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
   langfuse_deleteModel: ["models"],
+  langfuse_listLlmConnections: [],
   langfuse_listObservations: [],
   langfuse_getObservation: [],
   langfuse_getObservationFieldSchema: [],
@@ -116,6 +119,9 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getSkill: [],
   langfuse_loadSkill: [],
   langfuse_loadSkillResource: [],
+  langfuse_createSkillVersion: ["skills"],
+  langfuse_updateSkillLabels: ["skills"],
+  langfuse_updateSkillTags: ["skills"],
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
@@ -213,6 +219,9 @@ function performTargetInvalidation(
   }
   if (target === "scores") {
     return utils.scores.invalidate();
+  }
+  if (target === "skills") {
+    return utils.skills.invalidate();
   }
 
   return assertUnreachable(target);

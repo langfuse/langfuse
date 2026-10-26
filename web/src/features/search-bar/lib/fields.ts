@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 // Field registry — the single source of truth for autocomplete, validation,
 // operator choice, and lowering into the flat Langfuse `FilterState`.
 //
@@ -408,6 +408,8 @@ export const FIELDS: FieldDef[] = [
   { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
   { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
   { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
+  { id: "skillNamesAvailable", aliases: ["availableSkills", "available_skills"], kind: "text", syncMode: "arrayOption", label: "Available skills", description: "Available skill names" },
+  { id: "skillsNamesLoaded", aliases: ["loadedSkills", "loaded_skills"], kind: "text", syncMode: "arrayOption", label: "Loaded skills", description: "Loaded skill names" },
   { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },
   { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", label: "Tool call count", description: "Tool call count", nullable: true },
   { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", label: "Comment count", description: "Comment count" },

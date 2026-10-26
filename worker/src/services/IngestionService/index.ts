@@ -13,6 +13,7 @@ import {
   safeJsonParse,
   type JsonNested,
   type SkillsAvailable,
+  type SkillsAvailableInput,
   type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
@@ -1257,7 +1258,7 @@ export class IngestionService {
   }: {
     projectId: string;
     type: EventRecordInsertType["type"];
-    available?: SkillsAvailable;
+    available?: SkillsAvailableInput;
     loaded?: SkillsResourceLoaded;
   }): Promise<{
     skills_available: SkillsAvailable;
@@ -1277,21 +1278,21 @@ export class IngestionService {
     }
     available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
     loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
-    const versions = available.flatMap(({ skillName, skillVersion }) =>
-      skillVersion == null ? [] : [{ name: skillName, version: skillVersion }],
+    const versions = available.flatMap(({ name, version }) =>
+      version == null ? [] : [{ name, version }],
     );
     const skills = await this.skillCacheService.getReferences({
       projectId,
       versions,
     });
 
-    const availableSkills = available.map(({ skillName, skillVersion }) => {
+    const availableSkills = available.map(({ name, version }) => {
       const skill = skills.find(
-        (skill) => skill.name === skillName && skill.version === skillVersion,
+        (skill) => skill.name === name && skill.version === version,
       );
       return {
-        skillName,
-        skillVersion: skill?.version ?? skillVersion,
+        name,
+        version: skill?.version ?? version,
         langfuseSkillId: skill?.id,
       };
     });
@@ -1299,7 +1300,7 @@ export class IngestionService {
     const loadedResources = loaded.map(
       ({ skillName, filePath, skillVersion }) => {
         const candidates = availableSkills.filter(
-          (skill) => skill.skillName === skillName,
+          (skill) => skill.name === skillName,
         );
         if (candidates.length !== 1)
           return { skillName, filePath, skillVersion };
@@ -1309,13 +1310,20 @@ export class IngestionService {
           skillName,
           filePath,
           langfuseSkillId: skill?.langfuseSkillId,
-          skillVersion: skill.skillVersion ?? skillVersion,
+          skillVersion: skill.version ?? skillVersion,
         };
       },
     );
 
     return {
-      skills_available: type === "GENERATION" ? availableSkills : [],
+      skills_available:
+        type === "GENERATION"
+          ? availableSkills.map(({ name, version, langfuseSkillId }) => ({
+              skillName: name,
+              skillVersion: version,
+              langfuseSkillId,
+            }))
+          : [],
       skills_resource_loaded: loadedResources,
     };
   }

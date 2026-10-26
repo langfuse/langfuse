@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { PostHogLogo } from "@/src/components/PostHogLogo";
 import Header from "@/src/components/layouts/header";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

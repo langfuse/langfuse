@@ -157,6 +157,11 @@ export default async function handler(
       Record<string, unknown>
     >({
       ...chOpts,
+      tags: {
+        ...chOpts.tags,
+        surface: "internalapi",
+        route: "POST /api/dashboard/execute-query-stream",
+      },
       clickhouseSettings: {
         ...chOpts.clickhouseSettings,
         cancel_http_readonly_queries_on_client_close: 1,

@@ -5,7 +5,7 @@ import {
   StringParam,
   ArrayParam,
 } from "use-query-params";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { hasFullTextSearchType } from "@/src/components/table/utils/searchUtils";
 
 export const useFullTextSearch = ({

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Single source of truth for the physical ClickHouse relations the Kysely
  * compiler targets. One table declaration drives the downstream views:
@@ -42,7 +43,16 @@ export type ChColumnType =
   | "Array(String)"
   | "Map(String, UInt64)"
   | "Map(String, Decimal(18,12))"
-  | "Map(String, String)";
+  | "Map(String, String)"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))";
+
+/** One `skills_available` element, read as an object keyed by tuple name. */
+type SkillRef = {
+  langfuseSkillId: string | null;
+  skillVersion: number | null;
+  skillName: string;
+};
 
 /**
  * Logical TS type of a column: the value a caller binds, and what a result
@@ -76,7 +86,11 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
                     ? Record<string, number>
                     : T extends "Map(String, String)"
                       ? Record<string, string>
-                      : never;
+                      : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+                        ? SkillRef[]
+                        : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))"
+                          ? (SkillRef & { filePath: string })[]
+                          : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -99,6 +113,10 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Map(String, UInt64)": "map",
   "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "array",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "array",
 };
 
 /**
@@ -227,6 +245,10 @@ const EVENTS_COLUMNS = {
   created_at: "DateTime64(6)",
   updated_at: "DateTime64(6)",
   ingestion_api_key: "String",
+  skills_available:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  skills_resource_loaded:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 } as const satisfies Record<string, ChColumnType>;
 
 /**
@@ -287,6 +309,14 @@ const TABLE_REGISTRY = {
     dedup: { strategy: "none" },
     softDelete: "is_deleted",
   }),
+  // Logical relation for reading the truncated copy on purpose: routing
+  // always replaces it with events_core, also when it reads a truncated
+  // column (input/output/metadata previews).
+  events_truncated: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
   scores: defineTable({
     columns: {
       id: "String",
@@ -320,17 +350,33 @@ type RowOf<Cols extends Record<string, ChColumnType>> = {
   [C in keyof Cols]: TsTypeOfColumn<Cols[C]>;
 };
 
-/** Derived Kysely row types. */
+/**
+ * Relations only the routing pass may name. Call sites read the logical
+ * `events` / `events_truncated` instead.
+ */
+export const PHYSICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events_core",
+  "events_full",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Logical relations the routing pass replaces with a physical events table. */
+export const LOGICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events",
+  "events_truncated",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Derived Kysely row types, without the physical events tables. */
 export type ClickHouseDatabase = {
-  [T in keyof typeof TABLE_REGISTRY]: RowOf<
-    (typeof TABLE_REGISTRY)[T]["columns"]
-  >;
+  [T in Exclude<
+    keyof typeof TABLE_REGISTRY,
+    "events_core" | "events_full"
+  >]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
 };
 
 /**
  * Declared ClickHouse type per column, per physical registry table. A
  * servertest checks it against `system.columns` of the migrated database. The
- * logical `events` relation has no table of its own; its columns are
+ * logical events relations have no table of their own; their columns are
  * `events_core`'s and `events_full`'s.
  */
 export const TABLE_COLUMN_TYPES: Record<
@@ -338,7 +384,7 @@ export const TABLE_COLUMN_TYPES: Record<
   Record<string, ChColumnType>
 > = lookupTable(
   Object.entries(TABLE_REGISTRY)
-    .filter(([table]) => table !== "events")
+    .filter(([table]) => !LOGICAL_EVENTS_TABLES.has(table))
     .map(([table, spec]) => [table, spec.columns]),
 );
 
@@ -356,7 +402,7 @@ export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
   ),
 );
 
-/** Every registry relation name, the logical `events` included. */
+/** Every registry relation name, the logical events relations included. */
 export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
   Object.keys(TABLE_REGISTRY),
 );
@@ -405,6 +451,10 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Map(String, UInt64)": "Map(String, UInt64)",
   "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 };
 
 /** Bind type per column, per registry table. */

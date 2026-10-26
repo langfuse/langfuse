@@ -21,7 +21,7 @@ import {
   type CustomHeights,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
@@ -46,8 +46,11 @@ import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
-import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
+} from "@/src/components/LevelCountsDisplay";
+import {
+  formatAsLabel,
+  LevelSymbols,
+} from "@/src/components/ObservationLevelTag";
 import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
@@ -412,14 +415,7 @@ function buildTraceColumns(
       loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-          >
-            {value}
-          </Badge>
-        ) : null;
+        return value ? <Badge color="filled" size="md" text={value} /> : null;
       },
     },
     createTagsTableColumn<TraceRow>({
@@ -496,12 +492,7 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
     header: "Environment",
     size: 130,
     cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className="max-w-fit truncate rounded-sm px-1 font-normal"
-      >
-        {row.original.environment}
-      </Badge>
+      <Badge color="filled" size="md" text={row.original.environment} />
     ),
   },
   {
@@ -1528,7 +1519,7 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-section");
   },
 });
 

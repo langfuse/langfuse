@@ -34,12 +34,28 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
+import {
+  EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+  LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+  sendAuthErrorJson,
+} from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import {
+  isLegacyIngestionScoreOnlyOrg,
+  recordLegacyIngestionScoreOnlyRejection,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+const EVENTS_ONLY_UNAVAILABLE_BODY = {
+  message: EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+};
+
+const ORG_CUTOFF_UNAVAILABLE_BODY = {
+  message: LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+};
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -125,6 +141,12 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * Marks a legacy trace or observation write. Organizations created on or
+   * after LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF get a 404
+   * pointing them to the SDKs and the OpenTelemetry endpoint.
+   */
+  isLegacyTraceWrite?: boolean;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
@@ -164,10 +186,7 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json({
-        message:
-          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-      });
+      res.status(404).json(EVENTS_ONLY_UNAVAILABLE_BODY);
       return;
     }
 
@@ -270,6 +289,20 @@ export const createAuthedProjectAPIRoute = <
     });
     if (cutoffRejection) {
       res.status(410).json(cutoffRejection.body);
+      return;
+    }
+
+    if (
+      routeConfig.isLegacyTraceWrite &&
+      isLegacyIngestionScoreOnlyOrg(auth.scope.organizationCreatedAt)
+    ) {
+      recordLegacyIngestionScoreOnlyRejection({
+        route: routeConfig.name,
+        count: 1,
+        orgId: auth.scope.orgId,
+        projectId: auth.scope.projectId,
+      });
+      res.status(404).json(ORG_CUTOFF_UNAVAILABLE_BODY);
       return;
     }
 

@@ -30,8 +30,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Code, Key } from "@langfuse/icons";
 import { useRouter } from "next/router";
@@ -48,7 +48,7 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import {
   TurnstileWidget,
   type TurnstileWidgetHandle,

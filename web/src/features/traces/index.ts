@@ -27,6 +27,7 @@ export {
 export { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
 export { ThinkingBlock } from "@/src/features/traces/components/ThinkingBlock";
 export {
+  getMessageTitle,
   hasRenderableConversationMessages,
   isOnlyJsonMessage,
 } from "@/src/features/traces/fns/chatMessageUtils";

@@ -307,14 +307,12 @@ async function hoverInlineNode(canvasElement: HTMLElement) {
 const meta = preview.meta({
   component: EmbeddingMapView,
   args: {
-    projectId: "storybook-project",
     topics: [{ id: "billing", name: "Billing" }],
     data,
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTopic: fn(),
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
 });
 
@@ -398,7 +396,6 @@ export const ExploreZoneAndTrace = meta.story({
     selectedTraceId: null,
     onSelectTopic: fn(),
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
   render: (args) => <ControlledExplorer {...args} />,
   play: async ({ canvasElement, args }) => {
@@ -432,7 +429,7 @@ export const ExploreZoneAndTrace = meta.story({
     const stage = canvas.getByRole("group", {
       name: /^Interactive topic map/,
     });
-    await expect(args.onOpenTrace).toHaveBeenCalledWith(trace.traceId);
+    await expect(summaryButton).toHaveAttribute("aria-pressed", "true");
     stage.focus();
     await userEvent.keyboard("0");
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
@@ -690,7 +687,6 @@ export const HoverPreservesMapGeometry = meta.story({
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
   render: (args) => (
     <div style={{ height: 680 }}>
@@ -768,7 +764,6 @@ export const HoverPreservesMapGeometry = meta.story({
       }),
     );
     await expect(args.onSelectTrace).toHaveBeenLastCalledWith(trace.traceId);
-    await expect(args.onOpenTrace).toHaveBeenLastCalledWith(trace.traceId);
     await waitFor(assertStageBounds);
     stage.dispatchEvent(
       new MouseEvent("click", {

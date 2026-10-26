@@ -115,8 +115,6 @@ export function ManualTopicsFormContent({
       return "Choose the Topics models in Configure Topics first.";
     if (settings.stored.blockedAt)
       return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Configure Topics."}`;
-    if (!settings.stored.processingAvailable)
-      return "Topics processing is not enabled for this project.";
     if (running) return "A Topics run is in progress. Wait for it to finish.";
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { MonitorView as PrismaMonitorView } from "@prisma/client";
 import type { z } from "zod";
 

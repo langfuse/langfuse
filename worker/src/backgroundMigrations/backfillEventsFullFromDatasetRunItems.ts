@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   buildClickHouseLogComment,

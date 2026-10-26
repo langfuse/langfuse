@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /**
  * TraceSettingsDropdown - View preferences dropdown component
  *
@@ -28,7 +28,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 export function TraceSettingsDropdown() {

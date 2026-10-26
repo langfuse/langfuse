@@ -260,6 +260,8 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    /** Use latest when no selector is supplied and production is unset. */
+    fallbackToLatest?: boolean;
     includeContent?: boolean;
   }) {
     const skill = await this.findSkillVersion(params);
@@ -286,6 +288,8 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    /** Use latest when no selector is supplied and production is unset. */
+    fallbackToLatest?: boolean;
     path: string;
   }): Promise<string> {
     const skill = await this.findSkillVersion(params);
@@ -944,6 +948,7 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    fallbackToLatest?: boolean;
   }): Promise<SkillWithRelations> {
     const selectorWhere: Prisma.SkillWhereInput = params.selector.version
       ? { version: params.selector.version }
@@ -958,6 +963,17 @@ export class SkillService {
       orderBy: { version: "desc" },
       include: skillFilesInclude,
     });
+    if (
+      !skill &&
+      params.fallbackToLatest &&
+      params.selector.version === undefined &&
+      params.selector.label === undefined
+    ) {
+      return this.findSkillVersion({
+        ...params,
+        selector: { label: SKILL_LATEST_LABEL },
+      });
+    }
     if (!skill) throw new LangfuseNotFoundError("Skill version not found");
     return skill;
   }

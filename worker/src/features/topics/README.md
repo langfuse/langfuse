@@ -557,7 +557,9 @@ payloads. Retries can re-enter behind newer jobs, so this is head age, not the
 oldest creation time anywhere in the backlog.
 
 `.errors` reasons include `input_too_large` (transcript above the summary input
-limit) and `trace_too_large` (trace above the transcript load limits).
+limit), `trace_too_large` (trace above the transcript load limits) and
+`definition_readback` (a new topic definition did not read back identically; the
+error names the differing fields, never their values).
 
 Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
 name, or `custom`): the model decides `applicable`, `not_applicable` or

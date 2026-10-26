@@ -27,6 +27,7 @@ export const Default = meta.story({
     editNameAction: { hasAccess: true, onClick: fn() },
     hasWriteAccess: true,
     onDelete: fn(),
+    search: { value: "", onChange: fn() },
     data: {
       status: "success",
       data: [
@@ -53,7 +54,18 @@ export const Loading = meta.story({
     editNameAction: { hasAccess: true, onClick: fn() },
     hasWriteAccess: true,
     onDelete: fn(),
+    search: { value: "", onChange: fn() },
     data: { status: "loading" },
     loadingRowCount: 5,
+  },
+});
+
+export const WithGatewayKeyFilter = meta.story({
+  args: {
+    ...Default.input.args,
+    gatewayKeyFilter: {
+      includeGatewayKeys: false,
+      onIncludeGatewayKeysChange: fn(),
+    },
   },
 });

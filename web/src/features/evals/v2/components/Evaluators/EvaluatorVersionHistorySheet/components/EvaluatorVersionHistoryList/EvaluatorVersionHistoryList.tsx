@@ -5,7 +5,7 @@ import {
 import { formatDistanceToNowStrict } from "date-fns";
 import { RotateCcw } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
@@ -119,9 +119,7 @@ export function EvaluatorVersionHistoryList({
                   Version {version.version}
                 </span>
                 {version.id === currentVersionId ? (
-                  <Badge variant="success" className="shrink-0 px-2">
-                    Current
-                  </Badge>
+                  <Badge color="green" text="Current" />
                 ) : null}
                 <span className="text-muted-foreground flex min-w-0 shrink-0 items-center gap-1 text-xs">
                   <span

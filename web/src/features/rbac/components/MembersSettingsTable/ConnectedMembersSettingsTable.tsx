@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
@@ -58,6 +59,18 @@ export function ConnectedMembersSettingsTable({
     projectId: project?.id,
     scope: "projectMembers:CUD",
   });
+
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
@@ -217,6 +230,8 @@ export function ConnectedMembersSettingsTable({
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID

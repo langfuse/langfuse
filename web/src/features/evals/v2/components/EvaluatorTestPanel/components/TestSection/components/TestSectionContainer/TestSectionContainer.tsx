@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EvalTemplateType } from "@langfuse/shared";
 import { useStore } from "zustand";
 

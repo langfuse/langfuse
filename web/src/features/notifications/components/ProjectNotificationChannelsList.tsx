@@ -8,7 +8,10 @@ import { type AutomationDomain } from "@langfuse/shared";
 const destinationLabel = (automation: AutomationDomain): string => {
   if (automation.action.type === "SLACK") {
     const config = automation.action.config;
-    return config.type === "SLACK" ? `Slack #${config.channelName}` : "Slack";
+    if (config.type !== "SLACK") return "Slack";
+    return config.isPrivate
+      ? `Slack ${config.channelName}`
+      : `Slack #${config.channelName}`;
   }
   if (automation.action.type === "WEBHOOK") {
     const config = automation.action.config;
