@@ -1,9 +1,14 @@
 import { ArrowUpRight, Check } from "@langfuse/icons";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
-import { type GatewayLaunchState } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
+import {
+  type GatewayLaunchState,
+  type GatewayLaunchTarget,
+} from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
 
@@ -16,15 +21,18 @@ const points = [
 export function GatewayLaunchDialog({
   organizationId,
   state,
+  setupOptions,
   open,
   onOpenChange,
 }: {
   organizationId: string;
   state: GatewayLaunchState;
+  setupOptions: GatewayLaunchTarget["setupOptions"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const [pickedOrgId, setPickedOrgId] = useState(organizationId);
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot
@@ -70,15 +78,33 @@ export function GatewayLaunchDialog({
             <ArrowUpRight size="sm" aria-hidden="true" />
           </Link>
           {state === "setup" && (
-            <span
-              onClick={() => capture("ai_gateway_launch:dialog_setup_clicked")}
-            >
-              <Button
-                variant="primary"
-                text="Set up gateway"
-                href={`/organization/${organizationId}/settings/ai-gateway`}
-              />
-            </span>
+            <div className="flex items-center gap-2">
+              {setupOptions.length > 1 && (
+                <div className="w-48">
+                  <SelectInput
+                    aria-label="Organization"
+                    placeholder="Select organization"
+                    value={pickedOrgId}
+                    onValueChange={setPickedOrgId}
+                    options={setupOptions.map((option) => ({
+                      value: option.organizationId,
+                      label: option.organizationName,
+                    }))}
+                  />
+                </div>
+              )}
+              <span
+                onClick={() =>
+                  capture("ai_gateway_launch:dialog_setup_clicked")
+                }
+              >
+                <Button
+                  variant="primary"
+                  text="Set up gateway"
+                  href={`/organization/${pickedOrgId}/settings/ai-gateway`}
+                />
+              </span>
+            </div>
           )}
           {state === "ask-admin" && (
             <p role="status" className="text-muted-foreground text-sm">

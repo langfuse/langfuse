@@ -5,7 +5,6 @@ import { useState } from "react";
 import { DismissController } from "@/src/components/DismissController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import { GatewayLaunchDialog } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchDialog";
@@ -17,14 +16,10 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 
-function ctaLabel(
-  state: GatewayLaunchState,
-  setupOptions: GatewayLaunchTarget["setupOptions"],
-) {
+function ctaLabel(state: GatewayLaunchState) {
   if (state === "get-key") return "Get API key";
   if (state === "ask-admin") return "Learn more";
-  if (setupOptions.length > 1) return "Set up gateway";
-  return `Set up gateway for ${setupOptions[0]?.organizationName ?? "your org"}`;
+  return "Set up";
 }
 
 /** Organizations-page banner; the page renders it only when there is a target. */
@@ -36,13 +31,9 @@ export function GatewayLaunchBanner({
   userId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [pickedOrgId, setPickedOrgId] = useState<string>();
   const capture = usePostHogClientCapture();
   const { state, setupOptions } = target;
-  const organizationId =
-    setupOptions.find((option) => option.organizationId === pickedOrgId)
-      ?.organizationId ?? target.organizationId;
-  const hasOrgPicker = state === "setup" && setupOptions.length > 1;
+  const { organizationId } = target;
   const captureCta = () =>
     capture("ai_gateway_launch:banner_cta_clicked", {
       state,
@@ -69,10 +60,10 @@ export function GatewayLaunchBanner({
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold">AI Gateway</span>
-                <Badge text="New" color="yellow" size="sm" font="mono" />
+                <Badge text="Beta" color="blue" size="sm" font="mono" />
               </div>
               <p
-                className="text-muted-foreground truncate text-sm"
+                className="text-muted-foreground truncate text-base"
                 title="One gateway key for full visibility into what your agents cost."
               >
                 One gateway key for full visibility into what your agents cost.
@@ -84,27 +75,13 @@ export function GatewayLaunchBanner({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {hasOrgPicker && (
-                <div className="w-48">
-                  <SelectInput
-                    aria-label="Organization"
-                    placeholder="Select organization"
-                    value={organizationId}
-                    onValueChange={setPickedOrgId}
-                    options={setupOptions.map((option) => ({
-                      value: option.organizationId,
-                      label: option.organizationName,
-                    }))}
-                  />
-                </div>
-              )}
               {state === "get-key" ? (
                 <Button asChild>
                   <Link
                     href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
                     onClick={captureCta}
                   >
-                    {ctaLabel(state, setupOptions)}
+                    {ctaLabel(state)}
                     {arrow}
                   </Link>
                 </Button>
@@ -115,7 +92,7 @@ export function GatewayLaunchBanner({
                     setOpen(true);
                   }}
                 >
-                  {ctaLabel(state, setupOptions)}
+                  {ctaLabel(state)}
                   {arrow}
                 </Button>
               )}
@@ -135,8 +112,10 @@ export function GatewayLaunchBanner({
         )}
       </DismissController>
       <GatewayLaunchDialog
+        key={organizationId}
         organizationId={organizationId}
         state={state}
+        setupOptions={setupOptions}
         open={open}
         onOpenChange={setOpen}
       />

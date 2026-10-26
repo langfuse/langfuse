@@ -43,7 +43,7 @@ export function GatewayReceipt({ variant }: { variant: "banner" | "dialog" }) {
                 ? "font-bold tracking-wide"
                 : "text-muted-foreground pl-3",
               row.kind === "team" && row !== rows[0] && "mt-2",
-              row.highlight && "bg-light-yellow -mx-1 px-1",
+              row.highlight && "bg-light-blue -mx-1 px-1",
             )}
           >
             <span className="whitespace-nowrap">{row.label}</span>

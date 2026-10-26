@@ -478,20 +478,13 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {gatewayLaunchTarget && userId && (
+      {gatewayLaunchTarget && userId ? (
         <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
-      )}
-      {v4UpgradeUiEnabled ? (
-        v4MigrationBannerState.projectsNeedingMigration > 0 && (
-          <V4MigrationBanner
-            projectsNeedingMigration={
-              v4MigrationBannerState.projectsNeedingMigration
-            }
-            totalProjects={v4MigrationBannerState.totalProjects}
-          />
-        )
       ) : (
-        <AgentToolsBanner />
+        <PageBanner
+          v4UpgradeUiEnabled={v4UpgradeUiEnabled}
+          v4MigrationBannerState={v4MigrationBannerState}
+        />
       )}
       {showOnboarding && <Onboarding />}
       {organizations
@@ -520,6 +513,27 @@ export const OrganizationProjectOverview = () => {
     </ContainerPage>
   );
 };
+
+/** One banner at a time: the page shows the gateway launch banner instead when it applies. */
+const PageBanner = ({
+  v4UpgradeUiEnabled,
+  v4MigrationBannerState,
+}: {
+  v4UpgradeUiEnabled: boolean;
+  v4MigrationBannerState: ReturnType<typeof useV4MigrationBannerState>;
+}) =>
+  v4UpgradeUiEnabled ? (
+    v4MigrationBannerState.projectsNeedingMigration > 0 && (
+      <V4MigrationBanner
+        projectsNeedingMigration={
+          v4MigrationBannerState.projectsNeedingMigration
+        }
+        totalProjects={v4MigrationBannerState.totalProjects}
+      />
+    )
+  ) : (
+    <AgentToolsBanner />
+  );
 
 const Onboarding = () => {
   const session = useSession();
