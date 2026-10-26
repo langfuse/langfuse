@@ -268,6 +268,23 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * BloggerPemula BASS (Blogger Animation Super Script) console.error.
+ * Injected page-world theme logger, not Langfuse. Format:
+ * `[BASS V96.5] 12:00:00 PM [top] - ERROR From BloggerPemula: …`.
+ * Version suffix varies. Observed as a captureConsoleIntegration message
+ * event (LANGFUSE-64V). Requires both the versioned `[BASS V…]` prefix
+ * and the vendor name so a first-party log that quotes one token is KEPT.
+ */
+const BLOGGERPEMULA_BASS_PREFIX_RE = /^\[BASS V[\d.]+\]/;
+
+function isBloggerPemulaBassConsoleMessage(text: string): boolean {
+  const core = coreMessage(text);
+  return (
+    BLOGGERPEMULA_BASS_PREFIX_RE.test(core) && core.includes("BloggerPemula")
+  );
+}
+
+/**
  * The Sentry SDK synthesizes this exact prefix (global `onunhandledrejection`
  * handler) when a promise rejects with a non-`Error` value. These events carry
  * NO stack, so Sentry groups them by the stringified value — every new value
@@ -543,6 +560,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
     // falsy-error artifact). Anchored with startsWith, never a loose includes. ---
     if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+      return true;
+    }
+
+    // BloggerPemula BASS theme console.error (LANGFUSE-64V). Prefix + vendor
+    // name; see isBloggerPemulaBassConsoleMessage.
+    if (isBloggerPemulaBassConsoleMessage(messageText)) {
       return true;
     }
 
