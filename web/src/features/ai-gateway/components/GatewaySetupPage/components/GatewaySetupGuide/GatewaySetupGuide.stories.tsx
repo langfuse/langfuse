@@ -39,12 +39,12 @@ const organizationMembers = [
  * search the way the server does. `organizationMembers` are the organization;
  * every other address counts as someone to invite.
  */
-function GatewaySetupGuideWithInvitees(
-  props: Omit<
-    GatewaySetupGuideProps,
-    "invitees" | "inviteeMembers" | "suggestedMembers"
-  >,
-) {
+function GatewaySetupGuideWithInvitees({
+  notifiableMembers,
+  ...props
+}: Omit<GatewaySetupGuideProps, "recipients"> & {
+  notifiableMembers: GatewaySetupGuideProps["recipients"]["notifiableMembers"];
+}) {
   const invitees = useTeamInviteEmails();
   const search = invitees.draft.trim().toLowerCase();
   const suggestedMembers = organizationMembers
@@ -69,9 +69,12 @@ function GatewaySetupGuideWithInvitees(
   return (
     <GatewaySetupGuide
       {...props}
-      suggestedMembers={suggestedMembers}
-      invitees={invitees}
-      inviteeMembers={inviteeMembers}
+      recipients={{
+        notifiableMembers,
+        suggestedMembers,
+        invitees,
+        inviteeMembers,
+      }}
     />
   );
 }

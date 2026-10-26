@@ -1,17 +1,22 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { TeamInviteFailuresAlert } from "@/src/features/ai-gateway/components/TeamInviteFailuresAlert";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/TeamInviteFields/TeamInviteFields";
-import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
-import { useTeamInviteMembers } from "@/src/features/ai-gateway/hooks/useTeamInviteMembers";
-import type { TeamInviteFailure } from "@/src/features/ai-gateway/types/teamInviteFailure";
+import { TEAM_NOTIFY_COPY } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
+import { useTeamNotifyForm } from "@/src/features/ai-gateway/hooks/useTeamNotifyForm";
+import { useTeamRecipients } from "@/src/features/ai-gateway/hooks/useTeamRecipients";
+import type { RouterOutputs } from "@/src/utils/api";
 
 export type TeamInviteDialogProps = {
   organizationId: string;
   isInviting: boolean;
   errorMessage: string | undefined;
-  /** Resolves to the addresses that were not invited, or null when the request failed. */
-  onInvite: (emails: string[]) => Promise<TeamInviteFailure[] | null>;
+  /** Resolves to null when the request failed. */
+  onInvite: (params: {
+    emails: string[];
+    notifyMembers: boolean;
+  }) => Promise<RouterOutputs["aiGateway"]["inviteTeam"] | null>;
   /** Called once no address failed. */
   onInvited: () => void;
 };
@@ -23,57 +28,43 @@ export function TeamInviteDialog({
   onInvite,
   onInvited,
 }: TeamInviteDialogProps) {
-  const invitees = useTeamInviteEmails();
-  const inviteeMembers = useTeamInviteMembers({
-    organizationId,
-    emails: invitees.emails,
-  });
+  const form = useTeamNotifyForm(useTeamRecipients(organizationId));
 
   async function handleSend() {
-    invitees.startAttempt();
-    const failed = await onInvite(invitees.emails);
-    if (!failed) return;
-    if (failed.length === 0) {
-      onInvited();
-      return;
-    }
-    invitees.keepFailed(failed);
+    if (await form.send(onInvite)) onInvited();
   }
 
   return (
     <Dialog
-      title="Invite people"
+      title={TEAM_NOTIFY_COPY.title}
       actions={[
         {
-          label: "Send invites",
+          label: form.sendLabel,
           loading: isInviting,
-          disabled:
-            isInviting || invitees.emails.length === 0 || !invitees.isValid,
+          disabled: isInviting || !form.canSend,
           onClick: handleSend,
         },
       ]}
     >
       <Dialog.Body>
         <p className="text-muted-foreground">
-          Invite people to the organization. They can create their own gateway
-          keys.
+          {TEAM_NOTIFY_COPY.description}{" "}
+          <Button
+            variant="text"
+            size="sm"
+            text="About roles"
+            href={TEAM_NOTIFY_COPY.rolesDocsUrl}
+          />
         </p>
-        <TeamInviteFields
-          emails={invitees.emails}
-          onEmailsChange={invitees.setEmails}
-          draft={invitees.draft}
-          onDraftChange={invitees.setDraft}
-          members={inviteeMembers}
-          errorMessage={invitees.errorMessage}
-        />
+        <TeamInviteFields {...form.fieldsProps} />
         {errorMessage ? (
           <Alert variant="destructive">
-            <Alert.Title>Invitations could not be sent</Alert.Title>
+            <Alert.Title>Notifications could not be sent</Alert.Title>
             <Alert.Description>{errorMessage}</Alert.Description>
           </Alert>
         ) : null}
-        {invitees.failures.length > 0 ? (
-          <TeamInviteFailuresAlert failures={invitees.failures} />
+        {form.failures.length > 0 ? (
+          <TeamInviteFailuresAlert failures={form.failures} />
         ) : null}
       </Dialog.Body>
     </Dialog>

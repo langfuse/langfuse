@@ -24,25 +24,26 @@ export function TeamInviteDialogController({
       reportTrpcErrorWithoutToast(error, "ai-gateway-team-invite"),
   });
 
-  async function handleInvite(emails: string[]) {
+  async function handleInvite(params: {
+    emails: string[];
+    notifyMembers: boolean;
+  }) {
     try {
       const result = await invite.mutateAsync({
         orgId: organizationId,
-        emails,
-        notifyMembers: false,
+        ...params,
       });
       capture(
         "ai_gateway:team_invite_sent",
         toTeamInviteSentEvent({
           orgId: organizationId,
           surface: "api_keys_page",
-          emails,
-          notifyMembers: false,
+          ...params,
           result,
         }),
       );
       if (result.failed.length === 0) showInviteOutcome(result);
-      return result.failed;
+      return result;
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-team-invite");
       return null;
