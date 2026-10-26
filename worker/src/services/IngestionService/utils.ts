@@ -88,8 +88,9 @@ export const isAiGatewayGenerationEvent = (params: {
     ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
     : params.hasGatewayScope();
 
-// Any SDK can put `langfuse.gateway.api_key.id` into metadata, so the value is
-// only trusted when the AI gateway authenticated the upload (ingestion key
+// The AI gateway overwrites `langfuse.gateway.api_key.id` on everything it
+// uploads, but an SDK sending straight to Langfuse can set it freely. So the
+// value only counts when the gateway authenticated the upload (ingestion key
 // `gateway:<grant>`). Replayed events have no ingestion key and get no key id:
 // unlike isAiGatewayGenerationEvent, this does not fall back to the scope name,
 // which any sender can set.
