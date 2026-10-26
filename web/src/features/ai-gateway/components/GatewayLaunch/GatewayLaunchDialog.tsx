@@ -1,9 +1,11 @@
 import { ArrowUpRight, Check } from "@langfuse/icons";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Button as MenuTriggerButton } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import {
   type GatewayLaunchState,
@@ -32,7 +34,9 @@ export function GatewayLaunchDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const capture = usePostHogClientCapture();
-  const [pickedOrgId, setPickedOrgId] = useState(organizationId);
+  const router = useRouter();
+  const setupHref = (orgId: string) =>
+    `/organization/${orgId}/settings/ai-gateway`;
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot
@@ -77,34 +81,38 @@ export function GatewayLaunchDialog({
             Learn more
             <ArrowUpRight size="sm" aria-hidden="true" />
           </Link>
-          {state === "setup" && (
-            <div className="flex items-center gap-2">
-              {setupOptions.length > 1 && (
-                <div className="w-48">
-                  <SelectInput
-                    aria-label="Organization"
-                    placeholder="Select organization"
-                    value={pickedOrgId}
-                    onValueChange={setPickedOrgId}
-                    options={setupOptions.map((option) => ({
-                      value: option.organizationId,
-                      label: option.organizationName,
-                    }))}
-                  />
-                </div>
+          {state === "setup" && setupOptions.length > 1 && (
+            <DropdownMenu
+              title="Select an organization"
+              items={setupOptions.map((option) => ({
+                type: "item",
+                id: option.organizationId,
+                title: option.organizationName,
+                onClick: () => {
+                  capture("ai_gateway_launch:dialog_setup_clicked");
+                  router.push(setupHref(option.organizationId));
+                },
+              }))}
+            >
+              {({ getTriggerProps }) => (
+                /** The design-system Button does not forward floating-ui trigger handlers. */
+                <MenuTriggerButton className="gap-1.5" {...getTriggerProps()}>
+                  Set up gateway
+                  <DropdownIndicator nudge />
+                </MenuTriggerButton>
               )}
-              <span
-                onClick={() =>
-                  capture("ai_gateway_launch:dialog_setup_clicked")
-                }
-              >
-                <Button
-                  variant="primary"
-                  text="Set up gateway"
-                  href={`/organization/${pickedOrgId}/settings/ai-gateway`}
-                />
-              </span>
-            </div>
+            </DropdownMenu>
+          )}
+          {state === "setup" && setupOptions.length <= 1 && (
+            <span
+              onClick={() => capture("ai_gateway_launch:dialog_setup_clicked")}
+            >
+              <Button
+                variant="primary"
+                text="Set up gateway"
+                href={setupHref(organizationId)}
+              />
+            </span>
           )}
           {state === "ask-admin" && (
             <p role="status" className="text-muted-foreground text-sm">

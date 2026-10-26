@@ -69,7 +69,7 @@ export function GatewayLaunchBanner({
                 One gateway key for full visibility into what your agents cost.
               </p>
             </div>
-            <div className="relative hidden h-full w-72 shrink-0 xl:block">
+            <div className="relative mr-12 hidden h-full w-72 shrink-0 xl:block">
               <div className="absolute inset-x-0 -top-2">
                 <GatewayReceipt variant="banner" />
               </div>
