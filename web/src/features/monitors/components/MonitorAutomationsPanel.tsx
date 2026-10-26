@@ -23,6 +23,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
+  actionTypeLabel,
   AutomationForm,
   WebhookSecretRender,
 } from "@/src/features/automations";
@@ -33,14 +34,6 @@ import {
   type AutomationDomain,
   TriggerEventSource,
 } from "@langfuse/shared";
-
-/** actionLabel maps each automation action type to its display name. */
-const actionLabel: Record<ActionTypes, string> = {
-  WEBHOOK: "Webhook",
-  SLACK: "Slack",
-  GITHUB_DISPATCH: "GitHub Dispatch",
-  PAGERDUTY: "PagerDuty",
-};
 
 const actionIcon = {
   WEBHOOK: WebhookIcon,
@@ -301,7 +294,7 @@ const AddAutomationDropdown = ({
           ...ActionTypeSchema.options.map((actionType) => ({
             type: "item" as const,
             id: actionType,
-            title: actionLabel[actionType],
+            title: actionTypeLabel[actionType],
             icon: actionIcon[actionType],
             onClick: () => setDraft({ actionType }),
           })),

@@ -49,6 +49,7 @@ import { DeleteAutomationDialogController } from "./DeleteAutomationDialogContro
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -825,15 +826,7 @@ export const AutomationForm = ({
                         ActionHandlerRegistry.getAllActionTypes()
                       ).map((actionType) => (
                         <SelectItem key={actionType} value={actionType}>
-                          {actionType === "WEBHOOK"
-                            ? "Webhook"
-                            : actionType === "SLACK"
-                              ? "Slack"
-                              : actionType === "GITHUB_DISPATCH"
-                                ? "GitHub Dispatch"
-                                : actionType === "PAGERDUTY"
-                                  ? "PagerDuty"
-                                  : "Annotation Queue"}
+                          {actionTypeLabel[actionType]}
                         </SelectItem>
                       ))}
                       <SelectItem disabled={true} value="planned">

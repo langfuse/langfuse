@@ -8,4 +8,5 @@ export {
   AutomationForm,
   automationCreateHref,
 } from "@/src/features/automations/components/AutomationForm";
+export { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 export { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
