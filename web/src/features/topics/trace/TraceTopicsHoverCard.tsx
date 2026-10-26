@@ -79,7 +79,7 @@ function TraceTopicsTrigger({
       {...triggerProps}
     >
       {lead?.topicName ? (
-        <BadgeShell color="ghost" font="mono">
+        <BadgeShell color="ghost">
           <TopicDot rank={lead.topicIndex} />
           <span className="truncate" title={lead.topicName}>
             {lead.topicName}
@@ -91,7 +91,7 @@ function TraceTopicsTrigger({
           )}
         </BadgeShell>
       ) : (
-        <Badge color="ghost" font="mono" text="Topics" title="" />
+        <Badge color="ghost" text="Topics" title="" />
       )}
     </span>
   );

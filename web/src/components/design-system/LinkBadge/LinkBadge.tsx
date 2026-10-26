@@ -41,7 +41,6 @@ export function LinkBadge({
     >
       <Badge
         color="ghost"
-        font="mono"
         label={label}
         text={text}
         title={title}

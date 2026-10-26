@@ -199,7 +199,6 @@ export const ObservationDetailViewHeader = memo(
 
     const timestampBadge = preparedDate && (
       <Badge
-        font="mono"
         color="ghost"
         text={preparedDate.display}
         title={preparedDate.title}

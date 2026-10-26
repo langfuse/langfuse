@@ -103,7 +103,6 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
                       key={action}
                       color="outline"
                       size="sm"
-                      font="mono"
                       text={action}
                     />
                   ))}

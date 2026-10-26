@@ -8,21 +8,20 @@ import * as BadgeStories from "./Badge.stories";
 Pick the family by the badge's job, then the value inside it. Never pick a
 colour for decoration.
 
-| Family   | Values                                               | Look                                           | Use for                                                       |
-| -------- | ---------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
-| Neutral  | `ghost`                                              | no border, no fill                             | header metrics and links: scan or follow                      |
-|          | `outline` (default)                                  | border, no fill                                | attributes to read: environment, release, version             |
-|          | `filled`                                             | grey fill, no border                           | data chips: scores, tags, counts                              |
-|          | `inverted`                                           | solid dark fill                                | one strong marker per surface, e.g. a version next to a title |
-| Status   | `error`, `warning`, `success`, `info`                | hue fill, hairline in light mode, none in dark | a state: failing, degraded, healthy, beta                     |
-| Category | `violetTint`, `skyTint`, … (10 hues)                 | hue tint, faint hairline, neutral text         | telling categories apart: score levels, topics, widget types  |
-|          | `violetHighlight`, `blueHighlight`, `amberHighlight` | treemap tile colours                           | topic chips that must match a treemap tile                    |
+| Family   | Values                                | Look                                      | Use for                                                       |
+| -------- | ------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| Neutral  | `ghost`                               | no border, no fill                        | header metrics and links: scan or follow                      |
+|          | `outline` (default)                   | border, no fill                           | attributes to read: environment, release, version             |
+|          | `filled`                              | grey fill, no border                      | data chips: scores, tags, counts                              |
+|          | `inverted`                            | solid dark fill                           | one strong marker per surface, e.g. a version next to a title |
+| Status   | `error`, `warning`, `success`, `info` | hue fill, same-hue hairline               | a state: failing, degraded, healthy, beta                     |
+| Category | `violetTint`, `skyTint`, … (10 hues)  | hue tint, same-hue hairline, neutral text | telling categories apart: score levels, topics, widget types  |
 
 <Canvas of={BadgeStories.InContext} />
 
 ## Rules
 
-- Values are mono (`font="mono"`): metrics, ids, versions, scores, counts. Words stay sans.
+- Every badge renders in mono; there is no font option.
 - Score levels always use `ScoreTag`, which maps each level to a category tint.
 - Links use `LinkBadge` (ghost, mono, arrow, underline on hover), not a `Badge` with an arrow.
 - `leadingIconTone="warning"` exists only on `ghost`: a muted value with a warning icon.

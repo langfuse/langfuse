@@ -178,21 +178,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Team ID:</span>
-            <Badge
-              color="outline"
-              font="mono"
-              text={integrationStatus.teamId ?? ""}
-            />
+            <Badge color="outline" text={integrationStatus.teamId ?? ""} />
           </div>
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Bot User:</span>
-              <Badge
-                color="outline"
-                font="mono"
-                text={integrationStatus.botUserId}
-              />
+              <Badge color="outline" text={integrationStatus.botUserId} />
             </div>
           )}
         </div>

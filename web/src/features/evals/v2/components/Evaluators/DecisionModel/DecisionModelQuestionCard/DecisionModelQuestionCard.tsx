@@ -118,7 +118,6 @@ export function DecisionModelQuestionCard({
           />
           <Badge
             color={question.scoreName.trim() ? "filled" : "warning"}
-            font="mono"
             text={question.scoreName.trim() || "score name missing"}
           />
           <span

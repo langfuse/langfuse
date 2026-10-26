@@ -90,7 +90,6 @@ const PromptHistoryTraceNode = (props: {
                     ? props.setCurrentPromptVersion(undefined)
                     : props.setCurrentPromptVersion(prompt.version);
                 }}
-                font="mono"
                 size="md"
               >
                 # {prompt.version}

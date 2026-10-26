@@ -28,7 +28,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
       <div className="flex items-center justify-between gap-2">
         {/* Shrinkable wrapper so the name truncates next to the confidence. */}
         <span className="flex min-w-0">
-          <BadgeShell color="filled" font="mono">
+          <BadgeShell color="filled">
             <copy.icon size="base" aria-label={copy.label} />
             <span className="truncate" title={result.scoreName}>
               {result.scoreName}

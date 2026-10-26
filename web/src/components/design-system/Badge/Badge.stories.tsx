@@ -24,19 +24,16 @@ const colorFamily = {
   warning: "Status",
   success: "Status",
   info: "Status",
-  violetTint: "Category tint",
-  skyTint: "Category tint",
-  emeraldTint: "Category tint",
-  amberTint: "Category tint",
-  pinkTint: "Category tint",
-  indigoTint: "Category tint",
-  tealTint: "Category tint",
-  orangeTint: "Category tint",
-  limeTint: "Category tint",
-  fuchsiaTint: "Category tint",
-  violetHighlight: "Category highlight",
-  blueHighlight: "Category highlight",
-  amberHighlight: "Category highlight",
+  violetTint: "Category",
+  skyTint: "Category",
+  emeraldTint: "Category",
+  amberTint: "Category",
+  pinkTint: "Category",
+  indigoTint: "Category",
+  tealTint: "Category",
+  orangeTint: "Category",
+  limeTint: "Category",
+  fuchsiaTint: "Category",
 } satisfies Record<Color, string>;
 
 const colorGroups = Object.entries(colorFamily).reduce<Record<string, Color[]>>(
@@ -86,7 +83,7 @@ export const Small = meta.story({
 });
 
 export const Large = meta.story({
-  args: { text: "# 16", size: "lg", color: "inverted", font: "mono" },
+  args: { text: "# 16", size: "lg", color: "inverted" },
 });
 
 export const GhostInteractive = meta.story({
@@ -103,7 +100,6 @@ export const GhostWarning = meta.story({
     color: "ghost",
     leadingIconTone: "warning",
     interactive: true,
-    font: "mono",
     leadingIcon: TriangleAlert,
     text: "no cost",
   },
@@ -141,21 +137,19 @@ export const InContext = meta.story({
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
       {
-        title: "Header metrics: ghost, mono",
+        title: "Header metrics: ghost",
         badges: (
           <>
-            <Badge color="ghost" font="mono" label="latency" text="0.71s" />
-            <Badge color="ghost" font="mono" text="$0.0042" />
+            <Badge color="ghost" label="latency" text="0.71s" />
+            <Badge color="ghost" text="$0.0042" />
             <Badge
               color="ghost"
-              font="mono"
               leadingIcon={TriangleAlert}
               leadingIconTone="warning"
               text="no cost"
             />
             <Badge
               color="ghost"
-              font="mono"
               text="session"
               trailingIcon={ArrowUpRight}
               trailingIconTone="link"
@@ -164,36 +158,24 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "Attributes: outline, mono",
+        title: "Attributes: outline",
         badges: (
           <>
-            <Badge font="mono" label="env" text="production" />
-            <Badge font="mono" label="release" text="v2.3.0" />
-            <Badge font="mono" label="version" text="4" />
+            <Badge label="env" text="production" />
+            <Badge label="release" text="v2.3.0" />
+            <Badge label="version" text="4" />
           </>
         ),
       },
       {
-        title: "Scores and tags: filled, mono, md; level as category tint",
+        title: "Scores and tags: filled, md; level as category tint",
         badges: (
           <>
-            <Badge color="skyTint" font="mono" size="md" text="observation" />
-            <Badge
-              color="filled"
-              font="mono"
-              size="md"
-              label="accuracy"
-              text="0.95"
-            />
-            <Badge color="violetTint" font="mono" size="md" text="trace" />
-            <Badge
-              color="filled"
-              font="mono"
-              size="md"
-              label="helpfulness"
-              text="0.81"
-            />
-            <Badge color="filled" font="mono" size="md" text="prod-rollout" />
+            <Badge color="skyTint" size="md" text="observation" />
+            <Badge color="filled" size="md" label="accuracy" text="0.95" />
+            <Badge color="violetTint" size="md" text="trace" />
+            <Badge color="filled" size="md" label="helpfulness" text="0.81" />
+            <Badge color="filled" size="md" text="prod-rollout" />
           </>
         ),
       },
@@ -221,7 +203,7 @@ export const InContext = meta.story({
       },
       {
         title: "One strong marker: inverted",
-        badges: <Badge color="inverted" font="mono" size="lg" text="# 16" />,
+        badges: <Badge color="inverted" size="lg" text="# 16" />,
       },
     ];
     return (

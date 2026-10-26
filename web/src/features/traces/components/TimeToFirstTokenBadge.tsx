@@ -8,7 +8,6 @@ export function TimeToFirstTokenBadge({
 }) {
   return (
     <Badge
-      font="mono"
       color="ghost"
       label="ttft"
       text={formatIntervalSeconds(timeToFirstToken)}

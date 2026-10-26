@@ -117,7 +117,6 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
         <span {...getTriggerProps()} className="inline-flex">
           <Badge
             color={scoreTagColors[level]}
-            font="mono"
             size="md"
             text={SCORE_LEVEL_LABELS[level].toLowerCase()}
           />

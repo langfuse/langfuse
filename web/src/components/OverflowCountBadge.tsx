@@ -17,7 +17,7 @@ export function OverflowCountBadge({
   ...props
 }: OverflowCountBadgeProps) {
   return (
-    <BadgeShell asChild color="filled" font="mono" size="md">
+    <BadgeShell asChild color="filled" size="md">
       <button
         ref={ref}
         type="button"

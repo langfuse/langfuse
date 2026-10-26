@@ -146,7 +146,6 @@ function LoadedTraceDetailViewHeader({
 
   const timestampBadge = preparedDate && (
     <Badge
-      font="mono"
       color="ghost"
       text={preparedDate.display}
       title={preparedDate.title}

@@ -45,7 +45,6 @@ const columns: LangfuseColumnDef<PrototypeEvent>[] = [
         <Badge
           color="outline"
           size="sm"
-          font="mono"
           text={getValue<PrototypeEvent["type"]>()}
         />
       ) : null,

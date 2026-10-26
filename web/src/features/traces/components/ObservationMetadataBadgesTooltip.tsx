@@ -39,7 +39,6 @@ export function CostBadge(props: CostBadgeProps) {
   if (!hasBreakdown(costDetails)) {
     return (
       <Badge
-        font="mono"
         color="ghost"
         text={formatMetricCost(totalCost)}
         title={`exact $${totalCost.toFixed(6)}`}
@@ -53,12 +52,7 @@ export function CostBadge(props: CostBadgeProps) {
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge
-        font="mono"
-        color="ghost"
-        interactive
-        text={formatMetricCost(totalCost)}
-      />
+      <Badge color="ghost" interactive text={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
   );
 }
@@ -90,7 +84,6 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
           <Badge
-            font="mono"
             color="ghost"
             interactive
             leadingIcon={TriangleAlert}
@@ -117,12 +110,12 @@ export function UsageBadge({
   const tokenText = formatMetricTokens(totalUsage);
 
   if (!hasBreakdown(usageDetails)) {
-    return <Badge font="mono" color="ghost" text={tokenText} />;
+    return <Badge color="ghost" text={tokenText} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge font="mono" color="ghost" interactive text={tokenText} />
+      <Badge color="ghost" interactive text={tokenText} />
     </BreakdownTooltip>
   );
 }

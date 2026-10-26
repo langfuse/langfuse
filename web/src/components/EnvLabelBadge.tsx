@@ -54,7 +54,6 @@ export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
   return (
     <BadgeShell
       color={color}
-      font="mono"
       size="sm"
       onDismiss={onDismiss}
       title={DISMISS_HINT}

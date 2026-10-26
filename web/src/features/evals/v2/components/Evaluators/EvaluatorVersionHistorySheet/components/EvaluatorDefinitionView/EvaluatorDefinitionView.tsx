@@ -218,7 +218,6 @@ function DecisionModelDefinitionView({
       >
         <Badge
           color="outline"
-          font="mono"
           text={
             definition.selectedModel
               ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`

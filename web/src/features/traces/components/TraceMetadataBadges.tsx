@@ -66,13 +66,13 @@ export function TargetTraceBadge({
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge font="mono" color="ghost" label="env" text={environment} />;
+  return <Badge color="ghost" label="env" text={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge font="mono" color="ghost" label="release" text={release} />;
+  return <Badge color="ghost" label="release" text={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge font="mono" color="ghost" label="version" text={version} />;
+  return <Badge color="ghost" label="version" text={version} />;
 }
