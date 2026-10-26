@@ -1,7 +1,7 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
@@ -110,20 +110,26 @@ impl OpenAiResponsesCapture {
         self.facts
     }
 
-    /// The coding agent's `client_metadata` object removed from the request, if any.
+    /// The coding agent's `client_metadata` object from the request, if any.
     pub(super) fn client_metadata(&self) -> Option<&Map<String, Value>> {
         self.client_metadata.as_ref()
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RequestMembers<'_>) {
         self.facts.requested_model = request
-            .get("model")
+            .value("model")
+            .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
-        request.remove("model");
         // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
-        self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
+        self.client_metadata = match request
+            .value_within("client_metadata", telemetry::MAX_CLIENT_METADATA_BYTES)
+            .filter(telemetry::is_agent_client_metadata)
+        {
+            Some(Value::Object(metadata)) => Some(metadata),
+            _ => None,
+        };
         for key in [
             "temperature",
             "top_p",
@@ -138,7 +144,7 @@ impl OpenAiResponsesCapture {
             "store",
             "prompt_cache_retention",
         ] {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.value(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -158,18 +164,17 @@ impl OpenAiResponsesCapture {
                 "moderation",
                 "prompt_cache_options",
             ] {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.value(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.value(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
-            // Preserve native prompt context and unknown fields after projecting configuration.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 

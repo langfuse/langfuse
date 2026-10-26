@@ -2,6 +2,7 @@ mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
 mod openai_responses;
+mod request;
 mod response;
 mod sse;
 
@@ -21,6 +22,7 @@ pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_responses::OpenAiResponsesCapture;
+use request::RequestMembers;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
@@ -273,12 +275,15 @@ impl Drop for ExecutionCapture {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+fn parse_request<'a>(
+    headers: &HeaderMap,
+    body: &'a [u8],
+) -> Result<RequestMembers<'a>, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding
     } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
         InputOmissionReason::SizeLimit
-    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
+    } else if let Ok(request) = RequestMembers::parse(body) {
         return Ok(request);
     } else {
         InputOmissionReason::InvalidJson
