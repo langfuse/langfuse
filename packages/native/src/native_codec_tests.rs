@@ -47,7 +47,7 @@ fn ai_gateway_key_id_never_defaults_from_caller_metadata() {
     assert_eq!(column_type, "String");
     assert!(
         !uses_default,
-        "the worker alone decides ai_gateway_key_id; a metadata default would trust callers"
+        "a metadata default would let any SDK set ai_gateway_key_id"
     );
 }
 

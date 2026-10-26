@@ -530,7 +530,8 @@ mod tests {
         assert!(!attrs.contains_key("langfuse.trace.metadata"));
     }
 
-    // Ingestion stores this metadata key as `ai_gateway_key_id` for gateway uploads.
+    // Langfuse copies this metadata key into the `ai_gateway_key_id` column for
+    // gateway uploads, so callers must never be able to set it.
     #[test]
     fn caller_headers_never_supply_the_gateway_key_id() {
         let mut headers = axum::http::HeaderMap::new();

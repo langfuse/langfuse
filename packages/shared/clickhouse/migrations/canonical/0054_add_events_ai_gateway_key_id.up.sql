@@ -1,4 +1,6 @@
--- No DEFAULT expression over metadata: callers control metadata, so only the worker may set this column.
+-- Unlike evaluator_id, there is deliberately no DEFAULT that reads metadata: any SDK can write
+-- `langfuse.gateway.api_key.id` into metadata. The worker sets this column only for uploads the
+-- AI gateway authenticated.
 ALTER TABLE events_full {CLICKHOUSE_CLUSTER_CLAUSE}
   ADD COLUMN IF NOT EXISTS ai_gateway_key_id String DEFAULT '' AFTER ingestion_sdk_version
   SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};

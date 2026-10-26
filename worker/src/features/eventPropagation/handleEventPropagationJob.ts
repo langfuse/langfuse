@@ -326,7 +326,8 @@ export const handleEventPropagationJob = async (
           obs.ingestion_api_key AS ingestion_api_key,
           obs.ingestion_sdk_name AS ingestion_sdk_name,
           obs.ingestion_sdk_version AS ingestion_sdk_version,
-          -- Callers control metadata; only gateway-token uploads may set the key id.
+          -- Any SDK can write this metadata key, so only trust it on rows the
+          -- AI gateway uploaded (their ingestion key starts with 'gateway:').
           if(
             startsWith(obs.ingestion_api_key, '${AI_GATEWAY_INGESTION_API_KEY_PREFIX}'),
             obs.metadata['${AI_GATEWAY_KEY_ID_METADATA_KEY}'],
