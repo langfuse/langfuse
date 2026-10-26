@@ -160,6 +160,7 @@ const orgRoutes: Route[] = [
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],
   },
+  { route: "organizations/memberships/[email]/index", methods: ["GET"] },
   { route: "organizations/projects/index", methods: ["GET"] },
   { route: "projects/index", methods: ["GET", "POST"] },
   { route: "projects/[projectId]/index", methods: ["PUT", "DELETE"] },

@@ -24,6 +24,7 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/models/[modelId]",
   "/api/public/observations/[observationId]",
   "/api/public/organizations/llm-connections/[id]",
+  "/api/public/organizations/memberships/[email]",
   "/api/public/projects/[projectId]",
   "/api/public/projects/[projectId]/apiKeys",
   "/api/public/projects/[projectId]/apiKeys/[apiKeyId]",

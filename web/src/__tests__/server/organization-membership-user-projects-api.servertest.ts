@@ -127,7 +127,8 @@ describe("Public User Project Access API", () => {
     });
 
     const apiKey = await createApiKey(prisma, {
-      owner: OrganizationId(testOrgId),
+      tenant: OrganizationId(testOrgId),
+      scope: OrganizationId(testOrgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: "system",
       name: "Test API Key for organization membership user projects API",
@@ -271,7 +272,8 @@ describe("Public User Project Access API", () => {
 
     it("should return 403 when using a project-scoped API key", async () => {
       const projectApiKey = await createApiKey(prisma, {
-        owner: ProjectId(projectAId),
+        tenant: OrganizationId(testOrgId),
+        scope: ProjectId(projectAId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: "system",
         name: "Test Project API Key",
@@ -285,9 +287,7 @@ describe("Public User Project Access API", () => {
       );
 
       expect(result.status).toBe(403);
-      expect(result.body.error).toContain(
-        "Organization-scoped API key required",
-      );
+      expect(result.body.error).toContain("organizationMembers:read");
 
       await prisma.apiKey.delete({ where: { id: projectApiKey.id } });
     });

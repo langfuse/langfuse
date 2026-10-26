@@ -20,7 +20,7 @@ import { resolveProjectRole } from "@langfuse/shared/src/server";
  * must normalize before querying — see `web/src/server/auth.ts` and
  * `web/src/pages/api/public/scim/Users/index.ts`.
  */
-export const normalizeUserEmail = (email: string) => email.toLowerCase();
+const normalizeUserEmail = (email: string) => email.toLowerCase();
 
 const userSelect = {
   id: true,
