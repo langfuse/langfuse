@@ -50,7 +50,6 @@ import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
 import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
-import { GatewayOnlyLanding } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayOnlyLanding";
 import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -407,9 +406,6 @@ export const OrganizationProjectOverview = () => {
       }),
     }));
   const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
-  const gatewayOnlySetup = useGatewaySettingsAccess(
-    gatewayLaunchCandidates[0]?.organizationId,
-  );
   const userId = session.data?.user?.id;
 
   if (organizations === undefined) {
@@ -419,37 +415,6 @@ export const OrganizationProjectOverview = () => {
   const showOnboarding =
     organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
       .length === 0 && !queryOrgId;
-
-  // Invited only to use the gateway: a set-up gateway org, no owner or admin
-  // role anywhere, and no visible projects.
-  const realOrgs = organizations.filter(
-    (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
-  );
-  const gatewayOnlyOrg =
-    gatewayLaunchCandidates.length > 0 &&
-    !session.data?.user?.admin &&
-    realOrgs.every(
-      (org) =>
-        org.role !== "OWNER" &&
-        org.role !== "ADMIN" &&
-        org.projects.length === 0,
-    ) &&
-    gatewayOnlySetup.isIngestionConfigured === true
-      ? realOrgs.find(
-          (org) => org.id === gatewayLaunchCandidates[0]?.organizationId,
-        )
-      : undefined;
-
-  if (!queryOrgId && gatewayOnlyOrg) {
-    return (
-      <ContainerPage headerProps={{ title: gatewayOnlyOrg.name }}>
-        <GatewayOnlyLanding
-          organizationId={gatewayOnlyOrg.id}
-          organizationName={gatewayOnlyOrg.name}
-        />
-      </ContainerPage>
-    );
-  }
 
   if (queryOrgId) {
     const org = organizations.find((org) => org.id === queryOrgId);
