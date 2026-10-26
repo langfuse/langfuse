@@ -193,7 +193,9 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
-- Worker env owns queue concurrency and sandbox configuration. Shared env owns
+- Worker env owns queue concurrency, sandbox configuration, and optional model
+  provider options (`LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS`, layered over
+  `getInAppAgentReasoningProviderOptions()`). Shared env owns
   the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy
   `LANGFUSE_IN_APP_AGENT_AWS_PROFILE` fallback); `AWS_PROFILE` takes precedence.
   Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` via

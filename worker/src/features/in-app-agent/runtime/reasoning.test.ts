@@ -12,6 +12,7 @@ import { env } from "@langfuse/shared/src/env";
 import {
   createInAppAgentLanguageModel,
   getBedrockReasoningProviderOptions,
+  getInAppAgentProviderOptions,
   getInAppAgentReasoningProviderOptions,
 } from "./model";
 import { applyPromptCacheToCall } from "./promptCache";
@@ -91,6 +92,35 @@ describe("OpenAI Chat Completions request shape", () => {
     expect(calls[0]?.body).not.toHaveProperty("thinking");
     expect(calls[0]?.body.reasoning_effort).toBe("medium");
     expect(calls[0]?.body).not.toHaveProperty("reasoning");
+  });
+
+  it("passes operator provider options through to OpenAI-compatible bodies", async () => {
+    // Compatible endpoints take vendor-specific body fields the SDK has no
+    // typed option for; the override adds them next to the built-in defaults.
+    const config = {
+      provider: "openai" as const,
+      modelId: "glm-5.3-flash",
+      titleModelId: "glm-5.3-flash",
+      apiKey: "sk-test",
+      baseURL: "https://openai-compatible.test/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = await createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      providerOptions: getInAppAgentProviderOptions(config, {
+        openai: { thinking: { type: "disabled" } },
+      }),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(
+      "https://openai-compatible.test/v1/chat/completions",
+    );
+    expect(calls[0]?.body.thinking).toEqual({ type: "disabled" });
+    expect(calls[0]?.body.reasoning_effort).toBe("medium");
   });
 
   it("posts Anthropic cache_control on Chat Completions for anthropic model slugs", async () => {
@@ -349,6 +379,42 @@ describe("Anthropic Messages request shape", () => {
       display: "summarized",
     });
   });
+
+  it("puts operator thinking options on the body for models without built-in defaults", async () => {
+    // Non-Claude ids behind an Anthropic-compatible endpoint get no reasoning
+    // defaults, so they otherwise run on whatever thinking mode the endpoint
+    // defaults to.
+    const config = {
+      provider: "anthropic" as const,
+      modelId: "glm-5.3-flash",
+      titleModelId: "glm-5.3-flash",
+      apiKey: "sk-test",
+      baseURL: "https://anthropic-compatible.test/v1",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "msg_1",
+      type: "message",
+      role: "assistant",
+      model: config.modelId,
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = await createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      providerOptions: getInAppAgentProviderOptions(config, {
+        anthropic: { thinking: { type: "disabled" }, effort: "low" },
+      }),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body.thinking).toEqual({ type: "disabled" });
+    expect(calls[0]?.body.output_config).toEqual({ effort: "low" });
+  });
 });
 
 const OPENAI_CHAT_RESPONSE = {
@@ -398,6 +464,23 @@ function userPrompt() {
     },
   ];
 }
+
+describe("getInAppAgentProviderOptions", () => {
+  it("replaces a default option whole instead of merging into it", () => {
+    // A deep merge would keep adaptive's `display` next to type "disabled".
+    expect(
+      getInAppAgentProviderOptions(
+        {
+          provider: "anthropic",
+          modelId: "claude-opus-4-8",
+          titleModelId: "claude-haiku-4-5",
+          apiKey: "sk-ant-test",
+        },
+        { anthropic: { thinking: { type: "disabled" } } },
+      ),
+    ).toEqual({ anthropic: { thinking: { type: "disabled" } } });
+  });
+});
 
 describe("getInAppAgentReasoningProviderOptions on Vertex", () => {
   // Claude on Vertex runs the Anthropic Messages model, so it takes the same

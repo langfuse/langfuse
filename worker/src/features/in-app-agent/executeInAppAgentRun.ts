@@ -121,6 +121,7 @@ export async function executeInAppAgentRun(params: {
 }): Promise<void> {
   const { projectId, runId } = params;
   const awsProfile = getLangfuseAIAwsProfile();
+  const providerOptionOverrides = env.LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued. Reconcile then ack — Postgres owns correctness.
@@ -610,6 +611,7 @@ export async function executeInAppAgentRun(params: {
           await sandboxState?.onTurnEnded();
         },
         model: modelConfig,
+        ...(providerOptionOverrides ? { providerOptionOverrides } : {}),
         ...(awsProfile ? { awsProfile } : {}),
         langfuseMcp: {
           url: getLangfuseMcpUrl(),

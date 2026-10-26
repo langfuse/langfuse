@@ -5,6 +5,7 @@ import { createVertex } from "ai-sdk-google-vertex-v4";
 import { createVertexAnthropic } from "ai-sdk-google-vertex-v4/anthropic";
 import { createOpenAICompatible } from "ai-sdk-openai-compatible-v4";
 import { createOpenAI } from "ai-sdk-openai-v4";
+import type { z } from "zod";
 
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
@@ -26,6 +27,11 @@ const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
 // Existing Vertex connections default the location to "global" for both model
 // families; the in-app agent follows the same default.
 const DEFAULT_VERTEX_LOCATION = "global";
+
+export type InAppAgentProviderOptionOverrides = Record<
+  string,
+  Record<string, z.infer<ReturnType<typeof z.json>> | undefined>
+>;
 
 export type InAppAgentLanguageModel = ReturnType<
   ReturnType<typeof createAmazonBedrock>
@@ -235,6 +241,28 @@ export function getInAppAgentReasoningProviderOptions(
       return undefined;
     }
   }
+}
+
+/**
+ * Layers operator overrides (`LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS`) over the
+ * built-in reasoning defaults. Provider namespaces merge; within one, an
+ * override replaces the default option of the same name whole, so disabling
+ * thinking does not inherit the adaptive `display` field.
+ */
+export function getInAppAgentProviderOptions(
+  config: InAppAgentModelConfig,
+  overrides?: InAppAgentProviderOptionOverrides,
+) {
+  const defaults = getInAppAgentReasoningProviderOptions(config);
+  if (!overrides) {
+    return defaults;
+  }
+
+  const merged: InAppAgentProviderOptionOverrides = { ...defaults };
+  for (const [namespace, options] of Object.entries(overrides)) {
+    merged[namespace] = { ...merged[namespace], ...options };
+  }
+  return merged;
 }
 
 function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
