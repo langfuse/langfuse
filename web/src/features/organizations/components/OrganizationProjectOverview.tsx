@@ -420,16 +420,20 @@ export const OrganizationProjectOverview = () => {
     organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
       .length === 0 && !queryOrgId;
 
-  // Invited only to use the gateway: every org is a gateway org the user does
-  // not manage, none has projects, and the gateway is set up.
+  // Invited only to use the gateway: a set-up gateway org, no owner or admin
+  // role anywhere, and no visible projects.
   const realOrgs = organizations.filter(
     (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   );
   const gatewayOnlyOrg =
     gatewayLaunchCandidates.length > 0 &&
-    gatewayLaunchCandidates.length === realOrgs.length &&
-    gatewayLaunchCandidates.every((c) => !c.canManage) &&
-    realOrgs.every((org) => org.projects.length === 0) &&
+    !session.data?.user?.admin &&
+    realOrgs.every(
+      (org) =>
+        org.role !== "OWNER" &&
+        org.role !== "ADMIN" &&
+        org.projects.length === 0,
+    ) &&
     gatewayOnlySetup.isIngestionConfigured === true
       ? realOrgs.find(
           (org) => org.id === gatewayLaunchCandidates[0]?.organizationId,
