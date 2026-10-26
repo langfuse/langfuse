@@ -11,6 +11,7 @@ import {
 import { type ReactNode, useState } from "react";
 
 import { IconButton } from "../IconButton/IconButton";
+import { SyntaxHighlight } from "../SyntaxHighlight/SyntaxHighlight";
 import { Tooltip } from "../Tooltip/Tooltip";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
@@ -76,6 +77,8 @@ type CodeSectionProps = {
   content: string;
   /** Custom body, e.g. highlighted variables; copy still uses `content`. */
   children?: ReactNode;
+  /** Prism language name, e.g. `sh` or `json`, to syntax-highlight `content`. Ignored when `children` is set. */
+  language?: string;
   /** Omitted = no header row; actions move into the body's top-right corner. */
   title?: string;
   variant?: "filled" | "outline" | "plain";
@@ -92,6 +95,7 @@ type CodeSectionProps = {
 export function CodeSection({
   content,
   children,
+  language,
   title,
   variant = "filled",
   actions = [],
@@ -193,7 +197,14 @@ export function CodeSection({
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}
         >
-          {children ?? content}
+          {children ??
+            (language === undefined ? (
+              content
+            ) : (
+              <SyntaxHighlight code={content} language={language}>
+                {({ content: highlighted }) => highlighted}
+              </SyntaxHighlight>
+            ))}
         </code>
         {title ? null : actionGroup}
       </div>

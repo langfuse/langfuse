@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Job } from "bullmq";
 import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { getQueue, logger, QueueName } from "@langfuse/shared/src/server";

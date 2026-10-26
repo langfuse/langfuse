@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -39,8 +40,7 @@ export function SettingsPage({ scope }: SettingsPageProps) {
     typeof router.query.page === "string" ? router.query.page : undefined;
   const fullHeight =
     scope === "organization" &&
-    (activeSlug === "ai-gateway-models" ||
-      activeSlug === "ai-gateway-providers");
+    (activeSlug === "ai-gateway-models" || activeSlug === "ai-gateway");
 
   if (scope === "organization" && !organization) {
     return (

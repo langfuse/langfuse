@@ -2,6 +2,14 @@ import { expect, spyOn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { CliSkillImportInstructions } from "./CliSkillImportInstructions";
 
+/** Highlighted commands are split across token spans, so match the whole code block. */
+const codeBlockWithText =
+  (text: string | RegExp) => (_content: string, element: Element | null) =>
+    element?.tagName === "PRE" &&
+    (typeof text === "string"
+      ? element.textContent === text
+      : text.test(element.textContent ?? ""));
+
 const meta = preview.meta({
   component: CliSkillImportInstructions,
   args: {
@@ -23,7 +31,9 @@ export const ImportScopes = meta.story({
     try {
       const recursiveCommand =
         "langfuse skills push '.agents/skills' --recursive";
-      await expect(canvas.getByText(recursiveCommand)).toBeVisible();
+      await expect(
+        canvas.getByText(codeBlockWithText(recursiveCommand)),
+      ).toBeVisible();
       const configure = canvas.getByRole("button", {
         name: "Configure import command",
       });
@@ -36,9 +46,14 @@ export const ImportScopes = meta.story({
         "team's skills/review-code",
       );
       const singleCommand = `langfuse skills push 'team'"'"'s skills/review-code'`;
-      await expect(canvas.getByText(singleCommand)).toBeVisible();
+      await expect(
+        canvas.getByText(codeBlockWithText(singleCommand)),
+      ).toBeVisible();
       await userEvent.click(
-        canvas.getByRole("button", { name: "Copy prompt" }),
+        within(canvas.getByRole("group", { name: "Setup prompt" })).getByRole(
+          "button",
+          { name: "Copy code" },
+        ),
       );
       await expect(writeText).toHaveBeenLastCalledWith(
         expect.stringContaining(singleCommand),
@@ -47,12 +62,16 @@ export const ImportScopes = meta.story({
         expect.stringContaining(`Langfuse host: ${JSON.stringify(args.host)}`),
       );
       await userEvent.click(canvas.getByRole("tab", { name: "All skills" }));
-      await expect(canvas.getByText(recursiveCommand)).toBeVisible();
+      await expect(
+        canvas.getByText(codeBlockWithText(recursiveCommand)),
+      ).toBeVisible();
       await userEvent.click(canvas.getByRole("tab", { name: "Single skill" }));
       await expect(canvas.getByLabelText("Skill folder")).toHaveValue(
         "team's skills/review-code",
       );
-      await expect(canvas.getByText(singleCommand)).toBeVisible();
+      await expect(
+        canvas.getByText(codeBlockWithText(singleCommand)),
+      ).toBeVisible();
     } finally {
       writeText.mockRestore();
     }
@@ -72,10 +91,10 @@ export const EmptyPath = meta.story({
       "Enter a folder path",
     );
     await expect(
-      canvas.queryByRole("button", { name: "Copy prompt" }),
+      canvas.queryByRole("group", { name: "Setup prompt" }),
     ).not.toBeInTheDocument();
     await expect(
-      canvas.queryByText(/langfuse skills push/),
+      canvas.queryByText(codeBlockWithText(/langfuse skills push/)),
     ).not.toBeInTheDocument();
   },
 });

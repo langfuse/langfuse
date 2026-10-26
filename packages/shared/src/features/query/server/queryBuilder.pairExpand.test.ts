@@ -7,6 +7,7 @@ import { QueryBuilder } from "./queryBuilder";
 // Mock it so these stay unit-level and do not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const usageByTypeTimeseries = {

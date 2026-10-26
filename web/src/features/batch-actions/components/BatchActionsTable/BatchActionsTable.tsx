@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Utility to extract fields from a JSON Schema for pre-populating key-value mapping.
  *

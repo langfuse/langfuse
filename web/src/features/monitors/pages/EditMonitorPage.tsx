@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";

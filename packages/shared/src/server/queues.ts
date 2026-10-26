@@ -176,6 +176,9 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // override. Optional for jobs queued before this field existed; those
   // inherit the evaluator version mapping.
   variableMapping: observationVariableMappingList.optional(),
+  // Manual batch runs record their batch action on the execution trace and
+  // scores so a run's outputs can be found together.
+  batchActionId: z.string().optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -287,6 +290,20 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     commentId: z.string(),
     projectId: z.string(),
     mentionedUserIds: z.array(z.string()),
+  }),
+  /** One AI Gateway invitation or announcement email, rendered as-is by the worker. */
+  z.object({
+    type: z.literal("AI_GATEWAY_INVITATION"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("invitee"), hasAccount: z.boolean() }),
+      z.object({ kind: z.literal("member") }),
+    ]),
+    inviterName: z.string(),
+    inviterEmail: z.string(),
   }),
   // Future notification types can be added here
 ]);

@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Reusable ClickHouse query fragments and CTEs
  */
 
+import { shouldSkipScoresDedup } from "./query-options";
 import {
   EventsAggregationQueryBuilder,
   EventsAggQueryBuilder,
@@ -171,7 +173,7 @@ const buildScoresAggregationCTE = (
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores FINAL
+        FROM scores ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
         WHERE project_id = {projectId: String}
           ${observationFilter}
           ${params.scoreRowsFilter ? `AND ${params.scoreRowsFilter.query}` : ""}
@@ -459,7 +461,7 @@ export const eventsSessionScoresAggregation = (params: {
         data_type,
         string_value,
         avg(value) avg_value
-      FROM scores s FINAL
+      FROM scores s ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
       WHERE
         project_id = {projectId: String}
       GROUP BY
@@ -576,7 +578,7 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
       data_type,
       string_value,
       avg(value) avg_value
-    FROM scores s FINAL
+    FROM scores s ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
     WHERE
       project_id = {projectId: String}
       ${observationFilter}

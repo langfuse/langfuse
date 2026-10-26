@@ -4,47 +4,14 @@ import { TopicSetupNotice } from "./TopicSetupNotice";
 
 const meta = preview.meta({ component: TopicSetupNotice });
 
-export const Setup = meta.story({
-  args: {
-    notice: { status: { kind: "setup" } },
-    canWrite: true,
-    canConfigure: true,
-    onConfigure: fn(),
-    onKeepOff: fn(),
-    onTurnBackOn: fn(),
-  },
-});
-
-export const ReadyToProcess = meta.story({
-  args: {
-    canWrite: true,
-    canConfigure: true,
-    onConfigure: fn(),
-    onKeepOff: fn(),
-    onTurnBackOn: fn(),
-    notice: { status: null },
-    showOnboarding: true,
-    configured: true,
-    canProcess: true,
-    onAutomaticProcessing: fn(),
-    onManualProcessing: fn(),
-  },
-});
-
-export const Processing = meta.story({
+export const Landing = meta.story({
   args: {
     notice: { status: null },
     canWrite: true,
     canConfigure: true,
-    onConfigure: fn(),
+    showOnboarding: true,
+    onStart: fn(),
     onKeepOff: fn(),
     onTurnBackOn: fn(),
-    showOnboarding: true,
-    configured: true,
-    canProcess: true,
-    onAutomaticProcessing: fn(),
-    onManualProcessing: fn(),
-    automaticEnabled: true,
-    running: true,
   },
 });

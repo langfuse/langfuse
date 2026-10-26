@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TracePanelDetail - Pure content component for detail panel
  *
@@ -16,8 +17,8 @@
  * - Does NOT re-render when search changes (isolated)
  */
 
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";

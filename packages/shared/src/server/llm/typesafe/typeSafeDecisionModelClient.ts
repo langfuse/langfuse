@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import {
   experimental_decide as decide,

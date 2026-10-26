@@ -123,5 +123,7 @@ export interface ObservationEvalSchedulerDeps {
      * evaluator version mapping.
      */
     variableMapping?: ObservationVariableMapping[];
+    /** Batch action of a manual batch run; omitted for live ingestion. */
+    batchActionId?: string;
   }) => Promise<void>;
 }

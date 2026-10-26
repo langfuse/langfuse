@@ -122,6 +122,14 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
 RUN echo "gateway:x:10001:" >> /mnt/rootfs/etc/group && \
     echo "gateway:x:10001:10001::/home/gateway:/sbin/nologin" >> /mnt/rootfs/etc/passwd
 
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with web/Dockerfile and worker/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 
 COPY --from=rpm-installer /mnt/rootfs /

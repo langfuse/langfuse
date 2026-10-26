@@ -1,0 +1,205 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { ItemBadge } from "@/src/components/ItemBadge";
+import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import { PageTabs } from "@/src/components/layouts/PageTabs";
+import { type PageHeaderProps } from "@/src/components/layouts/page-header";
+import { Button } from "@/src/components/ui/button";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { cn } from "@/src/utils/tailwind";
+import { MoreHorizontal } from "@langfuse/icons";
+import { useRef, useState } from "react";
+
+/**
+ * The page-specific block for the minimal-chrome mobile shell. Rendered between
+ * the slim sticky chrome and the page content (not inside the sticky bar), so
+ * the title reads as part of the page and scrolls with it. Holds the
+ * org/project context switcher, the compact page title (type icon + heading)
+ * with its page actions collapsed into a single `⋯` overflow popover, the
+ * hoisted controls slot (time range / refresh), and the section tabs.
+ *
+ * Takes the same `headerProps` the desktop PageHeader gets, so any Page-style
+ * wrapper renders it consistently. Controls + agent live here for now; they
+ * migrate into the expandable bottom bar as that lands.
+ */
+export const MobilePageTitle = ({
+  headerProps,
+}: {
+  headerProps: Omit<PageHeaderProps, "container">;
+}) => {
+  const {
+    title,
+    titleTooltip,
+    help,
+    itemType,
+    actionButtonsLeft,
+    actionButtonsRight,
+    mobileActionButtons,
+    actionButtonsMenu,
+    titleBadges,
+    breadcrumb,
+    breadcrumbBadges,
+    tabsProps,
+  } = headerProps;
+
+  const [isMenuOpen, setMenuOpen] = useState(false);
+  const restoreFocus = useRef(true);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = (options?: { handoffFocus?: boolean }) => {
+    restoreFocus.current = !options?.handoffFocus;
+    setMenuOpen(false);
+    if (options?.handoffFocus) {
+      menuTriggerRef.current?.focus({ preventScroll: true });
+    }
+  };
+  const hasOverflowActions = Boolean(
+    actionButtonsMenu ||
+    (!mobileActionButtons && (actionButtonsRight || actionButtonsLeft)),
+  );
+
+  return (
+    <div
+      className={cn(
+        "bg-background px-3 pt-2",
+        tabsProps ? "pb-0" : "pb-3",
+        !tabsProps && headerProps.divider !== false && "border-b",
+      )}
+    >
+      {/* Context line: org / project switcher plus any page-supplied
+          breadcrumb items (detail pages rely on these for back-navigation). */}
+      <div className="flex items-center gap-2">
+        <BreadcrumbComponent items={breadcrumb} />
+        {breadcrumbBadges}
+      </div>
+
+      {/* Title row. On desktop the PageHeader packs the title and its action
+          clusters onto one justified row; at phone width the compact mobile
+          header keeps the type icon + title on the left. Pages can keep one
+          primary action visible; remaining action clusters collapse into a
+          single `⋯` overflow popover pinned to the right, so the header top
+          block stays ~2 rows instead of the 4–5 it used to take. */}
+      <div className="mt-2 flex min-w-0 items-center gap-2">
+        {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
+            session id, the common case) squeezes it. */}
+        {itemType && (
+          <span className="flex shrink-0 items-center">
+            <ItemBadge type={itemType} />
+          </span>
+        )}
+        {/* min-w-0 + truncate: long titles ellipsize on one line instead of
+            pushing the ⋯ flush against the edge or crushing the icon. Full value
+            stays in the title attribute (and the ⋯ menu's Copy row). */}
+        <h1
+          title={title}
+          className="text-primary min-w-0 truncate text-base leading-tight font-bold"
+        >
+          {titleTooltip ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-help">{title}</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  {titleTooltip}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <span title={title}>{title}</span>
+          )}
+        </h1>
+        {/* Help lives OUTSIDE the truncating h1 (like titleBadges): kept inside,
+            a title long enough to fill the row clips the `?` past the overflow
+            boundary, making it invisible/untappable. As a shrink-0 sibling it
+            stays put. */}
+        {help && (
+          <span className="shrink-0 align-middle whitespace-nowrap">
+            <DocPopup
+              description={help.description}
+              href={help.href}
+              className={help.className}
+            />
+          </span>
+        )}
+        {titleBadges && (
+          <div className="flex shrink-0 items-center gap-1">{titleBadges}</div>
+        )}
+        {mobileActionButtons ? (
+          <div className="ml-auto flex shrink-0 items-center">
+            {mobileActionButtons}
+          </div>
+        ) : null}
+        {/* Remaining actions collapse into a right-aligned overflow popover of
+            full-width labeled rows (icon + label) — the same pattern the table
+            peek uses. Pages pass `actionButtonsMenu` (a `layout="menu"` variant
+            of their actions) for proper menu rows; when they don't, we fall
+            back to folding the inline `actionButtonsRight`/`actionButtonsLeft`
+            nodes as-is. Either way the actions' own dialogs/drawers portal
+            through the layer system, so they keep working from the popover. */}
+        {hasOverflowActions && (
+          <Popover
+            open={isMenuOpen}
+            onOpenChange={(open) => {
+              if (open) restoreFocus.current = true;
+              setMenuOpen(open);
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                ref={menuTriggerRef}
+                aria-label="More actions"
+                className="ml-auto shrink-0"
+              >
+                <MoreHorizontal size="base" color="default" />
+              </Button>
+            </PopoverTrigger>
+            <MobilePageActionsContent
+              onCloseAutoFocus={(event) => {
+                if (!restoreFocus.current) event.preventDefault();
+                restoreFocus.current = true;
+              }}
+            >
+              <div className="flex flex-col items-stretch gap-0.5">
+                {typeof actionButtonsMenu === "function"
+                  ? actionButtonsMenu({ closeMenu })
+                  : (actionButtonsMenu ?? (
+                      <>
+                        {actionButtonsRight}
+                        {actionButtonsLeft}
+                      </>
+                    ))}
+              </div>
+            </MobilePageActionsContent>
+          </Popover>
+        )}
+      </div>
+
+      {/* Hoisted page controls (time range, auto-refresh). The assistant
+          launcher lives in the sticky MobileTopBar now (prominent + always
+          reachable), not here where it wrapped onto its own line and shrank to
+          an easily-missed icon. The slot target is `display:contents`, so on
+          pages that hoist nothing (traces, session/trace detail) this wrapper is
+          empty — gate its top margin on actually having portaled controls
+          (`:has(>*>*)` = the contents target has children), so an empty slot
+          adds no phantom gap below the title. */}
+      <div className="flex flex-wrap items-center gap-2 [&:has(>*>*)]:mt-2">
+        <PageHeaderControlsSlotTarget />
+      </div>
+
+      {/** The strip bleeds through the block padding so its divider spans the full width. */}
+      {tabsProps && (
+        <PageTabs {...tabsProps} scrollable className="-mx-3 mt-2" />
+      )}
+    </div>
+  );
+};

@@ -35,12 +35,14 @@ import {
   getTraceBatchShard,
 } from "../features/traceBatching/traceBatchReadiness";
 import {
-  prepareLocalityPartials,
-  selectTraceBatches,
-  type PendingTrace,
   trackTraceBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traceBatching/traceBatching";
+import {
+  prepareLocalityPartials,
+  selectTraceBatches,
+  type PendingTrace,
+} from "../features/traceBatching/traceBatchSelection";
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";

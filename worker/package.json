@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.67.0",
+  "version": "4.70.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -58,6 +58,7 @@
     "@opentelemetry/sdk-node": "^0.220.0",
     "@prisma/client": "^6.19.3",
     "@prisma/instrumentation": "^6.19.3",
+    "@react-email/render": "^1.2.1",
     "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.197",
     "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
     "ai-sdk-google-vertex-v4": "npm:@ai-sdk/google-vertex@4.0.186",
@@ -91,13 +92,13 @@
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "catalog:",
     "fast-check": "3.23.2",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "wait-for-expect": "^3.0.2"
   }
 }

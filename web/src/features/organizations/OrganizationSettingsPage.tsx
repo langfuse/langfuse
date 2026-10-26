@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
@@ -26,9 +27,9 @@ import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEn
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 import {
   GatewayApiKeysPage,
-  GatewayConfigurationPage,
   GatewayModelsPage,
-  GatewayProvidersPage,
+  GatewayNotDeployedNotice,
+  GatewaySetupPage,
 } from "@/src/features/ai-gateway";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -36,7 +37,7 @@ import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 
 const GATEWAY_SETUP_REQUIRED_REASON =
-  "Set up an ingestion project in Configuration first.";
+  "Set up an ingestion project in Setup first.";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -90,6 +91,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     isLangfuseCloud,
     showV4Migration,
     showAiGatewayManagement: gatewayAccess.showManagement,
+    showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
     showAiGatewayModels: gatewayAccess.showModels,
     showAiGatewayApiKeys: gatewayAccess.showApiKeys,
     /** Only managers get disabled entries; others see a notice on the page. */
@@ -113,6 +115,7 @@ const getOrganizationSettingsPages = ({
   isLangfuseCloud,
   showV4Migration,
   showAiGatewayManagement,
+  showAiGatewayNotDeployedNotice,
   showAiGatewayModels,
   showAiGatewayApiKeys,
   gatewaySetupDisabledReason,
@@ -137,6 +140,7 @@ const getOrganizationSettingsPages = ({
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
   showAiGatewayManagement: boolean;
+  showAiGatewayNotDeployedNotice: boolean;
   showAiGatewayModels: boolean;
   showAiGatewayApiKeys: boolean;
   gatewaySetupDisabledReason: string | undefined;
@@ -319,32 +323,29 @@ const getOrganizationSettingsPages = ({
     show: showV4Migration,
   },
   {
-    title: "Configuration",
+    title: "Setup",
     slug: "ai-gateway",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
-    content: (
-      <GatewayConfigurationPage
-        organizationId={organization.id}
-        projects={organization.projects}
-      />
-    ),
-    show: showAiGatewayManagement,
-  },
-  {
-    title: "Provider credentials",
-    slug: "ai-gateway-providers",
     section: "AI Gateway",
     cmdKKeywords: [
       "gateway",
+      "llm",
+      "setup",
+      "configuration",
+      "ingestion",
       "providers",
       "credentials",
       "openai",
       "anthropic",
     ],
-    content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showAiGatewayManagement,
-    disabledReason: gatewaySetupDisabledReason,
+    content: showAiGatewayNotDeployedNotice ? (
+      <GatewayNotDeployedNotice />
+    ) : (
+      <GatewaySetupPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
   },
   {
     title: "Models",

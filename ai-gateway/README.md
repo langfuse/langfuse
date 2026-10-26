@@ -73,11 +73,13 @@ do not load dotenv files:
 | ---------------------------------------------- | -------------- | -------------------------------------------------- |
 | `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
 | `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
+| `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL` | `false` | `true`, `false`; `true` also accepts a plain `http://` Web URL on any host. Only for internal traffic, such as Web's in-cluster Kubernetes Service (`http://<release>-web.<namespace>.svc.cluster.local:3000`) or another private network; never for a URL that crosses the public internet, because resolve responses carry provider API keys and requests carry the service key and ingestion tokens unencrypted. Resolution, model catalogs and trace uploads all use this URL. The gateway logs a warning at startup when it is used |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
+| `LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal. Replaces the deprecated `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS`, which is still read when the new name is unset. On ECS behind an ALB, the deregistration delay drains streams before SIGTERM, so use `1`. On Kubernetes the gateway drains streams itself, so set it to the stream time to protect (for example `300`) |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends. On ECS use most of `stopTimeout` (max 120), for example `115`. On Kubernetes `30` is enough; set `terminationGracePeriodSeconds` above the `preStop` sleep plus both timeouts |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
 | `LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` | `1073741824` (1 GiB) | Integer from the request limit plus the overhead up to Tokio's semaphore capacity; bytes all in-flight requests and model catalogs of an instance may reserve together |
@@ -258,7 +260,7 @@ bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
-do not fail inference. Shutdown flushes within the remaining shared drain deadline.
+do not fail inference. Shutdown flushes within the remaining telemetry shutdown budget.
 Telemetry delivery warnings report the first failure/drop and every hundredth;
 metrics count each occurrence. This is best-effort operational telemetry.
 
@@ -546,7 +548,7 @@ span records `gateway.telemetry.attempts`. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
 SIGTERM marks the gateway unready, drains inference, then flushes open batches and
-finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads,
+finishes uploads within the telemetry shutdown budget, which starts when draining ends. At the deadline, unfinished uploads,
 including batches waiting to retry, are cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
@@ -813,8 +815,8 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 - SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
   within the configured timeout. Deadline expiry exits nonzero and terminates
   remaining runtime tasks; ordinary shutdown exits zero.
-- The shutdown deadline starts on the shutdown signal. New inference requests
-  are rejected while draining; existing response streams share this budget.
+- The drain deadline (`LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests are rejected while draining; existing response streams share this budget.
+- Inference telemetry and operational OTLP export then flush within `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining ends, so a drain that hits its deadline does not drop open batches.
 
 ## Container
 
@@ -835,7 +837,7 @@ docker build --target runtime \
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
-docker stop --time 15 langfuse-ai-gateway-dev
+docker stop --time 25 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
 ```
 
@@ -845,7 +847,7 @@ package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
-grace period longer than the gateway shutdown timeout. The smoke test uses an
+grace period longer than the gateway connection drain timeout plus the telemetry shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 
@@ -860,13 +862,7 @@ the file locally: `cargo about generate --locked --fail about.hbs`.
 
 ### Web resolution client
 
-`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
-base URL. The binary initializes it when a Web URL is configured. The
-caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
-development. URLs cannot contain credentials, a query or fragment. Include the
-Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
-`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web base URL. The binary initializes it when a Web URL is configured. The caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local development; `ControlPlaneConfig::with_plain_http`, which the binary uses when `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for internal traffic only. URLs cannot contain credentials, a query or fragment. Include the Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
 use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};

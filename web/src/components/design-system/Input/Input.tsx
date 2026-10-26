@@ -17,6 +17,7 @@ type InputProps = Pick<
   | "id"
   | "inputMode"
   | "maxLength"
+  | "max"
   | "min"
   | "minLength"
   | "name"
@@ -34,12 +35,18 @@ type InputProps = Pick<
 > & {
   allowPasswordManager?: boolean;
   error?: boolean;
+  /**
+   * `inline` sits within a sentence and grows and shrinks with its value;
+   * place it in a `w-fit` container.
+   */
+  layout?: "block" | "inline";
   ref?: Ref<HTMLInputElement>;
 };
 
 export function Input({
   allowPasswordManager,
   error,
+  layout = "block",
   ref,
   ...props
 }: InputProps) {
@@ -47,6 +54,7 @@ export function Input({
     <InputControl contentLayout="text" error={error}>
       <input
         {...props}
+        className={layout === "inline" ? "field-sizing-content" : undefined}
         {...(!allowPasswordManager && { "data-1p-ignore": true })}
         ref={ref}
       />

@@ -6,7 +6,14 @@ pub struct GatewayConfig {
     pub control_plane: Option<ControlPlaneConfig>,
     pub listen_address: SocketAddr,
     pub auto_increment_listen_port: bool,
-    pub shutdown_timeout: Duration,
+    /// Connection drain after the shutdown signal. Behind an ALB, deregistration has
+    /// already drained streams on SIGTERM; on Kubernetes this drain is the only one.
+    pub connection_drain_timeout: Duration,
+    /// The connection drain timeout was read from its deprecated name.
+    pub uses_deprecated_connection_drain_timeout_name: bool,
+    /// Budget for flushing telemetry, starting once connection draining ends. The
+    /// orchestrator grace period must cover both timeouts (ECS `stopTimeout` is at most 120 s).
+    pub telemetry_shutdown_timeout: Duration,
     pub log_level: LevelFilter,
     pub log_format: LogFormat,
     pub telemetry_buffer_bytes: usize,
@@ -24,6 +31,7 @@ const DEFAULT_MEMORY_BUDGET_BYTES: usize = 1024 * MIB;
 const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = 2 * MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
+const DEFAULT_SHUTDOWN_TIMEOUT_SECONDS: u64 = 10;
 /// Memory bounds per instance. Admission is limited only by the memory budget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestLimits {
@@ -78,17 +86,28 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
-    /// or missing/blank service key. Error messages never include supplied values.
+    /// or missing/blank service key, or a non-boolean HTTP Web URL opt-in. Error
+    /// messages never include supplied values.
     pub fn from_env() -> Result<Self, GatewayConfigError> {
+        let (connection_drain_timeout, uses_deprecated_connection_drain_timeout_name) =
+            connection_drain_timeout_value(
+                read_env("LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS")?,
+                read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?,
+            );
         let mut config = Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
+            connection_drain_timeout.as_deref(),
             read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
             read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
         )?;
+        config.uses_deprecated_connection_drain_timeout_name =
+            uses_deprecated_connection_drain_timeout_name;
         config.telemetry_buffer_bytes = telemetry_buffer_bytes(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES")?.as_deref(),
+        )?;
+        config.telemetry_shutdown_timeout = telemetry_shutdown_timeout(
+            read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
         )?;
         config.request_limits = request_limits(
             read_env("LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES")?.as_deref(),
@@ -99,20 +118,11 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
-        if let Some(web_url) =
-            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
-        {
-            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
-            ))?;
-            config.control_plane = Some(ControlPlaneConfig::new(&web_url, &service_key).map_err(
-                |_| {
-                    GatewayConfigError(
-                        "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
-                    )
-                },
-            )?);
-        }
+        config.control_plane = control_plane(
+            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -120,12 +130,12 @@ impl GatewayConfig {
     ///
     /// # Errors
     /// Returns an error for an invalid IP address and port, a non-boolean port
-    /// auto-increment setting, a shutdown timeout outside 1–300 integer seconds,
+    /// auto-increment setting, a connection drain timeout outside 1–300 integer seconds,
     /// or an unsupported log level or format.
     pub fn from_values(
         listen_address: Option<&str>,
         auto_increment_listen_port: Option<&str>,
-        shutdown_timeout: Option<&str>,
+        connection_drain_timeout: Option<&str>,
         log_level: Option<&str>,
         log_format: Option<&str>,
     ) -> Result<Self, GatewayConfigError> {
@@ -144,10 +154,10 @@ impl GatewayConfig {
             "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT must be true or false",
         ))?;
         let seconds = integer_setting(
-            shutdown_timeout,
-            10,
+            connection_drain_timeout,
+            DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
             1..=300,
-            "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+            "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS (or the deprecated LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS) must be an integer from 1 to 300",
         )?;
         let log_level = match log_level.unwrap_or("info") {
             "debug" => LevelFilter::DEBUG,
@@ -174,7 +184,9 @@ impl GatewayConfig {
             control_plane: None,
             listen_address,
             auto_increment_listen_port,
-            shutdown_timeout: Duration::from_secs(seconds),
+            connection_drain_timeout: Duration::from_secs(seconds),
+            uses_deprecated_connection_drain_timeout_name: false,
+            telemetry_shutdown_timeout: Duration::from_secs(DEFAULT_SHUTDOWN_TIMEOUT_SECONDS),
             log_level,
             log_format,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
@@ -182,6 +194,30 @@ impl GatewayConfig {
             execution_limits: ExecutionLimits::default(),
         })
     }
+}
+
+fn control_plane(
+    web_url: Option<&str>,
+    service_key: Option<&str>,
+    allow_http_web_url: Option<&str>,
+) -> Result<Option<ControlPlaneConfig>, GatewayConfigError> {
+    let allow_http_web_url = parse_boolean(allow_http_web_url.unwrap_or("false")).ok_or(
+        GatewayConfigError("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"),
+    )?;
+    let Some(web_url) = web_url.filter(|url| !url.is_empty()) else {
+        return Ok(None);
+    };
+    let service_key = service_key.ok_or(GatewayConfigError(
+        "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
+    ))?;
+    let control_plane = if allow_http_web_url {
+        ControlPlaneConfig::with_plain_http(web_url, service_key)
+    } else {
+        ControlPlaneConfig::new(web_url, service_key)
+    };
+    control_plane.map(Some).map_err(|_| {
+        GatewayConfigError("invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY")
+    })
 }
 
 fn request_limits(
@@ -253,6 +289,28 @@ fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigErr
     )
 }
 
+/// The current name wins; the deprecated name keeps released deployments working.
+fn connection_drain_timeout_value(
+    current: Option<String>,
+    deprecated: Option<String>,
+) -> (Option<String>, bool) {
+    match (current, deprecated) {
+        (Some(value), _) => (Some(value), false),
+        (None, Some(value)) => (Some(value), true),
+        (None, None) => (None, false),
+    }
+}
+
+fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayConfigError> {
+    integer_setting(
+        value,
+        DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
+        1..=300,
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+    )
+    .map(Duration::from_secs)
+}
+
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.
 fn integer_setting<T: std::str::FromStr + PartialOrd>(
     value: Option<&str>,
@@ -293,7 +351,7 @@ mod tests {
         let default = GatewayConfig::from_values(None, None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert!(!default.auto_increment_listen_port);
-        assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
+        assert_eq!(default.connection_drain_timeout, Duration::from_secs(10));
         assert_eq!(default.log_level, LevelFilter::INFO);
         assert_eq!(default.log_format, LogFormat::Text);
         assert_eq!(default.telemetry_buffer_bytes, 64 * 1024 * 1024);
@@ -307,7 +365,7 @@ mod tests {
         .unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
         assert!(custom.auto_increment_listen_port);
-        assert_eq!(custom.shutdown_timeout, Duration::from_secs(30));
+        assert_eq!(custom.connection_drain_timeout, Duration::from_secs(30));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
         assert_eq!(custom.log_format, LogFormat::Json);
     }
@@ -411,6 +469,44 @@ mod tests {
     }
 
     #[test]
+    fn plain_http_web_url_requires_the_explicit_opt_in() {
+        let in_cluster = Some("http://langfuse-web.langfuse.svc.cluster.local:3000");
+        let key = Some("service-key");
+        for opt_in in [None, Some("false")] {
+            let error = control_plane(in_cluster, key, opt_in).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY"
+            );
+        }
+        let allowed = control_plane(in_cluster, key, Some("true"))
+            .unwrap()
+            .unwrap();
+        assert!(allowed.is_plain_http());
+        assert_eq!(
+            allowed
+                .endpoint("/api/internal/ai-gateway/v1/ingestion")
+                .as_str(),
+            "http://langfuse-web.langfuse.svc.cluster.local:3000/api/internal/ai-gateway/v1/ingestion"
+        );
+        for (url, opt_in) in [
+            ("https://cloud.langfuse.com", Some("true")),
+            ("http://localhost:3000", None),
+        ] {
+            let config = control_plane(Some(url), key, opt_in).unwrap().unwrap();
+            assert!(!config.is_plain_http(), "{url}");
+        }
+        assert!(control_plane(None, None, Some("true")).unwrap().is_none());
+        for value in ["", "TRUE", "1", "secret-that-must-not-appear"] {
+            let error = control_plane(in_cluster, key, Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"
+            );
+        }
+    }
+
+    #[test]
     fn telemetry_buffer_is_read_in_bytes_within_bounds() {
         assert_eq!(telemetry_buffer_bytes(None).unwrap(), 64 * 1024 * 1024);
         for value in [4_194_304, 67_108_864, 4_294_967_296] {
@@ -434,6 +530,51 @@ mod tests {
             assert_eq!(
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)"
+            );
+        }
+    }
+
+    #[test]
+    fn connection_drain_timeout_falls_back_to_its_deprecated_name() {
+        let value = |text: &str| Some(text.to_owned());
+        assert_eq!(connection_drain_timeout_value(None, None), (None, false));
+        assert_eq!(
+            connection_drain_timeout_value(value("5"), None),
+            (value("5"), false)
+        );
+        assert_eq!(
+            connection_drain_timeout_value(None, value("7")),
+            (value("7"), true)
+        );
+        assert_eq!(
+            connection_drain_timeout_value(value("5"), value("7")),
+            (value("5"), false)
+        );
+    }
+
+    #[test]
+    fn telemetry_shutdown_timeout_is_read_in_seconds_within_bounds() {
+        assert_eq!(
+            GatewayConfig::from_values(None, None, None, None, None)
+                .unwrap()
+                .telemetry_shutdown_timeout,
+            Duration::from_secs(10)
+        );
+        assert_eq!(
+            telemetry_shutdown_timeout(None).unwrap(),
+            Duration::from_secs(10)
+        );
+        for value in [1, 120, 300] {
+            assert_eq!(
+                telemetry_shutdown_timeout(Some(&value.to_string())).unwrap(),
+                Duration::from_secs(value)
+            );
+        }
+        for value in ["", "0", "301", "-1", "1.5", "secret-that-must-not-appear"] {
+            let error = telemetry_shutdown_timeout(Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300"
             );
         }
     }

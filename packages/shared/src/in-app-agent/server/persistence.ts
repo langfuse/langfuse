@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 

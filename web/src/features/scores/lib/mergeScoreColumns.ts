@@ -1,4 +1,4 @@
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { type ScoreColumn } from "@/src/features/scores/types";
 
 /**

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";

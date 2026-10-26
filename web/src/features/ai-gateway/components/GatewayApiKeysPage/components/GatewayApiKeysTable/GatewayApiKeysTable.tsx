@@ -1,4 +1,5 @@
-import { Plus, Trash } from "@langfuse/icons";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { Plus, Trash, UserPlus } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -30,12 +31,15 @@ type GatewayApiKey = {
 export function GatewayApiKeysTable({
   data,
   createAction,
+  inviteAction,
   onRevoke,
   pagination,
   search,
 }: {
   data: AsyncTableData<GatewayApiKey[]>;
   createAction: () => void;
+  /** Omit for callers who cannot invite people to the organization. */
+  inviteAction?: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -66,7 +70,7 @@ export function GatewayApiKeysTable({
       id: "user",
       header: "User",
       variant: "avatar",
-      nullValue: "-",
+      nullValue: "Service account",
       hideBelowMd: true,
       enableResizing: false,
     }),
@@ -107,6 +111,17 @@ export function GatewayApiKeysTable({
       pagination={pagination}
       search={{ ...search, placeholder: "Search by name or user" }}
       toolbarActions={[
+        ...(inviteAction
+          ? [
+              {
+                id: "invite",
+                label: "Invite",
+                variant: "outline" as const,
+                icon: <UserPlus size="base" aria-hidden="true" />,
+                onClick: inviteAction,
+              },
+            ]
+          : []),
         {
           id: "create-key",
           label: "Create key",
