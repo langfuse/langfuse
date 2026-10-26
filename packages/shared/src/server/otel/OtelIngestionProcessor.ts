@@ -3382,6 +3382,8 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "cache_creation.5m_input_tokens",
+            "cache_creation.1h_input_tokens",
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
