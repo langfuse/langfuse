@@ -103,7 +103,8 @@ export class OrganizationMembersService {
       user: {
         email: {
           not: null,
-          ...(params.excludeEmails?.length
+          ...(params.excludeEmails !== undefined &&
+          params.excludeEmails.length > 0
             ? { notIn: params.excludeEmails }
             : {}),
         },

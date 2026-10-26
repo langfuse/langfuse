@@ -113,10 +113,6 @@ export const Searching = meta.story({
   args: {
     ...Empty.input.args,
     draft: "gra",
-    memberSuggestions: {
-      ...Empty.input.args.memberSuggestions,
-      suggestedMembers: suggestedMembers.slice(1, 2),
-    },
   },
 });
 
@@ -181,7 +177,7 @@ export const TestMemberSuggestionAddsEmail = meta.story({
 });
 
 export const TestSearchKeepsTextAndEnterPicksTopMatch = meta.story({
-  name: "(Test) A search survives blur and Enter picks the top match",
+  name: "(Test) Enter picks the top match of a search, which survives blur",
   args: {
     ...Empty.input.args,
     memberSuggestions: {
@@ -194,7 +190,14 @@ export const TestSearchKeepsTextAndEnterPicksTopMatch = meta.story({
     const input = within(canvasElement).getByRole("textbox", {
       name: "Email addresses",
     });
+    await userEvent.click(input);
+    await userEvent.keyboard("{Enter}");
+    await expect(args.memberSuggestions?.onMemberAdd).not.toHaveBeenCalled();
+
     await userEvent.type(input, "ada love");
+    await expect(
+      within(canvasElement).queryByRole("button", { name: "Grace Hopper" }),
+    ).not.toBeInTheDocument();
     await userEvent.tab();
     await expect(input).toHaveValue("ada love");
     await expect(args.onEmailsChange).not.toHaveBeenCalled();

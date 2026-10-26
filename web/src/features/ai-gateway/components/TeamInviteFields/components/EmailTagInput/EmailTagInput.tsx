@@ -58,7 +58,8 @@ export function EmailTagInput({
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (!isAddress(draft) && onPickTopSuggestion) onPickTopSuggestion();
+      const isSearch = draft.trim().length > 0 && !isAddress(draft);
+      if (isSearch && onPickTopSuggestion) onPickTopSuggestion();
       else commit(draft);
       return;
     }
