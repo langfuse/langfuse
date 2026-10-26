@@ -53,7 +53,3 @@ export const NoProviders = Default.extend({
 export const NoEnabledModels = Default.extend({
   args: { models: [], onAddProvider: fn() },
 });
-
-export const NoProvidersForMember = NoProviders.extend({
-  args: { canManageGateway: false, onAddProvider: undefined },
-});

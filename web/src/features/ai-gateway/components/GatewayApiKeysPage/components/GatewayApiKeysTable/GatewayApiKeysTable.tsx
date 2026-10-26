@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { KeyRound, Plus, Trash, UserPlus } from "@langfuse/icons";
+import { Plus, Trash, UserPlus } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -10,7 +10,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -46,6 +46,8 @@ export function GatewayApiKeysTable({
   search: { value: string; onChange: (value: string) => void };
 }) {
   const hasSearch = search.value.trim().length > 0;
+  /** An out-of-range page is also empty; it keeps the table so its pagination can page back. */
+  const hasNoKeys = !hasSearch && pagination.totalCount === 0;
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
     createDateTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.createdAt,
@@ -136,23 +138,7 @@ export function GatewayApiKeysTable({
           ? "No gateway API keys match the current search."
           : "No gateway API keys created."
       }
-      emptyState={
-        hasSearch ? undefined : (
-          <GatewaySetupEmptyState
-            icon={KeyRound}
-            title="No gateway API keys yet"
-            description="Create a key to send requests through the AI Gateway from Claude Code, Codex, or your own code."
-            actions={[
-              {
-                type: "button",
-                label: "Create key",
-                icon: Plus,
-                onClick: createAction,
-              },
-            ]}
-          />
-        )
-      }
+      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />
   );
 }

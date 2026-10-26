@@ -1,11 +1,12 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { GatewayProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/GatewayProvidersTable/components/GatewayProvidersEmptyState/GatewayProvidersEmptyState";
 import { GatewayProviderMark } from "@/src/features/ai-gateway/components/GatewayProviderMark";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type {
@@ -23,7 +24,6 @@ export type GatewayProvidersTableProps = {
   retryDisabled?: { reason: string };
   editDisabled?: { reason: string };
   deleteDisabled?: { reason: string };
-  emptyState?: ReactNode;
 };
 
 const connectionStatus = {
@@ -42,7 +42,6 @@ export function GatewayProvidersTable({
   retryDisabled,
   editDisabled,
   deleteDisabled,
-  emptyState,
 }: GatewayProvidersTableProps) {
   const columns = useMemo<LangfuseColumnDef<GatewayConnection>[]>(
     () => [
@@ -122,7 +121,7 @@ export function GatewayProvidersTable({
       data={{ status: "success", data: connections }}
       onRowClick={onSelect}
       noResultsMessage="No provider credentials configured."
-      emptyState={emptyState}
+      emptyState={<GatewayProvidersEmptyState />}
     />
   );
 }

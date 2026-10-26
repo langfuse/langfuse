@@ -1,10 +1,7 @@
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import { Plug, Plus } from "@langfuse/icons";
-
 import preview from "@/.storybook/preview";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { GatewayProvidersTable } from "./GatewayProvidersTable";
 
 const meta = preview.meta({ component: GatewayProvidersTable });
@@ -94,15 +91,5 @@ export const Empty = meta.story({
     connections: [],
     modelCounts: {},
     ...actions,
-    emptyState: (
-      <GatewaySetupEmptyState
-        icon={Plug}
-        title="No providers set up yet"
-        description="Add an OpenAI or Anthropic credential so the gateway can route requests and discover models."
-        actions={[
-          { type: "button", label: "Add provider", icon: Plus, onClick: fn() },
-        ]}
-      />
-    ),
   },
 });

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import type { ComponentProps } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
@@ -59,29 +60,33 @@ function GatewayModels({
   const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
-  const renderTable = (onAddProvider?: () => void) => (
-    <ConnectedGatewayModelsTable
-      models={rows}
-      organizationId={organizationId}
-      canManageGateway={canManageGateway}
-      failedProviderCount={failedResults.length}
-      providerCount={results?.length ?? connections.length}
-      hasProviders={connections.length > 0}
-      hasSynced={results !== null}
-      isLoading={modelsQuery.isPending || modelsQuery.isFetching}
-      syncError={modelsQuery.isError}
-      onAddProvider={onAddProvider}
-    />
-  );
+  const tableProps = {
+    models: rows,
+    organizationId,
+    canManageGateway,
+    failedProviderCount: failedResults.length,
+    providerCount: results?.length ?? connections.length,
+    hasProviders: connections.length > 0,
+    hasSynced: results !== null,
+    isLoading: modelsQuery.isPending || modelsQuery.isFetching,
+    syncError: modelsQuery.isError,
+  } satisfies ComponentProps<typeof ConnectedGatewayModelsTable>;
 
   /** The credential dialog reads the manager-only credential list. */
-  if (!canManageGateway) return renderTable();
+  if (!canManageGateway) {
+    return <ConnectedGatewayModelsTable {...tableProps} />;
+  }
   return (
     <ProviderDialogController
       organizationId={organizationId}
       surface="models_page"
     >
-      {({ openAddDialog }) => renderTable(openAddDialog)}
+      {({ openAddDialog }) => (
+        <ConnectedGatewayModelsTable
+          {...tableProps}
+          onAddProvider={openAddDialog}
+        />
+      )}
     </ProviderDialogController>
   );
 }

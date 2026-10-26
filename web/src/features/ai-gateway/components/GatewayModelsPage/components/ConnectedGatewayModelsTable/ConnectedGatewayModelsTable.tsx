@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useCallback, useMemo, useState } from "react";
-import { Boxes, Plug, Plus } from "@langfuse/icons";
+import { useCallback, useMemo, useState, type ComponentProps } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { GatewayModelsEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/components/GatewayModelsEmptyState/GatewayModelsEmptyState";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -96,9 +95,25 @@ export function ConnectedGatewayModelsTable({
     hasActiveFilters:
       searchQuery.trim().length > 0 || provider !== ALL_PROVIDERS,
   });
+  /** When every provider failed to sync, the warning explains the empty list. */
+  const allProvidersFailed =
+    failedProviderCount > 0 && failedProviderCount === providerCount;
   const showEmptyState =
     !hasProviders ||
-    (hasSynced && !isLoading && !syncError && models.length === 0);
+    (hasSynced &&
+      !isLoading &&
+      !syncError &&
+      !allProvidersFailed &&
+      models.length === 0);
+  const tableData: ComponentProps<typeof GatewayModelsTable>["data"] = isLoading
+    ? { status: "loading" }
+    : {
+        status: "success",
+        data: filteredModels.slice(
+          currentPageIndex * paginationState.pageSize,
+          (currentPageIndex + 1) * paginationState.pageSize,
+        ),
+      };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -136,9 +151,8 @@ export function ConnectedGatewayModelsTable({
       ) : null}
 
       {showEmptyState ? (
-        <ModelsEmptyState
+        <GatewayModelsEmptyState
           organizationId={organizationId}
-          canManageGateway={canManageGateway}
           hasProviders={hasProviders}
           onAddProvider={onAddProvider}
         />
@@ -178,17 +192,7 @@ export function ConnectedGatewayModelsTable({
               organizationId={organizationId}
               canManageGateway={canManageGateway}
               onAfterModelCopy={handleModelCopied}
-              data={
-                isLoading
-                  ? { status: "loading" }
-                  : {
-                      status: "success",
-                      data: filteredModels.slice(
-                        currentPageIndex * paginationState.pageSize,
-                        (currentPageIndex + 1) * paginationState.pageSize,
-                      ),
-                    }
-              }
+              data={tableData}
               noResultsMessage={emptyMessage}
               pagination={pagination}
             />
@@ -196,69 +200,6 @@ export function ConnectedGatewayModelsTable({
         </div>
       )}
     </div>
-  );
-}
-
-function ModelsEmptyState({
-  organizationId,
-  canManageGateway,
-  hasProviders,
-  onAddProvider,
-}: {
-  organizationId: string;
-  canManageGateway: boolean;
-  hasProviders: boolean;
-  onAddProvider?: () => void;
-}) {
-  const actions = canManageGateway
-    ? [
-        ...(onAddProvider
-          ? [
-              {
-                type: "button" as const,
-                label: "Add provider",
-                icon: Plus,
-                onClick: onAddProvider,
-              },
-            ]
-          : []),
-        ...(hasProviders
-          ? [
-              {
-                type: "link" as const,
-                label: "Manage providers",
-                href: `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
-              },
-            ]
-          : []),
-      ]
-    : [];
-
-  if (!hasProviders) {
-    return (
-      <GatewaySetupEmptyState
-        icon={Plug}
-        title="No providers set up yet"
-        description={
-          canManageGateway
-            ? "Add an OpenAI or Anthropic credential to make its models available through the AI Gateway."
-            : "Models appear here once your organization admin adds a provider credential."
-        }
-        actions={actions}
-      />
-    );
-  }
-  return (
-    <GatewaySetupEmptyState
-      icon={Boxes}
-      title="No models available"
-      description={
-        canManageGateway
-          ? "Your provider credentials returned no enabled models. Enable models on a credential, or add another provider."
-          : "None of your organization's provider credentials has enabled models. Ask your organization admin to enable some."
-      }
-      actions={actions}
-    />
   );
 }
 
