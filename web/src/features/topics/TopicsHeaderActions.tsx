@@ -1,77 +1,38 @@
-import { EllipsisVertical, Settings } from "@langfuse/icons";
+import { EllipsisVertical } from "@langfuse/icons";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { AnalyzeControl } from "./AnalyzeControl";
-import { type useTopicModelSettings } from "./TopicModelSettings";
+import { type TopicsActions } from "./prepare-topics-actions";
 
-type ModelSettings = ReturnType<typeof useTopicModelSettings>;
-type TopicsHeaderActionsProps = {
-  automaticProcessing: Pick<
-    ModelSettings["automaticProcessing"],
-    "state" | "saving"
-  >;
-  configure: Pick<ModelSettings["configure"], "settings">;
-  canWrite: boolean;
-  regenerateAvailable: boolean;
-  onRegenerate: () => void;
-  onAutomaticProcessing: () => void;
-  onConfigure: () => void;
-  onHistory: () => void;
-  /** Before setup only the overflow menu shows. */
-  menuOnly?: boolean;
-};
-
-export function TopicsHeaderActions({
-  automaticProcessing,
-  configure,
-  canWrite,
-  regenerateAvailable,
-  onRegenerate,
-  onAutomaticProcessing,
-  onConfigure,
-  onHistory,
-  menuOnly = false,
-}: TopicsHeaderActionsProps) {
+export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
-    <div className="ph-no-capture flex items-center justify-end gap-1">
-      {!menuOnly && (
-        <AnalyzeControl
-          state={automaticProcessing.state}
-          canWrite={canWrite && !automaticProcessing.saving}
-          onClick={onAutomaticProcessing}
-        />
+    <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
+      {actions.automatic && (
+        <div className="hidden items-center gap-1 @5xl/topics-header:flex">
+          <AnalyzeControl
+            state={actions.automatic.state}
+            canWrite={actions.automatic.canWrite}
+            onClick={actions.automatic.onSelect}
+          />
+        </div>
       )}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
-        items={[
-          {
-            id: "regenerate",
-            type: "item",
-            title: "Regenerate topics",
-            ...(regenerateAvailable
-              ? {}
-              : { disabled: { reason: "Configure Topics first." } }),
-            onClick: onRegenerate,
-          },
-          { id: "separator", type: "separator" },
-          {
-            id: "history",
-            type: "item",
-            title: "History",
-            onClick: onHistory,
-          },
-          {
-            id: "configure",
-            type: "item",
-            title: "Settings",
-            icon: Settings,
-            ...(configure.settings
-              ? {}
-              : { disabled: { reason: "Topics settings are still loading." } }),
-            onClick: onConfigure,
-          },
-        ]}
+        items={actions.menu.map((action) => ({
+          id: action.id,
+          type: "item",
+          title: action.label,
+          icon: action.icon,
+          badge: action.badge ? (
+            <Badge text={action.badge} size="sm" />
+          ) : undefined,
+          disabled: action.disabledReason
+            ? { reason: action.disabledReason }
+            : undefined,
+          onClick: action.onSelect,
+        }))}
       >
         {({ getTriggerProps }) => (
           <IconButton

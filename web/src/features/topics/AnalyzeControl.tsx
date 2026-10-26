@@ -1,11 +1,6 @@
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
-
-export type AutomaticProcessingState =
-  | { status: "unconfigured" }
-  | { status: "off" }
-  | { status: "on" }
-  | { status: "paused"; shortLabel: string };
+import { type AutomaticProcessingState } from "./prepare-topics-actions";
 
 type AnalyzeControlProps = {
   state: AutomaticProcessingState;

@@ -663,10 +663,14 @@ export function prepareMapHover(
   frame: TopicMapNodeFrame,
   hoveredId: string | null,
   hoveredZoneId: string | null,
+  showInlineTrace = false,
 ): { traces: TraceHover[]; zones: ZoneHover[] } {
   const node = hoveredId ? frame.nodeById.get(hoveredId) : undefined;
   if (node) {
-    if (node.textOpacity >= 0.9 || !frame.nodes.includes(node))
+    if (
+      (!showInlineTrace && node.textOpacity >= 0.9) ||
+      !frame.nodes.includes(node)
+    )
       return { traces: [], zones: [] };
     const card = hoverRectangle(node.rect, frame.size, {
       width: 264,

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
 import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
@@ -7,14 +6,16 @@ import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useMediaPeek } from "@/src/features/media";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
 /**
  * Container that connects a classified media value to the pure `MediaTag`: it
- * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
- * armed so re-hovers read from the query cache instead of re-fetching.
+ * arms the lazy fetch the first time the peek opens (hover/focus), serves
+ * re-hovers from the query cache, and renews the URL on an open once it nears
+ * expiry.
  */
 export function MediaReferenceTag({
   descriptor,
@@ -57,23 +58,13 @@ function S3MediaTag({
     enableForAdmins: false,
     projectId,
   });
-  const [armed, setArmed] = useState(false);
-  const [open, setOpen] = useState(false);
+  const peek = useMediaPeek();
   const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
     descriptor,
-    {
-      enabled: isFeatureEnabled && armed,
-    },
+    { enabled: isFeatureEnabled && peek.armed },
   );
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) return;
-
-    if (armed) {
-      refreshIfNeeded().catch(() => undefined);
-    }
-    setArmed(true);
-  };
+  const handleOpenChange = (open: boolean) =>
+    peek.onOpenChange(open, refreshIfNeeded);
 
   if (!isFeatureEnabled) {
     return (
@@ -94,7 +85,7 @@ function S3MediaTag({
       status={status}
       url={url}
       errorDetail={descriptor.uri}
-      open={open}
+      open={peek.open}
       onOpenChange={handleOpenChange}
     />
   );
@@ -107,17 +98,15 @@ function LangfuseRefMediaTag({
   descriptor: LangfuseRefDescriptor;
   size?: MediaTagProps["size"];
 }) {
-  const [armed, setArmed] = useState(false);
-  const [open, setOpen] = useState(false);
-  const { status, url, contentLength } = useResolvedMedia(descriptor, {
-    enabled: armed,
-  });
+  const peek = useMediaPeek();
+  const { status, url, contentLength, refreshIfNeeded } = useResolvedMedia(
+    descriptor,
+    { enabled: peek.armed },
+  );
+  const handleOpenChange = (open: boolean) =>
+    peek.onOpenChange(open, refreshIfNeeded);
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (nextOpen) setArmed(true);
-  };
 
   return (
     <MediaTag
@@ -134,7 +123,7 @@ function LangfuseRefMediaTag({
       }
       openActionLabel={isOversizedField ? "Open original" : undefined}
       intent={isOversizedField ? "attachment" : undefined}
-      open={open}
+      open={peek.open}
       onOpenChange={handleOpenChange}
     />
   );
