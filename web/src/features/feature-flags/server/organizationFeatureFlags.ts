@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   LangfuseNotFoundError,
-  Prisma,
+  type Prisma,
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
