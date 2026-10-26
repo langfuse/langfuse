@@ -899,7 +899,7 @@ describe("call site: tRPC members.updateOrgMembership", () => {
     prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
       membership,
     );
-    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
       ...membership,
       role: "NONE",
     });
@@ -926,7 +926,7 @@ describe("call site: tRPC members.updateOrgMembership", () => {
     prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
       membership,
     );
-    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
       ...membership,
       role: "MEMBER",
     });
