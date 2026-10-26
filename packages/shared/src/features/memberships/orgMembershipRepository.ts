@@ -34,6 +34,21 @@ export async function saveOrgMembership(
   });
 }
 
+/** updateOrgMembership changes an existing organization membership's role, failing when it is missing, and mirrors it into role assignments. */
+export async function updateOrgMembership(
+  prisma: Prisma.TransactionClient,
+  { orgId, userId, role }: { orgId: string; userId: string; role: Role },
+): Promise<OrganizationMembership> {
+  return await withTransaction(prisma, async (tx) => {
+    const membership = await tx.organizationMembership.update({
+      where: { orgId_userId: { orgId, userId } },
+      data: { role },
+    });
+    await replaceOrgRole(tx, membership);
+    return membership;
+  });
+}
+
 /** createOrgMembership creates an organization membership, failing on duplicates, and mirrors it into role assignments. */
 export async function createOrgMembership(
   prisma: Prisma.TransactionClient,

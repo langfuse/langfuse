@@ -4,7 +4,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   createOrgMembership,
   deleteOrgMembership,
-  saveOrgMembership,
+  updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import {
   deleteUserBoundApiKeys,
@@ -102,7 +102,7 @@ async function provisionMembership({
             from: current.role,
             to: targetRole,
           });
-          const updated = await saveOrgMembership(tx, {
+          const updated = await updateOrgMembership(tx, {
             orgId,
             userId,
             role: targetRole,

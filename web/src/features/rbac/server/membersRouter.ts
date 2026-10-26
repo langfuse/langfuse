@@ -39,8 +39,8 @@ import {
 import {
   deleteOrgMembership,
   deleteProjectMembership,
-  saveOrgMembership,
   saveProjectMembership,
+  updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
@@ -304,7 +304,7 @@ export const membersRouter = createTRPCRouter({
 
       const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const updatedMembership = await saveOrgMembership(tx, {
+          const updatedMembership = await updateOrgMembership(tx, {
             orgId: input.orgId,
             userId: membership.userId,
             role: input.role,

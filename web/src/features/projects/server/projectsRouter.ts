@@ -330,7 +330,6 @@ export const projectsRouter = createTRPCRouter({
       });
 
       await ctx.prisma.$transaction(async (tx) => {
-        await deleteProjectMemberships(tx, { projectId: input.projectId });
         await tx.project.update({
           where: {
             id: input.projectId,
@@ -340,6 +339,7 @@ export const projectsRouter = createTRPCRouter({
             orgId: input.targetOrgId,
           },
         });
+        await deleteProjectMemberships(tx, { projectId: input.projectId });
         await transferApiKeyRoles(tx, {
           ownerId: ProjectId(input.projectId),
           newTenantId: OrganizationId(input.targetOrgId),

@@ -15,6 +15,7 @@ import {
   findOrCreateProjectMembership,
   saveOrgMembership,
   saveProjectMembership,
+  updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import orgMembershipsRoute from "@/src/pages/api/public/organizations/memberships";
 import projectMembershipsRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
@@ -267,6 +268,38 @@ describe("membership role assignments", () => {
 
       expect(membership.role).toBe(Role.ADMIN);
       expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("updateOrgMembership replaces an existing membership's role", async () => {
+      const user = await createUser();
+      const input = { orgId, userId: user.id };
+      await saveOrgMembership(prisma, { ...input, role: Role.VIEWER });
+
+      const membership = await updateOrgMembership(prisma, {
+        ...input,
+        role: Role.ADMIN,
+      });
+
+      expect(membership.role).toBe(Role.ADMIN);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("updateOrgMembership rejects a missing membership", async () => {
+      const user = await createUser();
+
+      await expect(
+        updateOrgMembership(prisma, {
+          orgId,
+          userId: user.id,
+          role: Role.ADMIN,
+        }),
+      ).rejects.toThrow();
+      expect(
+        await prisma.organizationMembership.findUnique({
+          where: { orgId_userId: { orgId, userId: user.id } },
+        }),
+      ).toBeNull();
+      expect(await rolesOf(user.id)).toEqual([]);
     });
 
     it("createOrgMembership rejects an existing membership", async () => {
