@@ -163,13 +163,6 @@ export const LoadError = meta.story({
   },
 });
 
-export const RedisMissing = meta.story({
-  args: {
-    executions: [],
-    errorMessage: "Topics progress requires Redis.",
-  },
-});
-
 export const PinsRunningAndGroupsByDay = meta.story({
   name: "(Test) Pins the running run and groups past runs by day",
   args: {
@@ -179,7 +172,6 @@ export const PinsRunningAndGroupsByDay = meta.story({
         requested: 1_280,
         complete: 640,
       }),
-      updateRun("regenerate-queued", "queued", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 4.2, {
         requested: 1_412,
       }),
@@ -202,7 +194,6 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Analyze traces");
-    await expect(active).toHaveTextContent("Then: Regenerate topics");
     await expect(active).toHaveTextContent("640 / 1,280");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
@@ -216,10 +207,6 @@ export const PinsRunningAndGroupsByDay = meta.story({
       within(active).getByRole("button", { name: /Analyze traces/ }),
     );
     await expect(args.onOpen).toHaveBeenCalledWith("analyze-running");
-    await userEvent.click(
-      within(active).getByRole("button", { name: "Then: Regenerate topics" }),
-    );
-    await expect(args.onOpen).toHaveBeenCalledWith("regenerate-queued");
 
     const rows = canvas
       .getAllByRole("button")
@@ -258,7 +245,7 @@ export const ShowsRefetchErrorAboveRuns = meta.story({
 });
 
 export const RetriesAfterLoadError = meta.story({
-  name: "(Test) Load error offers a retry; a Redis error links the guide",
+  name: "(Test) Load error offers a retry",
   args: {
     executions: [],
     errorMessage: "Request timed out.",
@@ -269,21 +256,5 @@ export const RetriesAfterLoadError = meta.story({
     await expect(canvas.getByText("Request timed out.")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
     await expect(args.onRetry).toHaveBeenCalledOnce();
-  },
-});
-
-export const LinksRedisGuide = meta.story({
-  name: "(Test) Redis error links the setup guide",
-  args: {
-    executions: [],
-    errorMessage: "Topics progress requires Redis.",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByText("Run history needs Redis")).toBeVisible();
-    await expect(
-      canvas.getByRole("link", { name: "Redis setup guide" }),
-    ).toHaveAttribute("target", "_blank");
-    await expect(canvas.queryByRole("button")).toBeNull();
   },
 });

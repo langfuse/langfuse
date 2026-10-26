@@ -1,8 +1,7 @@
 import { type ReactNode } from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { ArrowUpRight, CircleAlert, History, ServerCog } from "@langfuse/icons";
+import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
@@ -16,9 +15,6 @@ import {
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
 type Run = RouterOutputs["topics"]["executions"][number];
-
-const REDIS_DOCS_URL =
-  "https://langfuse.com/self-hosting/deployment/infrastructure/cache";
 
 type TopicRunHistoryListProps = {
   executions: Run[];
@@ -135,11 +131,9 @@ function StatusDot({ status }: { status: Run["status"] }) {
 
 function ActiveRun({
   run,
-  next,
   onOpen,
 }: {
   run: Run;
-  next: Run | null;
   onOpen: (id: string) => void;
 }) {
   const total = traceCount(run);
@@ -179,25 +173,11 @@ function ActiveRun({
           />
         </div>
       )}
-      {(next || showProgress) && (
-        <div className="flex items-center justify-between gap-3 text-xs">
-          {next ? (
-            <button
-              type="button"
-              onClick={() => onOpen(next.id)}
-              className="text-muted-foreground truncate hover:underline"
-              title={operationLabels[next.input.operation]}
-            >
-              Then: {operationLabels[next.input.operation]}
-            </button>
-          ) : (
-            <span />
-          )}
-          {showProgress && (
-            <span className="font-mono">
-              {formatCount(processed)} / {formatCount(total)}
-            </span>
-          )}
+      {showProgress && (
+        <div className="flex justify-end text-xs">
+          <span className="font-mono">
+            {formatCount(processed)} / {formatCount(total)}
+          </span>
         </div>
       )}
     </div>
@@ -248,23 +228,6 @@ function Empty() {
   );
 }
 
-function RedisMissing() {
-  return (
-    <CenteredState
-      icon={<ServerCog size="lg" color="muted" />}
-      title="Run history needs Redis"
-      body="This self-hosted instance can’t track runs without Redis. Topics results still work."
-    >
-      <TextLink
-        path={REDIS_DOCS_URL}
-        value="Redis setup guide"
-        icon={ArrowUpRight}
-        external
-      />
-    </CenteredState>
-  );
-}
-
 function LoadError({
   message,
   onRetry,
@@ -295,21 +258,14 @@ export function TopicRunHistoryList({
   onRetry,
 }: TopicRunHistoryListProps) {
   if (errorMessage && executions.length === 0) {
-    return /\bRedis\b/.test(errorMessage) ? (
-      <RedisMissing />
-    ) : (
-      <LoadError message={errorMessage} onRetry={onRetry} />
-    );
+    return <LoadError message={errorMessage} onRetry={onRetry} />;
   }
   if (executions.length === 0) return <Empty />;
   const runs = [...executions].sort(
     (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
   );
   const active = runs.find((run) => run.status === "running") ?? null;
-  const next = active
-    ? (runs.find((run) => run.status === "queued") ?? null)
-    : null;
-  const past = runs.filter((run) => run !== active && run !== next);
+  const past = runs.filter((run) => run !== active);
   return (
     <div className="flex flex-col">
       {errorMessage && (
@@ -317,7 +273,7 @@ export function TopicRunHistoryList({
           <TopicsErrorMessage message={errorMessage} />
         </div>
       )}
-      {active && <ActiveRun run={active} next={next} onOpen={onOpen} />}
+      {active && <ActiveRun run={active} onOpen={onOpen} />}
       {groupByDay(past).map((group) => (
         <section key={group.runs[0].id} className="px-2 pt-2.5 pb-1">
           <h3 className="text-muted-foreground px-2 text-xs font-bold">
