@@ -12,7 +12,6 @@ const meta = preview.meta({
       </div>
       <div className="flex h-[680px] min-h-0 flex-col">
         <EmbeddingMapView
-          projectId="project"
           data={{ points: [], missingSummaryCount: 0, unpositionedCount: 0 }}
           topics={[]}
           selectedTopic={null}

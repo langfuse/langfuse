@@ -28,6 +28,11 @@ async fn main() -> ExitCode {
 async fn run() -> Result<(), Box<dyn Error>> {
     let mut config = GatewayConfig::from_env()?;
     let observability = observability::init(&config)?;
+    if config.uses_deprecated_connection_drain_timeout_name {
+        tracing::warn!(
+            "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS is deprecated; set LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS instead"
+        );
+    }
     if config
         .control_plane
         .as_ref()
@@ -55,36 +60,26 @@ async fn run() -> Result<(), Box<dyn Error>> {
     )));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
-    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_request_bytes = config.request_limits.max_request_bytes, memory_budget_bytes = config.request_limits.memory_budget_bytes, request_memory_overhead_bytes = config.request_limits.request_overhead_bytes, max_execution_seconds = config.execution_limits.max_execution_time.as_secs(), stall_timeout_seconds = config.execution_limits.stall_timeout.as_secs(), shutdown_timeout_seconds = config.shutdown_timeout.as_secs(), "gateway listening");
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_request_bytes = config.request_limits.max_request_bytes, memory_budget_bytes = config.request_limits.memory_budget_bytes, request_memory_overhead_bytes = config.request_limits.request_overhead_bytes, max_execution_seconds = config.execution_limits.max_execution_time.as_secs(), stall_timeout_seconds = config.execution_limits.stall_timeout.as_secs(), connection_drain_timeout_seconds = config.connection_drain_timeout.as_secs(), telemetry_shutdown_timeout_seconds = config.telemetry_shutdown_timeout.as_secs(), "gateway listening");
     let result = server::serve(
         listener,
         app,
         state.clone(),
         shutdown,
-        config.shutdown_timeout,
+        config.connection_drain_timeout,
     )
     .await;
+    // Starts after draining so a drain that hits its deadline cannot consume the flush.
+    let flush_deadline = tokio::time::Instant::now() + config.telemetry_shutdown_timeout;
     if let Some(telemetry) = telemetry {
-        telemetry
-            .shutdown(
-                state
-                    .drain_deadline()
-                    .unwrap_or_else(tokio::time::Instant::now),
-            )
-            .await;
+        telemetry.shutdown(flush_deadline).await;
     }
     if result.is_err() {
         tracing::error!("gateway shutdown failed");
     } else {
         tracing::info!("gateway stopped");
     }
-    observability
-        .shutdown(
-            state
-                .drain_deadline()
-                .unwrap_or_else(tokio::time::Instant::now),
-        )
-        .await;
+    observability.shutdown(flush_deadline).await;
     result.map_err(Into::into)
 }
 

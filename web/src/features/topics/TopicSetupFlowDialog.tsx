@@ -179,7 +179,7 @@ export function TopicSetupFlowDialog({
                   {questions.map((question) => (
                     <div
                       key={question.name}
-                      className="grid grid-cols-[16px_96px_minmax(0,1fr)] items-center gap-2.5 px-3 py-2.5"
+                      className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 px-3 py-2.5 sm:grid-cols-[16px_96px_minmax(0,1fr)]"
                     >
                       <Checkbox
                         checked={question.enabled}
@@ -190,7 +190,7 @@ export function TopicSetupFlowDialog({
                         }
                       />
                       <span className="text-sm font-bold">{question.name}</span>
-                      <span className="text-muted-foreground text-sm">
+                      <span className="text-muted-foreground col-start-2 text-sm sm:col-start-auto">
                         {question.description}
                       </span>
                     </div>
@@ -198,7 +198,7 @@ export function TopicSetupFlowDialog({
                 </div>
               </section>
               <section className="flex flex-col gap-2">
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h2 className="text-sm font-bold">
                     Select models for analysis
                   </h2>
@@ -237,7 +237,7 @@ export function TopicSetupFlowDialog({
                     {MODEL_ROWS.map((row) => (
                       <div
                         key={row.slot}
-                        className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.75"
+                        className="grid gap-1 px-3.5 py-2.75 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center sm:gap-3"
                       >
                         <span>{row.label}</span>
                         <span className="text-muted-foreground">
@@ -441,7 +441,7 @@ export function TopicSetupFlowDialog({
           ) : null}
         </div>
         {!viewerBlocked && (
-          <div className="flex items-center justify-between border-t px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between border-t px-4 py-3">
             {step === "questions" ? (
               <span />
             ) : (
@@ -527,7 +527,7 @@ function ModelRow({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-2 py-1.5 pr-1.5 pl-3">
+    <div className="grid gap-1 px-3 py-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5">
       <span className="text-sm">{label}</span>
       <JudgeModelPicker
         purpose="decision"
@@ -582,9 +582,9 @@ function ReviewRow({
   onEdit: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3.5 py-3">
+    <div className="flex flex-col items-start gap-2 rounded-md border px-3.5 py-3 sm:grid sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
       <span className="text-sm font-bold">{label}</span>
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex w-full min-w-0 flex-col gap-1.5">
         {lines.map((line) => (
           <div
             key={`${line.key ?? ""}${line.value}`}
@@ -596,7 +596,11 @@ function ReviewRow({
               </span>
             ) : null}
             <span
-              className={line.mono ? "truncate font-mono text-xs" : "text-sm"}
+              className={
+                line.mono
+                  ? "min-w-0 truncate font-mono text-xs"
+                  : "min-w-0 text-sm break-words"
+              }
               title={line.mono ? line.value : undefined}
             >
               {line.value}
