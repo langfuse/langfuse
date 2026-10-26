@@ -3,34 +3,30 @@ import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/Dropdo
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-const VIEWS = [
+export const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
   { value: "treemap-side", label: "Treemap, side by side" },
   { value: "grid", label: "Grid" },
   { value: "map", label: "Map" },
 ] as const;
 
-export type TopicsResultsView = (typeof VIEWS)[number]["value"];
+export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
 
 export function TopicsResultsViewSelect({
   value,
   onValueChange,
 }: TopicsResultsViewSelectProps) {
-  const capture = usePostHogClientCapture();
-  function changeView(view: TopicsResultsView) {
-    if (view === value) return;
-    capture("topics:results_view_select", { view, previousView: value });
-    onValueChange(view);
-  }
-  const selected = VIEWS.find((option) => option.value === value);
+  const selected = TOPICS_RESULTS_VIEWS.find(
+    (option) => option.value === value,
+  );
   return (
     <DropdownMenu
       ariaLabel="Topics view"
-      items={VIEWS.map((option) => ({
+      items={TOPICS_RESULTS_VIEWS.map((option) => ({
         type: "item" as const,
         id: option.value,
         title: option.label,
-        onClick: () => changeView(option.value),
+        onClick: () => onValueChange(option.value),
       }))}
     >
       {({ getTriggerProps }) => (
@@ -49,14 +45,25 @@ export function TopicsResultsViewSelect({
 }
 
 export function useTopicsResultsView() {
+  const capture = usePostHogClientCapture();
   const [view, setView] = useLocalStorage<TopicsResultsView>(
     "topicsResultsView",
     "treemap",
   );
-  return [
-    VIEWS.some((option) => option.value === view) ? view : "treemap",
-    setView,
-  ] as const;
+  const effectiveView = TOPICS_RESULTS_VIEWS.some(
+    (option) => option.value === view,
+  )
+    ? view
+    : "treemap";
+  function selectView(nextView: TopicsResultsView) {
+    if (nextView === effectiveView) return;
+    capture("topics:results_view_select", {
+      view: nextView,
+      previousView: effectiveView,
+    });
+    setView(nextView);
+  }
+  return [effectiveView, selectView] as const;
 }
 
 type TopicsResultsViewSelectProps = {
