@@ -6,7 +6,7 @@ import {
 } from "@prisma/client";
 
 import { InvalidRequestError } from "../../errors";
-import { mapPrismaError } from "../../server/utils/mapPrismaError";
+import { prismaErrorToBaseError } from "../../server/utils/prismaErrorToBaseError";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   replaceRolesForPrincipal,
@@ -44,7 +44,7 @@ export async function createOrgMembership(
     const membership = await tx.organizationMembership
       .create({ data: { orgId, userId, role } })
       .catch(
-        mapPrismaError(
+        prismaErrorToBaseError(
           "P2002",
           new InvalidRequestError(
             "User is already a member of this organization",

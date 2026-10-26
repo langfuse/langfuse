@@ -2,7 +2,7 @@
 import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
-import { mapPrismaError } from "../../server/utils/mapPrismaError";
+import { prismaErrorToBaseError } from "../../server/utils/prismaErrorToBaseError";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   replaceRolesForPrincipal,
@@ -46,7 +46,7 @@ export async function createProjectMembership(
     const membership = await tx.projectMembership
       .create({ data })
       .catch(
-        mapPrismaError(
+        prismaErrorToBaseError(
           "P2002",
           new InvalidRequestError("User is already a member of this project"),
         ),
