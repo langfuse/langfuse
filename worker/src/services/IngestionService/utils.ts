@@ -2,6 +2,7 @@
 import { JsonNested, Prisma } from "@langfuse/shared";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  AI_GATEWAY_KEY_ID_METADATA_KEY,
   isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
@@ -86,6 +87,18 @@ export const isAiGatewayGenerationEvent = (params: {
   params.ingestionApiKey
     ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
     : params.hasGatewayScope();
+
+// Any sender can put the gateway key id into metadata, so it only counts on
+// uploads authenticated with a gateway ingestion token. Replays carry no key
+// and never fall back to the scope here.
+export const getAiGatewayKeyId = (params: {
+  ingestionApiKey: string | null | undefined;
+  metadata: Record<string, unknown>;
+}): string | undefined => {
+  if (!isAiGatewayIngestionApiKey(params.ingestionApiKey)) return undefined;
+  const keyId = params.metadata[AI_GATEWAY_KEY_ID_METADATA_KEY];
+  return typeof keyId === "string" && keyId.length > 0 ? keyId : undefined;
+};
 
 export function overwriteObject(
   a: {

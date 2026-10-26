@@ -208,4 +208,99 @@ describe("handleEventPropagationJob", () => {
       ]);
     }, 5_000);
   }, 15_000);
+
+  it("only propagates the AI gateway key id for gateway-token uploads", async (ctx) => {
+    await skipUnlessEventPropagationTablesExist(ctx);
+
+    const { projectId } = await createOrgProjectAndApiKey();
+    const traceId = randomUUID();
+    const gatewayObservationId = randomUUID();
+    const sdkObservationId = randomUUID();
+    const oldEnoughForPropagation = Date.now() - 20 * 60 * 1000;
+    const stagedObservation = (id: string, ingestionApiKey: string) => ({
+      ...createObservation({
+        id,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "GENERATION",
+        parent_observation_id: null,
+        start_time: oldEnoughForPropagation,
+        end_time: oldEnoughForPropagation + 1_000,
+        created_at: oldEnoughForPropagation,
+        updated_at: oldEnoughForPropagation,
+        event_ts: oldEnoughForPropagation,
+        metadata: { "langfuse.gateway.api_key.id": "gateway-key-1" },
+      }),
+      ingestion_api_key: ingestionApiKey,
+      ingestion_sdk_name: "langfuse-ai-gateway",
+      ingestion_sdk_version: "0.1.0",
+      s3_first_seen_timestamp: toClickhouseDateTime(oldEnoughForPropagation),
+    });
+
+    await createTracesCh([
+      createTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: oldEnoughForPropagation,
+        created_at: oldEnoughForPropagation,
+        updated_at: oldEnoughForPropagation,
+        event_ts: oldEnoughForPropagation,
+      }),
+    ]);
+    await clickhouseClient().insert({
+      table: TableName.ObservationsBatchStaging,
+      format: "JSONEachRow",
+      values: [
+        stagedObservation(gatewayObservationId, "gateway:grant-1"),
+        stagedObservation(sdkObservationId, "pk-lf-spoofing-sdk"),
+      ],
+    });
+
+    const partitionRows = await queryClickhouse<{ partition: string }>({
+      query: `
+        SELECT toString(tupleElement(_partition_value, 1)) AS partition
+        FROM observations_batch_staging
+        WHERE project_id = {projectId: String}
+          AND id = {observationId: String}
+        LIMIT 1
+      `,
+      params: { projectId, observationId: gatewayObservationId },
+    });
+    expect(partitionRows[0]?.partition).toBeDefined();
+    await redis!.set(
+      LAST_PROCESSED_PARTITION_KEY,
+      formatClickHouseDateTime(
+        new Date(
+          new Date(
+            `${partitionRows[0]!.partition.replace(" ", "T")}Z`,
+          ).getTime() - 1_000,
+        ),
+      ),
+    );
+
+    await handleEventPropagationJob({
+      data: { id: "event-propagation-gateway-key-test" },
+    } as Parameters<typeof handleEventPropagationJob>[0]);
+
+    await waitForExpect(async () => {
+      const rows = await queryClickhouse<{
+        span_id: string;
+        ai_gateway_key_id: string;
+      }>({
+        query: `
+          SELECT span_id, ai_gateway_key_id
+          FROM events_full FINAL
+          WHERE project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+          ORDER BY span_id = {gatewayObservationId: String} DESC
+        `,
+        params: { projectId, traceId, gatewayObservationId },
+      });
+
+      expect(rows).toEqual([
+        { span_id: gatewayObservationId, ai_gateway_key_id: "gateway-key-1" },
+        { span_id: sdkObservationId, ai_gateway_key_id: "" },
+      ]);
+    }, 5_000);
+  }, 15_000);
 });

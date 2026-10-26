@@ -92,6 +92,54 @@ describe("IngestionService unit tests", () => {
     expect(acceptedBytes).toBe(eventBytes);
   });
 
+  it.each([
+    {
+      case: "a gateway-token upload",
+      ingestionApiKey: "gateway:grant-1",
+      expected: "gateway-key-1",
+    },
+    {
+      case: "an SDK key spoofing the metadata",
+      ingestionApiKey: "pk-lf-spoofing-sdk",
+      expected: undefined,
+    },
+    {
+      case: "a replay that only claims the gateway scope",
+      ingestionApiKey: "",
+      expected: undefined,
+    },
+  ])(
+    "sets ai_gateway_key_id from metadata only for $case",
+    async ({ ingestionApiKey, expected }) => {
+      const ingestionService = new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue: vi.fn() } as any,
+        {} as any,
+      );
+      const eventRecord = await ingestionService.createEventRecord(
+        {
+          projectId: "project-id",
+          traceId: "trace-id",
+          spanId: "observation-id",
+          parentSpanId: "",
+          name: "gateway-generation",
+          type: "SPAN",
+          environment: "default",
+          startTimeISO: "2026-07-22T00:00:00.000Z",
+          endTimeISO: "2026-07-22T00:00:01.000Z",
+          metadata: { "langfuse.gateway.api_key.id": "gateway-key-1" },
+          scopeName: "langfuse-ai-gateway",
+          ingestionApiKey,
+          source: "otel",
+        },
+        "raw-event.json",
+      );
+
+      expect(eventRecord.ai_gateway_key_id).toBe(expected);
+    },
+  );
+
   it("overflows only the direct events_full copy and preserves the enriched record", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

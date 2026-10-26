@@ -74,6 +74,7 @@ import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
+  getAiGatewayKeyId,
   hasAiGatewayScope,
   isAiGatewayGenerationEvent,
   overwriteObject,
@@ -486,6 +487,10 @@ export class IngestionService {
       ingestion_api_key: eventData.ingestionApiKey ?? "",
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
+      ai_gateway_key_id: getAiGatewayKeyId({
+        ingestionApiKey: eventData.ingestionApiKey,
+        metadata,
+      }),
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,

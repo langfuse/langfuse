@@ -47,7 +47,10 @@ import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
-const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
+export const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
+
+/** Metadata key under which the AI gateway records the caller's gateway API key id. */
+export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
 
 /**
  * The ingestion API key Web records for an upload authorized by a gateway
