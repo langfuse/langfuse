@@ -231,17 +231,16 @@ function AnnotationQueueRunContent({
     [run, dependencies],
   );
   const annotationRefreshRef = useRef<AnnotationRefreshHandle>(null);
-  const requestComplete = useCallback(() => {
-    if (
-      !prepareAnnotationQueueComplete({
-        flushPendingEdits: () =>
-          annotationRefreshRef.current?.flushPendingEdits(),
-      })
-    ) {
-      return;
-    }
-    run.actions.complete(dependencies);
-  }, [run, dependencies]);
+  const requestComplete = useCallback(
+    () =>
+      run.actions.complete(dependencies, () =>
+        prepareAnnotationQueueComplete({
+          flushPendingEdits: () =>
+            annotationRefreshRef.current?.flushPendingEdits(),
+        }),
+      ),
+    [run, dependencies],
+  );
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -442,7 +441,11 @@ function AnnotationQueueRunContent({
             variant="outline"
             size="sm"
             disabled={isTransitioning || !hasAccess}
-            onClick={() => run.actions.retry(dependencies)}
+            onClick={() =>
+              error.action === "complete"
+                ? requestComplete()
+                : run.actions.retry(dependencies)
+            }
           >
             Try again
           </Button>

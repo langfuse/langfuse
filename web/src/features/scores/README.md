@@ -35,6 +35,13 @@ callbacks. Each form owns one action instance and one save store; unrelated form
 cannot share drafts or save status. Existing score cache scope and API payloads
 remain owned by the mutation bridge.
 
+Queue completion blurs the active value input before flushing score-comment
+drafts. The form waits for its tracked score and comment promises; comment
+updates wait for earlier writes to the same field, including score creation.
+A failed save blocks completion and retains the comment draft for retry.
+Comment persistence updates the field in place so it cannot remount the row
+and discard that draft while a request is pending.
+
 The Add score picker lists each available config once and excludes fields already in the form. Initial preparation
 keeps every saved score and places remembered empty fields on the observation by
 default. Draft-only level changes and adding a blank field for the other level
@@ -52,8 +59,9 @@ each row's menu always identifies its current level.
 
 Typing updates the owning row and save-status subscriber. It must not rebuild the
 header, picker, other rows, or keyboard listeners. Changing field selection may
-rerender the row structure. Score-comment popovers seed drafts on mount; closing
-discards that local draft. Clear cancels deferred autosave, while dismissing the
+rerender the row structure. Score-comment drafts belong to the mounted row;
+closing a popover preserves its draft until it is saved or the row unmounts.
+Clear cancels deferred autosave, while dismissing the
 clear menu commits the deferred edit. Numeric validation reads native `badInput`
 on every input event before interpreting an empty value as a deliberate clear.
 
@@ -66,6 +74,7 @@ explicitly. Autosave and query refreshes never request focus.
 | Location                                 | External system / lifecycle                                                         | Status                                                                       |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `AnnotationFormContent`                  | Analytics session opens on mount and closes on unmount, using current field counts. | Retained; stable action-owner dependency.                                    |
+| `AnnotationScoreRow` draft flush          | Imperative form action registry for active rows' pending comment editors.           | Retained; register on activation and unregister on inactivity/unmount.       |
 | `useAnnotationKeyboard` keydown listener | Window keyboard events for row navigation and score selection.                      | Retained; symmetric registration/cleanup, current values read at event time. |
 | `useAnnotationKeyboard` capture listener | Escape focus handling before the parent drawer's capture listener.                  | Retained; symmetric registration/cleanup.                                    |
 | `useAnnotationKeyboard` activation focus | DOM focus when the ready form becomes active, after the opening menu closes.        | Retained; scheduled frame cancelled on inactivity or unmount.                |

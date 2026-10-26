@@ -1,11 +1,11 @@
 /**
  * Shared pre-complete steps for annotation queue "Mark Completed" (button and
- * keyboard). Mirrors numeric blur persistence: flush unsaved score-comment
- * drafts, then blur a focused score field so its save mutation fires.
+ * keyboard). Blur a focused score field to start its save, then flush comment
+ * drafts and wait for all score saves before allowing completion.
  */
-export function prepareAnnotationQueueComplete(options: {
-  flushPendingEdits?: () => void;
-}): boolean {
+export async function prepareAnnotationQueueComplete(options: {
+  flushPendingEdits?: () => Promise<boolean> | undefined;
+}): Promise<boolean> {
   const invalidNumber = document.querySelector<HTMLInputElement>(
     '[data-annotation-form] input[type="number"]:invalid',
   );
@@ -15,8 +15,6 @@ export function prepareAnnotationQueueComplete(options: {
     return false;
   }
 
-  options.flushPendingEdits?.();
-
   const active = document.activeElement;
   if (
     active instanceof HTMLTextAreaElement ||
@@ -25,5 +23,5 @@ export function prepareAnnotationQueueComplete(options: {
     active.blur();
   }
 
-  return true;
+  return (await options.flushPendingEdits?.()) ?? true;
 }

@@ -144,11 +144,15 @@ export function createAnnotationQueueRun({
           await enter(dependencies, history, progressIndex - 1);
       });
     },
-    complete(dependencies: QueueRunDependencies) {
+    complete(
+      dependencies: QueueRunDependencies,
+      prepare?: () => Promise<boolean>,
+    ) {
       return transition("complete", async () => {
         const { history, progressIndex, completedItemIds } = store.getState();
         const item = history[progressIndex];
         if (!item) return;
+        if (prepare && (!(await prepare()) || !dependencies.isActive())) return;
         if (!completedItemIds.has(item.id)) {
           await dependencies.completeItem(item.id);
           store.setState({
