@@ -406,6 +406,58 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS references a minified
+ * binding that was never defined. Observed as an unhandled rejection
+ * whose stack is only an `<anonymous>` frame named `window.__capH` —
+ * no `/_next/` chunk. Langfuse never assigns `window.__capH` or `__LH`.
+ * `denyUrls` cannot match anonymous frames.
+ *
+ * Whole-message only after {@link coreMessage}. A longer app error that
+ * quotes the phrase is KEPT. A first-party SWC dropped-binding
+ * `ReferenceError: __LH is not defined` lives in a hashed chunk and is
+ * KEPT.
+ */
+const INJECTED_WINDOW_CAPH_LH_MESSAGE = "__LH is not defined";
+
+/**
+ * Chrome reports `window.__capH` (and `async window.__capH`) for a
+ * function assigned onto Window. That name is the injected scraper,
+ * not Langfuse app code.
+ */
+function isInjectedWindowCapHFunction(name: string | undefined): boolean {
+  if (typeof name !== "string") return false;
+  const trimmed = name.trim();
+  const withoutAsync = trimmed.startsWith("async ")
+    ? trimmed.slice("async ".length)
+    : trimmed;
+  return withoutAsync === "window.__capH";
+}
+
+/**
+ * True when every stack frame is unattributed (`<anonymous>` or missing
+ * filename). A first-party throw that lost its chunk URL is still KEPT —
+ * that event has no frames, or a named file.
+ */
+function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.every((frame) => {
+    const filename = frame?.filename;
+    return (
+      typeof filename !== "string" ||
+      filename.length === 0 ||
+      filename === "<anonymous>"
+    );
+  });
+}
+
+function hasInjectedWindowCapHFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some((frame) => isInjectedWindowCapHFunction(frame?.function));
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -677,7 +729,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Injected `window.__capH` is the same class: Chromium's exact
+    // ReferenceError, anonymous-only stack, and a Window function name
+    // Langfuse never assigns.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -696,6 +752,15 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "ReferenceError" &&
+        coreMessage(exceptionValue) === INJECTED_WINDOW_CAPH_LH_MESSAGE &&
+        hasOnlyAnonymousFrames(event) &&
+        hasInjectedWindowCapHFrame(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;

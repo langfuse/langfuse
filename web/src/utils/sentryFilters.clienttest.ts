@@ -1124,6 +1124,77 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops injected window.__capH __LH ReferenceError", () => {
+    // Real shape: Chrome on the datasets page. Injected page-world JS
+    // named `window.__capH` references a minified `__LH` binding that
+    // was never defined. Stack is only an `<anonymous>` frame — no
+    // /_next/ chunk — so denyUrls cannot match. Langfuse never assigns
+    // `window.__capH` or `__LH`.
+    const injectedWindowCapHLhEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames: { filename?: string; function?: string }[] = [
+        { filename: "<anonymous>", function: "window.__capH" },
+      ],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: frames.map((stackFrame) => ({
+                  filename: stackFrame.filename,
+                  function: stackFrame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous window.__capH __LH ReferenceError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapHLhEvent("__LH is not defined"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapHLhEvent("__LH is not defined."),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapHLhEvent(
+            "__LH is not defined",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the async window.__capH function name", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowCapHLhEvent(
+            "__LH is not defined",
+            "auto.browser.global_handlers.onunhandledrejection",
+            [{ filename: "<anonymous>", function: "async window.__capH" }],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1857,146 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes __LH is not defined", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "Eval compile failed: __LH is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capH" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different undefined identifier with window.__capH frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "foo is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capH" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the __LH ReferenceError without window.__capH frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "__LH is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the __LH ReferenceError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "__LH is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/datasets-abc.js",
+                    function: "window.__capH",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a stackless __LH ReferenceError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "__LH is not defined",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured __LH ReferenceError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("__LH is not defined", "ReferenceError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "__LH is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.__capH" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
