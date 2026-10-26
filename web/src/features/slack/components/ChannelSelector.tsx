@@ -35,11 +35,13 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   ...viewProps
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Read-only roles still see the saved channel via `selectedChannel`, but
-  // may not enumerate every channel the bot can see.
   const canListChannels = useHasProjectAccess({
     projectId,
-    scope: "automations:CUD",
+    scope: "automations:read",
+  });
+  const canManageIntegration = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
   });
   const { channelsData, isLoadingChannels, error, refetchChannels } =
     useSlackChannels(projectId, canListChannels);
@@ -70,7 +72,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       hasError={!!error}
       isRefreshing={isRefreshing}
       onRefresh={handleRefresh}
-      onReauthenticate={handleReauthenticate}
+      onReauthenticate={canManageIntegration ? handleReauthenticate : undefined}
     />
   );
 };

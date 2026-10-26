@@ -330,21 +330,46 @@ describe("Slack Integration", () => {
       });
 
       it.each(["MEMBER", "VIEWER"] as const)(
-        "should reject %s, who can read automations but not manage them",
+        "should list public channels for %s, who can read automations",
         async (projectRole) => {
+          mockSlackService.getChannels.mockResolvedValue({
+            channels: [
+              { id: "C123", name: "general", isPrivate: false, isMember: true },
+            ],
+            nextCursor: undefined,
+          });
           const { caller, project } = await prepare({
             projectRole,
             admin: false,
           });
-          await createIntegration(project.id, null);
-          mockSlackService.getChannels.mockClear();
+          await createIntegration(project.id, {
+            installerUserId: "another-user",
+            installerSlackUserId: INSTALLER_SLACK_USER_ID,
+          });
 
-          await expect(
-            caller.slack.getChannels({ projectId: project.id }),
-          ).rejects.toMatchObject({ code: "FORBIDDEN" });
-          expect(mockSlackService.getChannels).not.toHaveBeenCalled();
+          const result = await caller.slack.getChannels({
+            projectId: project.id,
+          });
+
+          expect(result.channels.map((channel) => channel.id)).toEqual([
+            "C123",
+          ]);
         },
       );
+
+      it("should reject users without automations:read", async () => {
+        const { caller, project } = await prepare({
+          projectRole: "NONE",
+          admin: false,
+        });
+        await createIntegration(project.id, null);
+        mockSlackService.getChannels.mockClear();
+
+        await expect(
+          caller.slack.getChannels({ projectId: project.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        expect(mockSlackService.getChannels).not.toHaveBeenCalled();
+      });
 
       it("should throw NOT_FOUND for missing integration", async () => {
         const { caller, project } = await prepare();
@@ -689,6 +714,25 @@ describe("Slack Integration", () => {
         await expect(
           caller.slack.disconnect({ projectId: project.id }),
         ).rejects.toThrow("Slack integration not found");
+      });
+
+      it("should reject MEMBER, who may not manage integrations", async () => {
+        const { caller, project } = await prepare({
+          projectRole: "MEMBER",
+          admin: false,
+        });
+        await createIntegration(project.id, null);
+        mockSlackService.deleteIntegration.mockClear();
+
+        await expect(
+          caller.slack.disconnect({ projectId: project.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        expect(mockSlackService.deleteIntegration).not.toHaveBeenCalled();
+        expect(
+          await prisma.slackIntegration.findUnique({
+            where: { projectId: project.id },
+          }),
+        ).not.toBeNull();
       });
     });
   });
