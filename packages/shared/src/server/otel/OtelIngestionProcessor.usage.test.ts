@@ -146,4 +146,57 @@ describe("OtelIngestionProcessor generic gen_ai usage extraction", () => {
     // Input subtracts the full cache creation total
     expect(usage.input).toBe(10000 - 2089);
   });
+
+  it("handles TTL breakdown without cache_creation total", () => {
+    const batch: ResourceSpan[] = [
+      {
+        scopeSpans: [
+          {
+            scope: { name: "some-otel-sdk", version: "1.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+                spanId: Buffer.from("0123456789abcdef", "hex"),
+                name: "chat anthropic",
+                kind: 3,
+                startTimeUnixNano: "1752384000000000000",
+                endTimeUnixNano: "1752384001000000000",
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: 5000 },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: 500 },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.5m_input_tokens",
+                    value: { intValue: 3000 },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const events = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "pk-test",
+      sdkName: "some-otel-sdk",
+      sdkVersion: "1.0.0",
+    }).processToEvent(batch);
+
+    expect(events).toHaveLength(1);
+    const usage = events[0].providedUsageDetails;
+
+    // Breakdown extracted even without a total
+    expect(usage.input_cache_creation_5m).toBe(3000);
+
+    // Input subtracts the breakdown (larger of total vs breakdown)
+    expect(usage.input).toBe(2000);
+  });
 });
