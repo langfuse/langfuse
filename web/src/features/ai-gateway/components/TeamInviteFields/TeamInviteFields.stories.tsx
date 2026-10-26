@@ -23,7 +23,15 @@ const previewMembers = [
 ];
 
 const members = new Map([
-  ["ada@company.com", { name: "Ada Lovelace" }],
+  [
+    "ada@company.com",
+    { name: "Ada Lovelace", isSelf: false, canUseGateway: true },
+  ],
+  ["me@company.com", { name: "Tobi", isSelf: true, canUseGateway: true }],
+  [
+    "viewer@company.com",
+    { name: "Vera Viewer", isSelf: false, canUseGateway: false },
+  ],
   ["sam@contractor.dev", null],
   ["kim@contractor.dev", null],
 ]);
@@ -55,6 +63,15 @@ export const WithPendingLookup = meta.story({
   args: {
     ...Empty.input.args,
     emails: ["sam@contractor.dev", "kim@contractor.dev", "new@company.com"],
+    members,
+  },
+});
+
+/** The sender and a member whose role can't use the gateway get no email. */
+export const WithMembersNotNotified = meta.story({
+  args: {
+    ...Empty.input.args,
+    emails: ["me@company.com", "viewer@company.com"],
     members,
   },
 });

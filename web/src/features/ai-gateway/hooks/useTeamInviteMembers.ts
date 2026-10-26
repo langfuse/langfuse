@@ -20,7 +20,8 @@ export function useTeamInviteMembers({
 }: {
   organizationId: string;
   emails: string[];
-  knownMembers?: Array<TeamInviteMember & { email: string }>;
+  /** Other members who can use the gateway, like the notifiable member preview. */
+  knownMembers?: Array<Pick<TeamInviteMember, "name"> & { email: string }>;
 }): TeamInviteMembers {
   const lookupEmails = emails
     .filter((email) => z.email().safeParse(email).success)
@@ -34,7 +35,11 @@ export function useTeamInviteMembers({
     (query.data ?? []).map(({ email, member }) => [email, member]),
   );
   for (const { email, name } of knownMembers) {
-    members.set(email.toLowerCase(), { name });
+    members.set(email.toLowerCase(), {
+      name,
+      isSelf: false,
+      canUseGateway: true,
+    });
   }
   return members;
 }

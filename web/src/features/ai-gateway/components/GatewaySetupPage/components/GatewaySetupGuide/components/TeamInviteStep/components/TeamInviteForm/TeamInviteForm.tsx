@@ -25,7 +25,10 @@ export type TeamInviteFormProps = {
   onFinish: (outcome: { isSkipped: boolean }) => void;
 };
 
-/** Picked addresses, or every member plus the addresses that are not members. */
+/**
+ * Picked addresses that get an email, or every member plus the picked people
+ * outside the organization.
+ */
 function getRecipientCount({
   emails,
   members,
@@ -35,11 +38,12 @@ function getRecipientCount({
   members: TeamInviteMembers;
   allMemberCount: number | undefined;
 }) {
-  if (allMemberCount === undefined) return emails.length;
-  const nonMemberCount = emails.filter(
-    (email) => getInviteeKind(email, members) !== "member",
+  const kinds = emails.map((email) => getInviteeKind(email, members));
+  const outsiderCount = kinds.filter(
+    (kind) => kind === "external" || kind === "pending",
   ).length;
-  return allMemberCount + nonMemberCount;
+  if (allMemberCount !== undefined) return allMemberCount + outsiderCount;
+  return outsiderCount + kinds.filter((kind) => kind === "member").length;
 }
 
 function getNotifyLabel(recipientCount: number) {

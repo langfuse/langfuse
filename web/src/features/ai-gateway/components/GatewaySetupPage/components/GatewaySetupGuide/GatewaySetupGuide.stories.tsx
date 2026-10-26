@@ -19,7 +19,7 @@ function GatewaySetupGuideWithInvitees(
   const previewMembers = new Map(
     props.notifiableMembers?.preview.map((member) => [
       member.email,
-      { name: member.name },
+      { name: member.name, isSelf: false, canUseGateway: true },
     ]),
   );
   const inviteeMembers = new Map<string, TeamInviteMember | null>(

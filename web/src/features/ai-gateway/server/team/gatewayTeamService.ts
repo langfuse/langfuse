@@ -83,9 +83,14 @@ export class GatewayTeamService {
     return { isEmailConfigured: isEmailConfigured(), count, preview };
   }
 
-  /** Pairs each address with its organization member, or null when it would be invited. */
+  /**
+   * Pairs each address with its organization member, or null when it would be
+   * invited. Mirrors `inviteTeam`: the sender and members whose role can't use
+   * the gateway are not notified.
+   */
   async getInviteeMembers(params: {
     organizationId: string;
+    currentUserId: string;
     emails: string[];
   }) {
     const emails = normalizeEmails(params.emails);
@@ -100,7 +105,16 @@ export class GatewayTeamService {
     );
     return emails.map((email) => {
       const member = members.get(email);
-      return { email, member: member ? { name: member.name } : null };
+      return {
+        email,
+        member: member
+          ? {
+              name: member.name,
+              isSelf: member.id === params.currentUserId,
+              canUseGateway: member.hasScope,
+            }
+          : null,
+      };
     });
   }
 

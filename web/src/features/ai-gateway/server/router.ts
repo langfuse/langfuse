@@ -193,6 +193,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayTeamService(ctx.prisma).getInviteeMembers({
         organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
         emails: input.emails,
       });
     }),
