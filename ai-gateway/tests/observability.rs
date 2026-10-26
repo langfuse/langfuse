@@ -34,17 +34,14 @@ impl Gateway {
     )]
     fn start(
         endpoint: &str,
-        shutdown_seconds: &str,
+        drain_seconds: &str,
         telemetry_shutdown_seconds: &str,
         level: &str,
     ) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
             .env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS", "127.0.0.1:0")
-            .env(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
-                shutdown_seconds,
-            )
+            .env("LANGFUSE_AI_GATEWAY_DRAIN_TIMEOUT_SECONDS", drain_seconds)
             .env(
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS",
                 telemetry_shutdown_seconds,

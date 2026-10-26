@@ -3,7 +3,7 @@ set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
 container="$(docker run -d --read-only --cap-drop ALL --security-opt no-new-privileges \
-  -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 \
+  -e LANGFUSE_AI_GATEWAY_DRAIN_TIMEOUT_SECONDS=2 \
   -e LANGFUSE_AI_GATEWAY_WEB_URL=https://web.example \
   -e LANGFUSE_AI_GATEWAY_SERVICE_KEY=smoke-test-service-key -p 127.0.0.1::8080 "$image")"
 cleanup() {

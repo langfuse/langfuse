@@ -70,13 +70,13 @@ async fn readiness(State(state): State<GatewayLifecycleState>) -> (StatusCode, J
 ///
 /// # Errors
 /// Returns the server's I/O error, or [`io::ErrorKind::TimedOut`] if connections
-/// do not finish draining within `shutdown_timeout`.
+/// do not finish draining within `drain_timeout`.
 pub async fn serve(
     listener: TcpListener,
     app: Router,
     state: GatewayLifecycleState,
     shutdown: impl Future<Output = ()> + Send + 'static,
-    shutdown_timeout: Duration,
+    drain_timeout: Duration,
 ) -> io::Result<()> {
     let (draining_tx, draining_rx) = oneshot::channel();
     let shutdown_state = state.clone();
@@ -97,8 +97,8 @@ pub async fn serve(
         result = &mut server => result,
         () = async {
             let _ = draining_rx.await;
-            tokio::time::sleep(shutdown_timeout).await;
-        } => Err(io::Error::new(io::ErrorKind::TimedOut, "gateway shutdown deadline exceeded")),
+            tokio::time::sleep(drain_timeout).await;
+        } => Err(io::Error::new(io::ErrorKind::TimedOut, "gateway drain deadline exceeded")),
     };
     state.ready.store(false, Ordering::Release);
     result
