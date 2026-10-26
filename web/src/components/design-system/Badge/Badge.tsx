@@ -36,29 +36,26 @@ const badgeVariants = cva(
         success:
           "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-transparent dark:bg-light-green dark:text-dark-green",
         info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-transparent dark:bg-light-blue dark:text-dark-blue",
-        violet:
-          "border-violet-100 bg-violet-50 text-violet-800 dark:border-transparent dark:bg-light-violet dark:text-dark-violet",
-        teal: "border-teal-100 bg-teal-50 text-teal-800 dark:border-transparent dark:bg-light-teal dark:text-dark-teal",
         violetTint:
-          "border-category-violet/40 bg-category-violet/10 text-foreground-secondary dark:border-transparent dark:bg-category-violet/15",
+          "border-category-violet/20 bg-category-violet/10 text-foreground-secondary dark:border-transparent dark:bg-category-violet/15",
         skyTint:
-          "border-category-sky/40 bg-category-sky/10 text-foreground-secondary dark:border-transparent dark:bg-category-sky/15",
+          "border-category-sky/20 bg-category-sky/10 text-foreground-secondary dark:border-transparent dark:bg-category-sky/15",
         emeraldTint:
-          "border-category-emerald/40 bg-category-emerald/10 text-foreground-secondary dark:border-transparent dark:bg-category-emerald/15",
+          "border-category-emerald/20 bg-category-emerald/10 text-foreground-secondary dark:border-transparent dark:bg-category-emerald/15",
         amberTint:
-          "border-category-amber/40 bg-category-amber/10 text-foreground-secondary dark:border-transparent dark:bg-category-amber/15",
+          "border-category-amber/20 bg-category-amber/10 text-foreground-secondary dark:border-transparent dark:bg-category-amber/15",
         pinkTint:
-          "border-category-pink/40 bg-category-pink/10 text-foreground-secondary dark:border-transparent dark:bg-category-pink/15",
+          "border-category-pink/20 bg-category-pink/10 text-foreground-secondary dark:border-transparent dark:bg-category-pink/15",
         indigoTint:
-          "border-category-indigo/40 bg-category-indigo/10 text-foreground-secondary dark:border-transparent dark:bg-category-indigo/15",
+          "border-category-indigo/20 bg-category-indigo/10 text-foreground-secondary dark:border-transparent dark:bg-category-indigo/15",
         tealTint:
-          "border-category-teal/40 bg-category-teal/10 text-foreground-secondary dark:border-transparent dark:bg-category-teal/15",
+          "border-category-teal/20 bg-category-teal/10 text-foreground-secondary dark:border-transparent dark:bg-category-teal/15",
         orangeTint:
-          "border-category-orange/40 bg-category-orange/10 text-foreground-secondary dark:border-transparent dark:bg-category-orange/15",
+          "border-category-orange/20 bg-category-orange/10 text-foreground-secondary dark:border-transparent dark:bg-category-orange/15",
         limeTint:
-          "border-category-lime/40 bg-category-lime/10 text-foreground-secondary dark:border-transparent dark:bg-category-lime/15",
+          "border-category-lime/20 bg-category-lime/10 text-foreground-secondary dark:border-transparent dark:bg-category-lime/15",
         fuchsiaTint:
-          "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary dark:border-transparent dark:bg-category-fuchsia/15",
+          "border-category-fuchsia/20 bg-category-fuchsia/10 text-foreground-secondary dark:border-transparent dark:bg-category-fuchsia/15",
         /** Match the treemap tiles. */
         violetHighlight:
           "border-category-violet-highlight bg-category-violet-highlight/35 text-foreground-secondary dark:border-transparent",
@@ -171,12 +168,11 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
  * - `filled`: data chips. Scores, tags, counts.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
- *   `violet`, `teal` mark score levels.
- * - Category `Tint` / `Highlight`: tell categories apart (topics, treemap). Text stays
- *   neutral; the hue carries the category.
+ * - Category `Tint` / `Highlight`: tell categories apart (score levels, topics, treemap).
+ *   Text stays neutral; the hue carries the category.
  *
  * `font="mono"` for values (metrics, IDs, versions, scores, counts); words stay sans.
- * Links use `LinkBadge`.
+ * Links use `LinkBadge`. Full guidance with examples: `Badge.mdx` (Storybook "Guidance").
  */
 export function Badge({
   color,

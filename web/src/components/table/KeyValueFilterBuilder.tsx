@@ -393,8 +393,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                         title: `${level === "trace" ? "Trace" : "Observation"}-level score`,
                         color:
                           level === "trace"
-                            ? ("violet" as const)
-                            : ("info" as const),
+                            ? ("violetTint" as const)
+                            : ("skyTint" as const),
                       })),
                     }))}
                     onValueChange={(key) => handleFilterChange(index, { key })}

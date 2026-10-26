@@ -58,26 +58,25 @@ export const scoreLevelFromScore = (score: {
   return "trace";
 };
 
-// The global score-level color coding: one hue per level, used identically on
-// every surface. Hue pairs live in the design-system Badge and globals.css:
-// observation=blue, trace=violet, session=teal, experiment=yellow.
+// The global score-level color coding: one category hue per level, used
+// identically on every surface (tag tint and compact dot).
 const scoreTagColors: Record<
   ScoreLevel,
-  "info" | "violet" | "teal" | "warning"
+  "skyTint" | "violetTint" | "tealTint" | "amberTint"
 > = {
-  observation: "info",
-  trace: "violet",
-  session: "teal",
-  experiment: "warning",
+  observation: "skyTint",
+  trace: "violetTint",
+  session: "tealTint",
+  experiment: "amberTint",
 };
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
     level: {
-      observation: "bg-dark-blue",
-      trace: "bg-dark-violet",
-      session: "bg-dark-teal",
-      experiment: "bg-dark-yellow",
+      observation: "bg-category-sky",
+      trace: "bg-category-violet",
+      session: "bg-category-teal",
+      experiment: "bg-category-amber",
     },
   },
 });
@@ -118,7 +117,9 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
         <span {...getTriggerProps()}>
           <Badge
             color={scoreTagColors[level]}
-            text={SCORE_LEVEL_LABELS[level]}
+            font="mono"
+            size="md"
+            text={SCORE_LEVEL_LABELS[level].toLowerCase()}
           />
         </span>
       )}
