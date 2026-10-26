@@ -61,6 +61,8 @@ export function TeamInviteDialog({
         <TeamInviteFields
           emails={invitees.emails}
           onEmailsChange={invitees.setEmails}
+          draft={invitees.draft}
+          onDraftChange={invitees.setDraft}
           members={inviteeMembers}
           errorMessage={invitees.errorMessage}
         />

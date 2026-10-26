@@ -36,6 +36,7 @@ export function ConnectedGatewaySetupGuide({
   );
   const {
     notifiableMembers,
+    suggestedMembers,
     invitees,
     inviteeMembers,
     inviteTeam,
@@ -88,6 +89,7 @@ export function ConnectedGatewaySetupGuide({
           }}
           onAddCredential={openAddDialog}
           notifiableMembers={notifiableMembers}
+          suggestedMembers={suggestedMembers}
           invitees={invitees}
           inviteeMembers={inviteeMembers}
           isInviting={isInviting}

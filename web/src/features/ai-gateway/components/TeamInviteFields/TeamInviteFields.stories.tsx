@@ -1,11 +1,22 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import { useState } from "react";
+
 import preview from "@/.storybook/preview";
-import { TeamInviteFields } from "./TeamInviteFields";
+import {
+  TeamInviteFields,
+  type TeamInviteFieldsProps,
+} from "./TeamInviteFields";
+
+/** Keeps the typed text in state so typing behaves like the real form. */
+function TeamInviteFieldsWithDraft(props: TeamInviteFieldsProps) {
+  const [draft, setDraft] = useState(props.draft);
+  return <TeamInviteFields {...props} draft={draft} onDraftChange={setDraft} />;
+}
 
 const meta = preview.meta({ component: TeamInviteFields });
 
-const previewMembers = [
+const suggestedMembers = [
   { id: "user-1", name: "Ada Lovelace", email: "ada@company.com", image: null },
   {
     id: "user-2",
@@ -40,10 +51,13 @@ export const Empty = meta.story({
   args: {
     emails: [],
     onEmailsChange: fn(),
+    draft: "",
+    onDraftChange: fn(),
     members: new Map(),
     memberSuggestions: {
       memberCount: 12,
-      previewMembers,
+      suggestedMembers,
+      onMemberAdd: fn(),
       isAllSelected: false,
       onAllSelectedChange: fn(),
     },
@@ -94,17 +108,38 @@ export const WithError = meta.story({
   },
 });
 
+/** While typing, only matching members are offered and "All existing members" steps aside. */
+export const Searching = meta.story({
+  args: {
+    ...Empty.input.args,
+    draft: "gra",
+    memberSuggestions: {
+      ...Empty.input.args.memberSuggestions,
+      suggestedMembers: suggestedMembers.slice(1, 2),
+    },
+  },
+});
+
 export const WithoutMembersToNotify = meta.story({
   args: {
     emails: ["sam@contractor.dev"],
     onEmailsChange: fn(),
+    draft: "",
+    onDraftChange: fn(),
     members,
   },
 });
 
 export const TestSpaceCommitsEmail = meta.story({
   name: "(Test) Space commits an email",
-  args: { emails: [], onEmailsChange: fn(), members: new Map() },
+  args: {
+    emails: [],
+    onEmailsChange: fn(),
+    draft: "",
+    onDraftChange: fn(),
+    members: new Map(),
+  },
+  render: (args) => <TeamInviteFieldsWithDraft {...args} />,
   play: async ({ args, canvasElement }) => {
     const input = within(canvasElement).getByRole("textbox", {
       name: "Email addresses",
@@ -119,9 +154,9 @@ export const TestMemberSuggestionAddsEmail = meta.story({
   name: "(Test) Member suggestions add the member or everyone",
   args: {
     ...WithMemberAndExternal.input.args,
-    onEmailsChange: fn(),
     memberSuggestions: {
       ...Empty.input.args.memberSuggestions,
+      onMemberAdd: fn(),
       onAllSelectedChange: fn(),
     },
   },
@@ -132,11 +167,9 @@ export const TestMemberSuggestionAddsEmail = meta.story({
     ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "Grace Hopper" }));
-    await expect(args.onEmailsChange).toHaveBeenCalledWith([
-      "ada@company.com",
-      "sam@contractor.dev",
-      "grace@company.com",
-    ]);
+    await expect(args.memberSuggestions?.onMemberAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "grace@company.com" }),
+    );
 
     await userEvent.click(
       canvas.getByRole("button", { name: "All existing members (12)" }),
@@ -144,5 +177,32 @@ export const TestMemberSuggestionAddsEmail = meta.story({
     await expect(
       args.memberSuggestions?.onAllSelectedChange,
     ).toHaveBeenCalledWith(true);
+  },
+});
+
+export const TestSearchKeepsTextAndEnterPicksTopMatch = meta.story({
+  name: "(Test) A search survives blur and Enter picks the top match",
+  args: {
+    ...Empty.input.args,
+    memberSuggestions: {
+      ...Empty.input.args.memberSuggestions,
+      onMemberAdd: fn(),
+    },
+  },
+  render: (args) => <TeamInviteFieldsWithDraft {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const input = within(canvasElement).getByRole("textbox", {
+      name: "Email addresses",
+    });
+    await userEvent.type(input, "ada love");
+    await userEvent.tab();
+    await expect(input).toHaveValue("ada love");
+    await expect(args.onEmailsChange).not.toHaveBeenCalled();
+
+    await userEvent.click(input);
+    await userEvent.keyboard("{Enter}");
+    await expect(args.memberSuggestions?.onMemberAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "ada@company.com" }),
+    );
   },
 });

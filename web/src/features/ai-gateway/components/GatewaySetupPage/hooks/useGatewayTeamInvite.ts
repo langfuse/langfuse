@@ -1,6 +1,7 @@
 import { toTeamInviteSentEvent } from "@/src/features/ai-gateway/fns/toTeamInviteSentEvent";
 import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
 import { useTeamInviteMembers } from "@/src/features/ai-gateway/hooks/useTeamInviteMembers";
+import { useTeamInviteMemberSuggestions } from "@/src/features/ai-gateway/hooks/useTeamInviteMemberSuggestions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -10,11 +11,21 @@ export function useGatewayTeamInvite(organizationId: string) {
   const notifiableMembersQuery = api.aiGateway.getNotifiableMembers.useQuery({
     orgId: organizationId,
   });
+  const notifiableMembers = notifiableMembersQuery.data;
   const invitees = useTeamInviteEmails();
+  const suggestedMembers = useTeamInviteMemberSuggestions({
+    organizationId,
+    search: invitees.draft,
+    excludeEmails: invitees.emails,
+    enabled:
+      notifiableMembers !== undefined &&
+      notifiableMembers.isEmailConfigured &&
+      notifiableMembers.count > 0,
+  });
   const inviteeMembers = useTeamInviteMembers({
     organizationId,
     emails: invitees.emails,
-    knownMembers: notifiableMembersQuery.data?.preview,
+    knownMembers: [...suggestedMembers, ...invitees.pickedMembers],
   });
   const mutation = api.aiGateway.inviteTeam.useMutation();
 
@@ -47,7 +58,8 @@ export function useGatewayTeamInvite(organizationId: string) {
   }
 
   return {
-    notifiableMembers: notifiableMembersQuery.data,
+    notifiableMembers,
+    suggestedMembers,
     invitees,
     inviteeMembers,
     inviteTeam,

@@ -11,6 +11,9 @@ export type GatewayProject = { id: string; name: string };
 export type GatewayNotifiableMembers =
   RouterOutputs["aiGateway"]["getNotifiableMembers"];
 
+export type GatewayMemberSuggestion =
+  RouterOutputs["aiGateway"]["getMemberSuggestions"][number];
+
 export type GatewayTeamInviteResult = RouterOutputs["aiGateway"]["inviteTeam"];
 
 export type GatewayIngestionSettings = {

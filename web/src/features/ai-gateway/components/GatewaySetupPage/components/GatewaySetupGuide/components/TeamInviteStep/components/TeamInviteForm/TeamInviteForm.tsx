@@ -4,6 +4,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { TeamInviteFailuresAlert } from "@/src/features/ai-gateway/components/TeamInviteFailuresAlert";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/TeamInviteFields/TeamInviteFields";
 import type {
+  GatewayMemberSuggestion,
   GatewayNotifiableMembers,
   GatewayTeamInviteResult,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
@@ -14,6 +15,8 @@ import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInvi
 export type TeamInviteFormProps = {
   /** Undefined while loading. */
   notifiableMembers: GatewayNotifiableMembers | undefined;
+  /** Not-yet-picked members matching the typed text. */
+  suggestedMembers: GatewayMemberSuggestion[];
   invitees: ReturnType<typeof useTeamInviteEmails>;
   inviteeMembers: TeamInviteMembers;
   isInviting: boolean;
@@ -54,6 +57,7 @@ function getNotifyLabel(recipientCount: number) {
 
 export function TeamInviteForm({
   notifiableMembers,
+  suggestedMembers,
   invitees,
   inviteeMembers,
   isInviting,
@@ -100,13 +104,16 @@ export function TeamInviteForm({
       <TeamInviteFields
         emails={invitees.emails}
         onEmailsChange={invitees.setEmails}
+        draft={invitees.draft}
+        onDraftChange={invitees.setDraft}
         members={inviteeMembers}
         errorMessage={invitees.errorMessage}
         memberSuggestions={
           canNotify
             ? {
                 memberCount: notifiableMembers.count,
-                previewMembers: notifiableMembers.preview,
+                suggestedMembers,
+                onMemberAdd: invitees.addMember,
                 isAllSelected,
                 onAllSelectedChange: setIsAllSelected,
               }

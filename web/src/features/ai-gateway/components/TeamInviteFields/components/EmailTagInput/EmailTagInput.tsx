@@ -1,9 +1,4 @@
-import {
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmailTag } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
 import {
@@ -17,41 +12,54 @@ export type EmailTagInputProps = {
   id: string;
   value: string[];
   onChange: (emails: string[]) => void;
+  /** Text not turned into a chip yet; without an `@` it is a member search. */
+  draft: string;
+  onDraftChange: (draft: string) => void;
+  /** Called on Enter while the draft is a search, to pick the top match. */
+  onPickTopSuggestion?: () => void;
   members: TeamInviteMembers;
   "aria-describedby"?: string;
   /** Chips shown before the addresses. */
   children?: ReactNode;
 };
 
+/** Typed text with an `@` is an address; anything else is a search term. */
+function isAddress(text: string) {
+  return text.includes("@");
+}
+
 /**
  * Turns typed or pasted addresses into removable chips on comma, space, Enter, or
- * blur. Borderless: the surrounding field draws the frame.
+ * blur. Text without an `@` stays a search, and Enter picks the top suggestion.
+ * Borderless: the surrounding field draws the frame.
  */
 export function EmailTagInput({
   id,
   value,
   onChange,
+  draft,
+  onDraftChange,
+  onPickTopSuggestion,
   members,
   "aria-describedby": ariaDescribedBy,
   children,
 }: EmailTagInputProps) {
-  const [draft, setDraft] = useState("");
-
   function commit(text: string) {
-    setDraft("");
+    onDraftChange("");
     if (text.trim().length > 0) onChange(appendEmails(value, text));
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const text = event.target.value;
-    if (splitEmailText(text).length > 1) commit(text);
-    else setDraft(text);
+    if (isAddress(text) && splitEmailText(text).length > 1) commit(text);
+    else onDraftChange(text);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      commit(draft);
+      if (!isAddress(draft) && onPickTopSuggestion) onPickTopSuggestion();
+      else commit(draft);
       return;
     }
     if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
@@ -59,8 +67,9 @@ export function EmailTagInput({
     }
   }
 
+  // A search must survive the blur from clicking a suggestion.
   function handleBlur() {
-    commit(draft);
+    if (isAddress(draft)) commit(draft);
   }
 
   function handleRemove(email: string) {

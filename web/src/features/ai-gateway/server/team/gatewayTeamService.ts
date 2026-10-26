@@ -18,7 +18,7 @@ import {
 } from "@/src/features/rbac/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
-const MEMBER_PREVIEW_LIMIT = 4;
+const MEMBER_SUGGESTION_LIMIT = 4;
 const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
@@ -68,19 +68,32 @@ export class GatewayTeamService {
     organizationId: string;
     currentUserId: string;
   }) {
-    const query = {
+    const count = await this.members.countMembersWithScope({
       organizationId: params.organizationId,
       scope: GATEWAY_USER_SCOPE,
       excludeUserId: params.currentUserId,
-    } as const;
-    const [count, preview] = await Promise.all([
-      this.members.countMembersWithScope(query),
-      this.members.findMembersWithScope({
-        ...query,
-        limit: MEMBER_PREVIEW_LIMIT,
-      }),
-    ]);
-    return { isEmailConfigured: isEmailConfigured(), count, preview };
+    });
+    return { isEmailConfigured: isEmailConfigured(), count };
+  }
+
+  /**
+   * Members to offer as quick picks: others who can use the gateway, not
+   * already picked, optionally narrowed by name or email.
+   */
+  getMemberSuggestions(params: {
+    organizationId: string;
+    currentUserId: string;
+    search: string;
+    excludeEmails: string[];
+  }) {
+    return this.members.findMembersWithScope({
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      excludeUserId: params.currentUserId,
+      excludeEmails: normalizeEmails(params.excludeEmails),
+      search: params.search,
+      limit: MEMBER_SUGGESTION_LIMIT,
+    });
   }
 
   /**

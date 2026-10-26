@@ -8,27 +8,68 @@ import {
   type GatewaySetupGuideProps,
 } from "./GatewaySetupGuide";
 
+const MEMBER_SUGGESTION_LIMIT = 4;
+
+const organizationMembers = [
+  { id: "user-1", name: "Ada Lovelace", email: "ada@company.com", image: null },
+  {
+    id: "user-2",
+    name: "Grace Hopper",
+    email: "grace@company.com",
+    image: null,
+  },
+  { id: "user-3", name: null, email: "alan@company.com", image: null },
+  {
+    id: "user-4",
+    name: "Edsger Dijkstra",
+    email: "edsger@company.com",
+    image: null,
+  },
+  { id: "user-5", name: "David Kim", email: "david@company.com", image: null },
+  {
+    id: "user-6",
+    name: "Barbara Liskov",
+    email: "barbara@company.com",
+    image: null,
+  },
+];
+
 /**
- * Holds the invitee list like the connected page does. The preview members are
- * the organization; every other address counts as someone to invite.
+ * Holds the invitee list like the connected page does and answers the member
+ * search the way the server does. `organizationMembers` are the organization;
+ * every other address counts as someone to invite.
  */
 function GatewaySetupGuideWithInvitees(
-  props: Omit<GatewaySetupGuideProps, "invitees" | "inviteeMembers">,
+  props: Omit<
+    GatewaySetupGuideProps,
+    "invitees" | "inviteeMembers" | "suggestedMembers"
+  >,
 ) {
   const invitees = useTeamInviteEmails();
-  const previewMembers = new Map(
-    props.notifiableMembers?.preview.map((member) => [
+  const search = invitees.draft.trim().toLowerCase();
+  const suggestedMembers = organizationMembers
+    .filter(
+      (member) =>
+        !invitees.emails.includes(member.email) &&
+        [member.name, member.email].some((value) =>
+          value?.toLowerCase().includes(search),
+        ),
+    )
+    .slice(0, MEMBER_SUGGESTION_LIMIT);
+  const membersByEmail = new Map(
+    organizationMembers.map((member) => [
       member.email,
       { name: member.name, isSelf: false, canUseGateway: true },
     ]),
   );
   const inviteeMembers = new Map<string, TeamInviteMember | null>(
-    invitees.emails.map((email) => [email, previewMembers.get(email) ?? null]),
+    invitees.emails.map((email) => [email, membersByEmail.get(email) ?? null]),
   );
 
   return (
     <GatewaySetupGuide
       {...props}
+      suggestedMembers={suggestedMembers}
       invitees={invitees}
       inviteeMembers={inviteeMembers}
     />
@@ -58,27 +99,6 @@ const savedConfig = {
 const notifiableMembers = {
   isEmailConfigured: true,
   count: 12,
-  preview: [
-    {
-      id: "user-1",
-      name: "Ada Lovelace",
-      email: "ada@company.com",
-      image: null,
-    },
-    {
-      id: "user-2",
-      name: "Grace Hopper",
-      email: "grace@company.com",
-      image: null,
-    },
-    { id: "user-3", name: null, email: "alan@company.com", image: null },
-    {
-      id: "user-4",
-      name: "Edsger Dijkstra",
-      email: "edsger@company.com",
-      image: null,
-    },
-  ],
 };
 
 export const ChoosingIngestion = meta.story({
@@ -162,6 +182,40 @@ export const TestRetryDoesNotNotifyAgain = meta.story({
     ).not.toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Notify 1 person" }),
+    ).toBeEnabled();
+  },
+});
+
+export const TestSearchAndRefill = meta.story({
+  name: "(Test) Typing searches members and picked members are refilled",
+  args: InvitingTeam.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "David Kim" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "Ada Lovelace" }));
+    await expect(
+      canvas.getByRole("button", { name: "David Kim" }),
+    ).toBeVisible();
+
+    const input = canvas.getByRole("textbox", { name: "Email addresses" });
+    await userEvent.type(input, "lisk");
+    await expect(
+      canvas.queryByRole("button", { name: /All existing members/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "David Kim" }),
+    ).not.toBeInTheDocument();
+    await userEvent.keyboard("{Enter}");
+
+    await expect(input).toHaveValue("");
+    await expect(
+      canvas.getByRole("button", { name: "Remove Barbara Liskov" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Notify 2 people" }),
     ).toBeEnabled();
   },
 });

@@ -565,6 +565,34 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
+  it("suggests other gateway members, skipping picked ones and narrowing by search", async () => {
+    const owner = await prepare();
+    for (let i = 0; i < 5; i++) {
+      await createCallerForOrganizationRole(owner, Role.MEMBER);
+    }
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const members = await prisma.organizationMembership.findMany({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      orderBy: [{ createdAt: "asc" }, { userId: "asc" }],
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmails = members.map(({ user }) => user.email!);
+    const suggest = (search: string, excludeEmails: string[] = []) =>
+      owner.caller.aiGateway
+        .getMemberSuggestions({ orgId: owner.org.id, search, excludeEmails })
+        .then((suggestions) => suggestions.map(({ email }) => email));
+
+    await expect(suggest("")).resolves.toEqual(memberEmails.slice(0, 4));
+    await expect(
+      suggest("", [memberEmails[0]!.toUpperCase()]),
+    ).resolves.toEqual(memberEmails.slice(1, 5));
+    await expect(suggest(memberEmails[4]!.toUpperCase())).resolves.toEqual([
+      memberEmails[4],
+    ]);
+    await expect(suggest("GATEWAY MEMBER")).resolves.toHaveLength(4);
+    await expect(suggest("gateway_role")).resolves.toEqual([]);
+  });
+
   it.each([false, true])(
     "announces the gateway once to a typed address of a member (notifyMembers: %s)",
     async (notifyMembers) => {

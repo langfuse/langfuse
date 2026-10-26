@@ -1,27 +1,32 @@
 import { useId } from "react";
-import { Users } from "@langfuse/icons";
+import { Plus, Users } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { EmailTagInput } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/EmailTagInput";
-import { appendEmails } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
 import { ExternalInviteeHint } from "@/src/features/ai-gateway/components/TeamInviteFields/components/ExternalInviteeHint";
 import {
-  MemberSuggestions,
-  type MemberSuggestionsProps,
-} from "@/src/features/ai-gateway/components/TeamInviteFields/components/MemberSuggestions";
+  MemberSuggestion,
+  type MemberSuggestionProps,
+} from "@/src/features/ai-gateway/components/TeamInviteFields/components/MemberSuggestion";
 import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
 import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
 export type TeamInviteFieldsProps = {
   emails: string[];
   onEmailsChange: (emails: string[]) => void;
+  /** Text being typed; doubles as the member search. */
+  draft: string;
+  onDraftChange: (draft: string) => void;
   members: TeamInviteMembers;
   /** Shown below the input while set. */
   errorMessage?: string;
   /** Omit when there is nobody to notify or email is not configured. */
   memberSuggestions?: {
     memberCount: number;
-    previewMembers: MemberSuggestionsProps["members"];
+    /** Members matching the draft that are not picked yet. */
+    suggestedMembers: MemberSuggestionProps["member"][];
+    onMemberAdd: MemberSuggestionProps["onAdd"];
     isAllSelected: boolean;
     onAllSelectedChange: (isSelected: boolean) => void;
   };
@@ -34,6 +39,8 @@ export type TeamInviteFieldsProps = {
 export function TeamInviteFields({
   emails,
   onEmailsChange,
+  draft,
+  onDraftChange,
   members,
   errorMessage,
   memberSuggestions,
@@ -44,13 +51,26 @@ export function TeamInviteFields({
     (email) => getInviteeKind(email, members) === "external",
   ).length;
   const isAllSelected = memberSuggestions?.isAllSelected ?? false;
-  const unpickedMembers =
-    memberSuggestions?.previewMembers.filter(
+  const isSearching = draft.trim().length > 0;
+  // Suggestions can lag a pick by one request, so picked members are dropped here too.
+  const suggestedMembers =
+    memberSuggestions?.suggestedMembers.filter(
       (member) => !emails.includes(member.email.toLowerCase()),
     ) ?? [];
+  const showAllMembersSuggestion =
+    memberSuggestions !== undefined && !isAllSelected && !isSearching;
+  const showMemberSuggestions = !isAllSelected && suggestedMembers.length > 0;
 
-  function handleAddMember(email: string) {
-    onEmailsChange(appendEmails(emails, email));
+  const topSuggestedMember = showMemberSuggestions
+    ? suggestedMembers[0]
+    : undefined;
+
+  function handleAddMember(member: MemberSuggestionProps["member"]) {
+    memberSuggestions?.onMemberAdd(member);
+  }
+
+  function handlePickTopSuggestion() {
+    if (topSuggestedMember) handleAddMember(topSuggestedMember);
   }
 
   function handleSelectAll() {
@@ -68,6 +88,11 @@ export function TeamInviteFields({
           id={inputId}
           value={emails}
           onChange={onEmailsChange}
+          draft={draft}
+          onDraftChange={onDraftChange}
+          onPickTopSuggestion={
+            topSuggestedMember ? handlePickTopSuggestion : undefined
+          }
           members={members}
           aria-describedby={errorMessage ? errorId : undefined}
         >
@@ -86,13 +111,27 @@ export function TeamInviteFields({
           {errorMessage}
         </p>
       ) : null}
-      {memberSuggestions && !isAllSelected ? (
-        <MemberSuggestions
-          memberCount={memberSuggestions.memberCount}
-          members={unpickedMembers}
-          onSelectAll={handleSelectAll}
-          onAddMember={handleAddMember}
-        />
+      {showAllMembersSuggestion || showMemberSuggestions ? (
+        <div className="ph-no-capture flex flex-wrap gap-2">
+          {showAllMembersSuggestion ? (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Plus}
+              text={`All existing members (${memberSuggestions.memberCount})`}
+              onClick={handleSelectAll}
+            />
+          ) : null}
+          {showMemberSuggestions
+            ? suggestedMembers.map((member) => (
+                <MemberSuggestion
+                  key={member.id}
+                  member={member}
+                  onAdd={handleAddMember}
+                />
+              ))
+            : null}
+        </div>
       ) : null}
       {externalCount > 0 ? <ExternalInviteeHint count={externalCount} /> : null}
     </div>
