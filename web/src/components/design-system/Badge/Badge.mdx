@@ -8,14 +8,14 @@ import * as BadgeStories from "./Badge.stories";
 Pick the family by the badge's job, then the value inside it. Never pick a
 colour for decoration.
 
-| Family   | Values                                | Look                                 | Use for                                                       |
-| -------- | ------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
-| Neutral  | `ghost`                               | no border, no fill                   | header metrics and links: scan or follow                      |
-|          | `outline` (default)                   | border, no fill                      | attributes to read: environment, release, version             |
-|          | `filled`                              | grey fill, no border                 | data chips: scores, tags, counts                              |
-|          | `inverted`                            | solid dark fill                      | one strong marker per surface, e.g. a version next to a title |
-| Status   | `error`, `warning`, `success`, `info` | hue fill, same-hue hairline          | a state: failing, degraded, healthy, beta                     |
-| Category | `violetTint`, `skyTint`, … (10 hues)  | hue tint, same-hue hairline and text | telling categories apart: score levels, topics, widget types  |
+| Family   | Values                                | Look                                      | Use for                                                       |
+| -------- | ------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| Neutral  | `ghost`                               | no border, no fill                        | header metrics and links: scan or follow                      |
+|          | `outline` (default)                   | border, no fill                           | attributes to read: environment, release, version             |
+|          | `filled`                              | grey fill, no border                      | data chips: scores, tags, counts                              |
+|          | `inverted`                            | solid dark fill                           | one strong marker per surface, e.g. a version next to a title |
+| Status   | `error`, `warning`, `success`, `info` | hue fill, same-hue hairline               | a state: failing, degraded, healthy, beta                     |
+| Category | `violetTint`, `skyTint`, … (10 hues)  | hue tint, same-hue hairline, neutral text | telling categories apart: score levels, topics, widget types  |
 
 <Canvas of={BadgeStories.InContext} />
 
