@@ -215,14 +215,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
       expect.stringContaining("Analyze traces1,412 traces · $4.20"),
       expect.stringContaining("Analyze traces12 traces failed"),
       expect.stringContaining("Regenerate topicsEmbedding model returned 429."),
-      expect.stringMatching(/Regenerate topics$/),
+      expect.stringMatching(/Regenerate topicsComplete$/),
     ]);
-    await expect(
-      within(rows[1]).getByRole("img", { name: "Done with issues" }),
-    ).toBeVisible();
-    await expect(
-      within(rows[2]).getByRole("img", { name: "Failed" }),
-    ).toBeVisible();
+    await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
+    await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 
     await userEvent.click(rows[1]);
     await expect(args.onOpen).toHaveBeenCalledWith("analyze-issues");

@@ -110,6 +110,7 @@ function CenteredState({
   );
 }
 
+/** Live runs only: StatusBadge draws a dot for running and queued, not for finished runs. */
 function StatusDot({ status }: { status: Run["status"] }) {
   const label = executionLabels[status];
   return (
@@ -216,7 +217,11 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
           </span>
         )}
       </span>
-      <StatusDot status={run.status} />
+      <span className="shrink-0">
+        <StatusBadge type={executionBadgeTypes[run.status]} showText={false}>
+          {executionLabels[run.status]}
+        </StatusBadge>
+      </span>
     </button>
   );
 }

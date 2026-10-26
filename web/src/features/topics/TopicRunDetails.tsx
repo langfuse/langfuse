@@ -252,8 +252,6 @@ export function TopicRunDetails({
         </div>
         <StatusBadge
           type={executionBadgeTypes[execution.status]}
-          variant="transparent"
-          size="lg"
           showText={false}
         >
           {executionLabels[execution.status]}
