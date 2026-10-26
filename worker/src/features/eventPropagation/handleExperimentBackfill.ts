@@ -88,11 +88,6 @@ export interface SpanRecord {
    * events_full merge/argMax. See `convertEnrichedSpansToEventRecords`.
    */
   event_ts?: string;
-  /**
-   * Gateway key id already stored in events_core for this span. The v3 sources
-   * cannot tell gateway uploads apart, so a rewrite carries the stored value.
-   */
-  ai_gateway_key_id?: string;
 }
 
 export interface EnrichedSpan extends SpanRecord {
@@ -634,7 +629,6 @@ export function convertEnrichedSpansToEventRecords(
       ingestion_api_key: "",
       ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
       ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
-      ai_gateway_key_id: span.ai_gateway_key_id || undefined,
 
       blob_storage_file_path: "",
       event_bytes: 0,
