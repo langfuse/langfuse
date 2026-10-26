@@ -29,7 +29,9 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
   | {
       type: "copy-to-clipboard";
       /** Called after the value was written to the clipboard. */
-      onCopy?: (context: CellContext<TData, TValue | null | undefined>) => void;
+      onAfterCopy?: (
+        context: CellContext<TData, TValue | null | undefined>,
+      ) => void;
     }
   | {
       type: "custom";
@@ -73,7 +75,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
           return nullValue ? (
             <CopyableText
               value={nullValue}
-              onCopy={() => trailingAction.onCopy?.(context)}
+              onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
             />
           ) : null;
         }
@@ -117,7 +119,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
         return (
           <CopyableText
             value={text}
-            onCopy={() => trailingAction.onCopy?.(context)}
+            onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
           />
         );
       }
@@ -194,10 +196,10 @@ function Text({ value }: { value: string }) {
 
 function CopyableText({
   value,
-  onCopy,
+  onAfterCopy,
 }: {
   value: string;
-  onCopy: () => void;
+  onAfterCopy: () => void;
 }) {
   const { copy, isCopied } = useCopyToClipboard();
 
@@ -215,7 +217,7 @@ function CopyableText({
               const button = event.currentTarget;
               try {
                 await copy(value);
-                onCopy();
+                onAfterCopy();
               } catch {
                 // Clipboard failures are intentionally silent.
               } finally {

@@ -75,7 +75,7 @@ function createGatewayModelsColumns({
       size: 360,
       trailingAction: {
         type: "copy-to-clipboard",
-        onCopy: ({ row }) => onModelCopied?.(row.original),
+        onAfterCopy: ({ row }) => onModelCopied?.(row.original),
       },
     }),
     {

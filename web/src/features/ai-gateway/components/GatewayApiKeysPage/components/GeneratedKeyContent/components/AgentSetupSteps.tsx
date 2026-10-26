@@ -51,7 +51,7 @@ export function AgentSetupSteps({
                 content={step.code}
                 language={step.language}
                 shouldWrapLines={false}
-                onCopy={() => onStepCopied?.(index + 1)}
+                onAfterCopy={() => onStepCopied?.(index + 1)}
               />
             )}
           </Stepper>
