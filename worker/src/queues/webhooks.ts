@@ -34,6 +34,7 @@ import {
   getConsecutiveAutomationFailures,
   SlackService,
   logger,
+  recordIncrement,
   redis,
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
@@ -166,6 +167,10 @@ export const executeWebhook = async (
       return;
     }
 
+    if (await isStaleMonitorAlert(input, automation.action.type)) {
+      return;
+    }
+
     // Route to appropriate handler based on action type
     if (automation.action.type === "WEBHOOK") {
       await executeWebhookAction({
@@ -198,6 +203,53 @@ export const executeWebhook = async (
     throw error;
   }
 };
+
+/**
+ * isStaleMonitorAlert reports whether a monitor-alert job is outdated: its
+ * monitor is gone, or the monitor changed severity after the alert was built.
+ * The processor publishes before it saves its own severity change, so the
+ * check compares severityChangedAt timestamps rather than severities. A stale
+ * job is acknowledged without delivery and does not count as a failure.
+ */
+async function isStaleMonitorAlert(
+  input: WebhookInput,
+  actionType: AutomationDomain["action"]["type"],
+): Promise<boolean> {
+  if (input.payload.type !== "monitor-alert") return false;
+  const parsed = MonitorWebhookQueueEventSchema.safeParse(input.payload);
+  // Malformed payloads fail in the action handlers with their own error.
+  if (!parsed.success) return false;
+  const alert = parsed.data.payload;
+
+  const monitor = await prisma.monitor.findUnique({
+    where: { id: alert.monitorId },
+    select: { projectId: true, severityChangedAt: true },
+  });
+
+  let reason: "monitor_deleted" | "severity_changed" | undefined;
+  if (!monitor || monitor.projectId !== input.projectId) {
+    reason = "monitor_deleted";
+  } else if (
+    alert.severityChangedAt &&
+    monitor.severityChangedAt &&
+    monitor.severityChangedAt > alert.severityChangedAt
+  ) {
+    reason = "severity_changed";
+  }
+  if (!reason) return false;
+
+  logger.info("Dropping stale monitor alert", {
+    projectId: input.projectId,
+    automationId: input.automationId,
+    monitorId: alert.monitorId,
+    reason,
+  });
+  recordIncrement("langfuse.webhook.monitor_alert.stale_dropped", 1, {
+    reason,
+    actionType,
+  });
+  return true;
+}
 
 /**
  * Shared HTTP execution logic for webhook and GitHub dispatch actions

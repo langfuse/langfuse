@@ -161,6 +161,32 @@ class WebhookTestServer {
 }
 
 const webhookServer = new WebhookTestServer();
+
+/** createMonitor writes a minimal Monitor row so monitor-alert jobs pass the stale-alert guard. */
+async function createMonitor(
+  projectId: string,
+  severityChangedAt: Date | null = null,
+): Promise<string> {
+  const monitor = await prisma.monitor.create({
+    data: {
+      projectId,
+      name: "Test monitor",
+      view: "OBSERVATIONS",
+      filters: [],
+      metric: { measure: "count", aggregation: "count" },
+      windowMs: 5n * 60_000n,
+      cadenceMs: 60_000n,
+      thresholdOperator: "GT",
+      alertThreshold: 100,
+      noData: { mode: "SHOW_NO_DATA" },
+      renotify: { mode: "OFF" },
+      schedulerBatchId: 0n,
+      severity: "ALERT",
+      severityChangedAt,
+    },
+  });
+  return monitor.id;
+}
 const GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER =
   "[TRUNCATED: GitHub repository_dispatch payload exceeded size limit]";
 const GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -172,6 +198,7 @@ describe("Webhook Integration Tests", () => {
   let automationId: string;
   let promptId: string;
   let executionId: string;
+  let monitorId: string;
 
   beforeAll(() => {
     webhookServer.setup();
@@ -244,6 +271,7 @@ describe("Webhook Integration Tests", () => {
       },
     });
     executionId = v4();
+    monitorId = await createMonitor(projectId);
   });
 
   afterEach(() => {
@@ -844,7 +872,7 @@ describe("Webhook Integration Tests", () => {
             type: "monitor-alert",
             apiVersion: "v1",
             payload: {
-              monitorId: v4(),
+              monitorId,
               projectId,
               severity: "ALERT",
               permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -1024,7 +1052,7 @@ describe("Webhook Integration Tests", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: v4(),
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -2193,7 +2221,7 @@ describe("Webhook Integration Tests", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: v4(),
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -2234,6 +2262,135 @@ describe("Webhook Integration Tests", () => {
         payloadTruncated: true,
         truncatedFields: ["payload.filters", "payload.message.body"],
       });
+    });
+  });
+
+  describe("stale monitor alerts", () => {
+    const severityChangedAt = new Date("2026-05-27T14:00:00.000Z");
+
+    const buildMonitorAlertInput = (alertSeverityChangedAt?: Date) =>
+      ({
+        projectId,
+        automationId,
+        executionId: v4(),
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId,
+            projectId,
+            severity: "ALERT",
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [],
+            window: "5m",
+            severityChangedAt: alertSeverityChangedAt,
+          },
+        },
+      }) satisfies WebhookInput;
+
+    const useErrorEndpoint = async () => {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+    };
+
+    it("drops the alert without counting a failure once the monitor changed severity again", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { severityChangedAt: new Date(severityChangedAt.getTime() + 1) },
+      });
+      await useErrorEndpoint();
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+      expect(await redis!.get(failureKey)).toBeNull();
+    });
+
+    it("drops the alert when its monitor was deleted", async () => {
+      await prisma.monitor.delete({ where: { id: monitorId } });
+
+      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+    });
+
+    it("drops the alert for every action type, not only webhooks", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { severityChangedAt: new Date(severityChangedAt.getTime() + 1) },
+      });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "monitor-alert",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+    });
+
+    it.each([
+      // The processor publishes before it saves its own severity change.
+      ["before the monitor saved the change", new Date(0)],
+      // Renotify keeps severityChangedAt.
+      ["for a renotify of the same severity", severityChangedAt],
+    ])("delivers the alert %s", async (_, monitorSeverityChangedAt) => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { severityChangedAt: monitorSeverityChangedAt },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+
+    it("delivers alerts queued without severityChangedAt", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { severityChangedAt: new Date() },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
     });
   });
 });

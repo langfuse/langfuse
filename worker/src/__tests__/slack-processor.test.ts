@@ -39,6 +39,7 @@ describe("Slack Processor", () => {
   let automationId: string;
   let promptId: string;
   let executionId: string;
+  let monitorId: string;
   let mockSlackService: any;
 
   beforeAll(async () => {
@@ -92,6 +93,24 @@ describe("Slack Processor", () => {
         botUserId: "U123456",
       },
     });
+
+    // monitor-alert jobs are only delivered while their monitor exists
+    ({ id: monitorId } = await prisma.monitor.create({
+      data: {
+        projectId,
+        name: "Test monitor",
+        view: "OBSERVATIONS",
+        filters: [],
+        metric: { measure: "count", aggregation: "count" },
+        windowMs: 5n * 60_000n,
+        cadenceMs: 60_000n,
+        thresholdOperator: "GT",
+        alertThreshold: 100,
+        noData: { mode: "SHOW_NO_DATA" },
+        renotify: { mode: "OFF" },
+        schedulerBatchId: 0n,
+      },
+    }));
 
     // Create test prompt
     promptId = v4();
@@ -535,7 +554,7 @@ describe("Slack Processor", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: "mon_01",
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink:
@@ -596,7 +615,7 @@ describe("Slack Processor", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: "mon_01",
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink:
@@ -647,7 +666,7 @@ describe("Slack Processor", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: "mon_01",
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink:

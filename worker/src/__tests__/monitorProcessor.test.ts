@@ -1698,6 +1698,52 @@ describe("MonitorProcessor.process evaluation offset", () => {
     // The cadence-boundary stamp stays unshifted — alerts say "fired at runAt".
     expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
   });
+
+  it("carries the monitor config, evaluated value and severity change time on the alert", async () => {
+    const monitorId = `m_cfg_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: MonitorSeveritySchema.enum.OK,
+      severityChangedAt: new Date("2026-01-01T00:00:00.000Z"),
+      alertThreshold: 100,
+      warningThreshold: 50,
+      lastPublishedAt: runAt,
+      triggerIds: ["trig_cfg"],
+    });
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const getTriggers: GetTriggerConfigurations = async () =>
+      [
+        {
+          id: "trig_cfg",
+          filter: matchAnyAlertTrigger.filter,
+          eventActions: [],
+          automations: [{ id: "auto_cfg", actionId: "act_cfg" }],
+        },
+      ] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
+    const processor = new MonitorProcessor(
+      prisma,
+      publish,
+      async () => [{ count_count: 150 }],
+      getTriggers,
+    );
+
+    await processor.process(makeEvent(projectId, [monitorId]), justAfterRunAt);
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    const sent = publish.mock.calls[0][0].payload;
+    if (sent.type !== "monitor-alert") throw new Error("unexpected envelope");
+    expect(sent.payload).toMatchObject({
+      severity: MonitorSeveritySchema.enum.ALERT,
+      monitorName: `Test ${monitorId}`,
+      metric: { measure: "count", aggregation: "count" },
+      metricValue: 150,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+      alertThreshold: 100,
+      warningThreshold: 50,
+      // OK -> ALERT is a severity change, stamped with the evaluation time.
+      severityChangedAt: justAfterRunAt,
+    });
+  });
 });
 
 describe("MonitorProcessor.process wire deserialization", () => {
