@@ -463,6 +463,16 @@ const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  // Launch surfaces answer "which entry point and state lead people into
+  // gateway setup or key creation?" Props are state enums and counts only.
+  ai_gateway_launch: [
+    "banner_cta_clicked",
+    "banner_dismissed",
+    "dialog_setup_clicked",
+    "dialog_learn_more_clicked",
+    "ready_tile_clicked",
+    "gateway_only_key_clicked",
+  ],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",

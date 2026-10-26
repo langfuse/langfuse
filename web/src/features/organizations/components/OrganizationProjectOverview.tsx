@@ -21,7 +21,10 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
@@ -46,6 +49,13 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
+import { GatewayOnlyLanding } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayOnlyLanding";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
+import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { GatewayReadyCard } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayReadyCard";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
 const OrganizationProjectTiles = ({
   org,
@@ -55,6 +65,11 @@ const OrganizationProjectTiles = ({
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const gatewayAccess = useGatewaySettingsAccess(org.id);
+  const showGatewayTile =
+    !search &&
+    gatewayAccess.showManagement &&
+    gatewayAccess.isIngestionConfigured === true;
   const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
     { orgId: org.id },
     { enabled: v4UpgradeUiEnabled },
@@ -73,6 +88,7 @@ const OrganizationProjectTiles = ({
   });
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {showGatewayTile && <GatewayReadyCard organizationId={org.id} />}
       {org.projects
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
@@ -210,12 +226,26 @@ const OrganizationActionButtons = ({
     organizationId: orgId,
     scope: "projects:create",
   });
+  const gatewayKeyReminder = useGatewayKeyReminder(orgId);
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
+      <Button asChild variant="ghost" className="relative">
+        <Link
+          href={`/organization/${orgId}/settings`}
+          aria-label={
+            gatewayKeyReminder
+              ? "Organization settings: get your AI Gateway API key"
+              : "Organization settings"
+          }
+        >
           <Settings size="base" color="default" />
+          {gatewayKeyReminder && (
+            <span
+              aria-hidden="true"
+              className="absolute top-1.5 right-1.5 size-1.75 rounded-full bg-orange-400"
+            />
+          )}
         </Link>
       </Button>
       {membersViewAccess && (
@@ -333,6 +363,30 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const gatewayLaunchCandidates = (organizations ?? [])
+    .filter(
+      (org) =>
+        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        getContextualFeatureFlags(session.data?.user, {
+          organizationId: org.id,
+        })?.aiGateway === true &&
+        hasOrganizationAccess({
+          session: session.data,
+          organizationId: org.id,
+          scope: "gateway:invoke",
+        }),
+    )
+    .map((org) => ({
+      organizationId: org.id,
+      organizationName: org.name,
+      canManage: hasOrganizationAccess({
+        session: session.data,
+        organizationId: org.id,
+        scope: "gateway:manage",
+      }),
+    }));
+  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
+  const userId = session.data?.user?.id;
 
   if (organizations === undefined) {
     return "loading...";
@@ -341,6 +395,30 @@ export const OrganizationProjectOverview = () => {
   const showOnboarding =
     organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
       .length === 0 && !queryOrgId;
+
+  // Invited only to use the gateway: not a manager, no visible projects.
+  const realOrgs = organizations.filter(
+    (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+  );
+  const gatewayOnlyOrg =
+    gatewayLaunchCandidates.length > 0 &&
+    gatewayLaunchCandidates.every((c) => !c.canManage) &&
+    realOrgs.every((org) => org.projects.every((p) => p.deletedAt))
+      ? realOrgs.find(
+          (org) => org.id === gatewayLaunchCandidates[0]?.organizationId,
+        )
+      : undefined;
+
+  if (!queryOrgId && gatewayOnlyOrg) {
+    return (
+      <ContainerPage headerProps={{ title: gatewayOnlyOrg.name }}>
+        <GatewayOnlyLanding
+          organizationId={gatewayOnlyOrg.id}
+          organizationName={gatewayOnlyOrg.name}
+        />
+      </ContainerPage>
+    );
+  }
 
   if (queryOrgId) {
     const org = organizations.find((org) => org.id === queryOrgId);
@@ -380,7 +458,11 @@ export const OrganizationProjectOverview = () => {
               onChange={(e) => setQueryParams({ search: e.target.value })}
             />
             {canCreateOrg && (
-              <Button data-testid="create-organization-btn" asChild>
+              <Button
+                data-testid="create-organization-btn"
+                variant="secondary"
+                asChild
+              >
                 <Link href={createOrganizationRoute}>
                   <PlusIcon
                     size="base"
@@ -396,6 +478,9 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
+      {gatewayLaunchTarget && userId && (
+        <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
+      )}
       {v4UpgradeUiEnabled ? (
         v4MigrationBannerState.projectsNeedingMigration > 0 && (
           <V4MigrationBanner
