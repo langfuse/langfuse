@@ -41,7 +41,10 @@ impl Gateway {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
             .env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS", "127.0.0.1:0")
-            .env("LANGFUSE_AI_GATEWAY_DRAIN_TIMEOUT_SECONDS", drain_seconds)
+            .env(
+                "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS",
+                drain_seconds,
+            )
             .env(
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS",
                 telemetry_shutdown_seconds,

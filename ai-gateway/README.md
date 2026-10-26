@@ -78,7 +78,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_DRAIN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal. Replaces the deprecated `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS`, which is still read when the new name is unset. On ECS behind an ALB, the deregistration delay drains streams before SIGTERM, so use `1`. On Kubernetes the gateway drains streams itself, so set it to the stream time to protect (for example `300`) |
+| `LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal. Replaces the deprecated `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS`, which is still read when the new name is unset. On ECS behind an ALB, the deregistration delay drains streams before SIGTERM, so use `1`. On Kubernetes the gateway drains streams itself, so set it to the stream time to protect (for example `300`) |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends. On ECS use most of `stopTimeout` (max 120), for example `115`. On Kubernetes `30` is enough; set `terminationGracePeriodSeconds` above the `preStop` sleep plus both timeouts |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
@@ -815,7 +815,7 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 - SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
   within the configured timeout. Deadline expiry exits nonzero and terminates
   remaining runtime tasks; ordinary shutdown exits zero.
-- The drain deadline (`LANGFUSE_AI_GATEWAY_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests
+- The drain deadline (`LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests
   are rejected while draining; existing response streams share this budget.
 - Inference telemetry and operational OTLP export then flush within
   `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining
@@ -850,7 +850,7 @@ package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
-grace period longer than the gateway drain timeout plus the telemetry shutdown timeout. The smoke test uses an
+grace period longer than the gateway connection drain timeout plus the telemetry shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 
