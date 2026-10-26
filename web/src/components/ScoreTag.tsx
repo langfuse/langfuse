@@ -114,7 +114,7 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   return (
     <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
       {({ getTriggerProps }) => (
-        <span {...getTriggerProps()}>
+        <span {...getTriggerProps()} className="inline-flex">
           <Badge
             color={scoreTagColors[level]}
             font="mono"

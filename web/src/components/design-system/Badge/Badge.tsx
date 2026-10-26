@@ -58,11 +58,11 @@ const badgeVariants = cva(
           "border-category-fuchsia/20 bg-category-fuchsia/10 text-foreground-secondary dark:border-transparent dark:bg-category-fuchsia/15",
         /** Match the treemap tiles. */
         violetHighlight:
-          "border-category-violet-highlight bg-category-violet-highlight/35 text-foreground-secondary dark:border-transparent",
+          "border-category-violet-highlight/50 bg-category-violet-highlight/35 text-foreground-secondary dark:border-transparent",
         blueHighlight:
-          "border-category-blue-highlight bg-category-blue-highlight/35 text-foreground-secondary dark:border-transparent",
+          "border-category-blue-highlight/50 bg-category-blue-highlight/35 text-foreground-secondary dark:border-transparent",
         amberHighlight:
-          "border-category-amber-highlight bg-category-amber-highlight/35 text-foreground-secondary dark:border-transparent",
+          "border-category-amber-highlight/50 bg-category-amber-highlight/35 text-foreground-secondary dark:border-transparent",
       },
       interactive: {
         true: "underline-dotted",
