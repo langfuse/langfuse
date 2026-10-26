@@ -90,6 +90,7 @@ function CurrentFacet({
   if (isHandheld)
     return (
       <MobileTopics
+        key={facet.facetId}
         projectId={projectId}
         facet={facet}
         view={view}
