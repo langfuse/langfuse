@@ -1,9 +1,5 @@
 #!/bin/sh
 
-# Preserve system CA trust and deployment-provided Node options.
-export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--use-openssl-ca"
-export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/pki/tls/certs/ca-bundle.crt}"
-
 # Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
 # active for Node (e.g. a host without FIPS mode, or an image rebuilt on a
 # non-FIPS base). This runs before the migrations below open database
