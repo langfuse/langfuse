@@ -27,18 +27,41 @@ export function TopicMobileTraceList({
 }: TopicMobileTraceListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const [pageRequest, setPageRequest] = useState(() => ({
-    filterKey,
-    pageSize: PAGE_SIZE,
-    pageIndex: Math.max(
-      0,
-      Math.floor(
-        rows.findIndex((row) => row.traceId === selectedTraceId) / PAGE_SIZE,
-      ),
-    ),
-  }));
-  if (pageRequest.filterKey !== filterKey) {
-    setPageRequest({ ...pageRequest, filterKey, pageIndex: 0 });
+  const getTargetPageIndex = (
+    traceId: string | null,
+    targetRows: FacetRow[],
+  ) => {
+    if (!traceId) return -1;
+    const index = targetRows.findIndex((row) => row.traceId === traceId);
+    return index >= 0 ? Math.floor(index / PAGE_SIZE) : -1;
+  };
+
+  const [pageRequest, setPageRequest] = useState(() => {
+    const targetPageIndex = getTargetPageIndex(selectedTraceId, rows);
+    return {
+      filterKey,
+      selectedTraceId,
+      pageSize: PAGE_SIZE,
+      pageIndex: Math.max(0, targetPageIndex),
+    };
+  });
+
+  if (
+    pageRequest.filterKey !== filterKey ||
+    pageRequest.selectedTraceId !== selectedTraceId
+  ) {
+    const targetPageIndex = getTargetPageIndex(selectedTraceId, rows);
+    setPageRequest({
+      ...pageRequest,
+      filterKey,
+      selectedTraceId,
+      pageIndex:
+        targetPageIndex >= 0
+          ? targetPageIndex
+          : pageRequest.filterKey !== filterKey
+            ? 0
+            : pageRequest.pageIndex,
+    });
   }
   // The DOM scroll position follows map selection without moving keyboard focus.
   useEffect(() => {
@@ -49,7 +72,7 @@ export function TopicMobileTraceList({
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
-    setPageRequest({ filterKey, ...pagination });
+    setPageRequest({ filterKey, selectedTraceId, ...pagination });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 
