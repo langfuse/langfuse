@@ -321,6 +321,58 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   }
 
   /**
+   * Gateway key ids already stored for spans of the batch's traces, keyed by
+   * span. The observation source has no ingestion key to tell gateway uploads
+   * apart, but only gateway-authenticated writes ever set the stored column, so
+   * rewriting a span keeps its value instead of blanking it.
+   */
+  private async fetchStoredAiGatewayKeyIds(
+    driBatch: DatasetRunItem[],
+    lookbackDays: number,
+  ): Promise<Map<string, string>> {
+    if (driBatch.length === 0) return new Map();
+
+    const tracePairs = this.buildTracePairs(driBatch);
+    const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
+
+    const rows = await queryClickhouse<{
+      project_id: string;
+      trace_id: string;
+      span_id: string;
+      stored_key_id: string;
+    }>({
+      query: `
+        SELECT project_id, trace_id, span_id, any(ai_gateway_key_id) AS stored_key_id
+        FROM events_core
+        WHERE (project_id, trace_id) IN {tracePairs: Array(Tuple(String, String))}
+          AND start_time >= {minTime: DateTime64(3)}
+          AND start_time <= {maxTime: DateTime64(3)}
+          AND ai_gateway_key_id != ''
+        GROUP BY project_id, trace_id, span_id
+      `,
+      params: {
+        tracePairs,
+        minTime: convertDateToClickhouseDateTime(minTime),
+        maxTime: convertDateToClickhouseDateTime(maxTime),
+      },
+      clickhouseConfigs: {
+        request_timeout: 120_000,
+      },
+      tags: {
+        surface: "worker",
+        route: "background-migration.fetchStoredAiGatewayKeyIds",
+      },
+    });
+
+    return new Map(
+      rows.map((row) => [
+        spanScopedKey(row.project_id, row.trace_id, row.span_id),
+        row.stored_key_id,
+      ]),
+    );
+  }
+
+  /**
    * Fetches traces for the batch, padded by `lookbackDays`.
    */
   private async fetchTracesForBatch(
@@ -440,9 +492,10 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     driBatch: DatasetRunItem[],
     config: ResolvedConfig,
   ): Promise<{ enriched: number; skipped: number }> {
-    const [observations, traces] = await Promise.all([
+    const [observations, traces, storedAiGatewayKeyIds] = await Promise.all([
       this.fetchObservationsForBatch(driBatch, config.lookbackDays),
       this.fetchTracesForBatch(driBatch, config.lookbackDays),
+      this.fetchStoredAiGatewayKeyIds(driBatch, config.lookbackDays),
     ]);
 
     logger.info(
@@ -450,6 +503,12 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     );
 
     const allSpans: SpanRecord[] = [...observations, ...traces];
+    for (const span of allSpans) {
+      const keyId = storedAiGatewayKeyIds.get(
+        spanScopedKey(span.project_id, span.trace_id, span.span_id),
+      );
+      if (keyId) span.ai_gateway_key_id = keyId;
+    }
     const { spanMap, childMap } = buildSpanMaps(allSpans);
 
     const tracePropertiesMap = new Map<string, TraceProperties>();
