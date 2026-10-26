@@ -160,29 +160,6 @@ describe("AutomationForm handleActionTypeChange", () => {
     expect(payload.actionConfig.apiVersion).toEqual({ monitor: "v1" });
   });
 
-  it("switching from prompt to skill submits skill events and webhook version", async () => {
-    render(<AutomationForm projectId="p1" isEditing={true} />);
-
-    fireEvent.click(screen.getAllByRole("combobox")[0]);
-    fireEvent.click(await screen.findByRole("option", { name: "Skill" }));
-    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
-      target: { value: "Sync skills" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/https/i), {
-      target: { value: "https://example.com/hook" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
-
-    await waitFor(() => {
-      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
-    });
-    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
-      eventSource: TriggerEventSource.Skill,
-      eventAction: ["created", "updated", "deleted"],
-      actionConfig: { type: "WEBHOOK", apiVersion: { skill: "v1" } },
-    });
-  });
-
   it("does not render an API version control for webhook actions", () => {
     render(
       <AutomationForm

@@ -697,6 +697,64 @@ async function executeWebhookAction({
   });
 }
 
+function buildSkillDispatchPayload(
+  validated: Extract<
+    ReturnType<typeof buildWebhookOutboundPayload>,
+    { type: "skill-version" }
+  >,
+  eventType: string,
+): string {
+  let githubPayload = JSON.stringify({
+    event_type: eventType,
+    client_payload: validated,
+  });
+  if (
+    Buffer.byteLength(githubPayload, "utf8") >=
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+  ) {
+    githubPayload = JSON.stringify({
+      event_type: eventType,
+      client_payload: {
+        id: validated.id,
+        timestamp: validated.timestamp,
+        type: validated.type,
+        apiVersion: validated.apiVersion,
+        action: validated.action,
+        skill: {
+          id: validated.skill.id,
+          name: validated.skill.name,
+          version: validated.skill.version,
+          projectId: validated.skill.projectId,
+        },
+        truncation: {
+          payloadTruncated: true,
+          truncatedFields: [
+            "skill.files",
+            "skill.frontmatter",
+            "skill.description",
+            "skill.tags",
+            "skill.labels",
+            "skill.commitMessage",
+            "skill.createdBy",
+            "skill.createdAt",
+            "skill.updatedAt",
+            "user",
+          ],
+        },
+      },
+    });
+  }
+  if (
+    Buffer.byteLength(githubPayload, "utf8") >=
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+  ) {
+    throw new InternalServerError(
+      "Skill repository dispatch payload exceeds GitHub's size limit",
+    );
+  }
+  return githubPayload;
+}
+
 /**
  * Execute GitHub Dispatch action with repository dispatch API
  */
@@ -768,54 +826,7 @@ async function executeGitHubDispatchAction({
             },
           });
   } else if (validated.type === "skill-version") {
-    githubPayload = JSON.stringify({
-      event_type: eventType,
-      client_payload: validated,
-    });
-    if (
-      Buffer.byteLength(githubPayload, "utf8") >=
-      GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
-    ) {
-      githubPayload = JSON.stringify({
-        event_type: eventType,
-        client_payload: {
-          id: validated.id,
-          timestamp: validated.timestamp,
-          type: validated.type,
-          apiVersion: validated.apiVersion,
-          action: validated.action,
-          skill: {
-            id: validated.skill.id,
-            name: validated.skill.name,
-            version: validated.skill.version,
-            projectId: validated.skill.projectId,
-          },
-          truncation: {
-            payloadTruncated: true,
-            truncatedFields: [
-              "skill.files",
-              "skill.frontmatter",
-              "skill.description",
-              "skill.tags",
-              "skill.labels",
-              "skill.commitMessage",
-              "skill.createdBy",
-              "skill.createdAt",
-              "skill.updatedAt",
-              "user",
-            ],
-          },
-        },
-      });
-    }
-    if (
-      Buffer.byteLength(githubPayload, "utf8") >=
-      GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
-    ) {
-      throw new InternalServerError(
-        "Skill repository dispatch payload exceeds GitHub's size limit",
-      );
-    }
+    githubPayload = buildSkillDispatchPayload(validated, eventType);
   } else {
     // monitor-alert: post the envelope as client_payload.
     const monitorEnvelope = envelope as Extract<

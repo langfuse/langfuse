@@ -61,6 +61,7 @@ import Link from "next/link";
 import { Info } from "@langfuse/icons";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
+import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -314,23 +315,13 @@ const VersionTriggerFields = ({
   const [optionsOpened, setOptionsOpened] = React.useState(false);
   const isSkill = eventSource === TriggerEventSource.Skill;
   const resource = isSkill ? "skill" : "prompt";
-  const promptOptions = api.prompts.filterOptions.useQuery(
-    { projectId },
-    { enabled: optionsOpened && !isSkill },
+  const { filterOptions, isFetching: optionsLoading } = useVersionFilterOptions(
+    {
+      projectId,
+      eventSource,
+      enabled: optionsOpened,
+    },
   );
-  const skillOptions = api.skills.filterOptions.useQuery(
-    { projectId },
-    { enabled: optionsOpened && isSkill },
-  );
-  const filterOptions = isSkill
-    ? {
-        labels: skillOptions.data?.labels.map((value) => ({ value })) ?? [],
-        tags: skillOptions.data?.tags ?? [],
-      }
-    : promptOptions.data;
-  const optionsLoading = isSkill
-    ? skillOptions.isFetching
-    : promptOptions.isFetching;
 
   return (
     <>
