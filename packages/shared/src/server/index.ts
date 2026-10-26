@@ -182,6 +182,7 @@ export * from "./services/DefaultEvaluationModelService";
 export * from "./services/blockEvaluators";
 export * from "./services/getProjectAdminEmails";
 export * from "./services/SlackService";
+export * from "./pagerduty/pagerDutyClient";
 export * from "./services/buildColoredAttachmentSlackMessage";
 export * from "./services/buildSlackLinkSection";
 export * from "./tableMappings";

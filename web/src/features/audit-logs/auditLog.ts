@@ -60,6 +60,7 @@ type AuditableResource =
   | "dashboardWidget"
   | "dashboard"
   | "slackIntegration"
+  | "pagerDutyIntegration"
   | "cloudSpendAlert"
   | "verifiedDomain"
   | "ssoConfig"
