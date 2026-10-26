@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
-import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
-import { prismaErrorToBaseError } from "../../server/utils/prismaErrorToBaseError";
+import { LangfuseNotFoundError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
+import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
   revokeRolesForPrincipal,
@@ -45,12 +45,7 @@ export async function createProjectMembership(
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
     const membership = await tx.projectMembership
       .create({ data })
-      .catch(
-        prismaErrorToBaseError(
-          "P2002",
-          new InvalidRequestError("User is already a member of this project"),
-        ),
-      );
+      .catch(rethrowIfMembershipExists("project"));
     await replaceProjectRole(tx, { ...membership, orgId });
     return membership;
   });

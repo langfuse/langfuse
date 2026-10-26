@@ -5,9 +5,8 @@ import {
   type Role,
 } from "@prisma/client";
 
-import { InvalidRequestError } from "../../errors";
-import { prismaErrorToBaseError } from "../../server/utils/prismaErrorToBaseError";
 import { withTransaction } from "../../server/utils/withTransaction";
+import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
   revokeRolesForPrincipal,
@@ -43,14 +42,7 @@ export async function createOrgMembership(
   return await withTransaction(prisma, async (tx) => {
     const membership = await tx.organizationMembership
       .create({ data: { orgId, userId, role } })
-      .catch(
-        prismaErrorToBaseError(
-          "P2002",
-          new InvalidRequestError(
-            "User is already a member of this organization",
-          ),
-        ),
-      );
+      .catch(rethrowIfMembershipExists("organization"));
     await replaceOrgRole(tx, membership);
     return membership;
   });
