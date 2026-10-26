@@ -162,7 +162,7 @@ export function ConnectedGatewayModelsTable({
           <GatewayModelsTable
             organizationId={organizationId}
             canManageGateway={canManageGateway}
-            onModelCopied={handleModelCopied}
+            onAfterModelCopy={handleModelCopied}
             data={
               isLoading
                 ? { status: "loading" }

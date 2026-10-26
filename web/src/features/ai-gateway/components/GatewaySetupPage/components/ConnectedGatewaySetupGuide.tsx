@@ -91,7 +91,7 @@ export function ConnectedGatewaySetupGuide({
     <ProviderDialogController
       organizationId={organizationId}
       surface="setup_guide"
-      onCreated={handleCredentialCreated}
+      onAfterCreate={handleCredentialCreated}
     >
       {({ openAddDialog }) => (
         <GatewaySetupGuide

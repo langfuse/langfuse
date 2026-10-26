@@ -7,19 +7,19 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 type CopyForAgentButtonProps = {
   instructions: AgentSetupInstructions;
-  onCopied?: () => void;
+  onAfterCopy?: () => void;
 };
 
 export function CopyForAgentButton({
   instructions,
-  onCopied,
+  onAfterCopy,
 }: CopyForAgentButtonProps) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 2_000 });
 
   const handleCopy = async () => {
     try {
       await copy(formatAgentSetupMarkdown(instructions));
-      onCopied?.();
+      onAfterCopy?.();
     } catch {
       // Clipboard writes can be rejected when the browser denies permission.
     }

@@ -27,23 +27,23 @@ export function GatewayModelsTable({
   data,
   noResultsMessage,
   pagination,
-  onModelCopied,
+  onAfterModelCopy,
 }: {
   organizationId: string;
   canManageGateway: boolean;
   data: TableProps<GatewayModelRow>["data"];
   noResultsMessage: string;
   pagination: PaginationBarProps;
-  onModelCopied?: (model: GatewayModelRow) => void;
+  onAfterModelCopy?: (model: GatewayModelRow) => void;
 }) {
   const columns = useMemo(
     () =>
       createGatewayModelsColumns({
         organizationId,
         canManageGateway,
-        onModelCopied,
+        onAfterModelCopy,
       }),
-    [canManageGateway, onModelCopied, organizationId],
+    [canManageGateway, onAfterModelCopy, organizationId],
   );
 
   return (
@@ -62,11 +62,11 @@ export function GatewayModelsTable({
 function createGatewayModelsColumns({
   organizationId,
   canManageGateway,
-  onModelCopied,
+  onAfterModelCopy,
 }: {
   organizationId: string;
   canManageGateway: boolean;
-  onModelCopied?: (model: GatewayModelRow) => void;
+  onAfterModelCopy?: (model: GatewayModelRow) => void;
 }): LangfuseColumnDef<GatewayModelRow>[] {
   return [
     createTextTableColumn<GatewayModelRow>({
@@ -75,7 +75,7 @@ function createGatewayModelsColumns({
       size: 360,
       trailingAction: {
         type: "copy-to-clipboard",
-        onAfterCopy: ({ row }) => onModelCopied?.(row.original),
+        onAfterCopy: ({ row }) => onAfterModelCopy?.(row.original),
       },
     }),
     {

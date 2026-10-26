@@ -54,10 +54,10 @@ export function GeneratedKeyContent({
       </p>
       <MaskedGatewayKey
         secretKey={secretKey}
-        onCopied={() =>
+        onAfterCopy={() =>
           capture("ai_gateway:api_key_secret_copied", { orgId: organizationId })
         }
-        onRevealed={() =>
+        onAfterReveal={() =>
           capture("ai_gateway:api_key_secret_revealed", {
             orgId: organizationId,
           })

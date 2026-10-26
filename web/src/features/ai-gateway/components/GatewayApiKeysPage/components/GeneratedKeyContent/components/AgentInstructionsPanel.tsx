@@ -37,17 +37,17 @@ export function AgentInstructionsPanel({
     <div className="flex flex-col items-start gap-3">
       <CopyForAgentButton
         instructions={instructions}
-        onCopied={handleCopyForAgent}
+        onAfterCopy={handleCopyForAgent}
       />
       {/* Inactive tabs unmount, so switching tabs collapses the peek again. */}
       <div className="w-full">
         <ExpandableContentPeek
           expandLabel="Show all steps"
-          onExpand={handleExpand}
+          onAfterExpand={handleExpand}
         >
           <AgentSetupSteps
             instructions={instructions}
-            onStepCopied={handleStepCopied}
+            onAfterStepCopy={handleStepCopied}
           />
         </ExpandableContentPeek>
       </div>

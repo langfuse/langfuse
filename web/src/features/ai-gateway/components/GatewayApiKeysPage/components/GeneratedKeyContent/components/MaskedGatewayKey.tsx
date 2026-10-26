@@ -21,14 +21,14 @@ function maskSecretKey(secretKey: string) {
 
 type MaskedGatewayKeyProps = {
   secretKey: string;
-  onCopied?: () => void;
-  onRevealed?: () => void;
+  onAfterCopy?: () => void;
+  onAfterReveal?: () => void;
 };
 
 export function MaskedGatewayKey({
   secretKey,
-  onCopied,
-  onRevealed,
+  onAfterCopy,
+  onAfterReveal,
 }: MaskedGatewayKeyProps) {
   const [isRevealed, setIsRevealed] = useState(false);
   const { copy, isCopied } = useCopyToClipboard();
@@ -36,13 +36,13 @@ export function MaskedGatewayKey({
   const copyLabel = isCopied ? "Copied" : "Copy key";
 
   const toggleReveal = () => {
-    if (!isRevealed) onRevealed?.();
+    if (!isRevealed) onAfterReveal?.();
     setIsRevealed(!isRevealed);
   };
   const handleCopy = async () => {
     try {
       await copy(secretKey);
-      onCopied?.();
+      onAfterCopy?.();
     } catch {
       // The key is shown only once, so a denied clipboard write must leave
       // it selectable by hand.

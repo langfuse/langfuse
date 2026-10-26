@@ -6,12 +6,12 @@ import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/age
 
 type AgentSetupStepsProps = {
   instructions: AgentSetupInstructions;
-  onStepCopied?: (stepNumber: number) => void;
+  onAfterStepCopy?: (stepNumber: number) => void;
 };
 
 export function AgentSetupSteps({
   instructions,
-  onStepCopied,
+  onAfterStepCopy,
 }: AgentSetupStepsProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -51,7 +51,7 @@ export function AgentSetupSteps({
                 content={step.code}
                 language={step.language}
                 shouldWrapLines={false}
-                onAfterCopy={() => onStepCopied?.(index + 1)}
+                onAfterCopy={() => onAfterStepCopy?.(index + 1)}
               />
             )}
           </Stepper>

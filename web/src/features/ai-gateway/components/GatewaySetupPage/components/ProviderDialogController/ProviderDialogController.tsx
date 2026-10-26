@@ -36,13 +36,13 @@ export function ProviderDialogController({
   organizationId,
   connection,
   surface,
-  onCreated,
+  onAfterCreate,
   children,
 }: {
   organizationId: string;
   connection?: GatewayConnection;
   surface: GatewaySettingsSurface;
-  onCreated?: (created: { provider: GatewayProvider }) => void;
+  onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
     openEditDialog: (connection: GatewayConnection) => void;
@@ -171,7 +171,7 @@ export function ProviderDialogController({
           provider,
           isFirstCredential: existingNames.length === 0,
         });
-        onCreated?.({ provider });
+        onAfterCreate?.({ provider });
       }
 
       /** Pins the autofilled name so the refetched list cannot bump it to the next suffix. */
