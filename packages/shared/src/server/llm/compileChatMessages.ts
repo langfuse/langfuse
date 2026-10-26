@@ -26,7 +26,8 @@ function replaceTextVariables(
   for (const [varName, varValue] of Object.entries(textVariables)) {
     // Create regex that handles optional whitespace around variable name
     const variablePattern = new RegExp(`{{\\s*${varName}\\s*}}`, "g");
-    result = result.replace(variablePattern, varValue);
+    // function replacement: a string would interpret $&, $$, $` and $' in varValue
+    result = result.replace(variablePattern, () => varValue);
   }
   return result;
 }
