@@ -1162,11 +1162,17 @@ jobs:
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
     # Not part of all-ci-passed yet.
+    #
+    # Temporarily disabled: after the Node 24.22.1 bump, the UBI toolchain
+    # copies upstream Node (statically bundled OpenSSL) instead of Red Hat's
+    # system-linked Node, so OPENSSL_FORCE_FIPS_MODE=1 never activates FIPS
+    # and both matrix legs fail immediately at the getFips() guard. Re-enable
+    # once a FIPS-capable Node is restored in the image.
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    if: false
     name: tests-fips (${{ matrix.suite }})
     env:
       VITEST_MAX_WORKERS: ${{ matrix.max-workers }}
