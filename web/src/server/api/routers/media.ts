@@ -94,6 +94,7 @@ export const mediaRouter = createTRPCRouter({
         contentLength: Number(media.contentLength),
         url,
         urlExpiry,
+        urlTtlSeconds: ttlSeconds,
       };
     }),
   getByTraceOrObservationId: protectedProjectProcedure

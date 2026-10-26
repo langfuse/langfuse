@@ -23,7 +23,7 @@ import { metricsFeature } from "./metrics";
 import { modelsFeature } from "./models";
 import { llmConnectionsFeature } from "./llmConnections";
 import { mediaFeature } from "./media";
-import { evalsFeature } from "./evals";
+import { batchEvaluationsFeature, evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
 import { feedbackFeature } from "./feedback";
 import { experimentsFeature } from "./experiments";
@@ -46,6 +46,7 @@ const MCP_FEATURES = [
   llmConnectionsFeature,
   mediaFeature,
   evalsFeature,
+  batchEvaluationsFeature,
   dashboardWidgetsFeature,
   feedbackFeature,
   experimentsFeature,
