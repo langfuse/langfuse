@@ -608,7 +608,9 @@ describe("AI gateway live end-to-end", () => {
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
-              user_id: expect.stringMatching(/\S/),
+              user_id: admin.userId,
+              key_name: `Gateway E2E ${provider} ${apiFormat}`,
+              user_name: admin.userName || null,
               key_metadata: {
                 test: true,
                 provider,
@@ -784,7 +786,11 @@ async function createGatewayAdmin() {
     environment: {} as Session["environment"],
   };
   const context = createInnerTRPCContext({ session, headers: {} });
-  return { caller: appRouter.createCaller({ ...context, prisma }) };
+  return {
+    caller: appRouter.createCaller({ ...context, prisma }),
+    userId: user.id,
+    userName: user.name,
+  };
 }
 
 async function selectOnlyConnection(targetConnectionId: string) {

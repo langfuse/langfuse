@@ -765,9 +765,68 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         body.as_object_mut().unwrap().remove(field);
         assert_invalid_context(body).await;
     }
+}
+
+#[tokio::test]
+async fn accepts_unknown_response_fields_outside_provider_auth() {
     let mut body = success("project-1", "provider-token");
     body["unexpected"] = json!(true);
-    assert_invalid_context(body).await;
+    body["connection"]["unexpected"] = json!({"nested": true});
+    body["attribution"]["unexpected"] = json!("value");
+    body["ingestion"]["unexpected"] = json!(1);
+    body["attribution"]["key_name"] = json!("CI key");
+    body["attribution"]["user_name"] = json!("Alice");
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    let attribution = context.attribution();
+    assert_eq!(attribution.key_name(), Some("CI key"));
+    assert_eq!(attribution.user_id(), Some("user-1"));
+    assert_eq!(attribution.user_name(), Some("Alice"));
+}
+
+#[tokio::test]
+async fn treats_missing_or_blank_key_snapshots_as_absent() {
+    for value in [None, Some(json!("")), Some(json!("  ")), Some(Value::Null)] {
+        let mut body = success("project-1", "provider-token");
+        if let Some(value) = value {
+            for field in ["key_name", "user_name"] {
+                body["attribution"][field] = value.clone();
+            }
+        }
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        let attribution = context.attribution();
+        assert_eq!(attribution.key_name(), None);
+        assert_eq!(attribution.user_name(), None);
+    }
 }
 
 #[tokio::test]

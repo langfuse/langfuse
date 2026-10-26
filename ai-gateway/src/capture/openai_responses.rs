@@ -120,7 +120,6 @@ impl OpenAiResponsesCapture {
             .get("model")
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         request.remove("model");
         // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
         self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
