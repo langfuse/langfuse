@@ -45,7 +45,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
           <span className="text-base font-bold">{tier.name}</span>
-          {tier.isDefault && <Badge color="filled" text="Default" />}
+          {tier.isDefault && <Badge color="filled" text="DEFAULT" />}
           <span className="text-muted-foreground text-xs">
             Priority: {tier.priority}
           </span>

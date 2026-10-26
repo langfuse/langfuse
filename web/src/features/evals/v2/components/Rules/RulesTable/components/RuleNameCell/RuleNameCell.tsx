@@ -27,7 +27,7 @@ export function RuleNameCell({
             />
           </span>
         ) : (
-          <Badge color="warning" text="Legacy" />
+          <Badge color="warning" text="LEGACY" />
         )
       ) : null}
     </div>

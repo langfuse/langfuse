@@ -79,7 +79,10 @@ export function EvaluatorStatusBadge({
   }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
-    <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
+    <Badge
+      text={status === "Unknown" ? "—" : status.toUpperCase()}
+      color={colors[status]}
+    />
   );
 
   return (

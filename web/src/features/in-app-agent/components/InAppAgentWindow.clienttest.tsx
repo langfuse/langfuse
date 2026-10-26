@@ -500,7 +500,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     const menu = await screen.findByRole("menu", {
       name: "Internal session actions",
     });
-    expect(within(menu).getByText("Internal")).toBeInTheDocument();
+    expect(within(menu).getByText("INTERNAL")).toBeInTheDocument();
     expect(within(menu).getByText("Copy session ID")).toBeInTheDocument();
     const openSession = within(menu).getByRole("link", {
       name: "Open session in Langfuse",

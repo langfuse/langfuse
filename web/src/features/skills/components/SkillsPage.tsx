@@ -93,7 +93,7 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <Badge text="Beta" color="info" size="sm" />,
+            titleBadges: <Badge text="BETA" color="info" size="sm" />,
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
