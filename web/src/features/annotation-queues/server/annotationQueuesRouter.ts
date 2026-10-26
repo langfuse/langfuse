@@ -255,6 +255,7 @@ export const queueRouter = createTRPCRouter({
             name: true,
             annotationQueueItem: {
               where: {
+                projectId: input.projectId,
                 objectId: input.objectId,
                 objectType: input.objectType,
               },
