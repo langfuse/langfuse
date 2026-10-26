@@ -815,11 +815,8 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 - SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
   within the configured timeout. Deadline expiry exits nonzero and terminates
   remaining runtime tasks; ordinary shutdown exits zero.
-- The drain deadline (`LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests
-  are rejected while draining; existing response streams share this budget.
-- Inference telemetry and operational OTLP export then flush within
-  `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining
-  ends, so a drain that hits its deadline does not drop open batches.
+- The drain deadline (`LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests are rejected while draining; existing response streams share this budget.
+- Inference telemetry and operational OTLP export then flush within `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining ends, so a drain that hits its deadline does not drop open batches.
 
 ## Container
 
