@@ -27,29 +27,39 @@ export function TopicMobileTraceList({
 }: TopicMobileTraceListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const selectedRowIndex = rows.findIndex(
+    (row) => row.traceId === selectedTraceId,
+  );
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
+    selectedTraceId,
     pageSize: PAGE_SIZE,
-    pageIndex: Math.max(
-      0,
-      Math.floor(
-        rows.findIndex((row) => row.traceId === selectedTraceId) / PAGE_SIZE,
-      ),
-    ),
+    pageIndex: Math.max(0, Math.floor(selectedRowIndex / PAGE_SIZE)),
   }));
-  if (pageRequest.filterKey !== filterKey) {
-    setPageRequest({ ...pageRequest, filterKey, pageIndex: 0 });
+  if (
+    pageRequest.filterKey !== filterKey ||
+    pageRequest.selectedTraceId !== selectedTraceId
+  ) {
+    setPageRequest({
+      ...pageRequest,
+      filterKey,
+      selectedTraceId,
+      pageIndex: Math.max(
+        0,
+        Math.floor(selectedRowIndex / pageRequest.pageSize),
+      ),
+    });
   }
-  // The DOM scroll position follows map selection without moving keyboard focus.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId]);
   const { pageSize } = pageRequest;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
+  // The DOM scroll position follows map selection without moving keyboard focus.
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, filterKey, pageIndex]);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
-    setPageRequest({ filterKey, ...pagination });
+    setPageRequest({ filterKey, selectedTraceId, ...pagination });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 

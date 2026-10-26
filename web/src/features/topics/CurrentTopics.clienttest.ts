@@ -30,7 +30,31 @@ beforeEach(() => {
 });
 afterEach(() => {
   client.clear();
+  sessionStorage.clear();
   vi.useRealTimers();
+});
+
+it("persists mobile selection on remount and clears it on facet changes", () => {
+  sessionStorage.setItem("topics-selected-trace:project", '\"desktop-trace\"');
+  const initialProps = { projectId: "project", facetId: "intent" };
+  const hook = (props: typeof initialProps) =>
+    __test.useMobileTraceSelection(props.projectId, props.facetId);
+  const first = renderHook(hook, { initialProps });
+  expect(first.result.current[0]).toBeNull();
+  act(() => first.result.current[1]("trace-a"));
+  first.rerender({ ...initialProps });
+  expect(first.result.current[0]).toBe("trace-a");
+  first.unmount();
+
+  const reopened = renderHook(hook, { initialProps });
+  expect(reopened.result.current[0]).toBe("trace-a");
+  reopened.rerender({ ...initialProps, facetId: "issues" });
+  expect(reopened.result.current[0]).toBeNull();
+  reopened.rerender(initialProps);
+  expect(reopened.result.current[0]).toBeNull();
+  expect(sessionStorage.getItem("topics-selected-trace:project")).toBe(
+    '\"desktop-trace\"',
+  );
 });
 
 describe("current Topics query", () => {
