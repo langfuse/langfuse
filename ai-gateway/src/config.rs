@@ -6,8 +6,11 @@ pub struct GatewayConfig {
     pub control_plane: Option<ControlPlaneConfig>,
     pub listen_address: SocketAddr,
     pub auto_increment_listen_port: bool,
+    /// Connection drain after the shutdown signal. Behind an ALB, deregistration has
+    /// already drained streams on SIGTERM; on Kubernetes this drain is the only one.
     pub shutdown_timeout: Duration,
-    /// Budget for flushing telemetry, starting once connection draining ends.
+    /// Budget for flushing telemetry, starting once connection draining ends. The
+    /// orchestrator grace period must cover both timeouts (ECS `stopTimeout` is at most 120 s).
     pub telemetry_shutdown_timeout: Duration,
     pub log_level: LevelFilter,
     pub log_format: LogFormat,

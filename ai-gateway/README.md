@@ -78,8 +78,8 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal |
-| `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends |
+| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal. On ECS behind an ALB, the deregistration delay drains streams before SIGTERM, so use `1`. On Kubernetes the gateway drains streams itself, so set it to the stream time to protect (for example `300`) |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends. On ECS use most of `stopTimeout` (max 120), for example `115`. On Kubernetes `30` is enough; set `terminationGracePeriodSeconds` above the `preStop` sleep plus both timeouts |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
 | `LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` | `1073741824` (1 GiB) | Integer from the request limit plus the overhead up to Tokio's semaphore capacity; bytes all in-flight requests and model catalogs of an instance may reserve together |
