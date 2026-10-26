@@ -24,8 +24,6 @@ export type SupportAccessRequest = GrantRequest | RevokeRequest;
 // field id.
 const ORG_ID_FORM_FIELD = "langfuse_organization_id_0";
 
-const EnvelopeSchema = z.object({ event: z.string(), payload: z.unknown() });
-
 // https://www.c1.ai/docs/api-reference/task/get
 const ProvisionPayloadSchema = z.object({
   taskView: z.object({
@@ -58,6 +56,14 @@ const ProvisionPayloadSchema = z.object({
 
 type ProvisionPayload = z.infer<typeof ProvisionPayloadSchema>;
 
+const EnvelopeSchema = z.discriminatedUnion("event", [
+  z.object({ event: z.literal(C1_TEST_EVENT) }),
+  z.object({
+    event: z.literal(C1_PROVISION_EVENT),
+    payload: ProvisionPayloadSchema,
+  }),
+]);
+
 function findRequesterEmail(payload: ProvisionPayload): string | null {
   const userId = payload.taskView.task.userId;
   const c1User = payload.expanded?.find(
@@ -83,14 +89,11 @@ export function parseConductorOneEnvelope(rawBody: Buffer) {
 }
 
 export function parseProvisionPayload(
-  payload: unknown,
+  payload: ProvisionPayload,
 ): SupportAccessRequest | null {
-  const parsed = ProvisionPayloadSchema.safeParse(payload);
-  if (!parsed.success) return null;
-
-  const { task } = parsed.data.taskView;
+  const { task } = payload.taskView;
   const { grant, revoke } = task.type;
-  const email = findRequesterEmail(parsed.data);
+  const email = findRequesterEmail(payload);
   if (!email) return null;
 
   if (grant) {

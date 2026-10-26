@@ -25,7 +25,9 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
 import {
-  parseProvisionPayload,
+  C1_PROVISION_EVENT,
+  parseConductorOneEnvelope,
+  parseProvisionPayload as toRequest,
   type GrantRequest,
   type RevokeRequest,
 } from "@/src/ee/features/support-access/server/conductorOnePayload";
@@ -124,6 +126,13 @@ describe("verifyConductorOneRequest", () => {
 });
 
 describe("parseProvisionPayload", () => {
+  const parseProvisionPayload = (payload: unknown) => {
+    const body = JSON.stringify({ event: C1_PROVISION_EVENT, payload });
+    const envelope = parseConductorOneEnvelope(Buffer.from(body));
+    return envelope?.event === C1_PROVISION_EVENT
+      ? toRequest(envelope.payload)
+      : null;
+  };
   const c1User = {
     "@type": "type.googleapis.com/c1.api.user.v1.User",
     id: "c1-user",

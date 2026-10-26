@@ -9,7 +9,6 @@ import {
   verifyConductorOneRequest,
 } from "./conductorOneAuth";
 import {
-  C1_PROVISION_EVENT,
   C1_TEST_EVENT,
   parseConductorOneEnvelope,
   parseProvisionPayload,
@@ -72,17 +71,11 @@ export async function conductorOneWebhookHandler(
   if (envelope?.event === C1_TEST_EVENT) {
     return res.status(200).json({ version: "v1" });
   }
-  if (envelope?.event !== C1_PROVISION_EVENT) {
-    logger.warn("ConductorOne webhook unsupported event", {
-      event: envelope?.event,
-    });
-    return res.status(400).json({ error: "Unsupported event" });
-  }
 
-  const request = parseProvisionPayload(envelope.payload);
+  const request = envelope ? parseProvisionPayload(envelope.payload) : null;
   if (!request) {
-    logger.warn("ConductorOne webhook unrecognized provisioning payload");
-    const result = { ok: false, message: "Unrecognized provisioning payload" };
+    logger.warn("ConductorOne webhook unrecognized payload");
+    const result = { ok: false, message: "Unrecognized webhook payload" };
     return res.status(200).json(toC1Response(result));
   }
 
