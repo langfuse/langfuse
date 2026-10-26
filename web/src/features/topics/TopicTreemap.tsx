@@ -209,7 +209,8 @@ function TopicTile(props: TopicTileProps) {
   const { topic, share, tier, previewOnSelect, capped } = props;
   const percentLabel = `${Math.round(share * 100)}% of traces`;
   const shareLabel = capped ? `${percentLabel} · shown smaller` : percentLabel;
-  if ((previewOnSelect || tier === "large" || tier === "medium") && !capped) {
+  // Tap-to-preview tiles skip the tooltip; on desktop a capped tile keeps it to explain its size.
+  if (previewOnSelect || ((tier === "large" || tier === "medium") && !capped)) {
     return <TopicTileButton {...props} shareLabel={shareLabel} />;
   }
   return (
