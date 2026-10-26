@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { format } from "date-fns";
 import {
   ChevronDown,
@@ -377,14 +377,12 @@ export function TopicRunDetails({
                   key={`${item.traceId}:${item.error}`}
                   className="flex items-start gap-2.5"
                 >
-                  <Link
-                    href={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                    prefetch={false}
-                    title={item.traceId}
-                    className="text-link hover:text-link-hover w-28 shrink-0 truncate font-mono text-xs"
-                  >
-                    {item.traceId}
-                  </Link>
+                  <span className="w-28 shrink-0 font-mono">
+                    <TextLink
+                      path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
+                      value={item.traceId}
+                    />
+                  </span>
                   <span className="text-foreground-secondary min-w-0 text-xs break-words">
                     {item.error}
                   </span>
