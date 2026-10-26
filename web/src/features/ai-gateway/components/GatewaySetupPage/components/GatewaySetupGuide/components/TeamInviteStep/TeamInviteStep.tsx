@@ -29,8 +29,8 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
               <Button
                 variant="text"
                 size="sm"
-                text="How gateway keys work"
-                href={GATEWAY_SETUP.docsUrl}
+                text="About roles"
+                href={GATEWAY_SETUP.rolesDocsUrl}
               />
             </>
           ) : null}
