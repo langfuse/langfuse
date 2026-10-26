@@ -1,60 +1,100 @@
 import { useId } from "react";
-import { Mail } from "@langfuse/icons";
+import { Users } from "@langfuse/icons";
 
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { EmailTagInput } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/EmailTagInput";
+import { appendEmails } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+import { ExternalInviteeHint } from "@/src/features/ai-gateway/components/TeamInviteFields/components/ExternalInviteeHint";
 import {
-  NotifyMembersToggle,
-  type NotifyMembersToggleProps,
-} from "@/src/features/ai-gateway/components/TeamInviteFields/components/NotifyMembersToggle";
+  MemberSuggestions,
+  type MemberSuggestionsProps,
+} from "@/src/features/ai-gateway/components/TeamInviteFields/components/MemberSuggestions";
+import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
+import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
 export type TeamInviteFieldsProps = {
   emails: string[];
   onEmailsChange: (emails: string[]) => void;
-  /** Replaces the input hint while set. */
+  members: TeamInviteMembers;
+  /** Shown below the input while set. */
   errorMessage?: string;
   /** Omit when there is nobody to notify or email is not configured. */
-  notifyMembers?: NotifyMembersToggleProps;
+  memberSuggestions?: {
+    memberCount: number;
+    previewMembers: MemberSuggestionsProps["members"];
+    isAllSelected: boolean;
+    onAllSelectedChange: (isSelected: boolean) => void;
+  };
 };
 
-/** One framed field: invitee emails on top, the member announcement below. */
+/**
+ * Recipient picker: typed addresses and picked members as chips, quick picks
+ * for existing members below, and a note on who gets invited to the organization.
+ */
 export function TeamInviteFields({
   emails,
   onEmailsChange,
+  members,
   errorMessage,
-  notifyMembers,
+  memberSuggestions,
 }: TeamInviteFieldsProps) {
   const inputId = useId();
-  const hintId = useId();
+  const errorId = useId();
+  const externalCount = emails.filter(
+    (email) => getInviteeKind(email, members) === "external",
+  ).length;
+  const isAllSelected = memberSuggestions?.isAllSelected ?? false;
+  const unpickedMembers =
+    memberSuggestions?.previewMembers.filter(
+      (member) => !emails.includes(member.email.toLowerCase()),
+    ) ?? [];
+
+  function handleAddMember(email: string) {
+    onEmailsChange(appendEmails(emails, email));
+  }
+
+  function handleSelectAll() {
+    memberSuggestions?.onAllSelectedChange(true);
+  }
+
+  function handleDeselectAll() {
+    memberSuggestions?.onAllSelectedChange(false);
+  }
 
   return (
-    <div className="has-[input:focus]:border-ring flex max-w-xl flex-col rounded-md border">
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
-        <span className="flex h-6 shrink-0 items-center">
-          <Mail size="base" color="tertiary" aria-hidden />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <EmailTagInput
-            id={inputId}
-            value={emails}
-            onChange={onEmailsChange}
-            aria-describedby={hintId}
-          />
-          {errorMessage ? (
-            <p id={hintId} role="alert" className="text-destructive text-xs">
-              {errorMessage}
-            </p>
-          ) : (
-            <p id={hintId} className="text-muted-foreground text-xs">
-              Separate with a comma, space or Enter. They join as Member.
-            </p>
-          )}
-        </div>
+    <div className="flex max-w-xl flex-col gap-2">
+      <div className="has-[input:focus]:border-ring rounded-md border px-3 py-2">
+        <EmailTagInput
+          id={inputId}
+          value={emails}
+          onChange={onEmailsChange}
+          members={members}
+          aria-describedby={errorMessage ? errorId : undefined}
+        >
+          {memberSuggestions && isAllSelected ? (
+            <Tag
+              text="All existing members"
+              secondaryText={String(memberSuggestions.memberCount)}
+              icon={Users}
+              remove={{ onRemove: handleDeselectAll }}
+            />
+          ) : null}
+        </EmailTagInput>
       </div>
-      {notifyMembers ? (
-        <div className="border-t px-3 py-2.5">
-          <NotifyMembersToggle {...notifyMembers} />
-        </div>
+      {errorMessage ? (
+        <p id={errorId} role="alert" className="text-destructive text-xs">
+          {errorMessage}
+        </p>
       ) : null}
+      {memberSuggestions && !isAllSelected ? (
+        <MemberSuggestions
+          memberCount={memberSuggestions.memberCount}
+          members={unpickedMembers}
+          onSelectAll={handleSelectAll}
+          onAddMember={handleAddMember}
+        />
+      ) : null}
+      {externalCount > 0 ? <ExternalInviteeHint count={externalCount} /> : null}
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
   return (
     <Stepper
       number={3}
-      title="Invite your team"
+      title="Notify your team"
       size="sm"
       status={status}
       isCollapsible={false}

@@ -7,11 +7,15 @@ import type {
   GatewayNotifiableMembers,
   GatewayTeamInviteResult,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
+import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
+import type { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
+import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
 export type TeamInviteFormProps = {
   /** Undefined while loading. */
   notifiableMembers: GatewayNotifiableMembers | undefined;
+  invitees: ReturnType<typeof useTeamInviteEmails>;
+  inviteeMembers: TeamInviteMembers;
   isInviting: boolean;
   /** Resolves to null when the request failed and was already reported. */
   onInvite: (params: {
@@ -21,20 +25,38 @@ export type TeamInviteFormProps = {
   onFinish: (outcome: { isSkipped: boolean }) => void;
 };
 
-function getSendLabel(emailCount: number) {
-  if (emailCount === 0) return "Notify members";
-  if (emailCount === 1) return "Send 1 invite";
-  return `Send ${emailCount} invites`;
+/** Picked addresses, or every member plus the addresses that are not members. */
+function getRecipientCount({
+  emails,
+  members,
+  allMemberCount,
+}: {
+  emails: string[];
+  members: TeamInviteMembers;
+  allMemberCount: number | undefined;
+}) {
+  if (allMemberCount === undefined) return emails.length;
+  const nonMemberCount = emails.filter(
+    (email) => getInviteeKind(email, members) !== "member",
+  ).length;
+  return allMemberCount + nonMemberCount;
+}
+
+function getNotifyLabel(recipientCount: number) {
+  if (recipientCount === 0) return "Notify people";
+  if (recipientCount === 1) return "Notify 1 person";
+  return `Notify ${recipientCount} people`;
 }
 
 export function TeamInviteForm({
   notifiableMembers,
+  invitees,
+  inviteeMembers,
   isInviting,
   onInvite,
   onFinish,
 }: TeamInviteFormProps) {
-  const invitees = useTeamInviteEmails();
-  const [notifyMembers, setNotifyMembers] = useState(true);
+  const [isAllSelected, setIsAllSelected] = useState(false);
   // Retrying failed invites must not announce the gateway to every member again.
   const [haveMembersBeenNotified, setHaveMembersBeenNotified] = useState(false);
 
@@ -43,17 +65,21 @@ export function TeamInviteForm({
     notifiableMembers !== undefined &&
     notifiableMembers.isEmailConfigured &&
     notifiableMembers.count > 0;
-  const willNotify = canNotify && notifyMembers;
-  const sendLabel = getSendLabel(invitees.emails.length);
+  const willNotifyAll = canNotify && isAllSelected;
+  const recipientCount = getRecipientCount({
+    emails: invitees.emails,
+    members: inviteeMembers,
+    allMemberCount: willNotifyAll ? notifiableMembers.count : undefined,
+  });
 
   async function handleSend() {
     invitees.startAttempt();
     const result = await onInvite({
       emails: invitees.emails,
-      notifyMembers: willNotify,
+      notifyMembers: willNotifyAll,
     });
     if (!result) return;
-    if (willNotify) setHaveMembersBeenNotified(true);
+    if (willNotifyAll) setHaveMembersBeenNotified(true);
     if (result.failed.length > 0) {
       invitees.keepFailed(result.failed);
       return;
@@ -61,19 +87,24 @@ export function TeamInviteForm({
     onFinish({ isSkipped: false });
   }
 
+  function handleSkip() {
+    onFinish({ isSkipped: true });
+  }
+
   return (
     <div className="flex flex-col gap-4 pt-1">
       <TeamInviteFields
         emails={invitees.emails}
         onEmailsChange={invitees.setEmails}
+        members={inviteeMembers}
         errorMessage={invitees.errorMessage}
-        notifyMembers={
+        memberSuggestions={
           canNotify
             ? {
                 memberCount: notifiableMembers.count,
                 previewMembers: notifiableMembers.preview,
-                checked: notifyMembers,
-                onCheckedChange: setNotifyMembers,
+                isAllSelected,
+                onAllSelectedChange: setIsAllSelected,
               }
             : undefined
         }
@@ -83,18 +114,12 @@ export function TeamInviteForm({
       ) : null}
       <div className="flex items-center gap-2">
         <Button
-          text={sendLabel}
+          text={getNotifyLabel(recipientCount)}
           loading={isInviting}
-          disabled={
-            !invitees.isValid || (invitees.emails.length === 0 && !willNotify)
-          }
+          disabled={!invitees.isValid || recipientCount === 0}
           onClick={handleSend}
         />
-        <Button
-          text="Skip for now"
-          variant="ghost"
-          onClick={() => onFinish({ isSkipped: true })}
-        />
+        <Button text="Skip for now" variant="ghost" onClick={handleSkip} />
       </div>
     </div>
   );

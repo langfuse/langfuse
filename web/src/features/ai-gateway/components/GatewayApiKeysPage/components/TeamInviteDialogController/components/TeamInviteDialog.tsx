@@ -3,9 +3,11 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { TeamInviteFailuresAlert } from "@/src/features/ai-gateway/components/TeamInviteFailuresAlert";
 import { TeamInviteFields } from "@/src/features/ai-gateway/components/TeamInviteFields/TeamInviteFields";
 import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
+import { useTeamInviteMembers } from "@/src/features/ai-gateway/hooks/useTeamInviteMembers";
 import type { TeamInviteFailure } from "@/src/features/ai-gateway/types/teamInviteFailure";
 
 export type TeamInviteDialogProps = {
+  organizationId: string;
   isInviting: boolean;
   errorMessage: string | undefined;
   /** Resolves to the addresses that were not invited, or null when the request failed. */
@@ -15,12 +17,17 @@ export type TeamInviteDialogProps = {
 };
 
 export function TeamInviteDialog({
+  organizationId,
   isInviting,
   errorMessage,
   onInvite,
   onInvited,
 }: TeamInviteDialogProps) {
   const invitees = useTeamInviteEmails();
+  const inviteeMembers = useTeamInviteMembers({
+    organizationId,
+    emails: invitees.emails,
+  });
 
   async function handleSend() {
     invitees.startAttempt();
@@ -54,6 +61,7 @@ export function TeamInviteDialog({
         <TeamInviteFields
           emails={invitees.emails}
           onEmailsChange={invitees.setEmails}
+          members={inviteeMembers}
           errorMessage={invitees.errorMessage}
         />
         {errorMessage ? (

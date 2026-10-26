@@ -54,6 +54,7 @@ export function TeamInviteDialogController({
       onBeforeClose={() => !invite.isPending}
       renderDialog={({ closeDialog }) => (
         <TeamInviteDialog
+          organizationId={organizationId}
           isInviting={invite.isPending}
           errorMessage={invite.error?.message}
           onInvite={handleInvite}

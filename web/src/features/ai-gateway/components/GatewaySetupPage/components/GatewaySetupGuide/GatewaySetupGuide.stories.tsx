@@ -1,9 +1,41 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { GatewaySetupGuide } from "./GatewaySetupGuide";
+import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
+import type { TeamInviteMember } from "@/src/features/ai-gateway/types/teamInviteMembers";
+import {
+  GatewaySetupGuide,
+  type GatewaySetupGuideProps,
+} from "./GatewaySetupGuide";
 
-const meta = preview.meta({ component: GatewaySetupGuide });
+/**
+ * Holds the invitee list like the connected page does. The preview members are
+ * the organization; every other address counts as someone to invite.
+ */
+function GatewaySetupGuideWithInvitees(
+  props: Omit<GatewaySetupGuideProps, "invitees" | "inviteeMembers">,
+) {
+  const invitees = useTeamInviteEmails();
+  const previewMembers = new Map(
+    props.notifiableMembers?.preview.map((member) => [
+      member.email,
+      { name: member.name },
+    ]),
+  );
+  const inviteeMembers = new Map<string, TeamInviteMember | null>(
+    invitees.emails.map((email) => [email, previewMembers.get(email) ?? null]),
+  );
+
+  return (
+    <GatewaySetupGuide
+      {...props}
+      invitees={invitees}
+      inviteeMembers={inviteeMembers}
+    />
+  );
+}
+
+const meta = preview.meta({ component: GatewaySetupGuideWithInvitees });
 
 const projects = [
   { id: "project-production", name: "Production" },
@@ -94,28 +126,42 @@ export const TestRetryDoesNotNotifyAgain = meta.story({
     ...InvitingTeam.input.args,
     onInvite: fn(async () => ({
       invitedCount: 0,
-      existingMemberCount: 1,
-      failed: [{ email: "grace@company.com", message: "Already a member" }],
+      existingMemberCount: 0,
+      failed: [{ email: "sam@contractor.dev", message: "Invitation failed" }],
       notifiedCount: 12,
     })),
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "All existing members (12)" }),
+    );
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Email addresses" }),
-      "grace@company.com ",
+      "sam@contractor.dev ",
     );
+    await expect(
+      canvas.getByText(/1 person isn't in the organization yet/),
+    ).toBeVisible();
     await userEvent.click(
-      canvas.getByRole("button", { name: "Send 1 invite" }),
+      canvas.getByRole("button", { name: "Notify 13 people" }),
     );
 
     await expect(args.onInvite).toHaveBeenCalledWith({
-      emails: ["grace@company.com"],
+      emails: ["sam@contractor.dev"],
       notifyMembers: true,
     });
     await expect(
       await canvas.findByText("Some invitations were not sent"),
     ).toBeVisible();
-    await expect(canvas.queryByRole("switch")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Remove All existing members" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: /All existing members/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Notify 1 person" }),
+    ).toBeEnabled();
   },
 });
