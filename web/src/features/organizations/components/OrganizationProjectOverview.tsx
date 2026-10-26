@@ -6,6 +6,7 @@ import {
   Settings,
   Users,
   PlusIcon,
+  Waypoints,
 } from "@langfuse/icons";
 import {
   Card,
@@ -53,13 +54,19 @@ import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/Gatewa
 import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { GatewayReadyCard } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayReadyCard";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
     ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
     : "No traces in the last 30d";
+
+/** Marks the project that receives the org's AI Gateway traces. */
+const GatewayProjectMark = () => (
+  <span className="flex shrink-0" title="Receives AI Gateway traces">
+    <Waypoints size="base" color="default" aria-label="AI Gateway project" />
+  </span>
+);
 
 const OrganizationProjectTiles = ({
   org,
@@ -70,13 +77,13 @@ const OrganizationProjectTiles = ({
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const gatewayAccess = useGatewaySettingsAccess(org.id);
-  const showGatewayTile =
-    !search &&
+  // Gateway managers see which project receives the gateway's traces.
+  const markGatewayProject =
     gatewayAccess.showManagement &&
     gatewayAccess.isIngestionConfigured === true;
   const gatewayConfigQuery = api.aiGateway.getConfig.useQuery(
     { orgId: org.id },
-    { enabled: showGatewayTile },
+    { enabled: markGatewayProject },
   );
   const gatewayProjectId =
     gatewayConfigQuery.data?.config?.defaultIngestionProjectId;
@@ -98,20 +105,6 @@ const OrganizationProjectTiles = ({
   });
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {showGatewayTile && (
-        <GatewayReadyCard
-          organizationId={org.id}
-          activityLabel={
-            lastTraceQuery.isSuccess
-              ? lastTraceLabel(
-                  lastTraceQuery.data?.find(
-                    (t) => t.projectId === gatewayProjectId,
-                  )?.lastTraceAt,
-                )
-              : null
-          }
-        />
-      )}
       {org.projects
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
@@ -136,12 +129,17 @@ const OrganizationProjectTiles = ({
               )}
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle
-                    className="truncate text-base"
-                    title={project.name}
-                  >
-                    {project.name}
-                  </CardTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {markGatewayProject && project.id === gatewayProjectId && (
+                      <GatewayProjectMark />
+                    )}
+                    <CardTitle
+                      className="truncate text-base"
+                      title={project.name}
+                    >
+                      {project.name}
+                    </CardTitle>
+                  </div>
                   {!project.deletedAt &&
                     (migrationReadiness === "action-needed" ||
                       migrationReadiness === "partner-managed") && (
@@ -174,9 +172,17 @@ const OrganizationProjectTiles = ({
           ) : (
             <Card key={project.id}>
               <CardHeader>
-                <CardTitle className="truncate text-base" title={project.name}>
-                  {project.name}
-                </CardTitle>
+                <div className="flex min-w-0 items-center gap-2">
+                  {markGatewayProject && project.id === gatewayProjectId && (
+                    <GatewayProjectMark />
+                  )}
+                  <CardTitle
+                    className="truncate text-base"
+                    title={project.name}
+                  >
+                    {project.name}
+                  </CardTitle>
+                </div>
               </CardHeader>
               {!project.deletedAt ? (
                 <CardFooter className="gap-2">

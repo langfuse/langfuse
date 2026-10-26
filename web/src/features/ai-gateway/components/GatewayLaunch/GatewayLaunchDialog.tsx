@@ -54,28 +54,30 @@ export function GatewayLaunchDialog({
       >
         <PopoverLayerProvider container={popoverContainer}>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:rounded-lg">
-            <GatewayHero />
-            <div className="flex flex-col gap-2 px-8 pt-6 pb-8">
-              {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot */}
-              <DialogTitle className="text-xl font-bold tracking-tight">
-                Introducing Langfuse AI Gateway
-              </DialogTitle>
-              <p className="text-muted-foreground text-base leading-relaxed">
-                Point Claude Code, Codex or your SDK at one Langfuse endpoint.
-                See what every member spends.
-              </p>
-              <ul className="text-muted-foreground mt-2 flex flex-col gap-1 text-sm">
-                {points.map((point) => (
-                  <li key={point} className="flex items-center gap-2">
-                    <span className="text-dark-green flex">
-                      <Check size="sm" color="inherit" aria-hidden="true" />
-                    </span>
-                    {point}
-                  </li>
-                ))}
-              </ul>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <GatewayHero />
+              <div className="flex flex-col gap-2 px-8 pt-6 pb-8">
+                {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot */}
+                <DialogTitle className="text-xl font-bold tracking-tight">
+                  Introducing Langfuse AI Gateway
+                </DialogTitle>
+                <p className="text-muted-foreground text-base leading-relaxed">
+                  Point Claude Code, Codex or your SDK at one Langfuse endpoint.
+                  See what every member spends.
+                </p>
+                <ul className="text-muted-foreground mt-2 flex flex-col gap-1 text-sm">
+                  {points.map((point) => (
+                    <li key={point} className="flex items-center gap-2">
+                      <span className="text-dark-green flex">
+                        <Check size="sm" color="inherit" aria-hidden="true" />
+                      </span>
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div className="flex items-center justify-between border-t px-8 py-4">
+            <div className="flex shrink-0 items-center justify-between border-t px-8 py-4">
               <Link
                 href="https://langfuse.com/docs/ai-gateway"
                 target="_blank"

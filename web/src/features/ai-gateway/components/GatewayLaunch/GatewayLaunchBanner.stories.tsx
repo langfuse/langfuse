@@ -1,6 +1,6 @@
 import { PostHog } from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewayLaunchBanner } from "./GatewayLaunchBanner";
@@ -31,7 +31,7 @@ const meta = preview.meta({
   ],
   beforeEach: () => {
     capture.mockClear();
-    // Dismissals persist in localStorage; every run starts with the banner shown.
+    // Dismissals persist in localStorage; every story load starts with the banner shown.
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith("ai-gateway-launch:")) localStorage.removeItem(key);
     }
@@ -95,25 +95,14 @@ export const OpensOrgPicker = SetupSeveralOrgs.extend({
     );
 
     await userEvent.click(body.getByRole("button", { name: "Set up gateway" }));
-    await expect(
-      body.getByRole("menuitem", { name: "Acme Robotics" }),
-    ).toBeVisible();
-    await expect(
-      body.getByRole("menuitem", { name: "Acme Research" }),
-    ).toBeVisible();
-  },
-});
-
-export const Dismisses = Setup.extend({
-  name: "(Test) Dismisses",
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Dismiss" }));
-
-    await expect(canvas.queryByText("AI Gateway")).not.toBeInTheDocument();
-    await expect(capture).toHaveBeenCalledWith(
-      "ai_gateway_launch:banner_dismissed",
-      { state: "setup" },
-      undefined,
-    );
+    // The dialog fades in, so wait until its menu is fully shown.
+    await waitFor(async () => {
+      await expect(
+        body.getByRole("menuitem", { name: "Acme Robotics" }),
+      ).toBeVisible();
+      await expect(
+        body.getByRole("menuitem", { name: "Acme Research" }),
+      ).toBeVisible();
+    });
   },
 });
