@@ -60,6 +60,7 @@ export async function getSupportAccessMemberships(
     organization,
     role: Role.VIEWER,
     ProjectMemberships: [],
+    supportAccess: true as const,
   }));
 }
 

@@ -966,6 +966,7 @@ export async function getAuthOptions(
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
                           role: orgMembership.role,
+                          supportAccess: "supportAccess" in orgMembership,
                           metadata:
                             (orgMembership.organization.metadata as Record<
                               string,
