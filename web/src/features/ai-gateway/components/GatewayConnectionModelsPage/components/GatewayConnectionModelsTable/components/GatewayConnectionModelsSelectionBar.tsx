@@ -4,13 +4,16 @@ import { useStore } from "zustand";
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import { Button } from "@/src/components/ui/button";
-import type { SetGatewayModelsEnabled } from "../types/setGatewayModelsEnabled";
-
 export type GatewayConnectionModelsSelectionBarProps = {
   filteredModelIds: string[];
   isSaving: boolean;
   selectionStore: TableSelectionStore;
-  onSetEnabled: SetGatewayModelsEnabled;
+  onSetEnabled: (params: {
+    models: string[];
+    enabled: boolean;
+    scope: "single" | "selection";
+    onSuccess?: () => void;
+  }) => void;
 };
 
 export function GatewayConnectionModelsSelectionBar({

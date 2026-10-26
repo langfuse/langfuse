@@ -16,38 +16,37 @@ export function AgentInstructionsPanel({
   const capture = usePostHogClientCapture();
   const agent = { orgId: organizationId, agentId: instructions.id };
 
-  const handleExpand = () =>
-    capture("ai_gateway:agent_setup_instructions_viewed", {
-      ...agent,
-      hasProviderWarning: instructions.warning !== undefined,
-    });
-  const handleCopyForAgent = () =>
-    capture("ai_gateway:agent_setup_instructions_copied", {
-      ...agent,
-      source: "copy_for_agent",
-    });
-  const handleStepCopied = (stepNumber: number) =>
-    capture("ai_gateway:agent_setup_instructions_copied", {
-      ...agent,
-      source: "step_code",
-      stepNumber,
-    });
-
   return (
     <div className="flex flex-col items-start gap-3">
       <CopyForAgentButton
         instructions={instructions}
-        onAfterCopy={handleCopyForAgent}
+        onAfterCopy={() =>
+          capture("ai_gateway:agent_setup_instructions_copied", {
+            ...agent,
+            source: "copy_for_agent",
+          })
+        }
       />
       {/* Inactive tabs unmount, so switching tabs collapses the peek again. */}
       <div className="w-full">
         <ExpandableContentPeek
           expandLabel="Show all steps"
-          onAfterExpand={handleExpand}
+          onAfterExpand={() =>
+            capture("ai_gateway:agent_setup_instructions_viewed", {
+              ...agent,
+              hasProviderWarning: instructions.warning !== undefined,
+            })
+          }
         >
           <AgentSetupSteps
             instructions={instructions}
-            onAfterStepCopy={handleStepCopied}
+            onAfterStepCopy={(stepNumber) =>
+              capture("ai_gateway:agent_setup_instructions_copied", {
+                ...agent,
+                source: "step_code",
+                stepNumber,
+              })
+            }
           />
         </ExpandableContentPeek>
       </div>

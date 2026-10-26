@@ -63,11 +63,10 @@ function createGatewayModelsColumns({
   organizationId,
   canManageGateway,
   onAfterModelCopy,
-}: {
-  organizationId: string;
-  canManageGateway: boolean;
-  onAfterModelCopy?: (model: GatewayModelRow) => void;
-}): LangfuseColumnDef<GatewayModelRow>[] {
+}: Pick<
+  Parameters<typeof GatewayModelsTable>[0],
+  "organizationId" | "canManageGateway" | "onAfterModelCopy"
+>): LangfuseColumnDef<GatewayModelRow>[] {
   return [
     createTextTableColumn<GatewayModelRow>({
       accessorKey: "id",

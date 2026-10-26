@@ -1,6 +1,7 @@
 import type { GatewayIngestionMode, Role } from "@langfuse/shared";
 
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -14,21 +15,22 @@ type OrganizationContext = { orgId: string };
 /** The setup guide shown to new organizations, or the settings overview afterwards. */
 export type GatewaySettingsSurface = "setup_guide" | "overview";
 
-export type GatewayTeamInviteSurface = "setup_guide" | "api_keys_page";
-
-type SetupStep =
-  | { step: "ingestion"; stepNumber: 1; ingestionMode: GatewayIngestionMode }
-  | { step: "credential"; stepNumber: 2; provider: GatewayProvider }
-  | { step: "team_invite"; stepNumber: 3; isSkipped: boolean };
-
 export type AiGatewayEventMap = {
   "ai_gateway:setup_guide_viewed": OrganizationContext;
-  "ai_gateway:setup_step_completed": OrganizationContext & SetupStep;
-  "ai_gateway:ingestion_settings_saved": OrganizationContext & {
-    surface: GatewaySettingsSurface;
-    ingestionMode: GatewayIngestionMode;
-    projectTarget: "new" | "existing";
-  };
+  "ai_gateway:setup_step_completed": OrganizationContext &
+    (
+      | {
+          step: "ingestion";
+          stepNumber: 1;
+          ingestionMode: GatewayIngestionMode;
+        }
+      | { step: "credential"; stepNumber: 2; provider: GatewayProvider }
+      | { step: "team_invite"; stepNumber: 3; isSkipped: boolean }
+    );
+  "ai_gateway:ingestion_settings_saved": OrganizationContext &
+    Pick<GatewayIngestionSettings, "ingestionMode" | "projectTarget"> & {
+      surface: GatewaySettingsSurface;
+    };
   "ai_gateway:provider_credential_added": OrganizationContext & {
     surface: GatewaySettingsSurface;
     provider: GatewayProvider;
@@ -43,7 +45,7 @@ export type AiGatewayEventMap = {
     provider: GatewayProvider;
   };
   "ai_gateway:team_invite_sent": OrganizationContext & {
-    surface: GatewayTeamInviteSurface;
+    surface: "setup_guide" | "api_keys_page";
     /** Addresses typed into the form. */
     emailCount: number;
     /** Typed addresses that became new organization invitations. */

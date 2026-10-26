@@ -1,7 +1,4 @@
-import type {
-  AiGatewayEventMap,
-  GatewayTeamInviteSurface,
-} from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type { RouterOutputs } from "@/src/utils/api";
 
 export function toTeamInviteSentEvent({
@@ -10,13 +7,14 @@ export function toTeamInviteSentEvent({
   emails,
   notifyMembers,
   result,
-}: {
-  orgId: string;
-  surface: GatewayTeamInviteSurface;
+}: Pick<
+  AiGatewayEventMap["ai_gateway:team_invite_sent"],
+  "orgId" | "surface"
+> & {
   emails: string[];
   notifyMembers: boolean;
   result: RouterOutputs["aiGateway"]["inviteTeam"];
-}): AiGatewayEventMap["ai_gateway:team_invite_sent"] {
+}) {
   return {
     orgId,
     surface,

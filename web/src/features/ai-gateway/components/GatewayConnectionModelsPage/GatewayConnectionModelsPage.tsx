@@ -6,9 +6,11 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionSummary } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionSummary/ConnectionSummary";
-import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
+import {
+  GatewayConnectionModelsTable,
+  type GatewayConnectionModelsTableProps,
+} from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
-import type { SetGatewayModelsEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/types/setGatewayModelsEnabled";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
@@ -129,19 +131,24 @@ function ConnectionModelsBody({
   }
 
   const models = modelsQuery.data.models;
-  const saveModelAccess = ({
-    targetModels,
+  const setModelsEnabled = ({
+    models: targetModels,
     enabled,
     scope,
-    nextAllowedModels,
     onSuccess,
-  }: {
-    targetModels: string[];
-    enabled: boolean;
-    scope: "single" | "selection" | "all";
-    nextAllowedModels: string[] | null;
-    onSuccess?: () => void;
-  }) => {
+  }: Omit<
+    Parameters<GatewayConnectionModelsTableProps["onSetEnabled"]>[0],
+    "scope"
+  > & { scope: "single" | "selection" | "all" }) => {
+    let nextAllowedModels: string[] | null = enabled ? null : [];
+    if (scope !== "all") {
+      nextAllowedModels = updateGatewayAllowedModels({
+        allowedModels: connection.allowedModels,
+        availableModels: models,
+        targetModels,
+        enabled,
+      });
+    }
     const changedModelCount = targetModels.filter(
       (model) =>
         isGatewayModelAllowed(connection.allowedModels, model) !== enabled,
@@ -163,46 +170,17 @@ function ConnectionModelsBody({
       onSuccess?.();
     });
   };
-  const enableAll = () =>
-    saveModelAccess({
-      targetModels: models,
-      enabled: true,
-      scope: "all",
-      nextAllowedModels: null,
-    });
-  const disableAll = () =>
-    saveModelAccess({
-      targetModels: models,
-      enabled: false,
-      scope: "all",
-      nextAllowedModels: [],
-    });
-  const setModelsEnabled: SetGatewayModelsEnabled = ({
-    models: targetModels,
-    enabled,
-    scope,
-    onSuccess,
-  }) =>
-    saveModelAccess({
-      targetModels,
-      enabled,
-      scope,
-      nextAllowedModels: updateGatewayAllowedModels({
-        allowedModels: connection.allowedModels,
-        availableModels: models,
-        targetModels,
-        enabled,
-      }),
-      onSuccess,
-    });
-
   return (
     <GatewayConnectionModelsTable
       models={models}
       allowedModels={connection.allowedModels}
       isSaving={isSaving}
-      onEnableAll={enableAll}
-      onDisableAll={disableAll}
+      onEnableAll={() =>
+        setModelsEnabled({ models, enabled: true, scope: "all" })
+      }
+      onDisableAll={() =>
+        setModelsEnabled({ models, enabled: false, scope: "all" })
+      }
       onSetEnabled={setModelsEnabled}
     />
   );

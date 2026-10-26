@@ -8,10 +8,8 @@ import { useGatewayTeamInvite } from "@/src/features/ai-gateway/components/Gatew
 import { useSaveGatewayIngestion } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useSaveGatewayIngestion";
 import type {
   GatewayConfig,
-  GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type ConnectedGatewaySetupGuideProps = {
@@ -47,42 +45,6 @@ export function ConnectedGatewaySetupGuide({
     capture("ai_gateway:setup_guide_viewed", { orgId: organizationId });
   }, [capture, organizationId]);
 
-  async function handleSaveIngestion(settings: GatewayIngestionSettings) {
-    const isSaved = await saveIngestion(settings);
-    if (isSaved) {
-      capture("ai_gateway:setup_step_completed", {
-        orgId: organizationId,
-        step: "ingestion",
-        stepNumber: 1,
-        ingestionMode: settings.ingestionMode,
-      });
-    }
-    return isSaved;
-  }
-
-  function handleCredentialCreated({
-    provider,
-  }: {
-    provider: GatewayProvider;
-  }) {
-    capture("ai_gateway:setup_step_completed", {
-      orgId: organizationId,
-      step: "credential",
-      stepNumber: 2,
-      provider,
-    });
-  }
-
-  function handleFinish({ isSkipped }: { isSkipped: boolean }) {
-    capture("ai_gateway:setup_step_completed", {
-      orgId: organizationId,
-      step: "team_invite",
-      stepNumber: 3,
-      isSkipped,
-    });
-    onFinish();
-  }
-
   if (isPending) {
     return <Skeleton className="h-64 w-full max-w-3xl" />;
   }
@@ -91,7 +53,14 @@ export function ConnectedGatewaySetupGuide({
     <ProviderDialogController
       organizationId={organizationId}
       surface="setup_guide"
-      onAfterCreate={handleCredentialCreated}
+      onAfterCreate={({ provider }) =>
+        capture("ai_gateway:setup_step_completed", {
+          orgId: organizationId,
+          step: "credential",
+          stepNumber: 2,
+          provider,
+        })
+      }
     >
       {({ openAddDialog }) => (
         <GatewaySetupGuide
@@ -100,12 +69,31 @@ export function ConnectedGatewaySetupGuide({
           projects={projects}
           firstConnection={firstConnection}
           isSavingIngestion={isSaving}
-          onSaveIngestion={handleSaveIngestion}
+          onSaveIngestion={async (settings) => {
+            const isSaved = await saveIngestion(settings);
+            if (isSaved) {
+              capture("ai_gateway:setup_step_completed", {
+                orgId: organizationId,
+                step: "ingestion",
+                stepNumber: 1,
+                ingestionMode: settings.ingestionMode,
+              });
+            }
+            return isSaved;
+          }}
           onAddCredential={openAddDialog}
           notifiableMembers={notifiableMembers}
           isInviting={isInviting}
           onInvite={inviteTeam}
-          onFinish={handleFinish}
+          onFinish={({ isSkipped }) => {
+            capture("ai_gateway:setup_step_completed", {
+              orgId: organizationId,
+              step: "team_invite",
+              stepNumber: 3,
+              isSkipped,
+            });
+            onFinish();
+          }}
         />
       )}
     </ProviderDialogController>

@@ -10,12 +10,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnectionModelsSelectionBar";
+import {
+  GatewayConnectionModelsSelectionBar,
+  type GatewayConnectionModelsSelectionBarProps,
+} from "./components/GatewayConnectionModelsSelectionBar";
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
-import type { SetGatewayModelsEnabled } from "./types/setGatewayModelsEnabled";
-
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
 const ROW_HEIGHTS = {
@@ -30,7 +31,7 @@ export type GatewayConnectionModelsTableProps = {
   isSaving: boolean;
   onEnableAll: () => void;
   onDisableAll: () => void;
-  onSetEnabled: SetGatewayModelsEnabled;
+  onSetEnabled: GatewayConnectionModelsSelectionBarProps["onSetEnabled"];
 };
 
 export function GatewayConnectionModelsTable({
