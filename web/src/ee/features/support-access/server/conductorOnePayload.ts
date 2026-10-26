@@ -93,7 +93,7 @@ export function parseProvisionPayload(
   const email = findRequesterEmail(parsed.data);
   if (!email) return null;
 
-  if (grant && !revoke) {
+  if (grant) {
     const orgId = task.data?.[ORG_ID_FORM_FIELD];
     if (!orgId) return null;
     return {
@@ -105,7 +105,7 @@ export function parseProvisionPayload(
       durationMs: parseDurationMs(grant.grantDuration),
     };
   }
-  if (revoke && !grant) {
+  if (revoke) {
     return {
       action: "revoke",
       taskId: task.id,

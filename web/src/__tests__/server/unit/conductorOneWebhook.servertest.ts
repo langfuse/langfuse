@@ -339,6 +339,7 @@ describe("support access in the session", () => {
         organization: { id: "org-2", projects: [] },
         role: "VIEWER",
         ProjectMemberships: [],
+        supportAccess: true,
       },
     ]);
   });
