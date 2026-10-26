@@ -240,6 +240,8 @@ clickhouse_table_schema! {
     ingestion_api_key: String => DefaultPolicy::None,
     ingestion_sdk_name: String => DefaultPolicy::Literal("unknown"),
     ingestion_sdk_version: String => DefaultPolicy::Literal("unknown"),
+    // Callers control metadata, so this column never falls back to it.
+    ai_gateway_key_id: String => DefaultPolicy::None,
     event_type as "type": String => DefaultPolicy::None,
     start_time: DateTime64Micros => DefaultPolicy::None,
     created_at: DateTime64Micros => DefaultPolicy::None,

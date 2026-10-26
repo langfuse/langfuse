@@ -38,6 +38,20 @@ fn datetime_strings_are_explicitly_utc() {
 }
 
 #[test]
+fn ai_gateway_key_id_never_defaults_from_caller_metadata() {
+    let (_, column_type, uses_default) = PreparedEventRow::columns()
+        .into_iter()
+        .find(|(name, _, _)| name == "ai_gateway_key_id")
+        .expect("events_full declares ai_gateway_key_id");
+
+    assert_eq!(column_type, "String");
+    assert!(
+        !uses_default,
+        "the worker alone decides ai_gateway_key_id; a metadata default would trust callers"
+    );
+}
+
+#[test]
 fn string_column_overflow_bisects_rows_in_order() {
     let rows = [0u8, 1, 2, 3, 4];
     let mut attempts = 0;
