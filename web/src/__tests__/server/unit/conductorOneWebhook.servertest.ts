@@ -80,9 +80,14 @@ describe("verifyConductorOneRequest", () => {
       jwks,
     });
 
-  it("accepts a valid token for this body", async () => {
-    await expect(verify(`bearer ${await sign()}`)).resolves.toBeUndefined();
-  });
+  it.each(["bearer", "Bearer"])(
+    "accepts a valid token for this body (%s)",
+    async (scheme) => {
+      await expect(
+        verify(`${scheme} ${await sign()}`),
+      ).resolves.toBeUndefined();
+    },
+  );
 
   it.each([
     ["another issuer", { iss: "evil.conductor.one" }],

@@ -20,8 +20,7 @@ export async function verifyConductorOneRequest(params: {
   audience: string;
   jwks: JWTVerifyGetKey;
 }): Promise<void> {
-  // C1 sends exactly `Authorization: bearer <JWT>`.
-  const token = params.authorization?.match(/^bearer (\S+)$/)?.[1];
+  const token = params.authorization?.match(/^bearer (\S+)$/i)?.[1];
   if (!token) throw new Error("Missing bearer token");
 
   const { payload } = await jwtVerify(token, params.jwks, {
