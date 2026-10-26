@@ -13,9 +13,9 @@ import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { useState } from "react";
 
 export function CurrentTopics({
   projectId,
@@ -167,9 +167,13 @@ function MobileTopics({
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
-    string | null
-  >(`topics-selected-trace:${projectId}`, null);
+  const [selection, setSelection] = useState<{
+    facetId: string;
+    traceId: string | null;
+  }>({ facetId: facet.facetId, traceId: null });
+  if (selection.facetId !== facet.facetId) {
+    setSelection({ facetId: facet.facetId, traceId: null });
+  }
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -180,8 +184,10 @@ function MobileTopics({
       searchQuery={traceFilters.searchQuery}
       onFiltersChange={traceFilters.setFilters}
       onSearchQueryChange={traceFilters.setSearchQuery}
-      selectedTraceId={selectedTraceId}
-      onSelectTrace={setSelectedTraceId}
+      selectedTraceId={selection.traceId}
+      onSelectTrace={(traceId) =>
+        setSelection({ facetId: facet.facetId, traceId })
+      }
       onOpenTrace={onOpenTrace}
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
