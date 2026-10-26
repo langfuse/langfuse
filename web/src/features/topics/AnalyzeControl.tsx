@@ -4,50 +4,39 @@ import { type AutomaticProcessingState } from "./prepare-topics-actions";
 
 type AnalyzeControlProps = {
   state: AutomaticProcessingState;
-  canWrite: boolean;
+  /** Why the dialog cannot open; absent when it can. */
+  disabledReason?: string;
   onClick: () => void;
 };
 
 const DOT = { on: "bg-dark-green", paused: "bg-dark-yellow" };
 
-/** Why the dialog cannot open, or null when it can. */
-function automaticDisabledReason(
-  state: AutomaticProcessingState,
-  canWrite: boolean,
-) {
-  if (state.status === "unconfigured") return "Configure Topics first.";
-  if (!canWrite) return "You need permission to edit Topics.";
-  return null;
-}
-
 /** Off: an Analyze button. On or paused: the auto-analyze status. Both open the Analyze traces dialog. */
 export function AnalyzeControl({
-  canWrite,
+  disabledReason,
   onClick,
   state,
 }: AnalyzeControlProps) {
-  const disabledReason = automaticDisabledReason(state, canWrite);
   if (state.status === "off" || state.status === "unconfigured") {
     return (
-      <span title={disabledReason ?? undefined} className="inline-flex">
+      <span title={disabledReason} className="inline-flex">
         <Button
           text="Analyze"
           size="sm"
-          disabled={disabledReason !== null}
+          disabled={Boolean(disabledReason)}
           onClick={onClick}
         />
       </span>
     );
   }
   const title =
-    state.status === "paused"
-      ? state.shortLabel
-      : (disabledReason ?? undefined);
+    disabledReason ??
+    (state.status === "paused" ? state.shortLabel : undefined);
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabledReason !== null}
+      disabled={Boolean(disabledReason)}
       title={title}
       className="text-muted-foreground hover:bg-accent hover:text-foreground ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs whitespace-nowrap focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
     >

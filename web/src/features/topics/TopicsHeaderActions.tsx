@@ -12,7 +12,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
         <div className="hidden items-center gap-1 @5xl/topics-header:flex">
           <AnalyzeControl
             state={actions.automatic.state}
-            canWrite={actions.automatic.canWrite}
+            disabledReason={actions.automatic.disabledReason}
             onClick={actions.automatic.onSelect}
           />
         </div>

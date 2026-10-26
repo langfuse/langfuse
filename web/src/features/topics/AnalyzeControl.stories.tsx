@@ -7,7 +7,6 @@ const meta = preview.meta({
   component: AnalyzeControl,
   parameters: { layout: "centered" },
   args: {
-    canWrite: true,
     onClick: fn(),
   },
 });
@@ -23,11 +22,17 @@ export const Paused = meta.story({
 });
 
 export const Unconfigured = meta.story({
-  args: { state: { status: "unconfigured" } },
+  args: {
+    state: { status: "unconfigured" },
+    disabledReason: "Configure Topics first.",
+  },
 });
 
 export const ReadOnly = meta.story({
-  args: { state: { status: "on" }, canWrite: false },
+  args: {
+    state: { status: "on" },
+    disabledReason: "You need permission to edit Topics.",
+  },
 });
 
 export const OpensDialog = meta.story({
@@ -43,7 +48,10 @@ export const OpensDialog = meta.story({
 
 export const DisabledWithoutSettings = meta.story({
   name: "(Test) Unconfigured is disabled with a reason",
-  args: { state: { status: "unconfigured" } },
+  args: {
+    state: { status: "unconfigured" },
+    disabledReason: "Configure Topics first.",
+  },
   play: async ({ canvasElement }) => {
     const button = within(canvasElement).getByRole("button", {
       name: "Analyze",

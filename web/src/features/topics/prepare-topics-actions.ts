@@ -62,17 +62,17 @@ export function prepareTopicsActions({
   onHistory: () => void;
 }) {
   const { state, saving } = automaticProcessing;
+  const reason = processingDisabledReason(state, canWrite, saving);
+  const disabledReason =
+    reason && state.status === "paused"
+      ? `${state.shortLabel}. ${reason}`
+      : reason;
   const automatic = menuOnly
     ? null
-    : {
-        state,
-        canWrite: canWrite && !saving,
-        onSelect: onAutomaticProcessing,
-      };
+    : { state, disabledReason, onSelect: onAutomaticProcessing };
   const menu: TopicAction[] = [];
   // Narrow headers hide the inline control, so the menu keeps it reachable.
   if (automatic) {
-    const disabledReason = processingDisabledReason(state, canWrite, saving);
     menu.push({
       id: "automatic",
       label:
@@ -81,10 +81,7 @@ export function prepareTopicsActions({
           : "Auto-analyze",
       icon: Play,
       badge: automaticBadge[state.status],
-      disabledReason:
-        disabledReason && state.status === "paused"
-          ? `${state.shortLabel}. ${disabledReason}`
-          : disabledReason,
+      disabledReason,
       onSelect: onAutomaticProcessing,
     });
   }
