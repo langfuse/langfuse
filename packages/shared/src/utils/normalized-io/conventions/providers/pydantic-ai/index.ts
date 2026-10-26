@@ -30,24 +30,6 @@ function isPydanticMessage(value: unknown): value is PydanticMessage {
   );
 }
 
-/** Extract native history without claiming unrelated application state. */
-function pydanticAiMessages(
-  root: Record<string, unknown>,
-  kind: "input" | "output",
-): MessageSource[] {
-  const history = parseArray(parseRecord(root._state)?.message_history);
-  if (!history?.length || !history.every(isPydanticMessage)) return [];
-
-  recordKeyAsParsed(root, "_state", "message_history");
-  return [
-    {
-      kind: "sequence",
-      values: history.flatMap(pydanticAiMessage),
-      fallbackRole: kind === "input" ? "user" : "assistant",
-    },
-  ];
-}
-
 // tryUnwrapMessage returns one message; split mixed-role Pydantic request parts in the claim instead.
 function pydanticAiMessage(message: PydanticMessage) {
   if (message.kind === "response") {
@@ -64,6 +46,24 @@ function pydanticAiMessage(message: PydanticMessage) {
     }
     return { role, parts: [part] };
   });
+}
+
+/** Extract native history without claiming unrelated application state. */
+function pydanticAiMessages(
+  root: Record<string, unknown>,
+  kind: "input" | "output",
+): MessageSource[] {
+  const history = parseArray(parseRecord(root._state)?.message_history);
+  if (!history?.length || !history.every(isPydanticMessage)) return [];
+
+  recordKeyAsParsed(root, "_state", "message_history");
+  return [
+    {
+      kind: "sequence",
+      values: history.flatMap(pydanticAiMessage),
+      fallbackRole: kind === "input" ? "user" : "assistant",
+    },
+  ];
 }
 
 function pydanticAiPart(
