@@ -37,25 +37,25 @@ const badgeVariants = cva(
           "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-dark-green/6 dark:bg-light-green dark:text-dark-green",
         info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-dark-blue/8 dark:bg-light-blue dark:text-dark-blue",
         violetTint:
-          "border-category-violet/8 bg-category-violet/10 text-foreground-secondary dark:border-category-violet/11 dark:bg-category-violet/15",
+          "border-category-violet/8 bg-category-violet/10 text-violet-800 dark:border-category-violet/11 dark:bg-category-violet/15 dark:text-violet-400",
         skyTint:
-          "border-category-sky/8 bg-category-sky/10 text-foreground-secondary dark:border-category-sky/9 dark:bg-category-sky/15",
+          "border-category-sky/8 bg-category-sky/10 text-sky-800 dark:border-category-sky/9 dark:bg-category-sky/15 dark:text-sky-400",
         emeraldTint:
-          "border-category-emerald/9 bg-category-emerald/10 text-foreground-secondary dark:border-category-emerald/9 dark:bg-category-emerald/15",
+          "border-category-emerald/9 bg-category-emerald/10 text-emerald-800 dark:border-category-emerald/9 dark:bg-category-emerald/15 dark:text-emerald-400",
         amberTint:
-          "border-category-amber/10 bg-category-amber/10 text-foreground-secondary dark:border-category-amber/8 dark:bg-category-amber/15",
+          "border-category-amber/10 bg-category-amber/10 text-amber-800 dark:border-category-amber/8 dark:bg-category-amber/15 dark:text-amber-400",
         pinkTint:
-          "border-category-pink/8 bg-category-pink/10 text-foreground-secondary dark:border-category-pink/9 dark:bg-category-pink/15",
+          "border-category-pink/8 bg-category-pink/10 text-pink-800 dark:border-category-pink/9 dark:bg-category-pink/15 dark:text-pink-400",
         indigoTint:
-          "border-category-indigo/7 bg-category-indigo/10 text-foreground-secondary dark:border-category-indigo/11 dark:bg-category-indigo/15",
+          "border-category-indigo/7 bg-category-indigo/10 text-indigo-800 dark:border-category-indigo/11 dark:bg-category-indigo/15 dark:text-indigo-400",
         tealTint:
-          "border-category-teal/9 bg-category-teal/10 text-foreground-secondary dark:border-category-teal/9 dark:bg-category-teal/15",
+          "border-category-teal/9 bg-category-teal/10 text-teal-800 dark:border-category-teal/9 dark:bg-category-teal/15 dark:text-teal-400",
         orangeTint:
-          "border-category-orange/8 bg-category-orange/10 text-foreground-secondary dark:border-category-orange/10 dark:bg-category-orange/15",
+          "border-category-orange/8 bg-category-orange/10 text-orange-800 dark:border-category-orange/10 dark:bg-category-orange/15 dark:text-orange-400",
         limeTint:
-          "border-category-lime/10 bg-category-lime/10 text-foreground-secondary dark:border-category-lime/8 dark:bg-category-lime/15",
+          "border-category-lime/10 bg-category-lime/10 text-lime-800 dark:border-category-lime/8 dark:bg-category-lime/15 dark:text-lime-400",
         fuchsiaTint:
-          "border-category-fuchsia/7 bg-category-fuchsia/10 text-foreground-secondary dark:border-category-fuchsia/11 dark:bg-category-fuchsia/15",
+          "border-category-fuchsia/7 bg-category-fuchsia/10 text-fuchsia-800 dark:border-category-fuchsia/11 dark:bg-category-fuchsia/15 dark:text-fuchsia-400",
       },
       interactive: {
         true: "underline-dotted",
@@ -154,7 +154,6 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
  * - Category `Tint`: tell categories apart (score levels, topics, widget types).
- *   Text stays neutral; the hue carries the category.
  *
  * Links use `LinkBadge`. Full guidance with examples: `Badge.mdx` (Storybook "Guidance").
  */

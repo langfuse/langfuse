@@ -191,7 +191,7 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "Categories: tint, neutral text",
+        title: "Categories: tint",
         badges: (
           <>
             <Badge color="violetTint" text="Billing questions" />
