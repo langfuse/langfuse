@@ -59,8 +59,6 @@ model User {
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
-  // Time-bound support access granted via ConductorOne, keyed by org id.
-  // Shape: web/src/ee/features/support-access/server/supportAccess.ts
   supportAccess             Json?                       @map("support_access")
   accounts                  Account[]
   sessions                  Session[]
