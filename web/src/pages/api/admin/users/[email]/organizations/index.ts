@@ -6,6 +6,9 @@ import { handleGetUserOrganizations } from "@/src/ee/features/admin-api/server/u
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
+// Stored emails can be non-email userNames (SCIM), so only bound the length.
+const emailParamSchema = z.string().min(1).max(320);
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -32,7 +35,7 @@ export default async function handler(
       });
     }
 
-    const validatedEmail = z.email().safeParse(req.query.email);
+    const validatedEmail = emailParamSchema.safeParse(req.query.email);
     if (!validatedEmail.success) {
       return res.status(400).json({ error: "Invalid email" });
     }

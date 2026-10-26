@@ -2,24 +2,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import { resolveProjectRole } from "@langfuse/shared/src/server";
 
-/**
- * Shared query layer for the user-related APIs.
- *
- * Both surfaces of the user APIs are built on these functions:
- * - the instance admin API (`/api/admin/users/**`, ADMIN_API_KEY, self-hosted EE)
- * - the organization-scoped public API (`/api/public/organizations/memberships/{email}`)
- *
- * Keeping the queries here means email normalization, tenant scoping and role
- * resolution are decided once instead of per route. Route handlers only map the
- * results onto HTTP responses.
- */
+/** Queries behind the admin and organization-scoped user access APIs. */
 
-/**
- * Users are always looked up by lowercased email. Emails are stored lowercased
- * by every write path (credential signup, SSO, SCIM provisioning), so callers
- * must normalize before querying — see `web/src/server/auth.ts` and
- * `web/src/pages/api/public/scim/Users/index.ts`.
- */
+/** normalizeUserEmail lowercases emails for lookup, matching the session lookup in `web/src/server/auth.ts`. */
 const normalizeUserEmail = (email: string) => email.toLowerCase();
 
 const userSelect = {
@@ -138,6 +123,10 @@ export async function findUserOrganizationAccess({
     orderBy: { name: "asc" },
   });
 
+  const explicitProjectIds = new Set(
+    orgMembership.ProjectMemberships.map((membership) => membership.projectId),
+  );
+
   return {
     userId: orgMembership.user.id,
     email: orgMembership.user.email,
@@ -152,9 +141,7 @@ export async function findUserOrganizationAccess({
           projectMemberships: orgMembership.ProjectMemberships,
           orgMembershipRole: orgMembership.role,
         }),
-        inheritedFromOrgRole: !orgMembership.ProjectMemberships.some(
-          (membership) => membership.projectId === project.id,
-        ),
+        inheritedFromOrgRole: !explicitProjectIds.has(project.id),
       }))
       .filter((project) => project.role !== Role.NONE),
   };

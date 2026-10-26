@@ -258,10 +258,10 @@ describe("Public User Project Access API", () => {
       );
     });
 
-    it("should return 400 for an invalid email", async () => {
+    it("should return 400 for an email longer than 320 characters", async () => {
       const result = await makeAPICall<{ error: string }>(
         "GET",
-        userProjectsUrl("not-an-email"),
+        userProjectsUrl("a".repeat(321)),
         undefined,
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );

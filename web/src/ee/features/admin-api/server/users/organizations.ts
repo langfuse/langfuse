@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { findUserOrganizations } from "@/src/ee/features/admin-api/server/users/userAccessService";
 
-// GET - Retrieve all organizations a user belongs to, looked up by email
+/** handleGetUserOrganizations returns the organizations a user belongs to, looked up by email. */
 export async function handleGetUserOrganizations(
   req: NextApiRequest,
   res: NextApiResponse,

@@ -362,7 +362,7 @@ exports[`public-api auth parity > legacy matches the captured baseline except do
   "GET organizations/memberships/[email]/index | admin/admin": 401,
   "GET organizations/memberships/[email]/index | agent/basic": 401,
   "GET organizations/memberships/[email]/index | agent/bearer": 401,
-  "GET organizations/memberships/[email]/index | org/basic": 400,
+  "GET organizations/memberships/[email]/index | org/basic": 404,
   "GET organizations/memberships/[email]/index | org/bearer": 401,
   "GET organizations/memberships/[email]/index | project/basic": 403,
   "GET organizations/memberships/[email]/index | project/bearer": 403,

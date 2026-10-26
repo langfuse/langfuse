@@ -1,8 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { findUserOrganizationAccess } from "@/src/ee/features/admin-api/server/users/userAccessService";
 
-// GET - Retrieve the projects a user of an organization has access to, including
-// the effective access level per project
+/** handleGetUserProjects returns the projects a user of an organization can access, with the effective role per project. */
 export async function handleGetUserProjects(
   req: NextApiRequest,
   res: NextApiResponse,

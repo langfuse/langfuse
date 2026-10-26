@@ -10,7 +10,7 @@ import { randomUUID } from "crypto";
 // Schema for user organizations response
 const UserOrganizationsResponseSchema = z.object({
   userId: z.string(),
-  email: z.email(),
+  email: z.string(),
   name: z.string().nullable(),
   organizations: z.array(
     z.object({
@@ -75,7 +75,7 @@ describe("Admin User Organizations API", () => {
     });
 
     // Create a user without any organization memberships
-    userWithoutOrgsEmail = `test-user-no-orgs-${randomUUID().substring(0, 8)}@example.com`;
+    userWithoutOrgsEmail = `no-orgs-user-${randomUUID().substring(0, 8)}`;
     const userWithoutOrgs = await prisma.user.create({
       data: { email: userWithoutOrgsEmail, name: "No Orgs User" },
     });
@@ -178,10 +178,10 @@ describe("Admin User Organizations API", () => {
       expect(result.body.error).toContain("User not found");
     });
 
-    it("should return 400 for an invalid email", async () => {
+    it("should return 400 for an email longer than 320 characters", async () => {
       const result = await makeAPICall<{ error: string }>(
         "GET",
-        userOrganizationsUrl("not-an-email"),
+        userOrganizationsUrl("a".repeat(321)),
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
       );

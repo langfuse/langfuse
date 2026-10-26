@@ -8,6 +8,9 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
+// Stored emails can be non-email userNames (SCIM), so only bound the length.
+const emailParamSchema = z.string().min(1).max(320);
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -53,7 +56,7 @@ export default async function handler(
     return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
-  const validatedEmail = z.email().safeParse(req.query.email);
+  const validatedEmail = emailParamSchema.safeParse(req.query.email);
   if (!validatedEmail.success) {
     return res.status(400).json({
       error: "Invalid email",
