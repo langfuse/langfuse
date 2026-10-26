@@ -9,6 +9,7 @@ import {
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
@@ -19,7 +20,7 @@ import {
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 import {
   busy,
-  executionDotClasses,
+  executionBadgeTypes,
   executionLabels,
   operationLabels,
 } from "./topic-run-labels";
@@ -249,10 +250,14 @@ export function TopicRunDetails({
             </span>
           </div>
         </div>
-        <StatusLabel
-          label={executionLabels[execution.status]}
-          dot={executionDotClasses[execution.status]}
-        />
+        <StatusBadge
+          type={executionBadgeTypes[execution.status]}
+          variant="transparent"
+          size="lg"
+          showText={false}
+        >
+          {executionLabels[execution.status]}
+        </StatusBadge>
       </header>
       {(failed || resumable) && (
         <div className="px-4 pt-4">

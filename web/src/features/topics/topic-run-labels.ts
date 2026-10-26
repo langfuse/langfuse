@@ -1,3 +1,4 @@
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   type TopicExecutionStatus,
   type TopicOperation,
@@ -16,12 +17,13 @@ export const executionLabels: Record<TopicExecutionStatus, string> = {
   failed: "Failed",
 };
 
-export const executionDotClasses: Record<TopicExecutionStatus, string> = {
-  queued: "bg-muted-foreground",
-  running: "bg-dark-blue",
-  completed: "bg-dark-green",
-  completed_with_errors: "bg-dark-yellow",
-  failed: "bg-dark-red",
+/** StatusBadge types, so run statuses share the app-wide status colours. */
+export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
+  queued: "queued",
+  running: "running",
+  completed: "completed",
+  completed_with_errors: "partial",
+  failed: "failed",
 };
 
 export const busy = (status: string) =>

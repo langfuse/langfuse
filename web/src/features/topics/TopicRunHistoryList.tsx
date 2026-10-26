@@ -3,12 +3,13 @@ import { format, isToday, isYesterday } from "date-fns";
 import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import {
   busy,
-  executionDotClasses,
+  executionBadgeTypes,
   executionLabels,
   operationLabels,
 } from "./topic-run-labels";
@@ -118,10 +119,12 @@ function StatusDot({ status }: { status: Run["status"] }) {
           {...getTriggerProps()}
           role="img"
           aria-label={label}
-          className="inline-flex shrink-0 p-1.5"
+          className="inline-flex shrink-0"
         >
-          <span
-            className={cn("size-2 rounded-full", executionDotClasses[status])}
+          <StatusBadge
+            type={executionBadgeTypes[status]}
+            variant="transparent"
+            showText={false}
           />
         </span>
       )}
