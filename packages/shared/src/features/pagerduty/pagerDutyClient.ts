@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ApiError, ServiceUnavailableError } from "../../errors";
 import { type PagerDutyRegion } from "./types";
 
@@ -9,49 +10,6 @@ export const PAGERDUTY_EVENTS_HOSTS: Record<PagerDutyRegion, string> = {
 
 const summaryMaxLength = 1024;
 const requestTimeoutMs = 10_000;
-
-/** isRetryablePagerDutyError reports whether a failed Events API call may succeed on retry: 429, 5xx and network errors. */
-export function isRetryablePagerDutyError(error: unknown): boolean {
-  if (error instanceof ServiceUnavailableError) return true;
-  return (
-    error instanceof ApiError &&
-    (error.httpCode === 429 || error.httpCode >= 500)
-  );
-}
-
-/** fetchEvent posts the JSON body, turning network errors into ServiceUnavailableErrors. */
-async function fetchEvent(
-  url: string,
-  body: PagerDutyAlertEvent | PagerDutyChangeEvent,
-): Promise<Response> {
-  try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      redirect: "error",
-      signal: AbortSignal.timeout(requestTimeoutMs),
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "Unknown error";
-    throw new ServiceUnavailableError(`PagerDuty request failed: ${reason}`);
-  }
-}
-
-/** post sends one event to an Events API URL; a rejected event throws an ApiError with PagerDuty's status. */
-async function post(
-  url: string,
-  body: PagerDutyAlertEvent | PagerDutyChangeEvent,
-): Promise<void> {
-  const response = await fetchEvent(url, body);
-  if (response.ok) return;
-
-  const responseBody = (await response.text().catch(() => "")).slice(0, 1000);
-  throw new ApiError(
-    `PagerDuty returned ${response.status}: ${responseBody}`.trim(),
-    response.status,
-  );
-}
 
 /** sendPagerDutyAlertEvent enqueues an alert event at the region's `/v2/enqueue`. */
 export function sendPagerDutyAlertEvent(args: {
@@ -75,10 +33,53 @@ export function sendPagerDutyChangeEvent(args: {
   );
 }
 
+/** isRetryablePagerDutyError reports whether a failed Events API call may succeed on retry: 429, 5xx and network errors. */
+export function isRetryablePagerDutyError(error: unknown): boolean {
+  if (error instanceof ServiceUnavailableError) return true;
+  return (
+    error instanceof ApiError &&
+    (error.httpCode === 429 || error.httpCode >= 500)
+  );
+}
+
 /** truncatePagerDutySummary cuts a summary to the Events API limit. */
 export function truncatePagerDutySummary(summary: string): string {
   if (summary.length <= summaryMaxLength) return summary;
   return `${summary.slice(0, summaryMaxLength - 3)}...`;
+}
+
+/** post sends one event to an Events API URL; a rejected event throws an ApiError with PagerDuty's status. */
+async function post(
+  url: string,
+  body: PagerDutyAlertEvent | PagerDutyChangeEvent,
+): Promise<void> {
+  const response = await fetchEvent(url, body);
+  if (response.ok) return;
+
+  const responseBody = (await response.text().catch(() => "")).slice(0, 1000);
+  throw new ApiError(
+    `PagerDuty returned ${response.status}: ${responseBody}`.trim(),
+    response.status,
+  );
+}
+
+/** fetchEvent posts the JSON body, turning network errors into ServiceUnavailableErrors. */
+async function fetchEvent(
+  url: string,
+  body: PagerDutyAlertEvent | PagerDutyChangeEvent,
+): Promise<Response> {
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      redirect: "error",
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Unknown error";
+    throw new ServiceUnavailableError(`PagerDuty request failed: ${reason}`);
+  }
 }
 
 /** PagerDutyLink is a clickable link rendered on the PagerDuty alert. */

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Link from "next/link";
 import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
 import { SiPagerduty } from "@langfuse/icons/si";
@@ -47,25 +48,6 @@ const channels: OnboardingChannel[] = [
     icon: <SiPagerduty size="base" aria-hidden="true" />,
   },
 ];
-
-/** visibleChannels drops channels whose action type is limited to internal view. */
-function visibleChannels(
-  internalFeaturesEnabled: boolean,
-): OnboardingChannel[] {
-  const actionTypes = availableActionTypes(
-    channels.map((channel) => channel.actionType),
-    internalFeaturesEnabled,
-  );
-  return channels.filter((channel) => actionTypes.includes(channel.actionType));
-}
-
-/** channelsDescription names the channels the user can connect. */
-function channelsDescription(internalFeaturesEnabled: boolean): string {
-  if (internalFeaturesEnabled) {
-    return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
-  }
-  return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
-}
 
 /** MonitorsOnboarding renders the splash shown on /monitors when the project has no monitors yet. */
 export function MonitorsOnboarding({
@@ -137,4 +119,23 @@ export function MonitorsOnboarding({
       />
     </div>
   );
+}
+
+/** visibleChannels drops channels whose action type is limited to internal view. */
+function visibleChannels(
+  internalFeaturesEnabled: boolean,
+): OnboardingChannel[] {
+  const actionTypes = availableActionTypes(
+    channels.map((channel) => channel.actionType),
+    internalFeaturesEnabled,
+  );
+  return channels.filter((channel) => actionTypes.includes(channel.actionType));
+}
+
+/** channelsDescription names the channels the user can connect. */
+function channelsDescription(internalFeaturesEnabled: boolean): string {
+  if (internalFeaturesEnabled) {
+    return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
+  }
+  return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
 }

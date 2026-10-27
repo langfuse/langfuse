@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
 
@@ -9,15 +10,6 @@ import {
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { PagerDutyActionForm } from "./PagerDutyActionForm";
-
-/** storedConfig returns the saved PagerDuty config of an automation, if any. */
-function storedConfig(
-  automation?: AutomationDomain,
-): SafePagerDutyActionConfig | undefined {
-  const config = automation?.action?.config;
-  if (config?.type !== "PAGERDUTY") return undefined;
-  return config;
-}
 
 /** PagerDutyActionHandler wires the PagerDuty action into the automation form. */
 export class PagerDutyActionHandler implements BaseActionHandler<PagerDutyActionFormData> {
@@ -61,6 +53,15 @@ export class PagerDutyActionHandler implements BaseActionHandler<PagerDutyAction
       actionId: props.action?.id,
     });
   }
+}
+
+/** storedConfig returns the saved PagerDuty config of an automation, if any. */
+function storedConfig(
+  automation?: AutomationDomain,
+): SafePagerDutyActionConfig | undefined {
+  const config = automation?.action?.config;
+  if (config?.type !== "PAGERDUTY") return undefined;
+  return config;
 }
 
 /** PagerDutyActionFormData is the PagerDuty part of the automation form. */

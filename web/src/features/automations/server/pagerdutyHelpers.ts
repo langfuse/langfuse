@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { backOff } from "exponential-backoff";
 import { TRPCError } from "@trpc/server";
@@ -23,6 +24,48 @@ import {
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
 import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
+/** throwIfPagerDutyUnavailable limits PagerDuty actions to users with internal view. */
+export function throwIfPagerDutyUnavailable(session: Session): void {
+  if (isInternalViewEnabled(session)) return;
+  throw new ForbiddenError("PagerDuty actions are not available yet");
+}
+
+/** processPagerDutyActionConfig encrypts a new routing key, or keeps the stored one when the update omits it. */
+export async function processPagerDutyActionConfig({
+  actionConfig,
+  actionId,
+  projectId,
+}: {
+  actionConfig: ActionCreate;
+  actionId?: string;
+  projectId: string;
+}): Promise<PagerDutyActionConfigWithSecrets> {
+  if (actionConfig.type !== "PAGERDUTY") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid PagerDuty action configuration",
+    });
+  }
+
+  if (actionConfig.routingKey) {
+    return {
+      type: "PAGERDUTY",
+      routingKey: encrypt(actionConfig.routingKey),
+      displayRoutingKey: maskPagerDutyRoutingKey(actionConfig.routingKey),
+      region: actionConfig.region,
+    };
+  }
+
+  const existing = await getStoredPagerDutyConfig({ actionId, projectId });
+  if (!existing) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "PagerDuty routing key is required",
+    });
+  }
+  return { ...existing, region: actionConfig.region };
+}
+
 /** getStoredPagerDutyConfig loads the PagerDuty config of an existing action, or null when there is none. */
 async function getStoredPagerDutyConfig({
   actionId,
@@ -39,6 +82,48 @@ async function getStoredPagerDutyConfig({
   const config = action?.config;
   if (!isPagerDutyActionConfig(config)) return null;
   return config;
+}
+
+/** sendPagerDutyTestEvent triggers and then resolves one test alert, so whoever is on call is paged briefly. */
+export async function sendPagerDutyTestEvent({
+  projectId,
+  region,
+  routingKey,
+  actionId,
+}: {
+  projectId: string;
+  region: PagerDutyRegion;
+  routingKey?: string;
+  actionId?: string;
+}): Promise<void> {
+  const key = await resolveTestRoutingKey({ projectId, routingKey, actionId });
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { name: true },
+  });
+  const dedupKey = `langfuse-${projectId}-test-${randomUUID()}`;
+  const projectUrl = new URL(
+    `project/${projectId}`,
+    getProductBaseUrl(),
+  ).toString();
+
+  try {
+    await sendPagerDutyAlertEvent({
+      region,
+      event: {
+        routing_key: key,
+        event_action: "trigger",
+        dedup_key: dedupKey,
+        client: "Langfuse",
+        client_url: projectUrl,
+        links: [{ href: projectUrl, text: "Open Langfuse project" }],
+        payload: buildTestEventPayload(project.name),
+      },
+    });
+  } catch (error) {
+    throw toTestEventError(error, projectId);
+  }
+  await resolveTestEvent({ region, routingKey: key, dedupKey, projectId });
 }
 
 /** resolveTestRoutingKey prefers the typed key and falls back to the stored key of the action. */
@@ -100,48 +185,6 @@ function toTestEventError(error: unknown, projectId: string): unknown {
   });
 }
 
-/** throwIfPagerDutyUnavailable limits PagerDuty actions to users with internal view. */
-export function throwIfPagerDutyUnavailable(session: Session): void {
-  if (isInternalViewEnabled(session)) return;
-  throw new ForbiddenError("PagerDuty actions are not available yet");
-}
-
-/** processPagerDutyActionConfig encrypts a new routing key, or keeps the stored one when the update omits it. */
-export async function processPagerDutyActionConfig({
-  actionConfig,
-  actionId,
-  projectId,
-}: {
-  actionConfig: ActionCreate;
-  actionId?: string;
-  projectId: string;
-}): Promise<PagerDutyActionConfigWithSecrets> {
-  if (actionConfig.type !== "PAGERDUTY") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid PagerDuty action configuration",
-    });
-  }
-
-  if (actionConfig.routingKey) {
-    return {
-      type: "PAGERDUTY",
-      routingKey: encrypt(actionConfig.routingKey),
-      displayRoutingKey: maskPagerDutyRoutingKey(actionConfig.routingKey),
-      region: actionConfig.region,
-    };
-  }
-
-  const existing = await getStoredPagerDutyConfig({ actionId, projectId });
-  if (!existing) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "PagerDuty routing key is required",
-    });
-  }
-  return { ...existing, region: actionConfig.region };
-}
-
 /** resolveTestEvent resolves the test incident, retrying 429, 5xx and network errors. */
 async function resolveTestEvent({
   region,
@@ -180,46 +223,4 @@ async function resolveTestEvent({
       message: `PagerDuty opened the test incident but Langfuse could not resolve it. Resolve it in PagerDuty (dedup key ${dedupKey}).`,
     });
   }
-}
-
-/** sendPagerDutyTestEvent triggers and then resolves one test alert, so whoever is on call is paged briefly. */
-export async function sendPagerDutyTestEvent({
-  projectId,
-  region,
-  routingKey,
-  actionId,
-}: {
-  projectId: string;
-  region: PagerDutyRegion;
-  routingKey?: string;
-  actionId?: string;
-}): Promise<void> {
-  const key = await resolveTestRoutingKey({ projectId, routingKey, actionId });
-  const project = await prisma.project.findUniqueOrThrow({
-    where: { id: projectId },
-    select: { name: true },
-  });
-  const dedupKey = `langfuse-${projectId}-test-${randomUUID()}`;
-  const projectUrl = new URL(
-    `project/${projectId}`,
-    getProductBaseUrl(),
-  ).toString();
-
-  try {
-    await sendPagerDutyAlertEvent({
-      region,
-      event: {
-        routing_key: key,
-        event_action: "trigger",
-        dedup_key: dedupKey,
-        client: "Langfuse",
-        client_url: projectUrl,
-        links: [{ href: projectUrl, text: "Open Langfuse project" }],
-        payload: buildTestEventPayload(project.name),
-      },
-    });
-  } catch (error) {
-    throw toTestEventError(error, projectId);
-  }
-  await resolveTestEvent({ region, routingKey: key, dedupKey, projectId });
 }
