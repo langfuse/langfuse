@@ -8,6 +8,8 @@ import {
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { QueueItemSummaryStrip } from "../QueueItemSummaryStrip";
+import { type QueueTraceColumn } from "@/src/features/annotation-queues/lib/queueTraceColumns";
+import { api } from "@/src/utils/api";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -16,12 +18,14 @@ interface TraceAnnotationProcessorProps {
   };
   data: any; // Trace data with observations and scores
   configs: ScoreConfigDomain[];
+  /** The queue's extra trace columns, shown in the summary strip. */
+  traceColumns?: QueueTraceColumn[];
   projectId: string;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, traceColumns = [], projectId }) => {
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
   const scoreTarget: ScoreTarget = {
@@ -30,6 +34,10 @@ export const TraceAnnotationProcessor: React.FC<
     observationId: item.parentTraceId ? item.objectId : undefined,
   };
   const currentScores = useMergedScores(data?.scores ?? [], scoreTarget);
+  const traceFields = api.annotationQueueItems.traceFieldsByTraceId.useQuery(
+    { projectId, queueId: item.queueId, traceId },
+    { enabled: traceColumns.length > 0 },
+  );
 
   if (!data) return <div className="p-3">Loading...</div>;
 
@@ -39,6 +47,10 @@ export const TraceAnnotationProcessor: React.FC<
         userId={data.userId}
         timestamp={data.timestamp}
         tags={data.tags}
+        traceFields={traceColumns.map((column) => ({
+          column,
+          value: traceFields.data?.[column.id] ?? null,
+        }))}
         scores={currentScores}
         configs={configs}
       />

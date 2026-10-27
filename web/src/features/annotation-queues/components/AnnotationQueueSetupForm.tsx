@@ -2,18 +2,26 @@ import { type ReactNode, useId, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
-import { CreateQueueWithAssignmentsData } from "@langfuse/shared";
+import {
+  AnnotationQueueDisplayColumns,
+  CreateQueueWithAssignmentsData,
+} from "@langfuse/shared";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
+import {
+  type QueueDisplayColumnErrors,
+  QueueDisplayColumnsFields,
+} from "./QueueDisplayColumnsFields";
 
 const setupSchema = CreateQueueWithAssignmentsData.extend({
   name: z.string(),
   description: z.string(),
   scoreConfigIds: z.array(z.string()),
+  displayColumns: AnnotationQueueDisplayColumns,
 });
 
 export type AnnotationQueueSetupValues = z.infer<typeof setupSchema>;
@@ -50,6 +58,19 @@ function sameIds(
   return (
     left.length === right.length &&
     left.every((id, index) => id === right[index])
+  );
+}
+
+/** Per-row messages from the `displayColumns` field error. */
+function toColumnErrors(error: unknown): QueueDisplayColumnErrors {
+  if (!Array.isArray(error)) return [];
+  return error.map((row) =>
+    row
+      ? {
+          key: (row as { key?: { message?: string } }).key?.message,
+          label: (row as { label?: { message?: string } }).label?.message,
+        }
+      : undefined,
   );
 }
 
@@ -127,6 +148,9 @@ export function AnnotationQueueSetupForm({
         values.newAssignmentUserIds,
         defaults?.newAssignmentUserIds ?? [],
       ),
+      displayColumns:
+        JSON.stringify(values.displayColumns) !==
+        JSON.stringify(defaults?.displayColumns ?? []),
     };
     try {
       await onSubmit(values, dirtyFields);
@@ -143,6 +167,7 @@ export function AnnotationQueueSetupForm({
           <Tabs.List variant="underline" layout="full" aria-label="Queue setup">
             <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
             <Tabs.Trigger value="annotation">Annotation panel</Tabs.Trigger>
+            <Tabs.Trigger value="columns">Table columns</Tabs.Trigger>
           </Tabs.List>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -256,6 +281,36 @@ export function AnnotationQueueSetupForm({
                     Add at least one score config before saving.
                   </p>
                 ) : null}
+              </section>
+            </Tabs.Content>
+            <Tabs.Content value="columns">
+              <section
+                className="flex flex-col gap-3"
+                aria-label="Queue table columns"
+              >
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Add columns to the items table from each item&apos;s trace: a
+                  trace field, a metadata key, or the value of tags that start
+                  with a prefix. They show before the score columns and are the
+                  first filters.
+                </p>
+                <Controller
+                  control={form.control}
+                  name="displayColumns"
+                  render={({ field, fieldState }) => (
+                    <QueueDisplayColumnsFields
+                      value={field.value}
+                      onChange={(columns) =>
+                        form.setValue("displayColumns", columns, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        })
+                      }
+                      disabled={disabled}
+                      errors={toColumnErrors(fieldState.error)}
+                    />
+                  )}
+                />
               </section>
             </Tabs.Content>
           </Form>

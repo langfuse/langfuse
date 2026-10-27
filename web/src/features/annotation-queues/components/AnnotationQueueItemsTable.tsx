@@ -48,6 +48,7 @@ import {
 import { buildQueueItemFilterColumns } from "@/src/features/annotation-queues/lib/queueItemFilters";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { QueueItemScoreCell } from "./QueueItemScoreCell";
+import { QueueTraceFieldCell } from "./QueueTraceFieldCell";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItems,
@@ -183,6 +184,8 @@ export type QueueItemRowData = {
   traceUserId?: string;
   traceTimestamp?: Date;
   traceTags?: string[];
+  /** Raw values of the configured trace columns, by column id. */
+  traceFields: Record<string, string | null>;
   annotatorUser: {
     userId?: string;
     userName?: string;
@@ -237,9 +240,14 @@ export function AnnotationQueueItemsTable({
     setFilterStateRaw(filters);
     setPaginationState({ pageIndex: 0 });
   };
+  const traceColumns = useMemo(
+    () => queue.data?.displayColumns ?? [],
+    [queue.data?.displayColumns],
+  );
   const filterColumns = useMemo(
-    () => buildQueueItemFilterColumns(queue.data?.scoreConfigs ?? []),
-    [queue.data?.scoreConfigs],
+    () =>
+      buildQueueItemFilterColumns(queue.data?.scoreConfigs ?? [], traceColumns),
+    [queue.data?.scoreConfigs, traceColumns],
   );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
@@ -418,6 +426,22 @@ export function AnnotationQueueItemsTable({
       defaultHidden: true,
       shouldWrap: false,
     }),
+    ...traceColumns.map(
+      (column): LangfuseColumnDef<QueueItemRowData> => ({
+        id: column.id,
+        accessorKey: column.id,
+        accessorFn: (row) => row.traceFields[column.id] ?? null,
+        header: column.label,
+        size: 140,
+        enableHiding: true,
+        cell: ({ row }) => {
+          const value = row.original.traceFields[column.id];
+          return value ? (
+            <QueueTraceFieldCell value={value} format={column.format} />
+          ) : null;
+        },
+      }),
+    ),
     ...(queue.data?.scoreConfigs ?? []).map(
       (config): LangfuseColumnDef<QueueItemRowData> => {
         const id = `scoreConfig-${config.id}`;
@@ -476,6 +500,7 @@ export function AnnotationQueueItemsTable({
       traceUserId: item.trace?.userId ?? undefined,
       traceTimestamp: item.trace?.timestamp,
       traceTags: item.trace?.tags,
+      traceFields: item.traceFields,
     };
 
     switch (item.objectType) {

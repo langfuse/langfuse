@@ -46,6 +46,7 @@ import {
   limitBy,
   latestNonEmpty,
   literal,
+  argMaxIf,
   mapValue,
   medianExact,
   metadataMap,
@@ -68,6 +69,8 @@ import {
   getTraceSummariesByIdsFromTracesTable,
   hasAnyTrace,
   type TraceSummary,
+  type TraceSummaryRow,
+  toTraceSummary,
   persistProjectHasTracesFlag,
   readProjectHasTracesFlag,
 } from "./traces";
@@ -3755,21 +3758,43 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   });
 };
 
-const TRACE_SUMMARY_FIELDS = ["id", "user_id", "tags", "timestamp"] as const;
+const TRACE_SUMMARY_FIELDS = [
+  "id",
+  "name",
+  "user_id",
+  "session_id",
+  "environment",
+  "release",
+  "version",
+  "tags",
+  "timestamp",
+] as const;
 
 /**
- * Fetch trace-level user id, tags and timestamp for a list of trace IDs from
- * the events table, without reading input, output or metadata.
+ * Fetch trace-level fields and the requested top-level metadata keys (read
+ * from the trace's root observation) for a list of trace IDs from the events
+ * table, without reading input, output or the rest of the metadata.
  */
 export const getTraceSummariesByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
+  metadataKeys?: string[];
 }): Promise<TraceSummary[]> => {
   if (props.traceIds.length === 0) return [];
+  const metadataKeys = props.metadataKeys ?? [];
 
   const builder = getClickhouseKysely()
     .selectFrom("events as e")
     .select((eb) => traceAggregationSelects(TRACE_SUMMARY_FIELDS)(eb))
+    .select((eb) =>
+      metadataKeys.map((key, index) =>
+        argMaxIf(
+          eventsMetadataValue(eb, key),
+          eb.ref("e.event_ts"),
+          eb("e.parent_span_id", "=", literal("")),
+        ).as(`metadata_value_${index}`),
+      ),
+    )
     .where("e.trace_id", "in", props.traceIds)
     .groupBy(["trace_id", "project_id"]);
 
@@ -3778,28 +3803,31 @@ export const getTraceSummariesByIdsFromEvents = async (props: {
     props.projectId,
   );
 
-  const rows = await queryClickhouse<{
-    id: string;
-    user_id: string | null;
-    tags: string[];
-    timestamp: string;
-  }>({
+  const rows = await queryClickhouse<
+    Omit<TraceSummaryRow, "metadata_values"> &
+      Record<`metadata_value_${number}`, string | null>
+  >({
     query,
     params,
     tags: { projectId: props.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.user_id || null,
-    tags: row.tags ?? [],
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-  }));
+  return rows.map((row) =>
+    toTraceSummary(
+      {
+        ...row,
+        metadata_values: metadataKeys.map(
+          (_, index) => row[`metadata_value_${index}`] ?? "",
+        ),
+      },
+      metadataKeys,
+    ),
+  );
 };
 
 /**
- * Routing wrapper for batched trace summary reads (user id, tags, timestamp).
+ * Routing wrapper for batched trace summary reads.
  *
  * If data is only written into the events tables, we look there and go to the
  * legacy traces table otherwise.
@@ -3807,6 +3835,7 @@ export const getTraceSummariesByIdsFromEvents = async (props: {
 export const getTraceSummariesByIds = async (props: {
   projectId: string;
   traceIds: string[];
+  metadataKeys?: string[];
 }): Promise<TraceSummary[]> => {
   if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
     return getTraceSummariesByIdsFromTracesTable(props);

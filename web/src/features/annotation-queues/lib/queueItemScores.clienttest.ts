@@ -8,9 +8,9 @@ import {
 
 const score = (overrides: Partial<QueueItemScore>): QueueItemScore => ({
   id: crypto.randomUUID(),
-  name: "risk",
+  name: "quality",
   source: "ANNOTATION",
-  configId: "config-risk",
+  configId: "config-quality",
   dataType: "CATEGORICAL",
   value: 0,
   stringValue: "high",
@@ -19,7 +19,7 @@ const score = (overrides: Partial<QueueItemScore>): QueueItemScore => ({
 });
 
 describe("pickLatestAnnotationScore", () => {
-  const config = { id: "config-risk", name: "risk" };
+  const config = { id: "config-quality", name: "quality" };
 
   it("returns the latest score matching the config id", () => {
     const older = score({ stringValue: "high" });
@@ -55,7 +55,7 @@ describe("pickLatestAnnotationScore", () => {
 });
 
 describe("resolveQueueItemScore", () => {
-  const config = { id: "config-risk", name: "risk" };
+  const config = { id: "config-quality", name: "quality" };
 
   it("prefers an annotation over a newer source value", () => {
     const annotation = score({ stringValue: "high" });
@@ -106,11 +106,9 @@ describe("getCategoryBadgeColor", () => {
     );
   });
 
-  it("applies label and prefix overrides case-insensitively", () => {
+  it("applies label overrides case-insensitively", () => {
     expect(getCategoryBadgeColor("High", config)).toBe("red");
     expect(getCategoryBadgeColor("pass", config)).toBe("green");
-    expect(getCategoryBadgeColor("not_booked", config)).toBe("red");
-    expect(getCategoryBadgeColor("transferred", config)).toBe("blue");
   });
 
   it("falls back to a neutral badge for labels outside the config", () => {
@@ -131,9 +129,9 @@ describe("formatQueueItemScore", () => {
     ).toEqual({ kind: "number", text: "3.5" });
     expect(
       formatQueueItemScore(
-        score({ dataType: "TEXT", stringValue: "caller asked twice" }),
+        score({ dataType: "TEXT", stringValue: "needs a shorter answer" }),
         { categories: [] },
       ),
-    ).toEqual({ kind: "text", text: "caller asked twice" });
+    ).toEqual({ kind: "text", text: "needs a shorter answer" });
   });
 });

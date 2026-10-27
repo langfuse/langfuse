@@ -51,8 +51,10 @@ export {
   GetAnnotationQueueItemsResponse,
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
+  UpdateAnnotationQueueBody,
   UpdateAnnotationQueueItemBody,
   UpdateAnnotationQueueItemResponse,
+  UpdateAnnotationQueueResponse,
 } from "../types/annotation-queues";
 export {
   GetCommentsV1Query,

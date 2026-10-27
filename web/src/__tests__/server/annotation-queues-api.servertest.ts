@@ -12,6 +12,7 @@ import {
   UpdateAnnotationQueueItemResponse,
   DeleteAnnotationQueueItemResponse,
   CreateAnnotationQueueResponse,
+  UpdateAnnotationQueueResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import {
   AnnotationQueueObjectType,
@@ -268,6 +269,84 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.description).toBeNull();
     });
 
+    it("should create a queue with display columns", async () => {
+      const scoreConfig = await createScoreConfig("Score Config for Columns");
+      const displayColumns = [
+        { source: "trace", key: "userId", label: "Phone", format: "phone" },
+        {
+          source: "metadata",
+          key: "location_name",
+          label: "Location",
+          format: "text",
+        },
+        { source: "tag", key: "region:", label: "Region", format: "badge" },
+      ];
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: `Columns Queue ${uuidv4()}`,
+          scoreConfigIds: [scoreConfig.id],
+          displayColumns,
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.displayColumns).toEqual(displayColumns);
+
+      const fetched = await makeZodVerifiedAPICall(
+        GetAnnotationQueueByIdResponse,
+        "GET",
+        `/api/public/annotation-queues/${response.body.id}`,
+        undefined,
+        auth,
+      );
+      expect(fetched.body.displayColumns).toEqual(displayColumns);
+    });
+
+    it("should default to no display columns", async () => {
+      const scoreConfig = await createScoreConfig("Score Config No Columns");
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: `No Columns Queue ${uuidv4()}`,
+          scoreConfigIds: [scoreConfig.id],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.displayColumns).toEqual([]);
+    });
+
+    it("should return 400 for an invalid display column", async () => {
+      const scoreConfig = await createScoreConfig("Score Config Bad Column");
+
+      for (const displayColumns of [
+        [{ source: "trace", key: "input", label: "Input", format: "text" }],
+        [{ source: "metadata", key: "a", label: "A", format: "currency" }],
+        [{ source: "metadata", key: "", label: "Empty key", format: "text" }],
+      ]) {
+        const response = await makeAPICall(
+          "POST",
+          "/api/public/annotation-queues",
+          {
+            name: `Bad Column Queue ${uuidv4()}`,
+            scoreConfigIds: [scoreConfig.id],
+            displayColumns,
+          },
+          auth,
+        );
+        expect(response.status).toBe(400);
+      }
+    });
+
     it("should return 400 if the queue name already exists", async () => {
       await createQueue({ name: "Test Queue" });
 
@@ -386,6 +465,111 @@ describe("Annotation Queues API Endpoints", () => {
         auth,
       );
 
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("PATCH /annotation-queues/:queueId", () => {
+    it("should replace display columns and keep the other fields", async () => {
+      const scoreConfig = await createScoreConfig("Score Config for Patch");
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: `Patch Queue ${uuidv4()}`,
+          description: "Keep me",
+          scoreConfigIds: [scoreConfig.id],
+          displayColumns: [
+            { source: "trace", key: "userId", label: "User", format: "text" },
+          ],
+          projectId,
+        },
+      });
+      const displayColumns = [
+        {
+          source: "metadata",
+          key: "report_url",
+          label: "Report",
+          format: "link",
+        },
+      ];
+
+      const response = await makeZodVerifiedAPICall(
+        UpdateAnnotationQueueResponse,
+        "PATCH",
+        `/api/public/annotation-queues/${queue.id}`,
+        { displayColumns },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.displayColumns).toEqual(displayColumns);
+      expect(response.body.name).toBe(queue.name);
+      expect(response.body.description).toBe("Keep me");
+      expect(response.body.scoreConfigIds).toEqual([scoreConfig.id]);
+
+      const cleared = await makeZodVerifiedAPICall(
+        UpdateAnnotationQueueResponse,
+        "PATCH",
+        `/api/public/annotation-queues/${queue.id}`,
+        { displayColumns: [] },
+        auth,
+      );
+      expect(cleared.body.displayColumns).toEqual([]);
+    });
+
+    it("should update name, description and score configs", async () => {
+      const [first, second] = await Promise.all([
+        createScoreConfig("Patch Config A"),
+        createScoreConfig("Patch Config B"),
+      ]);
+      const queue = await createQueue({ name: `Rename Me ${uuidv4()}` });
+      const name = `Renamed ${uuidv4()}`;
+
+      const response = await makeZodVerifiedAPICall(
+        UpdateAnnotationQueueResponse,
+        "PATCH",
+        `/api/public/annotation-queues/${queue.id}`,
+        {
+          name,
+          description: null,
+          scoreConfigIds: [second.id, first.id],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe(name);
+      expect(response.body.description).toBeNull();
+      expect(response.body.scoreConfigIds).toEqual([second.id, first.id]);
+    });
+
+    it("should return 400 for unknown score configs or a taken name", async () => {
+      const queue = await createQueue({ name: `Patch Target ${uuidv4()}` });
+      const other = await createQueue({ name: `Patch Other ${uuidv4()}` });
+
+      const unknownConfig = await makeAPICall(
+        "PATCH",
+        `/api/public/annotation-queues/${queue.id}`,
+        { scoreConfigIds: ["invalid-score-config-id"] },
+        auth,
+      );
+      expect(unknownConfig.status).toBe(400);
+
+      const takenName = await makeAPICall(
+        "PATCH",
+        `/api/public/annotation-queues/${queue.id}`,
+        { name: other.name },
+        auth,
+      );
+      expect(takenName.status).toBe(400);
+    });
+
+    it("should return 404 for non-existent queue", async () => {
+      const response = await makeAPICall(
+        "PATCH",
+        `/api/public/annotation-queues/${uuidv4()}`,
+        { displayColumns: [] },
+        auth,
+      );
       expect(response.status).toBe(404);
     });
   });

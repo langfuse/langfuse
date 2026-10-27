@@ -230,9 +230,9 @@ describe("annotation queues trpc", () => {
       const projectId = setup.project.id;
       const { caller } = createCallerForProjectRole(setup);
 
-      const riskConfig = await prisma.scoreConfig.create({
+      const qualityConfig = await prisma.scoreConfig.create({
         data: {
-          name: `risk-${uuidv4().slice(0, 8)}`,
+          name: `quality-${uuidv4().slice(0, 8)}`,
           projectId,
           dataType: "CATEGORICAL",
           categories: [
@@ -244,7 +244,7 @@ describe("annotation queues trpc", () => {
       const queue = await prisma.annotationQueue.create({
         data: {
           name: `queue-${uuidv4().slice(0, 8)}`,
-          scoreConfigIds: [riskConfig.id],
+          scoreConfigIds: [qualityConfig.id],
           projectId,
         },
       });
@@ -267,7 +267,7 @@ describe("annotation queues trpc", () => {
         createTrace({
           id: scoredTraceId,
           project_id: projectId,
-          user_id: "caller-1",
+          user_id: "user-1",
           tags: ["inbound"],
           timestamp: traceTimestamp.getTime(),
         }),
@@ -276,7 +276,7 @@ describe("annotation queues trpc", () => {
         createEvent({
           project_id: projectId,
           trace_id: scoredTraceId,
-          user_id: "caller-1",
+          user_id: "user-1",
           tags: ["inbound"],
           start_time: traceTimestamp.getTime(),
         }),
@@ -285,8 +285,8 @@ describe("annotation queues trpc", () => {
         createTraceScore({
           project_id: projectId,
           trace_id: scoredTraceId,
-          name: riskConfig.name,
-          config_id: riskConfig.id,
+          name: qualityConfig.name,
+          config_id: qualityConfig.id,
           source: "ANNOTATION",
           data_type: "CATEGORICAL",
           value: 0,
@@ -295,7 +295,7 @@ describe("annotation queues trpc", () => {
         createTraceScore({
           project_id: projectId,
           trace_id: scoredTraceId,
-          name: riskConfig.name,
+          name: qualityConfig.name,
           source: "API",
           data_type: "CATEGORICAL",
           value: 1,
@@ -321,7 +321,7 @@ describe("annotation queues trpc", () => {
         expect.arrayContaining([
           expect.objectContaining({
             source: "ANNOTATION",
-            configId: riskConfig.id,
+            configId: qualityConfig.id,
             dataType: "CATEGORICAL",
             stringValue: "high",
           }),
@@ -331,12 +331,123 @@ describe("annotation queues trpc", () => {
       expect(scoredItem?.scores).toHaveLength(2);
       expect(scoredItem?.trace).toEqual({
         id: scoredTraceId,
-        userId: "caller-1",
+        userId: "user-1",
         tags: ["inbound"],
         timestamp: traceTimestamp,
       });
       expect(unscoredItem?.scores).toEqual([]);
       expect(unscoredItem?.trace).toBeNull();
+    });
+
+    it("returns and filters on the queue's trace columns", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const config = await createScoreConfig(projectId);
+      const queue = await caller.annotationQueues.create({
+        projectId,
+        name: `queue-${uuidv4().slice(0, 8)}`,
+        scoreConfigIds: [config.id],
+        displayColumns: [
+          { source: "trace", key: "userId", label: "Phone", format: "phone" },
+          {
+            source: "metadata",
+            key: "location_name",
+            label: "Location",
+            format: "text",
+          },
+          { source: "tag", key: "region:", label: "Region", format: "text" },
+        ],
+      });
+      const traces = [
+        { id: uuidv4(), location: "Berlin", region: "eu-west" },
+        { id: uuidv4(), location: "Paris", region: "eu-north" },
+      ];
+      for (const [index, trace] of traces.entries()) {
+        await prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId: trace.id,
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId,
+            createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+          },
+        });
+      }
+      // Write the traces to both stores so the test holds for every write mode.
+      await createTracesCh(
+        traces.map((trace) =>
+          createTrace({
+            id: trace.id,
+            project_id: projectId,
+            user_id: "+12025550123",
+            tags: [`region:${trace.region}`],
+            metadata: { location_name: trace.location },
+          }),
+        ),
+      );
+      await createEventsCh(
+        traces.map((trace) =>
+          createEvent({
+            project_id: projectId,
+            trace_id: trace.id,
+            user_id: "+12025550123",
+            tags: [`region:${trace.region}`],
+            metadata_names: ["location_name"],
+            metadata_values: [trace.location],
+          }),
+        ),
+      );
+
+      const byId = await caller.annotationQueues.byId({
+        projectId,
+        queueId: queue.id,
+      });
+      expect(byId.displayColumns.map((column) => column.label)).toEqual([
+        "Phone",
+        "Location",
+        "Region",
+      ]);
+      const [phone, location, region] = byId.displayColumns;
+
+      const all = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        page: 0,
+        limit: 50,
+      });
+      expect(all.queueItems.map((item) => item.traceFields)).toEqual([
+        {
+          [phone.id]: "+12025550123",
+          [location.id]: "Berlin",
+          [region.id]: "eu-west",
+        },
+        {
+          [phone.id]: "+12025550123",
+          [location.id]: "Paris",
+          [region.id]: "eu-north",
+        },
+      ]);
+
+      const filtered = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        filter: [
+          {
+            column: "Location",
+            type: "string",
+            operator: "contains",
+            value: "monica",
+          },
+        ],
+        page: 0,
+        limit: 50,
+      });
+      expect(filtered.queueItems.map((item) => item.objectId)).toEqual([
+        traces[1].id,
+      ]);
     });
 
     it("filters on the shown value and paginates the matches", async () => {
@@ -345,9 +456,9 @@ describe("annotation queues trpc", () => {
       const projectId = setup.project.id;
       const { caller } = createCallerForProjectRole(setup);
 
-      const riskConfig = await prisma.scoreConfig.create({
+      const qualityConfig = await prisma.scoreConfig.create({
         data: {
-          name: `risk-${uuidv4().slice(0, 8)}`,
+          name: `quality-${uuidv4().slice(0, 8)}`,
           projectId,
           dataType: "CATEGORICAL",
           categories: [
@@ -359,7 +470,7 @@ describe("annotation queues trpc", () => {
       const queue = await prisma.annotationQueue.create({
         data: {
           name: `queue-${uuidv4().slice(0, 8)}`,
-          scoreConfigIds: [riskConfig.id],
+          scoreConfigIds: [qualityConfig.id],
           projectId,
         },
       });
@@ -388,7 +499,7 @@ describe("annotation queues trpc", () => {
           },
         });
       }
-      const riskScore = (
+      const qualityScore = (
         traceId: string,
         source: "API" | "ANNOTATION",
         label: "high" | "low",
@@ -396,18 +507,18 @@ describe("annotation queues trpc", () => {
         createTraceScore({
           project_id: projectId,
           trace_id: traceId,
-          name: riskConfig.name,
-          config_id: riskConfig.id,
+          name: qualityConfig.name,
+          config_id: qualityConfig.id,
           source,
           data_type: "CATEGORICAL",
           value: label === "high" ? 0 : 1,
           string_value: label,
         });
       await createScoresCh([
-        riskScore(reviewedId, "API", "low"),
-        riskScore(reviewedId, "ANNOTATION", "high"),
-        riskScore(pendingId, "API", "high"),
-        riskScore(lowId, "API", "low"),
+        qualityScore(reviewedId, "API", "low"),
+        qualityScore(reviewedId, "ANNOTATION", "high"),
+        qualityScore(pendingId, "API", "high"),
+        qualityScore(lowId, "API", "low"),
       ]);
 
       const list = (
@@ -427,7 +538,7 @@ describe("annotation queues trpc", () => {
 
       const high = await list([
         {
-          column: riskConfig.name,
+          column: qualityConfig.name,
           type: "stringOptions",
           operator: "any of",
           value: ["high"],
@@ -442,7 +553,7 @@ describe("annotation queues trpc", () => {
       const secondPage = await list(
         [
           {
-            column: riskConfig.name,
+            column: qualityConfig.name,
             type: "stringOptions",
             operator: "any of",
             value: ["high"],
@@ -458,7 +569,7 @@ describe("annotation queues trpc", () => {
 
       const notHigh = await list([
         {
-          column: `scoreConfig-${riskConfig.id}`,
+          column: `scoreConfig-${qualityConfig.id}`,
           type: "stringOptions",
           operator: "none of",
           value: ["high"],

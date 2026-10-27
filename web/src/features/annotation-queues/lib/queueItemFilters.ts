@@ -7,6 +7,12 @@ import {
   resolveQueueItemScore,
   type QueueItemScore,
 } from "@/src/features/annotation-queues/lib/queueItemScores";
+import {
+  formatQueueTraceFieldText,
+  parseQueueTraceFieldDate,
+  parseQueueTraceFieldNumber,
+  type QueueTraceColumn,
+} from "@/src/features/annotation-queues/lib/queueTraceColumns";
 
 type QueueItemFilterConfig = Pick<
   ScoreConfigDomain,
@@ -17,6 +23,8 @@ type QueueItemFilterConfig = Pick<
 export type QueueItemFilterRow = {
   status: string;
   traceUserId?: string | null;
+  /** Raw values of the configured trace columns, by column id. */
+  traceFields?: Record<string, string | null>;
   scores: QueueItemScore[];
 };
 
@@ -24,15 +32,38 @@ const STATUS_COLUMN = { id: "status", name: "Status" } as const;
 const USER_ID_COLUMN = { id: "userId", name: "User ID" } as const;
 const scoreColumnId = (configId: string) => `scoreConfig-${configId}`;
 
+/** Number-like formats get number filters, dates date filters. */
+const traceColumnFilterType = (column: QueueTraceColumn) => {
+  switch (column.format) {
+    case "number":
+    case "duration":
+      return "number" as const;
+    case "datetime":
+      return "datetime" as const;
+    default:
+      return "string" as const;
+  }
+};
+
 /**
- * Filter columns for a queue: status, the trace's user id and one column per
- * score config. Score filters apply to the value shown in the table, i.e. the
- * reviewer's annotation, or the source's value while nobody has reviewed it.
+ * Filter columns for a queue: the configured trace columns first, then status,
+ * the trace's user id and one column per score config. Score filters apply to
+ * the value shown in the table, i.e. the reviewer's annotation, or the
+ * source's value while nobody has reviewed it.
  */
 export function buildQueueItemFilterColumns(
   configs: QueueItemFilterConfig[],
+  traceColumns: QueueTraceColumn[] = [],
 ): ColumnDefinition[] {
   return [
+    ...traceColumns.map(
+      (column): ColumnDefinition => ({
+        id: column.id,
+        name: column.label,
+        type: traceColumnFilterType(column),
+        internal: column.id,
+      }),
+    ),
     {
       ...STATUS_COLUMN,
       type: "stringOptions",
@@ -105,6 +136,25 @@ const matchesNumber = (
   }
 };
 
+const matchesDate = (
+  value: Date | null | undefined,
+  filter: Extract<FilterCondition, { type: "datetime" }>,
+) => {
+  if (!value) return false;
+  const actual = value.getTime();
+  const expected = new Date(filter.value).getTime();
+  switch (filter.operator) {
+    case ">":
+      return actual > expected;
+    case "<":
+      return actual < expected;
+    case ">=":
+      return actual >= expected;
+    case "<=":
+      return actual <= expected;
+  }
+};
+
 const matchesOptions = (
   value: string | null | undefined,
   filter: Extract<FilterCondition, { type: "stringOptions" }>,
@@ -142,6 +192,7 @@ export function queueItemMatchesFilters(
   row: QueueItemFilterRow,
   filters: FilterCondition[],
   configs: QueueItemFilterConfig[],
+  traceColumns: QueueTraceColumn[] = [],
 ): boolean {
   const isColumn = (
     column: { id: string; name: string },
@@ -149,6 +200,34 @@ export function queueItemMatchesFilters(
   ) => filterColumn === column.id || filterColumn === column.name;
 
   return filters.every((filter) => {
+    const traceColumn = traceColumns.find((column) =>
+      isColumn({ id: column.id, name: column.label }, filter.column),
+    );
+    if (traceColumn) {
+      const raw = row.traceFields?.[traceColumn.id] ?? null;
+      if (filter.type === "number") {
+        return matchesNumber(
+          raw ? parseQueueTraceFieldNumber(raw) : null,
+          filter,
+        );
+      }
+      if (filter.type === "datetime") {
+        return matchesDate(raw ? parseQueueTraceFieldDate(raw) : null, filter);
+      }
+      // Match the raw value or its formatted form, so a phone filter works
+      // with "+1202…" as well as "(202) …".
+      const values = raw
+        ? [
+            ...new Set([
+              raw,
+              formatQueueTraceFieldText(raw, traceColumn.format),
+            ]),
+          ]
+        : [null];
+      return filter.type === "string" && filter.operator === "does not contain"
+        ? values.every((value) => matchesValue({ string: value }, filter))
+        : values.some((value) => matchesValue({ string: value }, filter));
+    }
     if (isColumn(STATUS_COLUMN, filter.column)) {
       return matchesValue({ string: row.status }, filter);
     }

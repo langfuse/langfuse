@@ -22,5 +22,6 @@ export const useAnnotationQueueData = (config: AnnotationQueueDataConfig) => {
     queueData,
     isLoading: queueData.isPending || !queueData.isFetchedAfterMount,
     configs: queueData.data?.scoreConfigs ?? [],
+    displayColumns: queueData.data?.displayColumns ?? [],
   };
 };

@@ -139,6 +139,7 @@
     "jose": "6.2.3",
     "json-schema-faker": "0.6.1",
     "langfuse": "3.38.4",
+    "libphonenumber-js": "^1.13.15",
     "lodash": "^4.18.1",
     "nanoid": "3.3.18",
     "next": "16.4.2",

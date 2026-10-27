@@ -1,11 +1,12 @@
 import preview from "../../../../.storybook/preview";
 import { type QueueItemScore } from "@/src/features/annotation-queues/lib/queueItemScores";
 import { QueueItemSummaryStrip } from "./QueueItemSummaryStrip";
+import { parseQueueTraceColumns } from "@/src/features/annotation-queues/lib/queueTraceColumns";
 
 const configs = [
   {
-    id: "risk",
-    name: "risk",
+    id: "quality",
+    name: "quality",
     categories: [
       { label: "high", value: 0 },
       { label: "medium", value: 1 },
@@ -16,9 +17,9 @@ const configs = [
     id: "outcome",
     name: "outcome",
     categories: [
-      { label: "booked", value: 0 },
-      { label: "not_booked", value: 1 },
-      { label: "transferred", value: 2 },
+      { label: "resolved", value: 0 },
+      { label: "unresolved", value: 1 },
+      { label: "escalated", value: 2 },
     ],
   },
   { id: "duration", name: "duration_sec", categories: null },
@@ -28,9 +29,9 @@ const configs = [
 const scores: QueueItemScore[] = [
   {
     id: "s1",
-    name: "risk",
+    name: "quality",
     source: "ANNOTATION",
-    configId: "risk",
+    configId: "quality",
     dataType: "CATEGORICAL",
     value: 0,
     stringValue: "high",
@@ -43,7 +44,7 @@ const scores: QueueItemScore[] = [
     configId: "outcome",
     dataType: "CATEGORICAL",
     value: 1,
-    stringValue: "not_booked",
+    stringValue: "unresolved",
     timestamp: new Date("2026-10-01T09:31:00Z"),
   },
   {
@@ -62,7 +63,7 @@ const scores: QueueItemScore[] = [
     configId: "notes",
     dataType: "TEXT",
     value: 0,
-    stringValue: "Caller hung up after being put on hold twice.",
+    stringValue: "Correct answer, but too long for a chat reply.",
     timestamp: new Date("2026-10-01T09:31:00Z"),
   },
 ];
@@ -75,7 +76,7 @@ export const Default = meta.story({
   args: {
     userId: "+49 30 1234567",
     timestamp: new Date("2026-10-01T09:30:00Z"),
-    tags: ["inbound", "clinic-berlin"],
+    tags: ["support", "priority"],
     scores,
     configs,
   },
@@ -87,6 +88,55 @@ export const NotYetAnnotated = meta.story({
     timestamp: new Date("2026-10-01T09:30:00Z"),
     tags: [],
     scores: [],
+    configs,
+  },
+});
+
+const traceColumns = parseQueueTraceColumns([
+  { source: "trace", key: "userId", label: "Phone", format: "phone" },
+  {
+    source: "metadata",
+    key: "location_name",
+    label: "Location",
+    format: "text",
+  },
+  {
+    source: "metadata",
+    key: "duration_seconds",
+    label: "Duration",
+    format: "duration",
+  },
+  {
+    source: "metadata",
+    key: "report_url",
+    label: "Report",
+    format: "link",
+  },
+  {
+    source: "metadata",
+    key: "workflow_type",
+    label: "Workflow",
+    format: "badge",
+  },
+]);
+
+export const WithTraceColumns = meta.story({
+  args: {
+    userId: "+12025550123",
+    timestamp: new Date("2026-10-21T22:19:00Z"),
+    tags: ["region:eu-west"],
+    traceFields: traceColumns.map((column) => ({
+      column,
+      value:
+        {
+          Phone: "+12025550123",
+          Location: "Berlin office",
+          Duration: "135",
+          Report: "https://example.com/reports/1.pdf",
+          Workflow: "support",
+        }[column.label] ?? null,
+    })),
+    scores,
     configs,
   },
 });

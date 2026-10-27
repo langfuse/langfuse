@@ -119,6 +119,9 @@ vi.mock("@/src/utils/api", async () => {
             isPending: false,
           }),
         },
+        traceFieldsByTraceId: {
+          useQuery: () => ({ data: undefined, isPending: false }),
+        },
         unseenPendingItemCountByQueueId: {
           useQuery: ({ seenItemIds }: { seenItemIds: string[] }) => ({
             data: Math.max(2 - seenItemIds.length, 0),

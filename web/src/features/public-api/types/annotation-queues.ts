@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  AnnotationQueueDisplayColumn,
+  AnnotationQueueDisplayColumns,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
@@ -29,6 +31,7 @@ const AnnotationQueueSchema = z
     name: z.string(),
     description: z.string().nullable(),
     scoreConfigIds: z.array(z.string()),
+    displayColumns: z.array(AnnotationQueueDisplayColumn),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
@@ -61,6 +64,7 @@ export const CreateAnnotationQueueBody = z
     name: z.string(),
     description: z.string().nullish(),
     scoreConfigIds: z.array(z.string()).min(1),
+    displayColumns: AnnotationQueueDisplayColumns.optional(),
   })
   .strict();
 
@@ -76,6 +80,21 @@ export const GetAnnotationQueueByIdQuery = z
 
 /** @alias */
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
+
+// PATCH /annotation-queues/:queueId
+// Fields that are left out keep their value; `displayColumns` replaces the
+// whole list.
+export const UpdateAnnotationQueueBody = z
+  .object({
+    name: z.string().optional(),
+    description: z.string().nullish(),
+    scoreConfigIds: z.array(z.string()).min(1).optional(),
+    displayColumns: AnnotationQueueDisplayColumns.optional(),
+  })
+  .strict();
+
+/** @alias */
+export const UpdateAnnotationQueueResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId/items
 export const GetAnnotationQueueItemsQuery = z

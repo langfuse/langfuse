@@ -6,9 +6,9 @@ const annotationScore = (
   overrides: Partial<QueueItemScore>,
 ): QueueItemScore => ({
   id: "score-1",
-  name: "risk",
+  name: "quality",
   source: "ANNOTATION",
-  configId: "risk",
+  configId: "quality",
   dataType: "CATEGORICAL",
   value: 0,
   stringValue: null,
@@ -17,8 +17,8 @@ const annotationScore = (
 });
 
 const categoricalConfig = (labels: string[]) => ({
-  id: "risk",
-  name: "risk",
+  id: "quality",
+  name: "quality",
   categories: labels.map((label, value) => ({ label, value })),
 });
 
@@ -56,7 +56,7 @@ export const WithLongText = meta.story({
         name: "notes",
         dataType: "TEXT",
         stringValue:
-          "Caller asked twice about the booking date and the agent transferred them before confirming the address.",
+          "The answer cited the right document but skipped the second half of the question and repeated the first paragraph.",
       }),
     ],
   },
@@ -77,10 +77,6 @@ export const Empty = meta.story({
 
 const matrixRows: { title: string; labels: string[] }[] = [
   { title: "Overrides", labels: ["high", "medium", "low", "pass", "fail"] },
-  {
-    title: "Outcome overrides",
-    labels: ["booked", "answered", "transferred", "not_booked", "not_answered"],
-  },
   {
     title: "Palette by category index",
     labels: [

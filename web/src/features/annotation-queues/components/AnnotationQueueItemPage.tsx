@@ -203,7 +203,11 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+  const {
+    configs,
+    displayColumns,
+    isLoading: queueConfigsLoading,
+  } = useAnnotationQueueData({
     annotationQueueId,
     projectId,
   });
@@ -421,6 +425,7 @@ function AnnotationQueueRunContent({
             item={relevantItem}
             data={objectData.data}
             configs={configs}
+            traceColumns={displayColumns}
             projectId={projectId}
           />
         );

@@ -47,7 +47,10 @@ export function QueueItemScoreCell({
         return <span className="font-mono">{formatted.text}</span>;
       case "text":
         return (
-          <span className="ph-no-capture block w-full truncate">
+          <span
+            className="ph-no-capture block w-full truncate"
+            title={[formatted.text, pendingTitle].filter(Boolean).join("\n\n")}
+          >
             {formatted.text}
           </span>
         );
@@ -62,11 +65,7 @@ export function QueueItemScoreCell({
         resolved.pending &&
           "rounded-sm italic opacity-60 outline-1 outline-offset-1 outline-dashed",
       )}
-      title={
-        formatted.kind === "text"
-          ? [formatted.text, pendingTitle].filter(Boolean).join("\n\n")
-          : pendingTitle
-      }
+      title={formatted.kind === "text" ? undefined : pendingTitle}
       data-pending={resolved.pending || undefined}
     >
       {value}

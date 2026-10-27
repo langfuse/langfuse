@@ -11,6 +11,7 @@ import {
   type GetAnnotationQueueItemByIdQuery,
   type GetAnnotationQueueItemsQuery,
   type GetAnnotationQueuesQuery,
+  type UpdateAnnotationQueueBody,
   type UpdateAnnotationQueueItemBody,
 } from "@/src/features/public-api/server";
 import {
@@ -24,6 +25,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import type { z } from "zod";
+import { parseQueueTraceColumns } from "@/src/features/annotation-queues/lib/queueTraceColumns";
 
 type GetAnnotationQueuesInput = z.infer<typeof GetAnnotationQueuesQuery>;
 type GetAnnotationQueueByIdInput = z.infer<typeof GetAnnotationQueueByIdQuery>;
@@ -34,6 +36,7 @@ type GetAnnotationQueueItemByIdInput = z.infer<
   typeof GetAnnotationQueueItemByIdQuery
 >;
 type CreateAnnotationQueueInput = z.infer<typeof CreateAnnotationQueueBody>;
+type UpdateAnnotationQueueInput = z.infer<typeof UpdateAnnotationQueueBody>;
 type CreateAnnotationQueueItemInput = z.infer<
   typeof CreateAnnotationQueueItemBody
 >;
@@ -66,6 +69,7 @@ const toAnnotationQueueApi = (queue: {
   name: string;
   description: string | null;
   scoreConfigIds: string[];
+  displayColumns: unknown;
   createdAt: Date;
   updatedAt: Date;
 }): AnnotationQueue => ({
@@ -73,6 +77,9 @@ const toAnnotationQueueApi = (queue: {
   name: queue.name,
   description: queue.description,
   scoreConfigIds: queue.scoreConfigIds,
+  displayColumns: parseQueueTraceColumns(queue.displayColumns).map(
+    ({ source, key, label, format }) => ({ source, key, label, format }),
+  ),
   createdAt: queue.createdAt,
   updatedAt: queue.updatedAt,
 });
@@ -215,6 +222,7 @@ export const createAnnotationQueueForApi = async ({
             name: input.name,
             description: input.description,
             scoreConfigIds: input.scoreConfigIds,
+            displayColumns: input.displayColumns,
           },
         });
       },
@@ -295,6 +303,71 @@ export const createAnnotationQueueForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      after: queue,
+    });
+  }
+
+  return toAnnotationQueueApi(queue);
+};
+
+export const updateAnnotationQueueForApi = async ({
+  projectId,
+  queueId,
+  input,
+  auditScope,
+}: {
+  projectId: string;
+  queueId: string;
+  input: UpdateAnnotationQueueInput;
+} & OptionalAuditScope) => {
+  const existingQueue = await getAnnotationQueueRecordOrThrow({
+    projectId,
+    queueId,
+  });
+
+  if (input.scoreConfigIds) {
+    if (new Set(input.scoreConfigIds).size !== input.scoreConfigIds.length) {
+      throw new InvalidRequestError("Score config IDs must be unique.");
+    }
+    const scoreConfigCount = await prisma.scoreConfig.count({
+      where: { id: { in: input.scoreConfigIds }, projectId },
+    });
+    if (scoreConfigCount !== input.scoreConfigIds.length) {
+      throw new InvalidRequestError(
+        "At least one of the score config IDs cannot be found for the given project.",
+      );
+    }
+  }
+
+  const queue = await prisma.annotationQueue
+    .update({
+      where: { id: queueId, projectId },
+      data: {
+        name: input.name,
+        description: input.description,
+        scoreConfigIds: input.scoreConfigIds,
+        displayColumns: input.displayColumns,
+      },
+    })
+    .catch((error) => {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new InvalidRequestError("A queue with this name already exists.");
+      }
+      throw error;
+    });
+
+  if (auditScope) {
+    await auditLog({
+      action: "update",
+      resourceType: "annotationQueue",
+      resourceId: queue.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existingQueue,
       after: queue,
     });
   }
