@@ -119,7 +119,7 @@ export function GatewayApiKeysTable({
           ? [
               {
                 id: "invite",
-                label: "Invite",
+                label: "Notify team",
                 variant: "outline" as const,
                 icon: <UserPlus size="base" aria-hidden="true" />,
                 onClick: inviteAction,

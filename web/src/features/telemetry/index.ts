@@ -11,6 +11,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import {
+  getSelfHostedInstancePlanServerSide,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -24,6 +28,14 @@ export async function telemetry() {
     if (process.env.NODE_ENV !== "production") return;
     // Do not run in Langfuse cloud, separate telemetry is used
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
+    // Plans with the telemetry opt-out entitlement never send telemetry
+    if (
+      hasEntitlementBasedOnPlan({
+        plan: getSelfHostedInstancePlanServerSide(),
+        entitlement: "self-host-telemetry-opt-out",
+      })
+    )
+      return;
     // Check if telemetry is not disabled, except for EE
     if (
       env.TELEMETRY_ENABLED === "false" &&
