@@ -7,7 +7,7 @@ const ORGANIZATIONS_OVERVIEW_PATH = "/organizations";
 const SIGNUP_ONBOARDING_PATH = "/onboarding";
 
 /** Why the overview was opened instead of a project; it shows a matching note. */
-export type LandingNotice = "welcome" | "last-project-unavailable";
+type LandingNotice = "welcome" | "last-project-unavailable";
 
 type LandingProject = {
   id: string;

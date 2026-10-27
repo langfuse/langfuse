@@ -2,9 +2,9 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 /** Received data within a day: the project is in use. */
-export const LIVE_WITHIN_MS = DAY_MS;
+const LIVE_WITHIN_MS = DAY_MS;
 /** Nothing for a few days is worth a glance; beyond a week it is stale. */
-export const QUIET_WITHIN_MS = 7 * DAY_MS;
+const QUIET_WITHIN_MS = 7 * DAY_MS;
 
 export type IngestionStatus =
   | { kind: "not-set-up" }

@@ -4,7 +4,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { getIngestionStatus, type IngestionStatus } from "./getIngestionStatus";
 
 /** From this share of the plan limit on, the organization is close to it. */
-export const NEAR_LIMIT_RATIO = 0.8;
+const NEAR_LIMIT_RATIO = 0.8;
 /** A project that accounts for at least this share of the units drives the usage. */
 const MAIN_CONSUMER_SHARE = 0.5;
 
@@ -26,13 +26,9 @@ type SessionOrganization = {
   }>;
 };
 
-export type UsageLevel =
-  | "within-limit"
-  | "near-limit"
-  | "over-limit"
-  | "unlimited";
+type UsageLevel = "within-limit" | "near-limit" | "over-limit" | "unlimited";
 
-export type AttentionReason =
+type AttentionReason =
   | "not-set-up"
   | "stale"
   | "inactive"
