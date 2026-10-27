@@ -79,6 +79,28 @@ function placeholderImageUrl(info: { width?: number; height?: number }) {
 }
 
 /**
+ * A cross-origin image loaded without CORS cannot be read into a canvas, and
+ * fetching it to try fails loudly (CORS) or is refused by the page's CSP.
+ * It is left out of the capture, keeping its space, instead.
+ */
+function isReadableImage(element: Element) {
+  if (!(element instanceof HTMLImageElement) || element.crossOrigin !== null) {
+    return true;
+  }
+  const source = element.currentSrc || element.src;
+  if (!source || source.startsWith("data:") || source.startsWith("blob:")) {
+    return true;
+  }
+  try {
+    return (
+      new URL(source, window.location.href).origin === window.location.origin
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Renders what the user sees — the app and its open panels, without transient
  * overlays — into a canvas. The live page is not modified beyond temporary
  * attributes that do not change its rendering.
@@ -106,6 +128,8 @@ export async function capturePage(
       backgroundColor: getComputedStyle(document.body).backgroundColor,
       exclude: CAPTURE_EXCLUDED_SELECTORS,
       excludeMode: "remove",
+      filter: isReadableImage,
+      filterMode: "hide",
       fallbackURL: placeholderImageUrl,
       plugins: [hideScrollbarsPlugin],
     });
