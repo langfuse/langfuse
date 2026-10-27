@@ -7,6 +7,23 @@ export { DEFAULT_TOPIC_FACETS };
 export const TOPICS_BEDROCK_ACCESS_ERROR =
   "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
 
+/**
+ * Lowest reasoning effort Topics requests from an OpenAI model. GPT-6 models other
+ * than Luna and Sol cannot turn reasoning off; unknown models keep their defaults.
+ */
+export function topicsOpenAIReasoningEffort(model: string) {
+  const id = model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  if (/^gpt-5(?:-(?:mini|nano))?$/.test(id)) return "minimal";
+  if (
+    /^gpt-5\.[1-6](?:-(?:mini|nano|luna|sol|terra))?$/.test(id) ||
+    id === "gpt-6-luna" ||
+    id === "gpt-6-sol"
+  )
+    return "none";
+  if (/^gpt-6(?:\.\d+)?(?:-[a-z]+)?$/.test(id)) return "low";
+  return undefined;
+}
+
 export const topicIdSchema = z
   .string()
   .min(1)

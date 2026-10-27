@@ -498,6 +498,7 @@ describe("generateTopicText", () => {
     [undefined, "gpt-6-luna", "none", true],
     ["https://eu.api.openai.com/v1", "gpt-5-mini", "minimal", true],
     ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
+    [undefined, "gpt-6.1-terra", "low", true],
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
     [
       "https://eu.api.openai.com.example.com/v1",
