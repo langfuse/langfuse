@@ -102,10 +102,11 @@ function questionStats(progress: FacetProgress, execution: Run) {
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized`;
   if (!isUpdate && runStatus === "failed")
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized · ${formatCount(Math.max(0, c.requested - c.complete))} left`;
+  const summaryNoun = isUpdate ? "summaries" : "summarized";
   const parts = [
     c.assigned > 0
       ? `${formatCount(c.assigned)} in topics`
-      : `${formatCount(c.complete)} ${isUpdate ? "summaries" : "summarized"}`,
+      : `${formatCount(c.complete)} ${summaryNoun}`,
   ];
   if (c.outlier > 0) parts.push(`${formatCount(c.outlier)} didn’t fit a topic`);
   if (c.insufficientInput > 0)
