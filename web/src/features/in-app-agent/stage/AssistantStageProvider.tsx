@@ -215,9 +215,14 @@ function EnabledAssistantStage({ children }: { children: ReactNode }) {
       } else if (current !== "closing" && isAssistantAvailable) {
         setAgentOpen(false);
       }
+      // Every open hands over the current page as a new draft; earlier
+      // conversations stay in the rail.
+      if (current === "closed") {
+        mockChatStore.getState().actions.newConversation();
+      }
       store.getState().actions.toggle(entryPoint);
     },
-    [isAssistantAvailable, openAssistant, setAgentOpen, store],
+    [isAssistantAvailable, mockChatStore, openAssistant, setAgentOpen, store],
   );
 
   const close = useCallback(() => {
