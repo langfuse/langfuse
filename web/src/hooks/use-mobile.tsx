@@ -5,7 +5,7 @@ const MOBILE_BREAKPOINT = 768;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 // Phone-sized in EITHER orientation: narrow, or a touch screen that is short
 // (an iPhone in landscape is wider than `md` but only ~390px tall).
-const HANDHELD_QUERY = `${MOBILE_QUERY}, (pointer: coarse) and (max-height: ${MOBILE_BREAKPOINT - 1}px)`;
+export const HANDHELD_QUERY = `${MOBILE_QUERY}, (pointer: coarse) and (max-height: ${MOBILE_BREAKPOINT - 1}px)`;
 
 // Guarded so it's safe where `matchMedia` is absent (jsdom tests, SSR, old
 // browsers) — treat those as non-mobile. Module-level so the store functions

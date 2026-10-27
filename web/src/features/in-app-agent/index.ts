@@ -11,3 +11,8 @@ export {
   useIsInAppAgentLauncherVisible,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+export {
+  AssistantStageProvider,
+  useAssistantStage,
+} from "@/src/features/in-app-agent/stage/AssistantStageProvider";
+export { AssistantStageLauncherButton } from "@/src/features/in-app-agent/stage/components/AssistantStageLauncherButton";

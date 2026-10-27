@@ -16,6 +16,7 @@ import {
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useAssistantStage } from "@/src/features/in-app-agent/stage/AssistantStageProvider";
 
 /**
  * Hosts the floating assistant window and its drag/resize geometry. Must be
@@ -25,6 +26,8 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
  */
 export function InAppAgentWindowHost() {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
+  // The stage presents the same assistant full screen and replaces this window.
+  const isStagePresentation = useAssistantStage() !== null;
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const [deleteConversationWithLoading, isDeletingConversation] =
@@ -85,7 +88,7 @@ export function InAppAgentWindowHost() {
 
   // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
   // so the handheld drawer stays mounted and can animate itself closed.
-  if (!isInAppAgentLauncherVisible) {
+  if (!isInAppAgentLauncherVisible || isStagePresentation) {
     return null;
   }
 

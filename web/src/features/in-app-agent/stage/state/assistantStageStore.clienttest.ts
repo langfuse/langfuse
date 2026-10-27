@@ -33,10 +33,16 @@ function setup() {
     },
     acquireCapture: () => capture.promise,
     prewarmCapture: vi.fn(),
+    createThumbnail: () => document.createElement("canvas"),
+    readViewportAspectRatio: () => 1.6,
     createId: () => `session-${readCount}`,
     now: () => new Date("2026-01-01T00:00:00.000Z"),
   });
-  const fakeCapture = { scale: 2 } as unknown as PageCapture;
+  const fakeCapture = {
+    scale: 2,
+    cssWidth: 1440,
+    cssHeight: 900,
+  } as unknown as PageCapture;
   return { store, capture, fakeCapture };
 }
 
@@ -56,7 +62,13 @@ describe("assistant stage store", () => {
     await opening;
 
     expect(store.getState().phase).toBe("opening");
-    expect(store.getState().session?.capture).toBe(fakeCapture);
+    expect(store.getState().session).toMatchObject({
+      capture: fakeCapture,
+      aspectRatio: 1.6,
+    });
+    expect(store.getState().session?.thumbnail).toBeInstanceOf(
+      HTMLCanvasElement,
+    );
   });
 
   it("still opens without the flight when the capture fails", async () => {
@@ -67,7 +79,10 @@ describe("assistant stage store", () => {
     await opening;
 
     expect(store.getState().phase).toBe("opening");
-    expect(store.getState().session?.capture).toBeNull();
+    expect(store.getState().session).toMatchObject({
+      capture: null,
+      thumbnail: null,
+    });
   });
 
   it("drops a capture that lands after the user already closed", async () => {

@@ -29,6 +29,10 @@ export type AssistantStageSession = {
   context: CapturedPageContext;
   /** Pixels of the page; null when capturing failed, which skips the flight. */
   capture: PageCapture | null;
+  /** Small copy of the capture for the message bubble. */
+  thumbnail: HTMLCanvasElement | null;
+  /** Width / height of the viewport at the moment of intent. */
+  aspectRatio: number;
   entryPoint: AssistantStageEntryPoint;
   returnFocusTo: HTMLElement | null;
 };
@@ -50,6 +54,8 @@ export type AssistantStageDependencies = {
   readPageContext: () => PageContextSnapshot;
   acquireCapture: () => Promise<PageCapture>;
   prewarmCapture: () => void;
+  createThumbnail: (capture: PageCapture) => HTMLCanvasElement;
+  readViewportAspectRatio: () => number;
   createId: () => string;
   now: () => Date;
   onOpen?: (entryPoint: AssistantStageEntryPoint) => void;
@@ -83,6 +89,8 @@ export function createAssistantStageStore(deps: AssistantStageDependencies) {
           capturedAt: deps.now().toISOString(),
         },
         capture: null,
+        thumbnail: null,
+        aspectRatio: deps.readViewportAspectRatio(),
         entryPoint,
         returnFocusTo: currentFocus(),
       };
@@ -100,7 +108,17 @@ export function createAssistantStageStore(deps: AssistantStageDependencies) {
       if (latest.phase !== "preparing" || latest.session?.id !== session.id) {
         return;
       }
-      set({ phase: "opening", session: { ...session, capture } });
+      set({
+        phase: "opening",
+        session: {
+          ...session,
+          capture,
+          thumbnail: capture ? deps.createThumbnail(capture) : null,
+          aspectRatio: capture
+            ? capture.cssWidth / capture.cssHeight
+            : session.aspectRatio,
+        },
+      });
     };
 
     const close = () => {

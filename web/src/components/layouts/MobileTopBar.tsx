@@ -9,7 +9,11 @@ import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import {
+  AssistantStageLauncherButton,
+  useAssistantStage,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -33,6 +37,7 @@ export const MobileTopBar = ({
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
+  const assistantStage = useAssistantStage();
   const showHamburger = showSidebarTrigger && hasAppSidebar;
 
   return (
@@ -67,7 +72,11 @@ export const MobileTopBar = ({
           reads as a real entry point here) + account. Balances the left slot
           so the brand stays centered. */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-        {isInAppAgentLauncherVisible && <InAppAiAgentButton prominent />}
+        {assistantStage ? (
+          <AssistantStageLauncherButton variant="mobileTopBar" />
+        ) : (
+          isInAppAgentLauncherVisible && <InAppAiAgentButton prominent />
+        )}
         {session.data?.user && <TopbarAccount user={session.data.user} />}
       </div>
     </div>
