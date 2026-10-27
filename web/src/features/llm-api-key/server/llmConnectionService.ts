@@ -41,6 +41,7 @@ import {
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   isPrismaRecordNotFoundError,
+  listOpenAIConnectionModels,
   logger,
   mapLegacyLLMCompletionParams,
   validateLlmConnectionBaseURL,
@@ -417,6 +418,48 @@ async function testLlmConnection(
   }
 }
 
+type ListModelsResult =
+  | { success: true; models: string[] }
+  | { success: false; error: string };
+
+async function listLlmConnectionModels(
+  params: Pick<
+    TestLlmConnectionParams,
+    | "adapter"
+    | "secretKey"
+    | "baseURL"
+    | "extraHeaders"
+    | "validateBaseUrlBeforeTest"
+    | "validateSecretBeforeTest"
+  >,
+): Promise<ListModelsResult> {
+  try {
+    if (params.adapter !== LLMAdapter.OpenAI) {
+      throw new InvalidRequestError(
+        "Fetching models is only supported for the OpenAI adapter",
+      );
+    }
+    if (params.validateBaseUrlBeforeTest !== false) {
+      await validateBaseUrl(params);
+    }
+    if (params.validateSecretBeforeTest !== false) {
+      validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
+    }
+
+    return await listOpenAIConnectionModels({
+      secretKey: params.secretKey,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+    });
+  } catch (error) {
+    logger.error(error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 export class LlmConnectionService {
   constructor(
     private readonly repository = new LlmConnectionRepository(),
@@ -766,49 +809,7 @@ export class LlmConnectionService {
     input: LlmConnectionUpdateInput;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      const existingKey = await this.repository.findById({
-        owner: params.owner,
-        id: params.input.id,
-      });
-      if (!existingKey) {
-        throw new LangfuseNotFoundError("LLM connection not found");
-      }
-
-      const hasNewSecretKey = Boolean(params.input.secretKey);
-      const baseURL =
-        params.input.baseURL !== undefined
-          ? params.input.baseURL
-          : existingKey.baseURL;
-      const isBaseURLChanged = baseURL !== existingKey.baseURL;
-      if (isBaseURLChanged && !hasNewSecretKey) {
-        throw new InvalidRequestError(
-          "Secret key is required when changing the base URL",
-        );
-      }
-
-      const extraHeaders = resolveUpdatedExtraHeaders({
-        inputHeaders: params.input.extraHeaders,
-        storedHeaders: existingKey.extraHeaders,
-        isBaseURLChanged,
-      });
-
-      return testLlmConnection({
-        adapter: params.input.adapter,
-        provider: params.input.provider,
-        secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
-        projectId: hasNewSecretKey
-          ? undefined
-          : (existingKey.projectId ?? undefined),
-        baseURL,
-        customModels: params.input.customModels ?? existingKey.customModels,
-        extraHeaders,
-        config:
-          params.input.config ??
-          LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
-          undefined,
-        validateBaseUrlBeforeTest: isBaseURLChanged,
-        validateSecretBeforeTest: hasNewSecretKey,
-      });
+      return testLlmConnection(await this.resolveUpdatedConnection(params));
     } catch (error) {
       logger.error(error);
       return {
@@ -816,6 +817,77 @@ export class LlmConnectionService {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  listModels(input: LlmConnectionWriteInput): Promise<ListModelsResult> {
+    return listLlmConnectionModels(input);
+  }
+
+  async listModelsForUpdate(params: {
+    owner: LlmConnectionOwner;
+    input: LlmConnectionUpdateInput;
+  }): Promise<ListModelsResult> {
+    try {
+      return listLlmConnectionModels(
+        await this.resolveUpdatedConnection(params),
+      );
+    } catch (error) {
+      logger.error(error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /** Merges an edit-form input with the stored connection, keeping the stored secrets. */
+  private async resolveUpdatedConnection(params: {
+    owner: LlmConnectionOwner;
+    input: LlmConnectionUpdateInput;
+  }): Promise<TestLlmConnectionParams> {
+    const existingKey = await this.repository.findById({
+      owner: params.owner,
+      id: params.input.id,
+    });
+    if (!existingKey) {
+      throw new LangfuseNotFoundError("LLM connection not found");
+    }
+
+    const hasNewSecretKey = Boolean(params.input.secretKey);
+    const baseURL =
+      params.input.baseURL !== undefined
+        ? params.input.baseURL
+        : existingKey.baseURL;
+    const isBaseURLChanged = baseURL !== existingKey.baseURL;
+    if (isBaseURLChanged && !hasNewSecretKey) {
+      throw new InvalidRequestError(
+        "Secret key is required when changing the base URL",
+      );
+    }
+
+    const extraHeaders = resolveUpdatedExtraHeaders({
+      inputHeaders: params.input.extraHeaders,
+      storedHeaders: existingKey.extraHeaders,
+      isBaseURLChanged,
+    });
+
+    return {
+      adapter: params.input.adapter,
+      provider: params.input.provider,
+      secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
+      projectId: hasNewSecretKey
+        ? undefined
+        : (existingKey.projectId ?? undefined),
+      baseURL,
+      customModels: params.input.customModels ?? existingKey.customModels,
+      extraHeaders,
+      config:
+        params.input.config ??
+        LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
+        undefined,
+      validateBaseUrlBeforeTest: isBaseURLChanged,
+      validateSecretBeforeTest: hasNewSecretKey,
+    };
   }
 
   async delete(params: {

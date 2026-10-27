@@ -216,6 +216,28 @@ describe("organization LLM connections", () => {
     expect(effective.data).toEqual([]);
   });
 
+  it("requires organization connection management to fetch a connection's models", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    const caller = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "MEMBER",
+        projectRole: "ADMIN",
+      }),
+    );
+
+    await expect(
+      caller.organizationLlmApiKey.listModels({
+        orgId: setup.orgId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+        baseURL: "https://attacker.example.com/v1",
+      }),
+    ).rejects.toThrow("does not have access");
+  });
+
   it("rejects organization access across tenants", async () => {
     const [ownSetup, otherSetup] = await Promise.all([
       createOrgProjectAndApiKey(),

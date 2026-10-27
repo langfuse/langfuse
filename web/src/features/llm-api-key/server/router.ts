@@ -155,6 +155,37 @@ export const llmApiKeyRouter = createTRPCRouter({
       });
     }),
 
+  listModels: protectedProjectProcedureWithoutTracing
+    .input(CreateLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+      const { projectId: _projectId, ...connectionInput } = input;
+      return new LlmConnectionService().listModels(connectionInput);
+    }),
+
+  listModelsUpdate: protectedProjectProcedureWithoutTracing
+    .input(UpdateLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
+      const { projectId, ...connectionInput } = input;
+      return new LlmConnectionService().listModelsForUpdate({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: ctx.session.orgId,
+        },
+        input: connectionInput,
+      });
+    }),
+
   update: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
     .mutation(async ({ input, ctx }) => {

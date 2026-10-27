@@ -7,6 +7,7 @@ import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   testProject: vi.fn(),
+  listModelsUpdateProject: vi.fn(),
   reportNonTrpcError: vi.fn(),
   reportTrpcErrorWithoutToast: vi.fn(),
 }));
@@ -28,6 +29,13 @@ vi.mock("@/src/utils/api", () => {
           useMutation: () => ({ mutateAsync: mocks.testProject }),
         },
         testUpdate: mutation,
+        listModels: mutation,
+        listModelsUpdate: {
+          useMutation: () => ({
+            mutateAsync: mocks.listModelsUpdateProject,
+            isPending: false,
+          }),
+        },
       },
       organizationLlmApiKey: {
         all: { useQuery: () => ({ data: { data: [] } }) },
@@ -35,6 +43,8 @@ vi.mock("@/src/utils/api", () => {
         update: mutation,
         test: mutation,
         testUpdate: mutation,
+        listModels: mutation,
+        listModelsUpdate: mutation,
       },
       useUtils: () => ({
         llmApiKey: { invalidate: vi.fn() },
@@ -127,5 +137,108 @@ describe("CreateLLMApiKeyForm", () => {
       "llm-api-keys",
     );
     expect(mocks.reportNonTrpcError).not.toHaveBeenCalled();
+  });
+
+  it("adds fetched models without dropping configured models the endpoint no longer returns", async () => {
+    mocks.listModelsUpdateProject.mockResolvedValue({
+      success: true,
+      models: ["kept-model", "new-model"],
+    });
+    const existingKey = {
+      id: "key",
+      projectId: "project",
+      provider: "gateway",
+      adapter: "openai",
+      baseURL: "https://gateway.example.com/v1",
+      displaySecretKey: "...test",
+      customModels: ["kept-model", "retired-model"],
+      withDefaultModels: false,
+      extraHeaderKeys: [],
+    } as unknown as RouterOutputs["llmApiKey"]["all"]["data"][number];
+
+    render(
+      <CreateLLMApiKeyForm
+        owner={{ scope: "project", projectId: "project" }}
+        onSuccess={vi.fn()}
+        customization={null}
+        mode="update"
+        existingKey={existingKey}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show advanced settings" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fetch models from endpoint" }),
+    );
+
+    expect(
+      await screen.findByText("Not returned by the endpoint"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("New")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use 3 models" }));
+
+    expect(
+      screen
+        .getAllByPlaceholderText(/^Custom model name/)
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(["kept-model", "retired-model", "new-model"]);
+  });
+
+  it("selects or clears only the models matching the filter", async () => {
+    mocks.listModelsUpdateProject.mockResolvedValue({
+      success: true,
+      models: ["gpt-a", "gpt-b", "other-model"],
+    });
+    const existingKey = {
+      id: "key",
+      projectId: "project",
+      provider: "gateway",
+      adapter: "openai",
+      baseURL: "https://gateway.example.com/v1",
+      displaySecretKey: "...test",
+      customModels: [],
+      withDefaultModels: false,
+      extraHeaderKeys: [],
+    } as unknown as RouterOutputs["llmApiKey"]["all"]["data"][number];
+
+    render(
+      <CreateLLMApiKeyForm
+        owner={{ scope: "project", projectId: "project" }}
+        onSuccess={vi.fn()}
+        customization={null}
+        mode="update"
+        existingKey={existingKey}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show advanced settings" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fetch models from endpoint" }),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Select all" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Use 0 models" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Search models"), {
+      target: { value: "gpt" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all shown" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use 2 models" }));
+
+    expect(
+      screen
+        .getAllByPlaceholderText(/^Custom model name/)
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(["gpt-a", "gpt-b"]);
   });
 });

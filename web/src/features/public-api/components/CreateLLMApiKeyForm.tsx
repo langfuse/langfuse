@@ -38,6 +38,8 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { FetchedModelsDialog } from "@/src/features/llm-api-key/components/FetchedModelsDialog/FetchedModelsDialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   api,
@@ -371,6 +373,13 @@ export function CreateLLMApiKeyForm({
     api.organizationLlmApiKey.test.useMutation();
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
+  const mutListModels = api.llmApiKey.listModels.useMutation();
+  const mutListModelsUpdate = api.llmApiKey.listModelsUpdate.useMutation();
+  const mutListOrganizationModels =
+    api.organizationLlmApiKey.listModels.useMutation();
+  const mutListOrganizationModelsUpdate =
+    api.organizationLlmApiKey.listModelsUpdate.useMutation();
+  const [fetchModelsError, setFetchModelsError] = useState<string | null>(null);
 
   const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
     ? LLMAdapter[customization.defaultModelAdapter]
@@ -480,10 +489,16 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "customModels",
   });
+  const currentBaseURL = form.watch("baseURL");
+  const isFetchingModels =
+    mutListModels.isPending ||
+    mutListModelsUpdate.isPending ||
+    mutListOrganizationModels.isPending ||
+    mutListOrganizationModelsUpdate.isPending;
 
   const {
     fields: headerFields,
@@ -493,6 +508,134 @@ export function CreateLLMApiKeyForm({
     control: form.control,
     name: "extraHeaders",
   });
+
+  function buildConnectionInput(values: z.infer<typeof formSchema>) {
+    let secretKey = values.secretKey;
+    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
+
+    if (currentAdapter === LLMAdapter.Bedrock) {
+      const shouldPreserveExistingBedrockCredentials =
+        mode === "update" &&
+        isMatchingBedrockAuthMethod(values.authMethod, existingKey?.authMethod);
+
+      switch (values.authMethod) {
+        case AuthMethod.ApiKey:
+          secretKey =
+            shouldPreserveExistingBedrockCredentials && !values.bedrockApiKey
+              ? undefined
+              : JSON.stringify({
+                  apiKey: values.bedrockApiKey!,
+                } satisfies BedrockApiKey);
+          break;
+        case AuthMethod.AccessKeys:
+          if (!values.awsAccessKeyId && !values.awsSecretAccessKey) {
+            secretKey = shouldPreserveExistingBedrockCredentials
+              ? undefined
+              : BEDROCK_USE_DEFAULT_CREDENTIALS;
+          } else {
+            secretKey = JSON.stringify({
+              accessKeyId: values.awsAccessKeyId!,
+              secretAccessKey: values.awsSecretAccessKey!,
+            } satisfies BedrockAccessKeys);
+          }
+          break;
+      }
+
+      config = {
+        region: values.awsRegion ?? "",
+      };
+    } else if (currentAdapter === LLMAdapter.VertexAI) {
+      // Handle Vertex AI credentials
+      // secretKey already contains either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel
+      if (mode === "update") {
+        // In update mode, only update secretKey if a new one is provided
+        if (values.secretKey) {
+          secretKey = values.secretKey;
+        } else {
+          // Keep existing credentials by not setting secretKey
+          secretKey = undefined;
+        }
+      }
+      // In create mode, secretKey is already set from values.secretKey
+
+      // Build config with location only (projectId removed for security - ADC auto-detects)
+      const vertexAIConfig: VertexAIConfig = {};
+      if (values.vertexAILocation?.trim()) {
+        vertexAIConfig.location = values.vertexAILocation.trim();
+      }
+      // If config is empty, set to undefined
+      config =
+        Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
+    } else if (currentAdapter === LLMAdapter.OpenAI) {
+      config =
+        values.openAIUseResponsesApi || mode === "update"
+          ? { useResponsesApi: values.openAIUseResponsesApi }
+          : undefined;
+    }
+
+    let extraHeaders: Record<string, string> | undefined;
+    if (values.extraHeaders.length > 0) {
+      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
+        (headers, header) => {
+          headers[header.key] = header.value ?? "";
+          return headers;
+        },
+        {},
+      );
+    } else if (mode === "update") {
+      extraHeaders = {};
+    }
+
+    return {
+      id: existingKey?.id ?? "",
+      secretKey: secretKey ?? "",
+      provider: values.provider,
+      adapter: values.adapter,
+      baseURL:
+        values.baseURL ||
+        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+          ? null
+          : undefined),
+      withDefaultModels: isCustomModelsRequired(currentAdapter)
+        ? false
+        : values.withDefaultModels,
+      config,
+      customModels: values.customModels
+        .map((m) => m.value.trim())
+        .filter(Boolean),
+      extraHeaders,
+    };
+  }
+
+  async function fetchModels(): Promise<string[] | null> {
+    setFetchModelsError(null);
+    const connectionInput = buildConnectionInput(form.getValues());
+
+    try {
+      let result;
+      if (owner.scope === "project") {
+        const input = { ...connectionInput, projectId: owner.projectId };
+        result =
+          mode === "create"
+            ? await mutListModels.mutateAsync(input)
+            : await mutListModelsUpdate.mutateAsync(input);
+      } else {
+        const input = { ...connectionInput, orgId: owner.organizationId };
+        result =
+          mode === "create"
+            ? await mutListOrganizationModels.mutateAsync(input)
+            : await mutListOrganizationModelsUpdate.mutateAsync(input);
+      }
+
+      if (!result.success) throw new Error(result.error);
+      return result.models;
+    } catch (error) {
+      setFetchModelsError(
+        error instanceof Error ? error.message : "Could not fetch models.",
+      );
+      return null;
+    }
+  }
 
   const renderCustomModelsField = () => (
     <FormField
@@ -549,6 +692,50 @@ export function CreateLLMApiKeyForm({
             />
             Add custom model name
           </Button>
+          {currentAdapter === LLMAdapter.OpenAI &&
+            !currentBaseURL?.includes("{model}") && (
+              <DialogController<{
+                configuredModels: string[];
+                fetchedModels: string[];
+              }>
+                renderDialog={({ state, closeDialog }) => (
+                  <FetchedModelsDialog
+                    configuredModels={state.configuredModels}
+                    fetchedModels={state.fetchedModels}
+                    onApply={(models) => {
+                      replace(models.map((value) => ({ value })));
+                      closeDialog();
+                    }}
+                  />
+                )}
+              >
+                {({ openDialog }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    loading={isFetchingModels}
+                    onClick={async () => {
+                      const fetchedModels = await fetchModels();
+                      if (fetchedModels) {
+                        openDialog({
+                          configuredModels: form
+                            .getValues("customModels")
+                            .map((m) => m.value.trim())
+                            .filter(Boolean),
+                          fetchedModels,
+                        });
+                      }
+                    }}
+                  >
+                    Fetch models from endpoint
+                  </Button>
+                )}
+              </DialogController>
+            )}
+          {fetchModelsError && (
+            <p className="text-destructive text-sm">{fetchModelsError}</p>
+          )}
         </FormItem>
       )}
     />
@@ -644,101 +831,7 @@ export function CreateLLMApiKeyForm({
       }
     }
 
-    let secretKey = values.secretKey;
-    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
-
-    if (currentAdapter === LLMAdapter.Bedrock) {
-      const shouldPreserveExistingBedrockCredentials =
-        mode === "update" &&
-        isMatchingBedrockAuthMethod(values.authMethod, existingKey?.authMethod);
-
-      switch (values.authMethod) {
-        case AuthMethod.ApiKey:
-          secretKey =
-            shouldPreserveExistingBedrockCredentials && !values.bedrockApiKey
-              ? undefined
-              : JSON.stringify({
-                  apiKey: values.bedrockApiKey!,
-                } satisfies BedrockApiKey);
-          break;
-        case AuthMethod.AccessKeys:
-          if (!values.awsAccessKeyId && !values.awsSecretAccessKey) {
-            secretKey = shouldPreserveExistingBedrockCredentials
-              ? undefined
-              : BEDROCK_USE_DEFAULT_CREDENTIALS;
-          } else {
-            secretKey = JSON.stringify({
-              accessKeyId: values.awsAccessKeyId!,
-              secretAccessKey: values.awsSecretAccessKey!,
-            } satisfies BedrockAccessKeys);
-          }
-          break;
-      }
-
-      config = {
-        region: values.awsRegion ?? "",
-      };
-    } else if (currentAdapter === LLMAdapter.VertexAI) {
-      // Handle Vertex AI credentials
-      // secretKey already contains either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel
-      if (mode === "update") {
-        // In update mode, only update secretKey if a new one is provided
-        if (values.secretKey) {
-          secretKey = values.secretKey;
-        } else {
-          // Keep existing credentials by not setting secretKey
-          secretKey = undefined;
-        }
-      }
-      // In create mode, secretKey is already set from values.secretKey
-
-      // Build config with location only (projectId removed for security - ADC auto-detects)
-      const vertexAIConfig: VertexAIConfig = {};
-      if (values.vertexAILocation?.trim()) {
-        vertexAIConfig.location = values.vertexAILocation.trim();
-      }
-      // If config is empty, set to undefined
-      config =
-        Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
-    } else if (currentAdapter === LLMAdapter.OpenAI) {
-      config =
-        values.openAIUseResponsesApi || mode === "update"
-          ? { useResponsesApi: values.openAIUseResponsesApi }
-          : undefined;
-    }
-
-    let extraHeaders: Record<string, string> | undefined;
-    if (values.extraHeaders.length > 0) {
-      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
-        (headers, header) => {
-          headers[header.key] = header.value ?? "";
-          return headers;
-        },
-        {},
-      );
-    } else if (mode === "update") {
-      extraHeaders = {};
-    }
-
-    const connectionInput = {
-      id: existingKey?.id ?? "",
-      secretKey: secretKey ?? "",
-      provider: values.provider,
-      adapter: values.adapter,
-      baseURL:
-        values.baseURL ||
-        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
-          ? null
-          : undefined),
-      withDefaultModels: isCustomModelsRequired(currentAdapter)
-        ? false
-        : values.withDefaultModels,
-      config,
-      customModels: values.customModels
-        .map((m) => m.value.trim())
-        .filter(Boolean),
-      extraHeaders,
-    };
+    const connectionInput = buildConnectionInput(values);
 
     try {
       let testResult;
