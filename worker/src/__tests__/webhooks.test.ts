@@ -1946,3 +1946,39 @@ describe("Webhook Integration Tests", () => {
     });
   });
 });
+
+describe("getActionByIdWithSecrets legacy headers", () => {
+  it("sends legacy headers as secret and never falls back to a legacy value its requestHeaders entry overrides", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const action = await prisma.action.create({
+      data: {
+        id: v4(),
+        projectId,
+        type: "WEBHOOK",
+        config: {
+          type: "WEBHOOK",
+          url: "https://example.com/webhook",
+          headers: {
+            "x-api-key": "legacy-api-key",
+            Authorization: "Bearer stale-token",
+          },
+          requestHeaders: {
+            Authorization: { secret: true, value: "not-a-valid-ciphertext" },
+          },
+          apiVersion: { prompt: "v1" },
+          secretKey: encrypt("whsec"),
+          displaySecretKey: "lf-whsec_...",
+        },
+      },
+    });
+
+    const result = await getActionByIdWithSecrets({
+      projectId,
+      actionId: action.id,
+    });
+
+    expect(
+      (result?.config as WebhookActionConfigWithSecrets).requestHeaders,
+    ).toEqual({ "x-api-key": { secret: true, value: "legacy-api-key" } });
+  });
+});
