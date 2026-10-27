@@ -20,19 +20,30 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
-        items={actions.menu.map((action) => ({
-          id: action.id,
-          type: "item",
-          title: action.label,
-          icon: action.icon,
-          badge: action.badge ? (
-            <Badge text={action.badge} size="sm" />
-          ) : undefined,
-          disabled: action.disabledReason
-            ? { reason: action.disabledReason }
-            : undefined,
-          onClick: action.onSelect,
-        }))}
+        items={[
+          ...actions.menu.map((action) => ({
+            id: action.id,
+            type: "item" as const,
+            title: action.label,
+            icon: action.icon,
+            badge: action.badge ? (
+              <Badge text={action.badge} size="sm" />
+            ) : undefined,
+            disabled: action.disabledReason
+              ? { reason: action.disabledReason }
+              : undefined,
+            onClick: action.onSelect,
+          })),
+          { id: "display-separator", type: "separator" },
+          {
+            id: actions.display.id,
+            type: "checkbox",
+            title: actions.display.label,
+            icon: actions.display.icon,
+            checked: actions.display.checked,
+            onCheckedChange: actions.display.onCheckedChange,
+          },
+        ]}
       >
         {({ getTriggerProps }) => (
           <IconButton

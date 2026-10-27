@@ -24,6 +24,7 @@ import {
   publishTopicMapFrame,
   setTopicMapHover,
 } from "./map/topic-map-store";
+import { mapWithoutUnassigned } from "./prepare-topic-display";
 
 const size = { width: 1000, height: 600 };
 const bounds = { minX: -100, maxX: 100, minY: -50, maxY: 50 };
@@ -345,6 +346,23 @@ describe("topic map preparation", () => {
       expect(zone.y).toBeGreaterThanOrEqual(zone.bounds.minY);
       expect(zone.y).toBeLessThanOrEqual(zone.bounds.maxY);
     }
+  });
+
+  it("hides outlier and unavailable zones when unassigned traces are hidden", () => {
+    const model = prepareTopicMap(
+      mapWithoutUnassigned(
+        data([
+          point("invoice", -5, -1),
+          point("new-request", 0, 8, { topicId: null, outcome: "outlier" }),
+          point("stale-assignment", 0, -8, {
+            topicId: null,
+            outcome: "unassigned",
+          }),
+        ]),
+      ),
+      topics,
+    );
+    expect(model.zones.map((zone) => zone.id)).toEqual(["billing"]);
   });
 
   it("keeps depth attached to trace identity across data and topic ordering", () => {

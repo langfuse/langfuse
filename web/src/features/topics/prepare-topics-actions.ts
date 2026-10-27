@@ -1,4 +1,5 @@
 import {
+  Eye,
   History,
   Play,
   RefreshCw,
@@ -50,6 +51,8 @@ export function prepareTopicsActions({
   onConfigure,
   onRegenerate,
   onHistory,
+  showUnassigned,
+  onShowUnassignedChange,
 }: {
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
@@ -60,6 +63,8 @@ export function prepareTopicsActions({
   onConfigure: () => void;
   onRegenerate: () => void;
   onHistory: () => void;
+  showUnassigned: boolean;
+  onShowUnassignedChange: (show: boolean) => void;
 }) {
   const { state, saving } = automaticProcessing;
   const reason = processingDisabledReason(state, canWrite, saving);
@@ -111,7 +116,14 @@ export function prepareTopicsActions({
       onSelect: onConfigure,
     },
   );
-  return { automatic, menu };
+  const display = {
+    id: "show-unassigned",
+    label: "Show unassigned",
+    icon: Eye,
+    checked: showUnassigned,
+    onCheckedChange: onShowUnassignedChange,
+  } as const;
+  return { automatic, menu, display };
 }
 
 export type TopicsActions = ReturnType<typeof prepareTopicsActions>;

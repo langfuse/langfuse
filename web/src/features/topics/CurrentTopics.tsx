@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { useMemo } from "react";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -16,6 +17,10 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
+import {
+  facetWithoutUnassigned,
+  mapWithoutUnassigned,
+} from "./prepare-topic-display";
 
 export function CurrentTopics({
   projectId,
@@ -27,6 +32,7 @@ export function CurrentTopics({
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
+  showUnassigned,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -59,6 +65,7 @@ export function CurrentTopics({
           traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
+          showUnassigned={showUnassigned}
         />
       )}
     </section>
@@ -67,22 +74,36 @@ export function CurrentTopics({
 
 function CurrentFacet({
   projectId,
-  facet,
+  facet: resultFacet,
   timeRange,
   view,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
+  showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
-  const mapResult = useCurrentTopicMap(
+  const mapQuery = useCurrentTopicMap(
     projectId,
     view === "treemap" || view === "treemap-side"
       ? undefined
-      : facet.map?.runId,
+      : resultFacet.map?.runId,
     timeRange,
   );
+  // Stable identities keep the map camera and grid layout across re-renders.
+  const facet = useMemo(
+    () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
+    [resultFacet, showUnassigned],
+  );
+  const mapData = useMemo(
+    () =>
+      showUnassigned || !mapQuery.data
+        ? mapQuery.data
+        : mapWithoutUnassigned(mapQuery.data),
+    [mapQuery.data, showUnassigned],
+  );
+  const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -163,7 +184,7 @@ function MobileTopics({
   | "onGenerateTopics"
   | "canGenerateTopics"
 > & {
-  mapResult: ReturnType<typeof useCurrentTopicMap>;
+  mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
@@ -260,6 +281,7 @@ type CurrentTopicsProps = {
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  showUnassigned: boolean;
 };
 
 type CurrentFacetProps = {
@@ -271,6 +293,7 @@ type CurrentFacetProps = {
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  showUnassigned: boolean;
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];

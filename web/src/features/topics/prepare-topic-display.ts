@@ -62,3 +62,15 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
   }
   return { topics, total: facet.rows.length };
 }
+
+/** Drops traces without a topic, which also removes the Unassigned tile and list entry. */
+export function facetWithoutUnassigned(facet: Facet): Facet {
+  return { ...facet, rows: facet.rows.filter((row) => row.topicId) };
+}
+
+/** Drops points without a topic, which also removes the map's Outliers and awaiting zones. */
+export function mapWithoutUnassigned<
+  T extends { points: { topicId: string | null }[] },
+>(map: T): T {
+  return { ...map, points: map.points.filter((point) => point.topicId) };
+}
