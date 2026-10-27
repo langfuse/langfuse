@@ -1044,6 +1044,32 @@ describe("createAgUiStream", () => {
     });
   });
 
+  it("exposes an attached page snapshot through the request context tool", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => vi.useRealTimers());
+    vi.setSystemTime(new Date("2026-10-18T09:00:00Z"));
+    const pageContext = {
+      version: 1,
+      kind: "trace",
+      label: "Trace",
+      id: "trace-1",
+      title: "support-copilot",
+      facts: [{ key: "latency_ms", label: "Latency", display: "12.2s" }],
+    };
+    await initializeBasicTracedAgent("run-page-context", undefined, undefined, [
+      { description: "current_timezone", value: "UTC" },
+      { description: "page_context", value: JSON.stringify(pageContext) },
+    ]);
+
+    expect(await readContextTool()).toEqual({
+      capturedAt: "2026-10-18T09:00:00.000Z",
+      timezone: "UTC",
+      pageContext,
+    });
+  });
+
   it("uses UTC in the request snapshot when the timezone is invalid", async ({
     onTestFinished,
   }) => {

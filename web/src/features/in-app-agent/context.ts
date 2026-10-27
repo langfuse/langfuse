@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
+import { z } from "zod";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
+import {
+  PAGE_CONTEXT_LIMITS,
+  PageContextSnapshotSchema,
+  type CapturedPageContext,
+} from "@/src/features/page-context";
 
 type InAppAgentContext = AgUiContext;
 
@@ -27,6 +33,9 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
+const PAGE_CONTEXT_DESCRIPTION = "page_context";
+/** Room for the snapshot budget plus the capture timestamp. */
+const MAX_PAGE_CONTEXT_JSON_LENGTH = PAGE_CONTEXT_LIMITS.serializedLength + 100;
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
@@ -145,12 +154,21 @@ export function getInAppAgentScreenContextDescription(
 
 export function createInAppAgentScreenContext(params: {
   currentUrl: string;
+  pageContext?: CapturedPageContext;
 }): InAppAgentContext {
   return [
     {
       description: "current_url",
       value: params.currentUrl,
     },
+    ...(params.pageContext
+      ? [
+          {
+            description: PAGE_CONTEXT_DESCRIPTION,
+            value: JSON.stringify(params.pageContext),
+          },
+        ]
+      : []),
   ];
 }
 
@@ -196,9 +214,50 @@ export function sanitizeInAppAgentContext(
     }
   }
 
+  const pageContext = sanitizePageContext(context);
+  if (pageContext) {
+    sanitizedContext.push(pageContext);
+  }
+
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
+}
+
+const CapturedPageContextSchema = PageContextSnapshotSchema.extend({
+  capturedAt: z.iso.datetime(),
+});
+
+/**
+ * The page snapshot is client-built data: it is re-validated against the
+ * schema and re-serialized so only known, bounded fields reach the model.
+ */
+function sanitizePageContext(
+  context: InAppAgentContext,
+): InAppAgentContext[number] | undefined {
+  const item = context.find(
+    (candidate) => candidate.description === PAGE_CONTEXT_DESCRIPTION,
+  );
+  if (!item || item.value.length > MAX_PAGE_CONTEXT_JSON_LENGTH) {
+    return undefined;
+  }
+
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(item.value);
+  } catch {
+    return undefined;
+  }
+
+  const parsed = CapturedPageContextSchema.safeParse(parsedValue);
+  if (!parsed.success) {
+    return undefined;
+  }
+
+  return {
+    description: PAGE_CONTEXT_DESCRIPTION,
+    value: JSON.stringify(parsed.data),
+  };
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {

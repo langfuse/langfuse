@@ -104,7 +104,24 @@ type RequestSnapshot = {
   capturedAt: string;
   timezone: string;
   page?: unknown;
+  /** Structured snapshot of the page the user attached to the message. */
+  pageContext?: unknown;
 };
+
+function parseJsonContextItem(
+  context: AgUiRunAgentInput["context"],
+  description: string,
+): { present: false } | { present: true; value: unknown } {
+  const value = context.find((item) => item.description === description)?.value;
+  if (value === undefined) {
+    return { present: false };
+  }
+  try {
+    return { present: true, value: JSON.parse(value) };
+  } catch {
+    return { present: true, value };
+  }
+}
 
 function formatRunContext(context: AgUiRunAgentInput["context"]) {
   const capturedAt = new Date().toISOString();
@@ -120,21 +137,13 @@ function formatRunContext(context: AgUiRunAgentInput["context"]) {
   } catch {
     timezone = "UTC";
   }
-  const pageValue = context.find(
-    (item) => item.description === "current_url",
-  )?.value;
-  let page: unknown;
-  if (pageValue !== undefined) {
-    try {
-      page = JSON.parse(pageValue);
-    } catch {
-      page = pageValue;
-    }
-  }
+  const page = parseJsonContextItem(context, "current_url");
+  const pageContext = parseJsonContextItem(context, "page_context");
   const requestContext: RequestSnapshot = {
     capturedAt,
     timezone,
-    ...(pageValue !== undefined ? { page } : {}),
+    ...(page.present ? { page: page.value } : {}),
+    ...(pageContext.present ? { pageContext: pageContext.value } : {}),
   };
   return { userContext: formatUserContext(context), requestContext };
 }
@@ -1212,7 +1221,7 @@ async function createMastraAdapter(params: {
         getRequestContext: createTool({
           id: "getRequestContext",
           description:
-            "Get the current page, selected resource, filters, request-start time, and timezone. Use when the request depends on what the user is viewing or on relative dates. Earlier results describe earlier requests.",
+            "Get the current page, selected resource, filters, request-start time, and timezone, plus `pageContext` when the user attached the page to their message: a structured snapshot of the entity on screen, the selected item and notable related items. Use when the request depends on what the user is viewing or on relative dates. Earlier results describe earlier requests.",
           inputSchema: z.object({}),
           execute: async (_input, context) => {
             const snapshot = context?.requestContext?.get(RUN_CONTEXT_KEY);

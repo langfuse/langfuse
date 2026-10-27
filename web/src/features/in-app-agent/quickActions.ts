@@ -1,4 +1,5 @@
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
+import type { CapturedPageContext } from "@/src/features/page-context";
 import {
   Activity,
   BarChart3,
@@ -68,7 +69,13 @@ export type InAppAgentSubmitOptions = {
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
   /** Which surface sent the message; PostHog only. Defaults to "chat". */
-  entryPoint?: "chat" | "add-widget-modal" | "evaluators-empty-state";
+  entryPoint?:
+    | "chat"
+    | "add-widget-modal"
+    | "evaluators-empty-state"
+    | "assistant-stage";
+  /** Structured snapshot of the page the user handed over with the message. */
+  pageContext?: CapturedPageContext;
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage

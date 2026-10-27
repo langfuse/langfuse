@@ -70,6 +70,7 @@ import {
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
+import type { CapturedPageContext } from "@/src/features/page-context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
@@ -947,9 +948,10 @@ function InAppAiAgentProviderInner({
   );
 
   const createRunContext = useCallback(
-    () =>
+    (pageContext?: CapturedPageContext) =>
       createInAppAgentScreenContext({
         currentUrl: window.location.href,
+        pageContext,
       }).concat(
         createInAppAgentUserContext({
           userName: session.data?.user?.name,
@@ -1103,7 +1105,7 @@ function InAppAiAgentProviderInner({
         );
         const execution = backgroundSession.run({
           message: content,
-          context: createRunContext(),
+          context: createRunContext(options?.pageContext),
         });
         if (!execution) {
           return false;
