@@ -312,7 +312,7 @@ export const MonitorAlertSchema = z.object({
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
-  // The fields below are optional so in-flight webhook messages without them still parse.
+  // optional: alerts queued before these fields existed lack them
   monitorName: z.string().optional(),
   metric: MetricSchema.optional(),
   /** metricValue is the evaluated metric; null when the window had no data. */
@@ -320,7 +320,7 @@ export const MonitorAlertSchema = z.object({
   thresholdOperator: MonitorThresholdOperatorSchema.optional(),
   alertThreshold: z.number().optional(),
   warningThreshold: z.number().nullable().optional(),
-  /** severityChangedAt is the monitor's severityChangedAt after this evaluation; delivery drops the alert once the monitor has changed severity since. */
+  /** severityChangedAt is the monitor's severityChangedAt after this evaluation. */
   severityChangedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;
