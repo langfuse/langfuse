@@ -3,10 +3,13 @@ import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
+  type AzureAuthMethod,
   type BedrockAuthMethod,
+  type LlmAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
 import {
+  AZURE_USE_DEFAULT_CREDENTIALS,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
@@ -22,6 +25,7 @@ import {
   LLMConnectionConfigSchema,
   LLMAdapter,
   OpenAIConfigSchema,
+  parseAzureCredential,
   supportedModels,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
@@ -30,6 +34,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
+  assertAzureHostAllowedForDefaultCredentials,
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
@@ -88,7 +93,7 @@ export type SafeLlmConnection = {
   withDefaultModels: boolean;
   extraHeaderKeys: string[];
   config: JSONValue | null;
-  authMethod?: BedrockAuthMethod;
+  authMethod?: LlmAuthMethod;
   secretKey?: undefined;
   extraHeaders?: undefined;
   scope?: "project" | "organization";
@@ -126,6 +131,9 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
     ...(connection.adapter === LLMAdapter.Bedrock
       ? { authMethod: getBedrockAuthMethod(decrypt(connection.secretKey)) }
       : {}),
+    ...(connection.adapter === LLMAdapter.Azure
+      ? { authMethod: getAzureAuthMethod(decrypt(connection.secretKey)) }
+      : {}),
   };
 
   if (connection.projectId) {
@@ -154,9 +162,67 @@ function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
     return "Default GCP credentials (ADC)";
   }
+  if (secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    return "Default Azure credentials (managed identity)";
+  }
+  const azureServicePrincipal = parseAzureServicePrincipal(secretKey);
+  if (azureServicePrincipal) {
+    // The client ID is not secret; showing it avoids revealing the client secret.
+    return `Entra ID app ...${azureServicePrincipal.clientId.slice(-4)}`;
+  }
   return secretKey.endsWith('"}')
     ? `...${secretKey.slice(-6, -2)}`
     : `...${secretKey.slice(-4)}`;
+}
+
+function parseAzureServicePrincipal(secretKey: string) {
+  if (!secretKey.startsWith("{")) return undefined;
+  try {
+    const credential = parseAzureCredential(secretKey);
+    return credential.type === "service-principal" ? credential : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function validateAzureSecretKey(params: {
+  adapter: LLMAdapter;
+  secretKey: string;
+  baseURL?: string | null;
+}): void {
+  try {
+    if (params.secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+      if (
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+        params.adapter !== LLMAdapter.Azure
+      ) {
+        throw new Error(
+          "Default Azure credentials are only allowed for Azure in self-hosted deployments.",
+        );
+      }
+      if (params.baseURL) {
+        assertAzureHostAllowedForDefaultCredentials(params.baseURL);
+      }
+      return;
+    }
+
+    if (params.adapter === LLMAdapter.Azure) {
+      parseAzureCredential(params.secretKey);
+    }
+  } catch (error) {
+    throw new InvalidRequestError(
+      error instanceof Error ? error.message : "Invalid Azure credentials.",
+    );
+  }
+}
+
+function getAzureAuthMethod(secretKey: string): AzureAuthMethod {
+  if (secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    return AuthMethod.DefaultCredentials;
+  }
+  return parseAzureServicePrincipal(secretKey)
+    ? AuthMethod.EntraServicePrincipal
+    : AuthMethod.ApiKey;
 }
 
 function validateBedrockSecretKey(secretKey: string): void {
@@ -265,6 +331,7 @@ async function validateBaseUrlForWrite(params: {
 function validateSecret(params: {
   adapter: LLMAdapter;
   secretKey: string;
+  baseURL?: string | null;
 }): void {
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -287,6 +354,8 @@ function validateSecret(params: {
       );
     }
   }
+
+  validateAzureSecretKey(params);
 
   if (!env.ENCRYPTION_KEY) {
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -335,7 +404,11 @@ async function testLlmConnection(
       await validateBaseUrl(params);
     }
     if (params.validateSecretBeforeTest !== false) {
-      validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
+      validateSecret({
+        adapter: params.adapter,
+        secretKey: params.secretKey,
+        baseURL: params.baseURL,
+      });
     }
 
     const model = params.customModels?.length
@@ -705,6 +778,10 @@ export class LlmConnectionService {
       validateSecret({
         adapter: params.input.adapter,
         secretKey: params.input.secretKey,
+        baseURL:
+          params.input.baseURL !== undefined
+            ? params.input.baseURL
+            : existingKey.baseURL,
       });
     }
 
