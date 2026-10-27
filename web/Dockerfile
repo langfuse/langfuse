@@ -4,7 +4,6 @@
 # FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
 # statically bundle their own non-validated OpenSSL and bypass the platform
 # module entirely.
-# Cloud override: upstream Node 24.22.1 supplies full ICU and non-FIPS OpenSSL.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
@@ -15,7 +14,12 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
+# TEMPORARY(node-24.22.1-security): Red Hat's nodejs:24 RPMs rebuilt with
+# security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
+# uses them only while they are newer than the repos' nodejs, and the check
+# below fails the build if the installed Node lacks any of the fixes.
+ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
+FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
@@ -24,17 +28,13 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-RUN dnf -y upgrade && \
-    dnf -y install --setopt=install_weak_deps=0 \
-    libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so && \
-    dnf clean all
-COPY --from=node /usr/local/bin/node /usr/bin/node
-COPY --from=node /usr/local/lib/node_modules/npm /usr/lib/node_modules/npm
-COPY --from=node /usr/local/include/node /usr/include/node
-RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/bin/npm && \
-    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/bin/npx
-ENV NODE_OPTIONS=--use-openssl-ca \
-    SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
+COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
+RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
+    dnf -y upgrade && \
+    bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
+    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
+    dnf clean all && \
+    node /opt/nodejs-rpm/test-node-security-fixes.js
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -59,19 +59,22 @@ ARG GID=1001
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
-RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
-    --setopt=tsflags=nodocs \
-    --disableexcludes=all \
-    install libstdc++ openssl-libs openssl-fips-provider openssl-fips-provider-so \
+# The rpmdb check fails the build if the rootfs resolved a different nodejs
+# than the build stages.
+RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
+    NODEJS_INSTALLROOT=/mnt/rootfs bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
+    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
     bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
+    test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
 # The nodejs RPM drags npm in as a dependency; the runtime image must carry
 # no package manager, so remove it from the rootfs (rpmdb stays consistent).
-COPY --from=node /usr/local/bin/node /mnt/rootfs/usr/bin/node
-COPY --from=node /usr/local/LICENSE /mnt/rootfs/usr/share/licenses/nodejs/LICENSE
+RUN if rpm --root /mnt/rootfs -q npm >/dev/null 2>&1; then \
+    rpm --root /mnt/rootfs -e --nodeps npm; \
+    fi
 
 # The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
 # being activated system-wide, so installs without FIPS mode keep the default
@@ -246,7 +249,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS="${NODE_OPTIONS} --max-old-space-size-percentage=75" turbo run build --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
