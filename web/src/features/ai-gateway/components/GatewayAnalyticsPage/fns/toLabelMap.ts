@@ -2,9 +2,12 @@ type LabelEntry = { id: string; name: string | null; detail: string | null };
 
 /**
  * Maps IDs to display labels. A chart groups series by label, so labels shared
- * by several IDs get their detail appended to keep the bars apart.
+ * by several IDs get their detail appended to keep the bars apart. A `Map`, as
+ * IDs are caller-controlled and may be `__proto__` or `constructor`.
  */
-export function toLabelMap(entries: readonly LabelEntry[]) {
+export function toLabelMap(
+  entries: readonly LabelEntry[],
+): ReadonlyMap<string, string> {
   const baseLabels = entries.map((entry) => ({
     entry,
     label: entry.name || entry.detail || entry.id,
@@ -14,7 +17,7 @@ export function toLabelMap(entries: readonly LabelEntry[]) {
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
 
-  return Object.fromEntries(
+  return new Map(
     baseLabels.map(({ entry, label }) => {
       const isDuplicate = (counts.get(label) ?? 0) > 1;
       const suffix =

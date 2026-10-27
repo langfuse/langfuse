@@ -82,7 +82,7 @@ export interface WidgetContentProps {
    * Optional presentation-only labels for the first dimension's values, e.g.
    * names for ID breakdowns. Values without a label keep their raw value.
    */
-  dimensionLabelMap?: Record<string, string>;
+  dimensionLabelMap?: ReadonlyMap<string, string>;
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
@@ -282,7 +282,7 @@ export function WidgetContent({
         if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
         } else if (typeof val === "string") {
-          seriesDimension = dimensionLabelMap?.[val] ?? val;
+          seriesDimension = dimensionLabelMap?.get(val) ?? val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {

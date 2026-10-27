@@ -21,7 +21,7 @@ export function GatewayAnalyticsWidgetCard({
   projectId: string;
   widget: GatewayAnalyticsWidget;
   timeRange: { from: Date; to: Date };
-  dimensionLabelMap?: Record<string, string>;
+  dimensionLabelMap?: ReadonlyMap<string, string>;
 }) {
   const query = useMemo(
     () => buildGatewayAnalyticsQuery(widget, timeRange),
@@ -31,7 +31,8 @@ export function GatewayAnalyticsWidgetCard({
   return (
     <Card
       className={cn(
-        "flex min-w-0 flex-col gap-2 p-3 lg:col-span-2",
+        // Series labels can be member names, emails and key notes.
+        "ph-no-capture flex min-w-0 flex-col gap-2 p-3 lg:col-span-2",
         SIZE_CLASSES[widget.size],
       )}
     >

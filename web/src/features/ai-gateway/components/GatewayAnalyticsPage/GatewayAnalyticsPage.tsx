@@ -3,11 +3,12 @@ import { ChartColumn } from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayAnalyticsDashboard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsDashboard/GatewayAnalyticsDashboard";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 
 /** Managers only; the settings route sends them to Setup until ingestion is configured. */
 export function GatewayAnalyticsPage({
@@ -16,7 +17,12 @@ export function GatewayAnalyticsPage({
   organizationId: string;
 }) {
   const configState = useGatewayConfig(organizationId);
+  const v4WriteMode = useLangfuseV4WriteMode();
 
+  // Widgets run v2 queries, which legacy write mode does not serve.
+  if (v4WriteMode === "legacy") {
+    return <AnalyticsNeedEvents />;
+  }
   if (configState.status === "pending") {
     return <AnalyticsSkeleton />;
   }
@@ -60,6 +66,19 @@ function AnalyticsUnavailable({ organizationId }: { organizationId: string }) {
   );
 }
 
+function AnalyticsNeedEvents() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Header title="Gateway analytics" />
+      <GatewaySetupEmptyState
+        icon={ChartColumn}
+        title="Analytics are not available on this deployment"
+        description="Gateway analytics read from the events tables, which are not written while LANGFUSE_MIGRATION_V4_WRITE_MODE is legacy."
+      />
+    </div>
+  );
+}
+
 function AnalyticsLoadError({ retry }: { retry: () => void }) {
   return (
     <div className="flex flex-col gap-4">
@@ -70,9 +89,9 @@ function AnalyticsLoadError({ retry }: { retry: () => void }) {
           Analytics need the gateway&apos;s ingestion project.
         </Alert.Description>
       </Alert>
-      <Button className="w-fit" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
+      <div>
+        <Button text="Retry" variant="secondary" onClick={retry} />
+      </div>
     </div>
   );
 }

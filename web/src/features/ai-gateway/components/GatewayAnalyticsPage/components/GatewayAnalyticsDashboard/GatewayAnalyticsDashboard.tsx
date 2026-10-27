@@ -50,7 +50,7 @@ export function GatewayAnalyticsDashboard({
           />
         }
       />
-      {absoluteTimeRange ? (
+      {absoluteTimeRange && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
           {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
             <GatewayAnalyticsWidgetCard
@@ -59,14 +59,12 @@ export function GatewayAnalyticsDashboard({
               widget={widget}
               timeRange={absoluteTimeRange}
               dimensionLabelMap={
-                widget.dimensionLabels
-                  ? labels[widget.dimensionLabels]
-                  : undefined
+                widget.dimensionLabels && labels[widget.dimensionLabels]
               }
             />
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

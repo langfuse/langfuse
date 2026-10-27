@@ -7,7 +7,7 @@ import { api } from "@/src/utils/api";
 /** Label maps per source; empty until loaded, so charts fall back to raw IDs. */
 export function useGatewayAnalyticsLabels(
   organizationId: string,
-): Record<GatewayAnalyticsLabelSource, Record<string, string>> {
+): Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>> {
   const { data } = api.aiGateway.getAnalyticsLabels.useQuery({
     orgId: organizationId,
   });
