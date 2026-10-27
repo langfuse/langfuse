@@ -1699,12 +1699,11 @@ describe("MonitorProcessor.process evaluation offset", () => {
     expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
   });
 
-  it("carries the monitor config, evaluated value and severity change time on the alert", async () => {
+  it("carries the monitor config, evaluated value and alert time on the alert", async () => {
     const monitorId = `m_cfg_${v4()}`;
     await seedMonitor(projectId, {
       id: monitorId,
       severity: MonitorSeveritySchema.enum.OK,
-      severityChangedAt: new Date("2026-01-01T00:00:00.000Z"),
       alertThreshold: 100,
       warningThreshold: 50,
       lastPublishedAt: runAt,
@@ -1740,8 +1739,7 @@ describe("MonitorProcessor.process evaluation offset", () => {
       thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: 100,
       warningThreshold: 50,
-      // OK -> ALERT is a severity change, stamped with the evaluation time.
-      severityChangedAt: justAfterRunAt,
+      alertedAt: justAfterRunAt,
     });
   });
 });

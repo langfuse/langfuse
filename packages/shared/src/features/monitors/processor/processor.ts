@@ -415,7 +415,7 @@ function buildAlert(args: {
     thresholdOperator: prev.thresholdOperator,
     alertThreshold: prev.alertThreshold,
     warningThreshold: prev.warningThreshold,
-    severityChangedAt: next.severityChangedAt ?? undefined,
+    alertedAt: next.alertedAt ?? undefined,
   };
 }
 

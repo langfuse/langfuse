@@ -320,7 +320,7 @@ export const MonitorAlertSchema = z.object({
   thresholdOperator: MonitorThresholdOperatorSchema.optional(),
   alertThreshold: z.number().optional(),
   warningThreshold: z.number().nullable().optional(),
-  /** severityChangedAt is the monitor's severityChangedAt after this evaluation. */
-  severityChangedAt: z.coerce.date().optional(),
+  /** alertedAt is the monitor's alertedAt after this evaluation, which emitted this alert. */
+  alertedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;

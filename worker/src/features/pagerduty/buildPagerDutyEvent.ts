@@ -18,6 +18,10 @@ const monitorSeverities: Partial<
   NO_DATA: "error",
 };
 
+const pagedMonitorSeverities = Object.keys(
+  monitorSeverities,
+) as MonitorAlert["severity"][];
+
 const notificationSeverities: Record<
   ProjectNotificationEvent["severity"],
   PagerDutySeverity
@@ -130,32 +134,46 @@ function buildLlmOpsDetails(
   };
 }
 
-/** buildMonitorAlertEvent triggers on a breach or missing data and resolves on recovery, keyed by the monitor. */
-function buildMonitorAlertEvent(
+/** monitorDedupKey keys alerts by monitor and severity, since PagerDuty keeps an open alert's original severity. */
+function monitorDedupKey(
+  context: EventContext,
+  monitorId: string,
+  severity: MonitorAlert["severity"],
+): string {
+  return `langfuse-${context.projectId}-${monitorId}-${severity}`;
+}
+
+/** resolveOtherSeverities resolves the monitor's alerts of every paged severity except the alert's own. */
+function resolveOtherSeverities(
   alert: MonitorAlert,
   context: EventContext,
-): PagerDutyEvent | null {
-  const dedupKey = `langfuse-${context.projectId}-${alert.monitorId}`;
-  if (alert.severity === "OK") {
-    return {
-      kind: "alert",
-      event: {
-        routing_key: context.routingKey,
-        event_action: "resolve",
-        dedup_key: dedupKey,
-      },
-    };
-  }
+): PagerDutyEvent[] {
+  return pagedMonitorSeverities
+    .filter((severity) => severity !== alert.severity)
+    .map(
+      (severity): PagerDutyEvent => ({
+        kind: "alert",
+        event: {
+          routing_key: context.routingKey,
+          event_action: "resolve",
+          dedup_key: monitorDedupKey(context, alert.monitorId, severity),
+        },
+      }),
+    );
+}
 
-  const severity = monitorSeverities[alert.severity];
-  if (!severity) return null;
-
+/** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity. */
+function buildMonitorTriggerEvent(
+  alert: MonitorAlert,
+  severity: PagerDutySeverity,
+  context: EventContext,
+): PagerDutyEvent {
   return {
     kind: "alert",
     event: {
       routing_key: context.routingKey,
       event_action: "trigger",
-      dedup_key: dedupKey,
+      dedup_key: monitorDedupKey(context, alert.monitorId, alert.severity),
       ...clientFields(context.projectId),
       links: compactLinks([
         { href: alert.permalink, text: "View monitor in Langfuse" },
@@ -180,6 +198,22 @@ function buildMonitorAlertEvent(
       },
     },
   };
+}
+
+/** buildMonitorAlertEvents triggers the alert's severity and resolves the monitor's other severities; OK resolves them all. */
+function buildMonitorAlertEvents(
+  alert: MonitorAlert,
+  context: EventContext,
+): PagerDutyEvent[] {
+  if (alert.severity === "OK") return resolveOtherSeverities(alert, context);
+
+  const severity = monitorSeverities[alert.severity];
+  if (!severity) return [];
+
+  return [
+    buildMonitorTriggerEvent(alert, severity, context),
+    ...resolveOtherSeverities(alert, context),
+  ];
 }
 
 /** buildProjectNotificationEvent always triggers, keyed by event type and resource; these are never resolved automatically. */
@@ -251,13 +285,13 @@ function buildPromptChangeEvent(
   };
 }
 
-/** buildPagerDutyEvent maps a validated webhook envelope to a PagerDuty event; null when the alert has nothing to send. */
-export function buildPagerDutyEvent(args: {
+/** buildPagerDutyEvents maps a validated webhook envelope to the PagerDuty events to send in order; empty when the alert has nothing to send. */
+export function buildPagerDutyEvents(args: {
   envelope: PagerDutyEnvelope;
   projectId: string;
   projectName: string;
   routingKey: string;
-}): PagerDutyEvent | null {
+}): PagerDutyEvent[] {
   const context = {
     projectId: args.projectId,
     projectName: args.projectName,
@@ -265,11 +299,11 @@ export function buildPagerDutyEvent(args: {
   };
   switch (args.envelope.type) {
     case "monitor-alert":
-      return buildMonitorAlertEvent(args.envelope.payload, context);
+      return buildMonitorAlertEvents(args.envelope.payload, context);
     case "project-notification":
-      return buildProjectNotificationEvent(args.envelope.event, context);
+      return [buildProjectNotificationEvent(args.envelope.event, context)];
     case "prompt-version":
-      return buildPromptChangeEvent(args.envelope, context);
+      return [buildPromptChangeEvent(args.envelope, context)];
   }
 }
 

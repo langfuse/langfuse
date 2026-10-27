@@ -182,10 +182,7 @@ class WebhookTestServer {
 const webhookServer = new WebhookTestServer();
 
 /** createMonitor writes a minimal Monitor row so monitor-alert jobs pass the stale-alert guard. */
-async function createMonitor(
-  projectId: string,
-  severityChangedAt: Date | null = null,
-): Promise<string> {
+async function createMonitor(projectId: string): Promise<string> {
   const monitor = await prisma.monitor.create({
     data: {
       projectId,
@@ -201,7 +198,6 @@ async function createMonitor(
       renotify: { mode: "OFF" },
       schedulerBatchId: 0n,
       severity: "ALERT",
-      severityChangedAt,
     },
   });
   return monitor.id;
@@ -2285,9 +2281,9 @@ describe("Webhook Integration Tests", () => {
   });
 
   describe("stale monitor alerts", () => {
-    const severityChangedAt = new Date("2026-05-27T14:00:00.000Z");
+    const alertedAt = new Date("2026-05-27T14:00:00.000Z");
 
-    const buildMonitorAlertInput = (alertSeverityChangedAt?: Date) =>
+    const buildMonitorAlertInput = (alertAlertedAt?: Date) =>
       ({
         projectId,
         automationId,
@@ -2308,7 +2304,7 @@ describe("Webhook Integration Tests", () => {
             view: "observations",
             filters: [],
             window: "5m",
-            severityChangedAt: alertSeverityChangedAt,
+            alertedAt: alertAlertedAt,
           },
         },
       }) satisfies WebhookInput;
@@ -2328,16 +2324,16 @@ describe("Webhook Integration Tests", () => {
       });
     };
 
-    it("drops the alert without counting a failure once the monitor changed severity again", async () => {
+    it("drops the alert without counting a failure once the monitor emitted a newer alert", async () => {
       await prisma.monitor.update({
         where: { id: monitorId },
-        data: { severityChangedAt: new Date(severityChangedAt.getTime() + 1) },
+        data: { alertedAt: new Date(alertedAt.getTime() + 1) },
       });
       await useErrorEndpoint();
       const failureKey = `automation-failures:${projectId}:${automationId}`;
       await redis!.del(failureKey);
 
-      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
         skipValidation: true,
       });
 
@@ -2348,7 +2344,7 @@ describe("Webhook Integration Tests", () => {
     it("drops the alert when its monitor was deleted", async () => {
       await prisma.monitor.delete({ where: { id: monitorId } });
 
-      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
         skipValidation: true,
       });
 
@@ -2358,7 +2354,7 @@ describe("Webhook Integration Tests", () => {
     it("drops the alert for every action type, not only webhooks", async () => {
       await prisma.monitor.update({
         where: { id: monitorId },
-        data: { severityChangedAt: new Date(severityChangedAt.getTime() + 1) },
+        data: { alertedAt: new Date(alertedAt.getTime() + 1) },
       });
       await prisma.action.update({
         where: { id: actionId },
@@ -2374,7 +2370,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
         skipValidation: true,
       });
 
@@ -2382,27 +2378,42 @@ describe("Webhook Integration Tests", () => {
     });
 
     it.each([
-      // The processor publishes before it saves its own severity change.
-      ["before the monitor saved the change", new Date(0)],
-      // Renotify keeps severityChangedAt.
-      ["for a renotify of the same severity", severityChangedAt],
-    ])("delivers the alert %s", async (_, monitorSeverityChangedAt) => {
+      // The processor publishes before it saves alertedAt.
+      ["before the monitor saved it", new Date(0)],
+      ["after the monitor saved it", alertedAt],
+    ])("delivers the alert %s", async (_, monitorAlertedAt) => {
       await prisma.monitor.update({
         where: { id: monitorId },
-        data: { severityChangedAt: monitorSeverityChangedAt },
+        data: { alertedAt: monitorAlertedAt },
       });
 
-      await executeWebhook(buildMonitorAlertInput(severityChangedAt), {
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
         skipValidation: true,
       });
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(1);
     });
 
-    it("delivers alerts queued without severityChangedAt", async () => {
+    it("delivers the alert when the monitor changed severity without emitting an alert", async () => {
       await prisma.monitor.update({
         where: { id: monitorId },
-        data: { severityChangedAt: new Date() },
+        data: {
+          severityChangedAt: new Date(alertedAt.getTime() + 1),
+          alertedAt,
+        },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+
+    it("delivers alerts queued without alertedAt", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { alertedAt: new Date() },
       });
 
       await executeWebhook(buildMonitorAlertInput(), {
@@ -2470,20 +2481,23 @@ describe("Webhook Integration Tests", () => {
       },
     });
 
-    const lastPagerDutyRequest = () => {
-      const request = webhookServer.getLastRequest();
-      return { url: request.url, body: JSON.parse(request.body) };
-    };
+    const pagerDutyRequests = () =>
+      webhookServer.getReceivedRequests().map((request) => ({
+        url: request.url,
+        body: JSON.parse(request.body),
+      }));
+
+    const lastPagerDutyRequest = () => pagerDutyRequests().at(-1)!;
 
     beforeEach(async () => {
       await setPagerDutyConfig("US");
       await redis!.del(`automation-failures:${projectId}:${automationId}`);
     });
 
-    it("triggers a critical alert keyed by the monitor with LLMOps details", async () => {
+    it("triggers a critical alert keyed by the monitor and severity with LLMOps details", async () => {
       await executeWebhook(buildMonitorInput("ALERT"));
 
-      const { url, body } = lastPagerDutyRequest();
+      const [{ url, body }] = pagerDutyRequests();
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
       });
@@ -2491,7 +2505,7 @@ describe("Webhook Integration Tests", () => {
       expect(body).toMatchObject({
         routing_key: routingKey,
         event_action: "trigger",
-        dedup_key: `langfuse-${projectId}-${monitorId}`,
+        dedup_key: `langfuse-${projectId}-${monitorId}-ALERT`,
         client: "Langfuse",
         links: [
           {
@@ -2530,18 +2544,35 @@ describe("Webhook Integration Tests", () => {
       async (severity, expected) => {
         await executeWebhook(buildMonitorInput(severity));
 
-        expect(lastPagerDutyRequest().body.payload.severity).toBe(expected);
+        expect(pagerDutyRequests()[0].body.payload.severity).toBe(expected);
       },
     );
 
-    it("resolves the monitor's incident on recovery", async () => {
+    it("resolves the alerts of the other severities after a severity change", async () => {
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(
+        pagerDutyRequests().map(({ body }) => [
+          body.event_action,
+          body.dedup_key,
+        ]),
+      ).toEqual([
+        ["trigger", `langfuse-${projectId}-${monitorId}-ALERT`],
+        ["resolve", `langfuse-${projectId}-${monitorId}-WARNING`],
+        ["resolve", `langfuse-${projectId}-${monitorId}-NO_DATA`],
+      ]);
+    });
+
+    it("resolves the monitor's alerts of every severity on recovery", async () => {
       await executeWebhook(buildMonitorInput("OK"));
 
-      expect(lastPagerDutyRequest().body).toEqual({
-        routing_key: routingKey,
-        event_action: "resolve",
-        dedup_key: `langfuse-${projectId}-${monitorId}`,
-      });
+      expect(pagerDutyRequests().map(({ body }) => body)).toEqual(
+        ["ALERT", "WARNING", "NO_DATA"].map((severity) => ({
+          routing_key: routingKey,
+          event_action: "resolve",
+          dedup_key: `langfuse-${projectId}-${monitorId}-${severity}`,
+        })),
+      );
     });
 
     it("sends to the EU host for EU routing keys", async () => {
@@ -2549,7 +2580,7 @@ describe("Webhook Integration Tests", () => {
 
       await executeWebhook(buildMonitorInput("ALERT"));
 
-      expect(lastPagerDutyRequest().url).toBe(
+      expect(pagerDutyRequests()[0].url).toBe(
         "https://events.eu.pagerduty.com/v2/enqueue",
       );
     });

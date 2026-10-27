@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 
 import { type Session } from "next-auth";
 
+import type * as EnvModule from "@/src/env.mjs";
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
 
 const sessionMock = vi.hoisted(() => ({ data: null as Session | null }));
@@ -12,7 +13,7 @@ const cloudRegion = vi.hoisted(() => ({
   value: undefined as string | undefined,
 }));
 vi.mock("@/src/env.mjs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/src/env.mjs")>();
+  const actual = await importOriginal<typeof EnvModule>();
   return {
     env: new Proxy(actual.env, {
       get: (target, key) =>

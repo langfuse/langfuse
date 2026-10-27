@@ -56,7 +56,7 @@ import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import {
-  buildPagerDutyEvent,
+  buildPagerDutyEvents,
   type PagerDutyEvent,
 } from "../features/pagerduty/buildPagerDutyEvent";
 
@@ -223,10 +223,9 @@ export const executeWebhook = async (
 
 /**
  * isStaleMonitorAlert reports whether a monitor-alert job is outdated: its
- * monitor is gone, or the monitor changed severity after the alert was built.
- * The processor publishes before it saves its own severity change, so the
- * check compares severityChangedAt timestamps rather than severities. A stale
- * job is acknowledged without delivery and does not count as a failure.
+ * monitor is gone, or the monitor emitted a newer alert. The processor
+ * publishes before it saves alertedAt, so only a later alertedAt is newer. A
+ * stale job is acknowledged without delivery and does not count as a failure.
  */
 async function isStaleMonitorAlert({
   projectId,
@@ -244,18 +243,18 @@ async function isStaleMonitorAlert({
 
   const monitor = await prisma.monitor.findUnique({
     where: { id: alert.monitorId },
-    select: { projectId: true, severityChangedAt: true },
+    select: { projectId: true, alertedAt: true },
   });
 
-  let reason: "monitor_deleted" | "severity_changed" | undefined;
+  let reason: "monitor_deleted" | "newer_alert" | undefined;
   if (!monitor || monitor.projectId !== projectId) {
     reason = "monitor_deleted";
   } else if (
-    alert.severityChangedAt &&
-    monitor.severityChangedAt &&
-    monitor.severityChangedAt > alert.severityChangedAt
+    alert.alertedAt &&
+    monitor.alertedAt &&
+    monitor.alertedAt > alert.alertedAt
   ) {
-    reason = "severity_changed";
+    reason = "newer_alert";
   }
   if (!reason) return false;
 
@@ -1028,25 +1027,20 @@ async function executePagerDutyAction({
 
   try {
     const envelope = buildWebhookOutboundPayload(input);
-    const event = await buildPagerDutyDelivery({ input, envelope, config });
-    if (!event) {
+    const events = await buildPagerDutyDelivery({ input, envelope, config });
+    if (events.length === 0) {
       logger.info(
         `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
       );
       return;
     }
-    await backOff(() => sendPagerDutyEvent(event, config.region), {
-      numOfAttempts: 4,
-      retry: (error: unknown) => {
-        const isRetryable = isRetryablePagerDutyError(error);
-        if (isRetryable) {
-          logger.warn(
-            `Retrying PagerDuty delivery for action ${automation.action.id}: ${String(error)}`,
-          );
-        }
-        return isRetryable;
-      },
-    });
+    for (const event of events) {
+      await sendPagerDutyEventWithRetry({
+        event,
+        region: config.region,
+        actionId: automation.action.id,
+      });
+    }
   } catch (error) {
     logger.error("Error executing PagerDuty action", error);
     await recordPagerDutyFailure({ input, automation, executionStart, error });
@@ -1072,7 +1066,7 @@ async function executePagerDutyAction({
   });
 }
 
-/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to a PagerDuty event. */
+/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to PagerDuty events. */
 async function buildPagerDutyDelivery({
   input,
   envelope,
@@ -1081,16 +1075,40 @@ async function buildPagerDutyDelivery({
   input: WebhookInput;
   envelope: WebhookOutboundPayload;
   config: PagerDutyActionConfigWithSecrets;
-}): Promise<PagerDutyEvent | null> {
+}): Promise<PagerDutyEvent[]> {
   const project = await prisma.project.findUniqueOrThrow({
     where: { id: input.projectId },
     select: { name: true },
   });
-  return buildPagerDutyEvent({
+  return buildPagerDutyEvents({
     envelope,
     projectId: input.projectId,
     projectName: project.name,
     routingKey: decrypt(config.routingKey),
+  });
+}
+
+/** sendPagerDutyEventWithRetry sends one event, retrying 429, 5xx and network errors. */
+async function sendPagerDutyEventWithRetry({
+  event,
+  region,
+  actionId,
+}: {
+  event: PagerDutyEvent;
+  region: PagerDutyRegion;
+  actionId: string;
+}) {
+  await backOff(() => sendPagerDutyEvent(event, region), {
+    numOfAttempts: 4,
+    retry: (error: unknown) => {
+      const isRetryable = isRetryablePagerDutyError(error);
+      if (isRetryable) {
+        logger.warn(
+          `Retrying PagerDuty delivery for action ${actionId}: ${String(error)}`,
+        );
+      }
+      return isRetryable;
+    },
   });
 }
 
