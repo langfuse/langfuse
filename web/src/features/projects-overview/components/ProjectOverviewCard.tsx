@@ -70,7 +70,7 @@ export function ProjectOverviewCard({
         {roleLabel ? <Badge text={roleLabel} color="filled" size="sm" /> : null}
       </div>
 
-      {project.usage ? (
+      {project.usage && !canSetUpTracing ? (
         <div className="flex flex-col gap-1">
           <div className="flex items-baseline justify-between gap-2 text-xs">
             <span className="text-muted-foreground">Usage this period</span>

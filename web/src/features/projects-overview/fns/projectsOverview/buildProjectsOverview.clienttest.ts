@@ -21,6 +21,13 @@ const sessionProject = (
 
 const organizations = [
   {
+    id: "zephyr",
+    name: "Zephyr",
+    plan: "cloud:hobby" as const,
+    role: "MEMBER" as const,
+    projects: [],
+  },
+  {
     id: "demo",
     name: "Demo",
     plan: "cloud:hobby" as const,
@@ -114,9 +121,10 @@ describe("getIngestionStatus", () => {
 });
 
 describe("buildProjectsOverview", () => {
-  it("puts the demo organization last", () => {
+  it("sorts organizations by name with the demo organization last", () => {
     expect(build().map((organization) => organization.id)).toEqual([
       "acme",
+      "zephyr",
       "demo",
     ]);
   });
@@ -151,7 +159,7 @@ describe("buildProjectsOverview", () => {
   });
 
   it("keeps an organization loading, and hides usage from roles that may not read it", () => {
-    const [, demo] = build();
+    const [, , demo] = build();
     expect(demo).toMatchObject({
       loadState: "loading",
       usage: null,

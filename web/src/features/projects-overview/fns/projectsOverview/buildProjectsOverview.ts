@@ -102,7 +102,7 @@ const ingestionAttention: Partial<
  * Turns the session's organizations and the per-organization overview reads
  * into what the overview renders: each project's ingestion state, usage share
  * and v4 readiness, the organization's usage level, and why a project needs
- * attention. The demo organization goes last.
+ * attention. Organizations sort by name, the demo organization last.
  */
 export function buildProjectsOverview({
   organizations,
@@ -124,7 +124,7 @@ export function buildProjectsOverview({
     .toSorted(
       (a, b) =>
         Number(a.id === demoOrganizationId) -
-        Number(b.id === demoOrganizationId),
+          Number(b.id === demoOrganizationId) || a.name.localeCompare(b.name),
     )
     .map((organization) => {
       const data = overviewByOrganizationId.get(organization.id);
