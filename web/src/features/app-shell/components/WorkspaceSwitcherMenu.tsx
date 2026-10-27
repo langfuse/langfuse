@@ -12,6 +12,7 @@ import {
 } from "@/src/components/ui/command";
 import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { type SwitcherProject } from "@/src/features/app-shell/fns/buildSwitcherSections";
+import { scoreSwitcherMatch } from "@/src/features/app-shell/fns/scoreSwitcherMatch";
 import { useWorkspaceSwitcher } from "@/src/features/app-shell/hooks/useWorkspaceSwitcher";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
@@ -97,9 +98,22 @@ export function WorkspaceSwitcherMenu({ onDone }: { onDone: () => void }) {
   const projectSection: SelectionSection = isSearching
     ? "search"
     : "organization";
+  // Mod+O then Enter returns to the previous project, like switching back a tab.
+  const previousProject = sections.recentProjects.find(
+    (project) => !project.isCurrent,
+  );
 
   return (
-    <Command loop label="Switch project or organization">
+    <Command
+      loop
+      label="Switch project or organization"
+      defaultValue={
+        previousProject ? `recent ${previousProject.id}` : undefined
+      }
+      filter={(_value, search, keywords) =>
+        scoreSwitcherMatch(search, keywords ?? [])
+      }
+    >
       <CommandInput
         value={query}
         onValueChange={setQuery}
@@ -199,7 +213,7 @@ export function WorkspaceSwitcherMenu({ onDone }: { onDone: () => void }) {
             <CommandItem
               key={action.id}
               value={`action ${action.label}`}
-              keywords={action.keywords}
+              keywords={[action.label, ...action.keywords]}
               onSelect={() =>
                 select(action.href, { kind: "action", section: "actions" })
               }
