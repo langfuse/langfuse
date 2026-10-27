@@ -39,6 +39,8 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { FetchedModelsDialog } from "@/src/features/llm-api-key/components/FetchedModelsDialog/FetchedModelsDialog";
+import { useListConnectionModels } from "@/src/features/llm-api-key/hooks/useListConnectionModels";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -373,13 +375,7 @@ export function CreateLLMApiKeyForm({
     api.organizationLlmApiKey.test.useMutation();
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
-  const mutListModels = api.llmApiKey.listModels.useMutation();
-  const mutListModelsUpdate = api.llmApiKey.listModelsUpdate.useMutation();
-  const mutListOrganizationModels =
-    api.organizationLlmApiKey.listModels.useMutation();
-  const mutListOrganizationModelsUpdate =
-    api.organizationLlmApiKey.listModelsUpdate.useMutation();
-  const [fetchModelsError, setFetchModelsError] = useState<string | null>(null);
+  const connectionModels = useListConnectionModels({ owner, mode });
 
   const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
     ? LLMAdapter[customization.defaultModelAdapter]
@@ -494,11 +490,6 @@ export function CreateLLMApiKeyForm({
     name: "customModels",
   });
   const currentBaseURL = form.watch("baseURL");
-  const isFetchingModels =
-    mutListModels.isPending ||
-    mutListModelsUpdate.isPending ||
-    mutListOrganizationModels.isPending ||
-    mutListOrganizationModelsUpdate.isPending;
 
   const {
     fields: headerFields,
@@ -607,36 +598,6 @@ export function CreateLLMApiKeyForm({
     };
   }
 
-  async function fetchModels(): Promise<string[] | null> {
-    setFetchModelsError(null);
-    const connectionInput = buildConnectionInput(form.getValues());
-
-    try {
-      let result;
-      if (owner.scope === "project") {
-        const input = { ...connectionInput, projectId: owner.projectId };
-        result =
-          mode === "create"
-            ? await mutListModels.mutateAsync(input)
-            : await mutListModelsUpdate.mutateAsync(input);
-      } else {
-        const input = { ...connectionInput, orgId: owner.organizationId };
-        result =
-          mode === "create"
-            ? await mutListOrganizationModels.mutateAsync(input)
-            : await mutListOrganizationModelsUpdate.mutateAsync(input);
-      }
-
-      if (!result.success) throw new Error(result.error);
-      return result.models;
-    } catch (error) {
-      setFetchModelsError(
-        error instanceof Error ? error.message : "Could not fetch models.",
-      );
-      return null;
-    }
-  }
-
   const renderCustomModelsField = () => (
     <FormField
       control={form.control}
@@ -710,31 +671,36 @@ export function CreateLLMApiKeyForm({
                 )}
               >
                 {({ openDialog }) => (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    loading={isFetchingModels}
-                    onClick={async () => {
-                      const fetchedModels = await fetchModels();
-                      if (fetchedModels) {
-                        openDialog({
-                          configuredModels: form
-                            .getValues("customModels")
-                            .map((m) => m.value.trim())
-                            .filter(Boolean),
-                          fetchedModels,
-                        });
-                      }
-                    }}
-                  >
-                    Fetch models from endpoint
-                  </Button>
+                  <div className="grid">
+                    <DesignSystemButton
+                      type="button"
+                      variant="outline"
+                      text="Fetch models from endpoint"
+                      loading={connectionModels.isPending}
+                      onClick={async () => {
+                        const fetchedModels = await connectionModels.listModels(
+                          buildConnectionInput(form.getValues()),
+                        );
+                        if (fetchedModels) {
+                          openDialog({
+                            configuredModels: form
+                              .getValues("customModels")
+                              .map((m) => m.value.trim())
+                              .filter(Boolean),
+                            fetchedModels,
+                          });
+                        }
+                      }}
+                    />
+                  </div>
                 )}
               </DialogController>
             )}
-          {fetchModelsError && (
-            <p className="text-destructive text-sm">{fetchModelsError}</p>
+          {connectionModels.error && (
+            // The error can echo the customer's endpoint URL.
+            <p className="ph-no-capture text-destructive text-sm">
+              {connectionModels.error}
+            </p>
           )}
         </FormItem>
       )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -46,10 +46,7 @@ export function FetchedModelsDialog({
   fetchedModels,
   onApply,
 }: FetchedModelsDialogProps) {
-  const rows = useMemo(
-    () => toModelRows({ configuredModels, fetchedModels }),
-    [configuredModels, fetchedModels],
-  );
+  const rows = toModelRows({ configuredModels, fetchedModels });
   const [selected, setSelected] = useState(
     () => new Set(rows.map((row) => row.model)),
   );
@@ -119,7 +116,8 @@ export function FetchedModelsDialog({
             />
             {query.trim() ? "Select all shown" : "Select all"}
           </label>
-          <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+          {/* Model ids come from the customer's endpoint: keep them out of session replay. */}
+          <div className="ph-no-capture flex max-h-80 flex-col gap-1 overflow-y-auto">
             {visibleRows.map((row) => {
               const id = `fetched-model-${row.model}`;
               return (

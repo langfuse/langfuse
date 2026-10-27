@@ -31,10 +31,44 @@ describe("listOpenAIConnectionModels", () => {
     expect(result).toEqual({ success: true, models: ["gpt-a", "gpt-b"] });
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://gateway.example.com/v1/models");
-    expect(init.headers).toEqual({
-      "x-tenant": "acme",
-      Authorization: "Bearer sk-test",
+    const headers = new Headers(init.headers);
+    expect(headers.get("x-tenant")).toBe("acme");
+    expect(headers.get("authorization")).toBe("Bearer sk-test");
+  });
+
+  it.each(["Authorization", "authorization"])(
+    "lets a custom %s header replace the bearer key",
+    async (headerName) => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ data: [] }));
+
+      await listOpenAIConnectionModels({
+        secretKey: "sk-test",
+        extraHeaders: { [headerName]: "Basic gateway-credentials" },
+        fetchImpl,
+      });
+
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      expect(new Headers(init.headers).get("authorization")).toBe(
+        "Basic gateway-credentials",
+      );
+    },
+  );
+
+  it("returns every model of a large catalog", async () => {
+    const ids = Array.from(
+      { length: 1500 },
+      (_, i) => `model-${String(i).padStart(4, "0")}`,
+    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: ids.map((id) => ({ id })) }));
+
+    const result = await listOpenAIConnectionModels({
+      secretKey: "sk-test",
+      fetchImpl,
     });
+
+    expect(result).toEqual({ success: true, models: ids });
   });
 
   it("defaults to the OpenAI API when the connection has no base URL", async () => {

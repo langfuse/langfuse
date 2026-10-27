@@ -924,6 +924,57 @@ describe("llmApiKey.all RPC", () => {
     expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
   });
 
+  it("should require llmApiKeys:update access for fetching the models of an existing llm api key", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-test",
+      baseURL: "https://api.openai.com/v1",
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const memberCaller = createCallerForProjectRole("MEMBER");
+
+    await expect(
+      memberCaller.llmApiKey.listModelsUpdate({
+        id: existingKey.id,
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+      }),
+    ).rejects.toThrow("User does not have access to this resource or action");
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should not fetch the models of another project's connection", async () => {
+    const otherSetup = await createOrgProjectAndApiKey();
+    const otherConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId: otherSetup.projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("other-project-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+
+    const result = await caller.llmApiKey.listModelsUpdate({
+      id: otherConnection.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "LLM connection not found",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
   it("should fetch the models of an existing connection with its stored secret key and headers", async () => {
     mockListOpenAIConnectionModels.mockResolvedValueOnce({
       success: true,

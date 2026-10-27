@@ -6,7 +6,6 @@ import { getClientInitiatedNonStreamingLlmTimeoutMs } from "./llmText";
 import { createSecureLlmFetch } from "./secureLlmFetch";
 
 const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
-const MAX_LISTED_MODELS = 1000;
 
 // API contract: https://platform.openai.com/docs/api-reference/models/list
 // OpenAI-compatible gateways often return only `id`, so nothing else is required.
@@ -43,15 +42,18 @@ export async function listOpenAIConnectionModels(params: {
       additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
     });
   const url = `${trimTrailingSlashes(params.baseURL || OPENAI_DEFAULT_BASE_URL)}/models`;
+  // Extra headers win over the bearer key in any casing, so gateways with their own
+  // Authorization scheme receive only their credentials.
+  const headers = new Headers({ Authorization: `Bearer ${params.secretKey}` });
+  for (const [name, value] of Object.entries(params.extraHeaders ?? {})) {
+    headers.set(name, value);
+  }
 
   let response: Response;
   try {
     response = await fetchImpl(url, {
       method: "GET",
-      headers: {
-        ...params.extraHeaders,
-        Authorization: `Bearer ${params.secretKey}`,
-      },
+      headers,
       signal: AbortSignal.timeout(getClientInitiatedNonStreamingLlmTimeoutMs()),
     });
   } catch (error) {
@@ -93,8 +95,8 @@ export async function listOpenAIConnectionModels(params: {
     };
   }
 
-  const models = Array.from(new Set(parsed.data.data.map((model) => model.id)))
-    .sort((a, b) => a.localeCompare(b))
-    .slice(0, MAX_LISTED_MODELS);
+  const models = Array.from(
+    new Set(parsed.data.data.map((model) => model.id)),
+  ).sort((a, b) => a.localeCompare(b));
   return { success: true, models };
 }
