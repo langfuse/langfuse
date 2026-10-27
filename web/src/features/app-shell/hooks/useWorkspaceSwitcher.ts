@@ -25,6 +25,7 @@ import {
 
 type SwitcherAction = {
   id:
+    | "organization-overview"
     | "new-project"
     | "project-settings"
     | "organization-settings"
@@ -62,6 +63,17 @@ export function useWorkspaceSwitcher() {
   });
 
   const actions: SwitcherAction[] = [
+    ...(organization
+      ? [
+          {
+            id: "organization-overview" as const,
+            label: `${organization.name} overview`,
+            href: `/organization/${organization.id}`,
+            icon: LayoutGrid,
+            keywords: ["projects", "status", "usage"],
+          },
+        ]
+      : []),
     ...(organization && canCreateProjects
       ? [
           {
@@ -90,7 +102,7 @@ export function useWorkspaceSwitcher() {
             id: "organization-settings" as const,
             label: "Organization settings",
             href: `/organization/${organization.id}/settings`,
-            icon: Building2,
+            icon: Settings,
             keywords: ["members", "billing", "configure"],
           },
         ]
@@ -110,7 +122,7 @@ export function useWorkspaceSwitcher() {
       id: "all-organizations",
       label: "All organizations",
       href: "/organizations",
-      icon: LayoutGrid,
+      icon: Building2,
       keywords: ["overview", "projects"],
     },
   ];

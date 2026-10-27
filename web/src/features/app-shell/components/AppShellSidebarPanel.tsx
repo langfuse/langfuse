@@ -17,6 +17,7 @@ import { env } from "@/src/env.mjs";
 import { SidebarAccountButton } from "@/src/features/app-shell/components/SidebarAccountButton";
 import { SidebarDemoNotice } from "@/src/features/app-shell/components/SidebarDemoNotice";
 import { SidebarNavigation } from "@/src/features/app-shell/components/SidebarNavigation";
+import { SidebarOverviewLink } from "@/src/features/app-shell/components/SidebarOverviewLink";
 import { SidebarPanel } from "@/src/features/app-shell/components/SidebarPanel";
 import { SidebarPinToggle } from "@/src/features/app-shell/components/SidebarPinToggle";
 import { SidebarSheetClose } from "@/src/features/app-shell/components/SidebarSheetClose";
@@ -32,6 +33,21 @@ type GroupedNavigationItems = {
   ungrouped: NavigationItem[];
   grouped: Partial<Record<RouteGroup, NavigationItem[]>> | null;
 };
+
+/** The workspace block owns the overview entry, so the route list does not repeat it. */
+const WORKSPACE_BLOCK_ROUTE_IDS = new Set<NavigationItem["id"]>([
+  "organizations-overview",
+  "organization-overview",
+]);
+
+const withoutWorkspaceBlockRoutes = (
+  navigation: GroupedNavigationItems,
+): GroupedNavigationItems => ({
+  ...navigation,
+  ungrouped: navigation.ungrouped.filter(
+    (item) => !WORKSPACE_BLOCK_ROUTE_IDS.has(item.id),
+  ),
+});
 
 /** The app sidebar's content: brand, workspace switcher, navigation, and account. */
 export function AppShellSidebarPanel({
@@ -92,7 +108,10 @@ export function AppShellSidebarPanel({
         {surface === "sheet" ? <SidebarSheetClose /> : <SidebarPinToggle />}
       </SidebarPanel.Header>
       <SidebarPanel.Section>
-        <SidebarWorkspaceSwitcher />
+        <div className="flex flex-col gap-1">
+          <SidebarWorkspaceSwitcher />
+          <SidebarOverviewLink />
+        </div>
       </SidebarPanel.Section>
       {isDemoProject ? (
         <SidebarPanel.Section>
@@ -100,7 +119,10 @@ export function AppShellSidebarPanel({
         </SidebarPanel.Section>
       ) : null}
       <SidebarPanel.Body>
-        <SidebarNavigation label="Main" items={mainNavigation} />
+        <SidebarNavigation
+          label="Main"
+          items={withoutWorkspaceBlockRoutes(mainNavigation)}
+        />
         <SidebarPanel.Spacer />
         {activeNotifications.length > 0 ? (
           <div className="px-2">
