@@ -1,6 +1,6 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
-import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
+import { X, Plus, Link, MoreVertical, Pen, Lock } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
@@ -104,6 +104,11 @@ const copyPermalinkAndToast = (href: string) => {
       showErrorToast(
         "Failed to copy permalink",
         "Could not write to the clipboard. Please copy the page URL manually.",
+        {
+          operation: "saved_view.permalink_copy",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
         "WARNING",
       ),
     );
@@ -576,6 +581,11 @@ function TableViewPresetsDrawerContentBody({
       showErrorToast(
         "Failed to generate permalink",
         "Please reach out to langfuse support and report this issue.",
+        {
+          operation: "saved_view.permalink_generate",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
         "WARNING",
       );
     }
@@ -598,7 +608,7 @@ function TableViewPresetsDrawerContentBody({
             </DrawerTitle>
             <DrawerClose asChild>
               <Button variant="outline" size="icon">
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </DrawerClose>
           </DrawerHeader>
@@ -747,7 +757,7 @@ function TableViewPresetsDrawerContentBody({
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
-                          <Link className="icon-base text-icon-foreground" />
+                          <Link size="base" color="default" />
                         </Button>
                         <DropdownMenu
                           open={dropdownId === view.id}
@@ -764,7 +774,7 @@ function TableViewPresetsDrawerContentBody({
                               }}
                               className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
                             >
-                              <MoreVertical className="icon-base text-icon-foreground" />
+                              <MoreVertical size="base" color="default" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -799,9 +809,17 @@ function TableViewPresetsDrawerContentBody({
                                         disabled={!hasWriteAccess}
                                       >
                                         {hasWriteAccess ? (
-                                          <Pen className="icon-base text-icon-foreground mr-2" />
+                                          <Pen
+                                            size="base"
+                                            color="default"
+                                            __rawClassName="mr-2"
+                                          />
                                         ) : (
-                                          <Lock className="icon-base text-icon-foreground mr-2" />
+                                          <Lock
+                                            size="base"
+                                            color="default"
+                                            __rawClassName="mr-2"
+                                          />
                                         )}
                                         Rename
                                       </Button>
@@ -892,7 +910,11 @@ function TableViewPresetsDrawerContentBody({
                                 <>Set as project default</>
                               )}
                               {!hasWriteAccess && (
-                                <Lock className="icon-base text-icon-foreground ml-auto" />
+                                <Lock
+                                  size="base"
+                                  color="default"
+                                  __rawClassName="ml-auto"
+                                />
                               )}
                             </DropdownMenuItem>
                             {!isSystemView && (
@@ -960,7 +982,7 @@ function TableViewPresetsDrawerContentBody({
                 variant="ghost"
                 className="w-full justify-start px-1"
               >
-                <Plus className="icon-base text-icon-foreground mr-2" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 Create Custom View
               </Button>
             </DrawerClose>
@@ -1034,7 +1056,9 @@ function TableViewPresetsDrawerContentBody({
                     !hasWriteAccess
                   }
                 >
-                  {!hasWriteAccess && <Lock className="icon-base mr-2" />}
+                  {!hasWriteAccess && (
+                    <Lock size="base" __rawClassName="mr-2" />
+                  )}
                   {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>

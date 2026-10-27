@@ -3,6 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -38,6 +39,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -148,7 +150,12 @@ const events = {
     "level_added",
   ],
   annotation: ["entry_click"],
-  annotation_queues: ["item_added", "item_removed", "manage_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
+  ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -185,6 +192,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -394,6 +404,7 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
@@ -418,11 +429,15 @@ const events = {
     "delete_membership",
     "api_key_create",
     "api_key_delete",
+    "llm_api_key_create",
+    "llm_api_key_update",
+    "llm_api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
     "feature_flag_default_toggled",
+    "personal_feature_previews_opened",
     "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
@@ -433,6 +448,12 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  topics: [
+    "results_view_select",
+    "setup_opened",
+    "setup_step_saved",
+    "setup_started",
+  ],
   in_app_agent: [
     "activity_opened",
     "entry_point_click",
@@ -440,6 +461,26 @@ const events = {
     "new_chat_turn",
     "quick_action_started",
     "tool_approval_decided",
+  ],
+  // AI Gateway setup and adoption. Props are typed in AiGatewayEventMap and
+  // carry `orgId` on every event: metadata only, never emails, names,
+  // credentials, key metadata or model ids.
+  ai_gateway: [
+    "setup_guide_viewed",
+    "setup_step_completed",
+    "ingestion_settings_saved",
+    "provider_credential_added",
+    "provider_credential_updated",
+    "provider_credential_deleted",
+    "team_invite_sent",
+    "api_key_created",
+    "api_key_revoked",
+    "api_key_secret_copied",
+    "api_key_secret_revealed",
+    "model_access_changed",
+    "model_name_copied",
+    "agent_setup_instructions_viewed",
+    "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
@@ -509,6 +550,7 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
+  AiGatewayEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {
@@ -523,8 +565,9 @@ export const usePostHogClientCapture = () => {
   return useCallback(
     function capture<E extends EventName>(
       eventName: E,
-      properties?: EventProperties[E],
-      options?: CaptureOptions,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

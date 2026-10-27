@@ -1,4 +1,3 @@
-import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import {
   BedrockConfigSchema,
@@ -348,11 +347,10 @@ export const openAIModels = [
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
-  "gpt-4.1-nano",
-  "gpt-4.1-nano-2025-04-14",
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",
+  "gpt-6.1-terra",
   "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
@@ -381,33 +379,11 @@ export const openAIModels = [
   "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
-  "o4-mini",
-  "o4-mini-2025-04-16",
   "gpt-4o",
   "gpt-4o-2024-08-06",
-  "gpt-4o-2024-05-13",
   "gpt-4o-mini",
   "gpt-4o-mini-2024-07-18",
-  "o3-mini",
-  "o3-mini-2025-01-31",
-  "o1-preview",
-  "o1-preview-2024-09-12",
-  "o1-mini",
-  "o1-mini-2024-09-12",
-  "gpt-4.5-preview",
-  "gpt-4.5-preview-2025-02-27",
-  "gpt-4-turbo-preview",
-  "gpt-4-1106-preview",
-  "gpt-4-0613",
-  "gpt-4-0125-preview",
-  "gpt-4",
-  "gpt-3.5-turbo-16k-0613",
   "gpt-3.5-turbo-16k",
-  "gpt-3.5-turbo-1106",
-  "gpt-3.5-turbo-0613",
-  "gpt-3.5-turbo-0301",
-  "gpt-3.5-turbo-0125",
-  "gpt-3.5-turbo",
 ] as const;
 
 export type OpenAIModel = (typeof openAIModels)[number];
@@ -431,19 +407,6 @@ export const anthropicModels = [
   "claude-sonnet-4-6",
   "claude-opus-4-6",
   "claude-opus-4-5-20251101",
-  "claude-sonnet-4-20250514",
-  "claude-opus-4-1-20250805",
-  "claude-opus-4-20250514",
-  "claude-3-7-sonnet-20250219",
-  "claude-3-5-sonnet-20241022",
-  "claude-3-5-sonnet-20240620",
-  "claude-3-opus-20240229",
-  "claude-3-sonnet-20240229",
-  "claude-3-5-haiku-20241022",
-  "claude-3-haiku-20240307",
-  "claude-2.1",
-  "claude-2.0",
-  "claude-instant-1.2",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
@@ -468,6 +431,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
@@ -572,10 +536,7 @@ export const LLMApiKeySchema = z
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
   .strict();
 
-export type LLMApiKey =
-  z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
-    ? z.infer<typeof LLMApiKeySchema>
-    : never;
+export type LLMApiKey = z.infer<typeof LLMApiKeySchema>;
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
@@ -583,6 +544,7 @@ export enum LangfuseInternalTraceEnvironment {
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
   InAppAgent = "langfuse-in-app-agent",
+  Topics = "langfuse-topics",
 }
 
 export type ProcessedTraceEvent = {

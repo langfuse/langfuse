@@ -6,6 +6,7 @@ import { logger } from "@langfuse/shared/src/server";
 import {
   CHB_USAGE_CURRENCY,
   ChbApiError,
+  chbBillPlanAmountUSD,
   chbBillUsageAmountUSD,
 } from "@langfuse/shared/src/server/ee/clickhouseBilling";
 import { recordIncrement, traceException } from "@langfuse/shared/src/server";
@@ -28,6 +29,7 @@ type MissingBillingConfigReason =
   | "chb_not_configured"
   | "chb_open_bill_not_found"
   | "missing_chb_usage_amount"
+  | "missing_chb_plan_amount"
   | "missing_chb_period_start";
 
 const recordMissingBillingConfigSkip = (reason: MissingBillingConfigReason) => {
@@ -127,12 +129,15 @@ const readStripeSpend = async (
 };
 
 /**
- * CHB's reading: the accrued usage on the org's open bill. This is the CHB
- * equivalent of Stripe's preview invoice — CHB issues no preview invoice, but
- * its billing warehouse reports what the open bill has accrued so far, in
- * major-unit USD (see `chbBillUsageAmountUSD`). The warehouse, not m3ter,
- * serves this read, which is what makes hourly polling affordable on CHB's
- * side; the price is a reading up to one warehouse export old.
+ * CHB's reading: the accrued usage plus the plan fee on the org's open bill.
+ * This is the CHB equivalent of Stripe's preview invoice — CHB issues no
+ * preview invoice, but its billing warehouse reports what the open bill has
+ * accrued so far and the plan fee it carries, both in major-unit USD (see
+ * `chbBillUsageAmountUSD` and `chbBillPlanAmountUSD`). Like Stripe's, that fee
+ * is billed in advance, so it can cover the next period rather than this one.
+ * The warehouse, not m3ter, serves this read, which is what makes hourly
+ * polling affordable on CHB's side; the price is a reading up to one warehouse
+ * export old.
  */
 const readClickhouseSpend = async (
   org: OrgWithAlerts,
@@ -197,15 +202,25 @@ const readClickhouseSpend = async (
   // reading of CHB's amount is observable in production, so a contract change
   // shows up here rather than as alerts that quietly stop matching reality.
   logger.info(
-    `[CLOUD SPEND ALERTS] Org ${org.id} CHB bill ${bill.id} reports accrued usage ${bill.usage?.amount} ${bill.usage?.currency ?? CHB_USAGE_CURRENCY} as of ${bill.usage?.asOf} for period ${bill.startDate} - ${bill.endDate}`,
+    `[CLOUD SPEND ALERTS] Org ${org.id} CHB bill ${bill.id} reports accrued usage ${bill.usage?.amount} ${bill.usage?.currency ?? CHB_USAGE_CURRENCY} as of ${bill.usage?.asOf} and plan fee ${bill.plan ? `${bill.plan.amount} ${bill.plan.currency ?? CHB_USAGE_CURRENCY}` : "none"} for period ${bill.startDate} - ${bill.endDate}`,
   );
 
-  const currentSpendUSD = chbBillUsageAmountUSD(bill);
-  if (currentSpendUSD === null) {
+  const usageUSD = chbBillUsageAmountUSD(bill);
+  if (usageUSD === null) {
     logger.warn(
       `[CLOUD SPEND ALERTS] CHB reported no usable ${CHB_USAGE_CURRENCY} usage amount for org ${org.id}, skipping`,
     );
     recordMissingBillingConfigSkip("missing_chb_usage_amount");
+    return null;
+  }
+
+  const planUSD = chbBillPlanAmountUSD(bill);
+  if (planUSD === null) {
+    // Usage alone would understate what the org owes and alert late.
+    logger.warn(
+      `[CLOUD SPEND ALERTS] CHB reported no usable ${CHB_USAGE_CURRENCY} plan fee for org ${org.id}, skipping`,
+    );
+    recordMissingBillingConfigSkip("missing_chb_plan_amount");
     return null;
   }
 
@@ -220,7 +235,10 @@ const readClickhouseSpend = async (
     return null;
   }
 
-  return { currentSpendUSD, currentPeriodStart: periodStart };
+  return {
+    currentSpendUSD: usageUSD + planUSD,
+    currentPeriodStart: periodStart,
+  };
 };
 
 export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
@@ -267,6 +285,7 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
   // unknown to CHB, so this is a hard fork rather than a fallback chain.
   const billingProvider = getBillingProvider(org, {
     cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
   });
 
   try {

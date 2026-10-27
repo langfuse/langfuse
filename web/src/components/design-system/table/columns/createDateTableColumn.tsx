@@ -1,6 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
+import type { ReactNode } from "react";
 
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -13,6 +14,7 @@ export function createDateTableColumn<TData extends RowData>({
   getValue,
   mode = "absolute",
   emptyValue,
+  getPrefix,
   ...options
 }: TableColumnOptions<TData, Date> & {
   getValue?: (
@@ -21,6 +23,7 @@ export function createDateTableColumn<TData extends RowData>({
   ) => Date | { type: "loading" } | undefined;
   mode?: "absolute" | "relative";
   emptyValue?: string;
+  getPrefix?: (value: Date) => ReactNode;
 }) {
   return createTableColumn<TData, Date>({
     ...options,
@@ -44,6 +47,7 @@ export function createDateTableColumn<TData extends RowData>({
 
       return preparedDate ? (
         <span className="block w-full truncate" title={preparedDate.title}>
+          {getPrefix?.(resolvedValue)}
           {mode === "relative"
             ? formatDistanceToNow(resolvedValue, { addSuffix: true })
             : preparedDate.display}

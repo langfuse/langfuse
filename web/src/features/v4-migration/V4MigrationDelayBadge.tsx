@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {

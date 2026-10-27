@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -10,14 +10,14 @@ import {
   ChevronRight,
   Copy,
   Info,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { Button } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
@@ -30,6 +30,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
   formatSdkVersion,
+  getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
   getOtelSectionState,
@@ -57,6 +58,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -186,7 +188,11 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-foreground-tertiary icon-base shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight
+          size="base"
+          color="tertiary"
+          __rawClassName="transition-transform group-data-[state=open]:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -328,9 +334,9 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="icon-base text-icon-foreground" />
+          <Check size="base" color="default" />
         ) : (
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         )}
       </Button>
     </div>
@@ -520,9 +526,7 @@ export function V4MigrationSdkSection({
         needsAction={isActionableSdkSeries}
         suffix={(usage) => {
           if (usage.v4MigrationStatus === "upgrade_required") {
-            return (
-              <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
-            );
+            return <span>· {formatSdkUpgradeRequirement(usage)}</span>;
           }
           if (usage.v4MigrationStatus === "unknown") {
             return <span>· version not recognized</span>;
@@ -675,21 +679,35 @@ export function V4MigrationDetectedInstrumentationSection({
       tone="muted"
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        These configurations are already on the latest SDK major or use
-        real-time OTel ingestion.
+        These configurations are on a V4-compatible SDK major or use real-time
+        OTel ingestion.
       </p>
       <SdkUsageSeriesRows
         series={series}
         projectId={projectId}
         analyticsSection="detected_instrumentation"
         needsAction={() => false}
-        suffix={(usage) =>
-          usage.remediationType === "update_sdk" ? (
-            <span>· up to date</span>
-          ) : (
-            <span>· real-time</span>
-          )
-        }
+        suffix={(usage) => {
+          if (usage.remediationType !== "update_sdk") {
+            return <span>· real-time</span>;
+          }
+          const majorUpgrade = getAvailableSdkMajorUpgrade(usage);
+          if (!majorUpgrade) return <span>· up to date</span>;
+          return (
+            <span>
+              · {majorUpgrade.label} is available ·{" "}
+              <ExternalLink
+                href={majorUpgrade.upgradeGuideUrl}
+                analytics={{
+                  section: "detected_instrumentation",
+                  link: "sdk_major_upgrade_docs",
+                }}
+              >
+                Upgrade guide
+              </ExternalLink>
+            </span>
+          );
+        }}
       />
     </Section>
   );
@@ -770,8 +788,12 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
-                  Use Assistant
+                  <BotMessageSquare
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1.5"
+                  />
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1040,19 +1062,54 @@ export function V4MigrationApisSection({
                             ) : guidance.currentMethod &&
                               guidance.replacementMethod ? (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Replace{" "}
-                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
-                                with{" "}
-                                <MonoValue>
-                                  {guidance.replacementMethod}
-                                </MonoValue>
-                                {guidance.requiresUpgrade &&
-                                guidance.minimumVersion ? (
+                                {guidance.currentMethod ===
+                                guidance.replacementMethod ? (
                                   <>
-                                    . First upgrade to SDK version{" "}
+                                    Upgrade to SDK v{guidance.latestMajor},
+                                    where{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>{" "}
+                                    calls the new API
+                                  </>
+                                ) : (
+                                  <>
+                                    Replace{" "}
+                                    <MonoValue>
+                                      {guidance.currentMethod}
+                                    </MonoValue>{" "}
+                                    with{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>
+                                    {guidance.previousMajorReplacementMethod
+                                      ? ` (SDK v${guidance.latestMajor})`
+                                      : null}
+                                  </>
+                                )}
+                                {guidance.previousMajorReplacementMethod &&
+                                guidance.minimumVersion &&
+                                guidance.latestMajor ? (
+                                  <>
+                                    . On{" "}
+                                    <MonoValue>
+                                      {guidance.minimumVersion}–
+                                      {guidance.latestMajor - 1}.x
+                                    </MonoValue>
+                                    , use{" "}
+                                    <MonoValue>
+                                      {guidance.previousMajorReplacementMethod}
+                                    </MonoValue>
+                                  </>
+                                ) : guidance.requiresUpgrade &&
+                                  guidance.minimumVersion ? (
+                                  <>
+                                    . First upgrade to SDK v
+                                    {guidance.latestMajor} (
                                     <MonoValue>
                                       {guidance.minimumVersion} or newer
-                                    </MonoValue>
+                                    </MonoValue>{" "}
+                                    also works)
                                   </>
                                 ) : null}
                                 .{" "}
@@ -1320,7 +1377,7 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded
@@ -1393,6 +1450,7 @@ export function V4MigrationAgentUpgradeSection({
         showErrorToast(
           "Could not create API keys",
           "Something went wrong. Please try again.",
+          classifyTrpcToastError(error, "project_api_key.create"),
         );
       });
   };
@@ -1430,7 +1488,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="icon-base mr-1.5 shrink-0" />
+          <Copy size="base" __rawClassName="mr-1.5" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1740,7 +1798,7 @@ export function V4MigrationDetailsContent({
                       className="shrink-0"
                       {...getTriggerProps()}
                     >
-                      <Info className="icon-base" />
+                      <Info size="base" />
                     </button>
                   )}
                 </HoverCard>

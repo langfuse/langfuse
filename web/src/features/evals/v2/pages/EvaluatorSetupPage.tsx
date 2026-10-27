@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
-import { History, Trash2 } from "lucide-react";
+import { History, Trash2 } from "@langfuse/icons";
 import {
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
@@ -14,13 +14,13 @@ import {
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
@@ -36,9 +36,10 @@ import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisi
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -71,7 +72,7 @@ import {
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
-import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
@@ -406,11 +407,15 @@ export function EvaluatorSetupPage(
       }
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       capture("evaluators:delete", {
         source: "detail",
@@ -441,7 +446,7 @@ export function EvaluatorSetupPage(
     },
     onError: (error) => {
       setTestResult({ requestError: error.message });
-      trpcErrorToast(error);
+      trpcErrorToast(error, "evaluator.test");
     },
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
@@ -490,6 +495,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Couldn't generate an evaluator name",
           "Please enter a name manually.",
+          {
+            operation: "evaluator_name.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
         );
       }
     } catch (error) {
@@ -497,6 +507,7 @@ export function EvaluatorSetupPage(
       showErrorToast(
         "Couldn't generate an evaluator name",
         "Please enter a name manually.",
+        classifyTrpcToastError(error, "evaluator_name.generate"),
       );
     }
   };
@@ -509,12 +520,22 @@ export function EvaluatorSetupPage(
         evaluatorSetupStore.getState().actions.setDescription,
       );
       if (applied) return;
-    } catch {
-      // The field-specific message below is more actionable than the request error.
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an evaluator description",
+        "Please enter a description manually.",
+        classifyTrpcToastError(error, "evaluator_description.generate"),
+      );
+      return;
     }
     showErrorToast(
       "Couldn't generate an evaluator description",
       "Please enter a description manually.",
+      {
+        operation: "evaluator_description.generate",
+        errorOrigin: "backend",
+        errorCategory: "internal",
+      },
     );
   };
 
@@ -529,7 +550,9 @@ export function EvaluatorSetupPage(
       !state.name &&
       !hasRequestedName.current
     ) {
-      requestNameSuggestion().catch(trpcErrorToast);
+      requestNameSuggestion().catch((error) =>
+        trpcErrorToast(error, "evaluator_name.generate"),
+      );
     }
   };
 
@@ -539,7 +562,7 @@ export function EvaluatorSetupPage(
   const requestClose = () => {
     const currentSnapshot = getCurrentSnapshot();
     if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
-    else close().catch(trpcErrorToast);
+    else close().catch((error) => trpcErrorToast(error, "evaluator.navigate"));
   };
 
   const save = async () => {
@@ -558,7 +581,7 @@ export function EvaluatorSetupPage(
                 try {
                   return await generateDescriptionSuggestion();
                 } catch (error) {
-                  trpcErrorToast(error);
+                  trpcErrorToast(error, "evaluator_description.generate");
                   return null;
                 }
               }
@@ -570,6 +593,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Evaluator name required",
           "We couldn't generate a name. Please enter one manually and try again.",
+          {
+            operation: "evaluator.save",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return;
       }
@@ -706,7 +734,7 @@ export function EvaluatorSetupPage(
       ) {
         setVersionConflictOpen(true);
       } else {
-        trpcErrorToast(error);
+        trpcErrorToast(error, "evaluator.save");
       }
     } finally {
       saveInFlightRef.current = false;
@@ -783,7 +811,9 @@ export function EvaluatorSetupPage(
                     "eval:onboarding_ai_generate_requested",
                     { field: "name" },
                   );
-                  requestNameSuggestion(true).catch(trpcErrorToast);
+                  requestNameSuggestion(true).catch((error) =>
+                    trpcErrorToast(error, "evaluator_name.generate"),
+                  );
                 },
               }
       }
@@ -875,7 +905,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="icon-base text-icon-foreground mr-2" />
+              <History size="base" color="default" __rawClassName="mr-2" />
               Version history
             </Button>
             <Button
@@ -884,7 +914,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="icon-base text-destructive" />
+              <Trash2 size="base" color="destructive" />
             </Button>
           </div>
         ) : undefined,

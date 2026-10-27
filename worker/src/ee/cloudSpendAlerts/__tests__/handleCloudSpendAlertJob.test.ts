@@ -63,8 +63,8 @@ vi.mock("@langfuse/shared/src/db", () => ({
 
 /**
  * Only the side-effecting exports (logging, metrics, email) are replaced. The
- * CHB helpers stay real: `chbBillUsageAmountUSD` encodes the major-unit/USD-only
- * contract these cases exist to pin, and `ChbApiError` is what the job's status
+ * CHB helpers stay real: `chbBillUsageAmountUSD` and `chbBillPlanAmountUSD`
+ * encode the major-unit/USD-only contract these cases exist to pin, and `ChbApiError` is what the job's status
  * branching uses `instanceof` against.
  */
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -135,11 +135,16 @@ const chbCloudConfig = () => ({
   },
 });
 
-/** A `POST /bills/query` result holding the org's one open bill. */
+/**
+ * A `POST /bills/query` result holding the org's one open bill. Without a
+ * `plan`, the bill carries no standing charge, which CHB reports by leaving the
+ * field out.
+ */
 const openBill = (
   amount: number | null,
   currency: string | null = "USD",
   startDate: string | null = "2026-09-01T00:00:00.000Z",
+  plan?: { amount: number | null; currency: string | null },
 ) => [
   {
     id: "bill_1",
@@ -147,6 +152,14 @@ const openBill = (
     startDate,
     endDate: "2026-10-01T00:00:00.000Z",
     usage: { amount, currency, asOf: "2026-09-29T12:00:00.000Z" },
+    ...(plan && {
+      plan: {
+        ...plan,
+        // Billed in advance: the fee on this bill covers the next period.
+        startDate: "2026-10-01T00:00:00.000Z",
+        endDate: "2026-11-01T00:00:00.000Z",
+      },
+    }),
   },
 ];
 
@@ -262,6 +275,41 @@ describe("handleCloudSpendAlertJob", () => {
         where: { id: "alert-1" },
         data: { triggeredAt: expect.any(Date) },
       });
+    });
+
+    /**
+     * The alert is set against the upcoming invoice, base fee included, the
+     * same total Stripe's preview invoice reports.
+     */
+    it("counts the plan fee toward the threshold", async () => {
+      mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
+      mockQueryBills.mockResolvedValue(
+        openBill(150.5, "USD", undefined, { amount: 59, currency: "USD" }),
+      );
+
+      await handleCloudSpendAlertJob(createJob());
+
+      expect(mockSendCloudSpendAlertEmail).toHaveBeenCalledTimes(1);
+      expect(mockSendCloudSpendAlertEmail.mock.calls[0]![0]).toMatchObject({
+        currentSpend: 209.5,
+        threshold: 200,
+      });
+    });
+
+    /**
+     * Comparing usage alone would report less than the org owes and alert
+     * late, so a plan fee CHB cannot express in USD skips the org instead.
+     */
+    it("skips when CHB reports a plan fee it cannot express in USD", async () => {
+      mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
+      mockQueryBills.mockResolvedValue(
+        openBill(250, "USD", undefined, { amount: 59, currency: "EUR" }),
+      );
+
+      await handleCloudSpendAlertJob(createJob());
+
+      expect(mockSendCloudSpendAlertEmail).not.toHaveBeenCalled();
+      expect(skipReasons()).toContain("missing_chb_plan_amount");
     });
 
     it("does not alert below the threshold", async () => {

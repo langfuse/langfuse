@@ -12,7 +12,7 @@ export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
-    ignores: ["**/.next/", "**/.next-check/"],
+    ignores: ["**/.next/"],
   },
 
   // Use the plugins directly because this repo owns its parser and import resolver setup.
@@ -77,6 +77,9 @@ export default [
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "react/jsx-no-target-blank": "off",
+      "react/jsx-no-useless-fragment": "error",
+      "react/no-unstable-nested-components": "error",
+      "react-hooks/static-components": "error",
     },
   },
 
@@ -116,7 +119,6 @@ export default [
       "react-hooks/refs": "off",
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/set-state-in-render": "off",
-      "react-hooks/static-components": "off",
       "react-hooks/unsupported-syntax": "off",
       "react-hooks/use-memo": "off",
     },

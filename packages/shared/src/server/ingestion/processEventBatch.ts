@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
@@ -297,11 +297,10 @@ export const processEventBatch = async (
             source: "process_event_batch",
             reason: "s3_upload_error",
           });
+          logger.error("Failed to upload event to S3", {
+            error: result.reason,
+          });
         }
-
-        logger.error("Failed to upload event to S3", {
-          error: result.reason,
-        });
       }
     });
   });

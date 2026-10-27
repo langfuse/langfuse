@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,8 +13,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const BillingDiscountCodeButton = ({ orgId }: { orgId: string }) => {
@@ -43,7 +43,19 @@ export const BillingDiscountCodeButton = ({ orgId }: { orgId: string }) => {
     },
     onError: (err) => {
       setProcessing(false);
-      toast.error(err.message || "Failed to apply promotion code");
+      const analytics = classifyTrpcToastError(err, "billing_discount.apply");
+      showToast({
+        type: "ERROR",
+        title: err.message || "Failed to apply promotion code",
+        analytics:
+          analytics.trpcCode === "BAD_REQUEST"
+            ? {
+                ...analytics,
+                errorOrigin: "backend",
+                errorCategory: "user_input",
+              }
+            : analytics,
+      });
     },
   });
 

@@ -52,9 +52,12 @@ it("keeps canonical conversation evidence without provenance or opaque payloads"
                   toolCallId: "private-call",
                   toolName: "search",
                   output: {
-                    result: "Refunds allowed",
-                    thinking: "private-thinking",
-                    image: "data:image/png;base64,SElEREVO",
+                    type: "json",
+                    value: {
+                      result: "Refunds allowed",
+                      thinking: "private-thinking",
+                      image: "data:image/png;base64,SElEREVO",
+                    },
                   },
                 },
                 { type: "data", value: { count: 2 } },

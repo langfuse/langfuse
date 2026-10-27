@@ -1,7 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useCompactRows,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import {
   DataTableMobileFilterControls,
   DataTableToolbar,
@@ -11,7 +16,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -31,7 +36,7 @@ import {
   sortOptionValues,
 } from "@/src/features/filters";
 
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   getScoreFilterConfig,
@@ -63,7 +68,7 @@ import { useOrderByState } from "@/src/features/orderBy";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 import type { RouterOutput } from "@/src/utils/types";
 import { TagList } from "@/src/features/tag";
@@ -95,7 +100,7 @@ import {
   ScoreTag,
   scoreLevelFromScore,
   type ScoreLevel,
-} from "@/src/components/score-tag";
+} from "@/src/components/ScoreTag";
 import { ViewModeToggle } from "@/src/features/chart-view";
 
 export type ScoresTableRow = {
@@ -175,6 +180,21 @@ function createFilterState(
   }, userFilterState);
 }
 
+function ScoreTraceTags({
+  tags,
+  fallbackCompact,
+}: {
+  tags: string[];
+  fallbackCompact: boolean;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
+    </div>
+  );
+}
+
 export default function ScoresTable({
   projectId,
   userId,
@@ -219,7 +239,15 @@ export default function ScoresTable({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "scores",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
@@ -696,9 +724,9 @@ export default function ScoresTable({
       enableHiding: true,
       size: 400,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
-    createBadgeTableColumn<ScoresTableRow>({
+    createTagTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -721,14 +749,7 @@ export default function ScoresTable({
         return (
           traceTags &&
           traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
-            </div>
+            <ScoreTraceTags tags={traceTags} fallbackCompact={compactRows} />
           )
         );
       },
@@ -739,7 +760,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -752,7 +773,7 @@ export default function ScoresTable({
           <ScoresMetadataCell
             scoreId={scoreId}
             projectId={projectId}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1240,6 +1261,7 @@ export default function ScoresTable({
               ]}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={
                 showControlsInPageHeader || isTraceScoped
                   ? undefined
@@ -1365,6 +1387,9 @@ export default function ScoresTable({
                 columnOrder={columnOrder}
                 onColumnOrderChange={handleColumnOrderChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={rowHeights.setCustomPx}
+                onSelectRowHeight={setRowHeight}
               />
             )}
           </div>

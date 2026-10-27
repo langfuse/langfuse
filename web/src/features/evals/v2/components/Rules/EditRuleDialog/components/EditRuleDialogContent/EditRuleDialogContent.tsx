@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications";
 import {
   EvalTemplateType,
@@ -64,7 +65,7 @@ export function EditRuleDialogContent({
     }),
   );
   const update = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
 
   const save = async () => {

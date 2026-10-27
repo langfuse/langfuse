@@ -1,9 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
-import { assignRole } from "../../src/features/rbac/roleAssignmentRepository";
+import { createApiKey, logger } from "../../src/server";
 import {
-  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -40,7 +38,7 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    const project = await prisma.project.upsert({
+    await prisma.project.upsert({
       where: { id: projectId },
       update: {},
       create: {
@@ -50,37 +48,17 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    const apiKeyId = `api-key-${projectId}`;
-    const apiKeyExists = await prisma.apiKey.findUnique({
-      where: { id: apiKeyId },
+    const name = `API Key for ${projectId}`;
+    const apiKeyExists = await prisma.apiKey.findFirst({
+      where: { projectId, note: name },
     });
     if (!apiKeyExists) {
-      const sk = await hashSecretKey(
-        `sk-${Math.random().toString(36).slice(2, 11)}`,
-      );
-      await prisma.$transaction(async (tx) => {
-        await tx.apiKey.create({
-          data: {
-            id: apiKeyId,
-            note: `API Key for ${projectId}`,
-            publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-            hashedSecretKey: sk,
-            displaySecretKey: getDisplaySecretKey(sk),
-            scope: "PROJECT",
-            project: {
-              connect: {
-                id: projectId,
-              },
-            },
-          },
-        });
-        await assignRole(tx, {
-          tenantId: OrganizationId(project.orgId),
-          principalId: ApiKeyId(apiKeyId),
-          roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-          ownerId: ProjectId(projectId),
-          tags: [],
-        });
+      await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: "system",
+        name,
       });
     }
   });

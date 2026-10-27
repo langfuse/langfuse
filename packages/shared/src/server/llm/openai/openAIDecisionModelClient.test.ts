@@ -79,7 +79,14 @@ describe("createOpenAIDecisionModelClient", () => {
     );
     expect(JSON.parse(init.body as string)).toEqual({
       model: "gpt-6-luna",
-      input: JSON.stringify(request.state),
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: JSON.stringify(request.state) },
+          ],
+        },
+      ],
       questions: [
         {
           type: "choice",

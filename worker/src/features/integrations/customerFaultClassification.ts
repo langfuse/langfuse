@@ -43,6 +43,8 @@ const BUCKET_FAULT_CODES = new Set<string>([
   // S3 — bucket & path
   "NoSuchBucket",
   "InvalidBucketName",
+  // S3 — bucket lives in a different region than the configured region/endpoint
+  "PermanentRedirect",
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
@@ -60,6 +62,7 @@ const BUCKET_FAULT_CODES = new Set<string>([
 const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
   "blocked-hostname",
   "blocked-ip",
+  "host-not-allowed",
 ]);
 
 const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([

@@ -5,6 +5,7 @@ import { env } from "../../env";
 import {
   CloudUsageMeteringQueue,
   CloudSpendAlertQueue,
+  compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -236,6 +237,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     if (
       getBillingProvider(org, {
         cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+        optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
       }) !== "stripe"
     ) {
       traceException(
@@ -431,6 +433,27 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       countProcessedEvents,
     },
   );
+
+  // Runs after the interval is metered and the lease released, and never
+  // throws, so it cannot delay or change what Stripe receives. It compares
+  // every project with usage, not only the Stripe-billed ones.
+  if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
+    await compareWithBillingLedger({
+      source: "stripe_metering",
+      from: meterIntervalStart,
+      to: meterIntervalEnd,
+      legacy: {
+        traces: traceCountsByProject,
+        observations: observationCountsByProject,
+        scores: scoreCountsByProject,
+      },
+      orgIdByProjectId: new Map(
+        organizations.flatMap((org) =>
+          org.projectIds.map((projectId) => [projectId, org.id] as const),
+        ),
+      ),
+    });
+  }
 
   if (meterIntervalEnd.getTime() + delayFromStartOfInterval < Date.now()) {
     logger.info(

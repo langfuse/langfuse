@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 // Langfuse Cloud only
 import { useState } from "react";
 import Link from "next/link";
@@ -14,7 +14,8 @@ import {
   DialogTrigger,
   DialogBody,
 } from "@/src/components/ui/dialog";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // planLabels used inside StripeSwitchPlanButton
 import {
@@ -55,10 +56,14 @@ export const BillingSwitchPlanDialog = ({
         setProcessingPlanId(null);
         setOpId(null);
       },
-      onError: () => {
+      onError: (error) => {
         setProcessingPlanId(null);
         setOpId(null);
-        toast.error("Failed to start checkout session");
+        showToast({
+          type: "ERROR",
+          title: "Failed to start checkout session",
+          analytics: classifyTrpcToastError(error, "billing_checkout.start"),
+        });
       },
     });
 
@@ -81,7 +86,7 @@ export const BillingSwitchPlanDialog = ({
               variant="secondary"
               href="https://langfuse.com/pricing"
             >
-              Comparison of plans ↗
+              Comparison of plans
             </ActionButton>
           </div>
         </DialogHeader>

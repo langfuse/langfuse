@@ -1,5 +1,8 @@
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  logger,
+  OutboundUrlValidationError,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -13,7 +16,10 @@ import {
 } from "@/src/server/api/trpc";
 
 function asBadRequest(error: unknown): never {
-  if (error instanceof InvalidRequestError) {
+  if (
+    error instanceof InvalidRequestError ||
+    error instanceof OutboundUrlValidationError
+  ) {
     throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
   }
   throw error;

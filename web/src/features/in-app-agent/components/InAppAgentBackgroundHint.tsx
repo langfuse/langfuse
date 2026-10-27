@@ -1,8 +1,9 @@
-import { BotMessageSquare, Minus } from "lucide-react";
+import { Minus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 /**
  * Transient nudge that the run keeps going without the drawer. Lives in the
@@ -17,9 +18,7 @@ export function InAppAgentBackgroundHint({
 }) {
   return (
     <InAppAgentNotice
-      icon={
-        <BotMessageSquare aria-hidden="true" className="icon-sm shrink-0" />
-      }
+      icon={<HaloIcon variant="notice" />}
       isExpanded={isExpanded}
       role="status"
       tone="neutral"
@@ -28,11 +27,11 @@ export function InAppAgentBackgroundHint({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Minimize assistant"
+          aria-label="Minimize Halo"
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >
-          <Minus className="icon-base text-icon-foreground" />
+          <Minus size="base" color="default" />
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

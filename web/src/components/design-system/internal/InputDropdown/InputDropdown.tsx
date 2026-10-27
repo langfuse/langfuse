@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { Check, Search as SearchIcon } from "lucide-react";
+import { Check, Search as SearchIcon } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
@@ -39,7 +39,7 @@ function Root({ ...props }: SlottedProps) {
 function Search({ ...props }: SlottedProps) {
   return (
     <div className="flex items-center border-b px-2">
-      <SearchIcon className="icon-base shrink-0 opacity-50" />
+      <SearchIcon size="base" __rawClassName="opacity-50" />
       <Slot
         className="placeholder:text-muted-foreground flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
         {...props}
@@ -151,7 +151,8 @@ function OptionContent({
     return (
       <Check
         aria-hidden="true"
-        className={cn("icon-base", checked ? "opacity-100" : "opacity-0")}
+        size="base"
+        __rawClassName={cn(checked ? "opacity-100" : "opacity-0")}
       />
     );
   }, [type, checked]);

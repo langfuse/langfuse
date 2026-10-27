@@ -23,6 +23,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   assertGcsBlobStorageBucketAllowed,
 } from "@langfuse/shared/src/server";
@@ -393,6 +394,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         if (endpoint) {
           await validateBlobStorageEndpoint(endpoint);
+          await validateBlobStorageBucketHost({
+            type,
+            endpoint,
+            bucketName,
+            forcePathStyle,
+          });
         }
         const isGcs = type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
         // GCS: stored secret = customer service account JSON key; none = the
@@ -446,6 +453,16 @@ This file can be safely deleted.`;
             ...testFile,
             expiresInSeconds: 3600, // 1 hour
           }));
+        }
+
+        // Best-effort cleanup, a missing delete permission must not fail validation.
+        try {
+          await storageService.deleteFiles([testFileName]);
+        } catch (deleteError) {
+          logger.warn(
+            `Failed to delete blob storage validation test file ${testFileName}`,
+            deleteError,
+          );
         }
 
         logger.info(

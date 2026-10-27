@@ -170,6 +170,33 @@ describe("SkillService versions", () => {
     };
   }
 
+  it("includes labels from older versions without counting their tags", async () => {
+    const test = setup();
+    test.db.skill.findMany
+      .mockResolvedValueOnce([
+        { ...test.skill, labels: ["latest"], tags: ["support"] },
+      ])
+      .mockResolvedValueOnce([
+        { labels: ["latest"] },
+        { labels: ["staging", "canary"] },
+        { labels: ["production", "staging"] },
+      ]);
+
+    await expect(
+      test.service.filterOptions({ projectId: "project" }),
+    ).resolves.toEqual({
+      names: ["test-skill"],
+      tags: [{ value: "support", count: 1 }],
+      labels: ["canary", "latest", "production", "staging"],
+    });
+    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { projectId: "project", labels: { isEmpty: false } },
+      }),
+    );
+  });
+
   it.each(["setLabels", "deleteVersion", "deleteSkill"] as const)(
     "checks labels added before the mutation lock during %s",
     async (operation) => {
@@ -545,6 +572,56 @@ describe("SkillService versions", () => {
       "in total",
     );
     expect(test.transaction).not.toHaveBeenCalled();
+  });
+
+  it("only looks up latest when the default production version is missing", async () => {
+    const test = setup();
+    const input = {
+      projectId: "project",
+      name: "test-skill",
+      selector: {},
+      fallbackToLatest: true,
+    };
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 1,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
+    test.db.skill.findFirst.mockClear();
+    test.db.skill.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...test.skill, version: 2, labels: ["latest"] });
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 2,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledTimes(2);
+    for (const [index, label] of ["production", "latest"].entries()) {
+      expect(test.db.skill.findFirst).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.objectContaining({
+          where: {
+            projectId: "project",
+            name: "test-skill",
+            labels: { has: label },
+          },
+        }),
+      );
+    }
+  });
+
+  it("keeps the default production lookup strict unless fallback is enabled", async () => {
+    const test = setup();
+    test.db.skill.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      test.service.get({
+        projectId: "project",
+        name: "test-skill",
+        selector: {},
+      }),
+    ).rejects.toThrow("Skill version not found");
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
   });
 
   it("loads a resource through the batch lookup using its manifest hash", async () => {

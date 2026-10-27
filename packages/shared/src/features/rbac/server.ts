@@ -1,1 +1,1 @@
-export * from "./roleAssignmentRepository";
+export * from "./roleAssignmentService";

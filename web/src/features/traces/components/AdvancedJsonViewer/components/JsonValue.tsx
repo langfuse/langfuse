@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /**
  * JsonValue - Renders a JSON value with type-based styling
  *
@@ -116,7 +116,7 @@ export function JsonValue({
     // text highlighter found no search/comment overlays to preserve.
     const mediaDescriptor = classifyMediaValue(str);
     if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
-      return <MediaReferenceTag descriptor={mediaDescriptor} />;
+      return <MediaReferenceTag descriptor={mediaDescriptor} size="sm" />;
     }
 
     return (

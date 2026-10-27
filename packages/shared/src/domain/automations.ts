@@ -106,6 +106,8 @@ export const SlackActionConfigSchema = z.object({
   channelId: z.string(),
   channelName: z.string(),
   messageTemplate: z.string().optional(),
+  // Set server-side on save; private channel names are masked for everyone but the installer
+  isPrivate: z.boolean().optional(),
 });
 
 export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;

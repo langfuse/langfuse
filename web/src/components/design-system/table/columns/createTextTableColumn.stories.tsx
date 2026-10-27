@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil } from "@langfuse/icons";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";

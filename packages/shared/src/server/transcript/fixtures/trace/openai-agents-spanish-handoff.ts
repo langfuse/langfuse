@@ -514,7 +514,8 @@ export const openaiAgentsSpanishHandoffFixture = {
                   type: "tool-result",
                   toolCallId: "call_i81vsF01rKH8cDZ0SLQQBUA2",
                   output: {
-                    assistant: "Spanish agent",
+                    type: "json",
+                    value: { assistant: "Spanish agent" },
                   },
                 },
               ],

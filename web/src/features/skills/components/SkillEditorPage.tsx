@@ -1,7 +1,8 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { showErrorToast } from "@/src/features/notifications";
 import { SKILL_LATEST_LABEL } from "@langfuse/shared";
@@ -19,6 +20,7 @@ import {
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function NewSkillPage() {
   const router = useRouter();
@@ -216,6 +218,7 @@ function ExistingSkillSession({
           showErrorToast(
             "Could not resume draft",
             error instanceof Error ? error.message : "Please try again.",
+            classifyTrpcToastError(error, "skill_draft.resume"),
           );
           return;
         }
@@ -253,6 +256,7 @@ function ExistingSkillSession({
               }
             : {
                 kind: "version",
+                skillId: skill.data.id,
                 hasDraft: draftStore !== null,
                 onEdit: selectDraft,
               }
@@ -283,7 +287,21 @@ function ExistingSkillSession({
           onSelect: async (selectedVersion) => {
             await router.push({
               pathname: router.pathname,
-              query: { projectId, skillName, version: selectedVersion },
+              query: {
+                projectId,
+                skillName,
+                version: selectedVersion,
+                ...(router.query.tab === "usage" ||
+                router.query.tab === "linked-traces" ||
+                router.query.tab === "metrics"
+                  ? {
+                      tab: router.query.tab,
+                      ...(router.query.dateRange
+                        ? { dateRange: router.query.dateRange }
+                        : {}),
+                    }
+                  : {}),
+              },
             });
           },
         }}

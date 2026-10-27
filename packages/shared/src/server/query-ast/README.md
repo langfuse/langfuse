@@ -8,10 +8,10 @@ metadata, `FilterState` embedding) will land under
 `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
-`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata `indexOf`
-subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
-per-table dedup lowering from the registry; schema-typed selection; virtual
-views as WITH CTEs; catalog parity.
+`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
+subscripts; a mandatory tenancy injection pass keyed on one `projectId`;
+per-table soft-delete filtering and dedup lowering from the registry;
+schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -20,17 +20,23 @@ changing how it emits SQL.
 ## Layout
 
 - `compile.ts` — the one supported entry point,
-  `compileClickhouseQuery(query, ctx)`, and the `ExecutionContext` re-export.
-- `tenancy.ts` — the `ExecutionContext` type and the tenancy injection pass.
+  `compileClickhouseQuery(query, projectId)`.
+- `ctes.ts` — the first pass: rejects CTE and FROM/JOIN names that could
+  mean two relations, so later passes read every registry name as its table.
+- `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
   column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
-  (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead
-  of hand-maintained tables that drift.
+  (`TENANTED_TABLES`), the per-table dedup specs (`DEDUP_SPECS`), and the
+  soft-delete flag columns (`SOFT_DELETE_COLUMNS`) — instead of
+  hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
-  `limitBy`, `useFinal`, `metadataValue`.
-- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
+  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
+  aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
+  `literal`, …) that take `eb.ref(...)` expressions.
+- `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
+  dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `catalog.golden.test.ts` — catalog SQL baselines.
@@ -40,6 +46,7 @@ SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
 that call site, e.g. `../repositories/environments.golden.test.ts`,
+`../repositories/events.golden.test.ts`,
 `../repositories/scores.golden.test.ts`, and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
@@ -72,22 +79,112 @@ suffix to run there. Promote it to a required check once it has proven stable.
 
 ## Using it
 
-- **Compile only through `compileClickhouseQuery(query, ctx)`.** It is the one
-  supported path from a builder to `{ sql, params }`; the repository layer hands
-  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying `projectId`)
-  is required — omitting it is a compile-time type error and an empty one throws.
+- **Compile only through `compileClickhouseQuery(query, projectId)`.** It is
+  the one supported path from a builder to `{ sql, params }`; the repository
+  layer hands that to `queryClickhouse`. `projectId` is required — omitting it
+  is a compile-time type error and an empty one throws. There is no
+  multi-project scope: a query reads one project.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
-  only `{ projectId }` (see `../repositories/environments.ts`).
+  only `projectId` (see `../repositories/environments.ts`).
+- **Read events through the logical `events` relation.**
+  Each `events` relation compiles to `events_core` unless a column reference
+  that resolves to it reads a column `events_core` truncates (`input`,
+  `output`, `metadata_values`, `input_length`, `output_length`); then that
+  relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
+  `metadataValue` stay on `events_core` when
+  `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
+  builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
+  it, and an unqualified truncated column are compile errors while `events`
+  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  (input/output/metadata previews): it always compiles to `events_core`,
+  whatever columns it reads, and the pass does not reject `*` or raw SQL over
+  it. `events_core` / `events_full` are not part of the Kysely schema, and
+  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
+  compile error; only the routing pass writes them.
+- **Give each CTE (and view) its own plain name.** A CTE name is a plain
+  identifier that is not a registry table (`traces`, `events_core`, the
+  logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
+  enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
+  name is an unqualified registry table or a CTE in scope; schema-qualified
+  names (`default.traces`) are rejected, since the registry describes tables
+  by name only. A CTE body sees only the CTEs declared before it, so
+  recursive and cyclic CTEs are out. The passes then read every registry
+  name as its table. Rename or reorder the CTEs when the compile rejects
+  them; add a physical table to the registry to read it.
+- **Identifiers, function and aggregate names must be plain identifiers**
+  (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
+  else fails to compile. This covers columns, tables, aliases, CTE names,
+  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  columns instead. A positive integer after a qualifier (`x.1`) is tuple
+  element access and compiles as is. `collate` is not supported.
+- **Never filter `is_deleted` on a physical table yourself.** Tables that
+  declare `softDelete` in the registry (`events_core`, `events_full`) get
+  `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
+  version, then `LIMIT 1` or `LIMIT 1 BY`) marks itself
+  `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
+  set) wins the pick and is dropped after it, instead of an older live
+  version. A select that must see deleted rows opts out with
+  `$call(includeDeleted())`. Reads without a version pick (lists,
+  aggregates) filter each row on its own: like an updated row under dedup
+  `none`, a deleted row's older live version stays visible until a merge
+  collapses the versions.
 - **Dedup is declared per table and must be an existing production idiom.**
-  `events_core` is `none` (immutable at read time — no LIMIT BY, no FINAL).
+  `events_core` and `events_full` are `none` (immutable at read time — no
+  LIMIT BY, no FINAL).
   `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
-  table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
-  `{p:Int64}`). Same-value binds still intern to one placeholder.
+  table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
+  `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple
+  (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
+  placeholder. A value compared to a column the compiler can't type throws
+  `QueryCompileError`: a qualifier no relation declares, a table outside the
+  registry (or a CTE that reads one), and an unqualified column that the
+  joined relations type differently (a computed CTE column counts as its own
+  type) or that a relation outside the registry may provide. Qualify the
+  column with the alias of a registry relation, or add the table to the
+  registry. A SELECT alias takes the type of the column it names, also
+  through another alias; a computed alias, an ARRAY JOIN alias, or a column
+  no relation has, binds by value. A `*` over a join types a shared column
+  name from the leftmost relation, as ClickHouse does.
+- **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
+  sends a `Date` as the UTC wall-clock string ingestion writes
+  (`toClickhouseDateTime`), so binds match stored rows whatever the server
+  timezone. Use `toDate` / `toStartOfMinute` from `extensions.ts` for
+  date-truncated comparisons.
+- **Inline code constants with `literal(...)`, bind everything else.**
+  `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
+  comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
+  rejects backslashes and must never receive user input. For a constant `IN`
+  list, wrap each item: `eb("data_type", "in", TYPES.map((t) => literal(t)))`
+  renders `data_type in ('A', 'B')`. A list that mixes `literal(...)` items
+  with bound values is rejected.
+- **Registry types are logical, not wire types.** `DateTime64` is `Date` and
+  `UInt64` is `number` so binds type-check, but query results arrive as raw
+  JSON (dates as strings). Type rows with a read schema and convert them; do
+  not type results with the builder's `InferResult`.
+- **Build shared expressions from the calling query's expression builder.**
+  A reusable events expression or select list is wrapped in
+  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
+  query that reads a full events row as `e` and nothing else: no join, no
+  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
+  of the same name in the calling query can't shadow them. A helper typed
+  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
+  names, but not joins or the rest of the row: fine for a fixed small column
+  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
+  `scopedToEvents`. A module-level constant built from a detached
+  `expressionBuilder()` loses the check entirely: helper results don't carry
+  their table scope in their type, and Kysely's `select()` / `where()` accept
+  any expression.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -100,10 +197,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 db.selectFrom("observations")
   .select("environment")
   .$call(
-    arrayJoin({
-      cost_key: mapKeys("cost_details"),
-      cost: mapValues("cost_details"),
-    }),
+    arrayJoin((eb) => ({
+      cost_key: mapKeys(eb.ref("cost_details")),
+      cost: mapValues(eb.ref("cost_details")),
+    })),
   );
 // … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
 ```
@@ -111,14 +208,21 @@ db.selectFrom("observations")
 **Write a LIMIT BY** (`limitBy`):
 
 ```ts
-db.selectFrom("events_core")
+db.selectFrom("events")
+  .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
-  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
-// … order by event_ts desc limit 1 by span_id, project_id
+  .$call(
+    limitBy({
+      count: 1,
+      columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+    }),
+  );
+// … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
+// soft-delete pass so a deleted latest version is dropped
 ```
 
-**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
 
 ```ts
 db.selectFrom("scores as s")
@@ -127,14 +231,18 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound `indexOf` subscript):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined; `names` / `values` must be one relation's `metadata_names` / `metadata_values` refs, anything else throws. Events reads use `eventsMetadataValue(eb, key)` from `../repositories/events-selects.ts`):
 
 ```ts
-db.selectFrom("events_core as e")
-  .select((eb) => [metadataValue("e", "my_key").as("my_val")])
-  .where((eb) => eb(metadataValue("e", "my_key"), ">", 2));
-// select metadata_values[indexof(e.metadata_names, {p:String})] as my_val …
+const filterKey: string = input.metadataKey; // caller-supplied, so bound
+db.selectFrom("events as e")
+  .select("e.span_id")
+  .where((eb) => eb(eventsMetadataValue(eb, filterKey), "=", "x"));
+// select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
+
+Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
+routes that relation to `events_full`.
 
 ## Developing the dialect
 
@@ -148,13 +256,13 @@ need a fork. Instead each ClickHouse-only construct rides as an extra field or a
 special-cased node, and the compiler/transformer are overridden to emit and
 preserve it:
 
-| Clause             | How it lands                                                                                                                                                                                               | Fork? |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
-| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
-| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
-| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
+| Clause             | How it lands                                                                                                                                                                                                                                                                | Fork? |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE.                                                                  | no    |
+| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                                                                                                | no    |
+| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`). | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                   | no    |
+| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                                                                                                | no    |
 
 These are real node objects whose children are traced Kysely
 `FunctionNode`/`ColumnNode`/`ValueNode`/`IdentifierNode` values — not `RawNode`
@@ -167,39 +275,62 @@ not patched.
 `getClickhouseKysely()` returns a `Kysely` instance wired to a `DummyDriver`
 with SQLite adapter/introspector stand-ins (`dialect.ts`). Nothing ever
 connects or executes. The only supported output path is
-`compileClickhouseQuery(query, ctx)` → `{ sql, params }`, which the repository
-layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
+`compileClickhouseQuery(query, projectId)` → `{ sql, params }`, which the
+repository layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
 directly: the compiler refuses any tree that did not go through the tenancy pass.
 
 ### Tenancy injection — how the choke point works
 
-`compileClickhouseQuery(query, ctx)` is the only supported compile path, and it
-is where tenancy is enforced:
+`compileClickhouseQuery(query, projectId)` is the only supported compile path,
+and it is where tenancy is enforced:
 
-1. A missing/empty `ExecutionContext` throws (`QueryCompileError`) — `ctx` is a
+1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
-2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
+   `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
+   before every other pass. A FROM/JOIN name that resolves to no registry
+   table or CTE in scope, and a schema-qualified name, throw
+   `UnscopedRelationError`; naming errors throw `QueryCompileError`.
+2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
+   whose table declares `softDelete`, except in selects marked with
+   `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
+   unfiltered, gets the flag added to its outputs, and is wrapped in an outer
+   select over those outputs that keeps rows with `latest.<flag> = 0`. It
+   runs before tenancy, so the WHERE reads
+   `project_id = … and is_deleted = … and …`.
+3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value
-   must equal the context project, and — when more than one tenanted relation is
+   must equal `projectId`, and — when more than one tenanted relation is
    in scope — the column must be table-qualified. A qualified predicate covers a
    relation only when the qualifier matches its alias (if aliased) or its table
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
-3. `DedupLoweringPlugin` applies the table's declared read idiom
-   (`none` / `limitBy` / `final`). `events_core` is `none` — immutable at
-   read time, so the pass does not inject LIMIT BY or FINAL. `limitBy` is
+4. `DedupLoweringPlugin` applies the table's declared read idiom
+   (`none` / `limitBy` / `final`). `events_core` and `events_full` are
+   `none` — immutable at read time, so the pass does not inject LIMIT BY or
+   FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
    `final` remains fail-closed on the auto-lowering pass; callers opt in
-   with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.
-4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+   with `$call(useFinal(["scores"]))`. FINAL on a table that declares
+   `limitBy` throws: the registry already picks the latest version, so drop
+   the `useFinal`. The pass restamps the rewritten root.
+5. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
-   in scope (`total_cost > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
-   `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
-   own keyword fragments (`asc`/`desc`) are not relations.
+   in scope (`scores.value > 1` → `{p:Float64}`).
+6. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
+   inside raw SQL in any position throw `UnscopedRelationError`, as
+   does any FROM/JOIN source that is neither a table reference nor a subquery
+   (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
+   Kysely's own keyword fragments (`asc`/`desc`) are not relations.
+
+Every pass and the compiler read a FROM/JOIN item through `describeRelation`
+(`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
+is the table `scores` under alias `s`. Any other nesting (an alias around
+FINAL, FINAL around FINAL) is neither a table nor a subquery, and step 6
+rejects it. A new relation shape is handled there, once.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible.
@@ -254,9 +385,9 @@ documented-protected API.
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
-anchors it so it stays in the build graph. `@ts-expect-error` lines there must
-stay live.
+arrayJoin widening, limitBy / useFinal preservation). It is never run: `tsc`
+checks it through the package's `include`, and knip treats `*types.assert.ts`
+as an entry. `@ts-expect-error` lines there must stay live.
 
 ### Verifying changes
 

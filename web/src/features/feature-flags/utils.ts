@@ -1,6 +1,8 @@
 /* eslint-disable no-nested-ternary */
+import type { Session } from "next-auth";
 import {
   availableFlags,
+  defaultOnFeaturePreviewFlags,
   featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
@@ -9,6 +11,7 @@ import {
   isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   isAdminOnlyFeaturePreviewFlag,
+  INTERNAL_FEATURE_FLAG,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
 } from "./available-flags";
@@ -28,6 +31,13 @@ export const hasInternalAccess = ({
   isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
 }) => isExperimentalFeaturesEnabled || isAdmin;
+
+export const isInternalViewEnabled = (session: Session | null | undefined) =>
+  hasInternalAccess({
+    isAdmin: session?.user?.admin === true,
+    isExperimentalFeaturesEnabled:
+      session?.environment?.enableExperimentalFeatures === true,
+  }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
@@ -78,6 +88,17 @@ export const parseFlags = (
     }
 
     if (
+      defaultOnFeaturePreviewFlags.some(
+        (defaultFlag) => defaultFlag === flag,
+      ) &&
+      isFeaturePreviewFlag(flag) &&
+      isFeaturePreviewAvailable(flag, context)
+    ) {
+      parsedFlags[flag] = true;
+      return;
+    }
+
+    if (
       enableFeaturePreviewsByDefault &&
       isFeaturePreviewFlag(flag) &&
       isFeaturePreviewAvailable(flag, context)
@@ -89,8 +110,8 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
-  if (!parsedFlags.modernSession) {
-    parsedFlags.sessionTimeline = false;
+  if (!parsedFlags.sessionViewV2) {
+    parsedFlags.sessionViewV2Timeline = false;
   }
 
   return parsedFlags;
@@ -107,7 +128,13 @@ export const parseFlagsWithOrganizationDefaults = (
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  const flags = parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const organizationOptOuts = defaultOnFeaturePreviewFlags
+    .map(getFeaturePreviewOptOutFlag)
+    .filter((flag) => organizationDefaults.includes(flag));
+  const flags = parseFlags(
+    dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
+    context,
+  );
   for (const flag of featurePreviewFlags) {
     if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
       flags[flag] = featurePreviewDefaults.includes(flag);

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import type { ColumnDefinition } from "@langfuse/shared";
 import { ExperimentDisplaySettings } from "@/src/features/experiments";
@@ -278,6 +278,113 @@ describe("DataTableToolbar presentation controls", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
+  });
+
+  function openRowHeightMenu() {
+    const button = screen.getByRole("button", { name: /Row height/ });
+    act(() => {
+      // Radix opens the menu on pointerdown. jsdom has no PointerEvent, so
+      // this is a MouseEvent that still carries button and coordinates.
+      button.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          clientX: 1,
+          clientY: 1,
+        }),
+      );
+    });
+  }
+
+  it("keeps the row-height menu to the presets unless a free height is enabled", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Small" }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Custom as its own row-height state and restores it from the menu", () => {
+    const setRowHeight = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="l"
+        setRowHeight={setRowHeight}
+        customRowHeight={{
+          active: true,
+          rememberedPx: 640,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Large" }),
+    ).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Small" }));
+    expect(setRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    );
+    // Already the active height, so choosing it again is a no-op.
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns to a remembered custom height from the menu", () => {
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="m"
+        customRowHeight={{
+          active: false,
+          rememberedPx: 800,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Medium" }),
+    ).toBeChecked();
+    const custom = screen.getByRole("menuitemcheckbox", {
+      name: "Custom (800px)",
+    });
+    expect(custom).not.toBeChecked();
+    fireEvent.click(custom);
+    expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("hides Custom until a row has been dragged", () => {
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        customRowHeight={{
+          active: false,
+          rememberedPx: null,
+          onSelect: vi.fn(),
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens legacy filters and search together in the mobile sheet", () => {

@@ -3,14 +3,14 @@ import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function TracePage({
   traceId,
@@ -90,9 +90,7 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge variant="outline" className="text-xs font-bold">
-      Public
-    </Badge>
+    <Badge color="primary" text="Public" />
   ) : undefined;
 
   return (
@@ -150,7 +148,7 @@ export function TracePage({
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // menu rows (Make Public / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions

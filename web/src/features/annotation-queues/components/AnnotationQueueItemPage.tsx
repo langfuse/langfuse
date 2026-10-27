@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -6,7 +7,7 @@ import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,9 +39,9 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs on the right.
@@ -149,6 +150,7 @@ function AnnotationQueueRunLoader({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    meta: { toastOperation: "annotation_queue.load" },
   });
   if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
   if (bootstrap.isError) {
@@ -201,7 +203,10 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+    annotationQueueId,
+    projectId,
+  });
   const unseenPendingItemCount =
     api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
       { queueId: annotationQueueId, projectId, seenItemIds },
@@ -259,7 +264,8 @@ function AnnotationQueueRunContent({
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (objectData.isLoading || isTransitioning) return;
+      if (queueConfigsLoading || objectData.isLoading || isTransitioning)
+        return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -357,6 +363,7 @@ function AnnotationQueueRunContent({
     isTransitioning,
     objectData.isError,
     objectData.isLoading,
+    queueConfigsLoading,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -367,6 +374,7 @@ function AnnotationQueueRunContent({
     (seenItemData.isPending && itemId) ||
     (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
+    queueConfigsLoading ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
@@ -395,7 +403,7 @@ function AnnotationQueueRunContent({
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground icon-xl mb-2" />
+          <SearchXIcon size="xl" color="muted" __rawClassName="mb-2" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
@@ -468,16 +476,13 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="icon-base text-icon-foreground" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowLeft"]} />
-                  </span>
+                  <ArrowLeft size="base" color="default" />
                 </Button>
               )}
             </Tooltip>
@@ -514,7 +519,7 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
@@ -522,10 +527,7 @@ function AnnotationQueueRunContent({
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="icon-base text-icon-foreground" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowRight"]} />
-                  </span>
+                  <ArrowRight size="base" color="default" />
                 </Button>
               )}
             </Tooltip>
@@ -576,7 +578,7 @@ function AnnotationQueueRunContent({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="icon-base" />
+              <Keyboard size="base" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>

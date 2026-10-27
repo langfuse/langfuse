@@ -78,6 +78,7 @@ export const GetScoresQuery = z.object({
 export const PostScoreBody = applyScoreValidation(
   PostScoreBodyFoundationSchema.extend({
     source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
+    timestamp: stringDateTime,
   }).and(
     z.discriminatedUnion("dataType", [
       z.object({
@@ -110,7 +111,7 @@ export const PostScoreBody = applyScoreValidation(
       }),
       z.object({
         value: z.union([z.string(), z.number()]),
-        dataType: z.undefined(),
+        dataType: z.undefined().optional(),
         configId: z.string().nullish(),
       }),
     ]),

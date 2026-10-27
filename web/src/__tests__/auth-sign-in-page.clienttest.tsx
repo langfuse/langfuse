@@ -7,7 +7,7 @@ const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
     captureExceptionMock: vi.fn(),
     addBreadcrumbMock: vi.fn(),
     signInMock: vi.fn(),
-    routerState: { query: {} as Record<string, string> },
+    routerState: { query: {} as Record<string, string | string[]> },
   }));
 
 vi.mock("@sentry/nextjs", () => ({
@@ -46,11 +46,11 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   isAnySsoConfigured: async () => false,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
+vi.mock("@/src/features/auth/components/CloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudPrivacyNotice", () => ({
+vi.mock("@/src/features/auth/components/CloudPrivacyNotice", () => ({
   CloudPrivacyNotice: () => null,
 }));
 
@@ -469,7 +469,7 @@ describe("sign-in page last used SSO email", () => {
 
     // The password step appearing is what marks the email as not SSO-backed.
     await waitFor(() => {
-      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Password/)).toHaveFocus();
     });
     expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
@@ -500,6 +500,7 @@ describe("sign-in page last used SSO email", () => {
 
     // One-step form: password is visible immediately.
     expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Password/)).not.toHaveFocus();
     await waitFor(() => {
       expect(storedSsoEmail()).toBe("");
     });
@@ -520,5 +521,73 @@ describe("sign-in page last used SSO email", () => {
       ).toBeInTheDocument();
     });
     expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+});
+
+// The address is already on screen when "(forgot password?)" is clicked, so the
+// reset page should not ask for it a second time (langfuse#18583).
+describe("sign-in page forgot-password link", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  const forgotPasswordLink = () =>
+    screen.getByRole("link", { name: /forgot password/i });
+
+  it("links to the bare reset page while the email field is empty", () => {
+    renderSignIn();
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password",
+    );
+  });
+
+  it("carries the typed address over, percent-encoded", () => {
+    renderSignIn();
+
+    // A `+` is legal in an address and decodes back as a space unencoded.
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "  jane+test@example.com  " },
+    });
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password?email=jane%2Btest%40example.com",
+    );
+  });
+
+  it("carries over an address restored from the query", () => {
+    routerState.query = { email: "jane@example.com" };
+
+    renderSignIn();
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password?email=jane%40example.com",
+    );
+  });
+});
+
+// `?email=a&email=b` makes router.query.email an array. Rendering it would put
+// "a,b" in the field; reading it as a string would throw on an array.
+describe("sign-in page repeated ?email= param", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("ignores the param rather than crashing or joining the values", () => {
+    routerState.query = { email: ["a@example.com", "b@example.com"] };
+
+    renderSignIn();
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+    expect(
+      screen.getByRole("link", { name: /forgot password/i }),
+    ).toHaveAttribute("href", "/auth/reset-password");
   });
 });

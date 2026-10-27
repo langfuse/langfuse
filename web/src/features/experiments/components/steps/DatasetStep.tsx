@@ -26,7 +26,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Info, CircleCheck } from "lucide-react";
+import { Info, CircleCheck } from "@langfuse/icons";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { api } from "@/src/utils/api";
@@ -176,7 +176,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
-                  <Info className="icon-base" />
+                  <Info size="base" />
                 </CardTitle>
                 <CardDescription className="text-foreground">
                   {validationResult?.message}
@@ -189,7 +189,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-green flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
-                  <CircleCheck className="icon-base" />
+                  <CircleCheck size="base" />
                 </CardTitle>
                 <div className="text-sm">
                   Matches between dataset items and prompt

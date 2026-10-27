@@ -1,6 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useOrderByState } from "@/src/features/orderBy";
@@ -19,7 +22,7 @@ import {
 } from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@langfuse/shared";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
@@ -33,7 +36,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -111,7 +114,7 @@ export default function PromptMetricsPage({
     column: "startTime",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "promptVersion",
     "s",
   );
@@ -415,6 +418,7 @@ export default function PromptMetricsPage({
           setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
+          customRowHeight={customRowHeightMenu(rowHeights)}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
           columnOrder={columnOrder}
@@ -451,6 +455,9 @@ export default function PromptMetricsPage({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </Page>
   );

@@ -1,5 +1,5 @@
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 
 interface SamplingMetadata {
   samplingRate: number;
@@ -119,9 +119,7 @@ export function SamplingDetailsHoverCard({
           {...getTriggerProps()}
         >
           {showLabel && <span>Sampled Data</span>}
-          <Info
-            className={showLabel ? "icon-sm" : "text-muted-foreground icon-sm"}
-          />
+          <Info size="sm" color={showLabel ? "inherit" : "muted"} />
         </button>
       )}
     </HoverCard>

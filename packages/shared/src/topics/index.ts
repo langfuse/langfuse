@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { DEFAULT_TOPIC_FACETS } from "./default-facets";
+
+export { DEFAULT_TOPIC_FACETS };
+
+export const TOPICS_BEDROCK_ACCESS_ERROR =
+  "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
 
 export const topicIdSchema = z
   .string()
@@ -7,6 +13,8 @@ export const topicIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 export const topicTraceIdSchema = z.string().min(1).max(1000);
+/** The longest time range any Topics read or update accepts. */
+export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
 export const topicTimeRangeSchema = z
   .object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine(({ from, to }) => from < to, {
@@ -18,12 +26,51 @@ export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z.string().trim().min(1).optional(),
   embeddingDimensions: z
     .number()
-    .refine((value) => [256, 512, 1024, 1536].includes(value), {
-      message: "Choose 256, 512, 1024, or 1536 embedding dimensions.",
-    })
+    .int("Embedding dimensions must be a whole number.")
+    .min(64, "Use at least 64 embedding dimensions.")
+    .max(4096, "Use at most 4,096 embedding dimensions.")
     .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
+
+export const TOPICS_MODEL_SLOTS = [
+  "summary",
+  "embedding",
+  "clustering",
+] as const;
+export type TopicsModelSlotName = (typeof TOPICS_MODEL_SLOTS)[number];
+export const TOPICS_MODEL_SLOT_DETAILS: Record<
+  TopicsModelSlotName,
+  { label: string; recommendation: string }
+> = {
+  summary: {
+    label: "Facet summaries",
+    recommendation:
+      "A small, fast model such as GPT-6 Luna. It runs once per trace.",
+  },
+  embedding: {
+    label: "Embeddings",
+    recommendation:
+      "An embedding model such as text-embedding-3-small or Cohere Embed v4. It cannot be changed once summaries are embedded.",
+  },
+  clustering: {
+    label: "Topic clustering",
+    recommendation:
+      "Names and describes each topic when topics are updated. Use a stronger model such as GPT-5.6 Terra, or Claude Sonnet through Amazon Bedrock.",
+  },
+};
+const topicsModelSlotSchema = z.object({
+  llmApiKeyId: z.string().min(1),
+  model: z.string().trim().min(1).max(256),
+});
+export const topicsModelSettingsSchema = z.object({
+  summary: topicsModelSlotSchema.nullable(),
+  embedding: topicsModelSlotSchema.nullable(),
+  embeddingDimensions:
+    topicEmbeddingConfigSchema.shape.embeddingDimensions.unwrap(),
+  clustering: topicsModelSlotSchema.nullable(),
+});
+export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
   summaryModel: z.string().trim().min(1).optional(),
   maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
@@ -52,15 +99,76 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
     message: "Choose an end time after the start time.",
     path: ["to"],
   })
-  .refine(({ from, to }) => to.getTime() - from.getTime() <= 93 * 86400000, {
-    message: "Select at most 93 days of traces.",
-    path: ["from"],
-  });
+  .refine(
+    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
+    {
+      message: "Select at most 93 days of traces.",
+      path: ["from"],
+    },
+  );
 export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     excludedTraceIds: z.array(topicTraceIdSchema).default([]),
   });
-export type TopicRule = z.infer<typeof topicRuleConfigSchema> & {
+export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
+  sampling: z.number().min(0).max(1).default(1),
+});
+
+export const topicsSetupSchema = topicsModelSettingsSchema.extend({
+  traceIdleMs: z
+    .number()
+    .int()
+    .multipleOf(1000, "Use whole seconds for the idle time.")
+    .min(60_000, "Wait at least 60 seconds.")
+    .max(3_600_000, "Wait at most 3,600 seconds."),
+  // The project's existing rule; omit only when the project has none yet.
+  ruleId: topicIdSchema.optional(),
+  facets: z
+    .array(
+      z.object({
+        name: z.string(),
+        enabled: z.boolean(),
+      }),
+    )
+    .superRefine((facets, ctx) => {
+      const expected = DEFAULT_TOPIC_FACETS.map((facet) => facet.name);
+      const names = facets.map((facet) => facet.name);
+      if (
+        names.length !== expected.length ||
+        new Set(names).size !== names.length ||
+        expected.some((name) => !names.includes(name))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Include each built-in facet once.",
+        });
+      }
+      if (!facets.some((facet) => facet.enabled)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Turn on at least one facet.",
+        });
+      }
+    }),
+  // Enabled custom facets keep their rule assignment; they are edited elsewhere.
+  customFacetIds: z.array(topicIdSchema).default([]),
+  filter: topicRuleConfigSchema.shape.filter,
+});
+export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
+
+/**
+ * Turns automatic processing of new traces on or off. Sampling applies only to
+ * automatic processing; omit it to keep the rule's stored rate.
+ */
+export const topicsAutomaticProcessingSchema = z.object({
+  enabled: z.boolean(),
+  sampling: z.number().min(0).max(1).optional(),
+});
+export type TopicsAutomaticProcessing = z.infer<
+  typeof topicsAutomaticProcessingSchema
+>;
+
+export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   id: string;
   projectId: string;
   name: string;
@@ -93,6 +201,15 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
+      // Generate topics over this range once every batch has finished.
+      thenUpdate: z
+        .object({
+          timeRange: topicTimeRangeSchema.refine(
+            ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+            "Select a time range of at most 93 days.",
+          ),
+        })
+        .optional(),
     })
     .strict(),
   z
@@ -155,7 +272,8 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   projectId: string;
   facetId: string;
   facetVersion: number;
-  triggerType: "manual_poc";
+  /** Processing path that wrote the row; rows from before the automatic/manual split hold "manual_poc". */
+  triggerType: "automatic" | "manual" | "manual_poc";
   environment: string;
   traceName: string;
   unitStartTime: string;

@@ -1,5 +1,6 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useId, useMemo } from "react";
-import { Star } from "lucide-react";
+import { Star } from "@langfuse/icons";
 import type { FilterState } from "@langfuse/shared";
 
 import { Radio } from "@/src/components/design-system/Radio/Radio";
@@ -53,7 +54,7 @@ export function EvaluatorSampleObservationSelector({
         id: "sample",
         header: () => (
           <div className="flex w-full justify-center">
-            <Star aria-hidden="true" className="icon-base" />
+            <Star aria-hidden="true" size="base" />
             <span className="sr-only">Sample</span>
           </div>
         ),

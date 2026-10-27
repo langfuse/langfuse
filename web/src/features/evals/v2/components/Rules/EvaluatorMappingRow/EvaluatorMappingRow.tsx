@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
+import { Check, ChevronDown, TriangleAlert, Unlink } from "@langfuse/icons";
 import {
   type EvalTemplateType,
   type ObservationVariableMapping,
@@ -114,7 +114,8 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                 className="min-w-0 flex-1 justify-start gap-2 px-0 hover:bg-transparent"
               >
                 <ChevronDown
-                  className={`text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform ${open ? "" : "-rotate-90"}`}
+                  size="base"
+                  __rawClassName={`text-foreground-tertiary translate-y-px transition-transform ${open ? "" : "-rotate-90"}`}
                 />
                 <span className="flex min-w-0 items-baseline gap-2">
                   <span className="truncate" title={evaluatorName}>
@@ -126,7 +127,8 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                       {allVariablesMapped ? (
                         <Check
                           aria-label="All variables mapped"
-                          className="icon-base text-dark-green"
+                          size="base"
+                          __rawClassName="text-dark-green"
                         />
                       ) : hasInvalidMappings ? (
                         <span
@@ -135,7 +137,8 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                           className="text-dark-yellow inline-flex shrink-0"
                         >
                           <TriangleAlert
-                            className="icon-base text-icon-foreground"
+                            size="base"
+                            color="default"
                             aria-hidden
                           />
                         </span>
@@ -155,7 +158,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
             disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >
-            <Unlink className="icon-base text-icon-foreground" />
+            <Unlink size="base" color="default" />
             Disconnect
           </Button>
         </div>

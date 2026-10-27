@@ -1,12 +1,13 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { BadgeCheck, X } from "lucide-react";
+import { BadgeCheck, X } from "@langfuse/icons";
 import { useRef } from "react";
+import type { ToastOperation } from "./toastAnalytics";
 
 export type SuccessNotificationProps = {
   title: string;
   description: string;
-  operation: string;
+  operation: ToastOperation;
   onDismiss: () => void;
   link?: {
     href: string;
@@ -49,7 +50,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
     <div ref={captureShown} className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <BadgeCheck className="icon-lg text-primary-foreground" />
+          <BadgeCheck size="lg" __rawClassName="text-primary-foreground" />
           <div className="text-primary-foreground m-0 text-sm leading-tight font-bold">
             {title}
           </div>
@@ -72,7 +73,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
         onClick={handleDismiss}
         aria-label="Close"
       >
-        <X className="icon-base" />
+        <X size="base" />
       </button>
     </div>
   );

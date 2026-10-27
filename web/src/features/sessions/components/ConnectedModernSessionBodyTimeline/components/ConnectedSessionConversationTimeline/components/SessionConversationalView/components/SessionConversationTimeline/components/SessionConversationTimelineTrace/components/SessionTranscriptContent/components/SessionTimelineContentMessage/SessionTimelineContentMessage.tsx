@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
+import {
+  Bot,
+  ChevronDown,
+  UserRound,
+  Wrench,
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   type NormalizedMessage,
   type ReasoningPart,
@@ -20,7 +26,7 @@ const rolePresentation = {
     label: "Assistant",
     icon: Bot,
     wrapper: "justify-start",
-    container: "bg-muted/50 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+    container: "max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   tool: {
     label: "Tool",
@@ -32,7 +38,7 @@ const rolePresentation = {
   Exclude<NormalizedMessage["role"], "system">,
   {
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: IconComponent;
     wrapper: string;
     container: string;
   }
@@ -45,7 +51,9 @@ export function SessionTimelineContentMessage({
   timestamp,
   onOpenObservation,
   expandRequestId,
+  variant = "session",
 }: {
+  variant?: "session" | "single-trace";
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
@@ -95,23 +103,27 @@ export function SessionTimelineContentMessage({
           return (
             <div
               key={`reasoning-${groupIndex}`}
-              className="group/bubble flex w-full flex-col gap-1"
+              className="flex w-full flex-col gap-1"
+              data-session-message-bubble=""
+              data-session-message-role={role}
             >
               {group.parts.map((part, partIndex) => (
                 <SessionTimelinePart
                   key={`${part.content.kind}-${partIndex}`}
                   part={part}
+                  trailingContent={
+                    onOpenObservation && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible hover:underline"
+                        onClick={onOpenObservation}
+                      >
+                        Open generation
+                      </button>
+                    )
+                  }
                 />
               ))}
-              {onOpenObservation && groupIndex === groups.length - 1 && (
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground invisible w-fit font-mono text-[10px] group-focus-within/bubble:visible group-hover/bubble:visible hover:underline"
-                  onClick={onOpenObservation}
-                >
-                  Open generation
-                </button>
-              )}
             </div>
           );
         }
@@ -130,15 +142,19 @@ export function SessionTimelineContentMessage({
             className={cn("flex w-full", presentation.wrapper)}
           >
             <article
+              data-session-message-bubble=""
+              data-session-message-role={role}
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
+                role === "assistant" &&
+                  (variant === "single-trace" ? "bg-muted" : "bg-muted/50"),
                 ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
               )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
                 <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
-                  <Icon className="icon-sm shrink-0" />
+                  <Icon size="sm" />
                   <span
                     className="text-foreground truncate"
                     title={senderName ?? presentation.label}
@@ -162,8 +178,10 @@ export function SessionTimelineContentMessage({
                   }
                 >
                   <ChevronDown
-                    className={cn(
-                      "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
+                    size="sm"
+                    color="tertiary"
+                    __rawClassName={cn(
+                      "translate-y-px transition-transform",
                       !isJsonExpanded && "-rotate-90",
                     )}
                     aria-hidden="true"
@@ -194,7 +212,7 @@ export function SessionTimelineContentMessage({
                 groupIndex === groups.length - 1 && (
                   <div
                     className={cn(
-                      "text-muted-foreground mt-1 flex items-center gap-3 font-mono text-[10px]",
+                      "text-muted-foreground text-2xs mt-2 flex items-center gap-3 font-mono",
                       role === "user" ? "justify-end" : "justify-start",
                     )}
                   >
@@ -202,7 +220,7 @@ export function SessionTimelineContentMessage({
                       <button
                         type="button"
                         className={cn(
-                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible hover:underline",
+                          "hover:text-foreground decoration-muted-foreground/40 hover:decoration-foreground/40 invisible underline underline-offset-2 group-hover/bubble:visible group-has-[:focus-visible]/bubble:visible",
                           role !== "user" && "order-1",
                         )}
                         onClick={onOpenObservation}

@@ -93,7 +93,12 @@ describe("systemRoleAccessRights", () => {
       {
         resourceKind: "project",
         effect: "ALLOW",
-        actions: ["traces:create", "scores:save", "media:create"],
+        actions: [
+          "traces:create",
+          "scores:save",
+          "media:create",
+          "project:read",
+        ],
       },
     ]);
   });

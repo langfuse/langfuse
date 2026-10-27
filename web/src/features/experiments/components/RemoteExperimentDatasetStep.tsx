@@ -1,6 +1,6 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -131,8 +131,9 @@ export const RemoteExperimentDatasetStep = ({
                         >
                           {dataset.name}
                           <CheckIcon
-                            className={cn(
-                              "icon-base ml-auto",
+                            size="base"
+                            __rawClassName={cn(
+                              "ml-auto",
                               dataset.id === selectedDatasetId
                                 ? "opacity-100"
                                 : "opacity-0",

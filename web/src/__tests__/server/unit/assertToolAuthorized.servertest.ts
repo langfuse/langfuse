@@ -90,7 +90,12 @@ describe("assertToolAuthorized", () => {
         serverContext(authContext([allowPrompts])),
       ),
     ).toThrow(
-      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          'Access denied. The "prompts:CUD" permission is required to access this resource.',
+        ),
+      }) as Error,
     );
   });
 
@@ -101,6 +106,22 @@ describe("assertToolAuthorized", () => {
         serverContext(authContext([allowPrompts])),
       ),
     ).not.toThrow();
+  });
+
+  it("keeps the generic permission message for an invalid wildcard target", () => {
+    expect(() =>
+      assertToolAuthorized(tool("prompts:read"), {
+        ...serverContext(authContext([allowPrompts])),
+        projectId: "*",
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Access denied. You do not have permission to access this resource.",
+        ),
+      }) as Error,
+    );
   });
 
   it("passes an ungated tool regardless of context", () => {
@@ -123,7 +144,12 @@ describe("assertToolAuthorized", () => {
     expect(() =>
       assertToolAuthorized(tool("prompts:CUD"), serverContext()),
     ).toThrow(
-      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Authentication failed. Please check your API key.",
+        ),
+      }) as Error,
     );
   });
 
@@ -143,6 +169,11 @@ describe("assertToolAuthorized", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:CUD",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
 
@@ -155,6 +186,11 @@ describe("assertToolAuthorized", () => {
         { success: true },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:read",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
   });

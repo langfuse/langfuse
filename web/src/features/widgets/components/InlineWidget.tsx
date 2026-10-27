@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -8,7 +8,7 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";

@@ -1,17 +1,18 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { type LucideIcon, Plus } from "lucide-react";
+import { type IconComponent, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
-import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -43,10 +44,13 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
 import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { MetricsFilterBuilder } from "@/src/features/metrics";
+import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
+import {
+  resolveMonitorNameForSave,
+  type MonitorNameResolution,
+} from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -75,7 +79,7 @@ import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   operatorLabels,
   operatorSymbol,
@@ -229,21 +233,32 @@ export const MonitorForm = ({
   const suggestName = api.monitors.suggestName.useMutation();
   const generateNameSuggestion = async (): Promise<string | null> => {
     if (!nameAIAssistanceAvailable) return null;
-    try {
-      return await suggestName.mutateAsync({
-        projectId,
-        description: namePlaceholderRef.current,
-      });
-    } catch {
-      return null;
-    }
+    return suggestName.mutateAsync({
+      projectId,
+      description: namePlaceholderRef.current,
+    });
   };
   const requestNameSuggestion = async () => {
-    const generatedName = await generateNameSuggestion();
+    let generatedName: string | null;
+    try {
+      generatedName = await generateNameSuggestion();
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an alert title",
+        "Please enter a title manually.",
+        classifyTrpcToastError(error, "monitor_title.generate"),
+      );
+      return;
+    }
     if (!generatedName) {
       showErrorToast(
         "Couldn't generate an alert title",
         "Please enter a title manually.",
+        {
+          operation: "monitor_title.generate",
+          errorOrigin: "backend",
+          errorCategory: "internal",
+        },
       );
       return;
     }
@@ -269,7 +284,12 @@ export const MonitorForm = ({
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to create alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.create"),
+      ),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -283,29 +303,61 @@ export const MonitorForm = ({
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to save alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.update"),
+      ),
   });
 
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
     async (values) => {
-      const resolvedName = await resolveMonitorNameForSave({
-        name: form.getValues("name"),
-        fallbackName: namePlaceholderRef.current,
-        aiAvailable: nameAIAssistanceAvailable,
-        generateName: generateNameSuggestion,
-      });
-      if (!resolvedName) {
+      let nameResolution: MonitorNameResolution;
+      try {
+        nameResolution = await resolveMonitorNameForSave({
+          name: form.getValues("name"),
+          fallbackName: namePlaceholderRef.current,
+          aiAvailable: nameAIAssistanceAvailable,
+          generateName: generateNameSuggestion,
+        });
+      } catch (error) {
         showErrorToast(
           "Couldn't generate an alert title",
           "Please enter a title manually and try again.",
+          classifyTrpcToastError(error, "monitor_title.generate"),
+        );
+        return;
+      }
+      if (nameResolution.status === "generation-failed") {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          {
+            operation: "monitor_title.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
+        );
+        return;
+      }
+      if (nameResolution.status === "validation-failed") {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          {
+            operation: isEdit ? "monitor.update" : "monitor.create",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return;
       }
 
       const normalizedValues = {
         ...values,
-        name: resolvedName,
+        name: nameResolution.name,
         filters: partitionWidgetUiTableFiltersToView(
           values.view as Parameters<
             typeof partitionWidgetUiTableFiltersToView
@@ -572,7 +624,7 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormLabel>Filters</FormLabel>
                       <FormControl>
-                        <MetricsFilterBuilder
+                        <ConnectedMetricsFilterBuilder
                           version="v2"
                           view={(watched.view ?? "observations") as MonitorView}
                           projectId={projectId}
@@ -857,7 +909,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="icon-base" />
+                              <Plus size="base" />
                               Add tag
                             </Button>
                           }
@@ -937,7 +989,7 @@ const Header = ({
 }: {
   title: string;
   step?: number;
-  icon?: LucideIcon;
+  icon?: IconComponent;
 }) => (
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
@@ -946,7 +998,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
+      {Icon ? <Icon size="lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>
@@ -962,7 +1014,7 @@ const Section = ({
 }: {
   title: string;
   step?: number;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   children: React.ReactNode;
   className?: string;
 }) => (
@@ -1013,12 +1065,7 @@ const NoDataField = ({
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
             Keep the previous
-            <Badge
-              variant="secondary"
-              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
-            >
-              SEVERITY
-            </Badge>
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>

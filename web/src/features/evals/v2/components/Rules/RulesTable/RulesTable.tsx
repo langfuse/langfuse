@@ -1,7 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -10,15 +16,18 @@ import {
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorConfigDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
@@ -91,14 +100,12 @@ function RuleEvaluatorsCell({
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
       renderItem={(assignment) => (
-        <Badge variant="secondary">{assignment.evaluator.name}</Badge>
+        <Badge color="filled" text={assignment.evaluator.name} />
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
+            <Badge color="filled" text={`+${overflowItemCount}`} />
           </TooltipTrigger>
           <TooltipContent>
             {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
@@ -125,7 +132,7 @@ export function RulesTable({
     column: "createdAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluationRulesV2",
     "s",
   );
@@ -217,7 +224,7 @@ export function RulesTable({
     { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
   );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
     onSuccess: async (result) => {
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
@@ -392,7 +399,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="icon-base ml-1" />
+                View traces <ExternalLink size="base" __rawClassName="ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -439,7 +446,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="icon-sm text-icon-foreground" />
+                    <MoreVertical size="sm" color="default" />
                   </Button>
                 )}
               </DropdownMenu>
@@ -567,6 +574,7 @@ export function RulesTable({
               setColumnOrder={handleColumnOrderChange}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               filterState={filterState}
               orderByState={orderBy}
               viewConfig={{
@@ -606,6 +614,9 @@ export function RulesTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
               pagination={{

@@ -32,7 +32,11 @@ pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for To
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42  # 100 diverse requests, tool failures and successful outcomes
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
+pnpm run seed -- experiment-filters  # three v4 runs over 60 items, shifted numeric/categorical/boolean scores, status, metadata and missing results
+pnpm run seed -- experiment-io --compare  # same dataset plus a second run with a long chat output, for the comparison table
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
+pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
+pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

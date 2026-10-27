@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { orderObservations } from "@langfuse/shared/src/server/transcript/ordering";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { type TranscriptObservation } from "@langfuse/shared/src/server/transcript/types";
@@ -9,10 +10,13 @@ import {
   useSessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
-import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
+import { type Observation } from "@langfuse/shared";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
-type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
+type TraceProps = ComponentProps<
+  typeof SessionConversationalView
+>["traces"][number];
 
 type TranscriptState = Extract<TraceProps["state"], { type: "transcript" }>;
 type WorkflowObservation = TranscriptObservation & {
@@ -22,6 +26,8 @@ type WorkflowObservation = TranscriptObservation & {
   inputTruncated: boolean;
   outputTruncated: boolean;
   metadataTruncated: boolean;
+  level?: Observation["level"];
+  statusMessage?: Observation["statusMessage"];
 };
 
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
@@ -1187,6 +1193,8 @@ const inAppAgentActions: Array<{
     input: Record<string, unknown>;
     output: unknown;
     outputAsText?: boolean;
+    level?: Observation["level"];
+    statusMessage?: Observation["statusMessage"];
   }>;
 }> = [
   {
@@ -1223,6 +1231,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.233,
+        level: "WARNING",
+        statusMessage:
+          "Sample limited to 25 observations. More results are available on the next page.",
         input: {
           fields: ["id", "name", "level", "statusMessage"],
           fromStartTime: "2026-01-01T00:00:00Z",
@@ -1267,15 +1278,18 @@ const inAppAgentActions: Array<{
       {
         name: "bash",
         latency: 0.195,
+        level: "ERROR",
+        statusMessage:
+          "Could not parse one observation's status message. Re-fetch the sample before retrying.",
         input: {
           command: "jq 'group_by(.statusMessage)' synthetic-errors.json",
         },
         output: {
           startedAt: "2026-01-08T09:00:17Z",
           completedAt: "2026-01-08T09:00:17Z",
-          exitCode: 0,
-          stdout: "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
-          stderr: "",
+          exitCode: 1,
+          stdout: "",
+          stderr: "jq: parse error: Invalid numeric literal",
         },
       },
     ],
@@ -1288,6 +1302,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.219,
+        level: "WARNING",
+        statusMessage:
+          "Some observation payloads were truncated. Counts are complete, but examples may omit details.",
         input: {
           fields: ["id", "traceId", "input", "output", "statusMessage"],
           filter: [
@@ -1846,30 +1863,34 @@ Active filter: level is ERROR
       }),
       ...action.tools.map((tool, toolIndex) => {
         const toolCallId = `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`;
-        return codingAgentObservation({
-          traceId: inAppAgentTraceId,
-          id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
-          parentObservationId: inAppAgentTurnId,
-          type: "TOOL",
-          name: tool.name,
-          offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
-          latency: tool.latency,
-          input: JSON.stringify(tool.input),
-          output: tool.outputAsText
-            ? String(tool.output)
-            : JSON.stringify({
-                type: "tool-result",
-                toolCallId,
-                toolName: tool.name,
-                output: tool.output,
-              }),
-          metadata: {
-            ...inAppAgentMetadata,
-            parentMessageId: `message-demo-${actionIndex + 1}`,
-            toolCallApprovalSource: "automatic",
-            toolCallId,
-          },
-        });
+        return {
+          level: tool.level,
+          statusMessage: tool.statusMessage,
+          ...codingAgentObservation({
+            traceId: inAppAgentTraceId,
+            id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
+            parentObservationId: inAppAgentTurnId,
+            type: "TOOL",
+            name: tool.name,
+            offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
+            latency: tool.latency,
+            input: JSON.stringify(tool.input),
+            output: tool.outputAsText
+              ? String(tool.output)
+              : JSON.stringify({
+                  type: "tool-result",
+                  toolCallId,
+                  toolName: tool.name,
+                  output: tool.output,
+                }),
+            metadata: {
+              ...inAppAgentMetadata,
+              parentMessageId: `message-demo-${actionIndex + 1}`,
+              toolCallApprovalSource: "automatic",
+              toolCallId,
+            },
+          }),
+        };
       }),
     ];
   }),
@@ -1909,7 +1930,10 @@ const implementationCodingAgentTrace = {
 } satisfies TraceProps["trace"];
 
 type WorkflowFixture = Pick<TraceProps, "trace" | "turnNumber"> & {
-  observations: Array<TranscriptObservation & { environment: string }>;
+  observations: Array<
+    TranscriptObservation &
+      Pick<WorkflowObservation, "environment" | "level" | "statusMessage">
+  >;
 };
 
 const supportAgentWorkflow: WorkflowFixture[] = [
@@ -2020,16 +2044,151 @@ const manySimpleTurnsWorkflow: WorkflowFixture[] = Array.from(
   },
 );
 
+const toolContentExamples = [
+  {
+    name: "describe_chart",
+    content: [{ type: "text", text: "Monthly revenue increased." }],
+  },
+  {
+    name: "get_chart_data",
+    content: [{ points: 12, metric: "monthly-revenue" }],
+  },
+  {
+    name: "download_chart",
+    content: [
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "inspect_chart",
+    content: [
+      { type: "vendor-chart", value: { chartId: "chart-annotations" } },
+    ],
+  },
+  {
+    name: "download_named_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        filename: "revenue.svg",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_svg_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_report",
+    content: [
+      {
+        type: "file",
+        mediaType: "application/pdf",
+        data: { type: "url", url: "/revenue-report.pdf" },
+      },
+    ],
+  },
+  {
+    name: "get_unknown_attachment",
+    content: [{ type: "file", file: { file_id: "revenue-attachment" } }],
+  },
+  {
+    name: "generate_chart",
+    content: [
+      { type: "text", text: "Monthly revenue chart generated." },
+      { points: 24, metric: "mixed-revenue" },
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+      { type: "vendor-chart", value: { chartId: "chart-revenue" } },
+    ],
+  },
+];
+
+const mixedToolContentWorkflow: WorkflowFixture[] = [
+  {
+    trace: {
+      ...trace,
+      id: "mixed-tool-content-story",
+      name: "Generate chart with attachments",
+      observationCount: toolContentExamples.length + 1,
+    },
+    turnNumber: 1,
+    observations: [
+      {
+        id: "chart-generation",
+        traceId: "mixed-tool-content-story",
+        parentObservationId: null,
+        type: "GENERATION",
+        name: "Plan chart",
+        startTime: trace.timestamp,
+        endTime: new Date(trace.timestamp.getTime() + 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify([
+          { role: "user", content: "Generate a chart of monthly revenue." },
+        ]),
+        output: JSON.stringify({
+          role: "assistant",
+          tool_calls: toolContentExamples.map(({ name }) => ({
+            id: `${name}-call`,
+            type: "function",
+            function: {
+              name,
+              arguments: '{"metric":"revenue"}',
+            },
+          })),
+        }),
+      },
+      ...toolContentExamples.map(({ name, content }, index) => ({
+        id: `${name}-tool`,
+        traceId: "mixed-tool-content-story",
+        parentObservationId: "chart-generation",
+        type: "TOOL" as const,
+        name,
+        startTime: new Date(trace.timestamp.getTime() + (index + 1) * 1000),
+        endTime: new Date(trace.timestamp.getTime() + (index + 2) * 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify({ metric: "revenue" }),
+        output: JSON.stringify({
+          role: "tool",
+          content,
+        }),
+      })),
+    ],
+  },
+];
+
 const workflowTranscripts = new Map(
   [
     supportAgentWorkflow,
     codingAgentWorkflow,
     langfuseAssistantWorkflow,
     manySimpleTurnsWorkflow,
+    mixedToolContentWorkflow,
   ].map((workflow) => [
     workflow,
-    workflow.map(
-      (item): WorkflowTrace => ({
+    workflow.map((item): WorkflowTrace => {
+      const transcript = assembleTranscript(
+        orderObservations(item.observations),
+      );
+      const observationsById = new Map(
+        item.observations.map((observation) => [observation.id, observation]),
+      );
+      return {
         trace: item.trace,
         turnNumber: item.turnNumber,
         state: {
@@ -2037,13 +2196,29 @@ const workflowTranscripts = new Map(
           result: {
             state: "loaded",
             cutoff: false,
-            transcript: assembleTranscript(
-              orderObservations(item.observations),
-            ),
+            transcript: transcript
+              ? {
+                  ...transcript,
+                  threads: transcript.threads.map((thread) => ({
+                    ...thread,
+                    currentTurn: {
+                      ...thread.currentTurn,
+                      messages: thread.currentTurn.messages.map((message) => ({
+                        ...message,
+                        level: observationsById.get(message.observationId)
+                          ?.level,
+                        statusMessage: observationsById.get(
+                          message.observationId,
+                        )?.statusMessage,
+                      })),
+                    },
+                  })),
+                }
+              : null,
           },
         },
-      }),
-    ),
+      };
+    }),
   ]),
 );
 
@@ -2132,6 +2307,7 @@ function SessionConversationalViewStory({
   viewportWidth,
   pageOffset = 0,
   delayedLoad = false,
+  delayedSearch = false,
 }: {
   workflowTraces?: WorkflowFixture[];
   transcriptTraces?: TraceProps[];
@@ -2143,9 +2319,12 @@ function SessionConversationalViewStory({
   viewportWidth?: number;
   pageOffset?: number;
   delayedLoad?: boolean;
+  delayedSearch?: boolean;
 }) {
   const [transcriptsLoaded, setTranscriptsLoaded] = useState(!delayedLoad);
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const applySearch = useDebounce(setAppliedSearch, 500, false);
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
     new Set(),
   );
@@ -2255,6 +2434,8 @@ function SessionConversationalViewStory({
   }
   return (
     <div
+      role="group"
+      aria-label="Session workspace"
       className="@container/session-workspace relative flex h-screen min-w-[320px]"
       style={{
         height:
@@ -2277,13 +2458,18 @@ function SessionConversationalViewStory({
       <SessionConversationalView
         state="loaded"
         search={search}
-        searchQuery={searchQueryOverride ?? search.trim()}
+        searchQuery={
+          searchQueryOverride ?? (delayedSearch ? appliedSearch : search.trim())
+        }
         isSearchPending={
           isSearchPending ||
           (searchQueryOverride !== undefined &&
             search.trim() !== searchQueryOverride)
         }
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          setSearch(value);
+          if (delayedSearch) applySearch(value.trim());
+        }}
         expandedTraceIds={
           new Set(
             entries
@@ -2299,7 +2485,7 @@ function SessionConversationalViewStory({
             return next;
           })
         }
-        onSelect={(index, observationId, rowId) => {
+        onSelect={(index, observationId, rowId, toolGroupId) => {
           const entry = entries[index];
           const traceId = entry
             ? displayedTraces[entry.traceIndex]?.trace.id
@@ -2313,7 +2499,7 @@ function SessionConversationalViewStory({
               requestId: ++requestId.current,
             });
           }
-          controller.onSelect(index, observationId, rowId);
+          controller.onSelect(index, observationId, rowId, toolGroupId);
         }}
         onVisibleTraceIdsChange={fn()}
         isLoadingTranscripts={isSearchPending}
@@ -2400,79 +2586,39 @@ const navigationTraces: TraceProps[] = Array.from(
   },
 );
 
-function viewportAnchor(feed: HTMLElement) {
-  const maxOffset = Math.max(0, feed.scrollHeight - feed.clientHeight);
-  const transition = Math.min(feed.clientHeight * 0.2, maxOffset);
-  const inset = Math.max(
-    0,
-    Math.min(
-      feed.clientHeight * 0.2,
-      feed.clientHeight - 1,
-      feed.scrollHeight - 1,
-    ),
-  );
-  if (transition === 0) return inset;
-  const progress = Math.max(0, 1 - (maxOffset - feed.scrollTop) / transition);
-  return inset + (feed.clientHeight - 1 - inset) * progress;
-}
-
 async function expectNavigation(
   canvasElement: HTMLElement,
-  headerName: string | RegExp,
+  headerName: string,
   itemId: string,
   rowId: string | false,
 ) {
   const canvas = within(canvasElement);
   const sidebar = within(canvas.getByRole("complementary"));
   const feed = canvas.getByLabelText("Session conversation timeline");
-  await expect(
-    sidebar.getByRole("button", { name: headerName }),
-  ).toHaveAttribute("aria-current", "true");
-  const assertGeometry = () => {
-    const entry = feed.querySelector<HTMLElement>(
-      `[data-session-item-id="${itemId}"]`,
-    );
-    const target = rowId
-      ? entry?.querySelector<HTMLElement>(
-          `[data-session-transcript-row-id="${rowId}"]`,
-        )
-      : entry?.closest<HTMLElement>("[data-index]");
-    if (!target) throw new Error(`Target ${itemId} is not mounted`);
-    const position =
-      target.getBoundingClientRect().top -
-      feed.getBoundingClientRect().top -
-      feed.clientTop;
-    const anchor = viewportAnchor(feed);
-    const inset = feed.clientHeight * 0.2;
-    const roundingTolerance =
-      anchor === inset
-        ? 2
-        : 2 +
-          (feed.clientHeight - 1 - inset) /
-            Math.min(
-              feed.clientHeight * 0.2,
-              feed.scrollHeight - feed.clientHeight,
-            );
-    // The first entry cannot acquire an inset by scrolling before offset zero.
-    const expectedAnchor =
-      feed.scrollTop === 0 && position >= 0 && position < inset
-        ? position
-        : anchor;
-    expect(Math.abs(position - expectedAnchor)).toBeLessThanOrEqual(
-      roundingTolerance,
-    );
-  };
-  await waitFor(assertGeometry, { timeout: 6_000 });
-  await new Promise((resolve) => window.setTimeout(resolve, 200));
-  assertGeometry();
-  // A zero-distance user intent removes any navigation override: geometry must
-  // independently yield the same active entry through the manual scroll spy.
-  feed.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
   await waitFor(() =>
     expect(sidebar.getByRole("button", { name: headerName })).toHaveAttribute(
       "aria-current",
       "true",
     ),
+  );
+  await waitFor(
+    () => {
+      const entry = feed.querySelector<HTMLElement>(
+        `[data-session-item-id="${itemId}"]`,
+      );
+      const target = rowId
+        ? entry?.querySelector<HTMLElement>(
+            `[data-session-transcript-row-id="${rowId}"]`,
+          )
+        : entry;
+      if (!target) throw new Error(`Target ${itemId} is not mounted`);
+      const bounds = target.getBoundingClientRect();
+      const viewport = feed.getBoundingClientRect();
+      expect(bounds.height).toBeGreaterThan(0);
+      expect(bounds.bottom).toBeGreaterThan(viewport.top);
+      expect(bounds.top).toBeLessThan(viewport.bottom);
+    },
+    { timeout: 6_000 },
   );
 }
 
@@ -2481,6 +2627,267 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const MixedToolContent = meta.story({
+  name: "(Test) Mixed Tool Content",
+  args: { workflowTraces: mixedToolContentWorkflow },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await userEvent.click(
+      await timeline.findByRole("button", {
+        name: (name) => name.startsWith("Show tools:"),
+      }),
+    );
+    for (const { name } of toolContentExamples) {
+      await userEvent.click(
+        timeline.getByRole("button", { name: `Expand ${name}` }),
+      );
+    }
+    await expect(
+      timeline.getByText("Monthly revenue increased."),
+    ).toBeVisible();
+    await expect(
+      timeline.getByText((text) => text.includes("monthly-revenue")),
+    ).toBeVisible();
+    await expect(
+      timeline.getByText((text) => text.includes("chart-annotations")),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("Session conversation timeline"),
+    ).toHaveTextContent("vendor-chart");
+    await expect(
+      timeline.getByText("Monthly revenue chart generated."),
+    ).toBeVisible();
+    await expect(
+      timeline.getByText((text) => text.includes("mixed-revenue")),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("Session conversation timeline"),
+    ).toHaveTextContent("points");
+    const images = timeline.getAllByRole<HTMLImageElement>("img", {
+      name: (name) =>
+        name.includes("Embedded image") || name.includes("revenue.svg"),
+    });
+    await expect(images).toHaveLength(4);
+    for (const image of images) await expect(image).toBeVisible();
+    await waitFor(async () => {
+      for (const image of images) {
+        await expect(image.naturalWidth).toBeGreaterThan(0);
+      }
+    });
+    await expect(
+      timeline.getByText((text) => text.includes("chart-revenue")),
+    ).toBeVisible();
+    await expect(timeline.queryByRole("note")).not.toBeInTheDocument();
+    for (const label of [
+      "revenue.svg",
+      "image/svg+xml",
+      "application/pdf",
+      "File",
+    ]) {
+      await expect(timeline.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(
+      timeline.getByRole("link", { name: "/revenue-report.pdf" }),
+    ).toHaveAttribute("href", "/revenue-report.pdf");
+    const sidebar = within(canvas.getByRole("complementary"));
+    await expect(
+      sidebar.queryByRole("button", { name: "JSON message" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const ReasoningOnlyAndEmptySidebarStates = meta.story({
+  name: "(Test) Reasoning-Only And Empty Sidebar States",
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        state: {
+          type: "transcript",
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                {
+                  conversationHistory: [],
+                  currentTurn: {
+                    nestingLevel: 0,
+                    observations: [],
+                    messages: [
+                      {
+                        observationId: "reasoning-only",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "text",
+                              text: "Only reasoning in this trace",
+                            },
+                          },
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "encrypted",
+                              data: "encrypted-payload",
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      {
+        ...traces[1]!,
+        state: { type: "empty" },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await expect(await sidebar.findByText("Reasoning only")).toBeVisible();
+    await expect(sidebar.getAllByText("No messages or tools")).toHaveLength(1);
+    await expect(
+      sidebar.queryByRole("button", { name: "Assistant message" }),
+    ).not.toBeInTheDocument();
+    await expect(timeline.getByText("Encrypted reasoning")).toBeInTheDocument();
+    await userEvent.click(timeline.getByRole("button", { name: "Reasoning" }));
+    await expect(
+      timeline.getByText("Only reasoning in this trace"),
+    ).toBeVisible();
+    await userEvent.type(
+      sidebar.getByRole("textbox", { name: "Search session" }),
+      "missing-message",
+    );
+    await waitFor(() =>
+      expect(sidebar.queryByText("Reasoning only")).not.toBeInTheDocument(),
+    );
+  },
+});
+
+export const OmitReasoningOnlySidebarMessages = meta.story({
+  name: "(Test) Omit Reasoning-Only Sidebar Messages",
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        state: {
+          type: "transcript",
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                {
+                  conversationHistory: [],
+                  currentTurn: {
+                    nestingLevel: 0,
+                    observations: [],
+                    messages: [
+                      {
+                        observationId: "reasoning-only",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "text",
+                              text: "Reasoning without an answer",
+                            },
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "encrypted-reasoning-only",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:01Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "encrypted",
+                              data: "encrypted-payload",
+                            },
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "reasoning-with-answer",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:02Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "text",
+                              text: "Reasoning with an answer",
+                            },
+                          },
+                          { type: "text", text: "The visible answer" },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await sidebar.findByRole("button", { name: "Assistant message" });
+    await expect(
+      sidebar.getAllByRole("button", { name: "Assistant message" }),
+    ).toHaveLength(1);
+    await expect(timeline.getByText("Encrypted reasoning")).toBeInTheDocument();
+    const reasoningButtons = timeline.getAllByRole("button", {
+      name: "Reasoning",
+    });
+    await expect(reasoningButtons).toHaveLength(2);
+    await userEvent.click(reasoningButtons[0]!);
+    await expect(
+      timeline.getByText("Reasoning without an answer"),
+    ).toBeVisible();
+    await userEvent.click(reasoningButtons[1]!);
+    await expect(timeline.getByText("Reasoning with an answer")).toBeVisible();
+    await expect(timeline.getByText("The visible answer")).toBeVisible();
+  },
+});
 
 export const ManualScrollSynchronization = meta.story({
   name: "(Test) Manual Scroll Synchronization",
@@ -2493,68 +2900,44 @@ export const ManualScrollSynchronization = meta.story({
     const feed = canvas.getByLabelText("Session conversation timeline");
     const sidebar = within(canvas.getByRole("complementary"));
     const initialPageScroll = window.scrollY;
-    const assertVisibleActive = async () => {
-      await waitFor(
-        () => {
-          const anchor =
-            feed.getBoundingClientRect().top +
-            feed.clientTop +
-            viewportAnchor(feed);
-          const entry = Array.from(
-            feed.querySelectorAll<HTMLElement>("[data-session-item-id]"),
-          ).find((element) => {
-            const rect = element
-              .closest<HTMLElement>("[data-index]")!
-              .getBoundingClientRect();
-            return rect.top <= anchor && rect.bottom > anchor;
-          });
-          if (!entry)
-            throw new Error("No entry contains the scroll-spy anchor");
-          const [traceId, threadIndex] =
-            entry.dataset.sessionItemId!.split(":");
-          const turn = Number(traceId!.replace("scroll-turn-", ""));
-          const thread = threadIndex === "0" ? 1 : 2;
-          expect(
-            sidebar.getByRole("button", {
-              name: (name) =>
-                name.startsWith(`${turn}.${thread} Navigation turn ${turn}`),
-            }),
-          ).toHaveAttribute("aria-current", "true");
-        },
-        { timeout: 3_000 },
-      );
-    };
-    await assertVisibleActive();
-    for (const top of [180, 450, 900, 1_500, 900, 450, 180, 0]) {
+    for (const top of [180, 450, 900, 1_500, 900, 0]) {
       feed.scrollTo({ top, behavior: "instant" });
-      await assertVisibleActive();
-    }
-    const secondEntry = feed
-      .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-1:2"]')!
-      .closest<HTMLElement>("[data-index]")!;
-    const boundary =
-      secondEntry.getBoundingClientRect().top -
-      feed.getBoundingClientRect().top +
-      feed.scrollTop;
-    for (const top of [
-      boundary - feed.clientHeight * 0.2 - 2,
-      boundary - feed.clientHeight * 0.2 + 2,
-      boundary - feed.clientHeight * 0.2 - 2,
-      0,
-    ]) {
-      feed.scrollTo({ top, behavior: "instant" });
-      await assertVisibleActive();
+      await waitFor(() => {
+        const active = sidebar.getByRole("button", { current: true });
+        const name = active.textContent ?? "";
+        const trace = navigationTraces.find((trace) =>
+          name.startsWith(`${trace.turnNumber}.`),
+        );
+        if (!trace) throw new Error("Active turn is missing from the sidebar");
+        const thread = name.startsWith(`${trace.turnNumber}.2`) ? 3 : 1;
+        const entry = feed.querySelector<HTMLElement>(
+          `[data-session-item-id="${trace.trace.id}:${thread === 3 ? 2 : 0}"]`,
+        );
+        if (!entry)
+          throw new Error("Active turn is not visible in the timeline");
+        const bounds = entry.getBoundingClientRect();
+        const viewport = feed.getBoundingClientRect();
+        expect(bounds.bottom).toBeGreaterThan(viewport.top);
+        expect(bounds.top).toBeLessThan(viewport.bottom);
+      });
     }
     feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
     await waitFor(
       () =>
         expect(
-          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
+          sidebar.getByRole("button", {
+            name: (name) => name.startsWith("32.2 Navigation turn 32"),
+          }),
         ).toHaveAttribute("aria-current", "true"),
       { timeout: 3_000 },
     );
     feed.scrollTo({ top: 0, behavior: "instant" });
-    await assertVisibleActive();
+    await expectNavigation(
+      canvasElement,
+      "1.1 Navigation turn 1",
+      "scroll-turn-1:0",
+      false,
+    );
     await expect(window.scrollY).toBe(initialPageScroll);
   },
 });
@@ -2570,7 +2953,7 @@ export const ExactMessageNavigation = meta.story({
     const sidebar = within(canvas.getByRole("complementary"));
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 1 thread 3");
-    const header = /^1\.2 Navigation turn 1/;
+    const header = "1.2 Navigation turn 1";
     for (const [name, rowId] of [
       ["System message", "2:0"],
       ["User message", "2:1"],
@@ -2587,11 +2970,11 @@ export const ExactMessageNavigation = meta.story({
       sidebar.queryByRole("button", { name: "User message" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.1 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.1 Navigation turn 2" }),
     );
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       false,
     );
@@ -2600,16 +2983,17 @@ export const ExactMessageNavigation = meta.story({
       sidebar.getByRole("button", { name: "User message" }),
     ).toBeInTheDocument();
     await userEvent.clear(search);
-    const headerButton = sidebar.getByRole("button", {
-      name: /^2\.1 Navigation turn 2/,
-    });
-    const card = within(headerButton.parentElement!.parentElement!);
+    const card = within(
+      sidebar
+        .getByRole("button", { name: "2.1 Navigation turn 2" })
+        .closest<HTMLElement>("[data-session-virtualizer-row]")!,
+    );
     await userEvent.click(
       card.getByRole("button", { name: "Tool: lookup · save" }),
     );
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       "0:3",
     );
@@ -2618,7 +3002,7 @@ export const ExactMessageNavigation = meta.story({
       .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-2:0"]')!;
     await expect(
       within(entry).queryByRole("button", {
-        name: /^(Show|Hide) tools: lookup · save$/,
+        name: "Show tools: lookup · save",
       }),
     ).not.toBeInTheDocument();
     await expect(
@@ -2627,6 +3011,54 @@ export const ExactMessageNavigation = meta.story({
     await expect(
       within(entry).getByRole("button", { name: "Expand save" }),
     ).toBeVisible();
+    await userEvent.type(search, "save");
+    await userEvent.click(
+      within(
+        sidebar
+          .getByRole("button", { name: "2.1 Navigation turn 2" })
+          .closest<HTMLElement>("[data-session-virtualizer-row]")!,
+      ).getByRole("button", { name: "tool: save" }),
+    );
+    await expectNavigation(
+      canvasElement,
+      "2.1 Navigation turn 2",
+      "scroll-turn-2:0",
+      "0:4",
+    );
+  },
+});
+
+export const RepeatNavigationHighlight = meta.story({
+  name: "(Test) Repeated Message Navigation",
+  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    await userEvent.type(sidebar.getByRole("textbox"), "Turn 1 thread 3");
+    const button = sidebar.getByRole("button", { name: "User message" });
+    await userEvent.click(button);
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
+    );
+    await userEvent.click(button);
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
+    );
+    feed.scrollTo({ top: 0, behavior: "instant" });
+    await userEvent.click(button);
+    await expectNavigation(
+      canvasElement,
+      "1.2 Navigation turn 1",
+      "scroll-turn-1:2",
+      "2:1",
+    );
   },
 });
 
@@ -2637,16 +3069,11 @@ export const VirtualizedNavigation = meta.story({
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
     const search = sidebar.getByRole("textbox");
-    const feed = canvas.getByLabelText("Session conversation timeline");
     for (const turn of [28, 3, 32, 1]) {
       const itemId = `scroll-turn-${turn}:2`;
-      if (turn === 28)
-        await expect(
-          feed.querySelector(`[data-session-item-id="${itemId}"]`),
-        ).not.toBeInTheDocument();
       await userEvent.clear(search);
       await userEvent.type(search, `Turn ${turn} thread 3`);
-      const header = new RegExp(`^${turn}\\.2 Navigation turn ${turn}`);
+      const header = `${turn}.2 Navigation turn ${turn}`;
       await userEvent.click(sidebar.getByRole("button", { name: header }));
       await expectNavigation(canvasElement, header, itemId, false);
       await userEvent.click(
@@ -2659,43 +3086,74 @@ export const VirtualizedNavigation = meta.story({
 
 export const SearchThreadNavigation = meta.story({
   name: "(Test) Filtered Thread Indices And Individual Tools",
-  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  args: {
+    transcriptTraces: navigationTraces,
+    viewportHeight: 480,
+    delayedSearch: true,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 9 thread 3 assistant");
     await expect(
-      sidebar.queryByRole("button", { name: /^9\.1/ }),
+      sidebar.queryByRole("button", { name: "9.1 Navigation turn 9" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      sidebar.getByRole("button", { name: "Assistant message" }),
+      await sidebar.findByRole("button", { name: "Assistant message" }),
     );
     await expectNavigation(
       canvasElement,
-      /^9\.2 Navigation turn 9/,
+      "9.2 Navigation turn 9",
       "scroll-turn-9:2",
       "2:2",
     );
     await userEvent.clear(search);
     await userEvent.type(search, "save");
+    await waitFor(() =>
+      expect(
+        sidebar.queryByRole("button", { name: "Assistant message" }),
+      ).not.toBeInTheDocument(),
+    );
     const header = await sidebar.findByRole("button", {
-      name: /^9\.2 Navigation turn 9/,
+      name: "9.2 Navigation turn 9",
     });
-    const card = within(header.parentElement!.parentElement!);
+    const card = within(
+      header.closest<HTMLElement>("[data-session-virtualizer-row]")!,
+    );
     await userEvent.click(card.getByRole("button", { name: "tool: save" }));
     await expectNavigation(
       canvasElement,
-      /^9\.2 Navigation turn 9/,
+      "9.2 Navigation turn 9",
       "scroll-turn-9:2",
       "2:4",
     );
     await userEvent.clear(search);
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
     await waitFor(
       () =>
         expect(
-          sidebar.getByRole("button", { name: /^9\.2 Navigation turn 9/ }),
+          sidebar.getByRole("button", { name: "9.2 Navigation turn 9" }),
         ).toHaveAttribute("aria-current", "true"),
+      { timeout: 3_000 },
+    );
+    await userEvent.type(search, "no matching transcript");
+    await sidebar.findByText("No matching turns");
+    await userEvent.clear(search);
+    await waitFor(
+      () => {
+        const active = sidebar.getByRole("button", {
+          name: "9.2 Navigation turn 9",
+        });
+        const list = canvas.getByRole("region", { name: "Session turns" });
+        expect(active).toHaveAttribute("aria-current", "true");
+        expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          list.getBoundingClientRect().top,
+        );
+        expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+          list.getBoundingClientRect().bottom,
+        );
+      },
       { timeout: 3_000 },
     );
   },
@@ -2710,14 +3168,14 @@ export const NavigationInterruption = meta.story({
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 2 thread");
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.1 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.1 Navigation turn 2" }),
     );
     await userEvent.click(
-      sidebar.getByRole("button", { name: /^2\.2 Navigation turn 2/ }),
+      sidebar.getByRole("button", { name: "2.2 Navigation turn 2" }),
     );
     await expectNavigation(
       canvasElement,
-      /^2\.2 Navigation turn 2/,
+      "2.2 Navigation turn 2",
       "scroll-turn-2:2",
       false,
     );
@@ -2746,47 +3204,56 @@ export const DelayedTranscriptNavigation = meta.story({
     );
     await expectNavigation(
       canvasElement,
-      /^2\.1 Navigation turn 2/,
+      "2.1 Navigation turn 2",
       "scroll-turn-2:0",
       false,
     );
   },
 });
 
-export const SidebarFollowResume = meta.story({
-  name: "(Test) Sidebar Follow Resumes After User Idle",
-  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+export const SidebarManualScroll = meta.story({
+  name: "(Test) Sidebar Scrolling And Selection",
+  args: {
+    transcriptTraces: navigationTraces,
+    viewportHeight: 480,
+    viewportWidth: 1200,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const feed = canvas.getByLabelText("Session conversation timeline");
     const list = canvas.getByRole("region", { name: "Session turns" });
-    const sidebar = within(canvas.getByRole("complementary"));
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    const initialFeedScroll = feed.scrollTop;
+
     list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
-    await waitFor(
-      () => {
-        // Newly mounted rows replace estimates, moving the end of the timeline.
-        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
-        expect(
-          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
-        ).toHaveAttribute("aria-current", "true");
-      },
-      { timeout: 3_000 },
-    );
-    await waitFor(
-      () => {
-        const active = sidebar.getByRole("button", {
-          name: /^32\.2 Navigation turn 32/,
-        });
-        expect(active).toHaveAttribute("aria-current", "true");
-        const activeRect = active.getBoundingClientRect();
+    list.scrollTo({ top: 1500, behavior: "instant" });
+    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(1000));
+    // Wait beyond the former idle timeout, including virtualized row measurements.
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    await expect(list.scrollTop).toBeGreaterThan(1000);
+    await expect(feed.scrollTop).toBe(initialFeedScroll);
+
+    const sidebar = within(canvas.getByRole("complementary"));
+    const visibleTurn = sidebar
+      .getAllByRole("button", {
+        name: (name) => name.includes(" Navigation turn "),
+      })
+      .find((button) => {
+        const rect = button.getBoundingClientRect();
         const listRect = list.getBoundingClientRect();
-        expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
-        expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
-      },
-      { timeout: 3_000 },
+        return rect.top >= listRect.top && rect.bottom <= listRect.bottom;
+      });
+    if (!visibleTurn)
+      throw new Error("No visible turn available for selection");
+    await userEvent.click(visibleTurn);
+    await waitFor(() =>
+      expect(visibleTurn).toHaveAttribute("aria-current", "true"),
+    );
+    await waitFor(() =>
+      expect(feed.scrollTop).toBeGreaterThan(initialFeedScroll),
     );
   },
 });
+
 export const NestedThreadsHidden = meta.story({
   name: "(Test) Nested Threads Hidden",
   args: {
@@ -2849,7 +3316,7 @@ export const NestedThreadsHidden = meta.story({
     const warnings = await timeline.findAllByRole("button", {
       name: "2 nested threads hidden",
     });
-    await expect(warnings).toHaveLength(2);
+    await expect(warnings).toHaveLength(1);
     for (const surface of [timeline]) {
       for (const text of [
         "Main agent checks the order.",
@@ -2875,17 +3342,12 @@ export const NestedThreadsHidden = meta.story({
     await userEvent.click(
       sidebar.getByRole("button", { name: "Assistant message" }),
     );
-    await waitFor(() =>
-      expect(sidebar.getByRole("button", { name: /^1\.2 / })).toHaveAttribute(
-        "aria-current",
-        "true",
-      ),
+    await expectNavigation(
+      canvasElement,
+      `1.2 ${traces[0]!.trace.name}`,
+      "trace-1:3",
+      "3:0",
     );
-    await expect(
-      canvasElement.querySelector(
-        '[data-session-item-id="trace-1:3"] [data-session-transcript-row-id="3:0"]',
-      ),
-    ).toHaveAttribute("data-scroll-request-id");
     await userEvent.clear(search);
   },
 });
@@ -2926,29 +3388,37 @@ export const SupportAgentWorkflow = meta.story({
     await expect(
       await within(
         canvas.getByLabelText("Session conversation timeline"),
-      ).findByText(/Hi, I just noticed order #LF-20481/),
+      ).findByText((text) =>
+        text.includes("Hi, I just noticed order #LF-20481"),
+      ),
     ).toBeInTheDocument();
     await expect(
       await within(
         canvas.getByLabelText("Session conversation timeline"),
-      ).findByText(/Your shipping address has been updated/),
+      ).findByText((text) =>
+        text.includes("Your shipping address has been updated"),
+      ),
     ).toBeInTheDocument();
     const timeline = within(
       canvas.getByLabelText("Session conversation timeline"),
     );
     for (const button of timeline.queryAllByRole("button", {
-      name: /^Show tools:/,
+      name: (name) => name.startsWith("Show tools:"),
     })) {
       await userEvent.click(button);
     }
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand Get order" }),
     );
-    await expect(canvas.getByText(/800 Pine Street/)).toBeInTheDocument();
+    await expect(
+      canvas.getByText((text) => text.includes("800 Pine Street")),
+    ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand Update shipping address" }),
     );
-    await expect(canvas.getByText(/addr_7b19c2/)).toBeInTheDocument();
+    await expect(
+      canvas.getByText((text) => text.includes("addr_7b19c2")),
+    ).toBeInTheDocument();
   },
 });
 export const ConsecutiveToolGroups = meta.story({

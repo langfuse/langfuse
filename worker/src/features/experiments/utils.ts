@@ -24,6 +24,7 @@ import {
   ExperimentMetadataSchema,
   LLMApiKeySchema,
   PromptContentSchema,
+  resolveLlmApiKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod";
@@ -218,9 +219,7 @@ export async function validateAndSetupExperiment(
   }
 
   // Fetch and validate API key
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: { projectId, provider },
-  });
+  const apiKey = await resolveLlmApiKey({ projectId, provider });
   if (!apiKey) {
     throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }

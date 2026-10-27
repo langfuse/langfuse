@@ -5,7 +5,7 @@ import {
   InvalidRequestError,
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
-  type ObservationFieldGroupFull,
+  type ExportFieldGroup,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
   GCPServiceAccountKeySchema,
@@ -16,6 +16,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
   assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 
@@ -36,7 +37,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   compressed?: boolean;
 };
 
@@ -138,6 +139,12 @@ export async function upsertBlobStorageIntegration(params: {
   if (endpoint) {
     try {
       await validateBlobStorageEndpoint(endpoint);
+      await validateBlobStorageBucketHost({
+        type: data.type,
+        endpoint,
+        bucketName: data.bucketName,
+        forcePathStyle: data.forcePathStyle,
+      });
     } catch (error) {
       throw new InvalidRequestError(
         `Invalid blob storage endpoint: ${error instanceof Error ? error.message : "Endpoint validation failed"}`,

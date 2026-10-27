@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -23,7 +23,10 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
-import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import {
+  createScrubbedError,
+  getTRPCErrorCodeFromHTTPStatusCode,
+} from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
 type CreateContextOptions = {
@@ -217,13 +220,19 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         : "Please check error logs in your self-hosted deployment.";
 
       logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
-      res.error = new TRPCError({
-        code,
-        cause: null, // do not expose stack traces
-        message: isSafeToExpose
-          ? res.error.message
-          : "Internal error. " + errorMessage,
-      });
+      if (isSafeToExpose) {
+        res.error = new TRPCError({
+          code,
+          cause: null, // do not expose stack traces
+          message: res.error.message,
+        });
+      } else {
+        res.error = createScrubbedError({
+          code,
+          message: "Internal error. " + errorMessage,
+          original: res.error.cause ?? res.error,
+        });
+      }
     }
   }
 

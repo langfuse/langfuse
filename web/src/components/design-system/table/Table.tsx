@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies */
+/* eslint-disable boundaries/dependencies, react/no-unstable-nested-components */
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
@@ -9,17 +9,18 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
 const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+  "a, button, input, select, textarea, summary, [role='button'], [role='link'], [data-row-click-ignore]";
 
 function shouldIgnoreRowClickTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false;
@@ -35,34 +36,43 @@ export interface TableProps<TData> {
   tableName: string;
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
+  actionsDisabledReason?: string;
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
   loadingRowCount?: number;
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  getRowLabel?: (row: TData) => string;
+  selectedRowId?: string | null;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   rowHeight?: "s" | "m" | "l";
+  /** `false` for a table that sits directly under a divider, such as page tabs. */
+  topBorder?: boolean;
 }
 
 export function Table<TData extends object>({
   tableName,
   columns,
   actions,
+  actionsDisabledReason,
   data,
   orderBy,
   setOrderBy,
   loadingRowCount = 8,
   noResultsMessage = "No results",
   onRowClick,
+  getRowLabel,
+  selectedRowId,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
   rowHeight,
+  topBorder = true,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -84,36 +94,58 @@ export function Table<TData extends object>({
               className="ml-auto flex size-6 items-center justify-end"
               onClick={(event) => event.stopPropagation()}
             >
-              <DropdownMenu items={items} placement="bottom-end">
-                {({ getTriggerProps }) => (
-                  <IconButton
-                    icon={MoreVertical}
-                    label="Open actions menu"
-                    size="sm"
-                    variant="subtle"
-                    {...getTriggerProps()}
-                    disabled={items.length === 0}
-                  />
-                )}
-              </DropdownMenu>
+              {items.length === 0 && actionsDisabledReason ? (
+                <Tooltip label={actionsDisabledReason}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+                    >
+                      <IconButton
+                        icon={MoreVertical}
+                        label="Open actions menu"
+                        size="sm"
+                        variant="subtle"
+                        disabled
+                      />
+                    </span>
+                  )}
+                </Tooltip>
+              ) : (
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <IconButton
+                      icon={MoreVertical}
+                      label="Open actions menu"
+                      size="sm"
+                      variant="subtle"
+                      {...getTriggerProps()}
+                      disabled={items.length === 0}
+                    />
+                  )}
+                </DropdownMenu>
+              )}
             </div>
           );
         },
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 icon-base animate-pulse"
+              size="base"
+              __rawClassName="text-muted-foreground/30 animate-pulse"
               aria-hidden="true"
             />
           </div>
         ),
       },
     ];
-  }, [actions, columns]);
+  }, [actions, actionsDisabledReason, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row, index) =>
+      "id" in row && typeof row.id === "string" ? row.id : String(index),
     columnResizeMode: "onChange",
     state: { columnVisibility, columnOrder },
     onColumnVisibilityChange,
@@ -124,7 +156,12 @@ export function Table<TData extends object>({
 
   return (
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
-      <div className="relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]">
+      <div
+        className={cn(
+          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          topBorder && "border-t",
+        )}
+      >
         <table
           aria-label={tableName}
           className="w-full table-fixed border-separate border-spacing-0 space-y-4 overflow-auto text-sm"
@@ -202,19 +239,22 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                size="sm"
+                                __rawClassName="ml-1.5 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
@@ -322,15 +362,29 @@ export function Table<TData extends object>({
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
+                    onRowClick &&
+                      "focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                    selectedRowId === row.id && "bg-muted",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
+                  aria-label={getRowLabel?.(row.original)}
+                  aria-keyshortcuts={onRowClick ? "Enter Space" : undefined}
+                  aria-selected={
+                    selectedRowId === undefined
+                      ? undefined
+                      : selectedRowId === row.id
+                  }
                   onClick={(event) => {
                     if (shouldIgnoreRowClickTarget(event.target)) return;
                     onRowClick?.(row.original, event);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    if (!event.currentTarget.contains(event.target as Node))
+                      return;
                     if (shouldIgnoreRowClickTarget(event.target)) return;
+                    if (!onRowClick) return;
+                    event.preventDefault();
                     onRowClick?.(row.original);
                   }}
                 >

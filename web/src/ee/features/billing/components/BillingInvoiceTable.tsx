@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";

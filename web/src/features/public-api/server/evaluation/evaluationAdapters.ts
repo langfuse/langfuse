@@ -84,7 +84,7 @@ export function toPublicEvaluatorType(type: EvalTemplateType) {
       return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
     case EvalTemplateType.DECISION_MODEL:
       throw new InvalidRequestError(
-        "Decision-model evaluators are experimental and not available through the public API",
+        "Decision-model evaluators are not available through the public API",
       );
   }
 }
@@ -286,7 +286,7 @@ export function toPublicEvaluatorVersion(
 
   if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
     throw new InvalidRequestError(
-      "Decision-model evaluators are experimental and not available through the public API",
+      "Decision-model evaluators are not available through the public API",
     );
   }
 

@@ -1,4 +1,4 @@
-import type { ScoreLevel as ScoreTagLevel } from "@/src/components/score-tag";
+import type { ScoreLevel as ScoreTagLevel } from "@/src/components/ScoreTag";
 import type {
   ScoreLevel,
   ScoreMetricSpec,

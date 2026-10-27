@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import {
   DialogController,
@@ -13,6 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import type { DashboardPlacement } from "@/src/features/widgets";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Clone-first flow for Langfuse-managed (read-only) dashboards: any edit
@@ -148,7 +150,11 @@ function CloneFirstDialogContent({
     },
     onError: (e) => {
       onPendingChange(false);
-      showErrorToast("Failed to create copy", e.message);
+      showErrorToast(
+        "Failed to create copy",
+        e.message,
+        classifyTrpcToastError(e, "dashboard.clone"),
+      );
     },
   });
 
@@ -214,7 +220,11 @@ function CloneFirstDialogContent({
                   );
                 }}
               >
-                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
+                <ExternalLinkIcon
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1"
+                />
                 Open it instead
               </Button>
             </div>

@@ -1,7 +1,8 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export const StripeCustomerPortalButton = ({
   orgId,
@@ -52,10 +53,22 @@ export const StripeCustomerPortalButton = ({
       if (data) {
         window.location.href = data;
       } else {
-        toast.error("Could not open billing portal");
+        showToast({
+          type: "ERROR",
+          title: "Could not open billing portal",
+          analytics: {
+            operation: "billing_portal.open",
+            errorOrigin: "backend",
+            errorCategory: "product_state",
+          },
+        });
       }
-    } catch (_e) {
-      toast.error("Failed to open billing portal");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to open billing portal",
+        analytics: classifyTrpcToastError(error, "billing_portal.open"),
+      });
     } finally {
       // do not reset to avoid flickering when opening the portal
       // setLoading(false);

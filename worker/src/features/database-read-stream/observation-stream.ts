@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BatchExportFileFormat,
   FilterCondition,
@@ -657,6 +658,8 @@ const getObservationStreamFromEvents = async (
       release: _release,
       bookmarked: _bookmarked,
       public: _public,
+      skillsAvailable: _skillsAvailable,
+      skillsResourceLoaded: _skillsResourceLoaded,
       userId,
       traceName,
       ...observationFields

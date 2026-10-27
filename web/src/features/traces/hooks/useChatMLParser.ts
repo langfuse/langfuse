@@ -33,7 +33,6 @@ export interface ToolCallBookkeeping {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 // Result from ChatML parsing hook
@@ -45,7 +44,6 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
 }
 
@@ -169,17 +167,11 @@ export function computeToolCallBookkeeping(
     return callCountB - callCountA;
   });
 
-  const toolNameToDefinitionNumber = new Map<string, number>();
-  sortedTools.forEach((tool, index) => {
-    toolNameToDefinitionNumber.set(tool.name, index + 1);
-  });
-
   return {
     allTools: sortedTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
   };
 }
 
@@ -198,7 +190,6 @@ function emptyChatMLParserResult(): ChatMLParserResult {
     toolCallCounts: new Map(),
     toolCallsByName: new Map(),
     messageToToolCallNumbers: new Map(),
-    toolNameToDefinitionNumber: new Map(),
     inputMessageCount: 0,
   };
 }

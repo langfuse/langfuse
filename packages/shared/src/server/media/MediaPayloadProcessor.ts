@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
+import { defineOwnValue } from "../../utils/objects";
 
 const MAX_RECURSION_DEPTH = 10;
 const DATA_URI_PREFIX = "data:";
@@ -541,21 +543,6 @@ async function transformStructuredValue(
 
 function setTraversalValue(node: TraversalNode, value: unknown): void {
   defineOwnValue(node.parent, node.key, value);
-}
-
-function defineOwnValue(
-  target: object,
-  property: PropertyKey,
-  value: unknown,
-): void {
-  // Avoid invoking user-controlled setters such as an own `__proto__` setter
-  // when replacing values inside parsed or SDK-provided payloads.
-  Object.defineProperty(target, property, {
-    configurable: true,
-    enumerable: true,
-    value,
-    writable: true,
-  });
 }
 
 function matchStructuredMedia(

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Label } from "@/src/components/ui/label";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function NewDashboardPage() {
   const router = useRouter();
@@ -35,7 +36,11 @@ export default function NewDashboardPage() {
       router.push(`/project/${projectId}/dashboards/${data.id}`);
     },
     onError: (error) => {
-      showErrorToast("Error creating dashboard", error.message);
+      showErrorToast(
+        "Error creating dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard.create"),
+      );
     },
   });
 
@@ -48,7 +53,11 @@ export default function NewDashboardPage() {
         description: dashboardDescription,
       });
     } else {
-      showErrorToast("Validation error", "Dashboard name is required");
+      showErrorToast("Validation error", "Dashboard name is required", {
+        operation: "dashboard.create",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
     }
   };
 

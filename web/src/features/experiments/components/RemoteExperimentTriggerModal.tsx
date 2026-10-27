@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,6 +68,11 @@ export const RemoteExperimentTriggerModal = ({
           showErrorToast(
             "Trigger is disabled",
             "Enable the trigger in settings to run remote experiments.",
+            {
+              operation: "remote_experiment.trigger",
+              errorOrigin: "backend",
+              errorCategory: "product_state",
+            },
             "WARNING",
           );
         } else if (data.success) {
@@ -81,6 +87,11 @@ export const RemoteExperimentTriggerModal = ({
             "Failed to trigger remote experiment",
             data.error ||
               "Please try again or check your remote experiment configuration.",
+            {
+              operation: "remote_experiment.trigger",
+              errorOrigin: "backend",
+              errorCategory: "internal",
+            },
           );
         }
         setShowTriggerModal(false);

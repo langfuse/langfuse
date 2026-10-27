@@ -1,5 +1,5 @@
 import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
@@ -13,7 +13,7 @@ import { useRouter } from "next/router";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
@@ -82,6 +82,8 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  defaultWidthTarget?: HTMLElement | null;
+  widthStorageKey?: string;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -220,6 +222,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    defaultWidthTarget: props.defaultWidthTarget,
+    widthStorageKey: props.widthStorageKey,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
         capture("peek:resized", {
@@ -320,7 +324,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // fresh provider, dropping that state. It unmounts only on close (the early
   // `return null` above), which is what resets the state (see README).
   return (
-    <PeekTableStateProvider>
+    <PeekTableStateProvider getPanelWidthPx={panel.getPanelWidthPx}>
       {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer

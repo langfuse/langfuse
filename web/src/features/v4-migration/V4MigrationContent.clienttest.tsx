@@ -414,6 +414,34 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveTextContent(/1 call · last seen/);
   });
 
+  it("recommends the latest-major method and labels the previous-major fallback", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/scores/{id}",
+        count: 2,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "4.9.0",
+            userAgent: "langfuse-python/4.9.0",
+            count: 2,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const guidance = screen.getByText(
+      "client.api.scores.get_by_id",
+    ).parentElement!;
+    expect(guidance).toHaveTextContent(
+      "Replace client.api.scores.get_by_id with client.api.scores.get_many(id=...) (SDK v5). On 4.8.1–4.x, use client.api.scores_v3.get_many_v3.",
+    );
+  });
+
   it("shows the caller and exact SDK migration action", () => {
     mocks.migrationData.apiUsage = [
       {
@@ -633,8 +661,35 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade guide" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+    );
+    expect(screen.queryByText("· up to date")).not.toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
+  });
+
+  it("shows SDK traffic on the latest major as up to date without an upgrade nudge", () => {
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      sdkUsageSeries: [
+        makeSdkUsageSeries({ sdkVersion: "5.0.1" }),
+        makeSdkUsageSeries({
+          sdkName: "@langfuse/tracing",
+          sdkVersion: "6.0.0",
+          publicKey: "pk-lf-fedcba0987654321",
+        }),
+      ],
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getAllByText("· up to date")).toHaveLength(2);
+    expect(screen.queryByText(/is available/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Upgrade guide" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lists only required SDK series in Update SDK and shows compatible ones as detected", () => {
@@ -660,13 +715,15 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    // Compatible current-major traffic lands in the detected section.
+    expect(
+      screen.getByText("· upgrade required to v5 (>= 4.0.0 also works)"),
+    ).toBeInTheDocument();
+    // Compatible previous-major traffic lands in the detected section.
     expect(
       screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
     expect(
       screen.queryByText("· recommended to upgrade to >= 4.7.0"),
     ).not.toBeInTheDocument();
@@ -1186,7 +1243,7 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Halo" }));
     // The panel entry point preselects the assistant: no choice screen.
     const migrationDialog = screen.getByRole("dialog");
     expect(
@@ -1196,7 +1253,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).queryByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
@@ -1222,7 +1279,7 @@ describe("V4MigrationDetailsContent", () => {
 
     // Without AI features the button drops the assistant branding …
     expect(
-      screen.queryByRole("button", { name: "Use Assistant" }),
+      screen.queryByRole("button", { name: "Use Halo" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
 
@@ -1236,7 +1293,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).toBeInTheDocument();
   });
@@ -1252,7 +1309,7 @@ describe("V4MigrationDetailsContent", () => {
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     );
 
@@ -1303,7 +1360,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.queryByText("Upgrade to v4")).not.toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(screen.getByText(/Langfuse v4 is live/)).toHaveTextContent(
-      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to avoid disruption. See docs.",
+      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Halo. Complete the action items below to avoid disruption. See docs.",
     );
     expect(
       screen.getByRole("link", { name: "full-text search" }),
@@ -1327,9 +1384,10 @@ describe("V4MigrationHeaderContent", () => {
       "href",
       "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators",
     );
-    expect(
-      screen.getByRole("link", { name: "Langfuse Assistant" }),
-    ).toHaveAttribute("href", "https://langfuse.com/docs/langfuse-assistant");
+    expect(screen.getByRole("link", { name: "Langfuse Halo" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/langfuse-assistant",
+    );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",

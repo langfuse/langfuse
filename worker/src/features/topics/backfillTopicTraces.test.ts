@@ -15,7 +15,10 @@ import {
   createEventsCh,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
+import {
+  loadTopicTranscript,
+  selectTopicTraceRows,
+} from "@langfuse/shared/topics/server";
 
 const enabled = vi.hoisted(() => vi.fn(() => true));
 
@@ -74,13 +77,21 @@ describe("Topics trace selection and backfill", () => {
         [projectId, "trace-old", "2026-09-23T08:00:00Z"],
         [projectId, "trace-outside", "2026-09-24T00:00:00Z"],
         [randomUUID(), "trace-foreign", "2026-09-23T10:00:00Z"],
-      ].map(([project, trace, timestamp]) =>
+        [
+          projectId,
+          "trace-internal",
+          "2026-09-23T11:00:00Z",
+          "langfuse-topics",
+        ],
+        [projectId, "trace-judge", "2026-09-23T12:00:00Z", "llm-as-a-judge"],
+        [projectId, "trace-reserved", "2026-09-23T13:00:00Z", "langfuse"],
+      ].map(([project, trace, timestamp, environment]) =>
         createEvent({
           project_id: project,
           trace_id: trace,
           start_time: new Date(timestamp),
           trace_name: "agent-turn",
-          environment: "test",
+          environment: environment ?? "test",
           tags: ["billing"],
         }),
       ),
@@ -128,6 +139,84 @@ describe("Topics trace selection and backfill", () => {
       }),
     ]);
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("filters latest matching root environments before counting and limiting", async () => {
+    const mixedProject = randomUUID();
+    const source = {
+      project_id: mixedProject,
+      trace_name: "agent-turn",
+      input: JSON.stringify({ role: "user", content: "Send an invoice" }),
+      output: null,
+    };
+    await createEventsCh(
+      [
+        ["public-root", "production", "langfuse-topics"],
+        ["equal-timestamp", "production", "langfuse-topics"],
+        ["internal-root", "langfuse-topics", "production"],
+      ]
+        .flatMap(([traceId, rootEnvironment, latestEnvironment], index) => [
+          createEvent({
+            ...source,
+            trace_id: traceId,
+            span_id: "a-root",
+            start_time: new Date(Date.UTC(2026, 8, 23, 9 + index)),
+            event_ts: new Date("2026-09-24T12:00:00Z"),
+            environment: rootEnvironment,
+          }),
+          createEvent({
+            ...source,
+            trace_id: traceId,
+            span_id: "z-child",
+            parent_span_id: "a-root",
+            start_time: new Date(Date.UTC(2026, 8, 24, 9 + index)),
+            event_ts: new Date(
+              traceId === "equal-timestamp"
+                ? "2026-09-24T12:00:00Z"
+                : "2026-09-24T13:00:00Z",
+            ),
+            environment: latestEnvironment,
+          }),
+        ])
+        .concat(
+          ["production", "langfuse-topics"].map((environment, index) =>
+            createEvent({
+              ...source,
+              trace_id: "updated-root",
+              span_id: "a-root",
+              start_time: new Date("2026-09-23T12:00:00Z"),
+              event_ts: new Date(Date.UTC(2026, 8, 24, 12 + index)),
+              environment,
+            }),
+          ),
+        ),
+    );
+    const input = { ...selection, projectId: mixedProject, limit: 1 };
+    const [preview, ids, backfill] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
+      selectTopicTraceRows(input, prisma, "backfill"),
+    ]);
+    expect(preview).toEqual([
+      expect.objectContaining({
+        id: "equal-timestamp",
+        environment: "production",
+      }),
+    ]);
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
+    expect(ids).toEqual([{ id: "equal-timestamp" }]);
+    expect(backfill.map(({ id }) => id)).toEqual(["equal-timestamp"]);
+    expect(Number(backfill[0].matchedTraceCount)).toBe(2);
+    for (const [traceId, environment] of [
+      ["public-root", "langfuse-topics"],
+      ["internal-root", "production"],
+      ["equal-timestamp", "langfuse-topics"],
+      ["updated-root", "langfuse-topics"],
+    ]) {
+      expect(
+        await loadTopicTranscript({ projectId: mixedProject, traceId }),
+      ).toMatchObject({ environment });
+    }
   });
 
   it("keeps preview, ID-only triggers and backfill sampling aligned", async () => {

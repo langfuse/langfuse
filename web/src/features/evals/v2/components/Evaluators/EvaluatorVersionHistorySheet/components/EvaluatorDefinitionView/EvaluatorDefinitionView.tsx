@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
@@ -9,7 +10,9 @@ import {
 } from "@langfuse/shared";
 
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
-import { Badge } from "@/src/components/ui/badge";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
+import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Label } from "@/src/components/ui/label";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
@@ -26,7 +29,6 @@ import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapp
 import { DecisionModelQuestionSummary } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionSummary/DecisionModelQuestionSummary";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -78,7 +80,7 @@ function CodeEvaluatorDefinitionView({
             disabled
           />
         ) : (
-          <Badge variant="outline">Language unavailable</Badge>
+          <Badge color="primary" text="Language unavailable" />
         )}
       </EvaluationTypeConfiguration>
       <section className="flex flex-col gap-2">
@@ -87,7 +89,9 @@ function CodeEvaluatorDefinitionView({
         <CodeBlock
           language={
             sourceCodeLanguage
-              ? sourceCodeLanguageLabel(sourceCodeLanguage).toLowerCase()
+              ? normalizeCodeblockLanguage(
+                  sourceCodeLanguageLabel(sourceCodeLanguage),
+                )
               : "text"
           }
           value={sourceCode ?? ""}
@@ -212,11 +216,15 @@ function DecisionModelDefinitionView({
         onModeChange={noop}
         disabled
       >
-        <Badge variant="outline" className="font-mono">
-          {definition.selectedModel
-            ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
-            : "No model"}
-        </Badge>
+        <Badge
+          color="primary"
+          font="mono"
+          text={
+            definition.selectedModel
+              ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
+              : "No model"
+          }
+        />
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Questions</Label>

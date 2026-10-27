@@ -1,7 +1,7 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -79,7 +79,7 @@ const BreadcrumbSeparator = ({
   ...props
 }: React.ComponentProps<"li">) => (
   <li role="presentation" aria-hidden="true" className={className} {...props}>
-    {children ?? <ChevronRight className="icon-sm" />}
+    {children ?? <ChevronRight size="sm" />}
   </li>
 );
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator";
@@ -94,7 +94,7 @@ const BreadcrumbEllipsis = ({
     className={cn("flex h-9 w-9 items-center justify-center", className)}
     {...props}
   >
-    <MoreHorizontal className="icon-base" />
+    <MoreHorizontal size="base" />
     <span className="sr-only">More</span>
   </span>
 );

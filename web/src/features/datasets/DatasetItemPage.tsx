@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
@@ -14,12 +15,10 @@ import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { History, PanelRightOpen } from "lucide-react";
+import { History, PanelRightOpen } from "@langfuse/icons";
 import { useState } from "react";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 
 export default function DatasetItemPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
@@ -160,12 +159,16 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="icon-base text-icon-foreground mr-2" />
+                  <History size="base" color="default" __rawClassName="mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="icon-base text-icon-foreground mr-2" />
+                  <PanelRightOpen
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Show Version History
                 </>
               )}

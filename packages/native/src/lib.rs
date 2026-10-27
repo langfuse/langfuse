@@ -7,12 +7,23 @@
 
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
+mod native_columns;
 mod native_js;
+mod native_memory;
 pub(crate) mod native_schema;
+mod native_task;
+mod otel_input;
+mod otel_media;
+mod otel_media_task;
 mod telemetry;
 mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
+
+pub use otel_input::{
+    extract_otel_media, has_otel_media_candidate, validate_otel_json, EarlyOtelBatch,
+    ValidatedOtelJson,
+};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -98,8 +109,11 @@ impl Task for EncodeClickhouseEventsTask {
     type JsValue = Vec<NativeEventBlock>;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
-            .map_err(Error::from_reason)
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
+        }))
+        .map_err(|_| Error::from_reason("native encoding task panicked"))?
+        .map_err(Error::from_reason)
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -108,13 +122,10 @@ impl Task for EncodeClickhouseEventsTask {
             .map(|block| {
                 let row_count = u32::try_from(block.row_count)
                     .map_err(|_| Error::from_reason("Native block row count exceeds UInt32"))?;
-                // The encoder returns a fresh, uniquely owned allocation. Vec takes it over,
-                // then napi wraps the same memory in a JS Buffer whose GC finalizer frees it.
-                // This handoff does not copy the payload. If the runtime forbids external
-                // buffers, napi-rs copies it into Node-owned memory instead. Shared or sliced
-                // Bytes would not have the same no-copy guarantee when converted to Vec.
+                // napi wraps the owned Vec in a JS Buffer whose GC finalizer frees it.
+                // If the runtime forbids external buffers, napi-rs copies it instead.
                 Ok(NativeEventBlock {
-                    bytes: Buffer::from(Vec::from(block.bytes)),
+                    bytes: Buffer::from(block.bytes),
                     row_count,
                 })
             })

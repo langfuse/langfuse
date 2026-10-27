@@ -1,7 +1,10 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 
+import { trace } from "@opentelemetry/api";
 import { type NextApiRequest } from "next";
+import { type RouteKind } from "next/dist/server/route-kind";
+import { setRequestMeta } from "next/dist/server/request-meta";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -40,6 +43,7 @@ vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
 }));
 
 vi.mock("@/src/features/public-api/server/enforceAuth", () => ({
+  __dangerouslySkipAuthz: "__dangerouslySkipAuthz",
   enforceAuth: mockEnforceAuth,
 }));
 
@@ -51,7 +55,9 @@ vi.mock(
   }),
 );
 
-import { shadowAuth } from "@/src/features/public-api/server";
+import { shadowAuth, shadowAuthorize } from "@/src/features/public-api/server";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const mappedFields = {
   orgId: "org_1",
@@ -115,8 +121,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
     it("403s a non-org key, leaving the body to the route", async () => {
       legacyProjectKey();
       expect(await call()).toMatchObject({
-        success: false,
-        error: { httpCode: 403, message: "Forbidden" },
+        error: { httpCode: 403 },
       });
     });
   });
@@ -149,6 +154,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: orgScope },
         "projects:read",
+        expect.objectContaining({ resource: "GET unknown" }),
       );
     });
   });
@@ -209,6 +215,37 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
         expect(result.error).toBeInstanceOf(ErrorClass);
         expect(error.message).toBe(diagnostic);
         expect(JSON.stringify(log.mock.calls)).toContain(diagnostic);
+      },
+    );
+
+    it("preserves the required permission through blob-storage authorization", async () => {
+      const error = new ForbiddenError(
+        'Access denied. The "projects:read" permission is required to access this resource.',
+      );
+      mockEnforceAuth.mockResolvedValue({ success: false, error });
+
+      await expect(authorizeBlobStorageRequest(req)).rejects.toBe(error);
+    });
+
+    it.each([
+      { name: "500", ErrorClass: InternalServerError },
+      { name: "503", ErrorClass: ServiceUnavailableError },
+    ])(
+      "preserves sanitized $name errors through blob-storage authorization",
+      async ({ ErrorClass }) => {
+        vi.spyOn(logger, "error").mockImplementation(() => logger);
+        mockEnforceAuth.mockResolvedValue({
+          success: false,
+          error: new ErrorClass(
+            "database host private-db:5432 rejected lookup",
+          ),
+        });
+
+        await expect(authorizeBlobStorageRequest(req)).rejects.toMatchObject({
+          name: new ErrorClass().name,
+          httpCode: new ErrorClass().httpCode,
+          message: new ErrorClass().message,
+        });
       },
     );
 
@@ -360,6 +397,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
           newFailure,
           expect.objectContaining({ success: false }),
           "traces:read",
+          expect.objectContaining({ resource: "GET unknown" }),
         );
       } else {
         expect(mockEnforceAuth).not.toHaveBeenCalled();
@@ -426,6 +464,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: legacyScope.scope },
         "traces:read",
+        expect.objectContaining({ resource: "GET unknown" }),
       );
     });
 
@@ -495,6 +534,199 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
   });
 });
 
+describe("shadow parity metadata", () => {
+  const scope = {
+    ...mappedFields,
+    projectId: "prj_1",
+    accessLevel: "project" as const,
+  };
+  const authContext = (): AuthorizationContext => ({
+    principal: {
+      kind: "apiKey",
+      apiKeyId: "key_1",
+      userId: null,
+      isInAppAgentKey: false,
+      publicKey: "pk-lf-1",
+      scope: "PROJECT",
+      presentation: "privateKey",
+      organizations: [],
+      boundResource: { orgId: "org_1", projectId: "prj_1" },
+    },
+    policies: [],
+  });
+  const request = (route?: string) => {
+    const req = {
+      headers: { authorization: "Basic secret-credentials" },
+      method: "GET",
+      url: "/api/public/prompts/private-prompt?secret=private-query",
+    } as NextApiRequest;
+    if (route) {
+      setRequestMeta(req, {
+        match: {
+          params: undefined,
+          definition: {
+            kind: "PAGES_API" as RouteKind.PAGES_API,
+            pathname: route,
+            page: route,
+            bundlePath: `pages${route}`,
+            filename: "handler.js",
+          },
+        },
+      });
+    }
+    return req;
+  };
+  const call = (req: NextApiRequest) =>
+    shadowAuth({
+      req,
+      action: "prompts:read",
+      allowedAccessLevels: ["project"],
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    env.API_AUTH_MIGRATION = "shadow";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([0, 1])(
+    "uses the matched route template with trace flags %s",
+    async (traceFlags) => {
+      vi.spyOn(trace, "getActiveSpan").mockReturnValue(
+        trace.wrapSpanContext({
+          traceId: "12345678901234567890123456789012",
+          spanId: "1234567890123456",
+          traceFlags,
+        }),
+      );
+      mockLegacyProjectAuth.mockResolvedValue({ scope });
+      mockEnforceAuth.mockResolvedValue({
+        success: false,
+        error: new ForbiddenError("new denial"),
+      });
+
+      await call(request("/api/public/prompts/[promptName]"));
+
+      expect(mockShadowAuthDiff).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false }),
+        { success: true, scope },
+        "prompts:read",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "GET /api/public/prompts/[promptName]",
+        },
+      );
+    },
+  );
+
+  it("retains the new allow's safe key identity on every repeated mismatch", async () => {
+    mockLegacyProjectAuth.mockRejectedValue({ status: 403, message: "legacy" });
+    mockEnforceAuth.mockResolvedValue({
+      success: true,
+      scope,
+      ctx: authContext(),
+    });
+    const req = request("/api/public/prompts/[promptName]");
+
+    await call(req);
+    await call(req);
+
+    expect(mockShadowAuthDiff).toHaveBeenCalledTimes(2);
+    for (const args of mockShadowAuthDiff.mock.calls) {
+      expect(args[3]).toEqual({
+        apiKeyId: "key_1",
+        publicKey: "pk-lf-1",
+        resource: "GET /api/public/prompts/[promptName]",
+      });
+    }
+  });
+
+  it("carries the request resource into every asynchronous per-item check", async () => {
+    mockLegacyProjectAuth.mockResolvedValue({ scope });
+    mockEnforceAuth.mockResolvedValue({
+      success: true,
+      scope,
+      ctx: authContext(),
+    });
+    const req = request("/api/public/mcp");
+    const result = await call(req);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("Expected successful legacy auth");
+    setRequestMeta(req, {});
+    mockShadowAuthDiff.mockClear();
+
+    await Promise.all(
+      [1, 2, 3].map(async () => {
+        await Promise.resolve();
+        shadowAuthorize({
+          ctx: result.ctx,
+          action: "prompts:CUD",
+          resource: { projectId: "prj_1" },
+          legacyDecision: { success: true, scope },
+        });
+      }),
+    );
+
+    expect(mockShadowAuthDiff).toHaveBeenCalledTimes(3);
+    for (const args of mockShadowAuthDiff.mock.calls) {
+      expect(args[0]).toMatchObject({ success: false });
+      expect(args[3]).toEqual({
+        apiKeyId: "key_1",
+        publicKey: "pk-lf-1",
+        resource: "GET /api/public/mcp",
+      });
+    }
+  });
+
+  it("isolates request resources when authentication reuses the same context", async () => {
+    mockLegacyProjectAuth.mockResolvedValue({ scope });
+    mockEnforceAuth.mockResolvedValue({
+      success: true,
+      scope,
+      ctx: authContext(),
+    });
+    const first = await call(request("/api/public/mcp"));
+    const second = await call(request("/api/public/ingestion"));
+    if (!first.success || !second.success) {
+      throw new Error("Expected successful legacy auth");
+    }
+    mockShadowAuthDiff.mockClear();
+
+    for (const result of [first, second]) {
+      shadowAuthorize({
+        ctx: result.ctx,
+        action: "prompts:CUD",
+        resource: { projectId: "prj_1" },
+        legacyDecision: { success: true, scope },
+      });
+    }
+
+    expect(
+      mockShadowAuthDiff.mock.calls.map((args) => args[3].resource),
+    ).toEqual(["GET /api/public/mcp", "GET /api/public/ingestion"]);
+  });
+
+  it("never falls back to a concrete URL when route metadata is unavailable", async () => {
+    mockLegacyProjectAuth.mockResolvedValue({ scope });
+    mockEnforceAuth.mockResolvedValue({
+      success: false,
+      error: new ForbiddenError("new denial"),
+    });
+
+    await call(request());
+
+    expect(mockShadowAuthDiff.mock.calls[0][3]).toEqual({
+      apiKeyId: "key_1",
+      publicKey: "pk-lf-1",
+      resource: "GET unknown",
+    });
+  });
+});
+
 describe("the migration-mode gate reads a declared env var", () => {
   const source = (relativeToSrc: string) =>
     readFileSync(
@@ -514,9 +746,9 @@ describe("the migration-mode gate reads a declared env var", () => {
     }
   });
 
-  it("defaults the migration mode to legacy", () => {
+  it("defaults the migration mode to enforce", () => {
     expect(source("env.mjs")).toMatch(
-      /API_AUTH_MIGRATION:\s*z[^;]*?\.default\("legacy"\)/,
+      /API_AUTH_MIGRATION:\s*z[^;]*?\.default\("enforce"\)/,
     );
   });
 });

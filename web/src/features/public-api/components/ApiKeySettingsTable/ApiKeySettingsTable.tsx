@@ -1,17 +1,26 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash } from "@langfuse/icons";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableProps,
+} from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
-import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 import { type RouterOutput } from "@/src/utils/types";
+
+const EXCLUDE_GATEWAY_KEYS = "exclude-gateway";
+const ALL_KEYS = "all";
+
+const GATEWAY_KEY_FILTER_OPTIONS = [
+  { value: EXCLUDE_GATEWAY_KEYS, label: "Exclude gateway keys" },
+  { value: ALL_KEYS, label: "All API keys" },
+];
 
 export type ApiKeySettingsTableRow =
   | RouterOutput["projectApiKeys"]["byProjectId"][number]
@@ -21,18 +30,10 @@ export function ApiKeySettingsTable({
   editNameAction,
   hasWriteAccess,
   onDelete,
+  search,
+  gatewayKeyFilter,
   ...tableProps
-}: Pick<
-  TableProps<ApiKeySettingsTableRow>,
-  "data" | "loadingRowCount" | "noResultsMessage"
-> & {
-  editNameAction: {
-    hasAccess: boolean;
-    onClick: (apiKey: ApiKeySettingsTableRow) => void;
-  };
-  hasWriteAccess: boolean;
-  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
-}) {
+}: ApiKeySettingsTableProps) {
   const columns = useMemo<LangfuseColumnDef<ApiKeySettingsTableRow>[]>(
     () => [
       createTextTableColumn<ApiKeySettingsTableRow>({
@@ -85,26 +86,14 @@ export function ApiKeySettingsTable({
         header: "Secret Key",
         enableResizing: false,
       }),
-      createTableColumn<ApiKeySettingsTableRow, Date>({
+      createDateTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "expiresAt",
         header: "Expiration",
         hideBelowMd: true,
         enableResizing: false,
-        loadingCell: <Skeleton className="h-4 w-1/2" />,
-        renderCell: (expiresAt) => {
-          if (!expiresAt) {
-            return <span className="text-muted-foreground">No expiration</span>;
-          }
-          const date = buildLocalIsoDatePresentation({ date: expiresAt });
-          if (!date) return null;
-
-          return (
-            <span className="block w-full truncate" title={date.title}>
-              {isApiKeyExpired(expiresAt) ? "Expired on " : ""}
-              {date.display}
-            </span>
-          );
-        },
+        emptyValue: "No expiration",
+        getPrefix: (expiresAt) =>
+          isApiKeyExpired(expiresAt) ? "Expired on " : null,
       }),
       createDateTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdAt",
@@ -141,7 +130,52 @@ export function ApiKeySettingsTable({
       columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
       actions={actions}
+      search={{ ...search, placeholder: "Search by name" }}
+      filters={
+        gatewayKeyFilter
+          ? [toGatewayKeySettingsFilter(gatewayKeyFilter)]
+          : undefined
+      }
       {...tableProps}
     />
   );
 }
+
+function toGatewayKeySettingsFilter({
+  includeGatewayKeys,
+  onIncludeGatewayKeysChange,
+}: GatewayKeyFilter): SettingsTableFilter {
+  return {
+    type: "select",
+    id: "gatewayKeys",
+    label: "Gateway keys",
+    placeholder: "Exclude gateway keys",
+    options: GATEWAY_KEY_FILTER_OPTIONS,
+    value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
+    onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
+    muted: !includeGatewayKeys,
+  };
+}
+
+type ApiKeySettingsTableProps = Pick<
+  TableProps<ApiKeySettingsTableRow>,
+  "data" | "loadingRowCount" | "noResultsMessage"
+> & {
+  editNameAction: {
+    hasAccess: boolean;
+    onClick: (apiKey: ApiKeySettingsTableRow) => void;
+  };
+  hasWriteAccess: boolean;
+  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
+  search: { value: string; onChange: (value: string) => void };
+  gatewayKeyFilter?: GatewayKeyFilter;
+};
+
+type GatewayKeyFilter = {
+  includeGatewayKeys: boolean;
+  onIncludeGatewayKeysChange: (includeGatewayKeys: boolean) => void;
+};
+
+type SettingsTableFilter = NonNullable<
+  SettingsTableProps<ApiKeySettingsTableRow>["filters"]
+>[number];

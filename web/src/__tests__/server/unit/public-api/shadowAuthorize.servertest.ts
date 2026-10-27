@@ -136,6 +136,15 @@ describe("shadowAuthorize", () => {
     });
   });
 
+  it.each(["legacy", "enforce"])(
+    "does not compare per-item decisions in %s even with an auth context",
+    (mode) => {
+      env.API_AUTH_MIGRATION = mode;
+      shadowAuthorize(params("prompts:CUD", authContext([allowPrompts])));
+      expect(shadowAuthDiff).not.toHaveBeenCalled();
+    },
+  );
+
   describe("shadow mode", () => {
     beforeEach(() => {
       env.API_AUTH_MIGRATION = "shadow";
@@ -153,6 +162,11 @@ describe("shadowAuthorize", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:CUD",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
 
@@ -175,6 +189,11 @@ describe("shadowAuthorize", () => {
             : { success: false, error: expect.any(ForbiddenError) },
           legacyDecision,
           action,
+          {
+            apiKeyId: "key_1",
+            publicKey: "pk-lf-1",
+            resource: "unknown",
+          },
         );
       },
     );
@@ -185,6 +204,11 @@ describe("shadowAuthorize", () => {
         { success: true },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:read",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
   });
@@ -243,6 +267,11 @@ describe("protected-label legacy comparisons", () => {
           { success: true },
           { success: false, error: expect.any(ForbiddenError) },
           "promptProtectedLabels:CUD",
+          {
+            apiKeyId: "key_1",
+            publicKey: "pk-lf-1",
+            resource: "unknown",
+          },
         );
       } else {
         expect(shadowAuthDiff).not.toHaveBeenCalled();
@@ -269,6 +298,11 @@ describe("protected-label legacy comparisons", () => {
       { success: true },
       { success: true, scope: { accessLevel: "project" } },
       "promptProtectedLabels:CUD",
+      {
+        apiKeyId: "key_1",
+        publicKey: "pk-lf-1",
+        resource: "unknown",
+      },
     );
   });
 

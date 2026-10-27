@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const mockQueryClickhouse = vi.hoisted(() => vi.fn());
+const mockShouldSkipScoresDedup = vi.hoisted(() =>
+  vi.fn<(projectId: string) => boolean>(() => false),
+);
 
 vi.mock("./clickhouse", () => ({
   queryClickhouse: mockQueryClickhouse,
@@ -17,12 +20,16 @@ vi.mock("./clickhouse", () => ({
 // module initialization when the graph is entered from this repository file.
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: mockShouldSkipScoresDedup,
 }));
 
 import {
   getScoresForTraces,
   getScoresForSessions,
   getScoresForExperiments,
+  listScoresV3ForPublicApi,
+  _handleGenerateScoresForPublicApi,
+  FilterList,
 } from "../index";
 
 const PAGINATION_CLAUSE = "limit {limit: Int32} offset {offset: Int32}";
@@ -81,5 +88,57 @@ describe("score repository pagination", () => {
 
     const { query } = mockQueryClickhouse.mock.calls[0][0];
     expect(query).not.toContain(PAGINATION_CLAUSE);
+  });
+});
+
+describe("public score lists without dedup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockQueryClickhouse.mockResolvedValue([]);
+  });
+
+  const listV3 = async (skipDedup: boolean) => {
+    mockQueryClickhouse.mockClear();
+    mockShouldSkipScoresDedup.mockReturnValue(skipDedup);
+    await listScoresV3ForPublicApi({
+      projectId: "proj-1",
+      limit: 50,
+      fields: ["core"],
+    });
+    return mockQueryClickhouse.mock.calls[0][0].query as string;
+  };
+
+  const listV1V2 = async (skipDedup: boolean, needsTraceJoin: boolean) => {
+    mockQueryClickhouse.mockClear();
+    mockShouldSkipScoresDedup.mockReturnValue(skipDedup);
+    await _handleGenerateScoresForPublicApi({
+      projectId: "proj-1",
+      scoresFilter: new FilterList([]),
+      tracesFilter: new FilterList([]),
+      scoreScope: "all",
+      includeTrace: false,
+      needsTraceJoin,
+      pagination: { limit: 50, page: 1 },
+    });
+    return mockQueryClickhouse.mock.calls[0][0].query as string;
+  };
+
+  it("v3 list orders by the sort-key day first", async () => {
+    expect(await listV3(true)).toContain(
+      "ORDER BY toDate(s.timestamp) DESC, s.timestamp DESC, s.id DESC",
+    );
+    expect(await listV3(false)).not.toContain("toDate(s.timestamp) DESC");
+  });
+
+  it("v1/v2 list orders by the sort-key day first", async () => {
+    expect(await listV1V2(true, false)).toMatch(
+      /ORDER BY\s+toDate\(s\.timestamp\) desc, s\.timestamp desc/,
+    );
+    expect(await listV1V2(true, true)).not.toContain(
+      "toDate(s.timestamp) desc",
+    );
+    expect(await listV1V2(false, false)).not.toContain(
+      "toDate(s.timestamp) desc",
+    );
   });
 });

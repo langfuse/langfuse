@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /**
  * LogViewToolbar - Controls for log view search and actions.
  *
@@ -16,7 +16,7 @@ import {
   Check,
   IndentIncrease,
   Timer,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
@@ -139,8 +139,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
         <Command className="flex-1 rounded-none border-0 bg-transparent">
           <CommandInput
             showBorder={false}
+            variant="toolbar"
             placeholder="Search observations..."
-            className="placeholder:text-muted-foreground h-7 border-0 text-xs placeholder:font-mono focus:ring-0"
+            className="border-0 focus:ring-0"
             value={searchQuery}
             onValueChange={onSearchChange}
             onFocus={onSearchFocus}
@@ -188,7 +189,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                         : "Show indentation"
                   }
                 >
-                  <IndentIncrease className="icon-base" />
+                  <IndentIncrease size="base" />
                 </Button>
               </span>
             )}
@@ -207,7 +208,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             onClick={onToggleMilliseconds}
             title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
           >
-            <Timer className="icon-base" />
+            <Timer size="base" />
           </Button>
         )}
 
@@ -227,9 +228,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   disabled={isVirtualized}
                 >
                   {allRowsExpanded && !isVirtualized ? (
-                    <FoldVertical className="icon-base text-icon-foreground" />
+                    <FoldVertical size="base" color="default" />
                   ) : (
-                    <UnfoldVertical className="icon-base text-icon-foreground" />
+                    <UnfoldVertical size="base" color="default" />
                   )}
                 </Button>
               </span>
@@ -286,9 +287,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : isCopied ? (
-                      <Check className="icon-base text-icon-foreground" />
+                      <Check size="base" color="default" />
                     ) : (
-                      <Copy className="icon-base text-icon-foreground" />
+                      <Copy size="base" color="default" />
                     )}
                   </Button>
                 </TooltipTrigger>

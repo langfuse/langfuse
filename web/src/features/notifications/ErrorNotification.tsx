@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import {
   type ToastErrorAnalytics,
-  type ToastErrorEventProperties,
+  getToastErrorProperties,
 } from "@/src/features/notifications/toastAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { AlertTriangle, Check, Copy, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, X } from "@langfuse/icons";
 import { useRef } from "react";
 
 interface ErrorNotificationProps {
@@ -19,7 +20,7 @@ interface ErrorNotificationProps {
   source?: "application" | "trpc";
   path?: string;
   traceId?: string;
-  analytics?: ToastErrorAnalytics;
+  analytics: ToastErrorAnalytics;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -42,23 +43,18 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
-  const interactionProperties = {
-    toastType: type,
+  const eventProperties = getToastErrorProperties(
+    analytics,
+    type,
     source,
-    ...(path ? { path } : {}),
-    errorOrigin: analytics?.errorOrigin ?? "unknown",
-    errorCategory: analytics?.errorCategory ?? "unknown",
-    ...(analytics?.operation ? { operation: analytics.operation } : {}),
-    ...(analytics?.trpcCode ? { trpcCode: analytics.trpcCode } : {}),
-    ...(analytics?.httpStatus !== undefined
-      ? { httpStatus: analytics.httpStatus }
-      : {}),
-  };
-  const eventProperties: ToastErrorEventProperties = {
-    ...interactionProperties,
-    hasErrorId: Boolean(traceId),
-    ...(traceId ? { errorId: traceId } : {}),
-  };
+    analytics.trpcPath,
+    traceId,
+  );
+  const {
+    hasErrorId: _hasErrorId,
+    errorId: _errorId,
+    ...interactionProperties
+  } = eventProperties;
 
   const captureShown = (element: HTMLDivElement | null) => {
     if (!element || didCaptureShown.current) return;
@@ -71,7 +67,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     <div ref={captureShown} className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle className={`icon-lg ${textColor}`} />
+          <AlertTriangle size="lg" __rawClassName={`${textColor}`} />
           <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
@@ -102,11 +98,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               aria-label="Copy error ID"
               title="Copy error ID"
             >
-              {isCopied ? (
-                <Check className="icon-base" />
-              ) : (
-                <Copy className="icon-base" />
-              )}
+              {isCopied ? <Check size="base" /> : <Copy size="base" />}
             </button>
           </div>
         )}
@@ -152,7 +144,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         }}
         aria-label="Close"
       >
-        <X className="icon-base" />
+        <X size="base" />
       </button>
     </div>
   );

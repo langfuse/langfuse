@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useRef } from "react";
-import { Upload } from "lucide-react";
+import { Upload } from "@langfuse/icons";
 
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type TimeFilter, ObservationLevelDomain } from "@langfuse/shared";
@@ -69,7 +70,7 @@ export const WidgetImporter = ({
         size="sm"
         onClick={() => importInputRef.current?.click()}
       >
-        <Upload className="icon-base text-icon-foreground mr-2" />
+        <Upload size="base" color="default" __rawClassName="mr-2" />
         Import
       </Button>
     </>
@@ -197,6 +198,11 @@ async function runImport(params: {
       showErrorToast(
         "Widget filters were adjusted",
         "Some imported filters or filter values were removed because they are not available in this project.",
+        {
+          operation: "widget.import",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
         "WARNING",
       );
     }
@@ -204,6 +210,11 @@ async function runImport(params: {
     showErrorToast(
       "Malformed input",
       "This operation can't be done due to the malformed input",
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      },
       "WARNING",
     );
   }

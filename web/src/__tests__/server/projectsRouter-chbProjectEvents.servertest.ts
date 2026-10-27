@@ -14,8 +14,16 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
 }));
 
 import { createApiKey } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  assignRole,
+  getRoleAssignmentsForPrincipal,
+} from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -187,31 +195,31 @@ describe("projectsRouter system role assignments", () => {
     const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
 
     const key = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });
 
     await expect(
       prisma.roleAssignment.count({
-        where: { principalApiKeyId: key.id },
+        where: { apiKeyId: key.id },
       }),
     ).resolves.toBe(1);
 
-    const assignment = await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        principalUserId: user.id,
-        ownerProjectId: projectId,
-        systemRole: "VIEWER",
-      },
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
     });
 
     await caller.projects.delete({ projectId });
 
     await expect(
       prisma.roleAssignment.count({
-        where: { principalApiKeyId: key.id },
+        where: { apiKeyId: key.id },
       }),
     ).resolves.toBe(0);
     await expect(
@@ -230,7 +238,7 @@ describe("projectsRouter system role assignments", () => {
     ).resolves.toEqual([
       expect.objectContaining({
         id: assignment.id,
-        ownerProjectId: projectId,
+        projectId: projectId,
         systemRole: "VIEWER",
       }),
     ]);
@@ -248,22 +256,23 @@ describe("projectsRouter system role assignments", () => {
     });
 
     const key = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(sourceOrgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });
 
     const before = await prisma.roleAssignment.findFirstOrThrow({
-      where: { principalApiKeyId: key.id },
+      where: { apiKeyId: key.id },
     });
     expect(before.orgId).toBe(sourceOrgId);
 
     await caller.projects.transfer({ projectId, targetOrgId });
 
     const after = await prisma.roleAssignment.findFirstOrThrow({
-      where: { principalApiKeyId: key.id },
+      where: { apiKeyId: key.id },
     });
     expect(after.orgId).toBe(targetOrgId);
-    expect(after.ownerProjectId).toBe(projectId);
+    expect(after.projectId).toBe(projectId);
   });
 });

@@ -1,44 +1,71 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { embed } from "ai";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { getLLMErrorInfo } from "../llm/errors";
+import { embedLLMText, type LLMProviderOptions } from "../llm/llmText";
+import { LLMAdapter } from "../llm/types";
 import { topicEmbeddingConfigSchema } from "../../topics";
-import {
-  assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
-} from "../llm/ai-sdk/providers/bedrock";
+import type { TopicsModel } from "./model-config";
 
-/** Uses the shared AI SDK version for the Topics worker's embedding call. */
-export async function generateTopicEmbedding(params: {
-  model: string;
-  summary: string;
+/** Embeds summaries through the project's LLM connection in as few requests as the provider allows. */
+export async function generateTopicEmbeddings(params: {
+  model: TopicsModel;
+  summaries: string[];
   dimensions: number;
-  region: string;
-  profile?: string;
 }) {
-  const config = topicEmbeddingConfigSchema.parse({
-    embeddingModel: params.model,
+  const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
     embeddingDimensions: params.dimensions,
   });
-  if (!config.embeddingModel)
-    throw new Error("Topics embedding model is not configured.");
-  assertValidBedrockRegion(params.region);
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  const result = await embed({
-    model: provider.embeddingModel(params.model),
-    value: params.summary,
-    providerOptions: {
-      amazonBedrock: {
-        // Discovery and later centroid assignment must share one vector space.
-        inputType: "clustering",
-        outputDimension: config.embeddingDimensions,
-        truncate: "NONE",
-      },
-    },
-    maxRetries: 0,
-    abortSignal: AbortSignal.timeout(60_000),
-  });
-  // Cohere defaults to float output; the SDK accepts only float vectors.
-  return { embedding: result.embedding, tokens: result.usage.tokens };
+  const result = await embedWithSizeFallback(params, embeddingDimensions);
+  return { embeddings: result.embeddings, tokens: result.usage.tokens };
+}
+
+async function embedWithSizeFallback(
+  params: Parameters<typeof generateTopicEmbeddings>[0],
+  embeddingDimensions: number,
+) {
+  const embed = (dimensions: number | undefined) =>
+    embedLLMText({
+      model: { adapter: params.model.adapter, id: params.model.model },
+      connection: params.model.connection,
+      values: params.summaries,
+      dimensions,
+      providerOptions: embeddingProviderOptions(params.model),
+      maxRetries: 2,
+      // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
+      maxParallelCalls: 10,
+      abortSignal: AbortSignal.timeout(60_000),
+    });
+  try {
+    return await embed(embeddingDimensions);
+  } catch (error) {
+    const info = getLLMErrorInfo(error);
+    if (info?.kind === "provider" && info.statusCode === 400)
+      return embed(undefined);
+    throw error;
+  }
+}
+
+/** Keeps discovery and centroid assignment in the same clustering vector space. */
+function embeddingProviderOptions(model: TopicsModel): LLMProviderOptions {
+  if (model.adapter === LLMAdapter.Bedrock)
+    return { amazonBedrock: bedrockEmbeddingOptions(model.model) };
+  const google = {
+    taskType: "CLUSTERING",
+  };
+  return {
+    google,
+    vertex: google,
+  };
+}
+
+function bedrockEmbeddingOptions(modelId: string): Record<string, string> {
+  if (modelId.includes("nova"))
+    return {
+      embeddingPurpose: "CLUSTERING",
+    };
+  if (modelId.includes("cohere"))
+    return {
+      inputType: "clustering",
+      truncate: "NONE",
+    };
+  return {};
 }

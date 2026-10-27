@@ -84,7 +84,7 @@ describe("RateLimitService", () => {
       "Retry-After": 1,
       "X-RateLimit-Limit": 1000,
       "X-RateLimit-Remaining": 999,
-      "X-RateLimit-Reset": expect.any(String),
+      "X-RateLimit-Reset": expect.any(Number),
     });
   });
 

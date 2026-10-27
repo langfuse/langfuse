@@ -1638,44 +1638,47 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_1",
               output: {
-                parts: {
-                  org: {
-                    country: "Sample country",
-                    is_multi_entity: true,
-                    name: "Sample name",
-                    plan_label: "Sample plan_label",
-                    plan_tier_internal: "Sample plan_tier_internal",
-                    size_bucket: "Sample size_bucket",
+                type: "json",
+                value: {
+                  parts: {
+                    org: {
+                      country: "Sample country",
+                      is_multi_entity: true,
+                      name: "Sample name",
+                      plan_label: "Sample plan_label",
+                      plan_tier_internal: "Sample plan_tier_internal",
+                      size_bucket: "Sample size_bucket",
+                    },
+                    products: {
+                      enabled_entitlements_at_session_start_internal: [
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                      ],
+                    },
+                    session: {
+                      session_started_at: "Sample session_started_at",
+                    },
+                    setup: {
+                      erp_provider_internal: "Sample erp_provider_internal",
+                      erp_provider_label: "Sample erp_provider_label",
+                    },
+                    user: {
+                      department: "Sample department",
+                      first_name: "Sample first_name",
+                      is_manager: true,
+                      role_internal: "Sample role_internal",
+                      role_label: "Sample role_label",
+                    },
                   },
-                  products: {
-                    enabled_entitlements_at_session_start_internal: [
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                    ],
-                  },
-                  session: {
-                    session_started_at: "Sample session_started_at",
-                  },
-                  setup: {
-                    erp_provider_internal: "Sample erp_provider_internal",
-                    erp_provider_label: "Sample erp_provider_label",
-                  },
-                  user: {
-                    department: "Sample department",
-                    first_name: "Sample first_name",
-                    is_manager: true,
-                    role_internal: "Sample role_internal",
-                    role_label: "Sample role_label",
-                  },
+                  unavailable: [],
                 },
-                unavailable: [],
               },
             },
           ],
@@ -1701,13 +1704,16 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_2",
               output: {
-                instructions: "Sample instructions",
-                skills: [
-                  {
-                    name: "Sample name",
-                    description: "Sample description",
-                  },
-                ],
+                type: "json",
+                value: {
+                  instructions: "Sample instructions",
+                  skills: [
+                    {
+                      name: "Sample name",
+                      description: "Sample description",
+                    },
+                  ],
+                },
               },
             },
           ],
@@ -1734,7 +1740,7 @@ export const customerFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "sample_id_3",
-              output: "Sample tool result",
+              output: { type: "text", value: "Sample tool result" },
             },
           ],
         },
@@ -1802,34 +1808,37 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_6",
               output: {
-                output_path: "Sample output_path",
-                output_bytes: 41556,
-                output_summary: {
-                  format: "json",
-                  shape: {
-                    snippets: [
-                      {
-                        snippet: "Sample snippet",
-                        title: "Sample title",
-                        url: "Sample url",
-                        links: [
-                          {
-                            label: "Sample label",
-                            url: "Sample url",
-                          },
-                          "Sample links",
-                        ],
-                        similarity_score: "Sample similarity_score",
-                      },
-                      "Sample snippets",
-                    ],
-                    query: "Sample query",
+                type: "json",
+                value: {
+                  output_path: "Sample output_path",
+                  output_bytes: 41556,
+                  output_summary: {
+                    format: "json",
+                    shape: {
+                      snippets: [
+                        {
+                          snippet: "Sample snippet",
+                          title: "Sample title",
+                          url: "Sample url",
+                          links: [
+                            {
+                              label: "Sample label",
+                              url: "Sample url",
+                            },
+                            "Sample links",
+                          ],
+                          similarity_score: "Sample similarity_score",
+                        },
+                        "Sample snippets",
+                      ],
+                      query: "Sample query",
+                    },
+                    summary_truncated: true,
                   },
-                  summary_truncated: true,
+                  output_head: "Sample output_head",
+                  truncated: true,
+                  hint: "Sample hint",
                 },
-                output_head: "Sample output_head",
-                truncated: true,
-                hint: "Sample hint",
               },
             },
           ],
@@ -3319,7 +3328,10 @@ export const openAiChatCompletionToolSequenceFixture = {
           {
             type: "tool-result",
             toolCallId,
-            output: { condition: "sunny", temperature: 24 },
+            output: {
+              type: "json",
+              value: { condition: "sunny", temperature: 24 },
+            },
           },
         ],
         source: "input",
@@ -3331,7 +3343,7 @@ export const openAiChatCompletionToolSequenceFixture = {
             type: "tool-result",
             toolCallId: null,
             toolName: "run_python",
-            output: 42,
+            output: { type: "json", value: 42 },
           },
         ],
         source: "input",
@@ -3516,7 +3528,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId1,
-            output: "[Reduced refund policy doc excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced refund policy doc excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3527,7 +3542,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId2,
-            output: "[Reduced annual plan terms excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced annual plan terms excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3614,7 +3632,7 @@ export const openAiResponsesFunctionCallFixture = {
           {
             type: "tool-result",
             toolCallId: responsesToolCallId,
-            output: "The weather in Basel is cloudy.",
+            output: { type: "text", value: "The weather in Basel is cloudy." },
           },
         ],
         source: "input",
@@ -4036,7 +4054,7 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
           {
             type: "tool-result",
             toolCallId: "call_custom_100",
-            output: "ok",
+            output: { type: "text", value: "ok" },
           },
         ],
         source: "output",
@@ -4114,19 +4132,19 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
       output:
         '[{"content":[],"encrypted_content":"anonymized-encrypted-reasoning","id":"rs_01989159bdac1f03016aaac3e381b887d2ab6730f292a7a587","summary":[{"text":"**Inspecting the implementation**\\n\\nI will search the sample project for the retry decorator and its tests, then explain how it handles failed calls.","type":"summary_text"}],"type":"reasoning"},{"arguments":"{\\"command\\":\\"rg -n \\\\\\"def retry|retry\\\\\\" example_sdk tests/unit | head -80\\",\\"timeout\\":10}","call_id":"call_0mE4wfJ7mEy41Nj9HfXjidem","id":"fc_01989159bdac1f03016aaac3e49de487d29427a84b52330077","name":"bash","status":"completed","type":"function_call"}]',
       metadata: {
-        "langfuse.gateway.provider.response_id":
+        "langfuse.gateway.upstream.response.id":
           "resp_01989159bdac1f03016aaac3e2b53887d2bf05419f5a5c9409",
-        "langfuse.gateway.provider.request_id":
+        "langfuse.gateway.upstream.request.id":
           "req_3bc6e7143cb747cc80876011ee0ac473",
-        "langfuse.gateway.provider.request.prompt_cache_key":
+        "langfuse.gateway.client.request.prompt_cache_key":
           "01a0ab0a-84b2-7775-866d-e0a8ddf0e3b8",
-        "langfuse.gateway.provider.connection_id": "cmu3uqinh0004ad0ld88jrfe9",
-        "langfuse.gateway.project_id": "cmtvtpilr0004ad0lxphzbd5i",
-        "langfuse.gateway.organization_id": "cmtvmaywg0000ad0ly0x9tono",
-        "langfuse.gateway.ingestion_mode": "full",
-        "langfuse.gateway.api_format": "openai.responses",
-        "langfuse.gateway.api-key.id": "cmu3uqwsb0007ad0lwaua4ezv",
-        http_status: 200,
+        "langfuse.gateway.connection.id": "cmu3uqinh0004ad0ld88jrfe9",
+        "langfuse.gateway.connection.provider": "openai",
+        "langfuse.gateway.organization.id": "cmtvmaywg0000ad0ly0x9tono",
+        "langfuse.gateway.ingestion.mode": "full",
+        "langfuse.gateway.request.api_format": "openai.responses",
+        "langfuse.gateway.api_key.id": "cmu3uqwsb0007ad0lwaua4ezv",
+        "langfuse.gateway.response.status_code": 200,
         "scope.version": "0.1.0",
         "scope.name": "langfuse-ai-gateway",
         "resourceAttributes.service.name": "langfuse-ai-gateway",
@@ -4369,7 +4387,7 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_Kud0j0DxWSmLzv9W5m6qVqXn",
-              output: "The weather in Tokyo is sunny.",
+              output: { type: "text", value: "The weather in Tokyo is sunny." },
             },
           ],
           source: "input",

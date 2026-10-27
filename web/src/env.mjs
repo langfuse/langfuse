@@ -96,9 +96,6 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    // Internal Topics PoC model selection; not a supported self-hosting setting.
-    LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-    LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -289,6 +286,7 @@ export const env = createEnv({
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING: z.enum(["true", "false"]).optional(),
     AUTH_EMAIL_VERIFICATION_REQUIRED: z
       .enum(["true", "false"])
       .default("false"),
@@ -307,11 +305,22 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
+    // Cloudflare Turnstile. When the secret is set, credentials sign-in,
+    // email sign-up, and password-reset code emails require a valid token
+    // whose hostname is in TURNSTILE_HOSTNAMES (comma-separated frontend
+    // hostnames).
+    TURNSTILE_SECRET: z.string().optional(),
+    TURNSTILE_HOSTNAMES: z.string().optional(),
 
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
+    // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+    // attributes onto every exported span.
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // OTel Masking
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
@@ -359,6 +368,37 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    // Whether an AI gateway is deployed next to Web. When false, every gateway
+    // surface in Web is off regardless of the flags below. Langfuse Cloud (any
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION), development and preview deployments
+    // count as deployed.
+    LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).default("false"),
+    // Enables a deployed gateway for every organization. When false, only
+    // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
+    // Unset means true, except on Langfuse Cloud where it means false.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).optional(),
+    // Public gateway root URL shown to users. Unset derives it from NEXTAUTH_URL.
+    // Path prefixes are rejected because the setup instructions use the origin.
+    LANGFUSE_AI_GATEWAY_PUBLIC_URL: z
+      .url({ protocol: /^https?$/ })
+      .refine(
+        (value) => {
+          // z.url() already reports unparsable values; refine still runs on them.
+          if (!URL.canParse(value)) return true;
+          const url = new URL(value);
+          return (
+            !url.username &&
+            !url.password &&
+            url.pathname === "/" &&
+            !/[?#]/.test(value)
+          );
+        },
+        {
+          message:
+            "LANGFUSE_AI_GATEWAY_PUBLIC_URL must be an http(s) origin without credentials, path, query or fragment",
+        },
+      )
+      .optional(),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()
@@ -403,8 +443,8 @@ export const env = createEnv({
 
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
-      .default("legacy"),
-    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+      .default("enforce"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("true"),
     API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
@@ -466,9 +506,28 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Comma-separated Langfuse organization ids whose first-time upgrade routes
+    // to CHB regardless of the cutoff, for testing the CHB flow on a single org
+    // before the global rollout. Orgs already billed by Stripe stay on Stripe.
+    // Keep in sync with worker/src/env.ts.
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // Compares each GET /api/billing/metrics poll with the billable_events
+    // ledger and reports the gap. Requires the ledger table, which only
+    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -625,6 +684,12 @@ export const env = createEnv({
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
       .datetime()
       .default("2026-09-16T00:00:00.000Z"),
+    // Organizations created at or after this instant take the v4 events_only
+    // path on legacy ingestion. Unset leaves that API unchanged. Read on the
+    // web request path; the worker never re-checks event types.
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
+      .datetime()
+      .optional(),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -654,6 +719,22 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+
+    // Reverse proxies in front of the web container that append the client
+    // address to X-Forwarded-For. Audit events take the client IP from the
+    // N-th entry from the right, since entries further left are client-supplied.
+    // 0 ignores X-Forwarded-For and uses the socket peer address.
+    LANGFUSE_TRUSTED_PROXY_COUNT: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
+
+    // Kill switch for staging audit events for the ClickHouse audit_logs table
+    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -729,6 +810,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     // PR preview deployments only (.github/workflows/preview-build.yml):
     // identify the environment with a top-of-page strip linking back to the PR.
     NEXT_PUBLIC_PREVIEW_PR_URL: z.url().optional(),
@@ -788,6 +870,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
     NEXT_PUBLIC_PREVIEW_LAST_UPDATED:
@@ -796,9 +879,6 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
-    LANGFUSE_TOPICS_SUMMARY_MODEL: process.env.LANGFUSE_TOPICS_SUMMARY_MODEL,
-    LANGFUSE_TOPICS_EMBEDDING_MODEL:
-      process.env.LANGFUSE_TOPICS_EMBEDDING_MODEL,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -997,6 +1077,8 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING:
+      process.env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING,
     AUTH_EMAIL_VERIFICATION_REQUIRED:
       process.env.AUTH_EMAIL_VERIFICATION_REQUIRED,
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
@@ -1006,10 +1088,14 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+    TURNSTILE_HOSTNAMES: process.env.TURNSTILE_HOSTNAMES,
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED:
+      process.env.OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED,
 
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
       process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
@@ -1101,6 +1187,9 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_DEPLOYED: process.env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+    LANGFUSE_AI_GATEWAY_ENABLED: process.env.LANGFUSE_AI_GATEWAY_ENABLED,
+    LANGFUSE_AI_GATEWAY_PUBLIC_URL: process.env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
       process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
@@ -1132,8 +1221,12 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
+      process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
+      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
@@ -1219,12 +1312,17 @@ export const env = createEnv({
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
       process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF:
+      process.env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
+      process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

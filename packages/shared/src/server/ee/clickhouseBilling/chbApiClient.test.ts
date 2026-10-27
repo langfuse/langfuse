@@ -18,6 +18,7 @@ import {
   ChbApiClient,
   ChbApiError,
   ChbPaymentRequiredError,
+  chbBillPlanAmountUSD,
   chbBillUsageAmountUSD,
 } from "./chbApiClient";
 
@@ -216,7 +217,7 @@ describe("chbApiClient", () => {
       const { url, init } = lastChbCall();
       expect(init.method).toBe("POST");
       expect(url.pathname).toBe("/api/v1/bills/query");
-      expect(url.searchParams.get("fields")).toBe("usage");
+      expect(url.searchParams.get("fields")).toBe("usage,plan");
       expect(JSON.parse(init.body as string)).toEqual({
         organizationIds: [CH_ORG_ID],
       });
@@ -457,6 +458,12 @@ describe("chbApiClient", () => {
               currency: "USD",
               asOf: "2026-09-29T12:00:00.000Z",
             },
+            plan: {
+              amount: 199,
+              currency: "USD",
+              startDate: "2026-10-01T00:00:00.000Z",
+              endDate: "2026-11-01T00:00:00.000Z",
+            },
           },
           { id: "bill_2", organizationId: "other-org", extra: true },
         ]),
@@ -468,7 +475,9 @@ describe("chbApiClient", () => {
 
       expect(bills.map((bill) => bill.id)).toEqual(["bill_1", "bill_2"]);
       expect(bills[0]!.usage?.amount).toBe(1250.68);
+      expect(bills[0]!.plan?.amount).toBe(199);
       expect(bills[1]!.usage).toBeUndefined();
+      expect(bills[1]!.plan).toBeUndefined();
     });
 
     it("reads the portal URL from CHB's portalUrl field", async () => {
@@ -620,6 +629,40 @@ describe("chbApiClient", () => {
       ).toBeNull();
       expect(
         chbBillUsageAmountUSD(withUsage({ amount: NaN, currency: "USD" })),
+      ).toBeNull();
+    });
+  });
+
+  /**
+   * The plan fee shares the usage amount's major-unit/USD contract; what it
+   * adds is that CHB leaves `plan` out for a bill without a standing charge.
+   */
+  describe("chbBillPlanAmountUSD", () => {
+    const withPlan = (plan: unknown) =>
+      ({
+        id: "bill_1",
+        organizationId: CH_ORG_ID,
+        startDate: "2026-09-01T00:00:00.000Z",
+        plan,
+      }) as Parameters<typeof chbBillPlanAmountUSD>[0];
+
+    it("returns the amount unchanged as USD", () => {
+      expect(
+        chbBillPlanAmountUSD(withPlan({ amount: 499.9, currency: "USD" })),
+      ).toBe(499.9);
+    });
+
+    /** No standing charge is a fee of 0; a fee without a figure is no reading. */
+    it("distinguishes an absent plan from a plan without a usable amount", () => {
+      expect(
+        chbBillPlanAmountUSD({ id: "bill_1", organizationId: CH_ORG_ID }),
+      ).toBe(0);
+      expect(chbBillPlanAmountUSD(withPlan(null))).toBe(0);
+      expect(
+        chbBillPlanAmountUSD(withPlan({ amount: null, currency: "USD" })),
+      ).toBeNull();
+      expect(
+        chbBillPlanAmountUSD(withPlan({ amount: 199, currency: "EUR" })),
       ).toBeNull();
     });
   });

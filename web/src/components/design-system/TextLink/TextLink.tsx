@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 
 export function TextLink({
   path,
@@ -7,12 +7,15 @@ export function TextLink({
   icon,
   onClick,
   title,
+  external = false,
 }: {
   path: string;
   value: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   onClick?: (event: React.MouseEvent) => void;
   title?: string;
+  /** Opens in a new tab. */
+  external?: boolean;
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
@@ -32,11 +35,12 @@ export function TextLink({
       title={title ?? value}
       prefetch={false}
       onClick={handleClick}
+      {...(external && { target: "_blank", rel: "noopener noreferrer" })}
     >
       <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
         {Icon ? (
           <span className="inline-flex max-w-full items-center gap-1">
-            <Icon className="icon-base shrink-0" />
+            <Icon size="base" />
             <span className="truncate" title={title ?? value}>
               {value}
             </span>

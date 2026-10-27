@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -25,7 +26,7 @@ import {
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 
 import {
   convertSelectedEnvironmentsToFilter,
@@ -39,10 +40,11 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import Link from "next/link";
-import { LockIcon, PencilIcon } from "lucide-react";
+import { LockIcon, PencilIcon } from "@langfuse/icons";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
@@ -237,7 +239,11 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       setPeekId(null);
     },
     onError: (e) => {
-      showErrorToast("Failed to set the default Home dashboard", e.message);
+      showErrorToast(
+        "Failed to set the default Home dashboard",
+        e.message,
+        classifyTrpcToastError(e, "dashboard_home.update"),
+      );
     },
   });
 
@@ -396,7 +402,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
                   onClick={handleEditDashboard}
                 >
-                  <PencilIcon className="icon-base text-icon-foreground" />
+                  <PencilIcon size="base" color="default" />
                   <span className="sr-only">
                     Edit this dashboard in Dashboards
                   </span>
@@ -412,7 +418,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 ) : (
                   <Button disabled>
                     <LockIcon
-                      className="icon-base text-icon-foreground mr-2 -ml-0.5"
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-2 -ml-0.5"
                       aria-hidden="true"
                     />
                     Configure Tracing
@@ -459,7 +467,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       closeMenu();
                     }}
                   >
-                    <PencilIcon className="icon-base text-icon-foreground" />
+                    <PencilIcon size="base" color="default" />
                     Edit dashboard
                   </Link>
                 </Button>
@@ -485,7 +493,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       size="sm"
                       className="w-full justify-start gap-2 font-normal"
                     >
-                      <LockIcon className="icon-base" aria-hidden="true" />
+                      <LockIcon size="base" aria-hidden="true" />
                       Configure tracing
                     </Button>
                   ))}
