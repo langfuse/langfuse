@@ -47,6 +47,21 @@ import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
+const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
+
+/**
+ * The ingestion API key Web records for an upload authorized by a gateway
+ * ingestion grant. Unlike the instrumentation scope name, an OTLP sender cannot
+ * choose it, so it is the marker for behavior that trusts the gateway.
+ */
+export const aiGatewayIngestionApiKey = (grantId: string) =>
+  `${AI_GATEWAY_INGESTION_API_KEY_PREFIX}${grantId}`;
+
+export const isAiGatewayIngestionApiKey = (
+  ingestionApiKey: string | null | undefined,
+): boolean =>
+  ingestionApiKey?.startsWith(AI_GATEWAY_INGESTION_API_KEY_PREFIX) ?? false;
+
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
 //  The classic ingestion API keeps its strict enum; only the

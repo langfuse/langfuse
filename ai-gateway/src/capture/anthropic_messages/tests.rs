@@ -593,7 +593,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
         metadata["langfuse.gateway.request.api_format"],
         "anthropic.messages"
     );
-    assert_eq!(metadata["langfuse.gateway.response.id"], "msg_1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "msg_1");
     assert_eq!(
         metadata["langfuse.gateway.upstream.request.id"],
         "req_upstream"

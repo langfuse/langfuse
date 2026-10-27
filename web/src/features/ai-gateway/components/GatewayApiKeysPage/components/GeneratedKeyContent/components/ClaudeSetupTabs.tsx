@@ -12,6 +12,7 @@ function isClaudeAgentId(value: string): value is ClaudeAgentId {
 }
 
 type ClaudeSetupTabsProps = {
+  organizationId: string;
   instructions: AgentSetupInstructions[];
   value: ClaudeAgentId;
   onValueChange: (value: ClaudeAgentId) => void;
@@ -19,6 +20,7 @@ type ClaudeSetupTabsProps = {
 
 /** Claude Code and Claude Desktop share one tab, with a switch between them. */
 export function ClaudeSetupTabs({
+  organizationId,
   instructions,
   value,
   onValueChange,
@@ -43,7 +45,10 @@ export function ClaudeSetupTabs({
         return entry ? (
           <Tabs.Content key={variant.id} value={variant.id}>
             <div className="pt-3">
-              <AgentInstructionsPanel instructions={entry} />
+              <AgentInstructionsPanel
+                organizationId={organizationId}
+                instructions={entry}
+              />
             </div>
           </Tabs.Content>
         ) : null;

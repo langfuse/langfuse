@@ -1406,6 +1406,75 @@ json_literal    = "<price_per_mtok>e-6"
   with `jq` against a cleanly-separated per-model fetch rather than trusting
   a jumbled aggregate dump at face value.
 
+- **GPT-6.1 Terra (added October 27 2026)** — OpenAI released `gpt-6.1-terra` as a
+  new sibling alongside `gpt-6.1-sol` (both remain active, separately priced
+  model IDs). Confirmed via `https://developers.openai.com/api/docs/pricing`
+  (Standard, Long-Context, Fast mode, and Flex tables) and its dedicated model
+  page `https://developers.openai.com/api/docs/models/gpt-6.1-terra` ("A fast,
+  efficient model for visual reasoning, precise computer use, and clear,
+  natural writing"). Same 1,050,000-token context window (max output 128,000)
+  and the same >272,000-input-token Large Context threshold as the rest of the
+  GPT-6 family. Standard pricing is exactly half of `gpt-6.1-sol`'s: $1.00/MTok
+  input, $0.05/MTok cached input, $1.25/MTok cache write, $5.00/MTok output —
+  confirmed verbatim via the dedicated model page's own stated prices (the
+  cleanest, unambiguous source). Large Context (2x input/cache, 1.5x output):
+  $2.00/$0.10/$2.50/$7.50. Fast mode (`service_tier` in `["fast","priority"]`,
+  2x applicable tier): $2.00/$0.10/$2.50/$10.00 standard,
+  $4.00/$0.20/$5.00/$15.00 large context. Flex (`service_tier: "flex"`, 0.5x
+  applicable tier): $0.50/$0.025/$0.625/$2.50 standard,
+  $1.00/$0.05/$1.25/$3.75 large context. All four combined tiers were
+  confirmed against the aggregate pricing table, which for this model
+  consistently returned each tier as a 10-value row instead of the expected
+  4 or 8 — e.g. the raw Standard+Long-Context row quoted as
+  `$1.00 | $5.00 | $0.05 | $1.25 | $2.50 | $2.00 | $7.50 | $0.10 | $2.50 | $5.00`
+  instead of the expected 8 values. This is the same jumbled/extra-column
+  table-extraction weakness documented in the August 24 2026 and October 25
+  2026 entries above, now confirmed to also affect a brand-new model's own
+  first appearance in the aggregate table, not just older rows. It was
+  resolved by treating each 5-value group as "tier values plus one stray
+  duplicate of an adjacent tier's figure" and keeping only the 4 values in
+  each group that reconcile with (a) the dedicated model page's clean Standard
+  figures and (b) the GPT-6-family's standard 2x-input/cache, 1.5x-output
+  Large Context formula and 2x/0.5x Fast/Flex multipliers — every kept value
+  satisfied both checks exactly, and every discarded value was traceable to a
+  neighboring tier's own figure. Lesson: when this page returns a per-model
+  row with more values than tiers expect, do not average, round, or guess —
+  reconcile against the model's own dedicated page and the family's documented
+  multiplier formulas, and only keep values that satisfy both independently.
+  No date-stamped snapshot at launch. Added to the pricing file mirroring
+  `gpt-6.1-sol`'s exact six-tier key set and to `openAIModels` in `types.ts`
+  immediately after `gpt-6.1-sol` (not as the first entry). matchPattern:
+  `(?i)^(openai/)?(gpt-6.1-terra)$` — verified via the bundled match-pattern
+  tester that it does not collide with `gpt-6.1-sol`, `gpt-6-sol`, or a guessed
+  `gpt-6.1-astra`/`-preview` variant (all fully anchored with `^...$`).
+- **October 27 2026 audit: GPT-6.1 Terra was the only drift found; everything
+  else confirmed unchanged** — Re-fetched the full Anthropic pricing page (all
+  sections) and the Anthropic model-deprecations page (full "Model status"
+  table: `claude-sonnet-4-5-20250929` still `Deprecated`, retirement November
+  30, 2026 not yet passed; `claude-haiku-4-5-20251001` still `Active`,
+  `Deprecated: N/A`), the OpenAI aggregate Standard pricing table (every
+  `gpt-6`/`gpt-6.1`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/`gpt-5.2`/
+  `gpt-5.1`/`gpt-5` row), `https://developers.openai.com/api/docs/deprecations`
+  (the October 23, 2026 "Legacy GPT model snapshots" batch and the January 14,
+  2027 "GPT-4 series" batch both re-confirmed with no new batch added),
+  `https://developers.openai.com/api/docs/models/all`, both Gemini pricing
+  pages (3.x family via `ai.google.dev/gemini-api/docs/pricing`, every price
+  matched verbatim including `gemini-4-argon`'s introductory rate), the Gemini
+  models catalog and deprecations page (`gemini-3.5-flash`/`gemini-3.7-flash`
+  still show `Shutdown date: N/A` with silent auto-routing to
+  `gemini-3.6-flash`/`gemini-3.8-flash` — the same unresolved lifecycle-category
+  gap as the October 21 2026 entry, still left unchanged in both selectable
+  arrays; `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` still
+  carry only the access-restriction note, no shutdown date), the AWS Bedrock
+  pricing page (still no extractable per-model numeric rows for Claude or Nova
+  — standing limitation; only the qualitative Sonnet 5.5 cache-read footnote
+  came through, consistent with the already-applied correction), and the
+  TypeSafe Jev models page (`jev-1.13.0`/`jev-1.14.0` unchanged at $42/Btok
+  input, output free; `jev-latest` now points to `jev-1.14.0` instead of
+  `jev-1.13.0` — an alias-target change only, no price change, already covered
+  by the existing generic version-number matchPattern). No other new flagship
+  text/chat/reasoning model was found on any provider.
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single

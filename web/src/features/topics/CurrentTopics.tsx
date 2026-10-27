@@ -78,7 +78,9 @@ function CurrentFacet({
   const isHandheld = useIsHandheld();
   const mapResult = useCurrentTopicMap(
     projectId,
-    view === "treemap" ? undefined : facet.map?.runId,
+    view === "treemap" || view === "treemap-side"
+      ? undefined
+      : facet.map?.runId,
     timeRange,
   );
   const peekNavigation = usePeekNavigation({
@@ -92,7 +94,7 @@ function CurrentFacet({
       <MobileTopics
         projectId={projectId}
         facet={facet}
-        view={view}
+        view={view === "treemap-side" ? "treemap" : view}
         mapResult={mapResult}
         traceFilters={traceFilters}
         onGenerateTopics={onGenerateTopics}
@@ -100,7 +102,7 @@ function CurrentFacet({
         onOpenTrace={peekNavigation.openPeek}
       />
     );
-  if (view === "treemap")
+  if (view === "treemap" || view === "treemap-side")
     return (
       <TopicTreemapView
         key={facet.facetId}
@@ -109,6 +111,8 @@ function CurrentFacet({
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
         peekView={peekView}
+        sideBySide={view === "treemap-side"}
+        tracePanelRef={tracePanelRef}
       />
     );
   if (view === "map")
@@ -231,7 +235,15 @@ function useCurrentTopicMap(
 ) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "", timeRange },
-    { enabled: Boolean(runId) },
+    {
+      enabled: Boolean(runId),
+      // A moved time range keeps the map (and its camera) up; a different run starts fresh.
+      placeholderData: (previous, previousQuery) =>
+        (previousQuery?.queryKey?.[1] as { input?: { runId?: string } })?.input
+          ?.runId === runId
+          ? previous
+          : undefined,
+    },
   );
 }
 

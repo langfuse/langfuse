@@ -1,14 +1,16 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ComponentProps } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { GatewayModelsEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/components/GatewayModelsEmptyState/GatewayModelsEmptyState";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   filterGatewayModels,
   type GatewayModelRow,
@@ -27,6 +29,7 @@ export function ConnectedGatewayModelsTable({
   hasSynced,
   isLoading,
   syncError,
+  onAddProvider,
 }: {
   models: GatewayModelRow[];
   organizationId: string;
@@ -37,7 +40,18 @@ export function ConnectedGatewayModelsTable({
   hasSynced: boolean;
   isLoading: boolean;
   syncError: boolean;
+  /** Omit for callers who cannot add provider credentials. */
+  onAddProvider?: () => void;
 }) {
+  const capture = usePostHogClientCapture();
+  const handleModelCopied = useCallback(
+    (model: GatewayModelRow) =>
+      capture("ai_gateway:model_name_copied", {
+        orgId: organizationId,
+        provider: model.provider,
+      }),
+    [capture, organizationId],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [provider, setProvider] = useState<GatewayProvider | "all">(
     ALL_PROVIDERS,
@@ -77,11 +91,29 @@ export function ConnectedGatewayModelsTable({
     onChange: setPaginationState,
   };
   const emptyMessage = getEmptyMessage({
-    hasProviders,
     hasSynced,
     hasActiveFilters:
       searchQuery.trim().length > 0 || provider !== ALL_PROVIDERS,
   });
+  /** When every provider failed to sync, the warning explains the empty list. */
+  const allProvidersFailed =
+    failedProviderCount > 0 && failedProviderCount === providerCount;
+  const showEmptyState =
+    !hasProviders ||
+    (hasSynced &&
+      !isLoading &&
+      !syncError &&
+      !allProvidersFailed &&
+      models.length === 0);
+  const tableData: ComponentProps<typeof GatewayModelsTable>["data"] = isLoading
+    ? { status: "loading" }
+    : {
+        status: "success",
+        data: filteredModels.slice(
+          currentPageIndex * paginationState.pageSize,
+          (currentPageIndex + 1) * paginationState.pageSize,
+        ),
+      };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -118,56 +150,55 @@ export function ConnectedGatewayModelsTable({
         </Alert>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-80 max-w-full">
-            <SearchInput
-              value={searchQuery}
-              onChange={(value) => {
-                setSearchQuery(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              onSubmit={(value) => {
-                setSearchQuery(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              placeholder="Search models"
-            />
+      {showEmptyState ? (
+        <GatewayModelsEmptyState
+          organizationId={organizationId}
+          hasProviders={hasProviders}
+          onAddProvider={onAddProvider}
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-80 max-w-full">
+              <SearchInput
+                value={searchQuery}
+                onChange={(value) => {
+                  setSearchQuery(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                onSubmit={(value) => {
+                  setSearchQuery(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                placeholder="Search models"
+              />
+            </div>
+            <div className="w-44">
+              <SelectInput
+                aria-label="Filter by provider"
+                value={provider}
+                options={providerOptions}
+                muted={provider === ALL_PROVIDERS}
+                onValueChange={(value) => {
+                  setProvider(value);
+                  setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+                }}
+                placeholder="All providers"
+              />
+            </div>
           </div>
-          <div className="w-44">
-            <SelectInput
-              aria-label="Filter by provider"
-              value={provider}
-              options={providerOptions}
-              muted={provider === ALL_PROVIDERS}
-              onValueChange={(value) => {
-                setProvider(value);
-                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
-              }}
-              placeholder="All providers"
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border-x border-b">
+            <GatewayModelsTable
+              organizationId={organizationId}
+              canManageGateway={canManageGateway}
+              onAfterModelCopy={handleModelCopied}
+              data={tableData}
+              noResultsMessage={emptyMessage}
+              pagination={pagination}
             />
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border-x border-b">
-          <GatewayModelsTable
-            organizationId={organizationId}
-            canManageGateway={canManageGateway}
-            data={
-              isLoading
-                ? { status: "loading" }
-                : {
-                    status: "success",
-                    data: filteredModels.slice(
-                      currentPageIndex * paginationState.pageSize,
-                      (currentPageIndex + 1) * paginationState.pageSize,
-                    ),
-                  }
-            }
-            noResultsMessage={emptyMessage}
-            pagination={pagination}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -179,18 +210,14 @@ function uniqueSorted<T extends string>(values: T[]) {
 }
 
 function getEmptyMessage({
-  hasProviders,
   hasSynced,
   hasActiveFilters,
 }: {
-  hasProviders: boolean;
   hasSynced: boolean;
   hasActiveFilters: boolean;
 }) {
   if (hasActiveFilters)
     return "No models match the current search and filters.";
-  if (!hasProviders)
-    return "Add a provider credential before discovering models.";
   if (hasSynced) return "No models were returned by the configured providers.";
   return "Models will appear here after provider discovery completes.";
 }

@@ -1,29 +1,22 @@
-import { MoreHorizontal } from "@langfuse/icons";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { EllipsisVertical } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
+import { AnalyzeControl } from "./AnalyzeControl";
 import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
-      <div className="hidden items-center gap-1 @5xl/topics-header:flex">
-        {actions.automatic && (
-          <AutomaticProcessingControl action={actions.automatic} />
-        )}
-        {actions.inline.map((action) => (
-          <Button
-            key={action.id}
-            text={action.label}
-            variant={action.variant}
-            size="sm"
-            disabled={Boolean(action.disabledReason)}
-            onClick={action.onSelect}
+      {actions.automatic && (
+        <div className="hidden items-center gap-1 @5xl/topics-header:flex">
+          <AnalyzeControl
+            state={actions.automatic.state}
+            disabledReason={actions.automatic.disabledReason}
+            onClick={actions.automatic.onSelect}
           />
-        ))}
-      </div>
+        </div>
+      )}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
@@ -44,7 +37,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
-            icon={MoreHorizontal}
+            icon={EllipsisVertical}
             label="Topics actions"
             size="sm"
           />

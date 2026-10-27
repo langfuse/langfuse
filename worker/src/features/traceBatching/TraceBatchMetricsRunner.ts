@@ -10,29 +10,11 @@ import { PeriodicRunner } from "../../utils/PeriodicRunner";
 import {
   getTraceBatchFirstKeys,
   getTraceBatchReadinessKeys,
+  MEMORY_SCRIPT,
 } from "./traceBatchReadiness";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
-// EVAL applies the shared client's key prefix and routes keys to their
-// cluster slot. Raw MEMORY commands do not identify keys in ioredis metadata.
-const MEMORY_SCRIPT = `
-local result = {
-  redis.call('MEMORY', 'USAGE', KEYS[1], 'SAMPLES', 5) or 0,
-  redis.call('ZCARD', KEYS[1]),
-  redis.call('MEMORY', 'USAGE', KEYS[2], 'SAMPLES', 5) or 0,
-  redis.call('HLEN', KEYS[2])
-}
-local bytes = 0
-local entries = 0
-for i = 3, #KEYS do
-  bytes = bytes + (redis.call('MEMORY', 'USAGE', KEYS[i], 'SAMPLES', 5) or 0)
-  entries = entries + redis.call('HLEN', KEYS[i])
-end
-table.insert(result, bytes)
-table.insert(result, entries)
-return result
-`;
 
 export class TraceBatchMetricsRunner extends PeriodicRunner {
   private lastMemorySampleAt: number | null = null;

@@ -10,6 +10,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
+import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -44,6 +45,9 @@ export function GatewayApiKeysTable({
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
+  const hasSearch = search.value.trim().length > 0;
+  /** An out-of-range page is also empty; it keeps the table so its pagination can page back. */
+  const hasNoKeys = !hasSearch && pagination.totalCount === 0;
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
     createDateTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.createdAt,
@@ -115,7 +119,7 @@ export function GatewayApiKeysTable({
           ? [
               {
                 id: "invite",
-                label: "Invite",
+                label: "Notify team",
                 variant: "outline" as const,
                 icon: <UserPlus size="base" aria-hidden="true" />,
                 onClick: inviteAction,
@@ -130,10 +134,11 @@ export function GatewayApiKeysTable({
         },
       ]}
       noResultsMessage={
-        search.value.trim().length > 0
+        hasSearch
           ? "No gateway API keys match the current search."
           : "No gateway API keys created."
       }
+      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />
   );
 }

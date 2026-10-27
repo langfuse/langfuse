@@ -863,6 +863,49 @@ describe("select all test suite", () => {
     expect(queueItems.every((item) => item.objectType === "TRACE")).toBe(true);
   });
 
+  it("should not add traces to an annotation queue from another project", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ]);
+
+    const otherQueueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: otherQueueId,
+        projectId: otherProjectId,
+        name: "other-queue",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "trace-add-to-annotation-queue" as const,
+        tableName: BatchExportTableName.Traces,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        targetId: otherQueueId,
+        query: { filter: [], orderBy: { column: "timestamp", order: "DESC" } },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId: otherQueueId },
+    });
+    expect(queueItems).toHaveLength(0);
+  });
+
   it("should add sessions to annotation queue", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

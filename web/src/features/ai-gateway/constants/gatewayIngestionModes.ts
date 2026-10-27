@@ -8,10 +8,10 @@ export const GATEWAY_INGESTION_MODES: ReadonlyArray<{
   icon: IconComponent;
 }> = [
   {
-    value: "NONE",
-    title: "None",
-    description: "Route requests without capturing anything in Langfuse.",
-    icon: EyeOff,
+    value: "FULL",
+    title: "Full",
+    description: "Capture full request and response payloads for tracing.",
+    icon: ScanText,
   },
   {
     value: "USAGE",
@@ -20,9 +20,9 @@ export const GATEWAY_INGESTION_MODES: ReadonlyArray<{
     icon: Gauge,
   },
   {
-    value: "FULL",
-    title: "Full",
-    description: "Capture full request and response payloads for tracing.",
-    icon: ScanText,
+    value: "NONE",
+    title: "None",
+    description: "Route requests without capturing anything in Langfuse.",
+    icon: EyeOff,
   },
 ];
