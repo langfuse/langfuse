@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+import { useEffect, useRef } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { type MediaContentType } from "@/src/features/media";
@@ -25,16 +25,44 @@ export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
 }
 
 function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
-  const { status, url, contentLength } = useResolvedExternalMedia(descriptor, {
-    enabled: true,
-  });
+  const { status, url, contentLength, refreshIfNeeded } =
+    useResolvedExternalMedia(descriptor, {
+      enabled: true,
+    });
+  const refreshedRef = useRef(false);
+  const lastUriRef = useRef(descriptor.uri);
 
-  if (status === "idle" || status === "error") {
+  if (lastUriRef.current !== descriptor.uri) {
+    lastUriRef.current = descriptor.uri;
+    refreshedRef.current = false;
+  }
+
+  useEffect(() => {
+    if (status === "ready") {
+      refreshedRef.current = false;
+      return;
+    }
+
+    if (status === "error" && !refreshedRef.current) {
+      refreshedRef.current = true;
+      refreshIfNeeded().catch(() => undefined);
+    }
+  }, [status, refreshIfNeeded]);
+
+  if (status === "idle") {
     return <ExternalMediaFallback uri={descriptor.uri} />;
   }
 
-  if (status === "loading" || !url) {
+  if (
+    status === "loading" ||
+    (!url && status !== "error") ||
+    (status === "error" && !refreshedRef.current)
+  ) {
     return <Skeleton className="h-24 w-24 max-w-full" />;
+  }
+
+  if (status === "error") {
+    return <ExternalMediaFallback uri={descriptor.uri} />;
   }
 
   return (
