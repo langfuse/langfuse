@@ -68,9 +68,18 @@ export function facetWithoutUnassigned(facet: Facet): Facet {
   return { ...facet, rows: facet.rows.filter((row) => row.topicId) };
 }
 
-/** Drops points without a topic, which also removes the map's Outliers and awaiting zones. */
+/**
+ * Keeps points with a map topic whose trace is still listed, so the map agrees with the
+ * trace table even when a trace's latest assignment differs from the map's discovery one.
+ * Also removes the map's Outliers and awaiting zones.
+ */
 export function mapWithoutUnassigned<
-  T extends { points: { topicId: string | null }[] },
->(map: T): T {
-  return { ...map, points: map.points.filter((point) => point.topicId) };
+  T extends { points: { traceId: string; topicId: string | null }[] },
+>(map: T, listedTraceIds: ReadonlySet<string>): T {
+  return {
+    ...map,
+    points: map.points.filter(
+      (point) => point.topicId && listedTraceIds.has(point.traceId),
+    ),
+  };
 }

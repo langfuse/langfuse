@@ -353,16 +353,19 @@ describe("topic map preparation", () => {
       mapWithoutUnassigned(
         data([
           point("invoice", -5, -1),
+          point("resummarized", -4, 2),
           point("new-request", 0, 8, { topicId: null, outcome: "outlier" }),
           point("stale-assignment", 0, -8, {
             topicId: null,
             outcome: "unassigned",
           }),
         ]),
+        new Set(["invoice", "new-request"]),
       ),
       topics,
     );
     expect(model.zones.map((zone) => zone.id)).toEqual(["billing"]);
+    expect(model.points.map((p) => p.traceId)).toEqual(["invoice"]);
   });
 
   it("keeps depth attached to trace identity across data and topic ordering", () => {

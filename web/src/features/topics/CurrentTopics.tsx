@@ -100,8 +100,11 @@ function CurrentFacet({
     () =>
       showUnassigned || !mapQuery.data
         ? mapQuery.data
-        : mapWithoutUnassigned(mapQuery.data),
-    [mapQuery.data, showUnassigned],
+        : mapWithoutUnassigned(
+            mapQuery.data,
+            new Set(facet.rows.map((row) => row.traceId)),
+          ),
+    [mapQuery.data, facet, showUnassigned],
   );
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
