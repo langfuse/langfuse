@@ -45,6 +45,8 @@ import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
+import type { PageContextSurface } from "@/src/features/page-context";
+import { useTracePageContext } from "@/src/features/traces/hooks/useTracePageContext";
 
 export type TraceProps = {
   isLoading?: false;
@@ -116,7 +118,11 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
         {props.isLoading === true ? (
           <TraceLoading desktopLayout={desktopLayout} />
         ) : (
-          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+          <TraceWithSelection
+            {...props}
+            desktopLayout={desktopLayout}
+            pageContextSurface={traceContext === "peek" ? "peek" : "page"}
+          />
         )}
       </SelectionProvider>
     </ViewPreferencesProvider>
@@ -137,8 +143,10 @@ function TraceWithSelection({
   truncatedAtObservations,
   isPlaceholderData = false,
   desktopLayout,
+  pageContextSurface,
 }: Omit<TraceProps, "context"> & {
   desktopLayout: DesktopLayout;
+  pageContextSurface: PageContextSurface;
 }) {
   const { selectedNodeId } = useSelection();
 
@@ -209,7 +217,10 @@ function TraceWithSelection({
       >
         <SearchProvider>
           <JsonExpansionProvider>
-            <TraceContent desktopLayout={desktopLayout} />
+            <TraceContent
+              desktopLayout={desktopLayout}
+              pageContextSurface={pageContextSurface}
+            />
           </JsonExpansionProvider>
         </SearchProvider>
       </TraceGraphDataProvider>
@@ -229,7 +240,14 @@ function TraceWithSelection({
  * - useIsMobile() - for responsive platform detection
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceContent({
+  desktopLayout,
+  pageContextSurface,
+}: {
+  desktopLayout: DesktopLayout;
+  pageContextSurface: PageContextSurface;
+}) {
+  useTracePageContext(pageContextSurface);
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData } = useTraceData();

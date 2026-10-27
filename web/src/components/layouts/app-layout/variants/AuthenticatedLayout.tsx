@@ -68,6 +68,7 @@ import {
   usePaymentBanner,
 } from "@/src/features/payment-banner";
 import { useTopBannerHeight } from "@/src/features/top-banner";
+import { PageContextProvider } from "@/src/features/page-context";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -356,22 +357,24 @@ export function AuthenticatedLayout({
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
               <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
-                {/* Toasts render in the `toast` overlay layer — the last layer
+                <PageContextProvider>
+                  <AppContentWithRightDrawer>
+                    {children}
+                  </AppContentWithRightDrawer>
+                  {/* Toasts render in the `toast` overlay layer — the last layer
                       in LAYER_ORDER — so they paint above every overlay (incl. a
                       non-modal peek) by DOM order alone, no z-index. Sonner's
                       Toaster is position:fixed, so nesting it in the fixed
                       full-screen layer container is positionally identical. */}
-                <Layer name="toast">
-                  <Toaster visibleToasts={1} />
-                </Layer>
-                <CommandMenu mainNavigation={navigation.navigation} />
-                {/* Assistant window host lives here (not in PageHeader with
+                  <Layer name="toast">
+                    <Toaster visibleToasts={1} />
+                  </Layer>
+                  <CommandMenu mainNavigation={navigation.navigation} />
+                  {/* Assistant window host lives here (not in PageHeader with
                       its launcher button) so the open window and its geometry
                       survive route changes. */}
-                <InAppAgentWindowHost />
+                  <InAppAgentWindowHost />
+                </PageContextProvider>
               </SidebarInset>
             </div>
             {internalViewMode.available && (

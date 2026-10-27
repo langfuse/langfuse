@@ -12,6 +12,7 @@ export type Flags = {
     | "sessionViewV2"
     | "aiGateway"
     | "sessionViewV2Timeline"
+    | "assistantContextZoom"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
 } & {
@@ -21,5 +22,6 @@ export type Flags = {
   sessionViewV2?: boolean;
   aiGateway?: boolean;
   sessionViewV2Timeline?: boolean;
+  assistantContextZoom?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

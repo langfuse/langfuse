@@ -90,6 +90,15 @@ async function main() {
     },
     data: { featureFlags: { push: "langfuseTopics" } },
   });
+  // Opts the demo identity into the assistant context-zoom preview without
+  // granting it internal access.
+  await prisma.user.updateMany({
+    where: {
+      id: seedUserId1,
+      NOT: { featureFlags: { has: "assistantContextZoom" } },
+    },
+    data: { featureFlags: { push: "assistantContextZoom" } },
+  });
   const user2 = await prisma.user.upsert({
     where: { id: seedUserId2 },
     update: {
