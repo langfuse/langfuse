@@ -28,7 +28,10 @@ import {
 } from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
-import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
+import {
+  MAX_MEMBER_SEARCH_LENGTH,
+  MAX_TEAM_INVITES,
+} from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLabelsRepository";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayTeamService } from "./team/gatewayTeamService";
@@ -191,6 +194,38 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayTeamService(ctx.prisma).getNotifiableMembers({
         organizationId: input.orgId,
         currentUserId: ctx.session.user.id,
+      });
+    }),
+
+  getMemberSuggestions: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
+        excludeEmails: z.array(z.string()).max(MAX_TEAM_INVITES),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getMemberSuggestions({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+        search: input.search,
+        excludeEmails: input.excludeEmails,
+      });
+    }),
+
+  getInviteeMembers: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        emails: z.array(z.email()).max(MAX_TEAM_INVITES),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getInviteeMembers({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+        emails: input.emails,
       });
     }),
 
