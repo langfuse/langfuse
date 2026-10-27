@@ -439,15 +439,16 @@ export const topicsRouter = createTRPCRouter({
       );
     }),
   executions: topicsProcedure.query(async ({ input }) => {
-    const executions = await Promise.all(
-      (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
-    );
-    const costs = await getTopicExecutionCosts(
-      input.projectId,
-      executions
-        .filter((execution) => execution.input.operation === "process")
-        .map((execution) => execution.id),
-    );
+    const listed = await listTopicExecutions(input.projectId);
+    const [executions, costs] = await Promise.all([
+      Promise.all(listed.map(recoverExecutionState)),
+      getTopicExecutionCosts(
+        input.projectId,
+        listed
+          .filter((execution) => execution.input.operation === "process")
+          .map((execution) => execution.id),
+      ),
+    ]);
     return executions.map((execution) => ({
       ...execution,
       estimatedCost: costs[execution.id] ?? null,
