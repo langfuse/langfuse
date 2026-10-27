@@ -1,11 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
-import { History, Trash2 } from "lucide-react";
+import { History, Trash2 } from "@langfuse/icons";
 import {
   observationVariableMappingList,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
   type EvalTemplateType,
   type FilterState,
@@ -13,13 +14,13 @@ import {
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
@@ -28,14 +29,17 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -68,13 +72,15 @@ import {
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
-import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
+import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 type InitialEvaluator = {
   id: string;
   name: string;
   description: string | null;
-  type: EvalTemplateType;
+  type: Exclude<EvalTemplateType, "FACET">;
   definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
@@ -100,6 +106,9 @@ export function applyEvaluatorSuggestion(
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
+  if (version.type === "FACET") {
+    throw new Error("Facets cannot be edited as evaluators");
+  }
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -164,7 +173,7 @@ export function EvaluatorSetupPage(
         mode: "create";
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
-        initialType: EvalTemplateType;
+        initialType: Exclude<EvalTemplateType, "FACET">;
         creationSource: EvaluatorCreationSource;
       }
     | {
@@ -240,6 +249,35 @@ export function EvaluatorSetupPage(
       .getState()
       .actions.setDefaultModel(projectDefaultModel.defaultModel);
   }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
+  const modelDraft = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      modelMode: state.modelMode,
+      defaultModel: state.defaultModel,
+      selectedModel: state.selectedModel,
+      hasChangedModelSelection: state.hasChangedModelSelection,
+    })),
+  );
+  const effectiveDraftModel =
+    modelDraft.type === "CODE"
+      ? null
+      : modelDraft.type === "LLM_AS_JUDGE" && modelDraft.modelMode === "default"
+        ? modelDraft.defaultModel
+        : modelDraft.selectedModel;
+  const draftResolvesEvaluatorBlock = Boolean(
+    initialEvaluator?.blockedAt &&
+    isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      initialEvaluator.blockReason,
+    ) &&
+    !projectDefaultModel.connectionsPending &&
+    isJudgeModelAvailable(
+      effectiveDraftModel,
+      projectDefaultModel.providerGroups,
+    ) &&
+    (modelDraft.hasChangedModelSelection ||
+      initialEvaluator.blockReason === "DEFAULT_EVAL_MODEL_MISSING"),
+  );
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -253,6 +291,12 @@ export function EvaluatorSetupPage(
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
   });
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    modelDraft.type === "DECISION_MODEL",
+  );
+  // The default decision model arrives with the connection list. It is applied
+  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
@@ -298,6 +342,11 @@ export function EvaluatorSetupPage(
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
     isV4: true,
+    extractParamsValuesFromRow: (observation: SampleObservation) => ({
+      observation: observation.id,
+      traceId: observation.traceId ?? "",
+      timestamp: observation.startTime.toISOString(),
+    }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",
@@ -345,6 +394,7 @@ export function EvaluatorSetupPage(
   const reactivate = api.evalsV2.reactivate.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description:
           "The model test succeeded and the evaluator is active again.",
@@ -357,11 +407,15 @@ export function EvaluatorSetupPage(
       }
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       capture("evaluators:delete", {
         source: "detail",
@@ -369,6 +423,7 @@ export function EvaluatorSetupPage(
         isAllMatching: false,
       });
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: "The evaluator and all of its versions were deleted.",
       });
@@ -391,7 +446,7 @@ export function EvaluatorSetupPage(
     },
     onError: (error) => {
       setTestResult({ requestError: error.message });
-      trpcErrorToast(error);
+      trpcErrorToast(error, "evaluator.test");
     },
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
@@ -440,6 +495,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Couldn't generate an evaluator name",
           "Please enter a name manually.",
+          {
+            operation: "evaluator_name.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
         );
       }
     } catch (error) {
@@ -447,6 +507,7 @@ export function EvaluatorSetupPage(
       showErrorToast(
         "Couldn't generate an evaluator name",
         "Please enter a name manually.",
+        classifyTrpcToastError(error, "evaluator_name.generate"),
       );
     }
   };
@@ -459,12 +520,22 @@ export function EvaluatorSetupPage(
         evaluatorSetupStore.getState().actions.setDescription,
       );
       if (applied) return;
-    } catch {
-      // The field-specific message below is more actionable than the request error.
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an evaluator description",
+        "Please enter a description manually.",
+        classifyTrpcToastError(error, "evaluator_description.generate"),
+      );
+      return;
     }
     showErrorToast(
       "Couldn't generate an evaluator description",
       "Please enter a description manually.",
+      {
+        operation: "evaluator_description.generate",
+        errorOrigin: "backend",
+        errorCategory: "internal",
+      },
     );
   };
 
@@ -479,7 +550,9 @@ export function EvaluatorSetupPage(
       !state.name &&
       !hasRequestedName.current
     ) {
-      requestNameSuggestion().catch(trpcErrorToast);
+      requestNameSuggestion().catch((error) =>
+        trpcErrorToast(error, "evaluator_name.generate"),
+      );
     }
   };
 
@@ -489,7 +562,7 @@ export function EvaluatorSetupPage(
   const requestClose = () => {
     const currentSnapshot = getCurrentSnapshot();
     if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
-    else close().catch(trpcErrorToast);
+    else close().catch((error) => trpcErrorToast(error, "evaluator.navigate"));
   };
 
   const save = async () => {
@@ -508,7 +581,7 @@ export function EvaluatorSetupPage(
                 try {
                   return await generateDescriptionSuggestion();
                 } catch (error) {
-                  trpcErrorToast(error);
+                  trpcErrorToast(error, "evaluator_description.generate");
                   return null;
                 }
               }
@@ -520,6 +593,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Evaluator name required",
           "We couldn't generate a name. Please enter one manually and try again.",
+          {
+            operation: "evaluator.save",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return;
       }
@@ -541,7 +619,9 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(state);
+      const { definition } = prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      );
       if (!definition) return;
       const { name, description } = metadata;
 
@@ -562,10 +642,23 @@ export function EvaluatorSetupPage(
             : {}),
         });
         showSuccessToast({
+          operation: "evaluator.save",
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
+        utils.evalsV2.get.setData(
+          { projectId, evaluatorId: evaluator.id },
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  blockedAt: evaluator.blockedAt,
+                  blockReason: evaluator.blockReason,
+                  blockMessage: evaluator.blockMessage,
+                }
+              : current,
+        );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
@@ -641,7 +734,7 @@ export function EvaluatorSetupPage(
       ) {
         setVersionConflictOpen(true);
       } else {
-        trpcErrorToast(error);
+        trpcErrorToast(error, "evaluator.save");
       }
     } finally {
       saveInFlightRef.current = false;
@@ -665,7 +758,9 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
+    const { definition } = prepareEvaluatorDraft(
+      applyFallbackDecisionModel(state, fallbackDecisionModel),
+    );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     capture("evaluators:test", {
@@ -690,6 +785,7 @@ export function EvaluatorSetupPage(
       defaultModel={projectDefaultModel.defaultModel}
       providerGroups={projectDefaultModel.providerGroups}
       providerAdapters={projectDefaultModel.providerAdapters}
+      connectionsPending={projectDefaultModel.connectionsPending}
       canSetProjectDefault={projectDefaultModel.canUpdate}
       onConfigureProviders={() => {
         onboardingAnalytics?.track(
@@ -715,7 +811,9 @@ export function EvaluatorSetupPage(
                     "eval:onboarding_ai_generate_requested",
                     { field: "name" },
                   );
-                  requestNameSuggestion(true).catch(trpcErrorToast);
+                  requestNameSuggestion(true).catch((error) =>
+                    trpcErrorToast(error, "evaluator_name.generate"),
+                  );
                 },
               }
       }
@@ -754,7 +852,7 @@ export function EvaluatorSetupPage(
               {},
             );
             if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
+              sampleTracePeekNavigation.openPeek(observation.id, observation);
             }
           }}
         />
@@ -807,7 +905,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="mr-2 h-4 w-4" />
+              <History size="base" color="default" __rawClassName="mr-2" />
               Version history
             </Button>
             <Button
@@ -816,7 +914,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="text-destructive h-4 w-4" />
+              <Trash2 size="base" color="destructive" />
             </Button>
           </div>
         ) : undefined,
@@ -828,7 +926,7 @@ export function EvaluatorSetupPage(
             timeRange={timeRange}
             setTimeRange={setTimeRange}
           />
-          {initialEvaluator?.blockedAt ? (
+          {initialEvaluator?.blockedAt && !draftResolvesEvaluatorBlock ? (
             <div className="mx-3 mt-3">
               <EvaluatorBlockedBanner
                 projectId={projectId}
@@ -895,6 +993,7 @@ export function EvaluatorSetupPage(
                   }
                 : null
             }
+            fallbackDecisionModel={fallbackDecisionModel}
             onClose={requestClose}
             onSave={save}
           />

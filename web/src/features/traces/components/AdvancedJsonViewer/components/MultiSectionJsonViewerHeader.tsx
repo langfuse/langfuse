@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, MessageSquare } from "lucide-react";
+import { ChevronRight, ChevronDown, MessageSquare } from "@langfuse/icons";
 import type { SectionContext } from "../types";
 import { type MediaReturnType } from "@/src/features/media";
 import { MediaButtonGroup } from "./MediaButtonGroup";
@@ -50,9 +50,9 @@ export function MultiSectionJsonViewerHeader({
         }}
       >
         {context.isExpanded ? (
-          <ChevronDown size={14} />
+          <ChevronDown size="base" />
         ) : (
-          <ChevronRight size={14} />
+          <ChevronRight size="base" />
         )}
       </span>
       <span className="text-xs font-bold">{title}</span>
@@ -77,7 +77,7 @@ export function MultiSectionJsonViewerHeader({
             fontSize: "0.65rem",
           }}
         >
-          <MessageSquare size={10} />
+          <MessageSquare size="sm" />
           {commentCount}
         </span>
       )}

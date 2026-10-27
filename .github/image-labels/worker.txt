@@ -1,0 +1,8 @@
+name=langfuse/langfuse-worker
+summary=Langfuse worker
+description=Langfuse background worker: ingestion and queue processing.
+io.k8s.display-name=Langfuse Worker
+io.k8s.description=Langfuse background worker: ingestion and queue processing.
+org.opencontainers.image.title=langfuse-worker
+org.opencontainers.image.description=Langfuse background worker: ingestion and queue processing.
+org.opencontainers.image.licenses=MIT AND LicenseRef-Langfuse-EE

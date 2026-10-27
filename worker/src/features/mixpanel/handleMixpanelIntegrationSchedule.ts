@@ -12,6 +12,7 @@ export const handleMixpanelIntegrationSchedule = async () => {
     {
       select: {
         lastSyncAt: true,
+        backfill: true,
         projectId: true,
       },
       where: {
@@ -26,6 +27,7 @@ export const handleMixpanelIntegrationSchedule = async () => {
     integrations: mixpanelIntegrationProjects.map((integration) => ({
       lastSyncAt: integration.lastSyncAt,
       window: "1h",
+      backfill: integration.backfill,
     })),
   });
 

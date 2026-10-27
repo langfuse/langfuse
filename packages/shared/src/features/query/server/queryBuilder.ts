@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../../../server/queries/clickhouse-sql/query-options";
 import {
   bindUtcDateTimeParam,
   FilterList,
@@ -796,6 +799,7 @@ export class QueryBuilder {
     filterList: FilterList,
     query: QueryType,
     skipObservationsFinal: boolean,
+    skipScoresFinal: boolean,
   ) {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
@@ -809,7 +813,8 @@ export class QueryBuilder {
       // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
       const shouldUseFinal =
         (relation.useFinal ?? true) &&
-        !(relation.name === "observations" && skipObservationsFinal);
+        !(relation.name === "observations" && skipObservationsFinal) &&
+        !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
       let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
@@ -1564,6 +1569,7 @@ export class QueryBuilder {
 
     // Check if we should skip FINAL modifier for observations (OTEL optimization)
     const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
+    const skipScoresFinal = shouldSkipScoresDedup(projectId);
     let view = this.getViewDeclaration(query.view);
 
     // Events table never needs FINAL modifier (already deduplicated)
@@ -1576,6 +1582,11 @@ export class QueryBuilder {
       view = {
         ...view,
         baseCte: "observations", // Remove FINAL (was "observations FINAL")
+      };
+    } else if (view.baseCte.startsWith("scores ") && skipScoresFinal) {
+      view = {
+        ...view,
+        baseCte: view.baseCte.replace(/\s+FINAL$/, ""),
       };
     }
 
@@ -1654,6 +1665,7 @@ export class QueryBuilder {
         filterList,
         query,
         skipObservationsFinal,
+        skipScoresFinal,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }

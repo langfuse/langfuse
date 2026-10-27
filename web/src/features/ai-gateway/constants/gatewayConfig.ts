@@ -1,1 +1,1 @@
-export const DEFAULT_GATEWAY_INGESTION_PROJECT_NAME = "AI Gateway Ingestion";
+export const DEFAULT_GATEWAY_INGESTION_PROJECT_NAME = "ai-gateway";

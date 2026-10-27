@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 // Semantic validation — the single "is this committable" gate.
 //
 // The tolerant parser accepts structurally-fine input that the flat Langfuse
@@ -241,7 +240,9 @@ export function semanticDiagnostics(
       termRegistry,
     );
     if (isCompatibilityScope && searchType !== null) {
-      firstCompatibilityScope ??= node;
+      if (firstCompatibilityScope === undefined) {
+        firstCompatibilityScope = node;
+      }
     }
     const span = nodeSpan(node, textLength);
     for (const message of errors) {

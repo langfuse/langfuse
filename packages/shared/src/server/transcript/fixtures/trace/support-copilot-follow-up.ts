@@ -99,7 +99,7 @@ const replayedHistory: NormalizedMessage[] = [
       {
         type: "tool-result",
         toolCallId: findChargesToolCallId,
-        output: charges,
+        output: { type: "json", value: charges },
       },
     ],
   },
@@ -123,7 +123,7 @@ const replayedHistory: NormalizedMessage[] = [
       {
         type: "tool-result",
         toolCallId: createRefundToolCallId,
-        output: refund,
+        output: { type: "json", value: refund },
       },
     ],
   },

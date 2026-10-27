@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
-import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { DefinitionStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
 import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/components/NameStepContainer/NameStepContainer";
 import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
@@ -17,6 +17,7 @@ export function EvaluatorSetupEditor({
   defaultModel,
   providerGroups,
   providerAdapters,
+  connectionsPending,
   canSetProjectDefault,
   nameAIAssistance,
   descriptionAIAssistance,
@@ -31,6 +32,7 @@ export function EvaluatorSetupEditor({
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
   providerAdapters: Record<string, LLMAdapter>;
+  connectionsPending: boolean;
   canSetProjectDefault: boolean;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   descriptionAIAssistance: ComponentProps<
@@ -52,6 +54,7 @@ export function EvaluatorSetupEditor({
         defaultModel={defaultModel}
         providerGroups={providerGroups}
         providerAdapters={providerAdapters}
+        connectionsPending={connectionsPending}
         canSetProjectDefault={canSetProjectDefault}
         onStepOpenChange={onStepOpenChange}
         onConfigureProviders={onConfigureProviders}

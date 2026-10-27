@@ -1,11 +1,12 @@
-import { Badge } from "@/src/components/ui/badge";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { GitCompareArrows, X } from "lucide-react";
+import { GitCompareArrows, X } from "@langfuse/icons";
 import {
   describeScoreComparisonFilter,
   type ScoreComparisonFilter,
@@ -38,12 +39,8 @@ export const ScoreComparisonFilterPills = ({
           comparisonName,
         });
         return (
-          <Badge
-            key={`${filter.level}-${filter.scoreKey}`}
-            variant="secondary"
-            className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
-          >
-            <GitCompareArrows className="h-3 w-3 shrink-0" />
+          <BadgeShell key={`${filter.level}-${filter.scoreKey}`} color="filled">
+            <GitCompareArrows size="sm" />
             <span className="truncate" title={label}>
               {label}
             </span>
@@ -69,9 +66,9 @@ export const ScoreComparisonFilterPills = ({
                 onRemove(filter);
               }}
             >
-              <X className="h-3 w-3" />
+              <X size="base" color="default" />
             </Button>
-          </Badge>
+          </BadgeShell>
         );
       })}
     </div>

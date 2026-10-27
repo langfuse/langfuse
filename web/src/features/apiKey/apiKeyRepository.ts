@@ -1,16 +1,22 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type ApiKey,
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { type InternalServerError } from "@langfuse/shared";
+import {
+  type InternalServerError,
+  type ServiceUnavailableError,
+} from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
 import {
   internalServerError,
+  serviceUnavailableError,
   type ErrorResult,
   type Success,
 } from "@/src/features/auth/policy/types";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 /** ApiKeyRepository reads `ApiKey` rows by the two disjoint unique indexes and backfills the fast hash, returning infra failures as values; caching lives at the Authenticator. */
 export class ApiKeyRepository {
@@ -24,8 +30,9 @@ export class ApiKeyRepository {
       });
       return { success: true, apiKey };
     } catch (error) {
-      return internalServerError(
+      return dbError(
         `api key lookup by fast hash failed: ${String(error)}`,
+        error,
       );
     }
   }
@@ -38,8 +45,9 @@ export class ApiKeyRepository {
       });
       return { success: true, apiKey };
     } catch (error) {
-      return internalServerError(
+      return dbError(
         `api key lookup by public key failed: ${String(error)}`,
+        error,
       );
     }
   }
@@ -57,7 +65,17 @@ export class ApiKeyRepository {
   }
 }
 
+/** dbError classifies a caught database error: a transient infra failure as 503, anything else as 500. */
+function dbError(
+  message: string,
+  error: unknown,
+): ErrorResult<ServiceUnavailableError | InternalServerError> {
+  return isPrismaException(error)
+    ? serviceUnavailableError(message)
+    : internalServerError(message);
+}
+
 /** FindApiKeyResult is a hit, a miss (null), or an infra failure; a miss is normal control flow, not an error. */
 export type FindApiKeyResult =
   | (Success & { apiKey: ApiKey | null })
-  | ErrorResult<InternalServerError>;
+  | ErrorResult<ServiceUnavailableError | InternalServerError>;

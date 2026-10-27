@@ -1,22 +1,20 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { TracesTable } from "@/src/features/traces";
 import { ScoresTable } from "@/src/features/scores";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { SessionsTable } from "@/src/features/sessions";
 import { cn } from "@/src/utils/tailwind";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ActionButton } from "@/src/components/ActionButton";
-import { LayoutDashboard } from "lucide-react";
-import Page from "@/src/components/layouts/page";
+import { LayoutDashboard } from "@langfuse/icons";
+import Page from "@/src/components/layouts/Page";
 import { useReadPath } from "@/src/features/events";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 
@@ -100,7 +98,7 @@ function UserDetailView({
             <ActionButton
               href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
               variant="secondary"
-              icon={<LayoutDashboard className="h-4 w-4" />}
+              icon={<LayoutDashboard size="base" color="default" />}
             >
               Dashboard
             </ActionButton>
@@ -118,29 +116,32 @@ function UserDetailView({
       <>
         {user.data && (
           <div className="flex flex-wrap gap-2 px-4 py-4">
-            <Badge variant="outline">
-              Observations:{" "}
-              {compactNumberFormatter(user.data.totalObservations)}
-            </Badge>
-            <Badge variant="outline">
-              Traces: {compactNumberFormatter(user.data.totalTraces)}
-            </Badge>
-            <Badge variant="outline">
-              Total Tokens: {compactNumberFormatter(user.data.totalTokens)}
-            </Badge>
-            <Badge variant="outline">
-              <span className="flex items-center gap-1">
-                Total Cost: {usdFormatter(user.data.sumCalculatedTotalCost)}
-              </span>
-            </Badge>
-            <Badge variant="outline">
-              Active:{" "}
-              {user.data.firstTrace
-                ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : isV4
-                  ? "No activity yet"
-                  : "No traces yet"}
-            </Badge>
+            <Badge
+              color="primary"
+              text={`Observations: ${compactNumberFormatter(user.data.totalObservations)}`}
+            />
+            <Badge
+              color="primary"
+              text={`Traces: ${compactNumberFormatter(user.data.totalTraces)}`}
+            />
+            <Badge
+              color="primary"
+              text={`Total Tokens: ${compactNumberFormatter(user.data.totalTokens)}`}
+            />
+            <Badge
+              color="primary"
+              text={`Total Cost: ${usdFormatter(user.data.sumCalculatedTotalCost)}`}
+            />
+            <Badge
+              color="primary"
+              text={`Active: ${
+                user.data.firstTrace
+                  ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
+                  : isV4
+                    ? "No activity yet"
+                    : "No traces yet"
+              }`}
+            />
           </div>
         )}
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
@@ -36,6 +36,7 @@ export default function EventsPage() {
     <Page
       headerProps={{
         title: "Tracing - Events Table (New)",
+        divider: false,
         help: {
           description:
             "An observation captures a single function call in an application. This view uses the new ClickHouse events table.",

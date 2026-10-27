@@ -2,51 +2,49 @@ import {
   isRegionProduction,
   type CloudRegionName,
 } from "@/src/features/organizations";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { assertUnreachable } from "@/src/utils/types";
-import { cva } from "class-variance-authority";
 import { useMemo } from "react";
 
-const envLabelBadgeVariants = cva(
-  "flex h-5 cursor-pointer items-center gap-1 rounded-md px-1 text-xs whitespace-nowrap",
-  {
-    variants: {
-      variant: {
-        development: "bg-light-green text-dark-green",
-        staging: "bg-light-blue text-dark-blue",
-        production: "bg-light-red text-dark-red",
-      },
-    },
-  },
-);
+/**
+ * Left as a `title` rather than an `aria-label`, so the accessible name stays
+ * the visible text (`PROD-EU`) and this becomes the description. An
+ * `aria-label` would take over the name and the hint would be announced twice.
+ */
+const DISMISS_HINT = "Hide until this tab is closed";
 
-export const EnvLabelBadge = ({
-  region,
-  onClick,
-}: {
+type EnvLabelBadgeProps = {
   region: CloudRegionName;
-  onClick: () => void;
-}) => {
-  const { label, variant } = useMemo(() => {
+  onDismiss: () => void;
+};
+
+/**
+ * The cloud environment chip in the page header, for Langfuse staff only.
+ * Clicking it hides it, which is how clean product screenshots get taken — the
+ * `onDismiss` prop makes `BadgeShell` render as a focusable `<button>`.
+ */
+export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
+  const { label, color } = useMemo(() => {
     const isProduction = isRegionProduction(region);
 
     if (isProduction) {
       return {
         label: `PROD-${region}`,
-        variant: "production",
+        color: "red",
       } as const;
     }
 
     if (region === "STAGING") {
       return {
         label: region,
-        variant: "staging",
+        color: "blue",
       } as const;
     }
 
     if (region === "DEV") {
       return {
         label: region,
-        variant: "development",
+        color: "green",
       } as const;
     }
 
@@ -54,8 +52,14 @@ export const EnvLabelBadge = ({
   }, [region]);
 
   return (
-    <div className={envLabelBadgeVariants({ variant })} onClick={onClick}>
+    <BadgeShell
+      color={color}
+      font="mono"
+      size="sm"
+      onDismiss={onDismiss}
+      title={DISMISS_HINT}
+    >
       {label}
-    </div>
+    </BadgeShell>
   );
 };

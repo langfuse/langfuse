@@ -1,0 +1,51 @@
+/* Base well apart from the chip's bg-muted (darker in light mode, lighter in
+   dark); a faint mesh in the type hue; light grain. */
+.preview {
+  --preview-base: hsl(var(--muted-gray));
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(
+      70% 120% at 25% 10%,
+      color-mix(in srgb, var(--mesh-hue, transparent) 11%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      60% 100% at 80% 90%,
+      color-mix(in srgb, var(--mesh-hue, transparent) 6%, transparent),
+      transparent 70%
+    ),
+    var(--preview-base);
+}
+
+:global(.dark) .preview {
+  --preview-base: hsl(var(--control-track));
+}
+
+.preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.15;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+:global(.dark) .preview::after {
+  mix-blend-mode: screen;
+  opacity: 0.06;
+}
+
+.judge {
+  --mesh-hue: hsl(var(--dark-blue));
+}
+
+.decisionModel {
+  --mesh-hue: var(--color-category-violet);
+}
+
+.code {
+  --mesh-hue: var(--color-category-orange);
+}

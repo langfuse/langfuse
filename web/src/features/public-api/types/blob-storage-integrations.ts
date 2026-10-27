@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   AnalyticsIntegrationExportSource,
-  OBSERVATION_FIELD_GROUPS_FULL,
+  EXPORT_FIELD_GROUPS,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
@@ -19,6 +19,7 @@ const BlobStorageIntegrationType = z.enum([
   "S3",
   "S3_COMPATIBLE",
   "AZURE_BLOB_STORAGE",
+  "GOOGLE_CLOUD_STORAGE",
 ]);
 
 const BlobStorageIntegrationFileType = z.enum([
@@ -88,7 +89,7 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
-const BlobStorageExportFieldGroup = z.enum(OBSERVATION_FIELD_GROUPS_FULL);
+const BlobStorageExportFieldGroup = z.enum(EXPORT_FIELD_GROUPS);
 
 /**
  * Request/Response Types

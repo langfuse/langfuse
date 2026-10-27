@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -7,7 +8,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { ActionButton } from "@/src/components/ActionButton";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon } from "@langfuse/icons";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useMemo } from "react";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -90,7 +91,7 @@ export function BatchExportsTable({
           if (isDownloadable) {
             return (
               <ActionButton
-                icon={<DownloadIcon size={16} />}
+                icon={<DownloadIcon size="base" />}
                 size="sm"
                 loading={downloadingIds.has(id)}
                 onClick={() => onDownload(id)}

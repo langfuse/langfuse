@@ -2,6 +2,7 @@ import type { FilterState, TracingSearchType } from "@langfuse/shared";
 import { EventsSearchBarRow } from "./EventsSearchBarRow";
 import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
 import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
+import type { ComposerSize } from "./ComposerSurface";
 import type { FieldRegistry } from "../lib/fields";
 import type { ObservedOptions } from "../lib/observed-options";
 
@@ -18,6 +19,8 @@ export function TableSearchBar({
   search,
   onRequestColumns,
   erroredColumns,
+  inset = false,
+  size = "default",
 }: {
   projectId?: string;
   tableName: string;
@@ -34,6 +37,9 @@ export function TableSearchBar({
   };
   onRequestColumns?: (columns: readonly string[]) => void;
   erroredColumns?: ReadonlySet<string>;
+  inset?: boolean;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComposerSize;
 }) {
   // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({
@@ -56,6 +62,7 @@ export function TableSearchBar({
     <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
         <EventsSearchBarRow
+          className={inset ? "p-0" : undefined}
           projectId={projectId}
           tableName={tableName}
           registry={registry}
@@ -66,6 +73,7 @@ export function TableSearchBar({
           onApplyFilters={applyFilters}
           onRequestColumns={onRequestColumns}
           erroredColumns={erroredColumns}
+          size={size}
         />
       </div>
     </div>

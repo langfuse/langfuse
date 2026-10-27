@@ -1,29 +1,53 @@
-import { Download, Loader2, MoreVertical, TrashIcon } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import {
+  Download,
+  FileText,
+  Loader2,
+  MoreVertical,
+  TrashIcon,
+} from "@langfuse/icons";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import {
-  HeaderActionMenuRow,
-  HeaderActionMenuRows,
-} from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { cn } from "@/src/utils/tailwind";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
 
+type TraceDetailActionsLayout = "toolbar" | "menu";
+
+type TraceDetailActionsProps = {
+  /** Undefined while the trace loads: the actions render disabled in place. */
+  trace: TraceDetailData | undefined;
+  traceContext: "fullscreen" | "peek";
+  shareUrl?: string;
+  timestamp?: Date;
+  deleteRedirectUrl?: string;
+  onAfterDelete?: (deletedTraceId: string) => void;
+  layout?: TraceDetailActionsLayout;
+  /** `trace` is the previous trace, kept while the next one loads. */
+  isPlaceholderData?: boolean;
+};
+
 /**
  * Trace-level header actions shared by the peek and the standalone trace page.
  *
  * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
- * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
  * renders the same actions as full-width labeled rows for the mobile header
  * menu.
  *
@@ -36,20 +60,80 @@ type TraceDetailData = NonNullable<
  */
 export function TraceDetailActions({
   trace,
+  layout = "toolbar",
+  isPlaceholderData = false,
+  ...props
+}: TraceDetailActionsProps) {
+  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
+  const { key, ...stale } = staleProps(isPlaceholderData, {
+    remountOnStale: true,
+  });
+  return (
+    <TraceTranscriptDialogController
+      key={key}
+      projectId={trace.projectId}
+      traceId={trace.id}
+      timestamp={trace.timestamp}
+    >
+      {({ openDialog }) => (
+        <LoadedTraceDetailActions
+          trace={trace}
+          layout={layout}
+          stale={stale}
+          onShowTranscript={openDialog}
+          {...props}
+        />
+      )}
+    </TraceTranscriptDialogController>
+  );
+}
+
+function DisabledTraceDetailActions({
+  layout,
+}: {
+  layout: TraceDetailActionsLayout;
+}) {
+  const downloadIcon = <Download size="base" />;
+
+  if (layout === "menu") {
+    return (
+      <div className="flex w-full flex-col gap-0.5">
+        <HeaderActionMenuRow
+          label="Download JSON"
+          icon={downloadIcon}
+          disabled
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-row items-center gap-1">
+      <HeaderActionButton label="Download JSON" icon={downloadIcon} disabled />
+      <HeaderActionButton
+        label="More actions"
+        icon={<MoreVertical size="base" />}
+        disabled
+      />
+    </div>
+  );
+}
+
+function LoadedTraceDetailActions({
+  trace,
   traceContext,
   shareUrl,
   timestamp,
   deleteRedirectUrl,
   onAfterDelete,
-  layout = "toolbar",
-}: {
+  layout,
+  stale,
+  onShowTranscript,
+}: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
   trace: TraceDetailData;
-  traceContext: "fullscreen" | "peek";
-  shareUrl?: string;
-  timestamp?: Date;
-  deleteRedirectUrl?: string;
-  onAfterDelete?: (deletedTraceId: string) => void;
-  layout?: "toolbar" | "menu";
+  layout: TraceDetailActionsLayout;
+  stale: Omit<ReturnType<typeof staleProps>, "key">;
+  onShowTranscript?: () => void;
 }) {
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -71,9 +155,9 @@ export function TraceDetailActions({
   ];
 
   const downloadIcon = isDownloading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
+    <Loader2 size="base" __rawClassName="animate-spin" />
   ) : (
-    <Download className="h-4 w-4" />
+    <Download size="base" />
   );
 
   return (
@@ -92,6 +176,18 @@ export function TraceDetailActions({
             const items: DropdownMenuItemDefinition[] = [
               ...shareItems,
               ...copyItems,
+              ...(onShowTranscript
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "show-trace-transcript",
+                      title: "Show trace transcript",
+                      icon: FileText,
+                      badge: <InternalFeatureBadge />,
+                      onClick: onShowTranscript,
+                    },
+                  ]
+                : []),
               { id: "delete-separator", type: "separator" },
               {
                 type: "item",
@@ -106,7 +202,13 @@ export function TraceDetailActions({
 
             if (layout === "menu") {
               return (
-                <div className="flex w-full flex-col gap-0.5">
+                <div
+                  inert={stale.inert}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5",
+                    stale.className,
+                  )}
+                >
                   <HeaderActionMenuRow
                     label="Download JSON"
                     icon={downloadIcon}
@@ -119,7 +221,13 @@ export function TraceDetailActions({
             }
 
             return (
-              <div className="flex flex-row items-center gap-1">
+              <div
+                inert={stale.inert}
+                className={cn(
+                  "flex flex-row items-center gap-1",
+                  stale.className,
+                )}
+              >
                 <HeaderActionButton
                   label="Download JSON"
                   icon={downloadIcon}
@@ -130,7 +238,7 @@ export function TraceDetailActions({
                   {({ getTriggerProps }) => (
                     <HeaderActionButton
                       label="More actions"
-                      icon={<MoreVertical className="h-4 w-4" />}
+                      icon={<MoreVertical size="base" />}
                       {...getTriggerProps()}
                     />
                   )}

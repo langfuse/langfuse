@@ -14,6 +14,11 @@ export const stringifyDatasetItemData = (data: unknown): string => {
     showErrorToast(
       "Failed to stringify data",
       "We are working on fixing this issue.",
+      {
+        operation: "dataset_item.stringify",
+        errorOrigin: "frontend",
+        errorCategory: "internal",
+      },
     );
     return "";
   }

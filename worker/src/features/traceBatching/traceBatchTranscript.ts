@@ -1,7 +1,7 @@
 import { type Model, type Observation } from "@langfuse/shared";
 import { SpanStatusCode, type Span } from "@opentelemetry/api";
 import {
-  assembleTranscript,
+  assembleTranscriptContext,
   buildTracesPath,
   getProductBaseUrl,
   getTracer,
@@ -13,6 +13,7 @@ import {
   topicsTranscriptConfig,
   transcriptBlockTypes,
   type Transcript,
+  type TranscriptContext,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { tokenCountAsync } from "../tokenisation/async-usage";
@@ -42,14 +43,25 @@ const TOKEN_METRICS = [
   "transcript_history_tokens",
 ] as const;
 
+function recordTranscriptDistribution(
+  metric: string,
+  value: number,
+  tags?: { [tag: string]: string | number },
+): void {
+  if (env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED !== "true") return;
+  if (tags) {
+    recordDistribution(`langfuse.trace_batch.${metric}`, value, tags);
+    return;
+  }
+  recordDistribution(`langfuse.trace_batch.${metric}`, value);
+}
+
 function recordTokens(
   span: Span,
   metric: (typeof TOKEN_METRICS)[number],
   tokens: number,
 ) {
-  recordDistribution(`langfuse.trace_batch.${metric}`, tokens, {
-    tokenizer: "o200k_base",
-  });
+  recordTranscriptDistribution(metric, tokens, { tokenizer: "o200k_base" });
   span.setAttribute(`langfuse.trace_batch.${metric}`, tokens);
 }
 
@@ -97,7 +109,7 @@ function recordContentAndStructureCounts(
     ["transcript_content_characters", total],
     ["transcript_tool_response_characters", toolResponses],
   ] as const) {
-    recordDistribution(`langfuse.trace_batch.${metric}`, characters);
+    recordTranscriptDistribution(metric, characters);
     span.setAttribute(`langfuse.trace_batch.${metric}`, characters);
   }
   for (const [metric, count] of [
@@ -109,7 +121,7 @@ function recordContentAndStructureCounts(
     ["transcript_current_turn_tool_call_count", currentTurnToolCalls],
     ["transcript_current_turn_tool_result_count", currentTurnToolResults],
   ] as const) {
-    recordDistribution(`langfuse.trace_batch.${metric}`, count);
+    recordTranscriptDistribution(metric, count);
     span.setAttribute(`langfuse.trace_batch.${metric}`, count);
   }
 }
@@ -169,7 +181,7 @@ function recordTopicsRendering(
       topicsTranscriptConfig,
     );
     const metric = (name: string, value: number) => {
-      recordDistribution(`langfuse.trace_batch.${name}`, value);
+      recordTranscriptDistribution(name, value);
       span.setAttribute(`langfuse.trace_batch.${name}`, value);
     };
     metric("topics_transcript_characters", text.length);
@@ -189,8 +201,8 @@ function recordTopicsRendering(
       if (stats.blockCharacters[block].raw === 0) continue;
       for (const stage of ["raw", "clipped"] as const) {
         const characters = stats.blockCharacters[block][stage];
-        recordDistribution(
-          "langfuse.trace_batch.topics_transcript_block_characters",
+        recordTranscriptDistribution(
+          "topics_transcript_block_characters",
           characters,
           { block, stage },
         );
@@ -220,7 +232,7 @@ async function recordTopicsTokens(text: string, span: Span) {
     span.setAttribute("langfuse.trace_batch.topics_transcript", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.topics_transcript_tokens", tokens, {
+  recordTranscriptDistribution("topics_transcript_tokens", tokens, {
     tokenizer: "o200k_base",
   });
   span.setAttribute("langfuse.trace_batch.topics_transcript_tokens", tokens);
@@ -237,7 +249,7 @@ async function recordTranscriptJsonTokens(text: string | null, span: Span) {
     span.setAttribute("langfuse.trace_batch.transcript_json", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.transcript_json_tokens", tokens, {
+  recordTranscriptDistribution("transcript_json_tokens", tokens, {
     tokenizer: "o200k_base",
   });
   span.setAttribute("langfuse.trace_batch.transcript_json_tokens", tokens);
@@ -255,7 +267,7 @@ async function recordGenericTranscriptTokens(text: string, span: Span) {
     span.setAttribute("langfuse.trace_batch.generic_transcript", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.generic_transcript_tokens", tokens, {
+  recordTranscriptDistribution("generic_transcript_tokens", tokens, {
     tokenizer: "o200k_base",
   });
   span.setAttribute("langfuse.trace_batch.generic_transcript_tokens", tokens);
@@ -268,10 +280,7 @@ function recordGenericRendering(
 ): string | undefined {
   try {
     const text = renderGenericTranscript(transcript, observations);
-    recordDistribution(
-      "langfuse.trace_batch.generic_transcript_characters",
-      text.length,
-    );
+    recordTranscriptDistribution("generic_transcript_characters", text.length);
     span.setAttribute(
       "langfuse.trace_batch.generic_transcript_characters",
       text.length,
@@ -286,6 +295,7 @@ function recordGenericRendering(
 
 export function recordTraceBatchTranscript(
   observations: Observation[],
+  onTranscript?: (context: TranscriptContext | null) => Promise<void>,
 ): Promise<void> {
   // Inherit the batch parent without activating this span while the next trace streams.
   const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
@@ -312,12 +322,15 @@ export function recordTraceBatchTranscript(
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
     const orderedObservations = orderObservations(observations);
-    const transcript = assembleTranscript(orderedObservations, (timings) => {
-      phaseTimings = timings;
+    const context = assembleTranscriptContext(orderedObservations, {
+      onTimings: (timings) => {
+        phaseTimings = timings;
+      },
     });
+    const transcript = context?.transcript ?? null;
     const assemblyDurationMs = performance.now() - startedAt;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_assembly_duration_ms",
+    recordTranscriptDistribution(
+      "transcript_assembly_duration_ms",
       assemblyDurationMs,
       { has_transcript: String(transcript !== null) },
     );
@@ -330,8 +343,8 @@ export function recordTraceBatchTranscript(
       ["normalization", phaseTimings.normalizationMs],
       ["matching", phaseTimings.matchingMs],
     ] as const) {
-      recordDistribution(
-        "langfuse.trace_batch.transcript_assembly_phase_duration_ms",
+      recordTranscriptDistribution(
+        "transcript_assembly_phase_duration_ms",
         duration,
         { phase },
       );
@@ -341,10 +354,7 @@ export function recordTraceBatchTranscript(
       );
     }
     const threadCount = transcript?.threads.length ?? 0;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_thread_count",
-      threadCount,
-    );
+    recordTranscriptDistribution("transcript_thread_count", threadCount);
     span.setAttribute(
       "langfuse.trace_batch.transcript_thread_count",
       threadCount,
@@ -358,8 +368,8 @@ export function recordTraceBatchTranscript(
     const transcriptJson =
       transcript === null ? null : JSON.stringify(transcript);
     const transcriptJsonCharacters = transcriptJson?.length ?? 0;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_json_characters",
+    recordTranscriptDistribution(
+      "transcript_json_characters",
       transcriptJsonCharacters,
     );
     span.setAttribute(
@@ -385,8 +395,8 @@ export function recordTraceBatchTranscript(
     );
     const comparisonRenderDurationMs =
       performance.now() - comparisonRenderStart;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_comparison_render_duration_ms",
+    recordTranscriptDistribution(
+      "transcript_comparison_render_duration_ms",
       comparisonRenderDurationMs,
     );
     span.setAttribute(
@@ -399,53 +409,67 @@ export function recordTraceBatchTranscript(
     }
 
     // Text estimates run sequentially while the next trace streams.
-    return (async () => {
-      if (transcript !== null) {
-        try {
-          await recordTokenEstimates(transcript, span);
-        } catch {
-          // A missing experiment metric must not retry all reads in the batch.
-          recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
-          span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
+    return (
+      (async () => {
+        if (transcript !== null) {
+          try {
+            await recordTokenEstimates(transcript, span);
+          } catch {
+            // A missing experiment metric must not retry all reads in the batch.
+            recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
+            span.setAttribute(
+              "langfuse.trace_batch.token_estimation",
+              "failed",
+            );
+          }
         }
-      }
-      const comparisonTokenizationStart = performance.now();
-      try {
-        await recordTranscriptJsonTokens(transcriptJson, span);
-      } catch {
-        recordIncrement("langfuse.trace_batch.transcript_json_failed", 1);
-        span.setAttribute("langfuse.trace_batch.transcript_json", "failed");
-      }
-      if (genericText !== undefined) {
+        const comparisonTokenizationStart = performance.now();
         try {
-          await recordGenericTranscriptTokens(genericText, span);
+          await recordTranscriptJsonTokens(transcriptJson, span);
         } catch {
-          recordIncrement("langfuse.trace_batch.generic_transcript_failed", 1);
-          span.setAttribute(
-            "langfuse.trace_batch.generic_transcript",
-            "failed",
-          );
+          recordIncrement("langfuse.trace_batch.transcript_json_failed", 1);
+          span.setAttribute("langfuse.trace_batch.transcript_json", "failed");
         }
-      }
-      if (topicsText !== undefined) {
-        try {
-          await recordTopicsTokens(topicsText, span);
-        } catch {
-          recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
-          span.setAttribute("langfuse.trace_batch.topics_transcript", "failed");
+        if (genericText !== undefined) {
+          try {
+            await recordGenericTranscriptTokens(genericText, span);
+          } catch {
+            recordIncrement(
+              "langfuse.trace_batch.generic_transcript_failed",
+              1,
+            );
+            span.setAttribute(
+              "langfuse.trace_batch.generic_transcript",
+              "failed",
+            );
+          }
         }
-      }
-      const comparisonTokenizationDurationMs =
-        performance.now() - comparisonTokenizationStart;
-      recordDistribution(
-        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
-        comparisonTokenizationDurationMs,
-      );
-      span.setAttribute(
-        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
-        comparisonTokenizationDurationMs,
-      );
-    })().finally(() => span.end());
+        if (topicsText !== undefined) {
+          try {
+            await recordTopicsTokens(topicsText, span);
+          } catch {
+            recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
+            span.setAttribute(
+              "langfuse.trace_batch.topics_transcript",
+              "failed",
+            );
+          }
+        }
+        const comparisonTokenizationDurationMs =
+          performance.now() - comparisonTokenizationStart;
+        recordTranscriptDistribution(
+          "transcript_comparison_tokenization_duration_ms",
+          comparisonTokenizationDurationMs,
+        );
+        span.setAttribute(
+          "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
+          comparisonTokenizationDurationMs,
+        );
+      })()
+        .finally(() => span.end())
+        // Topics summarizes from the same assembled transcript.
+        .then(() => onTranscript?.(context))
+    );
   } catch (error) {
     span.setStatus({
       code: SpanStatusCode.ERROR,

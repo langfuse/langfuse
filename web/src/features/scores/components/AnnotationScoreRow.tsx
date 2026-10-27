@@ -11,7 +11,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Trash,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -29,18 +29,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { HoverCardContent } from "@radix-ui/react-hover-card";
-import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   DropdownMenuController,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
-import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
+import { ScoreConfigDescription } from "./ScoreConfigDescription";
 import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
 import {
+  formatScoreRange,
   isTextDataType,
   isNumericDataType,
   isScoreUnsaved,
@@ -88,7 +87,7 @@ function CommentField({
                   onValueChange(null);
                 }}
               >
-                <Trash className="h-3 w-3" />
+                <Trash size="sm" color="default" />
               </Button>
             </PopoverClose>
           )}
@@ -149,6 +148,7 @@ export function AnnotationScoreRow({
   showTarget,
   formRootRef,
   commentSaving,
+  editsDisabled = false,
   targetOptions,
   isActive = true,
   onRemove,
@@ -162,13 +162,14 @@ export function AnnotationScoreRow({
   showTarget: boolean;
   formRootRef: React.RefObject<HTMLDivElement | null>;
   commentSaving: boolean;
+  /** Saved scores in this project are immutable; new scores stay editable. */
+  editsDisabled?: boolean;
   targetOptions: { target: PreparedAnnotationTarget; hasField: boolean }[];
   isActive?: boolean;
   onRemove: () => void;
 }) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState<string | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
     control: form.control,
@@ -188,6 +189,7 @@ export function AnnotationScoreRow({
     null,
   );
   const focusFieldKey = useRef(fieldKey);
+  const locked = editsDisabled && !isScoreUnsaved(score.id);
   const hasScoreValue = Boolean(
     score.id || isPresent(score.value) || score.stringValue || score.comment,
   );
@@ -236,111 +238,96 @@ export function AnnotationScoreRow({
         role="group"
         aria-label={showTarget ? `${score.name} (${target.label})` : score.name}
         className={cn(
-          "group grid w-full grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
+          "group relative grid w-full grid-cols-1 items-start gap-2 rounded-md px-3 py-2 text-left transition-colors outline-none",
           "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
         )}
       >
-        <div className="flex h-full min-w-0 flex-col items-start justify-center gap-1">
+        <div className="flex min-w-0 flex-col items-start gap-1 pr-8">
           <div className="flex max-w-full min-w-0 items-center gap-1">
-            {config.description ||
-            isPresent(config.maxValue) ||
-            isPresent(config.minValue) ? (
-              <HoverCard
-                open={isActive && detailsOpen}
-                onOpenChange={setDetailsOpen}
-              >
-                <HoverCardTrigger asChild>
-                  <span
-                    className={cn(
-                      "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
-                      config.isArchived ? "text-foreground/40" : "",
-                    )}
-                  >
-                    {score.name}
-                  </span>
-                </HoverCardTrigger>
-                <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
-                  <ScoreConfigDetails config={config} />
-                </HoverCardContent>
-              </HoverCard>
-            ) : (
-              <span
-                className={cn(
-                  "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
-                  config.isArchived ? "text-foreground/40" : "",
-                )}
-                title={score.name}
-              >
-                {score.name}
-              </span>
-            )}
-            <Popover
-              open={isActive && commentOpen}
-              onOpenChange={setCommentOpen}
+            <span
+              className={cn(
+                "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
+                config.isArchived ? "text-foreground/40" : "",
+              )}
+              title={score.name}
             >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="link"
-                  type="button"
-                  size="xs"
-                  title="Add or view score comment"
-                  // Center the comment icon vertically
-                  // against the score label instead of stretching
-                  // to the full (possibly multi-line) row height,
-                  // and keep it hugging the label (shrink-0) rather
-                  // than floating in the middle of the row.
-                  className="disabled:text-primary/50 flex h-auto shrink-0 items-center self-center px-0 pl-1 disabled:opacity-100"
-                  disabled={
-                    isScoreUnsaved(score.id) ||
-                    (config.isArchived && !score.comment)
-                  }
+              {score.name}
+            </span>
+            {!isScoreUnsaved(score.id) &&
+              (!config.isArchived || score.comment) && (
+                <Popover
+                  open={isActive && commentOpen}
+                  onOpenChange={setCommentOpen}
                 >
-                  {score.comment ? (
-                    <MessageCircleMore className="h-4 w-4" />
-                  ) : (
-                    <MessageCircle className="h-4 w-4" />
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                onCloseAutoFocus={(event) => {
-                  if (!isActive) event.preventDefault();
-                }}
-              >
-                <FormField
-                  control={form.control}
-                  name={`scoreData.${index}.comment`}
-                  render={() => (
-                    <FormItem className="space-y-4">
-                      <FormControl>
-                        <CommentField
-                          savedComment={score.comment ?? null}
-                          localValue={commentDraft ?? score.comment ?? ""}
-                          onValueChange={setCommentDraft}
-                          disabled={config.isArchived}
-                          loading={commentSaving}
-                          onSave={(newComment) => {
-                            const trimmed = newComment?.trim();
-                            actions.saveComment(
-                              fieldKey,
-                              target,
-                              trimmed || null,
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-xs" />
-                    </FormItem>
-                  )}
-                />
-              </PopoverContent>
-            </Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="link"
+                      type="button"
+                      size="xs"
+                      title="Add or view score comment"
+                      // Center the comment icon vertically
+                      // against the score label instead of stretching
+                      // to the full (possibly multi-line) row height,
+                      // and keep it hugging the label (shrink-0) rather
+                      // than floating in the middle of the row.
+                      className="flex h-auto shrink-0 items-center self-center px-0 pl-1"
+                    >
+                      {score.comment ? (
+                        <MessageCircleMore size="sm" />
+                      ) : (
+                        <MessageCircle size="sm" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="ph-no-capture"
+                    onCloseAutoFocus={(event) => {
+                      if (!isActive) event.preventDefault();
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name={`scoreData.${index}.comment`}
+                      render={() => (
+                        <FormItem className="space-y-4">
+                          <FormControl>
+                            <CommentField
+                              savedComment={score.comment ?? null}
+                              localValue={commentDraft ?? score.comment ?? ""}
+                              onValueChange={setCommentDraft}
+                              disabled={config.isArchived || locked}
+                              loading={commentSaving}
+                              onSave={(newComment) => {
+                                const trimmed = newComment?.trim();
+                                actions.saveComment(
+                                  fieldKey,
+                                  target,
+                                  trimmed || null,
+                                );
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
           </div>
-          {showTarget ? (
-            <Badge variant="outline-solid">{target.label}</Badge>
-          ) : null}
+          {showTarget ? <Badge color="primary" text={target.label} /> : null}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_1.5rem] items-center gap-1 py-1">
+        {config.description?.trim() && (
+          <div className="min-w-0">
+            <ScoreConfigDescription
+              key={config.id}
+              configId={config.id}
+              name={config.name}
+              description={config.description}
+            />
+          </div>
+        )}
+        <div className="min-w-0">
           {/* data-score-control wraps only the value control so
                               keyboard 1-9 scoring targets it, not the in-row
                               comment or score actions. */}
@@ -357,7 +344,7 @@ export function AnnotationScoreRow({
                         value={field.value ?? ""}
                         maxLength={TEXT_SCORE_MAX_LENGTH}
                         className="text-xs"
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         placeholder="Enter free form text..."
                         onBlur={(event) => {
                           field.onBlur();
@@ -393,6 +380,10 @@ export function AnnotationScoreRow({
                           )
                         }
                         type="number"
+                        placeholder={formatScoreRange(
+                          config.minValue,
+                          config.maxValue,
+                        )}
                         // Mirror the config range as native
                         // constraints so out-of-range values are
                         // catchable via the ⌘/Ctrl+Enter complete
@@ -404,7 +395,7 @@ export function AnnotationScoreRow({
                         max={config.maxValue ?? undefined}
                         step="any"
                         className="aria-invalid:border-destructive text-xs"
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         onBlur={(event) => {
                           field.onBlur();
                           if (!isMovingToScoreActions(event))
@@ -436,7 +427,7 @@ export function AnnotationScoreRow({
                         categories={categories}
                         name={field.name}
                         value={field.value ?? ""}
-                        disabled={config.isArchived}
+                        disabled={config.isArchived || locked}
                         analyticsData={{
                           ...target.analyticsData,
                           targetType: getAnnotationTargetType(
@@ -459,6 +450,11 @@ export function AnnotationScoreRow({
               />
             ) : null}
           </div>
+          {locked ? (
+            <p className="text-muted-foreground mt-1 text-xs">
+              Saved scores cannot be edited in this project.
+            </p>
+          ) : null}
           {hasScoreValue || invalid || canRemove || targetOptions.length > 0 ? (
             <DropdownMenuController
               align="end"
@@ -576,6 +572,7 @@ export function AnnotationScoreRow({
                     type="button"
                     size="icon-xs"
                     data-score-actions
+                    className="absolute top-2 right-2"
                     onBlur={(event) => {
                       if (event.currentTarget.dataset.state !== "open")
                         commitDeferredScore();
@@ -583,7 +580,7 @@ export function AnnotationScoreRow({
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"
                   >
-                    <MoreHorizontal className="size-4" />
+                    <MoreHorizontal size="sm" color="default" />
                   </Button>
                 </Trigger>
               )}

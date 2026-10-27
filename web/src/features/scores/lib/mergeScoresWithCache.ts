@@ -1,5 +1,5 @@
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
-import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { type AnnotationScore } from "@/src/features/scores/types";
 import {
   composeAggregateScoreKey,

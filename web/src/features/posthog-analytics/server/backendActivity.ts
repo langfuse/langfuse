@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
@@ -95,7 +94,9 @@ let serverPosthog: ServerPosthog | undefined;
 
 export const recordBackendActivity = createBackendActivityTracker({
   capture: (event) => {
-    serverPosthog ??= new ServerPosthog();
+    if (serverPosthog === undefined) {
+      serverPosthog = new ServerPosthog();
+    }
     serverPosthog.capture(event);
   },
   cloudRegion:

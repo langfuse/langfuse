@@ -160,6 +160,34 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(secondConnection.config).toBeNull();
     });
 
+    it("should include decision-model connections", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("decision-model"),
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: encrypt("sk-decision-model"),
+          displaySecretKey: "...odel",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetLlmConnectionsV1Response,
+        "GET",
+        "/api/public/llm-connections",
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data).toEqual([
+        expect.objectContaining({
+          id: connection.id,
+          adapter: LLMAdapter.TypeSafe,
+        }),
+      ]);
+      expect(response.body.meta.totalItems).toBe(1);
+    });
+
     it("should handle pagination correctly", async () => {
       // Create 3 test connections
       await Promise.all([
@@ -415,7 +443,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toBe(
-        "Invalid baseURL: Blocked hostname detected",
+        "Invalid base URL: Blocked hostname detected",
       );
     });
 
@@ -463,6 +491,38 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.baseURL).toBe(TEST_UPDATED_PUBLIC_LLM_BASE_URL); // Updated
       expect(response.body.customModels).toEqual(["claude-3"]); // Updated
       expect(response.body.withDefaultModels).toBe(false); // Updated
+    });
+
+    it("should preserve config when an upsert omits it", async () => {
+      const provider = generateUniqueProvider("openai-config");
+      await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-original",
+          config: { useResponsesApi: true },
+        },
+        auth,
+        201,
+      );
+
+      const response = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-updated",
+        },
+        auth,
+        200,
+      );
+
+      expect(response.body.config).toEqual({ useResponsesApi: true });
     });
 
     it("should return 401 for invalid auth", async () => {

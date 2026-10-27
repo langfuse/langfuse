@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useMemo, useCallback, useState } from "react";
 
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -47,7 +48,7 @@ export const useModelParams = (
 
   // Set initial model params
   const projectId = useProjectIdFromURL();
-  const availableLLMApiKeys = api.llmApiKey.all.useQuery(
+  const availableLLMApiKeys = api.llmApiKey.effective.useQuery(
     {
       projectId: projectId as string,
     },

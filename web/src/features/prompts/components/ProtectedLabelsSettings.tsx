@@ -13,10 +13,11 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { XIcon, Check } from "lucide-react";
+import { XIcon, Check } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
@@ -56,7 +57,12 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
-  const skillsEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
+    projectId,
+    enableForAdmins: false,
+  });
+  const skillsEnabled = isV4 && skillManagementEnabled;
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -141,7 +147,7 @@ export default function ProtectedLabelsSettings({
                     }
                   }}
                 >
-                  <XIcon className="h-3 w-3" />
+                  <XIcon size="base" color="default" />
                 </Button>
               )}
             </StatusBadge>
@@ -195,8 +201,9 @@ export default function ProtectedLabelsSettings({
                               }}
                             >
                               <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
+                                size="base"
+                                __rawClassName={cn(
+                                  "mr-2",
                                   field.value === label
                                     ? "opacity-100"
                                     : "opacity-0",

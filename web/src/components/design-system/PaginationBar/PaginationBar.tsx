@@ -4,7 +4,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useState } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";

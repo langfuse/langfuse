@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
 import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type {
   KeyScoreLevels,
@@ -346,7 +346,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-1">
+    <div className="flex flex-col gap-4 px-3 py-1">
       {/* Filter rows */}
       {localFilters.map((filter, index) => {
         const availableValuesForKey = filter.key
@@ -421,7 +421,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 onClick={() => handleRemoveFilter(index)}
                 className="h-8 w-8 p-0"
               >
-                <X className="h-4 w-4" />
+                <X size="base" color="default" />
               </Button>
             </div>
 
@@ -556,15 +556,15 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         );
       })}
 
-      {/* Add filter button */}
+      {/* Add another condition within this facet. */}
       <Button
         onClick={handleAddFilter}
         size="sm"
         variant="outline"
         className="w-full"
       >
-        <Plus className="mr-2 h-4 w-4" />
-        Add filter
+        <Plus size="base" color="default" __rawClassName="mr-2" />
+        Add condition
       </Button>
     </div>
   );

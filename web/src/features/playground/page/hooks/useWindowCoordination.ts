@@ -143,6 +143,11 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
         showErrorToast(
           "No content to execute",
           "Please add at least one message with content to any window.",
+          {
+            operation: "playground.execute",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         setIsExecutingAll(false);
       } else {

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import React, { createContext, useContext, type ReactNode } from "react";
 import {
   MUSTACHE_REGEX,
@@ -6,10 +6,10 @@ import {
   isValidVariableName,
   type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { FileCode } from "lucide-react";
+import { FileCode } from "@langfuse/icons";
 
 const PROMPT_REFERENCE_MARKDOWN_PREFIX = "/__langfuse_prompt_reference__?";
 const PromptReferenceContext = createContext<string | undefined>(undefined);
@@ -186,17 +186,17 @@ export const PromptReferenceButton = ({
       }
       title={`Open prompt: ${promptRefTitle}`}
     >
-      <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
+      <FileCode size="base" color="muted" />
       <span className="truncate font-bold" title={promptRefTitle}>
         {promptRef.name}
         {promptRef.type === "version" ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            v{promptRef.version}
-          </Badge>
+          <span className="ml-1">
+            <Badge color="primary" size="sm" text={`v${promptRef.version}`} />
+          </span>
         ) : promptRef.label ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            {promptRef.label}
-          </Badge>
+          <span className="ml-1">
+            <Badge color="primary" size="sm" text={promptRef.label} />
+          </span>
         ) : (
           ""
         )}

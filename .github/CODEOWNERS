@@ -12,3 +12,20 @@
 
 # Skills for langfuse assistant
 /packages/langfuse-skills/ @LysanderKie @bezbac
+
+# Code review policy
+/REVIEW.md @bezbac
+
+# Normalized I/O and transcripts
+/packages/shared/src/utils/normalized-io/ @marliessophie
+/packages/shared/src/server/transcript/ @marliessophie
+
+# Trace batching
+/worker/src/features/traceBatching/ @LysanderKie
+/packages/shared/src/server/traceBatch/ @LysanderKie
+
+# Topics
+/worker/src/features/topics/ @LysanderKie
+/web/src/features/topics/ @LysanderKie
+/packages/shared/src/server/topics/ @LysanderKie
+/packages/shared/src/topics/ @LysanderKie

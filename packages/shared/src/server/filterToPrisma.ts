@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
@@ -5,6 +6,7 @@ import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod";
 import { logger } from "./index";
 import { InvalidRequestError } from "../errors";
+import { escapeSqlLikePattern } from "./utils/sqlLike";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -14,6 +16,13 @@ const operatorReplacements = {
   "starts with": "ILIKE",
   "ends with": "ILIKE",
 };
+
+const likeOperators = [
+  "contains",
+  "does not contain",
+  "starts with",
+  "ends with",
+];
 
 const arrayOperatorReplacements = {
   "any of": "&&",
@@ -97,7 +106,10 @@ export function tableColumnsToSqlFilter(
         break;
       case "string":
       case "stringObject":
-        valuePrisma = Prisma.sql`${filter.value}`;
+        // ILIKE treats `_`, `%` and `\` in the value as pattern characters
+        valuePrisma = likeOperators.includes(filter.operator)
+          ? Prisma.sql`${escapeSqlLikePattern(filter.value)}`
+          : Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
         valuePrisma = Prisma.sql`(${Prisma.join(

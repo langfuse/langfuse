@@ -1,5 +1,5 @@
 import { type Ref } from "react";
-import { AlertCircle, CreditCard } from "lucide-react";
+import { AlertCircle, CreditCard } from "@langfuse/icons";
 import Link from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "@/src/components/ui/button";
@@ -54,7 +54,7 @@ export function PaymentBannerView({
     >
       <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
         {/* mt-0.5 optically centers the 16px icon on the first 20px text line */}
-        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+        <AlertCircle size="base" __rawClassName="mt-0.5 sm:mt-0" />
         <p className="min-w-0 text-sm wrap-break-word">
           <span className="font-bold">Billing Issue:</span>{" "}
           {`We have problems collecting subscription payment for your organization '${organizationName}'. Please update your payment information to continue using Langfuse.`}
@@ -67,7 +67,7 @@ export function PaymentBannerView({
         className="shrink-0 self-end sm:self-auto"
       >
         <Link href={billingSettingsHref}>
-          <CreditCard className="mr-2 h-4 w-4" />
+          <CreditCard size="base" color="default" __rawClassName="mr-2" />
           Update Payment
         </Link>
       </Button>

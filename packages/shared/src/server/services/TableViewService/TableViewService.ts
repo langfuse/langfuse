@@ -216,6 +216,7 @@ export class TableViewService {
           select: {
             image: true,
             name: true,
+            email: true,
           },
         },
         filters: true,

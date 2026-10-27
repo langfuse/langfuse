@@ -84,7 +84,7 @@ describe("RateLimitService", () => {
       "Retry-After": 1,
       "X-RateLimit-Limit": 1000,
       "X-RateLimit-Remaining": 999,
-      "X-RateLimit-Reset": expect.any(String),
+      "X-RateLimit-Reset": expect.any(Number),
     });
   });
 
@@ -422,11 +422,11 @@ describe("RateLimitService", () => {
 
   it("should apply public-api-legacy rate limits by cloud plan", async () => {
     const cases = [
-      { plan: "cloud:hobby" as const, points: 15 },
-      { plan: "cloud:core" as const, points: 30 },
-      { plan: "cloud:pro" as const, points: 100 },
-      { plan: "cloud:team" as const, points: 100 },
-      { plan: "cloud:enterprise" as const, points: 100 },
+      { plan: "cloud:hobby" as const, points: 5 },
+      { plan: "cloud:core" as const, points: 15 },
+      { plan: "cloud:pro" as const, points: 40 },
+      { plan: "cloud:team" as const, points: 40 },
+      { plan: "cloud:enterprise" as const, points: 40 },
     ];
 
     const rateLimitService = RateLimitService.getInstance(redis as Redis);

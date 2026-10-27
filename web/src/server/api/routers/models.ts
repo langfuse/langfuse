@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
@@ -13,13 +14,19 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod, Prisma } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  ModelUsageUnit,
+  paginationZod,
+  Prisma,
+} from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
   findModel,
   hasPricingTierUsageDetails,
   matchPricingTier,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -111,7 +118,7 @@ export const modelRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
 
-      const searchStringTemplate = `%${searchString}%`;
+      const searchStringTemplate = `%${escapeSqlLikePattern(searchString)}%`;
       const searchStringCondition = searchString
         ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
         : Prisma.sql`AND 1=1`;
@@ -390,12 +397,20 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
 
-      const deletedModel = await ctx.prisma.model.delete({
-        where: {
-          id: input.modelId,
-          projectId: input.projectId,
-        },
-      });
+      let deletedModel;
+      try {
+        deletedModel = await ctx.prisma.model.delete({
+          where: {
+            id: input.modelId,
+            projectId: input.projectId,
+          },
+        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Model not found");
+        }
+        throw error;
+      }
 
       await auditLog({
         session: ctx.session,

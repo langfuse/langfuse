@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Observation } from "../../domain";
 import type {
   NormalizedMessage,
@@ -6,6 +7,7 @@ import type {
 import { normalizeIO } from "../normalized-io";
 import { orderObservations } from "./ordering";
 import { assembleTranscript } from "./transcript";
+import { isExecutionIssue } from "./context";
 import type { Transcript } from "./types";
 import {
   transcriptRenderConfigSchema,
@@ -119,7 +121,9 @@ export function renderTranscript(
       case "tool-call":
         return `${part.toolName} ${json(part.input)}`;
       case "tool-result":
-        return json(part.output);
+        return part.output.type === "content"
+          ? toolResultContent(part.output.value)
+          : json(part.output.value);
       case "file":
         return `[${part.mediaType ?? "file"} omitted]`;
       case "data":
@@ -128,6 +132,15 @@ export function renderTranscript(
         return json({ [part.kind]: part.value });
     }
   };
+  const toolResultContent = (parts: NormalizedMessagePart[]): string =>
+    parts
+      .map((part) => {
+        if (part.type === "reasoning" && !config.reasoning.include) return "";
+        if (part.type === "file" && part.reasoning) return "";
+        return partContent(part);
+      })
+      .filter(Boolean)
+      .join("\n");
   const rootContent = (
     observation: Observation,
     source: "input" | "output",
@@ -379,7 +392,7 @@ export function renderTranscript(
         return config.toolResults.include
           ? labeled(
               `${resultLabel}${part.isError ? " ERROR" : ""}`,
-              json(part.output),
+              partContent(part),
               config.toolResults.maxChars,
               "tool_results",
             )
@@ -437,10 +450,7 @@ export function renderTranscript(
   }
   if (config.errors.include) {
     observations.forEach((observation, observationIndex) => {
-      if (
-        observation.level === "ERROR" ||
-        (observation.level === "WARNING" && observation.statusMessage)
-      )
+      if (isExecutionIssue(observation))
         currentWithErrors.push({
           kind: "error",
           observation,

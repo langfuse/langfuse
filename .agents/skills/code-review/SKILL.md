@@ -53,6 +53,8 @@ Use `references/review-checklist.md` for Langfuse-specific checks such as:
 
 - ClickHouse and Postgres migration expectations
 - project-scoped tenant isolation checks
+- Prisma record-not-found checks (`isPrismaRecordNotFoundError` /
+  `isRecordNotFoundError`, not an inlined `P2025` check)
 - API/Fern consistency
 - banner-offset UI positioning
 - environment variable access patterns

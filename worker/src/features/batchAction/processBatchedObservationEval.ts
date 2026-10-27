@@ -64,6 +64,7 @@ export async function processBatchedObservationEval(params: {
             schedulerDeps,
             executionMode: "MANUAL",
             executionScopeId: batchActionId,
+            batchActionId,
           });
         }),
       ),

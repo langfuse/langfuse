@@ -16,7 +16,8 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { SkillService } from "./index";
 
-import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/unstable-skills";
+import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
+import { SkillListOrderBySchema } from "../constants/skillsSorting";
 
 const projectInput = z.object({ projectId: z.string() });
 
@@ -25,6 +26,7 @@ export const skillRouter = createTRPCRouter({
     .input(
       projectInput
         .extend({
+          orderBy: SkillListOrderBySchema.optional(),
           filter: singleFilterList
             .refine((filters) => filters.length <= 50, "Too many filters")
             .optional(),

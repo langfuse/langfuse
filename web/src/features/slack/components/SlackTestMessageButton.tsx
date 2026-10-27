@@ -1,9 +1,10 @@
 import React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { Zap } from "lucide-react";
+import { Zap } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type SlackChannel } from "./ChannelSelector";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Props for the SlackTestMessageButton component
@@ -57,13 +58,18 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
   const testMessageMutation = api.slack.sendTestMessage.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "slack.test_message_send",
         title: "Test Message Sent",
         description: "Test message sent successfully to the selected channel.",
       });
       onSuccess?.(data.channelInfo);
     },
     onError: (error) => {
-      showErrorToast("Failed to Send Test Message", error.message);
+      showErrorToast(
+        "Failed to Send Test Message",
+        error.message,
+        classifyTrpcToastError(error, "slack.test_message_send"),
+      );
       onError?.(new Error(error.message));
     },
   });
@@ -102,7 +108,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
         </>
       ) : (
         <>
-          <Zap className="h-4 w-4" />
+          <Zap size="base" />
           {showText && <span>{buttonText}</span>}
         </>
       )}

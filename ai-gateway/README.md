@@ -2,13 +2,14 @@
 
 A standalone Rust gateway for native provider APIs under two namespaces:
 
-| Namespace | Endpoints | Generation ingested |
-| --- | --- | --- |
-| `/openai/v1` | `POST /responses`, `POST /responses/compact`, `GET /models` | Responses and compact |
-| `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models` | Messages |
+| Namespace       | Endpoints                                                                             | Generation ingested                     |
+| --------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| `/openai/v1`    | `POST /responses`, `POST /responses/compact`, `POST /chat/completions`, `GET /models` | Responses, compact and Chat Completions |
+| `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models`                        | Messages                                |
 
 Web resolves the gateway key to a trusted provider connection for the namespace's API
-format; Rust relays native JSON or SSE without rewriting provider bytes. Models listings
+format; Rust relays native JSON or SSE without rewriting provider bytes, except that a
+streamed Chat Completions request is asked for its usage (see below). Models listings
 are GET proxies of the provider catalog and token counting returns the native count;
 neither is ingested as a generation. A bounded capture layer captures request/response
 facts and logs capture completeness at debug level. Each finalized generation is
@@ -72,14 +73,19 @@ do not load dotenv files:
 | ---------------------------------------------- | -------------- | -------------------------------------------------- |
 | `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
 | `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
+| `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL` | `false` | `true`, `false`; `true` also accepts a plain `http://` Web URL on any host. Only for internal traffic, such as Web's in-cluster Kubernetes Service (`http://<release>-web.<namespace>.svc.cluster.local:3000`) or another private network; never for a URL that crosses the public internet, because resolve responses carry provider API keys and requests carry the service key and ingestion tokens unencrypted. Resolution, model catalogs and trace uploads all use this URL. The gateway logs a warning at startup when it is used |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
-| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
-| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
+| `LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal. Replaces the deprecated `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS`, which is still read when the new name is unset. On ECS behind an ALB, the deregistration delay drains streams before SIGTERM, so use `1`. On Kubernetes the gateway drains streams itself, so set it to the stream time to protect (for example `300`) |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends. On ECS use most of `stopTimeout` (max 120), for example `115`. On Kubernetes `30` is enough; set `terminationGracePeriodSeconds` above the `preStop` sleep plus both timeouts |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
+| `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
+| `LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` | `1073741824` (1 GiB) | Integer from the request limit plus the overhead up to Tokio's semaphore capacity; bytes all in-flight requests and model catalogs of an instance may reserve together |
+| `LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES` | `2097152` (2 MiB) | Integer from 0 to 4294967295; fixed bytes each request reserves on top of its body for response capture and buffers |
+| `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `600` | Integer of at least 60; ceiling from execution admission until the response completes. Web ingestion tokens last 15 minutes, so traces of longer executions may be dropped |
+| `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120` | Integer from 1 to the execution ceiling; longest wait without progress |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -101,23 +107,27 @@ host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 Logs and operational OpenTelemetry exports describe gateway health independently
 of the inference generations sent to Langfuse. They do not include request/response
-content, credentials, key metadata, or URL query strings. Health probes are excluded
+content, credentials, key metadata, or URL query strings. They do carry the
+[resolution context](#resolution-context), including the provider connection name
+and the requested model. Health probes are excluded
 from request logs and spans.
 
 Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
 are top-level attributes; span fields are nested. HTTP response and execution
 summaries include top-level `trace_id` and `span_id` for Datadog correlation.
+Every JSON log line emitted while serving an inference request also carries a
+top-level `request_id`; see [Request IDs](#request-ids).
 `info` emits lifecycle, HTTP response, and execution summaries; `debug` adds
 sanitized capture details. Other log events do not automatically include trace IDs. Dependency logs stay at `warn`. Log severity does not control
 trace sampling. `trace` is not an accepted gateway log level.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Enables operational traces and metrics; HTTP/protobuf base URL, e.g. `http://localhost:4318` |
-| `OTEL_SERVICE_NAME` | `ai-gateway` | Operational service name |
-| `DD_ENV` | `development` | Deployment environment resource attribute |
-| `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
-| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for independent operational root traces |
+| Variable                      | Default               | Purpose                                                                                      |
+| ----------------------------- | --------------------- | -------------------------------------------------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset                 | Enables operational traces and metrics; HTTP/protobuf base URL, e.g. `http://localhost:4318` |
+| `OTEL_SERVICE_NAME`           | `ai-gateway`          | Operational service name                                                                     |
+| `DD_ENV`                      | `development`         | Deployment environment resource attribute                                                    |
+| `BUILD_ID`                    | Cargo package version | Service version; set to the deployed image's commit SHA                                      |
+| `OTEL_TRACES_SAMPLER_ARG`     | `1`                   | Sampling ratio from 0 to 1 for independent operational root traces                           |
 
 Tower's `TraceLayer` keeps the server span alive through the response body.
 The HTTP response log and `http.server.request.duration` measure time to response
@@ -129,16 +139,76 @@ outcome are separate: a 200 response can still fail while streaming. The server
 span carries `http.request.body.size`, `gateway.outcome`, and
 `gateway.first_byte_ms` once they are known.
 
+### Request IDs
+
+Every inference request gets a fresh UUIDv7 gateway request ID (time-ordered, no prefix) at ingress, before
+authentication, so it exists for every response, including rejections before
+resolution, 4xx/5xx gateway errors and streams. It appears in:
+
+| Where                                  | Field                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| Every response                         | `langfuse-request-id` header, sent with the initial headers of a stream |
+| Gateway JSON error bodies              | Top-level `request_id` in both native envelopes                         |
+| Gateway JSON log lines for the request | Top-level `request_id`                                                  |
+| Operational server span                | `gateway.request.id`                                                    |
+| Web resolution call                    | `langfuse-gateway-request-id` header; Web adds it to its log context    |
+| Langfuse generation                    | `langfuse.gateway.request.id` metadata                                  |
+
+A caller's `x-request-id` never becomes the gateway request ID. A single printable
+value of at most 256 bytes is recorded separately as the server span's
+`gateway.client.request.id` and as `langfuse.gateway.client.request.id` generation
+metadata; it is not forwarded to Web or the provider. The provider's own request ID
+(OpenAI `x-request-id`, Anthropic `request-id`) is recorded as the server span's
+`provider_request_id` on every route and as `langfuse.gateway.upstream.request.id`
+generation metadata, and its response header is still relayed unchanged.
+
+When the request will produce a Langfuse generation (`/openai/v1/responses`,
+`/openai/v1/responses/compact`, `/openai/v1/chat/completions` and
+`/anthropic/v1/messages` with inference telemetry
+configured), the response also carries `langfuse-trace-id` and
+`langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
+and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the
+observation ID. They are also set on 502/504 responses for provider failures before
+response headers, which still upload a generation. Requests rejected earlier, such
+as authentication failures, and model or token-count routes omit them. Upload is
+best-effort, so a dropped generation can leave these IDs unresolved. The gateway
+does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
+
+### Resolution context
+
+Once Web resolution succeeds, the request also carries its tenant, and once it is
+sent upstream, the provider connection it was sent to. Requests rejected before
+resolution, including invalid or oversized bodies, carry none of them. Provider failures
+before response headers (502/504) still name the connection that was tried.
+
+| Response header                   | Server span field                  | JSON log key               | Value                                                                            |
+| --------------------------------- | ---------------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
+| `langfuse-organization-id`        | `langfuse.organization.id`         | `organization_id`          | Organization of the gateway key                                                  |
+| `langfuse-project-id`             | `langfuse.project.id`              | `project_id`               | Ingestion project                                                                |
+| `langfuse-provider`               | `gateway.provider`                 | `provider`                 | Stable lowercase provider type, `openai` or `anthropic`                          |
+| `langfuse-provider-connection-id` | `gateway.provider.connection.id`   | `provider_connection_id`   | Opaque provider connection ID                                                    |
+| —                                 | `gateway.provider.connection.name` | `provider_connection_name` | The connection's user-chosen name; never sent to callers                         |
+| —                                 | `gateway.upstream.model`           | `upstream_model`           | The request's `model`, which the relay forwards unchanged; never sent to callers |
+
+The provider fields describe the latest upstream attempt, so with fallbacks they
+name the connection that served the response, or the last one tried. The model
+comes from the request capture's existing parse, so it is recorded only on the
+generation routes listed above, when the body is uncompressed JSON of at most 5 MiB.
+The span fields are declared empty on the `http.server` span and recorded after
+resolution; child spans do not repeat them. JSON log lines emitted inside the
+request after they are recorded repeat them as top-level keys, like `request_id`.
+Apart from the bounded `gateway.provider`, they are never metric attributes.
+
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
 
-| Span | Covers |
-| --- | --- |
-| `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
-| `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
-| `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
-| `provider.headers` | The provider HTTP send through response headers, including connection setup |
-| `provider.stream` | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
+| Span               | Covers                                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `resolution`       | The `resolver` Web call; `gateway.outcome` is `admitted` or `resolution_failed`                                                                                                            |
+| `request.body`     | Buffering the caller's request body, mostly upload time; `http.request.body.size`                                                                                                          |
+| `request.capture`  | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size`                                                                                        |
+| `provider.headers` | The provider HTTP send through response headers, including connection setup                                                                                                                |
+| `provider.stream`  | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
 
 Inference-telemetry uploads carry records from many requests, so each runs in its
 own trace: a root `telemetry.batch` span with `gateway.telemetry.records` and a span
@@ -153,21 +223,44 @@ Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
-OpenTelemetry SDK, with method, matched route, and HTTP status as its only
-dimensions. The histogram's count supplies request volume and error rates,
-including responses rejected before provider execution. Metrics are independent
-of trace sampling. Health probes are excluded.
+OpenTelemetry SDK, with method, matched route, HTTP status, `error.origin`,
+`error.reason`, and `gateway.provider` as its dimensions. The histogram's count
+supplies request volume and error rates, including responses rejected before
+provider execution. Metrics are independent of trace sampling. Health probes are
+excluded.
 
-Gateway-specific metrics include `gateway.active` (resolution/execution),
-`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
-`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
-first-byte timing measures provider bytes arriving at the gateway, not first-token
-delivery to the caller. Metric attributes contain bounded categories, not tenant
-or request identifiers.
+`error.origin` names who caused a failed response: `none`, `client`,
+`gateway`, `control_plane`, `provider_transport`, or `provider` (an error status
+relayed unchanged, with `error.reason` `provider_rate_limited`, `provider_auth`,
+`provider_4xx`, or `provider_5xx`). The server span carries the same origin and
+reason (as `error.type`); it has an error status only for 5xx.
+
+Gateway-specific metrics:
+
+- `gateway.overhead.duration` (`http.route`, `gateway.provider`): time to response
+  headers minus the caller's upload and the provider's wait; recorded only for
+  requests that reached the provider.
+- `http.server.request.body.size` (`http.route`, `gateway.provider`) and
+  `http.server.response.body.size` (`gateway.provider`), in bytes: the buffered
+  request body, and the bytes relayed from the provider, including truncated or
+  cancelled streams.
+- `gateway.active` and `gateway.active.peak` (`phase`): in-flight and
+  most-in-flight-since-last-export model_catalog/resolution/execution work.
+- `gateway.memory.budget`, `gateway.memory.reserved`, and
+  `gateway.memory.reserved.peak`, in bytes: the configured memory budget, the bytes
+  in-flight requests hold, and the most held since the last export. Peak utilisation
+  is `gateway.memory.reserved.peak / gateway.memory.budget`.
+- `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+  `gateway.admission.rejected` (`phase`: `request`, `request_body` or
+  `model_catalog`), and `gateway.telemetry.records`.
+
+Durations use seconds; first-byte timing measures provider bytes arriving at the
+gateway, not first-token delivery to the caller. Metric attributes contain
+bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
-do not fail inference. Shutdown flushes within the remaining shared drain deadline.
+do not fail inference. Shutdown flushes within the remaining telemetry shutdown budget.
 Telemetry delivery warnings report the first failure/drop and every hundredth;
 metrics count each occurrence. This is best-effort operational telemetry.
 
@@ -198,6 +291,11 @@ curl http://localhost:8080/openai/v1/responses/compact \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4.1","input":[]}'
 
+curl http://localhost:8080/openai/v1/chat/completions \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}]}'
+
 curl http://localhost:8080/openai/v1/models \
   -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"
 ```
@@ -213,7 +311,27 @@ client = OpenAI(
 )
 response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
 print(response.output_text)
+completion = client.chat.completions.create(
+    model="gpt-4.1-mini", messages=[{"role": "user", "content": "Say hello"}]
+)
+print(completion.choices[0].message.content)
 ```
+
+### Chat Completions streaming usage
+
+OpenAI reports usage for a streamed Chat Completions request only when the request
+sets `stream_options.include_usage`. When a request has `"stream":true` and does not
+set it to `true`, the gateway adds `"include_usage":true` to the upstream copy so the
+generation still gets token usage and cost; other `stream_options` fields and every
+other top-level member keep their original bytes and order. The recorded input and
+model parameters are the caller's own request. The response stream is relayed byte
+for byte, so a client that did not request usage still receives OpenAI's final usage
+chunk: an extra event with an empty `choices` array and a `usage` object, just before
+`data: [DONE]`. The other chunks of such a stream also carry `"usage":null`. Clients
+must tolerate a chunk without choices, as they already must when they request usage
+themselves. Requests that already ask for usage, content-encoded bodies, ambiguous
+bodies (duplicate `stream` or `stream_options` members) and non-streamed requests are
+forwarded unchanged.
 
 ### Anthropic Messages and Claude Code
 
@@ -273,31 +391,49 @@ only; Web still selects the provider connection. Compact `encrypted_content` is 
 unchanged. Inference routes drop request query strings: the Anthropic SDK's
 `?beta=true` carries nothing beyond the `anthropic-beta` header. Provider errors retain
 their status and body. Gateway errors use the namespace's native envelope:
-`{"error":{"message":"...","type":"...","param":null,"code":"..."}}` for OpenAI and
-`{"type":"error","error":{"type":"...","message":"..."}}` for Anthropic, where the
+`{"error":{"message":"...","type":"...","param":null,"code":"..."},"request_id":"..."}`
+for OpenAI and `{"type":"error","error":{"type":"...","message":"..."},"request_id":"..."}`
+for Anthropic, where `request_id` is the gateway request ID and the
 error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-The gateway authenticates through Web before reserving execution capacity or
-reading the request body. Web resolution uses a separate concurrency budget,
-released after resolution finishes; authenticated requests then reserve execution
-capacity through body reading and response completion. Either budget returns 503
-immediately when full, without a waiting queue. Both defaults of 128 are provisional
-guardrails, not measured capacity: tune them independently using load tests for the
-instance resources, request sizes and stream durations. These limits bound work;
-they do not guarantee fairness between clients or tenants.
+Admission is bounded by memory only. After validating the credential header, the
+gateway reserves a fixed per-request overhead from the instance's memory budget, then
+buffers and validates the request and resolves the credential and model-aware route
+through Web. A declared `Content-Length` is checked against the request limit before
+reading. The reservation grows with the body buffer's allocation as bytes arrive, so a
+client that declares a large body and stalls holds only the overhead and what it sent.
+The whole reservation stays held until the response ends. Model catalog requests
+reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
+times the catalog for parsing and the provider-shaped response, and hold it until the
+client has read that response; the response is relayed under the same stall timeout and
+execution deadline as provider responses. An exhausted budget returns 503 immediately without a
+waiting queue. There is no request-count limit; file descriptors are bounded by the
+container.
 
-Other limits are 10 MiB request bodies in both namespaces, 30 seconds to read a request, 5 seconds to
-connect, 120 seconds for provider response headers or an individual upstream read,
-and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
+The overhead stands in for what a request holds besides its body: retained capture
+output (up to 1 MiB), one inspected response event (up to 1 MiB), the relay chunk and
+resolution context. The 2 MiB default sits above the typical request: on staging,
+responses average 8 KB (Anthropic) to 210 KB (OpenAI), with a largest of 3 MB. With
+the 1 GiB budget it admits about 400 typical concurrent requests. The parsed request
+input kept for capture is covered by the body's reservation, which outlives the
+buffered bytes. These limits bound work; they do not guarantee fairness between
+clients or tenants.
+
+Request bodies are limited to 16 MiB by default in both namespaces. The body read deadline
+scales with that limit: at least 30 seconds, and enough for the maximal body at 10 MiB per
+30 seconds (49 seconds at 16 MiB).
+Connecting to a provider may take 5 seconds. Executions end at a ten-minute ceiling from
+admission by default, and earlier when they stall: 120 seconds by default without an
+upstream chunk, without the downstream accepting a chunk, or, for streamed calls
+(`"stream": true`) and token counting, without provider response
+headers. A non-streamed generation waits for headers until the ceiling, because
+providers send nothing until the response is generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
-channel fills. Completion, disconnect and deadline release admission and context;
-the deadline runs even when the downstream stops polling. A failure after headers
+channel fills. Completion, disconnect, stall and ceiling release the memory reservation and context;
+both timeouts run even when the downstream stops polling. A failure after headers
 terminates the response body without adding an error event or retrying.
-There is no separate downstream stall timeout; a client that stops reading can
-retain execution capacity until the overall deadline. A progress-based downstream
-stall policy is deferred to a separate change.
 
 Only request content type/encoding and accept cross the provider boundary, plus the
 resolved credential in its provider's header (`Authorization: Bearer` for OpenAI,
@@ -346,47 +482,77 @@ Ingestion JWTs stay outside serializable capture facts and debug logs. Expired g
 are dropped without re-resolving the execution. Requests explicitly select v4 ingestion.
 
 Each execution becomes one generation with a new observation ID and either the
-caller's trace/parent IDs or a generated root trace ID,
-actual/requested model, model parameters, native usage, and trusted key/connection
-attribution. Full mode includes the captured input/output; usage mode omits content.
+caller's trace/parent IDs or a generated root trace ID, the model, model parameters,
+native usage, and trusted key/connection attribution. Full mode includes the captured input/output; usage mode omits content.
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
-OpenAI Responses usage is projected into the receiver's strict native schema, keeping
-its nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+OpenAI Responses and Chat Completions usage are projected into the receiver's strict
+native schemas (`input_tokens`/`output_tokens` or `prompt_tokens`/`completion_tokens`,
+plus `total_tokens`), keeping their nested detail counters. Anthropic usage is uploaded exactly as the provider reported
 it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
 is not reported as zero.
 
-Gateway metadata uses `langfuse.gateway.*`, grouped by the resource or exchange
-each field describes:
+### Generation fields
 
-| Suffix                                                                                      | Meaning                                                                     |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
-| `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
-| `ingestion.mode`                                                                            | Effective capture mode                                                      |
-| `request.api_format`                                                                        | Native API contract: `openai.responses` or `anthropic.messages`             |
-| `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
-| `response.id`                                                                               | Native response object's ID                                                 |
-| `response.status_code`                                                                      | HTTP status returned to the caller                                          |
-| `upstream.request.id`                                                                       | Provider request ID from the upstream `x-request-id` (OpenAI) or `request-id` (Anthropic) header |
+The gateway sets these generation fields directly:
 
-`request.id` is reserved for a future gateway-generated request ID and is not
-emitted. The upstream request ID is separate and is omitted when unavailable.
-API-key attribution entries appear both as top-level metadata and under
-`langfuse.gateway.api_key.metadata.*`.
-Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution
-copy preserves the original value. `agent.*` and native request field names retain
-their existing spelling. Metadata names apply to newly captured generations;
-historical traces are not rewritten.
+| Generation field                                              | OTLP attribute                                                                     | Value                                                                                                                                                                                                                |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model (`provided_model_name`)                                 | `langfuse.observation.model.name`                                                  | The first known of `model.response`, `model.upstream` and `model.requested` below                                                                                                                                    |
+| User ID                                                       | `user.id`                                                                          | The caller's `langfuse-user-id` header or `langfuse_user_id` baggage. Otherwise, only when the gateway starts the trace (no valid `traceparent`), the gateway key owner's user ID. The source is in `user_id_source` |
+| Session ID, trace name, environment, tags                     | `session.id`, `langfuse.trace.name`, `langfuse.environment`, `langfuse.trace.tags` | Caller headers, baggage or a recognized coding agent; see [Caller tracing context](#caller-tracing-context)                                                                                                          |
+| Level, status message                                         | `langfuse.observation.level`, `langfuse.observation.status_message`                | Derived from the HTTP status, provider status and relay outcome                                                                                                                                                      |
+| Model parameters, usage, input, output, completion start time | `langfuse.observation.*`                                                           | See [Response capture](#response-capture)                                                                                                                                                                            |
+| Metadata                                                      | `langfuse.observation.metadata`                                                    | Caller metadata plus the gateway keys below                                                                                                                                                                          |
 
-`response.status_code` includes gateway-generated 502/504 errors before upstream
-headers arrive. After headers arrive it retains the relayed status, even if a
-stream subsequently fails; cancellation before headers leaves the status unknown.
-Relay outcome, provider status, completeness flags and first-byte timing remain
-internal facts rather than generation metadata. For the gateway scope, ingestion removes
-Langfuse attributes already mapped to trace and observation fields, such as user, session,
-trace name, tags and environment, while preserving custom attributes, scope and resources.
+The generation never emits `user.name` or `gen_ai.*` attributes: ingestion reads them as user ID and model fallbacks.
+
+### Generation metadata
+
+Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the resource or exchange it describes. The table lists the suffix after that prefix. Source is who supplies the value: the gateway itself, Web at resolve time, or the caller. Caller-sourced values are recorded as received, within the stated bounds; the gateway does not vouch for them.
+
+| Key                                | Type                                                                                                                                   | Source                                                               | Present                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `organization.id`                  | string                                                                                                                                 | Web                                                                  | Always                                                                                  |
+| `ingestion.mode`                   | string: `full` or `usage`                                                                                                              | Web                                                                  | Always                                                                                  |
+| `api_key.id`                       | string                                                                                                                                 | Web                                                                  | Always                                                                                  |
+| `api_key.name`                     | string                                                                                                                                 | Web: the key's note                                                  | When the key has a note                                                                 |
+| `api_key.owner.user_id`            | string                                                                                                                                 | Web: the user the key is bound to                                    | When the key is bound to a user; keys created before keys were bound to users have none |
+| `api_key.owner.name`               | string                                                                                                                                 | Web: the bound user's display name, never the email                  | When the key is bound to a user with a name                                             |
+| `api_key.metadata.<key>`           | string, number or boolean                                                                                                              | Web: the key's metadata                                              | One entry per key metadata entry                                                        |
+| `connection.id`                    | string                                                                                                                                 | Web                                                                  | Always                                                                                  |
+| `connection.name`                  | string                                                                                                                                 | Web: the connection's display name                                   | When the connection has a name                                                          |
+| `connection.provider`              | string: `openai` or `anthropic`                                                                                                        | Web                                                                  | Always                                                                                  |
+| `model.requested`                  | string                                                                                                                                 | Caller: request body `model`                                         | When the request body is captured JSON with a model                                     |
+| `model.upstream`                   | string                                                                                                                                 | Web: the connection's provider model, sent upstream                  | When the request reached the provider path                                              |
+| `model.response`                   | string                                                                                                                                 | Provider: response `model`                                           | When the provider reported one                                                          |
+| `user_id_source`                   | string: `client` or `api_key_owner`                                                                                                    | Gateway                                                              | When the generation has a user ID                                                       |
+| `request.id`                       | string                                                                                                                                 | Gateway                                                              | Always; also the `langfuse-request-id` response header                                  |
+| `request.api_format`               | string: `openai.responses`, `openai.chat-completions` or `anthropic.messages`                                                          | Gateway                                                              | Always                                                                                  |
+| `request.body_bytes`               | integer                                                                                                                                | Gateway: the caller's uncompressed request body                      | Always                                                                                  |
+| `request.input_omitted`            | string: `size_limit`, `content_encoding`, `invalid_json`, `record_limit` or `telemetry_buffer`                                         | Gateway                                                              | Full mode, when the input is not recorded                                               |
+| `request.input_limit_bytes`        | integer                                                                                                                                | Gateway                                                              | With `input_omitted` `size_limit`                                                       |
+| `client.request.id`                | string                                                                                                                                 | Caller: `x-request-id` header                                        | When valid                                                                              |
+| `client.user_agent`                | string, at most 256 bytes                                                                                                              | Caller: `User-Agent` header, trimmed                                 | When present, single and free of control characters                                     |
+| `client.request.metadata`          | JSON value as sent                                                                                                                     | Caller: request body `metadata`                                      | Full mode, when sent                                                                    |
+| `client.request.user`              | JSON value as sent                                                                                                                     | Caller: request body `user` (deprecated OpenAI field)                | Full mode, when sent                                                                    |
+| `client.request.safety_identifier` | JSON value as sent                                                                                                                     | Caller: request body `safety_identifier`                             | Full mode, when sent                                                                    |
+| `client.request.prompt_cache_key`  | JSON value as sent                                                                                                                     | Caller: request body `prompt_cache_key`                              | Full mode, when sent                                                                    |
+| `upstream.request.id`              | string                                                                                                                                 | Provider: `x-request-id` (OpenAI) or `request-id` (Anthropic) header | When sent                                                                               |
+| `upstream.response.id`             | string                                                                                                                                 | Provider: response object `id`                                       | When sent                                                                               |
+| `upstream.status_code`             | integer                                                                                                                                | Provider                                                             | When the provider sent response headers                                                 |
+| `upstream.retry_after_ms`          | integer                                                                                                                                | Provider: `Retry-After` in seconds, converted to milliseconds        | When the header is an integer; HTTP dates are ignored                                   |
+| `response.status_code`             | integer or null                                                                                                                        | Gateway                                                              | Always; null when the caller cancelled before response headers                          |
+| `response.body_bytes`              | integer                                                                                                                                | Gateway: provider body bytes relayed to the caller                   | When the provider sent response headers                                                 |
+| `error.origin`                     | string: `provider` or `provider_transport`                                                                                             | Gateway                                                              | When the generation failed                                                              |
+| `error.type`                       | string: `provider_rate_limited`, `provider_auth`, `provider_4xx`, `provider_5xx`, `provider_response_failed`, `timeout` or `transport` | Gateway                                                              | With `error.origin`                                                                     |
+
+`error.origin` and `error.type` use the same values as the gateway's operational `error.origin`/`error.reason`, so a generation can be matched to the request metrics. A cancellation is not an error. Byte counts are uncompressed: compressed request bodies are rejected, and the provider is asked for an identity-encoded response.
+
+Key metadata appears only under `api_key.metadata.*`, never as bare top-level metadata keys. Caller metadata, key metadata and the `agent.*` keys cannot write `langfuse.gateway.*`, `scope`, `resourceAttributes` or `attributes` keys; the gateway's own keys always win. `agent.*` keys and native request field names keep their existing spelling. Metadata names apply to newly captured generations; historical traces are not rewritten.
+
+`response.status_code` includes gateway-generated 502/504 errors before upstream headers arrive. After headers arrive it retains the relayed status, even if a stream subsequently fails. Relay outcome, provider status, completeness flags and first-byte timing remain internal facts rather than generation metadata. For the gateway scope, ingestion removes Langfuse attributes already mapped to trace and observation fields, such as user, session, trace name, tags and environment, while preserving custom attributes, scope and resources. Ingestion never estimates usage with a tokenizer for gateway generations; it recognizes them by their gateway ingestion credential, not by the instrumentation scope name, which any OTLP sender can set.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a
@@ -409,7 +575,7 @@ span records `gateway.telemetry.attempts`. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
 SIGTERM marks the gateway unready, drains inference, then flushes open batches and
-finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads,
+finishes uploads within the telemetry shutdown budget, which starts when draining ends. At the deadline, unfinished uploads,
 including batches waiting to retry, are cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
@@ -430,14 +596,14 @@ Operational trace sampling and best-effort ingestion remain independent.
 
 The following optional headers enrich the generation, including in usage mode:
 
-| Header | Format | Python SDK baggage key |
-| --- | --- | --- |
-| `langfuse-trace-name` | String | `langfuse_trace_name` |
-| `langfuse-session-id` | String | `langfuse_session_id` |
-| `langfuse-user-id` | String | `langfuse_user_id` |
-| `langfuse-environment` | Environment name | `langfuse_environment` |
-| `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
-| `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
+| Header                 | Format                              | Python SDK baggage key    |
+| ---------------------- | ----------------------------------- | ------------------------- |
+| `langfuse-trace-name`  | String                              | `langfuse_trace_name`     |
+| `langfuse-session-id`  | String                              | `langfuse_session_id`     |
+| `langfuse-user-id`     | String                              | `langfuse_user_id`        |
+| `langfuse-environment` | Environment name                    | `langfuse_environment`    |
+| `langfuse-tags`        | Comma-separated strings             | `langfuse_tags`           |
+| `langfuse-metadata`    | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
 
 For example:
 
@@ -479,12 +645,12 @@ override trace identity or project selection.
 
 The gateway also recognizes correlation headers emitted by coding agents:
 
-| Agent | Session source | Turn source |
-| --- | --- | --- |
-| Claude Code | `x-claude-code-session-id` | Not available |
-| Codex | `thread_id` in the Codex turn snapshot | `turn_id` in the Codex turn snapshot |
-| OpenCode | `x-opencode-session`, falling back to `x-session-id` or `x-session-affinity` for an OpenCode user agent | `x-opencode-request` |
-| Pi | `x-session-id`, `session_id`, `x-session-affinity`, or `x-client-request-id` for a Pi user agent | Not available |
+| Agent       | Session source                                                                                          | Turn source                          |
+| ----------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Claude Code | `x-claude-code-session-id`                                                                              | Not available                        |
+| Codex       | `thread_id` in the Codex turn snapshot                                                                  | `turn_id` in the Codex turn snapshot |
+| OpenCode    | `x-opencode-session`, falling back to `x-session-id` or `x-session-affinity` for an OpenCode user agent | `x-opencode-request`                 |
+| Pi          | `x-session-id`, `session_id`, `x-session-affinity`, or `x-client-request-id` for a Pi user agent        | Not available                        |
 
 An inferred session becomes `<agent>:<session>` and an inferred turn deterministically
 selects the generation trace ID, grouping the requests made before and after tool
@@ -554,14 +720,17 @@ background/store/include flags, moderation and cache options/retention. Capture 
 JSON types; ingestion applies Langfuse's existing model-parameter normalization
 (booleans and structured values become JSON strings). Omitted request parameters
 are not filled with assumed defaults.
-The response model and service tier take precedence over requested values when present.
+The response service tier takes precedence over the requested value when present.
+The requested, upstream and response models are all recorded; see
+[Generation metadata](#generation-metadata).
 Request `metadata`, `prompt_cache_key`, `safety_identifier` and deprecated `user` are
-stored under `langfuse.gateway.request.*` only in full mode.
+stored under `langfuse.gateway.client.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
 subtract cached tokens, or synthesize totals. Missing usage stays null.
-`api_format` identifies the payload format (`openai.responses` or `anthropic.messages`).
+`api_format` identifies the payload format (`openai.responses`,
+`openai.chat-completions` or `anthropic.messages`); it is also the generation's name.
 
 For Anthropic Messages, `message_start` supplies the response ID, actual model and the
 usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
@@ -578,7 +747,7 @@ fast-mode pricing tier.
 In full mode the input is the native request with `model` and parameters projected
 out: `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
 `output_config` become model parameters and `metadata` (where Claude Code stores its
-session identifiers) becomes `request.metadata`; `system`, `messages`, `tools` and
+session identifiers) becomes `langfuse.gateway.client.request.metadata`; `system`, `messages`, `tools` and
 unknown fields are kept as sent. The output is the native assistant message
 `{"role":"assistant","content":[...],"stop_reason":...}`. JSON responses contribute
 their `content` array at EOF. Streams rebuild each block from `content_block_start`,
@@ -589,6 +758,28 @@ event, so these deltas are stitched within the same retained-output budget. Only
 stopped blocks are recorded; an unfinished block, tool input that is not valid JSON, an
 unknown delta type or a block past the budget is left out and makes the output
 partial. Usage mode records neither input nor output.
+
+For OpenAI Chat Completions, scalar model parameters (`temperature`, `top_p`, `n`,
+`max_tokens`, `max_completion_tokens`, `presence_penalty`, `frequency_penalty`, `seed`,
+`logprobs`, `top_logprobs`, `service_tier`, `parallel_tool_calls`, `reasoning_effort`,
+`verbosity`, `stream`, `store`, `prompt_cache_retention`) are recorded in both modes.
+In full mode `stop`, `response_format`, `tool_choice`, `function_call`, `stream_options`,
+`logit_bias`, `modalities`, `audio`, `prediction` and `web_search_options` also become
+model parameters, `metadata`, `prompt_cache_key`, `safety_identifier` and `user` become
+`langfuse.gateway.client.request.*`, and `messages`, `tools`, legacy `functions` and unknown
+fields remain the input. The output is the native `{"choices":[...]}` list: JSON
+responses contribute their choices at EOF; streams rebuild each choice from its
+`delta` chunks. Text fragments (`content`, `refusal`, tool and function `arguments`,
+audio data) are appended, `tool_calls` are merged by their `index`, `role`, `id` and
+`type` are kept once, and each choice records its `finish_reason`. Each chunk supplies
+the response ID, actual model and service tier; the usage chunk supplies usage.
+`data: [DONE]` is the terminal event, and every choice needs a `finish_reason` for
+full-mode output to be complete. A choice whose fragments exceed the retained-output
+budget is left out and makes the output partial. `completion_start_ms` is set by the
+first delta with non-empty text, refusal, tool or function arguments, or audio; role
+headers and tool names do not count. A `finish_reason` of `length` or
+`content_filter` sets a `WARNING` level, and an `error` object in the body or a chunk
+marks the generation failed, with its `code` and `message` retained only in full mode.
 
 For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.
@@ -614,7 +805,8 @@ content does not make it false. Request inspection failure does not invalidate a
 fully captured response, and downstream cancellation does not erase completed capture.
 
 The implementation separates shared `ExecutionCapture` lifecycle/timing, the
-`OpenAiResponsesCapture` and `AnthropicMessagesCapture` adapters, the shared
+`OpenAiResponsesCapture`, `OpenAiChatCompletionsCapture` and `AnthropicMessagesCapture`
+adapters, the shared
 `ResponseBody` content-type sniffing and bounded `SseDecoder`. A private
 `ProtocolCapture` enum dispatches to the adapter selected by API format. Finalization
 hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
@@ -622,17 +814,16 @@ batched upload. Capture and upload run independently of log level; debug emissio
 alone is gated.
 
 Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
-1 MiB retained output and 256 output items per execution. The active-request limit
+1 MiB retained output and 256 output items per execution. The memory budget
 bounds the number of captures. Trusted key metadata is bounded by the resolver's
 256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
 content-encoded or not a JSON object) is explained in generation metadata:
 `langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
-`invalid_json`), `langfuse.gateway.request.body_bytes`, and, for `size_limit`,
-`langfuse.gateway.request.input_limit_bytes`. If a generation with its input would
+`invalid_json`) and, for `size_limit`, `langfuse.gateway.request.input_limit_bytes`;
+`langfuse.gateway.request.body_bytes` is always present. If a generation with its input would
 exceed the telemetry record limit (capped at the retained buffer size) or the buffer
 is full, the input is dropped from that record and the generation is still uploaded,
-with `input_omitted` set to `record_limit` or `telemetry_buffer` and
-`langfuse.gateway.request.input_bytes`. Oversized output items
+with `input_omitted` set to `record_limit` or `telemetry_buffer`. Oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.
@@ -652,12 +843,20 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 - SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
   within the configured timeout. Deadline expiry exits nonzero and terminates
   remaining runtime tasks; ordinary shutdown exits zero.
-- The shutdown deadline starts on the shutdown signal. New inference requests
-  are rejected while draining; existing response streams share this budget.
+- The drain deadline (`LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS`) starts on the shutdown signal. New inference requests are rejected while draining; existing response streams share this budget.
+- Inference telemetry and operational OTLP export then flush within `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining ends, so a drain that hits its deadline does not drop open batches.
 
 ## Container
 
-From the repository root:
+Each Langfuse release publishes a multi-platform (linux/amd64, linux/arm64)
+image to `langfuse/ai-gateway` on Docker Hub and
+`ghcr.io/langfuse/ai-gateway`, tagged like the web and worker images.
+Every release publishes `<version>` and `sha-<commit>`. Stable releases also
+update `<major>.<minor>` and `<major>`, plus `latest` for v4; release candidates
+(`-rc`) do not move these tags. Release images build on the Iron Bank UBI9
+bases.
+
+To build locally, from the repository root:
 
 ```sh
 docker build --target runtime \
@@ -666,7 +865,7 @@ docker build --target runtime \
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
-docker stop --time 15 langfuse-ai-gateway-dev
+docker stop --time 25 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
 ```
 
@@ -676,21 +875,22 @@ package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
-grace period longer than the gateway shutdown timeout. The smoke test uses an
+grace period longer than the gateway connection drain timeout plus the telemetry shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
+
+The image ships the license notices of every third-party crate compiled into the
+binary at `/usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt`, rendered by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) from `about.hbs`.
+`about.toml` lists the accepted licenses; the image build fails when a dependency
+uses any other license, so a new license needs an explicit entry there. To render
+the file locally: `cargo about generate --locked --fail about.hbs`.
 
 ## Tests and module boundaries
 
 ### Web resolution client
 
-`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
-base URL. The binary initializes it when a Web URL is configured. The
-caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
-development. URLs cannot contain credentials, a query or fragment. Include the
-Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
-`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web base URL. The binary initializes it when a Web URL is configured. The caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local development; `ControlPlaneConfig::with_plain_http`, which the binary uses when `LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true`, also accepts HTTP on any host, for internal traffic only. URLs cannot contain credentials, a query or fragment. Include the Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
 use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};
@@ -699,16 +899,21 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
     -> Result<(), ResolutionError>
 {
     let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
-    let context = control_plane.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    let request_id = "018f47a2-4d6e-7a61-b495-5e5f665c1e12";
+    let context = control_plane
+        .resolve(gateway_key, ApiFormat::OpenAiResponses, "gpt-4.1", request_id)
+        .await?;
     assert_eq!(context.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
 
-Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
+After extracting the model, inference sends
+`POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
-`{"apiFormat":"<format>"}`, where the format is the one the public route serves
-(`openai.responses` for every `/openai/v1` route). The client neither receives nor
+`{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves
+(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.responses` for
+the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
 pool is shared, while credentials and execution contexts stay request-local.
 
@@ -716,7 +921,10 @@ The whole HTTP exchange has a five-second deadline and a 256 KiB response limit,
 including chunked responses. Redirects, automatic retries, ambient proxy settings
 and transparent decompression are disabled. Errors expose fixed categories;
 upstream error bodies and transport details are discarded. A successful response
-must match the strict v1 schema and carry an unexpired project ingestion grant.
+must match the v1 schema and carry an unexpired project ingestion grant. Unknown
+fields are ignored everywhere except in the provider `auth` object, so Web can add
+response fields before the gateway reads them; a credential with an unexpected
+field is still an invalid response.
 The grant's JWT payload must name the attribution's `organization_id` and
 `project_id`: Web writes uploads into the token's project, and telemetry batches may
 send any record of a project with any of that project's grants. The gateway reads
@@ -726,10 +934,12 @@ serves the requested `api_format`, `base_url` is that provider's official origin
 and `auth` uses that provider's credential scheme. Any other combination is an
 invalid response, even if Web selected it.
 
-| Provider | API format | Official origin | Credential |
-| --- | --- | --- | --- |
-| `openai` | `openai.responses` | `https://api.openai.com/v1` | `{"type":"Bearer","token":…}` → `Authorization: Bearer` |
-| `anthropic` | `anthropic.messages` | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
+| Provider    | API format                                    | Official origin                | Credential                                                          |
+| ----------- | --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| `openai`    | `openai.responses`, `openai.chat-completions` | `https://api.openai.com/v1`    | `{"type":"Bearer","token":…}` → `Authorization: Bearer`             |
+| `anthropic` | `anthropic.messages`                          | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
+
+The connection's `name` and the attribution's `user_id`, `key_name` and `user_name` are optional in the contract, so the gateway also resolves against a Web deployment that predates them. `user_id` is the user the key is bound to and is the key's owner; it must not be blank when present. Blank `name`, `key_name` and `user_name` count as absent. They are snapshots taken at resolve time, recorded on generations as described in [Langfuse uploads](#langfuse-uploads).
 
 `ProviderConnection::credential()` exposes the secret in its header position
 (`ProviderCredential::Bearer` or `ProviderCredential::XApiKey`) and has no `Debug`
@@ -772,9 +982,10 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
-  official operations (method, upstream path, capture, forwarded query) and credential
+- `providers/mod.rs`: `ProviderTransport`, the `Route` enum of
+  official operations (method, upstream path and capture), model rewriting and credential
   placement.
+- `providers/model_list`: provider-native OpenAI and Anthropic model catalog responses.
 - `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.

@@ -428,13 +428,40 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.EventsFull, format: "native" },
+      { entity_type: TableName.EventsFull, format: "native", reason: "other" },
     );
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Max attempts reached"),
       expect.objectContaining({ droppedIds: [event.ids] }),
     );
     expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("logs the row a ClickHouse parse error names, with its S3 file", async () => {
+    const rows = ["e-1", "e-2", "e-3"].map((id) => ({
+      id,
+      project_id: "project-1",
+      trace_id: "trace-1",
+      blob_storage_file_path: `project-1/observation/${id}/event.json`,
+    }));
+    vi.spyOn(clickhouseClientMock, "insert").mockRejectedValue(
+      new Error(
+        "Cannot parse input: expected ',' before: 'abc' (at row 2) : While executing WaitForAsyncInsert",
+      ),
+    );
+
+    rows.forEach((row) => writer.addToQueue(TableName.EventsFull, row as any));
+    await writer["flushAll"](true);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("ClickHouse rejected events_full row"),
+      {
+        project_id: "project-1",
+        trace_id: "trace-1",
+        id: "e-2",
+        blobStorageFilePath: "project-1/observation/e-2/event.json",
+      },
+    );
   });
 
   it("should mark writer insert log comments as multi-project", async () => {
@@ -485,6 +512,38 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
+  it("measures a requeued record's wait from the requeue, not from creation", async () => {
+    const distributionSpy = vi.spyOn(serverExports, "recordDistribution");
+    const slowFailureMs = 60_000;
+    vi.spyOn(clickhouseClientMock, "insert")
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("DB Error")), slowFailureMs),
+          ),
+      )
+      .mockResolvedValueOnce();
+
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval + slowFailureMs);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+
+    const waits = distributionSpy.mock.calls.filter(
+      ([name, , tags]) =>
+        name === "langfuse.queue.clickhouse_writer.time_distribution" &&
+        (tags as Record<string, string>).type === "wait",
+    );
+    expect(waits).toHaveLength(2);
+    expect(waits[0][2]).toMatchObject({ attempt: "first" });
+    expect(waits[1][2]).toMatchObject({ attempt: "retry" });
+    // The retry waited at most one write interval after being requeued; the
+    // 60s spent in the failed insert is not wait.
+    expect(waits[1][1]).toBeLessThanOrEqual(writer.writeInterval);
+  });
+
   it("should drop records after max attempts", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
@@ -508,7 +567,7 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.Traces, format: "json" },
+      { entity_type: TableName.Traces, format: "json", reason: "other" },
     );
   });
 
@@ -753,6 +812,7 @@ describe("ClickhouseWriter", () => {
       {
         entity_type: TableName.Traces,
         type: "wait",
+        attempt: "first",
         format: "json",
         unit: "milliseconds",
       },

@@ -24,7 +24,7 @@ export default async function handler(
 
     // Verify user is authenticated
     const session = await getServerAuthSession({ req, res });
-    if (!session) {
+    if (!session?.user) {
       logger.warn("Unauthenticated Slack install attempt", { projectId });
       return res.status(401).json({ error: "Authentication required" });
     }
@@ -56,7 +56,7 @@ export default async function handler(
     // - Generating the OAuth URL with proper state
     // - Setting session cookies for state validation
     // - Rendering the installation page
-    return await handleInstallPath(req, res, projectId);
+    return await handleInstallPath(req, res, projectId, session.user.id);
   } catch (error) {
     logger.error("Install handler failed", { error });
     return res.status(500).json({ message: "Internal server error" });

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -12,9 +12,10 @@ export function ThemeToggle() {
       <span className="mr-2">Theme</span>
       <div title="Light mode">
         <Sun
-          className={cn(
+          size="lg"
+          __rawClassName={cn(
             theme === "light" ? "text-primary-accent" : "",
-            "hover:bg-input hover:text-primary-accent size-5.5 rounded-sm p-1",
+            "hover:bg-input hover:text-primary-accent rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();
@@ -27,9 +28,10 @@ export function ThemeToggle() {
       </div>
       <div title="Dark mode">
         <Moon
-          className={cn(
+          size="lg"
+          __rawClassName={cn(
             theme === "dark" ? "text-primary-accent" : "",
-            "hover:bg-input hover:text-primary-accent size-5.5 rounded-sm p-1",
+            "hover:bg-input hover:text-primary-accent rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();
@@ -42,9 +44,10 @@ export function ThemeToggle() {
       </div>
       <div title="System mode">
         <Monitor
-          className={cn(
+          size="lg"
+          __rawClassName={cn(
             theme === "system" ? "text-primary-accent" : "",
-            "hover:bg-input hover:text-primary-accent size-5.5 rounded-sm p-1",
+            "hover:bg-input hover:text-primary-accent rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();

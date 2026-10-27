@@ -38,14 +38,13 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 vi.mock(
   "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer",
   () => ({
-    TableViewPresetsDrawerRoot: ({ children }: { children: ReactNode }) => (
-      <>{children}</>
-    ),
+    TableViewPresetsDrawerRoot: ({ children }: { children: ReactNode }) =>
+      children,
     TableViewPresetsDrawerContent: () => <div />,
   }),
 );
 vi.mock("@/src/components/ui/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Dialog: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./ModernSessionFilterDialogContent", () => ({
   ModernSessionFilterDialogContent: ({

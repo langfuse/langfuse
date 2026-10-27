@@ -1,3 +1,8 @@
+import type {
+  SkillsAvailableInput,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
+import { SkillsAvailableInputSchema } from "../../features/skills/trace";
 import {
   asBoolean,
   asNumberRecord,
@@ -66,6 +71,8 @@ export type InternalTraceEventInput = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+  skillsAvailable?: SkillsAvailableInput;
+  skillsResourceLoaded?: SkillsResourceLoaded;
   modelId?: string;
   modelName?: string;
   modelParameters?: string | Record<string, unknown>;
@@ -129,6 +136,7 @@ type InternalTraceSnapshot = {
   modelParameters?: Record<string, unknown>;
   providedUsageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
+  skillsAvailable?: SkillsAvailableInput;
   input?: unknown;
   output?: unknown;
   metadata: Record<string, unknown>;
@@ -229,6 +237,9 @@ function mergeSnapshotEvent(
   const timestamp =
     asIsoTimestamp(body.timestamp) ?? asIsoTimestamp(event.timestamp);
   const metadata = asRecord(body.metadata);
+  const skillsAvailable = SkillsAvailableInputSchema.safeParse(
+    body.skillsAvailable,
+  );
 
   return {
     ...snapshot,
@@ -260,6 +271,9 @@ function mergeSnapshotEvent(
       snapshot.providedUsageDetails,
     providedCostDetails:
       asNumberRecord(body.costDetails) ?? snapshot.providedCostDetails,
+    skillsAvailable: skillsAvailable.success
+      ? skillsAvailable.data
+      : snapshot.skillsAvailable,
     input:
       body.input !== undefined && body.input !== null
         ? body.input
@@ -407,6 +421,7 @@ export function buildInternalTraceEventInputs(params: {
       modelParameters: snapshot.modelParameters,
       providedUsageDetails: snapshot.providedUsageDetails,
       providedCostDetails: snapshot.providedCostDetails,
+      skillsAvailable: snapshot.skillsAvailable,
       toolDefinitions: convertDefinitionsToMap(toolDefinitions),
       toolCalls: toolCalls.tool_calls,
       toolCallNames: toolCalls.tool_call_names,

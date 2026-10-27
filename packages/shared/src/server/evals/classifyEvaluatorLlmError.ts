@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvaluatorBlockReason } from "@prisma/client";
 
 import { getLLMErrorInfo, type LLMErrorInfo } from "../llm/errors";
