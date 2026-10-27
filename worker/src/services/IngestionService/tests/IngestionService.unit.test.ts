@@ -92,32 +92,17 @@ describe("IngestionService unit tests", () => {
     expect(acceptedBytes).toBe(eventBytes);
   });
 
-  it.each([
-    {
-      case: "a gateway-token upload",
-      ingestionApiKey: "gateway:grant-1",
-      expected: "gateway-key-1",
-    },
-    {
-      case: "an SDK key spoofing the metadata",
-      ingestionApiKey: "pk-lf-spoofing-sdk",
-      expected: undefined,
-    },
-    {
-      case: "a replay that only claims the gateway scope",
-      ingestionApiKey: "",
-      expected: undefined,
-    },
-  ])(
-    "sets ai_gateway_key_id from metadata only for $case",
-    async ({ ingestionApiKey, expected }) => {
-      const ingestionService = new IngestionService(
+  describe("AI gateway attribution", () => {
+    const createGatewayLikeEventRecord = (overrides: {
+      ingestionApiKey: string;
+      metadata?: Record<string, unknown>;
+    }) =>
+      new IngestionService(
         {} as any,
         {} as any,
         { addToQueue: vi.fn() } as any,
         {} as any,
-      );
-      const eventRecord = await ingestionService.createEventRecord(
+      ).createEventRecord(
         {
           projectId: "project-id",
           traceId: "trace-id",
@@ -128,17 +113,55 @@ describe("IngestionService unit tests", () => {
           environment: "default",
           startTimeISO: "2026-07-22T00:00:00.000Z",
           endTimeISO: "2026-07-22T00:00:01.000Z",
-          metadata: { "langfuse.gateway.api_key.id": "gateway-key-1" },
+          metadata: overrides.metadata ?? {
+            "langfuse.gateway.api_key.id": "gateway-key-1",
+          },
+          serviceName: "langfuse-ai-gateway",
+          serviceVersion: "0.1.0",
           scopeName: "langfuse-ai-gateway",
-          ingestionApiKey,
+          ingestionApiKey: overrides.ingestionApiKey,
           source: "otel",
         },
         "raw-event.json",
       );
 
-      expect(eventRecord.ai_gateway_key_id).toBe(expected);
-    },
-  );
+    it("attributes a gateway-token upload to the gateway key and service", async () => {
+      const eventRecord = await createGatewayLikeEventRecord({
+        ingestionApiKey: "gateway:grant-1",
+      });
+
+      expect(eventRecord).toMatchObject({
+        ingestion_api_key: "gateway-key-1",
+        service_name: "langfuse-ai-gateway",
+        service_version: "0.1.0",
+      });
+    });
+
+    it.each([
+      { case: "an SDK key", ingestionApiKey: "pk-lf-spoofing-sdk" },
+      { case: "a replay without an ingestion key", ingestionApiKey: "" },
+    ])(
+      "clears the gateway service claimed by $case and keeps its key",
+      async ({ ingestionApiKey }) => {
+        const eventRecord = await createGatewayLikeEventRecord({
+          ingestionApiKey,
+        });
+
+        expect(eventRecord.ingestion_api_key).toBe(ingestionApiKey);
+        expect(eventRecord.service_name).toBeUndefined();
+        expect(eventRecord.service_version).toBeUndefined();
+      },
+    );
+
+    it("rejects a gateway-token upload without a gateway key id", async () => {
+      await expect(
+        createGatewayLikeEventRecord({
+          ingestionApiKey: "gateway:grant-1",
+          metadata: {},
+        }),
+      ).rejects.toThrow("langfuse.gateway.api_key.id");
+    });
+  });
 
   it("overflows only the direct events_full copy and preserves the enriched record", async () => {
     const addToQueue = vi.fn();

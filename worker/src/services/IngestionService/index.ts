@@ -74,10 +74,10 @@ import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
-  getAiGatewayKeyId,
   hasAiGatewayScope,
   isAiGatewayGenerationEvent,
   overwriteObject,
+  resolveAiGatewayAttribution,
 } from "./utils";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
@@ -330,6 +330,12 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const spanAttribution = resolveAiGatewayAttribution({
+      ingestionApiKey: eventData.ingestionApiKey,
+      metadata,
+      serviceName: eventData.serviceName,
+      serviceVersion: eventData.serviceVersion,
+    });
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -484,15 +490,11 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
-      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_api_key: spanAttribution.ingestionApiKey,
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
-      ai_gateway_key_id: getAiGatewayKeyId({
-        ingestionApiKey: eventData.ingestionApiKey,
-        metadata,
-      }),
-      service_name: eventData.serviceName,
-      service_version: eventData.serviceVersion,
+      service_name: spanAttribution.serviceName,
+      service_version: spanAttribution.serviceVersion,
       scope_name: eventData.scopeName,
       scope_version: eventData.scopeVersion,
       telemetry_sdk_language: eventData.telemetrySdkLanguage,

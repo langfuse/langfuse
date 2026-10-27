@@ -3,6 +3,7 @@ import { JsonNested, Prisma } from "@langfuse/shared";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
   AI_GATEWAY_KEY_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
   isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
@@ -88,19 +89,48 @@ export const isAiGatewayGenerationEvent = (params: {
     ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
     : params.hasGatewayScope();
 
-// The AI gateway overwrites `langfuse.gateway.api_key.id` on everything it
-// uploads, but an SDK sending straight to Langfuse can set it freely. So the
-// value only counts when the gateway authenticated the upload (ingestion key
-// `gateway:<grant>`). Replayed events have no ingestion key and get no key id:
-// unlike isAiGatewayGenerationEvent, this does not fall back to the scope name,
-// which any sender can set.
-export const getAiGatewayKeyId = (params: {
+/**
+ * Which key and service a span is attributed to on the events table.
+ *
+ * An upload the AI gateway authenticated (ingestion key `gateway:<grant>`)
+ * batches requests made with different gateway API keys. Each span names its
+ * key in `langfuse.gateway.api_key.id`, which the gateway always overwrites, so
+ * that key id becomes the span's ingestion API key and the service is the
+ * gateway. A gateway span without a key id is rejected.
+ *
+ * Any other sender, including replays without an ingestion key, may set the
+ * metadata key and `service.name` freely, so claiming the gateway service name
+ * clears the service name and version.
+ */
+export const resolveAiGatewayAttribution = (params: {
   ingestionApiKey: string | null | undefined;
   metadata: Record<string, unknown>;
-}): string | undefined => {
-  if (!isAiGatewayIngestionApiKey(params.ingestionApiKey)) return undefined;
+  serviceName: string | null | undefined;
+  serviceVersion: string | null | undefined;
+}): {
+  ingestionApiKey: string;
+  serviceName: string | null | undefined;
+  serviceVersion: string | null | undefined;
+} => {
+  if (!isAiGatewayIngestionApiKey(params.ingestionApiKey)) {
+    const claimsGateway = params.serviceName === AI_GATEWAY_SERVICE_NAME;
+    return {
+      ingestionApiKey: params.ingestionApiKey ?? "",
+      serviceName: claimsGateway ? undefined : params.serviceName,
+      serviceVersion: claimsGateway ? undefined : params.serviceVersion,
+    };
+  }
   const keyId = params.metadata[AI_GATEWAY_KEY_ID_METADATA_KEY];
-  return typeof keyId === "string" && keyId.length > 0 ? keyId : undefined;
+  if (typeof keyId !== "string" || keyId.length === 0) {
+    throw new Error(
+      `AI gateway span is missing ${AI_GATEWAY_KEY_ID_METADATA_KEY} in its metadata`,
+    );
+  }
+  return {
+    ingestionApiKey: keyId,
+    serviceName: AI_GATEWAY_SERVICE_NAME,
+    serviceVersion: params.serviceVersion,
+  };
 };
 
 export function overwriteObject(
