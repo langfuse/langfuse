@@ -695,7 +695,7 @@ function TopicsWorkspaceContent({
                             <Badge text={executionLabels[execution.status]} />
                             {execution.input.operation === "process" && (
                               <span className="text-muted-foreground w-full tabular-nums">
-                                Estimated cost:{" "}
+                                Estimated processing cost:{" "}
                                 {estimatedExecutionCost(
                                   execution.estimatedCost,
                                 )}
@@ -874,15 +874,15 @@ function ExecutionPanel({
       {!isUpdate && (
         <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
           <p className="flex items-center justify-between gap-3">
-            <span className="font-bold">Estimated cost</span>
+            <span className="font-bold">Estimated processing cost</span>
             <span className="tabular-nums">
               {estimatedExecutionCost(execution.estimatedCost)}
             </span>
           </p>
           <p className="text-muted-foreground text-xs">
-            Estimated cost for this run’s currently stored summaries and
-            embeddings. Costs may decrease when summaries are reused,
-            reprocessed, or deleted.
+            Total for this run’s stored summaries and embeddings. Excludes topic
+            naming and failed calls. May change when summaries are replaced or
+            deleted.
           </p>
         </section>
       )}

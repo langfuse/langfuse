@@ -1,7 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Decimal } from "decimal.js";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -10,7 +9,6 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
-  safeJsonParse,
   type JsonNested,
   type SkillsAvailable,
   type SkillsAvailableInput,
@@ -48,10 +46,8 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
-  UsageCostType,
   findModel,
-  hasPricingTierUsageDetails,
-  matchPricingTier,
+  calculateModelUsageCosts,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
@@ -64,7 +60,6 @@ import {
   buildClickHouseLogComment,
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
-  type PricingTierMatchAttributes,
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
@@ -92,28 +87,6 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   const num = parseInt(value, 10);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
-}
-
-function toPricingAttributeRecord(value: unknown): Record<string, string> {
-  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
-
-  if (
-    !parsedValue ||
-    typeof parsedValue !== "object" ||
-    Array.isArray(parsedValue)
-  ) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
-      typeof attributeValue === "string" ||
-      typeof attributeValue === "number" ||
-      typeof attributeValue === "boolean"
-        ? [[key, String(attributeValue)]]
-        : [],
-    ),
-  );
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -166,17 +139,6 @@ function withSerializedEventByteLength(
     event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
   };
 }
-
-// Models priced before TTL-split cache writes existed (e.g. custom models)
-// only carry an aggregate cache-write price; TTL-split usage falls back to it.
-const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
-  "input_cache_creation_5m",
-  "input_cache_creation_1h",
-]);
-const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
-  "cache_creation_input_tokens",
-  "input_cache_creation",
-];
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -1474,82 +1436,29 @@ export class IngestionService {
       isAiGatewayGeneration,
     );
 
-    // Match pricing tier based on usage_details. Skip when usage is empty
-    // (e.g. tokenization skipped because costs were provided, or ERROR-level
-    // generations): matching {} would stamp a tier chosen against a fabricated
-    // all-zero usage vector instead of leaving the tier unset.
-    let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
-    let usage_pricing_tier_id: string | null = null;
-    let usage_pricing_tier_name: string | null = null;
-    if (
-      pricingTiers.length > 0 &&
-      hasPricingTierUsageDetails(final_usage_details.usage_details)
-    ) {
-      const attributeSources = new Set(
-        pricingTiers.flatMap((tier) =>
-          tier.isDefault
-            ? []
-            : tier.conditions.flatMap((condition) =>
-                "source" in condition ? [condition.source] : [],
-              ),
-        ),
-      );
-      const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
-        attributeSources.size > 0
-          ? {
-              modelParameters: attributeSources.has("model_parameters")
-                ? toPricingAttributeRecord(
-                    pricingMatchAttributeValues?.modelParameters,
-                  )
-                : {},
-              metadata: attributeSources.has("metadata")
-                ? toPricingAttributeRecord(
-                    pricingMatchAttributeValues?.metadata,
-                  )
-                : {},
-            }
-          : undefined;
-      const matchedTier = matchPricingTier(
-        pricingTiers,
-        final_usage_details.usage_details,
-        pricingMatchAttributes,
-      );
-
-      if (matchedTier) {
-        usage_pricing_tier_id = matchedTier.pricingTierId;
-        usage_pricing_tier_name = matchedTier.pricingTierName;
-
-        // Convert matched tier prices to simple format for calculateUsageCosts
-        modelPrices = Object.entries(matchedTier.prices).map(
-          ([usageType, price]) => ({
-            usageType,
-            price,
-          }),
-        );
-      }
-    }
-
-    const final_cost_details = IngestionService.calculateUsageCosts(
-      modelPrices,
-      observationRecord,
-      final_usage_details.usage_details ?? {},
-    );
+    const final_cost_details = calculateModelUsageCosts({
+      model: { model: internalModel, pricingTiers },
+      usageDetails: final_usage_details.usage_details ?? {},
+      providedCostDetails: observationRecord.provided_cost_details,
+      attributes: pricingMatchAttributeValues,
+    });
 
     logger.debug(
       `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
       {
         cost: final_cost_details.cost_details,
         usage: final_usage_details.usage_details,
-        pricingTier: usage_pricing_tier_name,
+        pricingTier: final_cost_details.usage_pricing_tier_name,
       },
     );
 
     return {
       ...final_usage_details,
-      ...final_cost_details,
-      internal_model_id: internalModel?.id,
-      usage_pricing_tier_id,
-      usage_pricing_tier_name,
+      cost_details: final_cost_details.cost_details,
+      total_cost: final_cost_details.total_cost,
+      internal_model_id: final_cost_details.internal_model_id,
+      usage_pricing_tier_id: final_cost_details.usage_pricing_tier_id,
+      usage_pricing_tier_name: final_cost_details.usage_pricing_tier_name,
     };
   }
 
@@ -1576,7 +1485,7 @@ export class IngestionService {
       observationRecord.provided_usage_details,
     );
 
-    // Provided costs are authoritative: calculateUsageCosts ignores computed
+    // Provided costs are authoritative: calculateModelUsageCosts ignores computed
     // usage once any cost point is provided, so tokenised counts could never
     // affect costs — leave usage_details blank instead of paying for
     // tokenisation.
@@ -1792,86 +1701,6 @@ export class IngestionService {
         writePath,
       },
     );
-  }
-
-  static calculateUsageCosts(
-    modelPrices:
-      | Array<{ usageType: string; price: Decimal }>
-      | null
-      | undefined,
-    observationRecord: Pick<
-      ObservationRecordInsertType,
-      "provided_cost_details"
-    >,
-    usageUnits: UsageCostType,
-  ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
-    const { provided_cost_details } = observationRecord;
-
-    const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
-
-    // If user has provided any cost point, do not calculate any other cost points
-    if (providedCostKeys.length) {
-      const cost_details = { ...provided_cost_details };
-      const finalTotalCost =
-        (provided_cost_details ?? {})["total"] ??
-        // Use provided input and output cost if available, but only if no other cost points are provided
-        (providedCostKeys.every((key) => ["input", "output"].includes(key))
-          ? ((provided_cost_details ?? {})["input"] ?? 0) +
-            ((provided_cost_details ?? {})["output"] ?? 0)
-          : undefined);
-
-      if (
-        !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
-        finalTotalCost != null
-      ) {
-        cost_details.total = finalTotalCost;
-      }
-
-      return {
-        cost_details,
-        total_cost: finalTotalCost,
-      };
-    }
-
-    const finalCostEntries: [string, number][] = [];
-
-    for (const [key, units] of Object.entries(usageUnits)) {
-      const price =
-        modelPrices?.find((price) => price.usageType === key) ??
-        (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
-          ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
-              modelPrices?.find((price) => price.usageType === usageType),
-            ).find(Boolean)
-          : undefined);
-
-      if (units != null && price) {
-        finalCostEntries.push([key, price.price.mul(units).toNumber()]);
-      }
-    }
-
-    const finalCostDetails = Object.fromEntries(finalCostEntries);
-
-    let finalTotalCost;
-    if (
-      Object.prototype.hasOwnProperty.call(finalCostDetails, "total") &&
-      finalCostDetails.total != null
-    ) {
-      finalTotalCost = finalCostDetails.total;
-    } else if (finalCostEntries.length > 0) {
-      finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
-        0,
-      );
-
-      finalCostDetails.total = finalTotalCost;
-    }
-
-    return {
-      cost_details: finalCostDetails,
-      total_cost: finalTotalCost,
-    };
   }
 
   private async getClickhouseRecord(params: {

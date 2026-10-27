@@ -471,7 +471,74 @@ describe("generateTopicText", () => {
       cacheReadTokens: 2840,
       cacheWriteTokens: 0,
     });
+    expect(result.usageDetails).toEqual({
+      input: 813,
+      output: 275,
+      total: 3928,
+      input_cached_tokens: 2840,
+      input_cache_creation: 0,
+    });
+    expect(result.providedCostDetails).toEqual({});
   });
+
+  it.each([0, 0.012])(
+    "returns successful OpenRouter usage and supplied USD cost: %s",
+    async (cost) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            choices: [
+              {
+                index: 0,
+                finish_reason: "stop",
+                message: {
+                  role: "assistant",
+                  content: '{"summary":"Account access"}',
+                },
+              },
+            ],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 20,
+              total_tokens: 120,
+              cost,
+              prompt_tokens_details: {
+                cached_tokens: 10,
+                cache_write_tokens: 40,
+              },
+              completion_tokens_details: { reasoning_tokens: 5 },
+            },
+          }),
+        ),
+      );
+      const result = await generateTopicText({
+        model: {
+          slot: "summary",
+          provider: "openrouter",
+          adapter: LLMAdapter.OpenAI,
+          model: "openai/gpt-6-luna",
+          connection: {
+            secretKey: encrypt("sk-test"),
+            baseURL: "https://openrouter.ai/api/v1",
+          },
+        },
+        system: [{ text: "Summarize." }],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+      });
+      expect(result.usageDetails).toEqual({
+        input: 50,
+        output: 15,
+        total: 120,
+        input_cached_tokens: 10,
+        input_cache_creation: 40,
+        output_reasoning_tokens: 5,
+      });
+      expect(result.providedCostDetails).toEqual({ total: cost });
+    },
+  );
 
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
     vi.stubGlobal(
