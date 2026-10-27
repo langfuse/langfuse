@@ -18,7 +18,7 @@ ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 # security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
 # uses them only while they are newer than the repos' nodejs, and the check
 # below fails the build if the installed Node lacks any of the fixes.
-ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1
+ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
 FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
