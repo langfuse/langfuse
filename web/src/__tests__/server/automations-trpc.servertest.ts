@@ -3619,6 +3619,28 @@ describe("automations trpc", () => {
         expect(fetchSpy).not.toHaveBeenCalled();
       });
 
+      it("reports the open incident when the resolve keeps failing", async () => {
+        fetchSpy.mockImplementation(async (_url, init) => {
+          const body = JSON.parse(String(init?.body));
+          if (body.event_action === "trigger") {
+            return new Response("{}", { status: 202 });
+          }
+          return new Response("unavailable", { status: 503 });
+        });
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+          }),
+        ).rejects.toThrow(/could not resolve it/);
+        expect(
+          sentEvents().filter((e) => e.body.event_action === "resolve"),
+        ).toHaveLength(4);
+      });
+
       it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
         fetchSpy.mockResolvedValue(
           new Response("invalid key", { status: 400 }),

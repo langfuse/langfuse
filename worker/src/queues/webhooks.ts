@@ -181,8 +181,7 @@ export const executeWebhook = async (
       return;
     }
 
-    const envelope = buildWebhookOutboundPayload(input);
-    if (await isStaleMonitorAlert({ projectId, automationId, envelope })) {
+    if (await isStaleMonitorAlert({ projectId, automationId, input })) {
       return;
     }
 
@@ -190,7 +189,6 @@ export const executeWebhook = async (
     if (automation.action.type === "WEBHOOK") {
       await executeWebhookAction({
         input,
-        envelope,
         automation,
         skipValidation: options?.skipValidation,
       });
@@ -202,12 +200,11 @@ export const executeWebhook = async (
     } else if (automation.action.type === "GITHUB_DISPATCH") {
       await executeGitHubDispatchAction({
         input,
-        envelope,
         automation,
         skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "PAGERDUTY") {
-      await executePagerDutyAction({ input, envelope, automation });
+      await executePagerDutyAction({ input, automation });
     } else {
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
@@ -233,12 +230,14 @@ export const executeWebhook = async (
 async function isStaleMonitorAlert({
   projectId,
   automationId,
-  envelope,
+  input,
 }: {
   projectId: string;
   automationId: string;
-  envelope: WebhookOutboundPayload;
+  input: WebhookInput;
 }): Promise<boolean> {
+  if (input.payload.type !== "monitor-alert") return false;
+  const envelope = buildWebhookOutboundPayload(input);
   if (envelope.type !== "monitor-alert") return false;
   const alert = envelope.payload;
 
@@ -561,12 +560,10 @@ async function executeHttpAction({
  */
 async function executeWebhookAction({
   input,
-  envelope,
   automation,
   skipValidation,
 }: {
   input: WebhookInput;
-  envelope: WebhookOutboundPayload;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
@@ -592,6 +589,7 @@ async function executeWebhookAction({
 
   const webhookConfig = actionConfig.config;
 
+  const envelope = buildWebhookOutboundPayload(input);
   let webhookPayload: string;
   if (input.payload.type === "prompt-version") {
     // Prompt-version contract: prompt key always last.
@@ -650,12 +648,10 @@ async function executeWebhookAction({
  */
 async function executeGitHubDispatchAction({
   input,
-  envelope,
   automation,
   skipValidation,
 }: {
   input: WebhookInput;
-  envelope: WebhookOutboundPayload;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
@@ -681,6 +677,7 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
   const eventType = githubConfig.eventType;
+  const envelope = buildWebhookOutboundPayload(input);
 
   let githubPayload: string;
   if (input.payload.type === "prompt-version") {
@@ -1011,11 +1008,9 @@ async function executeSlackAction({
  */
 async function executePagerDutyAction({
   input,
-  envelope,
   automation,
 }: {
   input: WebhookInput;
-  envelope: WebhookOutboundPayload;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
 }) {
   const { projectId, executionId } = input;
@@ -1031,6 +1026,7 @@ async function executePagerDutyAction({
   const config = actionConfig.config;
 
   try {
+    const envelope = buildWebhookOutboundPayload(input);
     const event = await buildPagerDutyDelivery({ input, envelope, config });
     if (!event) {
       logger.info(

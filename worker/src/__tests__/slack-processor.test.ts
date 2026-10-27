@@ -238,6 +238,42 @@ describe("Slack Processor", () => {
       expect(execution?.finishedAt).toBeDefined();
     });
 
+    it("delivers prompt changes whose config is not a JSON object", async () => {
+      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+        where: { id: promptId },
+      });
+      const slackInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: { ...(fullPrompt as PromptDomain), config: [] },
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: slackInput.executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook(slackInput);
+
+      expect(mockSlackService.sendMessage).toHaveBeenCalled();
+      const execution = await prisma.automationExecution.findUniqueOrThrow({
+        where: { id: executionId },
+      });
+      expect(execution.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
     it("should handle missing automation gracefully", async () => {
       const nonExistentAutomationId = v4();
 

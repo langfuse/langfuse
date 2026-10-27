@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { backOff } from "exponential-backoff";
 import { TRPCError } from "@trpc/server";
 
 import {
@@ -129,6 +130,47 @@ export async function processPagerDutyActionConfig({
   return { ...existing, region: actionConfig.region };
 }
 
+/** resolveTestEvent resolves the test incident, retrying 429, 5xx and network errors. */
+async function resolveTestEvent({
+  region,
+  routingKey,
+  dedupKey,
+  projectId,
+}: {
+  region: PagerDutyRegion;
+  routingKey: string;
+  dedupKey: string;
+  projectId: string;
+}): Promise<void> {
+  try {
+    await backOff(
+      () =>
+        sendPagerDutyAlertEvent({
+          region,
+          event: {
+            routing_key: routingKey,
+            event_action: "resolve",
+            dedup_key: dedupKey,
+          },
+        }),
+      {
+        numOfAttempts: 4,
+        retry: (error: unknown) =>
+          error instanceof PagerDutyApiError && error.isRetryable,
+      },
+    );
+  } catch (error) {
+    logger.warn("Failed to resolve PagerDuty test event", {
+      projectId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `PagerDuty opened the test incident but Langfuse could not resolve it. Resolve it in PagerDuty (dedup key ${dedupKey}).`,
+    });
+  }
+}
+
 /** sendPagerDutyTestEvent triggers and then resolves one test alert, so whoever is on call is paged briefly. */
 export async function sendPagerDutyTestEvent({
   projectId,
@@ -165,11 +207,8 @@ export async function sendPagerDutyTestEvent({
         payload: buildTestEventPayload(project.name),
       },
     });
-    await sendPagerDutyAlertEvent({
-      region,
-      event: { routing_key: key, event_action: "resolve", dedup_key: dedupKey },
-    });
   } catch (error) {
     throw toTestEventError(error, projectId);
   }
+  await resolveTestEvent({ region, routingKey: key, dedupKey, projectId });
 }
