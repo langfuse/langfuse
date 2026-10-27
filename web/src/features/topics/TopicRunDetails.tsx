@@ -89,16 +89,23 @@ function canResume(execution: Run) {
   );
 }
 
-function questionStats(progress: FacetProgress, runStatus: Run["status"]) {
+/** Regenerate topics groups stored summaries, so its counts are summaries, not traces summarized by the run. */
+function questionStats(progress: FacetProgress, execution: Run) {
   const c = progress.counts;
-  if (busy(runStatus))
+  const runStatus = execution.status;
+  const isUpdate = execution.input.operation === "update";
+  if (isUpdate && busy(runStatus) && progress.outcome === "pending")
+    return c.requested > 0
+      ? `Grouping ${formatCount(c.complete)} summaries into topics`
+      : null;
+  if (!isUpdate && busy(runStatus))
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized`;
-  if (runStatus === "failed")
+  if (!isUpdate && runStatus === "failed")
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized · ${formatCount(Math.max(0, c.requested - c.complete))} left`;
   const parts = [
     c.assigned > 0
       ? `${formatCount(c.assigned)} in topics`
-      : `${formatCount(c.complete)} summarized`,
+      : `${formatCount(c.complete)} ${isUpdate ? "summaries" : "summarized"}`,
   ];
   if (c.outlier > 0) parts.push(`${formatCount(c.outlier)} didn’t fit a topic`);
   if (c.insufficientInput > 0)
@@ -151,6 +158,7 @@ function QuestionRow({
     dot: "bg-muted-foreground",
   };
   const note = questionNote(progress, minimum);
+  const stats = questionStats(progress, execution);
   const facetError =
     progress.error && progress.error !== execution.error
       ? progress.error
@@ -163,9 +171,7 @@ function QuestionRow({
         </h4>
         <StatusLabel label={status.label} dot={status.dot} />
       </div>
-      <p className="text-muted-foreground text-xs">
-        {questionStats(progress, execution.status)}
-      </p>
+      {stats && <p className="text-muted-foreground text-xs">{stats}</p>}
       {note && (
         <p className="text-foreground-secondary text-sm text-pretty">{note}</p>
       )}
