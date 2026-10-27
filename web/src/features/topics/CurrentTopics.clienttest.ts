@@ -1,24 +1,43 @@
-import { createElement, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { type ComponentProps, createElement, type ReactNode } from "react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { __test } from "./CurrentTopics";
+import { CurrentTopics, __test } from "./CurrentTopics";
 
 const { fetchResults } = vi.hoisted(() => ({ fetchResults: vi.fn() }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
       currentResults: { _def: () => ({ path: ["topics", "currentResults"] }) },
+      map: { useQuery: () => ({ data: undefined }) },
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
     }),
   },
 }));
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => ({ openPeek: vi.fn() }),
+}));
+vi.mock("@/src/hooks/use-mobile", () => ({ useIsHandheld: () => false }));
+vi.mock("./TopicGridView", () => ({
+  TopicGridView: ({ facet }: { facet: { name: string } }) =>
+    createElement("p", null, `${facet.name} grid`),
+}));
 
 const timeRange = {
   from: new Date("2026-09-16T00:00:00Z"),
   to: new Date("2026-09-23T00:00:00Z"),
+};
+const facet = {
+  facetId: "intent",
+  name: "Intent",
+  facetVersion: 1,
+  rows: [],
+  topics: [],
+  map: null,
+  awaitingCount: 0,
+  usableCount: 0,
 };
 let client: QueryClient;
 beforeEach(() => {
@@ -35,16 +54,6 @@ afterEach(() => {
 
 describe("current Topics query", () => {
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
-    const facet = {
-      facetId: "intent",
-      name: "Intent",
-      facetVersion: 1,
-      rows: [],
-      topics: [],
-      map: null,
-      awaitingCount: 0,
-      usableCount: 0,
-    };
     fetchResults
       .mockReset()
       .mockResolvedValue({ hasStoredSummaries: false, facets: [facet] });
@@ -150,5 +159,41 @@ describe("current Topics query", () => {
     expect(fetchResults).toHaveBeenCalledTimes(2);
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("current Topics loader", () => {
+  it("hands over to results in the render that receives them, with no timer", () => {
+    const props = {
+      projectId: "project",
+      timeRange,
+      selectedFacetId: "intent",
+      view: "grid",
+      traceFilters: {} as ComponentProps<typeof CurrentTopics>["traceFilters"],
+      onGenerateTopics: vi.fn(),
+      canGenerateTopics: false,
+    } as const;
+    const view = render(
+      createElement(CurrentTopics, {
+        ...props,
+        result: { data: undefined, isLoading: true, error: null },
+      }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Loading topics ..." }),
+    ).toBeInTheDocument();
+
+    view.rerender(
+      createElement(CurrentTopics, {
+        ...props,
+        result: {
+          data: { hasStoredSummaries: true, facets: [facet] },
+          isLoading: false,
+          error: null,
+        },
+      }),
+    );
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.getByText("Intent grid")).toBeInTheDocument();
   });
 });

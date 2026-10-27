@@ -675,7 +675,6 @@ function TopicsWorkspaceContent({
                     />
                   </div>
                 )}
-                {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
                   <TopicsErrorMessage message={facets.error.message} />
                 )}
