@@ -45,7 +45,3 @@ export function AppNavigationProvider({
 export function useAppNavigation(): AppNavigation | null {
   return useContext(AppNavigationContext);
 }
-
-export function useHasAppSidebar(): boolean {
-  return useContext(AppNavigationContext) !== null;
-}

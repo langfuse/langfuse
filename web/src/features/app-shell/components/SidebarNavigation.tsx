@@ -55,7 +55,7 @@ function NavigationGroup({
     <div role="group" aria-labelledby={headingId}>
       <div
         id={headingId}
-        className="text-sidebar-foreground/70 px-2 pt-2 pb-1 text-xs font-bold"
+        className="text-sidebar-foreground/70 px-2 pt-2 pb-0.5 text-xs font-bold"
       >
         {title}
       </div>
@@ -77,7 +77,7 @@ export function SidebarNavigation({
   items: GroupedNavigationItems;
 }) {
   return (
-    <nav aria-label={label} className="flex flex-col gap-1 px-2">
+    <nav aria-label={label} className="flex flex-col px-2">
       {items.ungrouped.length > 0 ? (
         <NavigationList items={items.ungrouped} />
       ) : null}

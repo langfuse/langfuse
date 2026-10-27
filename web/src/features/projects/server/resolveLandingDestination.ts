@@ -3,7 +3,7 @@ import {
   createProjectRoute,
 } from "@/src/features/setup";
 
-export const ORGANIZATIONS_OVERVIEW_PATH = "/organizations";
+const ORGANIZATIONS_OVERVIEW_PATH = "/organizations";
 
 type LandingOrganization = {
   id: string;

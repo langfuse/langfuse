@@ -25,12 +25,12 @@ function SidebarPanelHeader({ children }: { children: ReactNode }) {
 }
 
 function SidebarPanelSection({ children }: { children: ReactNode }) {
-  return <div className="shrink-0 px-2 pt-2 pb-1">{children}</div>;
+  return <div className="shrink-0 px-2 pt-2">{children}</div>;
 }
 
 function SidebarPanelBody({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-1">
+    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto py-1.5">
       {children}
     </div>
   );

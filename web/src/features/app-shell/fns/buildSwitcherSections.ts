@@ -16,7 +16,7 @@ export type SwitcherOrganization = {
   landingProjectId: string | null;
 };
 
-export type SwitcherProjectGroup = {
+type SwitcherProjectGroup = {
   organization: SwitcherOrganization;
   projects: SwitcherProject[];
 };
@@ -34,7 +34,7 @@ type SessionOrganization = {
   projects: Array<{ id: string; name: string }>;
 };
 
-export const RECENT_PROJECTS_SHOWN = 5;
+const RECENT_PROJECTS_SHOWN = 5;
 
 /**
  * Prepares the switcher's lists from the session's organizations and the

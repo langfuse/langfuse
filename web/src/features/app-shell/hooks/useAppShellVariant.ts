@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-export type AppShellVariant = "classic" | "next";
+type AppShellVariant = "classic" | "next";
 
 const APP_SHELL_VARIANT_STORAGE_KEY = "langfuse:app-shell:v1";
 const DEFAULT_APP_SHELL_VARIANT: AppShellVariant = "next";

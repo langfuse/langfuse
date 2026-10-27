@@ -4,7 +4,4 @@
 export { AppShell } from "@/src/features/app-shell/components/AppShell";
 export { AppShellSidebarPanel } from "@/src/features/app-shell/components/AppShellSidebarPanel";
 export { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell/components/WorkspaceBreadcrumbSwitcher";
-export {
-  useAppShellVariant,
-  type AppShellVariant,
-} from "@/src/features/app-shell/hooks/useAppShellVariant";
+export { useAppShellVariant } from "@/src/features/app-shell/hooks/useAppShellVariant";

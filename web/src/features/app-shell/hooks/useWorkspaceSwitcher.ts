@@ -23,7 +23,7 @@ import {
   createProjectRoute,
 } from "@/src/features/setup";
 
-export type SwitcherAction = {
+type SwitcherAction = {
   id:
     | "new-project"
     | "project-settings"
