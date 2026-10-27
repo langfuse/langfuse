@@ -14,10 +14,10 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-# TEMPORARY(CVE-2026-111497): Red Hat's nodejs:24 RPMs rebuilt with the Brotli
-# fix from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh uses
-# them only while they are newer than the repos' nodejs, and the Brotli check
-# below fails the build if neither carries the fix.
+# TEMPORARY(node-24.22.1-security): Red Hat's nodejs:24 RPMs rebuilt with
+# security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
+# uses them only while they are newer than the repos' nodejs, and the check
+# below fails the build if the installed Node lacks any of the fixes.
 ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1
 FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
 
@@ -28,13 +28,13 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-brotli-cve.js /opt/nodejs-rpm/
+COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
 RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
     dnf -y upgrade && \
     bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
     nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
     dnf clean all && \
-    node /opt/nodejs-rpm/test-brotli-cve.js
+    node /opt/nodejs-rpm/test-node-security-fixes.js
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
