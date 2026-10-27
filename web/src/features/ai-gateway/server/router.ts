@@ -29,6 +29,7 @@ import {
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
+import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLabelsRepository";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
@@ -134,6 +135,16 @@ export const aiGatewayRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       requireGatewayRead({ session: ctx.session, orgId: input.orgId });
       return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
+  /** Names for the API key and user IDs that gateway analytics break down by. */
+  getAnalyticsLabels: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels(
+        input.orgId,
+      );
     }),
 
   /** What a key owner needs to point a client at the gateway; no connection details. */

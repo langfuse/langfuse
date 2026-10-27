@@ -926,6 +926,37 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("names analytics keys and users of the organization for managers only", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    await other.caller.aiGateway.createApiKey({
+      orgId: other.org.id,
+      name: "Other org key",
+      metadata: {},
+    });
+
+    const labels = await owner.caller.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+
+    expect(labels.apiKeys).toEqual([
+      { id: memberKey.id, name: "Member key", detail: expect.any(String) },
+    ]);
+    expect(labels.users.map((user) => user.name).sort()).toEqual([
+      "Gateway member",
+      "Gateway tester",
+    ]);
+    await expect(
+      member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
