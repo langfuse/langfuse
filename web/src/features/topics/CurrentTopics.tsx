@@ -12,6 +12,10 @@ import { TopicGridView } from "./TopicGridView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { MobileTopicsView } from "./MobileTopicsView";
 
 export function CurrentTopics({
   projectId,
@@ -46,7 +50,7 @@ export function CurrentTopics({
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {selectedFacet && (
         <CurrentFacet
-          key={JSON.stringify([projectId, selectedFacet.facetId])}
+          key={projectId}
           projectId={projectId}
           facet={selectedFacet}
           timeRange={timeRange}
@@ -71,9 +75,12 @@ function CurrentFacet({
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentFacetProps) {
+  const isHandheld = useIsHandheld();
   const mapResult = useCurrentTopicMap(
     projectId,
-    view === "treemap" ? undefined : facet.map?.runId,
+    view === "treemap" || view === "treemap-side"
+      ? undefined
+      : facet.map?.runId,
     timeRange,
   );
   const peekNavigation = usePeekNavigation({
@@ -82,19 +89,36 @@ function CurrentFacet({
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
-  if (view === "treemap")
+  if (isHandheld)
+    return (
+      <MobileTopics
+        projectId={projectId}
+        facet={facet}
+        view={view === "treemap-side" ? "treemap" : view}
+        mapResult={mapResult}
+        traceFilters={traceFilters}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        onOpenTrace={peekNavigation.openPeek}
+      />
+    );
+  if (view === "treemap" || view === "treemap-side")
     return (
       <TopicTreemapView
+        key={facet.facetId}
         projectId={projectId}
         facet={facet}
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
         peekView={peekView}
+        sideBySide={view === "treemap-side"}
+        tracePanelRef={tracePanelRef}
       />
     );
   if (view === "map")
     return (
       <CurrentTopicsView
+        key={facet.facetId}
         projectId={projectId}
         facet={facet}
         mapResult={mapResult}
@@ -108,6 +132,7 @@ function CurrentFacet({
     );
   return (
     <TopicGridView
+      key={facet.facetId}
       projectId={projectId}
       facet={facet}
       mapResult={mapResult}
@@ -116,6 +141,51 @@ function CurrentFacet({
       canGenerateTopics={canGenerateTopics}
       onOpenTrace={peekNavigation.openPeek}
       peekView={peekView}
+    />
+  );
+}
+
+function MobileTopics({
+  projectId,
+  facet,
+  view,
+  mapResult,
+  traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
+  onOpenTrace,
+}: Pick<
+  CurrentFacetProps,
+  | "projectId"
+  | "facet"
+  | "view"
+  | "traceFilters"
+  | "onGenerateTopics"
+  | "canGenerateTopics"
+> & {
+  mapResult: ReturnType<typeof useCurrentTopicMap>;
+  onOpenTrace: (traceId: string) => void;
+}) {
+  const { isV4 } = useReadPath();
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
+  return (
+    <MobileTopicsView
+      projectId={projectId}
+      facet={facet}
+      view={view}
+      mapResult={mapResult}
+      filters={traceFilters.filters}
+      searchQuery={traceFilters.searchQuery}
+      onFiltersChange={traceFilters.setFilters}
+      onSearchQueryChange={traceFilters.setSearchQuery}
+      selectedTraceId={selectedTraceId}
+      onSelectTrace={setSelectedTraceId}
+      onOpenTrace={onOpenTrace}
+      onGenerateTopics={onGenerateTopics}
+      canGenerateTopics={canGenerateTopics}
+      isV4={isV4}
     />
   );
 }
@@ -165,7 +235,15 @@ function useCurrentTopicMap(
 ) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "", timeRange },
-    { enabled: Boolean(runId) },
+    {
+      enabled: Boolean(runId),
+      // A moved time range keeps the map (and its camera) up; a different run starts fresh.
+      placeholderData: (previous, previousQuery) =>
+        (previousQuery?.queryKey?.[1] as { input?: { runId?: string } })?.input
+          ?.runId === runId
+          ? previous
+          : undefined,
+    },
   );
 }
 

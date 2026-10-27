@@ -2,7 +2,7 @@
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { type AutomaticProcessingState } from "./AutomaticProcessingControl";
+import { type AutomaticProcessingState } from "./prepare-topics-actions";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
@@ -40,7 +40,7 @@ function useSetAutomaticProcessing(projectId: string) {
   });
 }
 
-export function automaticProcessingState(
+function automaticProcessingState(
   stored: StoredSettings | undefined,
   rule: TopicRule | null,
 ): AutomaticProcessingState {

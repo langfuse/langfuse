@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { renderHook } from "@testing-library/react";
+import { useSession } from "next-auth/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
@@ -110,6 +111,8 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: vi.fn(),
 }));
 
+vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
   api: { aiGateway: { getSetupStatus: { useQuery: getSetupStatusQuery } } },
@@ -118,6 +121,7 @@ vi.mock("@/src/utils/api", () => ({
 vi.mock("@/src/features/ai-gateway", () => ({
   GatewayApiKeysPage: () => null,
   GatewayModelsPage: () => null,
+  GatewayNotDeployedNotice: () => null,
   GatewaySetupPage: () => null,
 }));
 
@@ -142,6 +146,11 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
     vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: true },
       isPending: false,

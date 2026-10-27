@@ -150,6 +150,8 @@ export class GatewayApiKeyAuthenticator {
       organizationId,
       apiKeyId: row.id,
       userId: row.userId,
+      apiKeyName: row.note || null,
+      userName: row.user?.name || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)

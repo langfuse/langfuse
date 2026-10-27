@@ -13,7 +13,7 @@ use tokio::time::Instant;
 
 use crate::{
     correlation::RequestCorrelation,
-    resolution::{ApiFormat, IngestionMode, MetadataValue, ProjectId, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
     telemetry,
 };
 use anthropic_messages::AnthropicMessagesCapture;
@@ -100,6 +100,9 @@ pub(crate) struct ExecutionCapture {
     first_byte_ms: Option<u128>,
     completion_start_ms: Option<u128>,
     http_status: Option<u16>,
+    retry_after_ms: Option<u64>,
+    request_body_bytes: usize,
+    response_body_bytes: u64,
     metadata: Value,
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
@@ -118,6 +121,9 @@ impl ExecutionCapture {
             first_byte_ms: None,
             completion_start_ms: None,
             http_status: None,
+            retry_after_ms: None,
+            request_body_bytes: 0,
+            response_body_bytes: 0,
             metadata: json!({}),
             provider_model: None,
             delivery: None,
@@ -166,12 +172,18 @@ impl ExecutionCapture {
             first_byte_ms: None,
             completion_start_ms: None,
             http_status: None,
+            retry_after_ms: None,
+            request_body_bytes: body.len(),
+            response_body_bytes: 0,
             metadata: json!({
                 "organization_id": attribution.organization_id().as_str(),
-                "project_id": attribution.project_id().map(ProjectId::as_str),
                 "key_id": attribution.key_id(),
-                "user_id": attribution.user_id(),
+                "key_name": attribution.key_name().and_then(bounded_string),
+                "key_owner_user_id": attribution.user_id(),
+                "key_owner_name": attribution.user_name().and_then(bounded_string),
                 "provider_connection_id": attribution.provider_connection_id(),
+                "connection_name": context.connection().name().and_then(bounded_string),
+                "provider": context.connection().provider().as_str(),
                 "key_metadata": key_metadata,
                 "ingestion_mode": context.ingestion_mode().as_str(),
             }),
@@ -211,12 +223,16 @@ impl ExecutionCapture {
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
+            self.retry_after_ms = retry_after_ms(headers);
             protocol.record_response(headers);
         }
     }
 
     pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
+            self.response_body_bytes = self
+                .response_body_bytes
+                .saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
             if !bytes.is_empty() {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
@@ -241,13 +257,7 @@ impl ExecutionCapture {
         let Some(protocol) = self.protocol.take() else {
             return;
         };
-        let (api_format, mut inference) = protocol.into_facts();
-        if let Some(provider_model) = self.provider_model.take() {
-            if inference.model == inference.requested_model {
-                inference.model = Some(provider_model.clone());
-            }
-            inference.requested_model = Some(provider_model);
-        }
+        let (api_format, inference) = protocol.into_facts();
         let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
@@ -255,6 +265,10 @@ impl ExecutionCapture {
             first_byte_ms: self.first_byte_ms,
             completion_start_ms: self.completion_start_ms,
             http_status: self.http_status,
+            retry_after_ms: self.retry_after_ms,
+            upstream_model: self.provider_model.take(),
+            request_body_bytes: self.request_body_bytes,
+            response_body_bytes: self.response_body_bytes,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             inference,
@@ -289,6 +303,18 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>,
     })
 }
 
+/// Only the delay-seconds form; an HTTP-date would make the value depend on clock skew.
+fn retry_after_ms(headers: &HeaderMap) -> Option<u64> {
+    headers
+        .get(header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(|seconds| seconds.saturating_mul(1000))
+}
+
 fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
 }
@@ -298,4 +324,27 @@ fn identity_encoding(headers: &HeaderMap) -> bool {
         .get_all(header::CONTENT_ENCODING)
         .iter()
         .all(|v| v.to_str().is_ok_and(|v| v.eq_ignore_ascii_case("identity")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_after_accepts_only_delay_seconds() {
+        for (value, expected) in [
+            (Some("30"), Some(30_000)),
+            (Some(" 0 "), Some(0)),
+            (Some("Wed, 21 Oct 2026 07:28:00 GMT"), None),
+            (Some("-1"), None),
+            (Some("1.5"), None),
+            (None, None),
+        ] {
+            let mut headers = HeaderMap::new();
+            if let Some(value) = value {
+                headers.insert(header::RETRY_AFTER, value.parse().unwrap());
+            }
+            assert_eq!(retry_after_ms(&headers), expected, "{value:?}");
+        }
+    }
 }

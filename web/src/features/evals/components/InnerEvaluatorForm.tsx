@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   tracesTableColsWithOptions,
   singleFilterList,
@@ -924,12 +924,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <Badge
-                                  variant="secondary"
-                                  className="border-border border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
+                                <Badge color="filled" text="Legacy" />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1009,12 +1004,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <Badge
-                            variant="secondary"
-                            className="border-border border font-normal"
-                          >
-                            Legacy
-                          </Badge>
+                          <Badge color="filled" text="Legacy" />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

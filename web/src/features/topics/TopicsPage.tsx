@@ -1,11 +1,10 @@
 /* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
-import { Settings } from "@langfuse/icons";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -17,26 +16,17 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { Button as PopoverButton } from "@/src/components/ui/button";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/src/components/ui/sheet";
-import { PopoverController } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
-  type TopicExecutionStatus,
-  type TopicFacetOutcome,
   type TopicOperation,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
@@ -44,14 +34,16 @@ import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
   useTopicsResultsView,
 } from "./TopicsResultsViewSelect";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
@@ -62,9 +54,14 @@ import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
+import { prepareTopicsActions } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { TopicRunDetails } from "./TopicRunDetails";
+import { TopicRunHistoryList } from "./TopicRunHistoryList";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
+import { busy, operationLabels } from "./topic-run-labels";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -74,39 +71,9 @@ const topicsTimeRangePresets = sharedTimeRangePresets.filter(
   (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
 );
 
-const operationLabels: Record<TopicOperation, string> = {
-  process: "Process traces",
-  update: "Update topics",
-};
-const busy = (status: string) => status === "queued" || status === "running";
-const executionLabels: Record<TopicExecutionStatus, string> = {
-  queued: "Run queued",
-  running: "Run in progress",
-  completed: "Run complete",
-  completed_with_errors: "Run finished with issues",
-  failed: "Run failed",
-};
-const executionPhaseLabels: Record<string, string> = {
-  queued: "Waiting for a worker",
-  summarizing: "Preparing summaries and embeddings",
-  clustering: "Clustering summaries",
-  naming: "Naming topics",
-  assigning: "Assigning traces to topics",
-  processing: "Processing facets",
-};
-const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
-  pending: "Waiting for results",
-  published: "Topics ready",
-  assigned: "Traces assigned",
-  awaiting_topics: "Awaiting topics",
-  insufficient_data: "More traces needed",
-  no_applicable_summaries: "No applicable traces",
-  no_topics: "No topics found",
-  failed: "Facet failed",
-};
 const loadingPage = (
-  <Page headerProps={{ title: "Topics" }} withPadding>
-    <p>Loading topics…</p>
+  <Page headerProps={{ title: "Topics" }}>
+    <Spinner message="Loading topics" />
   </Page>
 );
 
@@ -244,6 +211,17 @@ function TopicsWorkspaceContent({
     fallback: "last7Days",
   });
   const [refreshedAt, setRefreshedAt] = useState(Date.now);
+  // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
+  useEffect(() => {
+    function refreshOnVisible() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      setRefreshedAt((previous) => (now - previous > 60_000 ? now : previous));
+    }
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, []);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -270,39 +248,25 @@ function TopicsWorkspaceContent({
     },
   );
   const [mountedAt] = useState(Date.now);
-  const [acknowledgedSetupId, setAcknowledgedSetupId] = useState<string | null>(
-    null,
-  );
   const setupRun = topicSetupRun(executions.data ?? []);
   const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A run that finished before this visit is not replayed; results show instead.
+  // A finished run hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setupRun !== null &&
     setup !== null &&
-    setupRun.process.id !== acknowledgedSetupId &&
     (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      Date.parse((setupRun.update ?? setupRun.process).updatedAt) > mountedAt);
-  const setupRunIds =
-    setupRun?.update?.facets.flatMap((facet) =>
-      facet.runId ? [facet.runId] : [],
-    ) ?? [];
-  const setupTopicCounts = api.topics.setupTopicCounts.useQuery(
-    { projectId, runIds: setupRunIds },
-    { enabled: setup?.stage === "done" && setupRunIds.length > 0 },
-  );
+      (setup.stage === "failed" &&
+        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
+          mountedAt));
   const setupRetry = api.topics.retry.useMutation({
     onSuccess: () => utils.topics.executions.invalidate({ projectId }),
   });
-  // A run worth inspecting: the one that failed, or a topic run with failed facets.
   const setupDetailsId =
-    setupRun && setup ? detailsRunId(setupRun, setup) : null;
-  const setupFacets =
-    setupRun?.process.facets.map((facet) => {
-      const update = setupRun.update?.facets.find(
-        (item) =>
-          item.facetId === facet.facetId &&
-          item.facetVersion === facet.facetVersion,
-      );
+    setupRun && setup?.stage === "failed"
+      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
+      : null;
+  const runFacets = (run: typeof setupRun) =>
+    run?.process.facets.map((facet) => {
       return {
         key: `${facet.facetId}:${facet.facetVersion}`,
         name:
@@ -310,12 +274,14 @@ function TopicsWorkspaceContent({
           "Facet",
         complete: facet.counts.complete,
         requested: facet.counts.requested,
-        outcome: update?.outcome ?? null,
-        topicCount:
-          setupTopicCounts.data?.find((count) => count.runId === update?.runId)
-            ?.topicCount ?? null,
       };
     }) ?? [];
+  const setupFacets = runFacets(setupRun);
+  const busyProcess =
+    (executions.data ?? []).find(
+      (execution) =>
+        execution.input.operation === "process" && busy(execution.status),
+    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -324,10 +290,16 @@ function TopicsWorkspaceContent({
     { projectId, executionId: executionId ?? "" },
     {
       enabled: executionId !== null,
+      // The list already has this run, so the panel renders without a loading flash.
+      placeholderData: () =>
+        executions.data?.find((execution) => execution.id === executionId),
       refetchInterval: (query) =>
         !query.state.data || busy(query.state.data.status) ? 1500 : false,
     },
   );
+  const selectedRunTitle = selectedExecution.data
+    ? operationLabels[selectedExecution.data.input.operation]
+    : "Run";
   const completedAt = Math.max(
     0,
     ...[...(executions.data ?? []), selectedExecution.data].flatMap(
@@ -390,12 +362,7 @@ function TopicsWorkspaceContent({
     results.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
-  const refreshResults = () => {
-    setRefreshedAt(Date.now());
-    utils.topics.currentResults.invalidate({ projectId });
-  };
   const openExecution = (id: string) => {
-    setHistoryOpen(false);
     router.push(
       {
         pathname: router.pathname,
@@ -469,9 +436,6 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
-        function openManualProcessing() {
-          openManual("process");
-        }
         function openTopicGeneration() {
           openManual("update");
         }
@@ -486,11 +450,35 @@ function TopicsWorkspaceContent({
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
+        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+        const landingRun =
+          showLanding && !showSetupProgress && busyProcess
+            ? { process: busyProcess, update: null }
+            : null;
+        const waitingForTraces =
+          showLanding &&
+          !showSetupProgress &&
+          !landingRun &&
+          modelSettings.automaticProcessing.state.status === "on";
         const showOnboarding = showSetupProgress || showLanding;
+        const landingOnly =
+          showLanding && !showSetupProgress && !setupBlockedReason;
+        const actions = prepareTopicsActions({
+          automaticProcessing,
+          canWrite,
+          configureAvailable: modelSettings.configure.settings !== null,
+          regenerateAvailable: pipeline.available,
+          menuOnly: landingOnly,
+          onAutomaticProcessing: openAutomaticProcessingFromHeader,
+          onConfigure: configured ? openConfigure : openSetup,
+          onRegenerate: openTopicGeneration,
+          onHistory: openHistory,
+        });
         return (
           <Page
             headerProps={{
               title: "Topics",
+              className: "@container/topics-header",
               actionButtonsLeft: showOnboarding ? null : (
                 <div className="flex items-center gap-3">
                   {validTimeRange && headerFacetId && (
@@ -500,7 +488,7 @@ function TopicsWorkspaceContent({
                       onSelectFacet={traceFilters.selectFacet}
                     />
                   )}
-                  <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-sm whitespace-nowrap">
                     Visualize as
                     <TopicsResultsViewSelect
                       value={resultsView}
@@ -509,50 +497,10 @@ function TopicsWorkspaceContent({
                   </span>
                 </div>
               ),
-              actionButtonsRight: (
-                <TopicsHeaderActions
-                  automaticProcessing={automaticProcessing}
-                  configure={modelSettings.configure}
-                  configured={configured}
-                  canWrite={canWrite}
-                  manualAvailable={pipeline.available}
-                  openManual={openManualProcessing}
-                  onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                  onConfigure={configured ? openConfigure : openSetup}
-                  onHistory={openHistory}
-                  onRefresh={refreshResults}
-                />
+              actionButtonsRight: <TopicsHeaderActions actions={actions} />,
+              actionButtonsMenu: ({ closeMenu }) => (
+                <TopicsActionsMenu actions={actions} closeMenu={closeMenu} />
               ),
-              actionButtonsMenu: ({ closeMenu }) => {
-                function handleConfigureFromMenu() {
-                  closeMenu();
-                  openConfigure();
-                }
-                return (
-                  <TopicsActionsMenu
-                    triggerAction={
-                      pipeline.available
-                        ? {
-                            label: "Manual processing",
-                            disabled: false,
-                            onSelect: openManualProcessing,
-                          }
-                        : null
-                    }
-                    closeMenu={closeMenu}
-                    onOpenHistory={openHistory}
-                    onRefresh={refreshResults}
-                  >
-                    {configured ? (
-                      <HeaderActionMenuRow
-                        label="Configure Topics"
-                        icon={<Settings size="base" color="default" />}
-                        onClick={handleConfigureFromMenu}
-                      />
-                    ) : null}
-                  </TopicsActionsMenu>
-                );
-              },
             }}
           >
             {!showOnboarding && (
@@ -570,9 +518,20 @@ function TopicsWorkspaceContent({
             <div
               className={cn(
                 "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                (showOnboarding || resultsView === "map") && "p-2",
+                showOnboarding && "p-2",
               )}
             >
+              {!showOnboarding && validTimeRange && headerFacetId && (
+                <div className="shrink-0 px-3 pt-2 md:hidden">
+                  <TopicsMobileControls
+                    facets={results.data?.facets ?? []}
+                    selectedFacet={headerFacetId}
+                    onSelectFacet={traceFilters.selectFacet}
+                    view={resultsView}
+                    onSelectView={setResultsView}
+                  />
+                </div>
+              )}
               {isTimeRangeCapped && (
                 <p
                   role="status"
@@ -585,7 +544,7 @@ function TopicsWorkspaceContent({
                 </p>
               )}
               {!validTimeRange && (
-                <ErrorMessage message="Select a time range of at most 90 days." />
+                <TopicsErrorMessage message="Select a time range of at most 90 days." />
               )}
               <TopicSetupNotice
                 notice={modelSettings.notice}
@@ -595,8 +554,31 @@ function TopicsWorkspaceContent({
                 startBlockedReason={setupBlockedReason}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={showLanding && !showSetupProgress}
+                showOnboarding={
+                  showLanding &&
+                  !showSetupProgress &&
+                  !landingRun &&
+                  !waitingForTraces
+                }
               />
+              {landingRun ? (
+                <TopicSetupProgressView
+                  stage={topicSetupStage(landingRun, Date.now()).stage}
+                  facets={runFacets(landingRun)}
+                  retrying={false}
+                  canRetry={false}
+                  onViewDetails={() => openExecution(landingRun.process.id)}
+                />
+              ) : null}
+              {waitingForTraces ? (
+                <TopicSetupProgressView
+                  waiting
+                  stage="summarizing"
+                  facets={[]}
+                  retrying={false}
+                  canRetry={false}
+                />
+              ) : null}
               {showSetupProgress && setup ? (
                 <TopicSetupProgressView
                   stage={setup.stage}
@@ -615,87 +597,43 @@ function TopicsWorkspaceContent({
                         executionId: setup.retryId,
                       });
                   }}
-                  onDisplayResults={() => {
-                    setAcknowledgedSetupId(setupRun.process.id);
-                    return utils.topics.invalidate();
-                  }}
                 />
               ) : null}
               <Sheet
                 open={historyOpen || executionId !== null}
                 onOpenChange={showExecutionList}
               >
-                <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-                  <SheetHeader>
-                    <SheetTitle>
-                      {executionId ? "Run status" : "Past executions"}
+                <SheetContent
+                  className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+                  aria-describedby={undefined}
+                >
+                  {executionId ? (
+                    <SheetTitle className="sr-only">
+                      {selectedRunTitle}
                     </SheetTitle>
-                    <SheetDescription>
-                      Review progress, costs, errors, and retry interrupted
-                      runs.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                  ) : (
+                    <SheetHeader className="border-b px-5 py-4">
+                      <SheetTitle>Run history</SheetTitle>
+                    </SheetHeader>
+                  )}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {executionId ? (
-                      <>
-                        <div className="self-start">
-                          <Button
-                            text="All runs"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => showExecutionList(true)}
-                          />
-                        </div>
-                        <ExecutionPanel
-                          key={executionId}
-                          projectId={projectId}
-                          executionId={executionId}
-                          query={selectedExecution}
-                          facets={facets.data ?? []}
-                          canWrite={canWrite}
-                        />
-                      </>
+                      <ExecutionPanel
+                        key={executionId}
+                        projectId={projectId}
+                        executionId={executionId}
+                        query={selectedExecution}
+                        facets={facets.data ?? []}
+                        canWrite={canWrite}
+                        onBack={() => showExecutionList(true)}
+                      />
                     ) : (
-                      <>
-                        <div className="self-end">
-                          <Button
-                            text="Refresh"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => executions.refetch()}
-                          />
-                        </div>
-                        {executions.error && (
-                          <ErrorMessage message={executions.error.message} />
-                        )}
-                        {!executions.data?.length && (
-                          <p className="text-muted-foreground text-sm">
-                            Your triggered batches will appear here.
-                          </p>
-                        )}
-                        {executions.data?.map((execution) => (
-                          <button
-                            key={execution.id}
-                            onClick={() => openExecution(execution.id)}
-                            className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                          >
-                            <span className="capitalize">
-                              {operationLabels[execution.input.operation]} ·{" "}
-                              {new Date(execution.createdAt).toLocaleString()}
-                            </span>
-                            <span>{execution.facets.length} facets</span>
-                            <Badge text={executionLabels[execution.status]} />
-                            {execution.input.operation === "process" && (
-                              <span className="text-muted-foreground w-full tabular-nums">
-                                Estimated cost:{" "}
-                                {estimatedExecutionCost(
-                                  execution.estimatedCost,
-                                )}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </>
+                      <TopicRunHistoryList
+                        executions={executions.data ?? []}
+                        errorMessage={executions.error?.message}
+                        onOpen={openExecution}
+                        onRetry={() => executions.refetch()}
+                      />
                     )}
                   </div>
                 </SheetContent>
@@ -731,7 +669,7 @@ function TopicsWorkspaceContent({
                 )}
                 {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
-                  <ErrorMessage message={facets.error.message} />
+                  <TopicsErrorMessage message={facets.error.message} />
                 )}
               </div>
             </div>
@@ -748,6 +686,7 @@ function ExecutionPanel({
   query,
   facets,
   canWrite,
+  onBack,
 }: {
   projectId: string;
   executionId: string;
@@ -757,6 +696,7 @@ function ExecutionPanel({
   >;
   facets: TopicFacet[];
   canWrite: boolean;
+  onBack: () => void;
 }) {
   const utils = api.useUtils();
   const retry = api.topics.retry.useMutation({
@@ -766,271 +706,61 @@ function ExecutionPanel({
         utils.topics.executions.invalidate({ projectId }),
       ]),
   });
-  const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
+  // Trace errors start expanded for failed runs until the user toggles them.
+  const [traceErrorsToggled, setTraceErrorsToggled] = useState<boolean | null>(
+    null,
+  );
+  const execution = query.data;
+  const traceErrorsOpen =
+    traceErrorsToggled ??
+    (execution?.status === "failed" &&
+      execution.facets.some((facet) => facet.counts.failed > 0));
   const traceErrors = api.topics.traceErrors.useQuery(
     { projectId, executionId },
     { enabled: traceErrorsOpen },
   );
-  const execution = query.data;
-  if (query.error) return <ErrorMessage message={query.error.message} />;
-  if (!execution) return <p>Loading execution…</p>;
-  const isUpdate = execution.input.operation === "update";
-  const selectionDescription = isUpdate
-    ? `${execution.facets.reduce((count, facet) => count + facet.counts.requested, 0).toLocaleString()} stored facet summaries`
-    : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
-  const facetCount = execution.facets.length;
-  const operationLabel = operationLabels[execution.input.operation];
-  const modeLabel = (() => {
-    if (execution.input.operation !== "update")
-      return "Assign to current topics";
-    return execution.input.exploratory ? "Small sample" : "Standard";
-  })();
-  const selectionPrefix = (() => {
-    if (execution.status === "running") return "Running on ";
-    if (execution.status === "queued") return "Queued for ";
-    return "Run selection: ";
-  })();
-  return (
-    <section className="flex w-full min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge text={executionLabels[execution.status]} />
-          {execution.input.operation === "update" &&
-            execution.input.exploratory && (
-              <Badge text="Small sample · provisional" />
-            )}
-        </div>
-        <PopoverController
-          align="end"
-          contentClassName="w-80 max-w-[calc(100vw-2rem)]"
-          disabled={false}
-          modal={false}
-          renderContent={() => (
-            <div className="ph-no-capture flex flex-col gap-3 text-sm">
-              <h3 className="font-bold">Run details</h3>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <dt className="text-muted-foreground">Triggered</dt>
-                <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
-                <dt className="text-muted-foreground">Operation</dt>
-                <dd>{operationLabel}</dd>
-                <dt className="text-muted-foreground">Mode</dt>
-                <dd>{modeLabel}</dd>
-                <dt className="text-muted-foreground">Last step</dt>
-                <dd className="capitalize">
-                  {execution.phase.replaceAll("_", " ")}
-                </dd>
-                <dt className="text-muted-foreground">Embedding dimensions</dt>
-                <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
-                {execution.input.operation === "update" && (
-                  <>
-                    <dt className="text-muted-foreground">
-                      Minimum traces for clustering
-                    </dt>
-                    <dd>
-                      {execution.input.minimumTraceCount ??
-                        (execution.input.exploratory ? 10 : 100)}
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          )}
-        >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <PopoverButton variant="ghost" size="sm">
-                Run details
-              </PopoverButton>
-            </Trigger>
-          )}
-        </PopoverController>
-      </div>
-      <div
-        className="flex flex-col gap-1"
-        role={busy(execution.status) ? "status" : undefined}
-      >
-        <p className="text-sm">
-          {operationLabel} · {selectionPrefix}
-          {selectionDescription} across {facetCount.toLocaleString()}{" "}
-          {facetCount === 1 ? "facet" : "facets"}.
-        </p>
-        {busy(execution.status) && (
-          <p className="text-muted-foreground text-sm">
-            {executionPhaseLabels[execution.phase] ??
-              execution.phase.replaceAll("_", " ")}
-            . Counts update after each processing batch. You can leave this page
-            and reopen the run.
-          </p>
-        )}
-      </div>
-      {!isUpdate && (
-        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
-          <p className="flex items-center justify-between gap-3">
-            <span className="font-bold">Estimated cost</span>
-            <span className="tabular-nums">
-              {estimatedExecutionCost(execution.estimatedCost)}
-            </span>
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Estimated cost for this run’s currently stored summaries and
-            embeddings. Costs may decrease when summaries are reused,
-            reprocessed, or deleted.
-          </p>
-        </section>
-      )}
-      {execution.error && <ErrorMessage message={execution.error} />}
-      {execution.facets.some((facet) => facet.counts.failed > 0) && (
-        <details
-          className="ph-no-capture text-sm"
-          onToggle={(event) => setTraceErrorsOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer">Trace errors</summary>
-          {traceErrorsOpen && (
-            <div className="flex flex-col gap-2 pt-2">
-              {traceErrors.isPending && <p>Loading trace errors…</p>}
-              {traceErrors.error && (
-                <ErrorMessage message={traceErrors.error.message} />
-              )}
-              {traceErrors.data?.expired && (
-                <p>
-                  Trace error details have expired. The run counts are still
-                  available.
-                </p>
-              )}
-              {traceErrors.data?.errors.map((item) => (
-                <p
-                  key={`${item.traceId}:${item.error}`}
-                  className="break-words"
-                >
-                  <TextLink
-                    path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                    value={item.traceId}
-                  />
-                  : {item.error}
-                </p>
-              ))}
-              {traceErrors.data &&
-                !traceErrors.data.expired &&
-                traceErrors.data.errors.length === 0 && (
-                  <p>No trace-level errors were recorded.</p>
-                )}
-            </div>
-          )}
-        </details>
-      )}
-      {canWrite &&
-        !busy(execution.status) &&
-        (execution.status === "failed" ||
-          (execution.status === "completed_with_errors" &&
-            execution.facets.some(
-              (facet) =>
-                facet.outcome === "pending" || facet.outcome === "failed",
-            ))) && (
-          <div className="self-start">
-            <Button
-              text="Resume interrupted stages"
-              disabled={retry.isPending}
-              onClick={() => retry.mutate({ projectId, executionId })}
-            />
-          </div>
-        )}
-      {retry.error && <ErrorMessage message={retry.error.message} />}
-      {execution.facets.map((progress) => {
-        const facet = facets.find((item) => item.id === progress.facetId);
-        return (
-          <div
-            key={`${progress.facetId}:${progress.facetVersion}`}
-            className="flex flex-col gap-3 border-t pt-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold">{facet?.name ?? "Facet"}</h3>
-              <Badge text={facetOutcomeLabels[progress.outcome]} />
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {[
-                `${progress.counts.complete.toLocaleString()} / ${progress.counts.requested.toLocaleString()} traces have summaries and embeddings ready`,
-                ...(progress.runId
-                  ? [
-                      `${progress.counts.assigned.toLocaleString()} assigned`,
-                      `${progress.counts.outlier.toLocaleString()} outliers`,
-                    ]
-                  : []),
-                ...(progress.counts.nonApplicable
-                  ? [
-                      `${progress.counts.nonApplicable.toLocaleString()} not applicable`,
-                    ]
-                  : []),
-                ...(progress.counts.insufficientInput
-                  ? [
-                      `${progress.counts.insufficientInput.toLocaleString()} insufficient input`,
-                    ]
-                  : []),
-                `${progress.counts.failed.toLocaleString()} failed`,
-              ].join(" · ")}
-            </p>
-            {progress.outcome === "awaiting_topics" && (
-              <p className="text-sm">
-                {progress.counts.complete.toLocaleString()} summaries are ready.
-                Run Update topics to create topics for this facet and embedding
-                configuration.
-              </p>
-            )}
-            {progress.error &&
-              (progress.outcome === "published" ? (
-                <Alert variant="warning">
-                  <Alert.Description>{progress.error}</Alert.Description>
-                </Alert>
-              ) : (
-                <ErrorMessage message={progress.error} />
-              ))}
-            {progress.outcome === "insufficient_data" &&
-              execution.input.operation === "update" && (
-                <p className="text-sm">
-                  Clustering needs at least{" "}
-                  {execution.input.minimumTraceCount ??
-                    (execution.input.exploratory ? 10 : 100)}{" "}
-                  compatible stored summaries for this facet. Process more
-                  traces or lower the minimum when starting a new update.
-                </p>
-              )}
-            {progress.outcome === "no_topics" && (
-              <p className="text-sm">
-                No stable groups found. Inspect the summaries, adjust the facet,
-                or try a larger and more varied batch.
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {!busy(execution.status) && (
-        <div className="self-start">
-          <Button
-            text="Refresh status"
+  if (query.error || !execution) {
+    return (
+      <>
+        <header className="flex items-center border-b py-3.5 pr-12 pl-3">
+          <IconButton
+            icon={ChevronLeft}
+            label="All runs"
             variant="ghost"
-            onClick={() => {
-              query.refetch();
-              utils.topics.currentResults.invalidate({ projectId });
-              utils.topics.executions.invalidate({ projectId });
-              utils.topics.summaryCounts.invalidate({ projectId });
-            }}
+            size="sm"
+            onClick={onBack}
           />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function estimatedExecutionCost(cost: number | null) {
-  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
-}
-
-function ErrorMessage({ message }: { message: string }) {
+        </header>
+        {query.error ? (
+          <div className="p-4">
+            <TopicsErrorMessage message={query.error.message} />
+          </div>
+        ) : (
+          <p className="p-4 text-sm">Loading execution…</p>
+        )}
+      </>
+    );
+  }
   return (
-    <Alert variant="destructive">
-      <Alert.Description>
-        <p className="break-words">{message}</p>
-      </Alert.Description>
-    </Alert>
+    <TopicRunDetails
+      execution={execution}
+      facets={facets}
+      projectId={projectId}
+      canWrite={canWrite}
+      traceErrors={{
+        open: traceErrorsOpen,
+        onOpenChange: setTraceErrorsToggled,
+        isPending: traceErrors.isPending,
+        errorMessage: traceErrors.error?.message,
+        data: traceErrors.data,
+      }}
+      retry={{
+        isPending: retry.isPending,
+        errorMessage: retry.error?.message,
+        onRetry: () => retry.mutate({ projectId, executionId }),
+      }}
+      onBack={onBack}
+    />
   );
 }
 
@@ -1040,18 +770,4 @@ function startBlockedReason(running: boolean, automaticOn: boolean) {
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
-}
-
-function detailsRunId(
-  run: {
-    process: { id: string };
-    update: { id: string; facets: Array<{ outcome: string }> } | null;
-  },
-  setup: { stage: string; retryId: string | null },
-) {
-  if (setup.stage === "failed")
-    return setup.retryId ?? run.update?.id ?? run.process.id;
-  return run.update?.facets.some((facet) => facet.outcome === "failed")
-    ? run.update.id
-    : null;
 }

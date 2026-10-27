@@ -32,6 +32,14 @@ const isGatewayDeployed = (environment: GatewayAvailabilityEnvironment) =>
   Boolean(environment.cloudRegion) ||
   isDevelopmentOrPreview(environment);
 
+/**
+ * False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED,
+ * which is when the UI points operators to the self-hosting docs.
+ */
+export const isGatewayDeployedOnInstance = (
+  environment = getGatewayAvailabilityEnvironment(),
+): boolean => isGatewayDeployed(environment);
+
 /** Unset enables every organization, except on Langfuse Cloud. */
 const isEnabledForAllOrganizations = (
   environment: GatewayAvailabilityEnvironment,
