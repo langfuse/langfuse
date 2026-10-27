@@ -25,14 +25,9 @@ import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/Dropdo
 import {
   actionTypeLabel,
   AutomationForm,
-  availableActionTypes,
-  isInternalActionType,
+  useAvailableActionTypes,
   WebhookSecretRender,
 } from "@/src/features/automations";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,
@@ -273,7 +268,7 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
   const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
   const [createdSecret, setCreatedSecret] =
     useState<CreatedWebhookSecret | null>(null);
@@ -298,15 +293,11 @@ const AddAutomationDropdown = ({
             icon: Plus,
             onClick: () => setDraft({}),
           },
-          ...availableActionTypes(
-            ActionTypeSchema.options,
-            internalFeaturesEnabled,
-          ).map((actionType) => ({
+          ...actionTypes.map((actionType) => ({
             type: "item" as const,
             id: actionType,
             title: actionTypeLabel[actionType],
             icon: actionIcon[actionType],
-            badge: isInternalActionType(actionType) && <InternalFeatureBadge />,
             onClick: () => setDraft({ actionType }),
           })),
         ]}

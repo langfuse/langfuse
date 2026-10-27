@@ -24,6 +24,7 @@ import {
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
+import { env } from "@/src/env.mjs";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -3391,6 +3392,16 @@ describe("automations trpc", () => {
   describe("PagerDuty actions", () => {
     const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
     const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
+    const mutableEnv = env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string };
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    });
+
+    afterAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    });
 
     const createInput = (
       projectId: string,
@@ -3471,7 +3482,7 @@ describe("automations trpc", () => {
       });
     }
 
-    it("rejects project owners without internal view", async () => {
+    it("rejects users who are not Langfuse Cloud admins", async () => {
       const { project, session } = await prepare();
       const owner = callerWithUser(session, { admin: false });
 
@@ -3487,18 +3498,17 @@ describe("automations trpc", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
 
-    it("rejects admins who switched internal view off", async () => {
-      const { project, session } = await prepare();
-      const admin = callerWithUser(session, {
-        featureFlags: {
-          ...session.user!.featureFlags,
-          internalFeatures: false,
-        },
-      });
+    it("rejects admins on self-hosted instances", async () => {
+      const { project, caller } = await prepare();
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
-      await expect(
-        admin.automations.createAutomation(createInput(project.id)),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      try {
+        await expect(
+          caller.automations.createAutomation(createInput(project.id)),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+      }
     });
 
     it("rejects a create without a routing key", async () => {

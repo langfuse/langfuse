@@ -8,6 +8,26 @@ const sessionMock = vi.hoisted(() => ({ data: null as Session | null }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: sessionMock.data, status: "authenticated" }),
 }));
+const cloudRegion = vi.hoisted(() => ({
+  value: undefined as string | undefined,
+}));
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/env.mjs")>();
+  return {
+    env: new Proxy(actual.env, {
+      get: (target, key) =>
+        key === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION"
+          ? cloudRegion.value
+          : Reflect.get(target, key),
+    }),
+  };
+});
+
+/** signIn sets the session user's admin flag and the deployment's Cloud region. */
+const signIn = ({ admin, region }: { admin: boolean; region?: string }) => {
+  sessionMock.data = { expires: "1", user: { admin } } as unknown as Session;
+  cloudRegion.value = region;
+};
 
 const PROJECT_ID = "proj_test123";
 
@@ -26,6 +46,11 @@ const parsePrefill = (
 };
 
 describe("MonitorsOnboarding", () => {
+  afterEach(() => {
+    sessionMock.data = null;
+    cloudRegion.value = undefined;
+  });
+
   it("renders the splash header, step titles, and four CTAs", () => {
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
@@ -73,8 +98,8 @@ describe("MonitorsOnboarding", () => {
     }
   });
 
-  it("hides the PagerDuty CTA without internal view", () => {
-    sessionMock.data = null;
+  it("hides the PagerDuty CTA from users who are not admins", () => {
+    signIn({ admin: false, region: "EU" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
@@ -82,20 +107,24 @@ describe("MonitorsOnboarding", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the PagerDuty CTA with the Internal badge to admins", () => {
-    sessionMock.data = {
-      expires: "1",
-      user: { admin: true, featureFlags: {} },
-      environment: { enableExperimentalFeatures: false },
-    } as unknown as Session;
+  it("hides the PagerDuty CTA from admins on self-hosted instances", () => {
+    signIn({ admin: true });
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+
+    expect(
+      screen.queryByRole("link", { name: /Connect PagerDuty/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the PagerDuty CTA to Langfuse Cloud admins", () => {
+    signIn({ admin: true, region: "EU" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const link = screen.getByRole("link", { name: /Connect PagerDuty/i });
-    expect(link).toHaveTextContent("Internal");
+    expect(link).not.toHaveTextContent("Internal");
     expect(parsePrefill(link.getAttribute("href")!).actionType).toBe(
       "PAGERDUTY",
     );
-    sessionMock.data = null;
   });
 
   it("links the Create Alert CTA to the project's new-alert route", () => {

@@ -22,11 +22,12 @@ import {
   type PagerDutyRegion,
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
-import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import { env } from "@/src/env.mjs";
 
-/** throwIfPagerDutyUnavailable limits PagerDuty actions to users with internal view. */
+/** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud admins. */
 export function throwIfPagerDutyUnavailable(session: Session): void {
-  if (isInternalViewEnabled(session)) return;
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && session.user?.admin === true)
+    return;
   throw new ForbiddenError("PagerDuty actions are not available yet");
 }
 

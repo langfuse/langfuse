@@ -9,13 +9,8 @@ import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import {
   automationCreateHref,
-  availableActionTypes,
-  isInternalActionType,
+  useAvailableActionTypes,
 } from "@/src/features/automations";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -57,7 +52,12 @@ export function MonitorsOnboarding({
   projectId: string;
   hasCUDAccess: boolean;
 }) {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const actionTypes = useAvailableActionTypes(
+    channels.map((channel) => channel.actionType),
+  );
+  const visibleChannels = channels.filter((channel) =>
+    actionTypes.includes(channel.actionType),
+  );
 
   return (
     <div className="mx-auto w-full max-w-xl pt-12">
@@ -67,10 +67,10 @@ export function MonitorsOnboarding({
         steps={[
           {
             title: "Choose where alerts should go",
-            description: channelsDescription(internalFeaturesEnabled),
+            description: channelsDescription(actionTypes),
             content: (
               <div className="flex flex-col gap-2">
-                {visibleChannels(internalFeaturesEnabled).map((channel) => (
+                {visibleChannels.map((channel) => (
                   <Button
                     key={channel.actionType}
                     asChild
@@ -88,9 +88,6 @@ export function MonitorsOnboarding({
                       <span className="flex items-center gap-2">
                         {channel.icon}
                         {channel.label}
-                        {isInternalActionType(channel.actionType) && (
-                          <InternalFeatureBadge />
-                        )}
                       </span>
                       <DropdownIndicator direction="right" />
                     </Link>
@@ -121,20 +118,9 @@ export function MonitorsOnboarding({
   );
 }
 
-/** visibleChannels drops channels whose action type is limited to internal view. */
-function visibleChannels(
-  internalFeaturesEnabled: boolean,
-): OnboardingChannel[] {
-  const actionTypes = availableActionTypes(
-    channels.map((channel) => channel.actionType),
-    internalFeaturesEnabled,
-  );
-  return channels.filter((channel) => actionTypes.includes(channel.actionType));
-}
-
 /** channelsDescription names the channels the user can connect. */
-function channelsDescription(internalFeaturesEnabled: boolean): string {
-  if (internalFeaturesEnabled) {
+function channelsDescription(actionTypes: ActionTypes[]): string {
+  if (actionTypes.includes("PAGERDUTY")) {
     return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
   }
   return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
