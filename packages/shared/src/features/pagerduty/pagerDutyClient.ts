@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { ApiError, ServiceUnavailableError } from "../../errors";
+import { backOff } from "exponential-backoff";
+
+import {
+  BaseError,
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+} from "../../errors";
+import { logger } from "../../server/logger";
 import { type PagerDutyRegion } from "./types";
 
 /** PAGERDUTY_EVENTS_HOSTS is the fixed allowlist of Events API hosts per service region. */
@@ -10,37 +20,32 @@ export const PAGERDUTY_EVENTS_HOSTS: Record<PagerDutyRegion, string> = {
 
 const summaryMaxLength = 1024;
 const requestTimeoutMs = 10_000;
+const maxAttempts = 4;
 
-/** sendPagerDutyAlertEvent enqueues an alert event at the region's `/v2/enqueue`. */
-export function sendPagerDutyAlertEvent(args: {
-  region: PagerDutyRegion;
-  event: PagerDutyAlertEvent;
-}): Promise<void> {
-  return post(
-    `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/enqueue`,
-    args.event,
-  );
-}
+/** pagerDutyClient sends events to the Events API of a routing key's region, retrying 429, 5xx and network errors. */
+export const pagerDutyClient = {
+  /** alert enqueues an alert event at the region's `/v2/enqueue`. */
+  alert(args: {
+    region: PagerDutyRegion;
+    event: PagerDutyAlertEvent;
+  }): Promise<void> {
+    return post(
+      `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/enqueue`,
+      args.event,
+    );
+  },
 
-/** sendPagerDutyChangeEvent posts a change event, which never pages anyone, to the region's `/v2/change/enqueue`. */
-export function sendPagerDutyChangeEvent(args: {
-  region: PagerDutyRegion;
-  event: PagerDutyChangeEvent;
-}): Promise<void> {
-  return post(
-    `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/change/enqueue`,
-    args.event,
-  );
-}
-
-/** isRetryablePagerDutyError reports whether a failed Events API call may succeed on retry: 429, 5xx and network errors. */
-export function isRetryablePagerDutyError(error: unknown): boolean {
-  if (error instanceof ServiceUnavailableError) return true;
-  return (
-    error instanceof ApiError &&
-    (error.httpCode === 429 || error.httpCode >= 500)
-  );
-}
+  /** change posts a change event, which never pages anyone, to the region's `/v2/change/enqueue`. */
+  change(args: {
+    region: PagerDutyRegion;
+    event: PagerDutyChangeEvent;
+  }): Promise<void> {
+    return post(
+      `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/change/enqueue`,
+      args.event,
+    );
+  },
+};
 
 /** truncatePagerDutySummary cuts a summary to the Events API limit. */
 export function truncatePagerDutySummary(summary: string): string {
@@ -48,8 +53,26 @@ export function truncatePagerDutySummary(summary: string): string {
   return `${summary.slice(0, summaryMaxLength - 3)}...`;
 }
 
-/** post sends one event to an Events API URL; a rejected event throws an ApiError with PagerDuty's status. */
+/** post sends one event to an Events API URL, retrying ServiceUnavailableErrors. */
 async function post(
+  url: string,
+  body: PagerDutyAlertEvent | PagerDutyChangeEvent,
+): Promise<void> {
+  await backOff(() => postOnce(url, body), {
+    numOfAttempts: maxAttempts,
+    retry: shouldRetry,
+  });
+}
+
+/** shouldRetry retries ServiceUnavailableErrors and logs each retry. */
+function shouldRetry(error: unknown): boolean {
+  if (!(error instanceof ServiceUnavailableError)) return false;
+  logger.warn(`Retrying PagerDuty event: ${error.message}`);
+  return true;
+}
+
+/** postOnce sends one event once and throws the base error matching a rejection. */
+async function postOnce(
   url: string,
   body: PagerDutyAlertEvent | PagerDutyChangeEvent,
 ): Promise<void> {
@@ -57,9 +80,9 @@ async function post(
   if (response.ok) return;
 
   const responseBody = (await response.text().catch(() => "")).slice(0, 1000);
-  throw new ApiError(
-    `PagerDuty returned ${response.status}: ${responseBody}`.trim(),
+  throw toPagerDutyError(
     response.status,
+    `PagerDuty returned ${response.status}: ${responseBody}`.trim(),
   );
 }
 
@@ -79,6 +102,23 @@ async function fetchEvent(
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Unknown error";
     throw new ServiceUnavailableError(`PagerDuty request failed: ${reason}`);
+  }
+}
+
+/** toPagerDutyError maps a rejected status to a base error; 429 and 5xx are ServiceUnavailableErrors. */
+function toPagerDutyError(status: number, message: string): BaseError {
+  if (status === 429 || status >= 500) {
+    return new ServiceUnavailableError(message);
+  }
+  switch (status) {
+    case 401:
+      return new UnauthorizedError(message);
+    case 403:
+      return new ForbiddenError(message);
+    case 404:
+      return new LangfuseNotFoundError(message);
+    default:
+      return new InvalidRequestError(message);
   }
 }
 

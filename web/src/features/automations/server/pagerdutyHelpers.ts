@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
-import { backOff } from "exponential-backoff";
-import { TRPCError } from "@trpc/server";
 
 import { type Session } from "next-auth";
 import {
-  ApiError,
+  BaseError,
   ForbiddenError,
+  InvalidRequestError,
   isPagerDutyActionConfig,
+  LangfuseConflictError,
   ServiceUnavailableError,
   type ActionCreate,
   type PagerDutyActionConfigWithSecrets,
@@ -15,9 +15,8 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  isRetryablePagerDutyError,
   maskPagerDutyRoutingKey,
-  sendPagerDutyAlertEvent,
+  pagerDutyClient,
   type PagerDutyAlertEvent,
   type PagerDutyRegion,
 } from "@langfuse/shared/pagerduty/server";
@@ -42,10 +41,7 @@ export async function processPagerDutyActionConfig({
   projectId: string;
 }): Promise<PagerDutyActionConfigWithSecrets> {
   if (actionConfig.type !== "PAGERDUTY") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid PagerDuty action configuration",
-    });
+    throw new InvalidRequestError("Invalid PagerDuty action configuration");
   }
 
   if (actionConfig.routingKey) {
@@ -59,10 +55,7 @@ export async function processPagerDutyActionConfig({
 
   const existing = await getStoredPagerDutyConfig({ actionId, projectId });
   if (!existing) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "PagerDuty routing key is required",
-    });
+    throw new InvalidRequestError("PagerDuty routing key is required");
   }
   return { ...existing, region: actionConfig.region };
 }
@@ -109,7 +102,7 @@ export async function sendPagerDutyTestEvent({
   ).toString();
 
   try {
-    await sendPagerDutyAlertEvent({
+    await pagerDutyClient.alert({
       region,
       event: {
         routing_key: key,
@@ -140,10 +133,9 @@ async function resolveTestRoutingKey({
   if (routingKey) return routingKey;
   const existing = await getStoredPagerDutyConfig({ actionId, projectId });
   if (!existing) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Enter a PagerDuty routing key to send a test event",
-    });
+    throw new InvalidRequestError(
+      "Enter a PagerDuty routing key to send a test event",
+    );
   }
   return decrypt(existing.routingKey);
 }
@@ -165,28 +157,21 @@ function buildTestEventPayload(
   };
 }
 
-/** toTestEventError maps a failed PagerDuty call to a user-facing tRPC error. */
+/** toTestEventError keeps outages as they are and turns any other PagerDuty rejection into an InvalidRequestError. */
 function toTestEventError(error: unknown, projectId: string): unknown {
-  if (!(error instanceof ApiError || error instanceof ServiceUnavailableError))
-    return error;
+  if (!(error instanceof BaseError)) return error;
   logger.warn("Failed to send PagerDuty test event", {
     projectId,
     status: error.httpCode,
     error: error.message,
   });
-  if (error instanceof ApiError && error.httpCode === 429) {
-    return new TRPCError({
-      code: "TOO_MANY_REQUESTS",
-      message: "PagerDuty rate-limited the test event. Try again shortly.",
-    });
-  }
-  return new TRPCError({
-    code: "BAD_REQUEST",
-    message: `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
-  });
+  if (error instanceof ServiceUnavailableError) return error;
+  return new InvalidRequestError(
+    `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
+  );
 }
 
-/** resolveTestEvent resolves the test incident, retrying 429, 5xx and network errors. */
+/** resolveTestEvent resolves the test incident and names its dedup key when that fails. */
 async function resolveTestEvent({
   region,
   routingKey,
@@ -199,29 +184,21 @@ async function resolveTestEvent({
   projectId: string;
 }): Promise<void> {
   try {
-    await backOff(
-      () =>
-        sendPagerDutyAlertEvent({
-          region,
-          event: {
-            routing_key: routingKey,
-            event_action: "resolve",
-            dedup_key: dedupKey,
-          },
-        }),
-      {
-        numOfAttempts: 4,
-        retry: isRetryablePagerDutyError,
+    await pagerDutyClient.alert({
+      region,
+      event: {
+        routing_key: routingKey,
+        event_action: "resolve",
+        dedup_key: dedupKey,
       },
-    );
+    });
   } catch (error) {
     logger.warn("Failed to resolve PagerDuty test event", {
       projectId,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new TRPCError({
-      code: "CONFLICT",
-      message: `PagerDuty opened the test incident but Langfuse could not resolve it. Resolve it in PagerDuty (dedup key ${dedupKey}).`,
-    });
+    throw new LangfuseConflictError(
+      `PagerDuty opened the test incident but Langfuse could not resolve it. Resolve it in PagerDuty (dedup key ${dedupKey}).`,
+    );
   }
 }

@@ -312,15 +312,12 @@ export const MonitorAlertSchema = z.object({
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
-  // optional: alerts queued before these fields existed lack them
   monitorName: z.string().optional(),
   metric: MetricSchema.optional(),
-  /** metricValue is the evaluated metric; null when the window had no data. */
   metricValue: z.number().nullable().optional(),
   thresholdOperator: MonitorThresholdOperatorSchema.optional(),
   alertThreshold: z.number().optional(),
   warningThreshold: z.number().nullable().optional(),
-  /** alertedAt is the monitor's alertedAt after this evaluation, which emitted this alert. */
   alertedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;

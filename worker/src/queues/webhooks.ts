@@ -46,9 +46,7 @@ import {
   buildMonitorAlertSlackMessage,
 } from "@langfuse/shared/monitors/server";
 import {
-  isRetryablePagerDutyError,
-  sendPagerDutyAlertEvent,
-  sendPagerDutyChangeEvent,
+  pagerDutyClient,
   type PagerDutyRegion,
 } from "@langfuse/shared/pagerduty/server";
 import { Processor, Job } from "bullmq";
@@ -1035,11 +1033,7 @@ async function executePagerDutyAction({
       return;
     }
     for (const event of events) {
-      await sendPagerDutyEventWithRetry({
-        event,
-        region: config.region,
-        actionId: automation.action.id,
-      });
+      await sendPagerDutyEvent(event, config.region);
     }
   } catch (error) {
     logger.error("Error executing PagerDuty action", error);
@@ -1088,40 +1082,16 @@ async function buildPagerDutyDelivery({
   });
 }
 
-/** sendPagerDutyEventWithRetry sends one event, retrying 429, 5xx and network errors. */
-async function sendPagerDutyEventWithRetry({
-  event,
-  region,
-  actionId,
-}: {
-  event: PagerDutyEvent;
-  region: PagerDutyRegion;
-  actionId: string;
-}) {
-  await backOff(() => sendPagerDutyEvent(event, region), {
-    numOfAttempts: 4,
-    retry: (error: unknown) => {
-      const isRetryable = isRetryablePagerDutyError(error);
-      if (isRetryable) {
-        logger.warn(
-          `Retrying PagerDuty delivery for action ${actionId}: ${String(error)}`,
-        );
-      }
-      return isRetryable;
-    },
-  });
-}
-
 /** sendPagerDutyEvent posts the event to the alert or change endpoint of the key's region. */
 async function sendPagerDutyEvent(
   event: PagerDutyEvent,
   region: PagerDutyRegion,
 ) {
   if (event.kind === "change") {
-    await sendPagerDutyChangeEvent({ region, event: event.event });
+    await pagerDutyClient.change({ region, event: event.event });
     return;
   }
-  await sendPagerDutyAlertEvent({ region, event: event.event });
+  await pagerDutyClient.alert({ region, event: event.event });
 }
 
 /** recordPagerDutyFailure records a non-retryable delivery failure and auto-disables the trigger like the other action types. */
