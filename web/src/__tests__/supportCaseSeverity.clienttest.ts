@@ -19,6 +19,7 @@ import {
 
 const ENTERPRISE = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
 const SELF_HOSTED_ENTERPRISE = "self-hosted:enterprise"; // same as ENTERPRISE
+const SELF_HOSTED_GOV = "self-hosted:gov"; // same as ENTERPRISE
 const TEAM = "cloud:team"; // may raise Sev-3 only
 const PRO = "cloud:pro"; // may raise Sev-3 only
 const LOW_TIER = "cloud:hobby"; // no case severity at all
@@ -34,6 +35,9 @@ describe("mapToPylonCaseSeverity", () => {
         severity: SEVERITY_1,
         plan: SELF_HOSTED_ENTERPRISE,
       }),
+    ).toBe("Sev-1");
+    expect(
+      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: SELF_HOSTED_GOV }),
     ).toBe("Sev-1");
   });
 

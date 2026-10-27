@@ -27,7 +27,7 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
-import type { GatewaySettingsSurface } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { GatewayCredentialSurface } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
@@ -41,7 +41,7 @@ export function ProviderDialogController({
 }: {
   organizationId: string;
   connection?: GatewayConnection;
-  surface: GatewaySettingsSurface;
+  surface: GatewayCredentialSurface;
   onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
@@ -178,6 +178,9 @@ export function ProviderDialogController({
       setNameDraft(name);
       await Promise.all([
         utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
+        utils.aiGateway.listModelConnections.invalidate({
+          orgId: organizationId,
+        }),
         utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
       ]);
       closeDialog();
