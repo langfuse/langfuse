@@ -462,7 +462,7 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       fontSize,
       opacity:
         visibility *
-        (readingTopic && readingTopic !== zone.id ? 0.32 : 0.45) *
+        (readingTopic && readingTopic !== zone.id ? 0.4 : 0.6) *
         (matchesFilters ? 1 : 0.15),
       detailOpacity,
     });
