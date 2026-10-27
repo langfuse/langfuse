@@ -530,7 +530,7 @@ mod tests {
         assert!(!attrs.contains_key("langfuse.trace.metadata"));
     }
 
-    // Langfuse copies this metadata key into the `ai_gateway_key_id` column for
+    // Langfuse stores this metadata key as the span's ingestion API key for
     // gateway uploads, so callers must never be able to set it.
     #[test]
     fn caller_headers_never_supply_the_gateway_key_id() {

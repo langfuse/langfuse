@@ -180,7 +180,10 @@ pub(super) struct Payload(Bytes);
 impl Payload {
     pub(super) fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
         let payload = json!({"resourceSpans": [{
-            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
+            "resource": {"attributes": [
+                {"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}},
+                {"key": "service.version", "value": {"stringValue": env!("CARGO_PKG_VERSION")}}
+            ]},
             "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]
         }]});
         let mut writer = BufWriter::with_capacity(
