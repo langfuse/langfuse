@@ -1,6 +1,8 @@
+import { AlertTriangle } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   DeleteProjectDialog,
@@ -27,6 +29,26 @@ export const Default = meta.story({
     confirmMessage: "acme/my-project",
     isPending: false,
     onSubmit: fn(),
+  },
+  render: renderDialog,
+});
+
+export const WithWarning = meta.story({
+  args: {
+    confirmMessage: "acme/my-project",
+    isPending: false,
+    onSubmit: fn(),
+    children: (
+      <Alert variant="warning" icon={AlertTriangle}>
+        <Alert.Title>AI Gateway ingestion project</Alert.Title>
+        <Alert.Description>
+          <p>
+            This project is the AI Gateway ingestion project of your
+            organization. Deleting it sets the gateway ingestion mode to None.
+          </p>
+        </Alert.Description>
+      </Alert>
+    ),
   },
   render: renderDialog,
 });

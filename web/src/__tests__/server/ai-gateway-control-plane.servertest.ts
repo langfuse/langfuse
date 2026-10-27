@@ -2092,7 +2092,7 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("blocks deletion of the default ingestion project", async () => {
+  it("sets ingestion to NONE when the default ingestion project is deleted", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
@@ -2101,14 +2101,43 @@ describe("AI gateway control plane", () => {
     });
 
     await expect(
-      caller.projects.deletionProtection({ projectId: project.id }),
+      caller.projects.deletionImpact({ projectId: project.id }),
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow("Select another ingestion project before deleting it");
+    ).resolves.toBe(true);
+
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+    await expect(
+      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
+    ).resolves.toMatchObject({
+      defaultIngestionProjectId: null,
+      ingestionMode: "NONE",
+    });
+    await expect(
+      caller.aiGateway.getSetupStatus({ orgId: org.id }),
+    ).resolves.toEqual({ isConfigured: true });
+  });
+
+  it("deletes a project still linked to the gateway while ingestion is NONE", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "NONE",
+    });
+
+    await expect(
+      caller.projects.delete({ projectId: project.id }),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
+    ).resolves.toMatchObject({
+      defaultIngestionProjectId: null,
+      ingestionMode: "NONE",
+    });
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {

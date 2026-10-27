@@ -1,9 +1,9 @@
-import { ExternalLink } from "@langfuse/icons";
+import { AlertTriangle } from "@langfuse/icons";
 import { type ReactNode } from "react";
-import { useRouter } from "next/router";
 
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -21,7 +21,6 @@ type DeleteProjectDialogControllerProps = {
 export function DeleteProjectDialogController({
   children,
 }: DeleteProjectDialogControllerProps) {
-  const router = useRouter();
   const capture = usePostHogClientCapture();
   const { project, organization } = useQueryProject();
   const confirmMessage = `${organization?.name}/${project?.name}`
@@ -31,7 +30,7 @@ export function DeleteProjectDialogController({
     projectId: project?.id,
     scope: "project:delete",
   });
-  const deletionProtection = api.projects.deletionProtection.useQuery(
+  const deletionImpact = api.projects.deletionImpact.useQuery(
     { projectId: project?.id ?? "" },
     { enabled: Boolean(project?.id) && hasAccess },
   );
@@ -53,41 +52,35 @@ export function DeleteProjectDialogController({
 
   return (
     <DialogController
-      renderDialog={() => {
-        if (
-          deletionProtection.data?.isGatewayIngestionProject &&
-          organization
-        ) {
-          return (
-            <Dialog
-              title="Project cannot be deleted"
-              text="This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it."
-              actions={[
-                {
-                  label: "Open AI Gateway settings",
-                  icon: ExternalLink,
-                  onClick: () =>
-                    router.push(
-                      `/organization/${organization.id}/settings/ai-gateway`,
-                    ),
-                },
-              ]}
-            />
-          );
-        }
-
-        return (
-          <DeleteProjectDialog
-            confirmMessage={confirmMessage}
-            isPending={deleteProject.isPending}
-            onSubmit={handleDelete}
-          />
-        );
-      }}
+      renderDialog={() => (
+        <DeleteProjectDialog
+          confirmMessage={confirmMessage}
+          isPending={deleteProject.isPending}
+          onSubmit={handleDelete}
+        >
+          {deletionImpact.data?.isGatewayIngestionProject && organization ? (
+            <Alert variant="warning" icon={AlertTriangle}>
+              <Alert.Title>AI Gateway ingestion project</Alert.Title>
+              <Alert.Description>
+                <p>
+                  This project is the AI Gateway ingestion project of your
+                  organization. Deleting it sets the gateway ingestion mode to
+                  None: gateway requests keep working but are not traced in
+                  Langfuse until you select a new ingestion project.
+                </p>
+                <TextLink
+                  path={`/organization/${organization.id}/settings/ai-gateway`}
+                  value="Open AI Gateway settings"
+                />
+              </Alert.Description>
+            </Alert>
+          ) : null}
+        </DeleteProjectDialog>
+      )}
     >
       {({ openDialog }) =>
         children({
-          hasAccess: hasAccess && !deletionProtection.isLoading,
+          hasAccess: hasAccess && !deletionImpact.isLoading,
           openDialog,
         })
       }
