@@ -3706,22 +3706,23 @@ describe("automations trpc", () => {
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
       });
 
-      it.each([429, 503])(
-        "maps a PagerDuty %i to SERVICE_UNAVAILABLE after retries",
-        async (status) => {
-          fetchSpy.mockResolvedValue(new Response("busy", { status }));
-          const { project, caller } = await prepare();
+      it.each([
+        [429, "TOO_MANY_REQUESTS"],
+        [502, "BAD_GATEWAY"],
+        [503, "SERVICE_UNAVAILABLE"],
+      ])("returns a PagerDuty %i as %s after retries", async (status, code) => {
+        fetchSpy.mockResolvedValue(new Response("busy", { status }));
+        const { project, caller } = await prepare();
 
-          await expect(
-            caller.automations.sendPagerDutyTestEvent({
-              projectId: project.id,
-              region: "US",
-              routingKey,
-            }),
-          ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
-          expect(fetchSpy).toHaveBeenCalledTimes(4);
-        },
-      );
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+          }),
+        ).rejects.toMatchObject({ code });
+        expect(fetchSpy).toHaveBeenCalledTimes(4);
+      });
     });
   });
 });

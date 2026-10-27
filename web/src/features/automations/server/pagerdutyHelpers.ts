@@ -8,13 +8,13 @@ import {
   InvalidRequestError,
   isPagerDutyActionConfig,
   LangfuseConflictError,
-  ServiceUnavailableError,
   type ActionCreate,
   type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  isRetryablePagerDutyError,
   maskPagerDutyRoutingKey,
   pagerDutyClient,
   type PagerDutyAlertEvent,
@@ -157,7 +157,7 @@ function buildTestEventPayload(
   };
 }
 
-/** toTestEventError keeps outages as they are and turns any other PagerDuty rejection into an InvalidRequestError. */
+/** toTestEventError keeps rate limits and outages as they are and turns any other PagerDuty rejection into an InvalidRequestError. */
 function toTestEventError(error: unknown, projectId: string): unknown {
   if (!(error instanceof BaseError)) return error;
   logger.warn("Failed to send PagerDuty test event", {
@@ -165,7 +165,7 @@ function toTestEventError(error: unknown, projectId: string): unknown {
     status: error.httpCode,
     error: error.message,
   });
-  if (error instanceof ServiceUnavailableError) return error;
+  if (isRetryablePagerDutyError(error)) return error;
   return new InvalidRequestError(
     `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
   );
