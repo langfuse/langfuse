@@ -2,21 +2,26 @@ import { randomUUID } from "crypto";
 import { backOff } from "exponential-backoff";
 import { TRPCError } from "@trpc/server";
 
+import { type Session } from "next-auth";
 import {
+  ApiError,
+  ForbiddenError,
   isPagerDutyActionConfig,
+  ServiceUnavailableError,
   type ActionCreate,
   type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  isRetryablePagerDutyError,
   maskPagerDutyRoutingKey,
-  PagerDutyApiError,
   sendPagerDutyAlertEvent,
   type PagerDutyAlertEvent,
   type PagerDutyRegion,
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
 /** getStoredPagerDutyConfig loads the PagerDuty config of an existing action, or null when there is none. */
 async function getStoredPagerDutyConfig({
@@ -76,13 +81,14 @@ function buildTestEventPayload(
 
 /** toTestEventError maps a failed PagerDuty call to a user-facing tRPC error. */
 function toTestEventError(error: unknown, projectId: string): unknown {
-  if (!(error instanceof PagerDutyApiError)) return error;
+  if (!(error instanceof ApiError || error instanceof ServiceUnavailableError))
+    return error;
   logger.warn("Failed to send PagerDuty test event", {
     projectId,
-    status: error.status,
+    status: error.httpCode,
     error: error.message,
   });
-  if (error.status === 429) {
+  if (error instanceof ApiError && error.httpCode === 429) {
     return new TRPCError({
       code: "TOO_MANY_REQUESTS",
       message: "PagerDuty rate-limited the test event. Try again shortly.",
@@ -92,6 +98,12 @@ function toTestEventError(error: unknown, projectId: string): unknown {
     code: "BAD_REQUEST",
     message: `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
   });
+}
+
+/** throwIfPagerDutyUnavailable limits PagerDuty actions to users with internal view. */
+export function throwIfPagerDutyUnavailable(session: Session): void {
+  if (isInternalViewEnabled(session)) return;
+  throw new ForbiddenError("PagerDuty actions are not available yet");
 }
 
 /** processPagerDutyActionConfig encrypts a new routing key, or keeps the stored one when the update omits it. */
@@ -155,8 +167,7 @@ async function resolveTestEvent({
         }),
       {
         numOfAttempts: 4,
-        retry: (error: unknown) =>
-          error instanceof PagerDutyApiError && error.isRetryable,
+        retry: isRetryablePagerDutyError,
       },
     );
   } catch (error) {

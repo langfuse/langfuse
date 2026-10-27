@@ -34,6 +34,7 @@ import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import {
   processPagerDutyActionConfig,
   sendPagerDutyTestEvent,
+  throwIfPagerDutyUnavailable,
 } from "./pagerdutyHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
@@ -338,6 +339,7 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
       } else if (input.actionType === "PAGERDUTY") {
+        throwIfPagerDutyUnavailable(ctx.session);
         finalActionConfig = await processPagerDutyActionConfig({
           actionConfig: input.actionConfig,
           projectId: input.projectId,
@@ -454,6 +456,7 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
       } else if (input.actionType === "PAGERDUTY") {
+        throwIfPagerDutyUnavailable(ctx.session);
         finalActionConfig = await processPagerDutyActionConfig({
           actionConfig: input.actionConfig,
           actionId: existingAutomation.action.id,
@@ -686,6 +689,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
+      throwIfPagerDutyUnavailable(ctx.session);
       await sendPagerDutyTestEvent(input);
 
       if (input.actionId) {

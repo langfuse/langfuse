@@ -1,3 +1,4 @@
+import { ApiError, ServiceUnavailableError } from "../../errors";
 import { type PagerDutyRegion } from "./types";
 
 /** PAGERDUTY_EVENTS_HOSTS is the fixed allowlist of Events API hosts per service region. */
@@ -9,19 +10,16 @@ export const PAGERDUTY_EVENTS_HOSTS: Record<PagerDutyRegion, string> = {
 const summaryMaxLength = 1024;
 const requestTimeoutMs = 10_000;
 
-/** PagerDutyApiError is a failed Events API call; 429, 5xx and network errors are retryable. */
-export class PagerDutyApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number | undefined,
-    public readonly isRetryable: boolean,
-  ) {
-    super(message);
-    this.name = "PagerDutyApiError";
-  }
+/** isRetryablePagerDutyError reports whether a failed Events API call may succeed on retry: 429, 5xx and network errors. */
+export function isRetryablePagerDutyError(error: unknown): boolean {
+  if (error instanceof ServiceUnavailableError) return true;
+  return (
+    error instanceof ApiError &&
+    (error.httpCode === 429 || error.httpCode >= 500)
+  );
 }
 
-/** fetchEvent posts the JSON body, turning network errors into retryable PagerDutyApiErrors. */
+/** fetchEvent posts the JSON body, turning network errors into ServiceUnavailableErrors. */
 async function fetchEvent(
   url: string,
   body: PagerDutyAlertEvent | PagerDutyChangeEvent,
@@ -36,15 +34,11 @@ async function fetchEvent(
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Unknown error";
-    throw new PagerDutyApiError(
-      `PagerDuty request failed: ${reason}`,
-      undefined,
-      true,
-    );
+    throw new ServiceUnavailableError(`PagerDuty request failed: ${reason}`);
   }
 }
 
-/** post sends one event to an Events API URL and maps failures to PagerDutyApiError. */
+/** post sends one event to an Events API URL; a rejected event throws an ApiError with PagerDuty's status. */
 async function post(
   url: string,
   body: PagerDutyAlertEvent | PagerDutyChangeEvent,
@@ -53,10 +47,9 @@ async function post(
   if (response.ok) return;
 
   const responseBody = (await response.text().catch(() => "")).slice(0, 1000);
-  throw new PagerDutyApiError(
+  throw new ApiError(
     `PagerDuty returned ${response.status}: ${responseBody}`.trim(),
     response.status,
-    response.status === 429 || response.status >= 500,
   );
 }
 

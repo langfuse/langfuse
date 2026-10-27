@@ -10,6 +10,7 @@ import {
   isWebhookAction,
   isGitHubDispatchAction,
   isPagerDutyActionConfig,
+  ApiError,
   type AutomationDomain,
   type ActionDomainWithSecrets,
   type PagerDutyActionConfigWithSecrets,
@@ -45,7 +46,7 @@ import {
   buildMonitorAlertSlackMessage,
 } from "@langfuse/shared/monitors/server";
 import {
-  PagerDutyApiError,
+  isRetryablePagerDutyError,
   sendPagerDutyAlertEvent,
   sendPagerDutyChangeEvent,
   type PagerDutyRegion,
@@ -1037,11 +1038,10 @@ async function executePagerDutyAction({
     await backOff(() => sendPagerDutyEvent(event, config.region), {
       numOfAttempts: 4,
       retry: (error: unknown) => {
-        const isRetryable =
-          error instanceof PagerDutyApiError && error.isRetryable;
+        const isRetryable = isRetryablePagerDutyError(error);
         if (isRetryable) {
           logger.warn(
-            `Retrying PagerDuty delivery for action ${automation.action.id}: ${error.message}`,
+            `Retrying PagerDuty delivery for action ${automation.action.id}: ${String(error)}`,
           );
         }
         return isRetryable;
@@ -1142,8 +1142,8 @@ async function recordPagerDutyFailure({
         finishedAt: new Date(),
         error: error instanceof Error ? error.message : "Unknown error",
         output:
-          error instanceof PagerDutyApiError && error.status
-            ? { httpStatus: error.status }
+          error instanceof ApiError
+            ? { httpStatus: error.httpCode }
             : undefined,
       },
     });

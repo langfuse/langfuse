@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 
+import { type Session } from "next-auth";
+
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
+
+const sessionMock = vi.hoisted(() => ({ data: null as Session | null }));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: sessionMock.data, status: "authenticated" }),
+}));
 
 const PROJECT_ID = "proj_test123";
 
@@ -64,6 +71,31 @@ describe("MonitorsOnboarding", () => {
       expect(decoded.actionType).toBe(expected);
       expect(decoded.redirectUrl).toBe(`/project/${PROJECT_ID}/alerts`);
     }
+  });
+
+  it("hides the PagerDuty CTA without internal view", () => {
+    sessionMock.data = null;
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+
+    expect(
+      screen.queryByRole("link", { name: /Connect PagerDuty/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the PagerDuty CTA with the Internal badge to admins", () => {
+    sessionMock.data = {
+      expires: "1",
+      user: { admin: true, featureFlags: {} },
+      environment: { enableExperimentalFeatures: false },
+    } as unknown as Session;
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+
+    const link = screen.getByRole("link", { name: /Connect PagerDuty/i });
+    expect(link).toHaveTextContent("Internal");
+    expect(parsePrefill(link.getAttribute("href")!).actionType).toBe(
+      "PAGERDUTY",
+    );
+    sessionMock.data = null;
   });
 
   it("links the Create Alert CTA to the project's new-alert route", () => {

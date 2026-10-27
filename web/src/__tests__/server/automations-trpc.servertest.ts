@@ -3461,6 +3461,46 @@ describe("automations trpc", () => {
       });
     });
 
+    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: { ...session, user: { ...session.user!, ...user } },
+          headers: {},
+        }),
+        prisma,
+      });
+    }
+
+    it("rejects project owners without internal view", async () => {
+      const { project, session } = await prepare();
+      const owner = callerWithUser(session, { admin: false });
+
+      await expect(
+        owner.automations.createAutomation(createInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        owner.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          routingKey,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects admins who switched internal view off", async () => {
+      const { project, session } = await prepare();
+      const admin = callerWithUser(session, {
+        featureFlags: {
+          ...session.user!.featureFlags,
+          internalFeatures: false,
+        },
+      });
+
+      await expect(
+        admin.automations.createAutomation(createInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
     it("rejects a create without a routing key", async () => {
       const { project, caller } = await prepare();
 

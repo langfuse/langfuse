@@ -9,4 +9,8 @@ export {
   automationCreateHref,
 } from "@/src/features/automations/components/AutomationForm";
 export { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
+export {
+  availableActionTypes,
+  isInternalActionType,
+} from "@/src/features/automations/internalActionTypes";
 export { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";

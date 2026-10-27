@@ -54,6 +54,11 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
+import { isInternalActionType } from "@/src/features/automations/internalActionTypes";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -425,6 +430,7 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
 
   const utils = api.useUtils();
 
@@ -830,11 +836,23 @@ export const AutomationForm = ({
                       {(
                         allowedActionTypes ??
                         ActionHandlerRegistry.getAllActionTypes()
-                      ).map((actionType) => (
-                        <SelectItem key={actionType} value={actionType}>
-                          {actionTypeLabel[actionType]}
-                        </SelectItem>
-                      ))}
+                      )
+                        .filter(
+                          (actionType) =>
+                            internalFeaturesEnabled ||
+                            !isInternalActionType(actionType) ||
+                            actionType === field.value,
+                        )
+                        .map((actionType) => (
+                          <SelectItem key={actionType} value={actionType}>
+                            <span className="flex items-center gap-2">
+                              {actionTypeLabel[actionType]}
+                              {isInternalActionType(actionType) && (
+                                <InternalFeatureBadge />
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
                       <SelectItem disabled={true} value="planned">
                         More coming soon...
                       </SelectItem>
