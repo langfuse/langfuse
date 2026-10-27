@@ -44,16 +44,12 @@ async function fetchEvent(
   }
 }
 
-/** postEvent sends one event and maps failures to PagerDutyApiError. */
-async function postEvent(
-  region: PagerDutyRegion,
-  path: "/v2/enqueue" | "/v2/change/enqueue",
+/** post sends one event to an Events API URL and maps failures to PagerDutyApiError. */
+async function post(
+  url: string,
   body: PagerDutyAlertEvent | PagerDutyChangeEvent,
 ): Promise<void> {
-  const response = await fetchEvent(
-    `https://${PAGERDUTY_EVENTS_HOSTS[region]}${path}`,
-    body,
-  );
+  const response = await fetchEvent(url, body);
   if (response.ok) return;
 
   const responseBody = (await response.text().catch(() => "")).slice(0, 1000);
@@ -64,12 +60,15 @@ async function postEvent(
   );
 }
 
-/** sendPagerDutyAlertEvent posts an alert event to the region's `/v2/enqueue`. */
+/** sendPagerDutyAlertEvent enqueues an alert event at the region's `/v2/enqueue`. */
 export function sendPagerDutyAlertEvent(args: {
   region: PagerDutyRegion;
   event: PagerDutyAlertEvent;
 }): Promise<void> {
-  return postEvent(args.region, "/v2/enqueue", args.event);
+  return post(
+    `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/enqueue`,
+    args.event,
+  );
 }
 
 /** sendPagerDutyChangeEvent posts a change event, which never pages anyone, to the region's `/v2/change/enqueue`. */
@@ -77,7 +76,10 @@ export function sendPagerDutyChangeEvent(args: {
   region: PagerDutyRegion;
   event: PagerDutyChangeEvent;
 }): Promise<void> {
-  return postEvent(args.region, "/v2/change/enqueue", args.event);
+  return post(
+    `https://${PAGERDUTY_EVENTS_HOSTS[args.region]}/v2/change/enqueue`,
+    args.event,
+  );
 }
 
 /** truncatePagerDutySummary cuts a summary to the Events API limit. */
