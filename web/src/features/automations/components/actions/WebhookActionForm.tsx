@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -38,6 +38,7 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({
@@ -60,6 +61,7 @@ export const webhookSchema = z.object({
       wasSecret: z.boolean(),
     }),
   ),
+  originalUrl: z.string().optional(),
 });
 
 interface WebhookActionFormProps {
@@ -83,6 +85,12 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     control: form.control,
     name: "webhook.headers",
   });
+
+  const currentUrl = form.watch("webhook.url");
+  const originalUrl = form.watch("webhook.originalUrl");
+  const isUrlChanged =
+    originalUrl !== undefined &&
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   // Filter out headers managed by Langfuse from the user-editable headers
   const customHeaderFields = headerFields.filter((field, index) => {
@@ -128,6 +136,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
+              {isUrlChanged
+                ? " Re-enter the values of secret headers when changing the URL."
+                : ""}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -184,6 +195,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const displayValue = form.watch(
             `webhook.headers.${originalIndex}.displayValue`,
           );
+          const wasSecret = form.watch(
+            `webhook.headers.${originalIndex}.wasSecret`,
+          );
+          const valuePlaceholder =
+            wasSecret && isUrlChanged
+              ? "Re-enter secret value"
+              : displayValue || "Value";
 
           return (
             <div
@@ -213,11 +231,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder={
-                          isSecret && displayValue
-                            ? displayValue
-                            : displayValue || "Value"
-                        }
+                        placeholder={valuePlaceholder}
                         {...field}
                         disabled={disabled}
                         type={isSecret ? "password" : "text"}

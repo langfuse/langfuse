@@ -23,6 +23,7 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
+  type TraceBatchInputStorage,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -52,6 +53,11 @@ import {
   traceBatchQueueProcessor,
 } from "../traceBatchQueue";
 
+const inputStorage = vi.hoisted(() => ({
+  put: vi.fn<TraceBatchInputStorage["put"]>(),
+  get: vi.fn<TraceBatchInputStorage["get"]>(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getTraceBatchEventStream: vi.fn(),
@@ -59,6 +65,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
+  createTraceBatchInputStorage: () => inputStorage,
 }));
 
 vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
@@ -93,6 +100,8 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
+const originalTranscriptStorageEnabled =
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
 const processingSpan = trace.wrapSpanContext({
@@ -115,6 +124,11 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
+  inputStorage.put.mockResolvedValue({
+    outcome: "stored",
+    jsonLength: 100,
+  });
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
   vi.spyOn(processingSpan, "setAttributes");
@@ -123,6 +137,8 @@ afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
+    originalTranscriptStorageEnabled;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = originalExperimentId;
   vi.restoreAllMocks();
@@ -983,7 +999,257 @@ describe("trace batch queue", () => {
     }));
   });
 
+  it.each(["disabled", "stored", "too_large", "upload_failed"] as const)(
+    "preserves Topics processing when optional input storage is %s",
+    async (outcome) => {
+      env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
+        outcome === "disabled" ? "false" : "true";
+      const info = vi.spyOn(logger, "info");
+      if (outcome === "upload_failed")
+        inputStorage.put.mockRejectedValueOnce(
+          new Error("Failed to upload file to S3"),
+        );
+      if (outcome === "too_large")
+        inputStorage.put.mockResolvedValueOnce({
+          outcome,
+          jsonLength: 1_000_001,
+        });
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          yield {
+            project_id: "project",
+            trace_id: "trace",
+            environment: "default",
+            span_id: "span",
+            parent_span_id: null,
+            start_time: "2026-09-11 00:00:00.000000",
+            event_ts: "2026-09-11 00:00:00.000000",
+            type: "GENERATION",
+            name: "generation",
+            input: JSON.stringify([{ role: "user", content: "private input" }]),
+            output: JSON.stringify({
+              role: "assistant",
+              content: "private output",
+            }),
+            metadata: {},
+            level: "DEFAULT",
+            status_message: null,
+            tool_definitions: {},
+            tool_calls: [],
+            tool_call_names: [],
+          };
+        },
+      );
+      const job = {
+        data: {
+          id: "storage",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: [
+              {
+                projectId: "project",
+                traceId: "trace",
+                minStart: 0,
+                maxStart: 1,
+                revision: "queued-revision",
+              },
+            ],
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+      await expect(
+        traceBatchQueueProcessor(job, undefined),
+      ).resolves.toBeDefined();
+      expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1);
+      expect(
+        vi.mocked(summarizeAssembledTrace).mock.calls[0][0].transcript?.threads,
+      ).toHaveLength(1);
+      expect(inputStorage.put).toHaveBeenCalledTimes(
+        outcome === "disabled" ? 0 : 1,
+      );
+      if (outcome !== "disabled") {
+        expect(inputStorage.put).toHaveBeenCalledWith(
+          {
+            projectId: "project",
+            traceId: "trace",
+            revision: "queued-revision",
+          },
+          {
+            transcript: vi.mocked(summarizeAssembledTrace).mock.calls[0][0]
+              .transcript,
+            executionIssues: [],
+            traceContext: {
+              sessionId: null,
+              traceTimestamp: "2026-09-11T00:00:00.000Z",
+              environment: "default",
+              traceName: "generation",
+            },
+          },
+        );
+        const storageSpan = exporter
+          .getFinishedSpans()
+          .find((span) => span.name === "trace-batch-store-inputs");
+        expect(
+          storageSpan?.attributes["langfuse.trace_batch.input_storage.outcome"],
+        ).toBe(outcome);
+        if (outcome === "upload_failed")
+          expect(storageSpan?.status.code).toBe(SpanStatusCode.ERROR);
+      }
+      if (outcome === "too_large") {
+        expect(info).toHaveBeenCalledWith("Trace batch input storage skipped", {
+          projectId: "project",
+          traceId: "trace",
+          revision: "queued-revision",
+          reason: "input_too_large",
+          jsonLength: 1_000_001,
+          limit: 1_000_000,
+        });
+        expect(JSON.stringify(info.mock.calls)).not.toContain("private input");
+        expect(JSON.stringify(info.mock.calls)).not.toContain("private output");
+      }
+    },
+  );
+
+  it("stores execution issues next to the transcript", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "project",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "Hi" }]),
+        output: JSON.stringify({ role: "assistant", content: "Hello" }),
+        metadata: {},
+        level: "WARNING",
+        status_message: "Rate limited, retried",
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    const job = {
+      data: {
+        id: "issues",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "queued-revision",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        executionIssues: [
+          expect.objectContaining({
+            observationId: "span",
+            level: "WARNING",
+            statusMessage: "Rate limited, retried",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it.each([false, true])(
+    "runs Topics alongside capture and holds the slot until both settle (Topics rejects: %s)",
+    async (summaryRejects) => {
+      env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
+      const originalConcurrency = env.LANGFUSE_TOPICS_TRACE_CONCURRENCY;
+      env.LANGFUSE_TOPICS_TRACE_CONCURRENCY = 1;
+      let finishUpload!: () => void;
+      inputStorage.put.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishUpload = () =>
+              resolve({ outcome: "stored", jsonLength: 100 });
+          }),
+      );
+      vi.mocked(summarizeAssembledTrace).mockImplementationOnce(async () => {
+        if (summaryRejects) throw new Error("summary failed");
+        return { outcome: "unchanged", rows: [] };
+      });
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const traceId of ["a", "b"])
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              environment: "default",
+              span_id: "span",
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: "GENERATION",
+              name: "generation",
+              input: JSON.stringify([{ role: "user", content: "hello" }]),
+              output: JSON.stringify({ role: "assistant", content: "answer" }),
+              metadata: {},
+              level: "DEFAULT",
+              status_message: null,
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+        },
+      );
+      const job = {
+        data: {
+          id: "concurrent-storage",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "revision",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      const processing = traceBatchQueueProcessor(job, undefined);
+      try {
+        await vi.waitFor(() =>
+          expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(inputStorage.put).toHaveBeenCalledTimes(1);
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1);
+        finishUpload();
+        await processing;
+        expect(inputStorage.put).toHaveBeenCalledTimes(2);
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2);
+      } finally {
+        finishUpload?.();
+        await processing;
+        env.LANGFUSE_TOPICS_TRACE_CONCURRENCY = originalConcurrency;
+      }
+    },
+  );
+
   it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of ["picked", "sampled-out"])
         yield {
@@ -1028,7 +1294,7 @@ describe("trace batch queue", () => {
             traceId: "trace",
             minStart: 0,
             maxStart: 1,
-            revision: "r",
+            revision: `revision-${projectId}`,
           })),
         },
       },
@@ -1044,11 +1310,19 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
+    expect(inputStorage.put).toHaveBeenCalledTimes(1);
+    expect(inputStorage.put).toHaveBeenCalledWith(
+      { projectId: "picked", traceId: "trace", revision: "revision-picked" },
+      expect.objectContaining({
+        transcript: expect.objectContaining({ threads: expect.any(Array) }),
+      }),
+    );
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
   it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const [span, eventTs, sessionId] of [
         ["a", "2026-09-11 00:00:01.000000", "session-old"],
@@ -1060,13 +1334,13 @@ describe("trace batch queue", () => {
           project_id: "project",
           trace_id: "trace",
           session_id: sessionId,
-          environment: "default",
+          environment: `env-${span}`,
           span_id: span,
           parent_span_id: null,
-          start_time: "2026-09-11 00:00:00.000000",
+          start_time: `2026-09-11 00:00:0${span === "d" ? "0" : "1"}.000000`,
           event_ts: eventTs,
           type: "GENERATION",
-          name: "generation",
+          name: `generation-${span}`,
           input: JSON.stringify([{ role: "user", content: span }]),
           output: JSON.stringify({ role: "assistant", content: "answer" }),
           metadata: {},
@@ -1106,12 +1380,30 @@ describe("trace batch queue", () => {
 
     expect(
       vi.mocked(summarizeAssembledTrace).mock.calls.at(-1)?.[0],
-    ).toMatchObject({ traceId: "trace", sessionId: "session-tie" });
+    ).toMatchObject({
+      traceId: "trace",
+      sessionId: "session-tie",
+      traceTimestamp: "2026-09-11T00:00:00.000Z",
+      environment: "env-c",
+      traceName: "generation-a",
+    });
+    expect(inputStorage.put).toHaveBeenCalledWith(
+      { projectId: "project", traceId: "trace", revision: "r" },
+      expect.objectContaining({
+        traceContext: {
+          sessionId: "session-tie",
+          traceTimestamp: "2026-09-11T00:00:00.000Z",
+          environment: "env-c",
+          traceName: "generation-a",
+        },
+      }),
+    );
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
   it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     const rows = [
       ["off", "trace-1"],
       ["on", "trace-1"],
@@ -1180,6 +1472,12 @@ describe("trace batch queue", () => {
       "on",
     ]);
     expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [
+        { projectId: "on", traceId: "trace-1", revision: "r" },
+        { projectId: "on", traceId: "trace-2", revision: "r" },
+      ],
+    );
     expect(
       vi
         .mocked(summarizeAssembledTrace)
@@ -1207,7 +1505,8 @@ describe("trace batch queue", () => {
     }));
   });
 
-  it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {
+  it("uses the latest environment to exclude internal traces from Topics and storage", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
@@ -1283,10 +1582,10 @@ describe("trace batch queue", () => {
         projectId: input.projectId,
         environment: input.environment,
       })),
-    ).toEqual([
-      { projectId: "a", environment: "langfuse-topics" },
-      { projectId: "b", environment: "production" },
-    ]);
+    ).toEqual([{ projectId: "b", environment: "production" }]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [{ projectId: "b", traceId: "shared-trace", revision: "r" }],
+    );
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);
     const serializedTranscript = JSON.stringify(estimates[0][0].text);
@@ -1298,7 +1597,9 @@ describe("trace batch queue", () => {
     ]) {
       expect(serializedTranscript.split(content)).toHaveLength(2);
     }
-    const spans = exporter.getFinishedSpans();
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === "trace-batch-transcript");
     expect(spans).toHaveLength(2);
     for (const [index, projectId] of ["a", "b"].entries()) {
       const span = spans[index];

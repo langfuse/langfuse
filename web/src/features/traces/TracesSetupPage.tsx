@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { ActionButton } from "@/src/components/ActionButton";
 import { SubHeader } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";

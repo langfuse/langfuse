@@ -1,13 +1,13 @@
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
-import { PromptTable } from "@/src/features/prompts/components/prompts-table";
+import Page from "@/src/components/layouts/Page";
+import { PromptTable } from "@/src/features/prompts/components/PromptTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
+import { PromptDetail } from "@/src/features/prompts/components/PromptDetail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";

@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -9,11 +10,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnectionModelsSelectionBar";
+import {
+  GatewayConnectionModelsSelectionBar,
+  type GatewayConnectionModelsSelectionBarProps,
+} from "./components/GatewayConnectionModelsSelectionBar";
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
-
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
 const ROW_HEIGHTS = {
@@ -28,11 +31,7 @@ export type GatewayConnectionModelsTableProps = {
   isSaving: boolean;
   onEnableAll: () => void;
   onDisableAll: () => void;
-  onSetEnabled: (
-    models: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
-  ) => void;
+  onSetEnabled: GatewayConnectionModelsSelectionBarProps["onSetEnabled"];
 };
 
 export function GatewayConnectionModelsTable({
@@ -62,7 +61,8 @@ export function GatewayConnectionModelsTable({
       selectionStore,
     });
   const toggleModel = useCallback(
-    (model: string, enabled: boolean) => onSetEnabled([model], enabled),
+    (model: string, enabled: boolean) =>
+      onSetEnabled({ models: [model], enabled, scope: "single" }),
     [onSetEnabled],
   );
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
 import { createServer } from "http";
 import { PassThrough, Readable } from "stream";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";

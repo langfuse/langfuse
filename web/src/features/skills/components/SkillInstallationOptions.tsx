@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState, type ChangeEvent } from "react";
 import { SkillNameSchema } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -109,7 +110,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
     setVersion(event.target.value);
 
   return (
-    <div className="ph-no-capture flex flex-col gap-4">
+    <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-3">
         <Accordion type="single" collapsible>
           <Accordion.Item value="configuration">

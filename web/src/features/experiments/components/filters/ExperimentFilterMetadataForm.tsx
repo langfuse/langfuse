@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useForm } from "react-hook-form";
 import { type FilterState } from "@langfuse/shared";
 import { Input } from "@/src/components/design-system/Input/Input";

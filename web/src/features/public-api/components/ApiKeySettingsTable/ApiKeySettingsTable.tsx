@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
 import { Pencil, Trash } from "@langfuse/icons";
 

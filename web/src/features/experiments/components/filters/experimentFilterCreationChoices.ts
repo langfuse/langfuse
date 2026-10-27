@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ExperimentFilterOptions } from "./experimentFilterTypes";
 import {
   completeExperimentFilter,

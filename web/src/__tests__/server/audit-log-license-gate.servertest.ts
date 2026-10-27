@@ -114,11 +114,20 @@ describe("audit log license gate", () => {
   };
 
   describe("self-hosted", () => {
-    it("persists records with an enterprise license key, without staging them", async () => {
-      mocks.licenseKey = "langfuse_ee_test";
+    it.each([
+      ["an enterprise", "langfuse_ee_test"],
+      ["a government", "lf_gov_test"],
+    ])(
+      "persists records with %s license key, without staging them",
+      async (_label, licenseKey) => {
+        mocks.licenseKey = licenseKey;
 
-      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 0 });
-    });
+        expect(await auditAllActorShapes()).toEqual({
+          persisted: 3,
+          staged: 0,
+        });
+      },
+    );
 
     it("persists no records without a license key", async () => {
       expect(await auditAllActorShapes()).toEqual({ persisted: 0, staged: 0 });

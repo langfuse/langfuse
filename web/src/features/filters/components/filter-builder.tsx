@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -41,8 +41,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { SingleSelect } from "@/src/features/filters/components/single-select";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
+import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {

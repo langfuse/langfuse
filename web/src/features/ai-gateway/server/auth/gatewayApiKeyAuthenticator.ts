@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
@@ -149,6 +150,8 @@ export class GatewayApiKeyAuthenticator {
       organizationId,
       apiKeyId: row.id,
       userId: row.userId,
+      apiKeyName: row.note || null,
+      userName: row.user?.name || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)

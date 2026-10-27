@@ -3,7 +3,7 @@
  * Shown during session loading and authentication redirects
  */
 
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/layouts/Spinner";
 
 type LoadingLayoutProps = {
   message?: string;

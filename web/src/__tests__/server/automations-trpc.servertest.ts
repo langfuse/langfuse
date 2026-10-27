@@ -272,10 +272,16 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-api-key": encrypt("secret-api-key-123"),
-              authorization: encrypt("Bearer secret-token-456"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-api-key": {
+                secret: true,
+                value: encrypt("secret-api-key-123"),
+              },
+              authorization: {
+                secret: true,
+                value: encrypt("Bearer secret-token-456"),
+              },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
@@ -661,7 +667,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             displayHeaders: {
               "Content-Type": { secret: false, value: "application/json" },
             },
@@ -738,10 +746,10 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-custom": "public-value",
-              "x-secret": encrypt("secret-value-789"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-custom": { secret: false, value: "public-value" },
+              "x-secret": { secret: true, value: encrypt("secret-value-789") },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
@@ -782,7 +790,7 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("headers");
     });
 
-    it("should return all legacy header values when reading automation", async () => {
+    it("should mask legacy header values when reading automation", async () => {
       const { project, caller } = await prepare();
 
       // Create test trigger and action with legacy headers
@@ -811,6 +819,14 @@ describe("automations trpc", () => {
               "content-type": "application/json",
               "x-api-key": "legacy-api-key-value",
             },
+            requestHeaders: {
+              "x-env": { secret: false, value: "production" },
+            },
+            // A stored displayHeaders entry may list a legacy value unmasked.
+            displayHeaders: {
+              "x-api-key": { secret: false, value: "legacy-api-key-value" },
+              "x-env": { secret: false, value: "production" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -834,16 +850,25 @@ describe("automations trpc", () => {
 
       const config = response.action.config as SafeWebhookActionConfig;
 
-      // Should have display values with all legacy header values returned
-      // Legacy headers are converted to the new format with secret: false
+      // Legacy headers may hold credentials and are readable by VIEWERs, so
+      // they are treated as secret and masked.
       expect(config.displayHeaders).toEqual({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: false, value: "legacy-api-key-value" },
+        "content-type": { secret: true, value: "appl...json" },
+        "x-api-key": { secret: true, value: "lega...alue" },
+        "x-env": { secret: false, value: "production" },
       });
 
       // Should NOT have raw headers object in response
       expect(config).not.toHaveProperty("headers");
       expect(config).not.toHaveProperty("requestHeaders");
+
+      const list = await caller.automations.getAutomations({
+        projectId: project.id,
+      });
+      const listed = list.find((a) => a.id === automation.id);
+      expect(
+        (listed?.action.config as SafeWebhookActionConfig).displayHeaders,
+      ).toEqual(config.displayHeaders);
     });
 
     it("should throw error when automation not found", async () => {
@@ -1780,111 +1805,175 @@ describe("automations trpc", () => {
       });
     });
 
-    it("should allow URL update without requiring secret header values", async () => {
-      const { project, caller } = await prepare();
+    describe("webhook URL changes", () => {
+      const createWebhookAutomation = async (projectId: string) => {
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
 
-      // Create initial automation with secret headers
-      const trigger = await prisma.trigger.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              requestHeaders: {
+                "content-type": { secret: false, value: "application/json" },
+                "x-api-key": { secret: true, value: encrypt("secret-key-123") },
+              },
+              displayHeaders: {
+                "content-type": { secret: false, value: "application/json" },
+                "x-api-key": { secret: true, value: "secr...-123" },
+              },
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+
+        const automation = await prisma.automation.create({
+          data: {
+            projectId,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "URL Update Test",
+          },
+        });
+
+        return { action, automation };
+      };
+
+      const updateWebhook = (
+        caller: Awaited<ReturnType<typeof prepare>>["caller"],
+        projectId: string,
+        automationId: string,
+        actionConfig: {
+          url: string;
+          requestHeaders: Record<string, { secret: boolean; value: string }>;
+        },
+      ) =>
+        caller.automations.updateAutomation({
+          projectId,
+          automationId,
+          name: "Updated URL Automation",
           eventSource: "prompt",
-          eventActions: ["created"],
+          eventAction: ["created"],
           filter: [],
           status: JobConfigState.ACTIVE,
-        },
-      });
-
-      const { secretKey, displaySecretKey } = generateWebhookSecret();
-      const action = await prisma.action.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
-          type: "WEBHOOK",
-          config: {
+          actionType: "WEBHOOK",
+          actionConfig: {
             type: "WEBHOOK",
-            url: "https://example.com/webhook",
-            requestHeaders: {
-              "content-type": { secret: false, value: "application/json" },
-              "x-api-key": { secret: true, value: encrypt("secret-key-123") },
-              authorization: {
-                secret: true,
-                value: encrypt("Bearer token-456"),
-              },
-            },
-            displayHeaders: {
-              "content-type": { secret: false, value: "application/json" },
-              "x-api-key": { secret: true, value: "secr...-123" },
-              authorization: { secret: true, value: "Bear...-456" },
-            },
             apiVersion: { prompt: "v1" },
-            secretKey: encrypt(secretKey),
-            displaySecretKey,
+            ...actionConfig,
           },
-        },
+        });
+
+      it("should reject a URL change when stored secret headers are left blank", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await expect(
+          updateWebhook(caller, project.id, automation.id, {
+            url: "https://example.org/webhook",
+            requestHeaders: {
+              "content-type": { secret: false, value: "" },
+              "x-api-key": { secret: true, value: "" },
+            },
+          }),
+        ).rejects.toThrow(
+          'Secret header "x-api-key" must be re-entered when changing the webhook URL',
+        );
+
+        const unchangedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = unchangedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.com/webhook");
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "secret-key-123",
+        );
       });
 
-      const automation = await prisma.automation.create({
-        data: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-          name: "URL Update Test",
-        },
+      it("should drop stored secret headers on a URL change when no headers are submitted", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await updateWebhook(caller, project.id, automation.id, {
+          url: "https://example.org/webhook",
+          requestHeaders: {},
+        });
+
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.org/webhook");
+        expect(config.requestHeaders).toEqual({
+          "content-type": { secret: false, value: "application/json" },
+        });
       });
 
-      // Update only the URL without providing secret header values
-      const response = await caller.automations.updateAutomation({
-        projectId: project.id,
-        automationId: automation.id,
-        name: "Updated URL Automation",
-        eventSource: "prompt",
-        eventAction: ["created"],
-        filter: [],
-        status: JobConfigState.ACTIVE,
-        actionType: "WEBHOOK",
-        actionConfig: {
-          type: "WEBHOOK",
+      it("should accept a URL change when secret headers are re-entered", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await updateWebhook(caller, project.id, automation.id, {
           url: "https://example.com/new-webhook-url",
-          requestHeaders: {}, // No headers provided
-          apiVersion: { prompt: "v1" },
-        },
+          requestHeaders: {
+            "content-type": { secret: false, value: "" },
+            "x-api-key": { secret: true, value: "rotated-key-456" },
+          },
+        });
+
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.com/new-webhook-url");
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "rotated-key-456",
+        );
+        expect(config.requestHeaders!["content-type"]).toEqual({
+          secret: false,
+          value: "application/json",
+        });
       });
-      const actionConfig = response.action.config as SafeWebhookActionConfig;
 
-      // Verify the URL was updated
-      expect(actionConfig.url).toBe("https://example.com/new-webhook-url");
+      it("should keep stored secret headers when the URL is unchanged", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
 
-      // Verify secret headers were preserved
-      expect(actionConfig.displayHeaders).toMatchObject({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: true, value: "secr...-123" },
-        authorization: { secret: true, value: "Bear...-456" },
-      });
+        await updateWebhook(caller, project.id, automation.id, {
+          url: "https://EXAMPLE.com/webhook",
+          requestHeaders: {},
+        });
 
-      // Verify the action was updated correctly in the database
-      const updatedAction = await prisma.action.findUnique({
-        where: { id: action.id },
-      });
-
-      const config = updatedAction?.config as WebhookActionConfigWithSecrets;
-
-      // URL should be updated
-      expect(config.url).toBe("https://example.com/new-webhook-url");
-
-      // Secret headers should still be encrypted and preserved
-      expect(config.requestHeaders!["x-api-key"].value).not.toBe(
-        "secret-key-123",
-      );
-      expect(config.requestHeaders!["authorization"].value).not.toBe(
-        "Bearer token-456",
-      );
-
-      // Display values should be preserved
-      expect(config.displayHeaders).toMatchObject({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: true, value: "secr...-123" },
-        authorization: { secret: true, value: "Bear...-456" },
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "secret-key-123",
+        );
       });
     });
 
@@ -1990,6 +2079,87 @@ describe("automations trpc", () => {
         "x-api-key": { secret: true, value: "new-...-key" },
       });
     });
+
+    it.each([
+      {
+        name: "kept with an empty value",
+        requestHeaders: { "x-api-key": { secret: true, value: "" } },
+      },
+      { name: "omitted (URL-only update)", requestHeaders: undefined },
+    ])(
+      "should encrypt a legacy header $name on update",
+      async ({ requestHeaders }) => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
+
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              headers: { "x-api-key": "legacy-api-key" },
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+
+        const automation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "Legacy Header Encryption Test",
+          },
+        });
+
+        await caller.automations.updateAutomation({
+          projectId: project.id,
+          automationId: automation.id,
+          name: "Legacy Header Encryption Test",
+          eventSource: "prompt",
+          eventAction: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+          actionType: "WEBHOOK",
+          actionConfig: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            requestHeaders,
+            apiVersion: { prompt: "v1" },
+          },
+        });
+
+        const updatedAction = await prisma.action.findUnique({
+          where: { id: action.id },
+        });
+        const config = updatedAction?.config as WebhookActionConfigWithSecrets;
+
+        expect(config.headers).toEqual({});
+        expect(config.requestHeaders!["x-api-key"].secret).toBe(true);
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "legacy-api-key",
+        );
+        expect(config.displayHeaders).toEqual({
+          "x-api-key": { secret: true, value: "lega...-key" },
+        });
+      },
+    );
   });
 
   describe("automations.deleteAutomation", () => {

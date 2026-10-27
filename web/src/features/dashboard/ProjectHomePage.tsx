@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -25,7 +26,7 @@ import {
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 
 import {
   convertSelectedEnvironmentsToFilter,
@@ -39,7 +40,7 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "@langfuse/icons";
 import { showErrorToast } from "@/src/features/notifications";

@@ -5,17 +5,27 @@ Topics**. Only platform administrators see or change this personal flag. The
 sidebar, direct page, and Topics API also require deployment enablement and
 project permissions. Processing additionally requires the project allowlist.
 
+- On phones (including touch-screen landscape), `CurrentTopics.tsx` renders `MobileTopicsView`: full-height Topics, Traces, and Visualize panels instead of concurrent split panes. `TopicsMobileControls` keeps facet/view selection in the page; the mobile menu includes automatic processing. Selecting a topic opens its traces; changing visualization opens Visualize. All traces and Unassigned remain reachable without selecting tiny chart marks. Filters stay in `useTopicTraceFilters`, trace selection in project session storage, and panel navigation stays local to the mounted project. No mirrored query state or additional store is needed for these low-frequency interactions. `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and matching rows; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace cards wrap full summaries and use design-system pagination, initially 20 per page. Facet/view controls use the compact design-system SelectInput. Their header and search scroll with the cards so short screens retain access to every row. `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the shared grid preparation; parents own chart dimensions. Mobile renderers use `previewOnSelect`: first tap shows persistent hover details, a second tap on the same item selects it and opens Traces. Tapping a different item replaces the preview; tapping empty space dismisses it. Only a trace-list tap opens peek. Map pan/zoom invalidates the preview. Storybook composes the mobile explorer with its facet/view controls; desktop charts retain their stories. The mobile flow shares one page shell across visualizations; chart insets belong inside their visualization, never around the page controls or panel navigation. The flow uses existing view-selection analytics and the same replay-blocked content boundaries; it adds no events for local panel navigation.
+- `prepare-topics-actions.ts` defines labels, processing status, availability, and callbacks once for the inline header and both overflow menus. The view adapters own menu dismissal and presentation; the page owns dialog lifetimes.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. The header shows the facet
   tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap
-  (default) and Grid, remembered in localStorage; time range and processing
+  (default), Grid and Map, remembered in localStorage; time range and processing
   actions sit on the right, configuration and history in the overflow menu.
-  `CurrentTopics.tsx` owns the map query (Grid only) and trace navigation.
+  `CurrentTopics.tsx` owns the map query (Grid and Map) and trace navigation.
   Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile
   for traces without a topic, traces below; Grid snaps the
   saved map projection onto one square per trace (sampled above 1,000), legend
   under it and traces on the right. Both list the selected topic's traces in
   `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.
+  Map is the original cluster map (`CurrentTopicsView.tsx`) with its trace table.
+  Map clicks select a trace without opening peek. `CurrentTopicsView` keeps
+  that trace ID in project-scoped sessionStorage, shared across facets, and
+  highlights its map point and table row. Selection changes reveal the trace's
+  table page and follow it through result refreshes until the user paginates.
+  Clearing selection preserves the current page. Filtered-out map points cannot
+  replace selection; filters can hide a selection without discarding it. Table row
+  and trace-link clicks select the trace and open peek.
   `useTopicTraceFilters.ts` owns URL-backed facet selection.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
@@ -31,11 +41,7 @@ project permissions. Processing additionally requires the project allowlist.
   Saving it stores the models, creates the four built-in facets as evaluators
   with a first version, and saves one rule for the filter, idle time, and
   sampling rate. A project can have only one Topics rule.
-  Manual processing opens a shared dialog with Summarize traces & embed and
-  Generate topics tabs. `DialogController` owns the overlay above the page and
-  the mobile actions menu. Once models are configured, Configure Topics lives
-  in the overflow menu. `ManualTopicsDialog` is the presentational layout shared
-  by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
+  The header shows the auto-analyze status (`AnalyzeControl`); clicking it opens the Analyze traces dialog with the auto-analyze toggle and sample rate. The overflow menu holds Regenerate topics, History and Settings. Regenerate topics opens the shared manual dialog on its Generate topics tab; the Summarize traces & embed tab stays reachable there. `DialogController` owns the overlay above the page and the mobile actions menu. `ManualTopicsDialog` is the presentational layout shared by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
   `TopicTraceSelectorView` renders the same filters, batch controls and preview
   table in both places; stories supply fixture results without private API calls.
   `ManualTopicsFormContent` owns the draft and uses the real trace selector.
@@ -60,7 +66,7 @@ project permissions. Processing additionally requires the project allowlist.
   limit custom ranges to 90 days, matching the Topics header.
   All steps start expanded; model details and reuse settings live in review.
   Preview trace clicks open a new tab, preserving the run dialog and selection.
-  Without a compatible map, summaries wait for an explicit Update topics run.
+  Without a compatible map, summaries wait for an explicit Regenerate topics run.
   Generate topics defaults to compatible summaries from the past seven days,
   with its picker limited to a maximum thirty-day range. Its own time-range
   picker uses the same frozen range for counts and submission, independently of

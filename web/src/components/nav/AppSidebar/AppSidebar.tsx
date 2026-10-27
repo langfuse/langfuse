@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
@@ -97,6 +97,10 @@ const selfHostedPlanLabels = {
   "self-hosted:enterprise": {
     short: "EE",
     long: planLabels["self-hosted:enterprise"],
+  },
+  "self-hosted:gov": {
+    short: "Gov",
+    long: planLabels["self-hosted:gov"],
   },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 

@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies */
+/* eslint-disable boundaries/dependencies, @typescript-eslint/no-use-before-define */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
@@ -28,6 +28,10 @@ type TextTableColumnOptions<TData extends RowData, TValue> = TableColumnOptions<
 type TextTableColumnTrailingAction<TData extends RowData, TValue> =
   | {
       type: "copy-to-clipboard";
+      /** Called after the value was written to the clipboard. */
+      onAfterCopy?: (
+        context: CellContext<TData, TValue | null | undefined>,
+      ) => void;
     }
   | {
       type: "custom";
@@ -68,7 +72,12 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
         if (!trailingAction)
           return nullValue ? <Text value={nullValue} /> : null;
         if (trailingAction.type === "copy-to-clipboard") {
-          return nullValue ? <CopyableText value={nullValue} /> : null;
+          return nullValue ? (
+            <CopyableText
+              value={nullValue}
+              onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
+            />
+          ) : null;
         }
 
         return (
@@ -107,7 +116,12 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       }
 
       if (trailingAction?.type === "copy-to-clipboard") {
-        return <CopyableText value={text} />;
+        return (
+          <CopyableText
+            value={text}
+            onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
+          />
+        );
       }
       if (trailingAction?.type === "custom") {
         return (
@@ -180,7 +194,13 @@ function Text({ value }: { value: string }) {
   );
 }
 
-function CopyableText({ value }: { value: string }) {
+function CopyableText({
+  value,
+  onAfterCopy,
+}: {
+  value: string;
+  onAfterCopy: () => void;
+}) {
   const { copy, isCopied } = useCopyToClipboard();
 
   return (
@@ -197,6 +217,7 @@ function CopyableText({ value }: { value: string }) {
               const button = event.currentTarget;
               try {
                 await copy(value);
+                onAfterCopy();
               } catch {
                 // Clipboard failures are intentionally silent.
               } finally {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Tree expansion utilities for efficient expand/collapse
  *
