@@ -1503,7 +1503,8 @@ export const getLastTraceTimestampsByProjects = async (
  * Trace and observation counts per project for events_core rows created in
  * `[start, end)`. Ingestion-API traces carry a synthetic `t-<traceId>` root
  * row, which counts towards the trace but not as an observation. A trace with
- * rows created in several intervals counts once in each.
+ * rows created in several intervals counts once in each. The AI gateway writes
+ * one generation per request, so `gatewayRequests` counts its rows.
  */
 export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
   async ({
@@ -1521,7 +1522,8 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
       SELECT
         project_id,
         uniq(trace_id) as traces,
-        countIf(span_id != concat('t-', trace_id)) as observations
+        countIf(span_id != concat('t-', trace_id)) as observations,
+        countIf(ai_gateway_key_id != '') as gateway_requests
       FROM events_core
       WHERE created_at >= {start: DateTime64(3)}
       AND created_at < {end: DateTime64(3)}
@@ -1534,6 +1536,7 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
       project_id: string;
       traces: string;
       observations: string;
+      gateway_requests: string;
     }>({
       query,
       params: {
@@ -1551,6 +1554,7 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
       projectId: row.project_id,
       traces: Number(row.traces),
       observations: Number(row.observations),
+      gatewayRequests: Number(row.gateway_requests),
     }));
   };
 
