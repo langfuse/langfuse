@@ -117,15 +117,16 @@ describe("IngestionService unit tests", () => {
             "langfuse.gateway.api_key.id": "gateway-key-1",
           },
           serviceName: "langfuse-ai-gateway",
-          serviceVersion: "0.1.0",
+          serviceVersion: "1.2.3",
           scopeName: "langfuse-ai-gateway",
+          scopeVersion: "0.1.0",
           ingestionApiKey: overrides.ingestionApiKey,
           source: "otel",
         },
         "raw-event.json",
       );
 
-    it("attributes a gateway-token upload to the gateway key and service", async () => {
+    it("attributes a gateway-token upload to the gateway key and its scope-versioned service", async () => {
       const eventRecord = await createGatewayLikeEventRecord({
         ingestionApiKey: "gateway:grant-1",
       });

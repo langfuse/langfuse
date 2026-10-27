@@ -335,6 +335,7 @@ export class IngestionService {
       metadata,
       serviceName: eventData.serviceName,
       serviceVersion: eventData.serviceVersion,
+      scopeVersion: eventData.scopeVersion,
     });
 
     // Runs outside the modelName gate below so model-less events with provided

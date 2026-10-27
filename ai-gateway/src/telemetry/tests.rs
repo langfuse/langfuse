@@ -97,12 +97,15 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
         assert_eq!(headers["x-langfuse-ingestion-version"], "4");
         let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
         let payload = upload_json(&bytes);
+        // No `service.version`: ingestion would use it as the generation's
+        // user-facing version. Langfuse takes the gateway version from the scope.
         assert_eq!(
             payload["resourceSpans"][0]["resource"]["attributes"],
-            json!([
-                {"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}},
-                {"key": "service.version", "value": {"stringValue": env!("CARGO_PKG_VERSION")}}
-            ])
+            json!([{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}])
+        );
+        assert_eq!(
+            payload["resourceSpans"][0]["scopeSpans"][0]["scope"]["version"],
+            env!("CARGO_PKG_VERSION")
         );
         let spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
             .as_array()

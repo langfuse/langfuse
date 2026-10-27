@@ -96,7 +96,9 @@ export const isAiGatewayGenerationEvent = (params: {
  * batches requests made with different gateway API keys. Each span names its
  * key in `langfuse.gateway.api_key.id`, which the gateway always overwrites, so
  * that key id becomes the span's ingestion API key and the service is the
- * gateway. A gateway span without a key id is rejected.
+ * gateway, versioned by its instrumentation scope. The gateway sends no
+ * `service.version` because ingestion would use it as the generation's
+ * version. A gateway span without a key id is rejected.
  *
  * Any other sender, including replays without an ingestion key, may set the
  * metadata key and `service.name` freely, so claiming the gateway service name
@@ -107,6 +109,7 @@ export const resolveAiGatewayAttribution = (params: {
   metadata: Record<string, unknown>;
   serviceName: string | null | undefined;
   serviceVersion: string | null | undefined;
+  scopeVersion: string | null | undefined;
 }): {
   ingestionApiKey: string;
   serviceName: string | null | undefined;
@@ -129,7 +132,7 @@ export const resolveAiGatewayAttribution = (params: {
   return {
     ingestionApiKey: keyId,
     serviceName: AI_GATEWAY_SERVICE_NAME,
-    serviceVersion: params.serviceVersion,
+    serviceVersion: params.scopeVersion,
   };
 };
 
