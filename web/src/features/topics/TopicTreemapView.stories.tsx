@@ -283,7 +283,11 @@ export const SelectTopic = meta.story({
 export const DescriptionTooltipWhenClipped = meta.story({
   name: "(Test) Hover shows the full text only when clipped",
   render: (args) => (
-    <div className="flex flex-col" style={{ width: 720, height: 900 }}>
+    <div
+      data-testid="frame"
+      className="flex flex-col"
+      style={{ width: 720, height: 900 }}
+    >
       <TopicTreemapView {...args} />
     </div>
   ),
@@ -309,5 +313,20 @@ export const DescriptionTooltipWhenClipped = meta.story({
     await userEvent.hover(title);
     await expect(fitting).not.toHaveAttribute("title");
     await expect(title).not.toHaveAttribute("title");
+
+    // Clip the heading by under a pixel, to a width that rounds to the same
+    // whole pixel as its text: the ellipsis shows, yet scrollWidth equals clientWidth.
+    const frame = canvas.getByTestId("frame");
+    const text = document.createRange();
+    text.selectNodeContents(title);
+    const textWidth = text.getBoundingClientRect().width;
+    const clippedWidth = (Math.round(textWidth) - 0.5 + textWidth) / 2;
+    frame.style.width = `${frame.getBoundingClientRect().width - title.getBoundingClientRect().width + clippedWidth}px`;
+    await expect(title.scrollWidth).toBe(title.clientWidth);
+    await userEvent.hover(fitting);
+    await userEvent.hover(title);
+    await waitFor(() =>
+      expect(title).toHaveAttribute("title", "Trace cost analysis"),
+    );
   },
 });

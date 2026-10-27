@@ -22,13 +22,18 @@ const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
 /**
- * `truncate` ignores height: with tight leading the glyphs overflow vertically
- * even when the line fits.
+ * `truncate` compares unrounded widths, since whole-pixel `scrollWidth` misses
+ * overflows under a pixel that still get an ellipsis. It ignores height: with
+ * tight leading the glyphs overflow vertically even when the line fits.
+ * Assumes the element has no horizontal padding.
  */
 function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
-  return clip === "truncate"
-    ? element.scrollWidth > element.clientWidth
-    : element.scrollHeight > element.clientHeight;
+  if (clip === "line-clamp") return element.scrollHeight > element.clientHeight;
+  const text = document.createRange();
+  text.selectNodeContents(element);
+  return (
+    text.getBoundingClientRect().width > element.getBoundingClientRect().width
+  );
 }
 
 /**
