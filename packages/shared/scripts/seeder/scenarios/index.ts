@@ -20,6 +20,7 @@ import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
 import { topicsScenario } from "./topics";
 import { traceTreeScenario } from "./trace-tree";
+import { workspacesScenario } from "./workspaces";
 import { ScenarioDefinition } from "./types";
 
 /**
@@ -48,6 +49,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
   topics: topicsScenario,
+  workspaces: workspacesScenario,
 };
 
 export * from "./types";
