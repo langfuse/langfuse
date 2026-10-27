@@ -3,15 +3,21 @@ import {
   type GetServerSidePropsResult,
 } from "next";
 
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
+import { getSignupOnboardingStatus } from "@/src/features/onboarding/server";
 import { hasOrganizationAccess } from "@/src/features/rbac";
 import { getServerAuthSession } from "@/src/server/auth";
 import {
   getRequestOrigin,
   readProjectCookie,
+  serializeClearedProjectCookie,
   type ProjectCookie,
 } from "@/src/server/utils/cookies";
-import { readLastVisitedProject } from "./lastVisitedProject";
+import {
+  forgetLastVisitedProject,
+  readLastVisitedProject,
+} from "./lastVisitedProject";
 import { resolveLandingDestination } from "./resolveLandingDestination";
 
 type LandingProps = Record<string, never>;
@@ -40,8 +46,9 @@ function withForwardedQuery(destination: string, resolvedUrl: string): string {
 
 /**
  * Server-side redirect for `/`, so a signed-in user opens straight into their
- * last project instead of an organization picker. Signed-out requests render
- * the page and let the client auth guard handle sign-in as before.
+ * last project instead of an organization picker; see
+ * `resolveLandingDestination` for what happens without one. Signed-out
+ * requests render the page and let the client auth guard handle sign-in.
  */
 export async function getLandingServerSideProps(
   ctx: GetServerSidePropsContext,
@@ -52,13 +59,20 @@ export async function getLandingServerSideProps(
 
   const organizations = user.organizations.map((organization) => ({
     id: organization.id,
-    projectIds: organization.projects.map((project) => project.id),
+    projects: organization.projects.map((project) => ({
+      id: project.id,
+      hasTraces: project.hasTraces,
+    })),
     canCreateProjects: hasOrganizationAccess({
       session,
       organizationId: organization.id,
       scope: "projects:create",
     }),
   }));
+  const isReadable = (projectId: string) =>
+    organizations.some((organization) =>
+      organization.projects.some((project) => project.id === projectId),
+    );
   const browserProjectId = projectIdFromCookie({
     cookie: readProjectCookie(ctx.req.cookies ?? {}),
     origin: getRequestOrigin(ctx.req),
@@ -66,25 +80,36 @@ export async function getLandingServerSideProps(
   });
   // The browser cookie is fresher than the per-user record, so the record is
   // only read when the cookie is missing or names a project that is gone.
-  const browserProjectIsReadable = organizations.some(
-    (organization) =>
-      browserProjectId !== null &&
-      organization.projectIds.includes(browserProjectId),
-  );
-  const serverProjectId = browserProjectIsReadable
-    ? null
-    : await readLastVisitedProject(user.id);
+  const serverProjectId =
+    browserProjectId !== null && isReadable(browserProjectId)
+      ? null
+      : await readLastVisitedProject(user.id);
 
-  const destination = resolveLandingDestination({
+  const decision = await resolveLandingDestination({
     organizations,
     rememberedProjectIds: [browserProjectId, serverProjectId],
     canCreateOrganizations: user.canCreateOrganizations,
     demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID ?? null,
+    hasPendingSignupOnboarding: async () =>
+      !(
+        await getSignupOnboardingStatus({
+          prisma,
+          userId: user.id,
+          canCreateOrganizations: user.canCreateOrganizations,
+        })
+      ).completed,
   });
+
+  if (decision.shouldForgetRememberedProject) {
+    if (browserProjectId !== null) {
+      ctx.res.setHeader("Set-Cookie", serializeClearedProjectCookie());
+    }
+    await forgetLastVisitedProject(user.id);
+  }
 
   return {
     redirect: {
-      destination: withForwardedQuery(destination, ctx.resolvedUrl),
+      destination: withForwardedQuery(decision.destination, ctx.resolvedUrl),
       permanent: false,
     },
   };

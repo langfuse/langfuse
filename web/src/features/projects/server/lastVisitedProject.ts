@@ -32,6 +32,15 @@ export async function recordLastVisitedProject({
   }
 }
 
+export async function forgetLastVisitedProject(userId: string): Promise<void> {
+  if (!redis) return;
+  try {
+    await redis.del(lastVisitedProjectKey(userId));
+  } catch (error) {
+    logger.warn("Failed to forget the last visited project", { error });
+  }
+}
+
 export async function readLastVisitedProject(
   userId: string,
 ): Promise<string | null> {

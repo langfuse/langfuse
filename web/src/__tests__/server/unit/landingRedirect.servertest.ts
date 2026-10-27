@@ -11,12 +11,17 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-const { getServerAuthSessionMock, readLastVisitedProjectMock } = vi.hoisted(
-  () => ({
-    getServerAuthSessionMock: vi.fn(),
-    readLastVisitedProjectMock: vi.fn(),
-  }),
-);
+const {
+  getServerAuthSessionMock,
+  readLastVisitedProjectMock,
+  forgetLastVisitedProjectMock,
+  getSignupOnboardingStatusMock,
+} = vi.hoisted(() => ({
+  getServerAuthSessionMock: vi.fn(),
+  readLastVisitedProjectMock: vi.fn(),
+  forgetLastVisitedProjectMock: vi.fn(),
+  getSignupOnboardingStatusMock: vi.fn(),
+}));
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
@@ -24,6 +29,11 @@ vi.mock("@/src/server/auth", () => ({
 
 vi.mock("@/src/features/projects/server/lastVisitedProject", () => ({
   readLastVisitedProject: readLastVisitedProjectMock,
+  forgetLastVisitedProject: forgetLastVisitedProjectMock,
+}));
+
+vi.mock("@/src/features/onboarding/server", () => ({
+  getSignupOnboardingStatus: getSignupOnboardingStatusMock,
 }));
 
 import { type GetServerSidePropsContext } from "next";
@@ -37,110 +47,175 @@ import {
   type ProjectCookie,
 } from "@/src/server/utils/cookies";
 
-const landing = (overrides: Partial<LandingInput>): LandingInput => ({
-  organizations: [],
-  rememberedProjectIds: [],
-  canCreateOrganizations: true,
-  demoOrganizationId: "demo-org",
-  ...overrides,
-});
+const project = (id: string, hasTraces = true) => ({ id, hasTraces });
+
+const acme = {
+  id: "acme",
+  projects: [project("acme-api"), project("acme-web")],
+  canCreateProjects: true,
+};
+
+const resolve = (overrides: Partial<LandingInput>) =>
+  resolveLandingDestination({
+    organizations: [],
+    rememberedProjectIds: [],
+    canCreateOrganizations: true,
+    demoOrganizationId: "demo-org",
+    hasPendingSignupOnboarding: async () => false,
+    ...overrides,
+  });
 
 describe("resolveLandingDestination", () => {
-  const acme = {
-    id: "acme",
-    projectIds: ["acme-api", "acme-web"],
-    canCreateProjects: true,
-  };
-
-  it("opens the remembered project while it is still readable", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
+  describe("with a remembered project", () => {
+    it("opens it while it is still readable", async () => {
+      expect(
+        await resolve({
           organizations: [acme],
-          rememberedProjectIds: ["acme-web"],
+          rememberedProjectIds: [null, "acme-web"],
         }),
-      ),
-    ).toBe("/project/acme-web");
-  });
+      ).toEqual({
+        destination: "/project/acme-web",
+        shouldForgetRememberedProject: false,
+      });
+    });
 
-  it("skips a remembered project that was deleted or whose access was revoked", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
+    it("opens a project that never received data on its tracing setup", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          { ...acme, projects: [...acme.projects, project("fresh", false)] },
+        ],
+        rememberedProjectIds: ["fresh"],
+      });
+      expect(destination).toBe("/project/fresh/traces");
+    });
+
+    it("shows the overview with a note and forgets it once it was deleted or access was removed", async () => {
+      expect(
+        await resolve({
           organizations: [acme],
-          rememberedProjectIds: ["gone", null, "acme-web"],
+          rememberedProjectIds: ["gone"],
         }),
-      ),
-    ).toBe("/project/acme-web");
-    expect(
-      resolveLandingDestination(
-        landing({ organizations: [acme], rememberedProjectIds: ["gone"] }),
-      ),
-    ).toBe("/project/acme-api");
+      ).toEqual({
+        destination: "/organization/acme?notice=last-project-unavailable",
+        shouldForgetRememberedProject: true,
+      });
+    });
   });
 
-  it("does not fall back into the shared demo project while the user has their own", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
-          organizations: [
-            { id: "demo-org", projectIds: ["demo"], canCreateProjects: false },
-            { id: "empty", projectIds: [], canCreateProjects: false },
-            acme,
-          ],
-        }),
-      ),
-    ).toBe("/project/acme-api");
+  describe("without a remembered project", () => {
+    it("opens the only project", async () => {
+      const { destination } = await resolve({
+        organizations: [{ ...acme, projects: [project("solo", false)] }],
+      });
+      expect(destination).toBe("/project/solo/traces");
+    });
+
+    it("opens the only project that has data", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          {
+            ...acme,
+            projects: [project("empty", false), project("busy")],
+          },
+        ],
+      });
+      expect(destination).toBe("/project/busy");
+    });
+
+    it("welcomes a user with several candidates on the overview of their organization", async () => {
+      const { destination } = await resolve({ organizations: [acme] });
+      expect(destination).toBe("/organization/acme?notice=welcome");
+    });
+
+    it("uses the cross-organization overview when projects span organizations", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          acme,
+          {
+            id: "globex",
+            projects: [project("chat")],
+            canCreateProjects: false,
+          },
+        ],
+      });
+      expect(destination).toBe("/organizations?notice=welcome");
+    });
+
+    it("does not count the shared demo project as one of the user's own", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          {
+            id: "demo-org",
+            projects: [project("demo")],
+            canCreateProjects: false,
+          },
+          {
+            id: "acme",
+            projects: [project("mine", false)],
+            canCreateProjects: true,
+          },
+        ],
+      });
+      expect(destination).toBe("/project/mine/traces");
+    });
   });
 
-  it("sends a member of project-less organizations to project creation", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
-          organizations: [
-            { id: "viewer-org", projectIds: [], canCreateProjects: false },
-            { id: "owner-org", projectIds: [], canCreateProjects: true },
-          ],
-        }),
-      ),
-    ).toBe("/organization/owner-org/setup?orgstep=create-project");
-    expect(
-      resolveLandingDestination(
-        landing({
-          organizations: [
-            { id: "viewer-org", projectIds: [], canCreateProjects: false },
-          ],
-        }),
-      ),
-    ).toBe("/organization/viewer-org");
-  });
+  describe("without any project", () => {
+    it("starts project creation where the user may create one", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          { id: "viewer-org", projects: [], canCreateProjects: false },
+          { id: "owner-org", projects: [], canCreateProjects: true },
+        ],
+      });
+      expect(destination).toBe(
+        "/organization/owner-org/setup?orgstep=create-project",
+      );
+    });
 
-  it("sends a new user with only the demo organization to organization setup", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
-          organizations: [
-            { id: "demo-org", projectIds: ["demo"], canCreateProjects: false },
-          ],
-        }),
-      ),
-    ).toBe("/setup");
-  });
+    it("opens the organization when the user cannot create projects", async () => {
+      const { destination } = await resolve({
+        organizations: [
+          { id: "viewer-org", projects: [], canCreateProjects: false },
+        ],
+      });
+      expect(destination).toBe("/organization/viewer-org");
+    });
 
-  it("opens the demo project, then the overview, when nothing can be created", () => {
-    expect(
-      resolveLandingDestination(
-        landing({
-          canCreateOrganizations: false,
-          organizations: [
-            { id: "demo-org", projectIds: ["demo"], canCreateProjects: false },
-          ],
-        }),
-      ),
-    ).toBe("/project/demo");
-    expect(
-      resolveLandingDestination(landing({ canCreateOrganizations: false })),
-    ).toBe("/organizations");
+    it("sends a brand-new user without an organization through signup onboarding first", async () => {
+      const { destination } = await resolve({
+        hasPendingSignupOnboarding: async () => true,
+      });
+      expect(destination).toBe("/onboarding");
+    });
+
+    it("then to organization setup, the demo project, or the overview", async () => {
+      expect((await resolve({})).destination).toBe("/setup");
+      expect(
+        (
+          await resolve({
+            canCreateOrganizations: false,
+            organizations: [
+              {
+                id: "demo-org",
+                projects: [project("demo")],
+                canCreateProjects: false,
+              },
+            ],
+          })
+        ).destination,
+      ).toBe("/project/demo");
+      expect(
+        (await resolve({ canCreateOrganizations: false })).destination,
+      ).toBe("/organizations");
+    });
+
+    it("still forgets a remembered project that is gone", async () => {
+      expect(
+        (await resolve({ rememberedProjectIds: ["gone"] }))
+          .shouldForgetRememberedProject,
+      ).toBe(true);
+    });
   });
 });
 
@@ -148,8 +223,9 @@ describe("getLandingServerSideProps for /", () => {
   const makeCtx = ({
     cookie,
     resolvedUrl = "/",
-  }: { cookie?: ProjectCookie; resolvedUrl?: string } = {}) =>
-    ({
+  }: { cookie?: ProjectCookie; resolvedUrl?: string } = {}) => {
+    const setHeader = vi.fn();
+    const ctx = {
       req: {
         headers: {
           host: "us.cloud.langfuse.com",
@@ -157,9 +233,11 @@ describe("getLandingServerSideProps for /", () => {
         },
         cookies: cookie ? { [projectCookieName]: JSON.stringify(cookie) } : {},
       },
-      res: {},
+      res: { setHeader },
       resolvedUrl,
-    }) as unknown as GetServerSidePropsContext;
+    } as unknown as GetServerSidePropsContext;
+    return { ctx, setHeader };
+  };
 
   const makeSession = (projectIds: string[]) => ({
     user: {
@@ -170,7 +248,7 @@ describe("getLandingServerSideProps for /", () => {
         {
           id: "org-1",
           role: "OWNER",
-          projects: projectIds.map((id) => ({ id })),
+          projects: projectIds.map((id) => ({ id, hasTraces: true })),
         },
       ],
     },
@@ -180,28 +258,31 @@ describe("getLandingServerSideProps for /", () => {
     redirect: { destination, permanent: false },
   });
 
+  const cookieFor = (projectId: string, userId = "user-1") => ({
+    origin: "https://us.cloud.langfuse.com",
+    projectId,
+    userId,
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     readLastVisitedProjectMock.mockResolvedValue(null);
+    getSignupOnboardingStatusMock.mockResolvedValue({ completed: true });
   });
 
   it("renders the page for signed-out users so the client guard handles sign-in", async () => {
     getServerAuthSessionMock.mockResolvedValue(null);
 
-    expect(await getLandingServerSideProps(makeCtx())).toEqual({ props: {} });
+    expect(await getLandingServerSideProps(makeCtx().ctx)).toEqual({
+      props: {},
+    });
   });
 
   it("prefers this browser's cookie and skips the per-user record", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["p1", "p2"]));
 
     const result = await getLandingServerSideProps(
-      makeCtx({
-        cookie: {
-          origin: "https://us.cloud.langfuse.com",
-          projectId: "p2",
-          userId: "user-1",
-        },
-      }),
+      makeCtx({ cookie: cookieFor("p2") }).ctx,
     );
 
     expect(result).toEqual(redirectTo("/project/p2"));
@@ -213,13 +294,7 @@ describe("getLandingServerSideProps for /", () => {
     readLastVisitedProjectMock.mockResolvedValue("p3");
 
     const result = await getLandingServerSideProps(
-      makeCtx({
-        cookie: {
-          origin: "https://us.cloud.langfuse.com",
-          projectId: "p2",
-          userId: "someone-else",
-        },
-      }),
+      makeCtx({ cookie: cookieFor("p2", "someone-else") }).ctx,
     );
 
     expect(result).toEqual(redirectTo("/project/p3"));
@@ -230,36 +305,36 @@ describe("getLandingServerSideProps for /", () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["p1", "p3"]));
     readLastVisitedProjectMock.mockResolvedValue("p3");
 
-    const result = await getLandingServerSideProps(
-      makeCtx({
-        cookie: {
-          origin: "https://us.cloud.langfuse.com",
-          projectId: "deleted",
-          userId: "user-1",
-        },
-      }),
-    );
+    const { ctx, setHeader } = makeCtx({ cookie: cookieFor("deleted") });
+    const result = await getLandingServerSideProps(ctx);
 
     expect(result).toEqual(redirectTo("/project/p3"));
+    expect(setHeader).not.toHaveBeenCalled();
   });
 
-  it("ignores a cookie from another region", async () => {
+  it("clears both memories when the remembered project is gone everywhere", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["p1", "p2"]));
+    readLastVisitedProjectMock.mockResolvedValue("revoked");
 
-    const result = await getLandingServerSideProps(
-      makeCtx({
-        cookie: { origin: "https://cloud.langfuse.com", projectId: "p2" },
-      }),
+    const { ctx, setHeader } = makeCtx({ cookie: cookieFor("deleted") });
+    const result = await getLandingServerSideProps(ctx);
+
+    expect(result).toEqual(
+      redirectTo("/organization/org-1?notice=last-project-unavailable"),
     );
-
-    expect(result).toEqual(redirectTo("/project/p1"));
+    expect(setHeader).toHaveBeenCalledWith(
+      "Set-Cookie",
+      expect.stringContaining(`${projectCookieName}=; `),
+    );
+    expect(setHeader.mock.calls[0]?.[1]).toContain("Max-Age=0");
+    expect(forgetLastVisitedProjectMock).toHaveBeenCalledWith("user-1");
   });
 
   it("forwards the query string to the project", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["p1"]));
 
     const result = await getLandingServerSideProps(
-      makeCtx({ resolvedUrl: "/?shell=classic" }),
+      makeCtx({ resolvedUrl: "/?shell=classic" }).ctx,
     );
 
     expect(result).toEqual(redirectTo("/project/p1?shell=classic"));
