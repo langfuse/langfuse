@@ -19,7 +19,6 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/datasets/[name]/runs",
   "/api/public/datasets/[name]/runs/[runName]",
   "/api/public/integrations/blob-storage/[id]",
-  "/api/public/integrations/pagerduty/[id]",
   "/api/public/llm-connections/[id]",
   "/api/public/media/[mediaId]",
   "/api/public/models/[modelId]",

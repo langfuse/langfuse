@@ -44,6 +44,10 @@ import {
   TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "@langfuse/shared/pagerduty";
 import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
@@ -71,9 +75,11 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
-// Define PagerDuty action schema
+// Define PagerDuty action schema; an empty routing key keeps the stored one on edit
 const pagerDutySchema = z.object({
-  pagerDutyIntegrationId: z.string().min(1, "Select a PagerDuty service"),
+  routingKey: z.union([z.literal(""), PagerDutyRoutingKeySchema]),
+  displayRoutingKey: z.string().optional(),
+  region: PagerDutyRegionSchema,
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */

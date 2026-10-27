@@ -1,4 +1,4 @@
-import { type PagerDutyRegion } from "@prisma/client";
+import { type PagerDutyRegion } from "./types";
 
 /** PAGERDUTY_EVENTS_HOSTS is the fixed allowlist of Events API hosts per service region. */
 export const PAGERDUTY_EVENTS_HOSTS: Record<PagerDutyRegion, string> = {

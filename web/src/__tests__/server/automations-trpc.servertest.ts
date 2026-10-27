@@ -23,6 +23,7 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+import { type MockInstance } from "vitest";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -3389,24 +3390,14 @@ describe("automations trpc", () => {
   });
   describe("PagerDuty actions", () => {
     const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
-
-    async function createPagerDutyIntegration(
-      projectId: string,
-      name = "On-call",
-    ) {
-      return prisma.pagerDutyIntegration.create({
-        data: {
-          projectId,
-          name,
-          routingKey: encrypt(routingKey),
-          displayRoutingKey: "R0ab...9xYz",
-        },
-      });
-    }
+    const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
 
     const createInput = (
       projectId: string,
-      pagerDutyIntegrationId: string,
+      actionConfig: {
+        routingKey?: string;
+        region: "US" | "EU";
+      } = { routingKey, region: "US" },
     ) => ({
       projectId,
       name: "Page on-call",
@@ -3415,8 +3406,15 @@ describe("automations trpc", () => {
       filter: [],
       status: JobConfigState.ACTIVE,
       actionType: "PAGERDUTY" as const,
-      actionConfig: { type: "PAGERDUTY" as const, pagerDutyIntegrationId },
+      actionConfig: { type: "PAGERDUTY" as const, ...actionConfig },
     });
+
+    async function storedConfig(actionId: string) {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      return action.config as Record<string, string>;
+    }
 
     function viewerCaller(session: Session) {
       const viewerSession: Session = {
@@ -3444,84 +3442,87 @@ describe("automations trpc", () => {
       });
     }
 
-    it("stores only the integration reference", async () => {
+    it("encrypts the routing key and returns only the masked key", async () => {
       const { project, caller } = await prepare();
-      const integration = await createPagerDutyIntegration(project.id);
 
       const result = await caller.automations.createAutomation(
-        createInput(project.id, integration.id),
+        createInput(project.id, { routingKey, region: "EU" }),
       );
 
-      const action = await prisma.action.findUniqueOrThrow({
-        where: { id: result.action.id },
-      });
-      expect(action.type).toBe("PAGERDUTY");
-      expect(action.config).toEqual({
+      const config = await storedConfig(result.action.id);
+      expect(config.routingKey).not.toBe(routingKey);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+      expect(result.action.config).toEqual({
         type: "PAGERDUTY",
-        pagerDutyIntegrationId: integration.id,
+        displayRoutingKey: "R0ab...9xYz",
+        region: "EU",
       });
-      expect(result.action.config).toEqual(action.config);
     });
 
-    it("rejects an integration of another project", async () => {
+    it("rejects a create without a routing key", async () => {
       const { project, caller } = await prepare();
-      const { project: otherProject } = await prepare();
-      const otherIntegration = await createPagerDutyIntegration(
-        otherProject.id,
-      );
 
       await expect(
         caller.automations.createAutomation(
-          createInput(project.id, otherIntegration.id),
+          createInput(project.id, { region: "US" }),
         ),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
-    it("switches the integration on update", async () => {
+    it("rejects a malformed routing key", async () => {
       const { project, caller } = await prepare();
-      const first = await createPagerDutyIntegration(project.id, "First");
-      const second = await createPagerDutyIntegration(project.id, "Second");
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { routingKey: "too-short", region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("keeps the stored key when an update omits it", async () => {
+      const { project, caller } = await prepare();
       const created = await caller.automations.createAutomation(
-        createInput(project.id, first.id),
+        createInput(project.id),
       );
 
       await caller.automations.updateAutomation({
-        ...createInput(project.id, second.id),
+        ...createInput(project.id, { region: "EU" }),
         automationId: created.automation.id,
       });
 
-      const action = await prisma.action.findUniqueOrThrow({
-        where: { id: created.action.id },
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+    });
+
+    it("replaces the key when an update sends a new one", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, {
+          routingKey: newRoutingKey,
+          region: "US",
+        }),
+        automationId: created.automation.id,
       });
-      expect(action.config).toEqual({
-        type: "PAGERDUTY",
-        pagerDutyIntegrationId: second.id,
-      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(newRoutingKey);
+      expect(config.displayRoutingKey).toBe("N3wk...7uVw");
     });
 
     it("never returns the routing key on any read path to a project VIEWER", async () => {
       const { project, session, caller } = await prepare();
-      const integration = await createPagerDutyIntegration(project.id);
       const created = await caller.automations.createAutomation(
-        createInput(project.id, integration.id),
+        createInput(project.id),
       );
-      // A hand-edited config carrying a key must be stripped by the allowlist.
-      await prisma.action.update({
-        where: { id: created.action.id },
-        data: {
-          config: {
-            type: "PAGERDUTY",
-            pagerDutyIntegrationId: integration.id,
-            routingKey,
-          },
-        },
-      });
-      const storedKey = (
-        await prisma.pagerDutyIntegration.findUniqueOrThrow({
-          where: { id: integration.id },
-          omit: { routingKey: false },
-        })
-      ).routingKey;
+      const storedKey = (await storedConfig(created.action.id)).routingKey;
       const viewer = viewerCaller(session);
 
       const responses = [
@@ -3530,7 +3531,6 @@ describe("automations trpc", () => {
           projectId: project.id,
           automationId: created.automation.id,
         }),
-        await viewer.pagerDuty.list({ projectId: project.id }),
       ];
 
       for (const response of responses) {
@@ -3539,6 +3539,100 @@ describe("automations trpc", () => {
         expect(serialized).not.toContain(storedKey);
         expect(serialized).not.toContain("routingKey");
       }
+    });
+
+    describe("sendPagerDutyTestEvent", () => {
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      beforeEach(() => {
+        fetchSpy = vi
+          .spyOn(global, "fetch")
+          .mockResolvedValue(new Response("{}", { status: 202 }));
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function sentEvents() {
+        return fetchSpy.mock.calls.map(([url, init]) => ({
+          url: String(url),
+          body: JSON.parse(String((init as RequestInit).body)),
+        }));
+      }
+
+      it("sends a trigger and a resolve to the typed key in the chosen region", async () => {
+        const { project, caller } = await prepare();
+
+        await caller.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "EU",
+          routingKey,
+        });
+
+        const events = sentEvents();
+        expect(events.map((e) => e.url)).toEqual([
+          "https://events.eu.pagerduty.com/v2/enqueue",
+          "https://events.eu.pagerduty.com/v2/enqueue",
+        ]);
+        expect(events.map((e) => e.body.event_action)).toEqual([
+          "trigger",
+          "resolve",
+        ]);
+        expect(events.every((e) => e.body.routing_key === routingKey)).toBe(
+          true,
+        );
+      });
+
+      it("falls back to the stored key of the action", async () => {
+        const { project, caller } = await prepare();
+        const created = await caller.automations.createAutomation(
+          createInput(project.id),
+        );
+
+        await caller.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          actionId: created.action.id,
+        });
+
+        expect(sentEvents()[0]).toMatchObject({
+          url: "https://events.pagerduty.com/v2/enqueue",
+          body: { routing_key: routingKey },
+        });
+      });
+
+      it("rejects a stored key of another project", async () => {
+        const { project: otherProject, caller: otherCaller } = await prepare();
+        const otherAction = await otherCaller.automations.createAutomation(
+          createInput(otherProject.id),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            actionId: otherAction.action.id,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
+        fetchSpy.mockResolvedValue(
+          new Response("invalid key", { status: 400 }),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      });
     });
   });
 });

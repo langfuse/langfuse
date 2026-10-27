@@ -9,8 +9,10 @@ import {
   isSlackActionConfig,
   isWebhookAction,
   isGitHubDispatchAction,
+  isPagerDutyActionConfig,
   type AutomationDomain,
   type ActionDomainWithSecrets,
+  type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
@@ -46,6 +48,7 @@ import {
   PagerDutyApiError,
   sendPagerDutyAlertEvent,
   sendPagerDutyChangeEvent,
+  type PagerDutyRegion,
 } from "@langfuse/shared/pagerduty/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
@@ -1022,19 +1025,20 @@ async function executePagerDutyAction({
     projectId,
     actionId: automation.action.id,
   });
-  if (!actionConfig) {
-    throw new InternalServerError("Action config not found");
+  if (!actionConfig || !isPagerDutyActionConfig(actionConfig.config)) {
+    throw new InternalServerError("PagerDuty action config not found");
   }
+  const config = actionConfig.config;
 
   try {
-    const event = buildPagerDutyDelivery({ input, envelope, actionConfig });
+    const event = await buildPagerDutyDelivery({ input, envelope, config });
     if (!event) {
       logger.info(
         `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
       );
       return;
     }
-    await backOff(() => sendPagerDutyEvent(event, actionConfig), {
+    await backOff(() => sendPagerDutyEvent(event, config.region), {
       numOfAttempts: 4,
       retry: (error: unknown) => {
         const isRetryable =
@@ -1073,34 +1077,32 @@ async function executePagerDutyAction({
 }
 
 /** buildPagerDutyDelivery decrypts the routing key and maps the job payload to a PagerDuty event. */
-function buildPagerDutyDelivery({
+async function buildPagerDutyDelivery({
   input,
   envelope,
-  actionConfig,
+  config,
 }: {
   input: WebhookInput;
   envelope: WebhookOutboundPayload;
-  actionConfig: ActionDomainWithSecrets;
-}): PagerDutyEvent | null {
-  if (!actionConfig.pagerDutyIntegration) {
-    throw new Error(
-      "The PagerDuty service of this automation was deleted. Select another service.",
-    );
-  }
+  config: PagerDutyActionConfigWithSecrets;
+}): Promise<PagerDutyEvent | null> {
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: input.projectId },
+    select: { name: true },
+  });
   return buildPagerDutyEvent({
     envelope,
     projectId: input.projectId,
-    projectName: actionConfig.pagerDutyIntegration.projectName,
-    routingKey: decrypt(actionConfig.pagerDutyIntegration.routingKey),
+    projectName: project.name,
+    routingKey: decrypt(config.routingKey),
   });
 }
 
 /** sendPagerDutyEvent posts the event to the alert or change endpoint of the key's region. */
 async function sendPagerDutyEvent(
   event: PagerDutyEvent,
-  actionConfig: ActionDomainWithSecrets,
+  region: PagerDutyRegion,
 ) {
-  const region = actionConfig.pagerDutyIntegration!.region;
   if (event.kind === "change") {
     await sendPagerDutyChangeEvent({ region, event: event.event });
     return;

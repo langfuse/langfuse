@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 
+import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
@@ -11,17 +12,17 @@ export function PagerDutyTestEventDialogController({
 }: {
   projectId: string;
   children: (control: {
-    openDialog: (integrationId: string) => void;
+    openDialog: (target: PagerDutyTestEventTarget) => void;
   }) => ReactNode;
 }) {
-  const sendTestEvent = api.pagerDuty.sendTestEvent.useMutation({
+  const sendTestEvent = api.automations.sendPagerDutyTestEvent.useMutation({
     meta: { silentAllErrors: true },
   });
 
-  const handleConfirm = async (integrationId: string) => {
-    await sendTestEvent.mutateAsync({ projectId, id: integrationId });
+  const handleConfirm = async (target: PagerDutyTestEventTarget) => {
+    await sendTestEvent.mutateAsync({ projectId, ...target });
     showSuccessToast({
-      operation: "pagerDuty.sendTestEvent",
+      operation: "automations.sendPagerDutyTestEvent",
       title: "Test event sent",
       description:
         "PagerDuty accepted the test event. Langfuse resolved it right away.",
@@ -29,7 +30,7 @@ export function PagerDutyTestEventDialogController({
   };
 
   return (
-    <ConfirmationDialogController<string>
+    <ConfirmationDialogController<PagerDutyTestEventTarget>
       title="Send PagerDuty test event"
       text="This triggers a real incident on the PagerDuty service and briefly pages whoever is on call. Langfuse resolves it right after."
       confirmLabel="Send test event"
@@ -43,3 +44,10 @@ export function PagerDutyTestEventDialogController({
     </ConfirmationDialogController>
   );
 }
+
+/** PagerDutyTestEventTarget is the key a test event goes to: the typed key, else the action's stored key. */
+type PagerDutyTestEventTarget = {
+  region: PagerDutyRegion;
+  routingKey?: string;
+  actionId?: string;
+};

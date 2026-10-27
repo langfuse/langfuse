@@ -1,103 +1,111 @@
 import { type UseFormReturn } from "react-hook-form";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import {
-  PagerDutyTestEventButton,
-  usePagerDutyIntegrations,
-} from "@/src/features/pagerduty";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { PagerDutyTestEventButton } from "./PagerDutyTestEventButton";
 
-/** NoServicesHint tells the user how to get a routing key added. */
-function NoServicesHint({
-  projectId,
-  canManage,
-}: {
-  projectId: string;
-  canManage: boolean;
-}) {
-  if (!canManage) {
-    return <>Ask a project admin to connect a PagerDuty service.</>;
-  }
-  return (
-    <>
-      Add a routing key in{" "}
-      <TextLink
-        path={`/project/${projectId}/settings/integrations/pagerduty`}
-        value="Settings → Integrations → PagerDuty"
-      />
-      .
-    </>
-  );
+const regionOptions: { value: PagerDutyRegion; label: string }[] = [
+  { value: "US", label: "US (events.pagerduty.com)" },
+  { value: "EU", label: "EU (events.eu.pagerduty.com)" },
+];
+
+/** routingKeyDescription explains where the key comes from, and that an empty field keeps the stored key. */
+function routingKeyDescription(displayRoutingKey: string | undefined): string {
+  const source =
+    "The integration key of an Events API v2 integration on a PagerDuty service, or an Event Orchestration routing key. Monitor alerts and project notifications trigger incidents; a recovered monitor resolves its incident. Prompt changes are sent as change events, which never page anyone.";
+  if (!displayRoutingKey) return source;
+  return `${source} Leave empty to keep ${displayRoutingKey}.`;
 }
 
-/** NoServicesAlert points to the settings page, or to an admin for users who may not manage integrations. */
-function NoServicesAlert({ projectId }: { projectId: string }) {
-  const canManage = useHasProjectAccess({
-    projectId,
-    scope: "integrations:CRUD",
-  });
-  return (
-    <Alert>
-      <Alert.Title>No PagerDuty services connected</Alert.Title>
-      <Alert.Description>
-        <NoServicesHint projectId={projectId} canManage={canManage} />
-      </Alert.Description>
-    </Alert>
-  );
+/** storedKeyActionId is the action whose stored key a test event may use, if it has one. */
+function storedKeyActionId(
+  actionId: string | undefined,
+  displayRoutingKey: string | undefined,
+): string | undefined {
+  if (!displayRoutingKey) return undefined;
+  return actionId;
 }
 
-/** PagerDutyActionForm picks the PagerDuty service an automation sends to and can send it a test event. */
+/** PagerDutyActionForm collects the routing key and region an automation sends to and can send them a test event. */
 export function PagerDutyActionForm({
   form,
   disabled,
   projectId,
+  actionId,
 }: {
-  form: UseFormReturn<{ pagerDuty: { pagerDutyIntegrationId: string } }>;
+  form: UseFormReturn<PagerDutyFormValues>;
   disabled: boolean;
   projectId: string;
+  actionId?: string;
 }) {
-  const { query } = usePagerDutyIntegrations(projectId);
-  const integrations = query.data ?? [];
-  const selectedId = form.watch("pagerDuty.pagerDutyIntegrationId");
-
-  if (query.isSuccess && integrations.length === 0) {
-    return <NoServicesAlert projectId={projectId} />;
-  }
+  const displayRoutingKey = form.watch("pagerDuty.displayRoutingKey");
+  const routingKey = form.watch("pagerDuty.routingKey");
+  const region = form.watch("pagerDuty.region");
 
   return (
     <div className="space-y-4">
       <Form.Field
         control={form.control}
-        name="pagerDuty.pagerDutyIntegrationId"
-        label="PagerDuty service"
-        description="Monitor alerts and project notifications trigger incidents on this service; a recovered monitor resolves its incident. Prompt changes are sent as change events, which never page anyone."
+        name="pagerDuty.routingKey"
+        label="Routing key"
+        description={routingKeyDescription(displayRoutingKey)}
       >
         {(field) => (
           <div className="max-w-md">
-            <SelectInput<string>
+            <PasswordInput
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              disabled={disabled}
+              placeholder={displayRoutingKey ?? "32 characters"}
+              aria-describedby={field.inputDescribedById}
+              aria-invalid={!!field.error}
+              error={!!field.error}
+            />
+          </div>
+        )}
+      </Form.Field>
+      <Form.Field
+        control={form.control}
+        name="pagerDuty.region"
+        label="Region"
+        description="The service region of your PagerDuty account."
+      >
+        {(field) => (
+          <div className="max-w-md">
+            <SelectInput<PagerDutyRegion>
               id={field.id}
               value={field.value}
               onValueChange={field.onChange}
               disabled={disabled}
-              placeholder="Select a PagerDuty service"
-              options={integrations.map((integration) => ({
-                value: integration.id,
-                label: `${integration.name} (${integration.displayRoutingKey}, ${integration.region})`,
-              }))}
+              options={regionOptions}
+              placeholder="Select a region"
               aria-describedby={field.inputDescribedById}
-              error={!!field.error}
             />
           </div>
         )}
       </Form.Field>
       <PagerDutyTestEventButton
         projectId={projectId}
-        pagerDutyIntegrationId={selectedId || undefined}
+        region={region}
+        routingKey={routingKey.trim() || undefined}
+        actionId={storedKeyActionId(actionId, displayRoutingKey)}
         disabled={disabled}
       />
     </div>
   );
 }
+
+/** PagerDutyFormValues is the PagerDuty part of the automation form. */
+type PagerDutyFormValues = {
+  pagerDuty: {
+    routingKey: string;
+    displayRoutingKey?: string;
+    region: PagerDutyRegion;
+  };
+};

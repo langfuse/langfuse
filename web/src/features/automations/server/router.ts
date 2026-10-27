@@ -13,6 +13,10 @@ import {
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "@langfuse/shared/pagerduty";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { v4 } from "uuid";
 import {
@@ -27,7 +31,10 @@ import {
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
-import { processPagerDutyActionConfig } from "./pagerdutyHelpers";
+import {
+  processPagerDutyActionConfig,
+  sendPagerDutyTestEvent,
+} from "./pagerdutyHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
@@ -449,6 +456,7 @@ export const automationsRouter = createTRPCRouter({
       } else if (input.actionType === "PAGERDUTY") {
         finalActionConfig = await processPagerDutyActionConfig({
           actionConfig: input.actionConfig,
+          actionId: existingAutomation.action.id,
           projectId: input.projectId,
         });
       }
@@ -660,5 +668,35 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return count;
+    }),
+
+  sendPagerDutyTestEvent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        region: PagerDutyRegionSchema,
+        routingKey: PagerDutyRoutingKeySchema.optional(),
+        actionId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      await sendPagerDutyTestEvent(input);
+
+      if (input.actionId) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "action",
+          resourceId: input.actionId,
+          action: "create",
+          after: { action: "test_event_sent", region: input.region },
+        });
+      }
+      return { success: true };
     }),
 });

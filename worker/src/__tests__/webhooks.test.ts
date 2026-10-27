@@ -2415,7 +2415,20 @@ describe("Webhook Integration Tests", () => {
 
   describe("PagerDuty action", () => {
     const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
-    let pagerDutyIntegrationId: string;
+
+    const setPagerDutyConfig = (region: "US" | "EU") =>
+      prisma.action.update({
+        where: { id: actionId },
+        data: {
+          type: "PAGERDUTY",
+          config: {
+            type: "PAGERDUTY",
+            routingKey: encrypt(routingKey),
+            displayRoutingKey: "R0ab...9xYz",
+            region,
+          },
+        },
+      });
 
     const buildMonitorInput = (
       severity: "ALERT" | "WARNING" | "OK" | "NO_DATA",
@@ -2463,22 +2476,7 @@ describe("Webhook Integration Tests", () => {
     };
 
     beforeEach(async () => {
-      ({ id: pagerDutyIntegrationId } =
-        await prisma.pagerDutyIntegration.create({
-          data: {
-            projectId,
-            name: "On-call",
-            routingKey: encrypt(routingKey),
-            displayRoutingKey: "R0ab...9xYz",
-          },
-        }));
-      await prisma.action.update({
-        where: { id: actionId },
-        data: {
-          type: "PAGERDUTY",
-          config: { type: "PAGERDUTY", pagerDutyIntegrationId },
-        },
-      });
+      await setPagerDutyConfig("US");
       await redis!.del(`automation-failures:${projectId}:${automationId}`);
     });
 
@@ -2547,10 +2545,7 @@ describe("Webhook Integration Tests", () => {
     });
 
     it("sends to the EU host for EU routing keys", async () => {
-      await prisma.pagerDutyIntegration.update({
-        where: { id: pagerDutyIntegrationId },
-        data: { region: "EU" },
-      });
+      await setPagerDutyConfig("EU");
 
       await executeWebhook(buildMonitorInput("ALERT"));
 
@@ -2670,19 +2665,6 @@ describe("Webhook Integration Tests", () => {
       ).toBe("1");
     });
 
-    it("records the failure when the PagerDuty integration was deleted", async () => {
-      await prisma.pagerDutyIntegration.delete({
-        where: { id: pagerDutyIntegrationId },
-      });
-
-      await executeWebhook(buildMonitorInput("ALERT"));
-
-      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
-      expect(
-        await redis!.get(`automation-failures:${projectId}:${automationId}`),
-      ).toBe("1");
-    });
-
     it("returns the routing key only on the execution read path", async () => {
       const withSecrets = await getActionByIdWithSecrets({
         projectId,
@@ -2690,13 +2672,12 @@ describe("Webhook Integration Tests", () => {
       });
       const safe = await getActionById({ projectId, actionId });
 
-      expect(withSecrets?.pagerDutyIntegration?.region).toBe("US");
-      expect(decrypt(withSecrets!.pagerDutyIntegration!.routingKey)).toBe(
-        routingKey,
-      );
+      const config = withSecrets?.config as { routingKey: string };
+      expect(decrypt(config.routingKey)).toBe(routingKey);
       expect(safe?.config).toEqual({
         type: "PAGERDUTY",
-        pagerDutyIntegrationId,
+        displayRoutingKey: "R0ab...9xYz",
+        region: "US",
       });
       expect(JSON.stringify(safe)).not.toContain(routingKey);
     });

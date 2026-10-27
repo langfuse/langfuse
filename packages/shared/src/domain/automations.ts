@@ -1,6 +1,10 @@
-import { Action, PagerDutyRegion, Trigger } from "@prisma/client";
+import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
 import { z } from "zod";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "../features/pagerduty/types";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
@@ -58,12 +62,6 @@ export type ActionDomain = Omit<Action, "config"> & {
 
 export type ActionDomainWithSecrets = Omit<Action, "config"> & {
   config: ActionConfigWithSecrets;
-  /** pagerDutyIntegration is the PAGERDUTY action's routing key, still encrypted; null when the key was deleted. */
-  pagerDutyIntegration?: {
-    routingKey: string;
-    region: PagerDutyRegion;
-    projectName: string;
-  } | null;
 };
 
 export const ActionTypeSchema = z.enum([
@@ -155,13 +153,31 @@ export type GitHubDispatchActionConfigWithSecrets = z.infer<
   typeof GitHubDispatchActionConfigSchema
 >;
 
-/** PagerDutyActionConfigSchema references a project PagerDuty integration; the routing key stays on the integration, so the config holds no secret. */
+/** PagerDutyActionConfigSchema is a stored PagerDuty action; `routingKey` is encrypted. */
 export const PagerDutyActionConfigSchema = z.object({
   type: z.literal("PAGERDUTY"),
-  pagerDutyIntegrationId: z.string().min(1, "Select a PagerDuty service"),
+  routingKey: z.string(),
+  displayRoutingKey: z.string(),
+  region: PagerDutyRegionSchema,
 });
 
-export type PagerDutyActionConfig = z.infer<typeof PagerDutyActionConfigSchema>;
+export const SafePagerDutyActionConfigSchema = PagerDutyActionConfigSchema.omit(
+  { routingKey: true },
+);
+
+/** PagerDutyActionCreateSchema is the PagerDuty action input; an update without `routingKey` keeps the stored key. */
+export const PagerDutyActionCreateSchema = z.object({
+  type: z.literal("PAGERDUTY"),
+  routingKey: PagerDutyRoutingKeySchema.optional(),
+  region: PagerDutyRegionSchema,
+});
+
+export type PagerDutyActionConfigWithSecrets = z.infer<
+  typeof PagerDutyActionConfigSchema
+>;
+export type SafePagerDutyActionConfig = z.infer<
+  typeof SafePagerDutyActionConfigSchema
+>;
 
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
@@ -174,14 +190,14 @@ export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionCreateSchema,
-  PagerDutyActionConfigSchema,
+  PagerDutyActionCreateSchema,
 ]);
 
 export const SafeActionConfigSchema = z.discriminatedUnion("type", [
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
-  PagerDutyActionConfigSchema,
+  SafePagerDutyActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
@@ -304,6 +320,6 @@ export function convertToSafeGitHubDispatchConfig(
 /** isPagerDutyActionConfig checks for a valid PagerDuty action configuration. */
 export function isPagerDutyActionConfig(
   config: unknown,
-): config is PagerDutyActionConfig {
+): config is PagerDutyActionConfigWithSecrets {
   return PagerDutyActionConfigSchema.safeParse(config).success;
 }

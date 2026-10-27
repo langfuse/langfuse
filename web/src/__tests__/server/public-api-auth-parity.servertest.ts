@@ -86,8 +86,6 @@ const projectRoutes: Route[] = [
   { route: "spans", methods: ["POST", "PATCH"] },
   { route: "llm-connections/index", methods: ["GET", "PUT"] },
   { route: "llm-connections/[id]", methods: ["DELETE"] },
-  { route: "integrations/pagerduty/index", methods: ["GET", "POST"] },
-  { route: "integrations/pagerduty/[id]", methods: ["PATCH", "DELETE"] },
   { route: "unstable/dashboards/index", methods: ["GET", "POST"] },
   {
     route: "unstable/dashboards/[dashboardId]",

@@ -33,7 +33,7 @@ import ConfigureRetention from "@/src/features/projects/components/ConfigureRete
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { ProtectedLabelsSettings } from "@/src/features/prompts";
-import { SiPagerduty, SiSlack } from "@langfuse/icons/si";
+import { SiSlack } from "@langfuse/icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
@@ -52,7 +52,6 @@ import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useM
 import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
 import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
-import { usePagerDutyIntegrations } from "@/src/features/pagerduty";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -452,12 +451,6 @@ const Integrations = (props: { projectId: string }) => {
     silentError,
   );
   const slack = useSlackIntegration(props.projectId, silentError);
-  const pagerDuty = usePagerDutyIntegrations(props.projectId, silentError);
-  // Without integrations:CRUD the PagerDuty page is a read-only list.
-  const hasPagerDutyReadAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "automations:read",
-  });
   const webCallouts = useWebCallouts(props.projectId, silentError);
 
   return (
@@ -611,30 +604,6 @@ const Integrations = (props: { projectId: string }) => {
               variant="secondary"
               hasAccess={hasAccess}
               href={`/project/${props.projectId}/settings/integrations/slack`}
-            >
-              Configure
-            </ActionButton>
-          </div>
-        </Card>
-
-        <Card className="p-3">
-          <IntegrationCardHeader
-            status={pagerDuty.status}
-            isLoading={pagerDuty.query.isLoading}
-            hasAccess={hasPagerDutyReadAccess}
-          >
-            <SiPagerduty size="lg" color="foreground" />
-            <span className="font-bold">PagerDuty</span>
-          </IntegrationCardHeader>
-          <p className="text-primary mb-4 text-sm">
-            Connect PagerDuty services to page your on-call team from monitor
-            alerts and project notifications.
-          </p>
-          <div className="flex items-center gap-2">
-            <ActionButton
-              variant="secondary"
-              hasAccess={hasPagerDutyReadAccess}
-              href={`/project/${props.projectId}/settings/integrations/pagerduty`}
             >
               Configure
             </ActionButton>

@@ -27,7 +27,7 @@ import {
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
   isPagerDutyActionConfig,
-  PagerDutyActionConfigSchema,
+  SafePagerDutyActionConfigSchema,
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
@@ -55,17 +55,6 @@ export const getActionByIdWithSecrets = async ({
     return null;
   }
 
-  if (actionConfig.type === "PAGERDUTY") {
-    return {
-      ...actionConfig,
-      config: actionConfig.config as ActionDomainWithSecrets["config"],
-      pagerDutyIntegration: await getPagerDutyIntegrationForAction({
-        projectId,
-        config: actionConfig.config,
-      }),
-    };
-  }
-
   if (isWebhookActionConfig(actionConfig.config)) {
     const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
@@ -91,7 +80,7 @@ export const getActionByIdWithSecrets = async ({
     };
   }
 
-  // SLACK and GITHUB_DISPATCH need no header decryption, so the stored config
+  // SLACK, GITHUB_DISPATCH and PAGERDUTY need no header decryption, so the stored config
   // is returned verbatim. Secrets are included by design here - callers that
   // hand configs to a client must use getActionById instead.
   return actionConfig as ActionDomainWithSecrets;
@@ -254,17 +243,17 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
       );
     case "PAGERDUTY":
-      // The routing key lives on the PagerDuty integration, never in the config.
       if (isPagerDutyActionConfig(action.config)) {
         return {
           type: action.config.type,
-          pagerDutyIntegrationId: action.config.pagerDutyIntegrationId,
+          displayRoutingKey: action.config.displayRoutingKey,
+          region: action.config.region,
         };
       }
       return pickSafeConfigFields(
         action.config,
         actionType,
-        Object.keys(PagerDutyActionConfigSchema.shape),
+        Object.keys(SafePagerDutyActionConfigSchema.shape),
       );
     default: {
       const unhandledActionType: never = actionType;
@@ -417,29 +406,4 @@ export const getConsecutiveAutomationFailures = async ({
   }
 
   return consecutiveFailures;
-};
-
-/** getPagerDutyIntegrationForAction loads the routing key and project name of a PAGERDUTY action, or null when its integration was deleted. */
-const getPagerDutyIntegrationForAction = async ({
-  projectId,
-  config,
-}: {
-  projectId: string;
-  config: unknown;
-}): Promise<ActionDomainWithSecrets["pagerDutyIntegration"]> => {
-  if (!isPagerDutyActionConfig(config)) return null;
-  const integration = await prisma.pagerDutyIntegration.findFirst({
-    where: { id: config.pagerDutyIntegrationId, projectId },
-    select: {
-      routingKey: true,
-      region: true,
-      project: { select: { name: true } },
-    },
-  });
-  if (!integration) return null;
-  return {
-    routingKey: integration.routingKey,
-    region: integration.region,
-    projectName: integration.project.name,
-  };
 };

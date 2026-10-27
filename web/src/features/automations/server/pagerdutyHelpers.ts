@@ -1,40 +1,175 @@
+import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 
 import {
   isPagerDutyActionConfig,
   type ActionCreate,
-  type PagerDutyActionConfig,
+  type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  maskPagerDutyRoutingKey,
+  PagerDutyApiError,
+  sendPagerDutyAlertEvent,
+  type PagerDutyAlertEvent,
+  type PagerDutyRegion,
+} from "@langfuse/shared/pagerduty/server";
+import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
 
-/** processPagerDutyActionConfig checks that the selected PagerDuty integration belongs to the project and returns the config to store. */
+/** getStoredPagerDutyConfig loads the PagerDuty config of an existing action, or null when there is none. */
+async function getStoredPagerDutyConfig({
+  actionId,
+  projectId,
+}: {
+  actionId?: string;
+  projectId: string;
+}): Promise<PagerDutyActionConfigWithSecrets | null> {
+  if (!actionId) return null;
+  const action = await prisma.action.findFirst({
+    where: { id: actionId, projectId },
+    select: { config: true },
+  });
+  const config = action?.config;
+  if (!isPagerDutyActionConfig(config)) return null;
+  return config;
+}
+
+/** resolveTestRoutingKey prefers the typed key and falls back to the stored key of the action. */
+async function resolveTestRoutingKey({
+  projectId,
+  routingKey,
+  actionId,
+}: {
+  projectId: string;
+  routingKey?: string;
+  actionId?: string;
+}): Promise<string> {
+  if (routingKey) return routingKey;
+  const existing = await getStoredPagerDutyConfig({ actionId, projectId });
+  if (!existing) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Enter a PagerDuty routing key to send a test event",
+    });
+  }
+  return decrypt(existing.routingKey);
+}
+
+/** buildTestEventPayload describes the test alert. */
+function buildTestEventPayload(
+  projectName: string,
+): NonNullable<PagerDutyAlertEvent["payload"]> {
+  return {
+    summary: `[Langfuse] Test event from project ${projectName}`,
+    source: `langfuse/${projectName}`,
+    severity: "info",
+    timestamp: new Date().toISOString(),
+    class: "test",
+    custom_details: {
+      message:
+        "This is a test event from Langfuse to verify your PagerDuty automation. It is resolved automatically.",
+    },
+  };
+}
+
+/** toTestEventError maps a failed PagerDuty call to a user-facing tRPC error. */
+function toTestEventError(error: unknown, projectId: string): unknown {
+  if (!(error instanceof PagerDutyApiError)) return error;
+  logger.warn("Failed to send PagerDuty test event", {
+    projectId,
+    status: error.status,
+    error: error.message,
+  });
+  if (error.status === 429) {
+    return new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "PagerDuty rate-limited the test event. Try again shortly.",
+    });
+  }
+  return new TRPCError({
+    code: "BAD_REQUEST",
+    message: `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
+  });
+}
+
+/** processPagerDutyActionConfig encrypts a new routing key, or keeps the stored one when the update omits it. */
 export async function processPagerDutyActionConfig({
   actionConfig,
+  actionId,
   projectId,
 }: {
   actionConfig: ActionCreate;
+  actionId?: string;
   projectId: string;
-}): Promise<PagerDutyActionConfig> {
-  if (!isPagerDutyActionConfig(actionConfig)) {
+}): Promise<PagerDutyActionConfigWithSecrets> {
+  if (actionConfig.type !== "PAGERDUTY") {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid PagerDuty action configuration",
     });
   }
 
-  const integration = await prisma.pagerDutyIntegration.findFirst({
-    where: { id: actionConfig.pagerDutyIntegrationId, projectId },
-    select: { id: true },
-  });
-  if (!integration) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "PagerDuty service not found in this project",
-    });
+  if (actionConfig.routingKey) {
+    return {
+      type: "PAGERDUTY",
+      routingKey: encrypt(actionConfig.routingKey),
+      displayRoutingKey: maskPagerDutyRoutingKey(actionConfig.routingKey),
+      region: actionConfig.region,
+    };
   }
 
-  return {
-    type: "PAGERDUTY",
-    pagerDutyIntegrationId: integration.id,
-  };
+  const existing = await getStoredPagerDutyConfig({ actionId, projectId });
+  if (!existing) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "PagerDuty routing key is required",
+    });
+  }
+  return { ...existing, region: actionConfig.region };
+}
+
+/** sendPagerDutyTestEvent triggers and then resolves one test alert, so whoever is on call is paged briefly. */
+export async function sendPagerDutyTestEvent({
+  projectId,
+  region,
+  routingKey,
+  actionId,
+}: {
+  projectId: string;
+  region: PagerDutyRegion;
+  routingKey?: string;
+  actionId?: string;
+}): Promise<void> {
+  const key = await resolveTestRoutingKey({ projectId, routingKey, actionId });
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { name: true },
+  });
+  const dedupKey = `langfuse-${projectId}-test-${randomUUID()}`;
+  const projectUrl = new URL(
+    `project/${projectId}`,
+    getProductBaseUrl(),
+  ).toString();
+
+  try {
+    await sendPagerDutyAlertEvent({
+      region,
+      event: {
+        routing_key: key,
+        event_action: "trigger",
+        dedup_key: dedupKey,
+        client: "Langfuse",
+        client_url: projectUrl,
+        links: [{ href: projectUrl, text: "Open Langfuse project" }],
+        payload: buildTestEventPayload(project.name),
+      },
+    });
+    await sendPagerDutyAlertEvent({
+      region,
+      event: { routing_key: key, event_action: "resolve", dedup_key: dedupKey },
+    });
+  } catch (error) {
+    throw toTestEventError(error, projectId);
+  }
 }

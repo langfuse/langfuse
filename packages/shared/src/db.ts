@@ -42,9 +42,6 @@ const createPrismaInstance = () => {
       gatewayAiConnection: {
         encryptedCredential: true,
       },
-      pagerDutyIntegration: {
-        routingKey: true,
-      },
     },
   });
 
