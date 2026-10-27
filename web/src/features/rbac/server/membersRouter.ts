@@ -125,12 +125,12 @@ export const membersRouter = createTRPCRouter({
       /**
        * Create a new organization membership
        * - Checks for:
+       *   - project is in org (throws if not)
        *   - scope: organizationMembers:CUD if not only project-role is set, then projectMembers:CUD
        *   - orgRole is not higher than own role
        *   - if project role
        *     - projectRole is not higher than own role
        *     - entitlement for project roles if projectRole is set
-       *     - project is in org
        *  - if user exists
        *    - if org membership exists
        *      - if only project role is set (orgRole === Role.NONE)
@@ -150,14 +150,32 @@ export const membersRouter = createTRPCRouter({
        *  - send email
        */
 
+      // The project must belong to the target org before its project-level
+      // rights can stand in for organizationMembers:CUD below.
+      const project = input.projectId
+        ? await ctx.prisma.project.findFirst({
+            where: {
+              id: input.projectId,
+              orgId: input.orgId,
+              deletedAt: null,
+            },
+          })
+        : null;
+      if (input.projectId && !project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
       if (
         // Require only project-level access rights if no orgRole is set but a projectId is
-        input.projectId &&
+        project &&
         input.orgRole === Role.NONE
       ) {
         throwIfNoProjectAccess({
           session: ctx.session,
-          projectId: input.projectId,
+          projectId: project.id,
           scope: "projectMembers:CUD",
         });
       } else {
@@ -195,16 +213,6 @@ export const membersRouter = createTRPCRouter({
         },
       });
 
-      // security check if project is in org
-      const project = input.projectId
-        ? await ctx.prisma.project.findFirst({
-            where: {
-              id: input.projectId,
-              orgId: input.orgId,
-              deletedAt: null,
-            },
-          })
-        : null;
       if (project && input.projectRole)
         await throwIfHigherProjectRole({
           orgCtx: ctx,

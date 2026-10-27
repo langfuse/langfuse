@@ -661,3 +661,63 @@ describe("membersRouter.updateProjectRole - project organization consistency", (
     expect(auditLogs).toHaveLength(0);
   });
 });
+
+describe("membersRouter.create - project organization consistency", () => {
+  it("rejects a project-only invite whose project belongs to another organization", async () => {
+    // The caller is a VIEWER in the target org but OWNER of their own org.
+    // Their project-level rights there must not stand in for
+    // organizationMembers:CUD on the target org.
+    const { org: targetOrg, project: targetProject } =
+      await createTestOrg("cloud:team");
+    const {
+      org: callerOrg,
+      project: callerProject,
+      ownerUser: caller,
+    } = await createTestOrg("cloud:team");
+    await prisma.organizationMembership.create({
+      data: { userId: caller.id, orgId: targetOrg.id, role: Role.VIEWER },
+    });
+
+    const session = createSession(
+      caller,
+      targetOrg,
+      targetProject,
+      "cloud:team",
+      {
+        orgRole: Role.VIEWER,
+        projectRole: Role.VIEWER,
+      },
+    );
+    session.user!.organizations.push(
+      ...createSession(caller, callerOrg, callerProject, "cloud:team").user!
+        .organizations,
+    );
+    const ctx = createInnerTRPCContext({ session, headers: {} });
+    const trpc = appRouter.createCaller({ ...ctx, prisma });
+
+    const existingUser = await createTestUser();
+    const unknownEmail = `unknown-${uuidv4().substring(0, 8)}@test.com`;
+
+    for (const email of [existingUser.email!, unknownEmail]) {
+      await expect(
+        trpc.members.create({
+          orgId: targetOrg.id,
+          email,
+          orgRole: Role.NONE,
+          projectId: callerProject.id,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+
+    expect(
+      await prisma.organizationMembership.count({
+        where: { orgId: targetOrg.id, userId: existingUser.id },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.membershipInvitation.count({
+        where: { orgId: targetOrg.id },
+      }),
+    ).toBe(0);
+  });
+});
