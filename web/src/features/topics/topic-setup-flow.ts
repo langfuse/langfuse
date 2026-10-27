@@ -116,14 +116,22 @@ function topicModelsFor(
 export function topicProviderGroups(
   connections: TopicSetupConnection[],
   kind: "chat" | "embedding",
-  savedModel?: string | null,
+  savedModel?: string | { llmApiKeyId: string; model: string } | null,
 ) {
+  const targetModel =
+    typeof savedModel === "string" ? savedModel : savedModel?.model;
+  const targetKeyId =
+    typeof savedModel === "string" ? undefined : savedModel?.llmApiKeyId;
   return connections.map(
     (connection) =>
-      [connection.provider, topicModelsFor(connection, kind, savedModel)] as [
-        string,
-        string[],
-      ],
+      [
+        connection.provider,
+        topicModelsFor(
+          connection,
+          kind,
+          !targetKeyId || connection.id === targetKeyId ? targetModel : null,
+        ),
+      ] as [string, string[]],
   );
 }
 
@@ -210,17 +218,17 @@ export function initialTopicSetupDraft(input: {
   const summaryGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.summary?.model,
+    input.stored.summary,
   );
   const embeddingGroups = topicProviderGroups(
     input.connections,
     "embedding",
-    input.stored.embedding?.model,
+    input.stored.embedding,
   );
   const clusteringGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.clustering?.model,
+    input.stored.clustering,
   );
   return {
     step: "questions",

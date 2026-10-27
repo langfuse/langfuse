@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
@@ -120,14 +120,18 @@ function TopicSetupSession({
   });
   const startSetup = api.topics.startSetup.useMutation();
   const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
-  const connections = settings.connections.map(
-    (connection): TopicSetupConnection => ({
-      id: connection.id,
-      provider: connection.provider,
-      adapter: connection.adapter,
-      customModels: connection.customModels,
-      withDefaultModels: connection.withDefaultModels,
-    }),
+  const connections = useMemo(
+    () =>
+      settings.connections.map(
+        (connection): TopicSetupConnection => ({
+          id: connection.id,
+          provider: connection.provider,
+          adapter: connection.adapter,
+          customModels: connection.customModels,
+          withDefaultModels: connection.withDefaultModels,
+        }),
+      ),
+    [settings.connections],
   );
   const [draft, setDraft] = useState(() =>
     initialTopicSetupDraft({
@@ -138,6 +142,42 @@ function TopicSetupSession({
       traceIdleMs: settings.traceIdleMs,
     }),
   );
+  useEffect(() => {
+    setDraft((current) => {
+      if (current.summary && current.embedding && current.clustering) {
+        return current;
+      }
+      const freshDraft = initialTopicSetupDraft({
+        stored: settings.stored,
+        connections,
+        facets: settings.facets,
+        enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
+        traceIdleMs: settings.traceIdleMs,
+      });
+      const nextSummary = current.summary ?? freshDraft.summary;
+      const nextEmbedding = current.embedding ?? freshDraft.embedding;
+      const nextClustering = current.clustering ?? freshDraft.clustering;
+      if (
+        nextSummary === current.summary &&
+        nextEmbedding === current.embedding &&
+        nextClustering === current.clustering
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        summary: nextSummary,
+        embedding: nextEmbedding,
+        clustering: nextClustering,
+      };
+    });
+  }, [
+    connections,
+    settings.stored,
+    settings.facets,
+    settings.rule,
+    settings.traceIdleMs,
+  ]);
   const [error, setError] = useState<string | null>(null);
   // One request per session, so a repeated Start resolves to the same backfill.
   const [requestId] = useState(() => crypto.randomUUID());
@@ -286,12 +326,17 @@ function TopicSetupSession({
       providerGroups={topicProviderGroups(
         connections,
         "chat",
-        settings.stored.summary?.model,
+        settings.stored.summary,
       )}
       embeddingProviderGroups={topicProviderGroups(
         connections,
         "embedding",
-        settings.stored.embedding?.model,
+        settings.stored.embedding,
+      )}
+      clusteringProviderGroups={topicProviderGroups(
+        connections,
+        "chat",
+        settings.stored.clustering,
       )}
       connectionCaption={topicConnectionCaption(connections)}
       hasConnection={connections.length > 0}

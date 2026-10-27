@@ -9,6 +9,7 @@ import {
   topicSetupRun,
   topicSetupStage,
   topicConnectionCaption,
+  topicProviderGroups,
 } from "./topic-setup-flow";
 
 const connections = [
@@ -193,4 +194,73 @@ it("follows a setup run from summaries through its topic update", () => {
 it("names the connection when the project has one provider", () => {
   expect(topicConnectionCaption(connections)).toBe("Amazon Bedrock");
   expect(topicConnectionCaption([])).toBe("No AI connection");
+});
+
+it("scopes saved model in topicProviderGroups only to the matching connection id", () => {
+  const multiConnections = [
+    {
+      id: "conn-anthropic",
+      provider: "Anthropic",
+      adapter: "anthropic",
+      customModels: ["claude-3-5-sonnet"],
+      withDefaultModels: false,
+    },
+    {
+      id: "conn-openai",
+      provider: "OpenAI",
+      adapter: "openai",
+      customModels: ["gpt-4o"],
+      withDefaultModels: false,
+    },
+  ];
+
+  const groups = topicProviderGroups(multiConnections, "chat", {
+    llmApiKeyId: "conn-anthropic",
+    model: "saved-custom-claude",
+  });
+
+  const anthropicGroup = groups.find(([provider]) => provider === "Anthropic");
+  const openaiGroup = groups.find(([provider]) => provider === "OpenAI");
+
+  expect(anthropicGroup?.[1]).toContain("saved-custom-claude");
+  expect(openaiGroup?.[1]).not.toContain("saved-custom-claude");
+});
+
+it("scopes stored slot models in initialTopicSetupDraft to matching connections", () => {
+  const multiConnections = [
+    {
+      id: "conn-anthropic",
+      provider: "Anthropic",
+      adapter: "anthropic",
+      customModels: ["claude-3-5-sonnet"],
+      withDefaultModels: false,
+    },
+    {
+      id: "conn-openai",
+      provider: "OpenAI",
+      adapter: "openai",
+      customModels: ["gpt-4o"],
+      withDefaultModels: false,
+    },
+  ];
+
+  const draft = initialTopicSetupDraft({
+    stored: {
+      summary: {
+        llmApiKeyId: "conn-openai",
+        model: "gpt-4o-custom",
+      },
+      embedding: null,
+      clustering: null,
+    },
+    connections: multiConnections,
+    facets: [],
+    enabledFacetIds: null,
+    traceIdleMs: null,
+  });
+
+  expect(draft.summary).toEqual({
+    provider: "OpenAI",
+    model: "gpt-4o-custom",
+  });
 });
