@@ -58,6 +58,8 @@ export type AssistantStageDependencies = {
   readViewportAspectRatio: () => number;
   createId: () => string;
   now: () => Date;
+  /** Lets the pending state paint before a capture that may block. */
+  waitForPaint?: () => Promise<void>;
   onOpen?: (entryPoint: AssistantStageEntryPoint) => void;
   onCaptureFailed?: (error: unknown) => void;
 };
@@ -99,6 +101,7 @@ export function createAssistantStageStore(deps: AssistantStageDependencies) {
 
       let capture: PageCapture | null = null;
       try {
+        await deps.waitForPaint?.();
         capture = await deps.acquireCapture();
       } catch (error) {
         deps.onCaptureFailed?.(error);

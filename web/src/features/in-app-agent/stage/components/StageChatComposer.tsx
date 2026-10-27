@@ -65,7 +65,7 @@ export function StageChatComposer({
             }
           }}
           // 16px keeps iOS from zooming the page when the field takes focus.
-          className="placeholder:text-muted-foreground field-sizing-content max-h-48 min-h-10 w-full resize-none bg-transparent px-2 py-1.5 text-base outline-hidden md:text-sm"
+          className="placeholder:text-muted-foreground field-sizing-content max-h-48 min-h-10 w-full resize-none border-0 bg-transparent px-2 py-1.5 text-base shadow-none outline-hidden focus:ring-0 md:text-sm"
         />
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">

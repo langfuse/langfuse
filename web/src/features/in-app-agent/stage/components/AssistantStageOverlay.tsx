@@ -21,12 +21,26 @@ import type {
   AssistantStageStore,
 } from "@/src/features/in-app-agent/stage/state/assistantStageStore";
 
-function readRendererPreference(): StageRendererPreference {
-  return new URLSearchParams(window.location.search).get(
-    "assistantStageRenderer",
-  ) === "css"
-    ? "css"
-    : "webgl";
+const MAX_SLOW_MOTION = 20;
+
+/**
+ * Review affordances: `?assistantStageRenderer=css` forces the fallback
+ * renderer and `?assistantStageSlowMotion=<factor>` stretches the flight.
+ */
+function readReviewOptions(): {
+  rendererPreference: StageRendererPreference;
+  slowMotion: number;
+} {
+  const params = new URLSearchParams(window.location.search);
+  const slowMotion = Number(params.get("assistantStageSlowMotion"));
+  return {
+    rendererPreference:
+      params.get("assistantStageRenderer") === "css" ? "css" : "webgl",
+    slowMotion:
+      Number.isFinite(slowMotion) && slowMotion > 1
+        ? Math.min(slowMotion, MAX_SLOW_MOTION)
+        : 1,
+  };
 }
 
 function focusComposer(chat: HTMLElement | null) {
@@ -61,7 +75,7 @@ function useStageFlight(params: {
       prefersReducedMotion: window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches,
-      rendererPreference: readRendererPreference(),
+      ...readReviewOptions(),
       onOpened: () => {
         store.getState().actions.markOpened();
         // On touch screens, focusing would raise the keyboard over the landing.
@@ -97,12 +111,10 @@ function useStageFlight(params: {
 export function AssistantStageOverlay({
   store,
   session,
-  onRequestClose,
   children,
 }: {
   store: AssistantStageStore;
   session: AssistantStageSession;
-  onRequestClose: () => void;
   children: ReactNode;
 }) {
   const phase = useStore(store, (state) => state.phase);
@@ -142,12 +154,6 @@ export function AssistantStageOverlay({
         aria-modal="true"
         aria-label="Assistant"
         className="fixed inset-0 overflow-hidden"
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && !event.defaultPrevented) {
-            event.preventDefault();
-            onRequestClose();
-          }
-        }}
       >
         <div
           ref={backdropRef}

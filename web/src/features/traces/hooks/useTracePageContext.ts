@@ -18,7 +18,11 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 export function useTracePageContext(surface: PageContextSurface) {
   const { trace, observations, metricEmphasis, isPlaceholderData } =
     useTraceData();
-  const { selectedNodeId } = useSelection();
+  const { selectedNodeId, defaultObservationId } = useSelection();
+  // The default selection is the root, which the trace already describes;
+  // only an observation the user picked is a focus.
+  const focusedObservationId =
+    selectedNodeId !== defaultObservationId ? selectedNodeId : null;
   const { asPath } = useRouter();
   const { traceTotalCost, traceTotalDurationMs } = metricEmphasis.totals;
 
@@ -35,15 +39,15 @@ export function useTracePageContext(surface: PageContextSurface) {
               totalCostUsd: traceTotalCost?.toNumber(),
               durationMs: traceTotalDurationMs,
             },
-            selectedObservationId: selectedNodeId,
+            selectedObservationId: focusedObservationId,
             surface,
             path: asPath,
           }),
     [
       asPath,
       isPlaceholderData,
+      focusedObservationId,
       observations,
-      selectedNodeId,
       surface,
       trace,
       traceTotalCost,

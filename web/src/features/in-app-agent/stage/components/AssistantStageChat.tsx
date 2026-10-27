@@ -106,6 +106,7 @@ export function AssistantStageChat({
         </header>
         <StageChatThread
           messages={controller.messages}
+          isResponding={controller.isResponding}
           draft={controller.activeConversationId === null ? draft : null}
           stageCapturedAt={context.capturedAt}
           suggestions={suggestionsFor(draft)}

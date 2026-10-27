@@ -11,6 +11,7 @@ import type {
 
 type StageChatThreadProps = {
   messages: StageChatMessage[];
+  isResponding: boolean;
   /** The handed-over page, shown as an unsent message until the first send. */
   draft: StageContextAttachment | null;
   /** Identifies this session's attachment, the one the page flies back out of. */
@@ -18,6 +19,12 @@ type StageChatThreadProps = {
   suggestions: string[];
   onSuggestion: (text: string) => void;
   onOpenPage: () => void;
+};
+
+const PENDING_REPLY: StageChatMessage = {
+  id: "pending-reply",
+  role: "assistant",
+  content: { type: "loading", label: "Reading the attached page" },
 };
 
 function UserTurn({
@@ -110,6 +117,7 @@ function EmptyThreadIntro({
  */
 export function StageChatThread({
   messages,
+  isResponding,
   draft,
   stageCapturedAt,
   suggestions,
@@ -157,6 +165,9 @@ export function StageChatThread({
             <AssistantTurn key={message.id} message={message} />
           ),
         )}
+        {isResponding && messages.at(-1)?.role === "user" ? (
+          <AssistantTurn message={PENDING_REPLY} />
+        ) : null}
       </div>
     </div>
   );

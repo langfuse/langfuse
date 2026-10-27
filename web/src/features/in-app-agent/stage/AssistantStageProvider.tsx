@@ -29,6 +29,7 @@ import {
 import { resolveCaptureScale } from "@/src/features/in-app-agent/stage/capture/resolveCaptureScale";
 import { AssistantStageChat } from "@/src/features/in-app-agent/stage/components/AssistantStageChat";
 import { AssistantStageOverlay } from "@/src/features/in-app-agent/stage/components/AssistantStageOverlay";
+import { AssistantStagePreparingIndicator } from "@/src/features/in-app-agent/stage/components/AssistantStagePreparingIndicator";
 import {
   createMockStageChatStore,
   type MockStageChatStore,
@@ -114,7 +115,15 @@ function createStore(
         path: `${window.location.pathname}${window.location.search}`,
         documentTitle: document.title,
       }),
-    acquireCapture: () => captureCache.get().acquire(),
+    acquireCapture: () => {
+      const cache = captureCache.get();
+      // Once someone uses the stage, keep the next capture warm. Not on touch
+      // screens, where the background work costs battery.
+      if (window.matchMedia("(pointer: fine)").matches) {
+        cache.enableIdlePrewarm();
+      }
+      return cache.acquire();
+    },
     prewarmCapture: () => {
       captureCache.get().prewarm();
     },
@@ -122,6 +131,10 @@ function createStore(
     readViewportAspectRatio: () => window.innerWidth / window.innerHeight,
     createId: () => crypto.randomUUID(),
     now: () => new Date(),
+    waitForPaint: () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => setTimeout(resolve, 0));
+      }),
   });
 }
 
@@ -226,6 +239,29 @@ function EnabledAssistantStage({ children }: { children: ReactNode }) {
     [close, store, toggle],
   );
 
+  const isCovering = VISIBLE_PHASES.has(phase);
+
+  // External system: keyboard events. While the stage covers the page it owns
+  // Escape, at the window's capture phase, before overlays of the hidden page
+  // (a trace peek listens on the document) could dismiss themselves too.
+  useEffect(() => {
+    if (!isCovering) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+    };
+  }, [close, isCovering]);
+
   // External system: the global keyboard shortcut.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -243,13 +279,9 @@ function EnabledAssistantStage({ children }: { children: ReactNode }) {
   return (
     <AssistantStageContext.Provider value={value}>
       {children}
-      {session && VISIBLE_PHASES.has(phase) ? (
-        <AssistantStageOverlay
-          key={session.id}
-          store={store}
-          session={session}
-          onRequestClose={close}
-        >
+      {phase === "preparing" ? <AssistantStagePreparingIndicator /> : null}
+      {session && isCovering ? (
+        <AssistantStageOverlay key={session.id} store={store} session={session}>
           {isAssistantAvailable ? (
             <LiveStageChat
               draft={{

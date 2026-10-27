@@ -16,9 +16,12 @@ import {
 } from "@/src/features/page-context/types";
 import {
   compactNumberFormatter,
-  costFormatter,
   latencyFormatter,
+  usdFormatter,
 } from "@/src/utils/numbers";
+
+/** Same precision as the trace view's metric badges, so the numbers match. */
+const formatCost = (cost: number) => usdFormatter(cost, 2, 3);
 
 export type TraceForPageContext = {
   id: string;
@@ -80,7 +83,7 @@ function observationFacts(
       fact(
         "cost_usd",
         "Cost",
-        costFormatter(observation.totalCost),
+        formatCost(observation.totalCost),
         observation.totalCost,
       ),
     );
@@ -229,7 +232,7 @@ export function buildTracePageContext(params: {
       fact(
         "cost_usd",
         "Cost",
-        costFormatter(totals.totalCostUsd),
+        formatCost(totals.totalCostUsd),
         totals.totalCostUsd,
       ),
     );

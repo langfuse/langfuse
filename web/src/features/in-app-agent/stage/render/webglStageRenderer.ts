@@ -65,8 +65,9 @@ void main() {
 /** Perspective distance in CSS px; larger is flatter. */
 const PERSPECTIVE_PX = 1800;
 /** Mip bias at the deepest point of the flight; ~1 halves the resolution. */
-const MAX_BLUR_BIAS = 0.9;
+const MAX_BLUR_BIAS = 0.45;
 const SHADOW_ALPHA = 0.22;
+const SHADOW_MAX_COVERAGE = 0.85;
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string) {
   const shader = gl.createShader(type);
@@ -107,13 +108,53 @@ function link(gl: WebGL2RenderingContext) {
  * texel-for-pixel copy of the page. Returns null when WebGL 2 is unavailable
  * or the texture exceeds the GPU's limit, so the caller can fall back.
  */
+/** A texture beyond the canvas resolution only costs upload and mipmap time. */
+function downscaleToCanvasSize(
+  source: HTMLCanvasElement,
+  target: HTMLCanvasElement,
+) {
+  if (source.width <= target.width) {
+    return source;
+  }
+  const scaled = document.createElement("canvas");
+  scaled.width = target.width;
+  scaled.height = target.height;
+  const context = scaled.getContext("2d");
+  if (!context) {
+    return source;
+  }
+  context.imageSmoothingQuality = "high";
+  context.drawImage(source, 0, 0, scaled.width, scaled.height);
+  return scaled;
+}
+
+let cachedIsSoftwareRendered: boolean | undefined;
+
+/**
+ * Whether WebGL here runs on the CPU (SwiftShader, llvmpipe). Shading a
+ * full-viewport quad at device resolution is slow there, so the renderer
+ * draws at CSS resolution instead.
+ */
+function isSoftwareRendered() {
+  if (cachedIsSoftwareRendered === undefined) {
+    const probe = document.createElement("canvas");
+    const gl = probe.getContext("webgl2", {
+      failIfMajorPerformanceCaveat: true,
+    });
+    cachedIsSoftwareRendered = gl === null;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  }
+  return cachedIsSoftwareRendered;
+}
+
 export const createWebGlStageRenderer: StageRendererFactory = ({
   capture,
   onContextLost,
 }) => {
+  const isSoftware = isSoftwareRendered();
   const canvas = document.createElement("canvas");
-  canvas.width = capture.canvas.width;
-  canvas.height = capture.canvas.height;
+  canvas.width = isSoftware ? capture.cssWidth : capture.canvas.width;
+  canvas.height = isSoftware ? capture.cssHeight : capture.canvas.height;
   pinFullViewport(canvas);
 
   const gl = canvas.getContext("webgl2", {
@@ -168,7 +209,7 @@ export const createWebGlStageRenderer: StageRendererFactory = ({
     gl.RGBA,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    capture.canvas,
+    isSoftware ? downscaleToCanvasSize(capture.canvas, canvas) : capture.canvas,
   );
   gl.generateMipmap(gl.TEXTURE_2D);
   gl.texParameteri(
@@ -179,7 +220,9 @@ export const createWebGlStageRenderer: StageRendererFactory = ({
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const anisotropy = gl.getExtension("EXT_texture_filter_anisotropic");
+  const anisotropy = isSoftware
+    ? null
+    : gl.getExtension("EXT_texture_filter_anisotropic");
   if (anisotropy) {
     gl.texParameterf(
       gl.TEXTURE_2D,
@@ -235,7 +278,12 @@ export const createWebGlStageRenderer: StageRendererFactory = ({
       gl.uniform1f(uniforms.tilt, frame.tilt);
       gl.uniform1f(uniforms.radius, frame.radius);
 
-      if (frame.shadow > 0.001) {
+      // While the page still covers most of the screen its shadow falls
+      // offscreen; skipping the pass saves a full-viewport fill.
+      if (
+        frame.shadow > 0.001 &&
+        frame.rect.width < capture.cssWidth * SHADOW_MAX_COVERAGE
+      ) {
         const blur = 8 + 28 * frame.shadow;
         gl.uniform1i(uniforms.pass, 0);
         gl.uniform1f(uniforms.expand, blur * 2);

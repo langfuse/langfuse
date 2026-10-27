@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
+import { ASSISTANT_STAGE_LAUNCHER_ATTRIBUTE } from "@/src/features/in-app-agent/stage/constants";
 import {
   useAssistantStage,
   useAssistantStagePhase,
@@ -38,6 +39,7 @@ export function AssistantStageLauncherButton({
 
   return (
     <Button
+      {...{ [ASSISTANT_STAGE_LAUNCHER_ATTRIBUTE]: "" }}
       type="button"
       variant="outline"
       aria-label={`${isOpen ? "Close" : "Open"} the assistant with this page attached`}

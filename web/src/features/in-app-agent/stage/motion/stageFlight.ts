@@ -129,6 +129,8 @@ export function createStageFlight(params: {
   capture: PageCapture | null;
   prefersReducedMotion: boolean;
   rendererPreference: StageRendererPreference;
+  /** Stretches the flight for frame-by-frame review; 1 in normal use. */
+  slowMotion: number;
   onOpened: () => void;
   onClosed: () => void;
 }): StageFlight {
@@ -253,9 +255,9 @@ export function createStageFlight(params: {
     transition
       .animateTo(target, {
         durationMs:
-          target === 1
+          (target === 1
             ? ASSISTANT_STAGE_TIMINGS.openMs
-            : ASSISTANT_STAGE_TIMINGS.closeMs,
+            : ASSISTANT_STAGE_TIMINGS.closeMs) * params.slowMotion,
         ease: target === 1 ? easeStageOpen : easeStageClose,
       })
       .then((result) => {

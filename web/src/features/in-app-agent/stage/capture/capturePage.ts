@@ -9,7 +9,7 @@ export type PageCapture = {
   durationMs: number;
 };
 
-const FIT_ATTRIBUTE = "data-assistant-capture-fit";
+export const CAPTURE_FIT_ATTRIBUTE = "data-assistant-capture-fit";
 const FIT_STYLE_ID = "assistant-capture-fit-style";
 const ELLIPSIS_CANDIDATES = '.truncate, [class*="text-ellipsis"]';
 
@@ -34,7 +34,7 @@ function markTextThatFits(root: ParentNode): Element[] {
       parseFloat(style.paddingLeft) -
       parseFloat(style.paddingRight);
     if (range.getBoundingClientRect().width <= contentWidth + 0.5) {
-      element.setAttribute(FIT_ATTRIBUTE, "");
+      element.setAttribute(CAPTURE_FIT_ATTRIBUTE, "");
       marked.push(element);
     }
   }
@@ -47,7 +47,7 @@ function ensureFitStyle() {
   }
   const style = document.createElement("style");
   style.id = FIT_STYLE_ID;
-  style.textContent = `[${FIT_ATTRIBUTE}]{text-overflow:clip!important}`;
+  style.textContent = `[${CAPTURE_FIT_ATTRIBUTE}]{text-overflow:clip!important}`;
   document.head.appendChild(style);
 }
 
@@ -83,7 +83,10 @@ function placeholderImageUrl(info: { width?: number; height?: number }) {
  * overlays — into a canvas. The live page is not modified beyond temporary
  * attributes that do not change its rendering.
  */
-export async function capturePage(scale: number): Promise<PageCapture> {
+export async function capturePage(
+  scale: number,
+  options: { yieldToPage: boolean },
+): Promise<PageCapture> {
   const { snapdom } = await import("@zumer/snapdom");
   const startedAt = performance.now();
   const cssWidth = window.innerWidth;
@@ -95,6 +98,9 @@ export async function capturePage(scale: number): Promise<PageCapture> {
     const canvas = await snapdom.toCanvas(document.body, {
       dpr: scale,
       scale: 1,
+      // Background captures hand the event loop a turn every frame, so the
+      // page stays responsive; on-demand ones run in one task, the fastest.
+      fast: !options.yieldToPage,
       embedFonts: true,
       reconcile: true,
       backgroundColor: getComputedStyle(document.body).backgroundColor,
@@ -112,7 +118,7 @@ export async function capturePage(scale: number): Promise<PageCapture> {
     };
   } finally {
     for (const element of marked) {
-      element.removeAttribute(FIT_ATTRIBUTE);
+      element.removeAttribute(CAPTURE_FIT_ATTRIBUTE);
     }
   }
 }
