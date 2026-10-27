@@ -38,6 +38,11 @@
   sample rate. The trace filter applies only to the optional past-trace batch. Configure Topics loads and saves idle time
   through the project's tracing readiness setting; triggers stamp the configured
   summary and embedding models into the frozen request.
+- App shell preview (one sidebar with hover overlay and pinning, workspace
+  switcher, per-browser classic/new switch): `src/features/app-shell`, owner
+  map in its `README.md`. `/` redirects to the last-used project through
+  `src/features/projects/server/getLandingServerSideProps.ts`; the
+  organization overview lives at `/organizations`.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
