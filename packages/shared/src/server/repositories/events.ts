@@ -1541,6 +1541,9 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
         end: convertDateToClickhouseDateTime(end),
         ...(projectIds ? { projectIds } : {}),
       },
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
       preferredClickhouseService: "EventsReadOnly",
     });
 
